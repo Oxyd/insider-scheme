@@ -95,7 +95,10 @@ enum class opcode : std::uint8_t {
   jump,            // jump <offset>
   jump_unless,     // jump-unless <register> <offset>
   data,            // data <x> <y> <z> -- a way to embed extra operands in the instruction stream
-  make_closure     // make-closure <procedure> <number of free variables> <destination>
+  make_closure,    // make-closure <procedure> <number of free variables> <destination>
+  box,             // box <what> <> <destination> -- make a box containing what
+  unbox,           // unbox <what> <> <destination> -- extract contained value from a box
+  box_set,         // box-set <box> <value> -- replace box's contained value with a new one
 };
 
 // Metainformation about an opcode. Used for decoding instructions.

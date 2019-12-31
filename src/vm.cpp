@@ -321,13 +321,26 @@ execute_one(execution_state& state) {
     assert(!"Attempting to execute data");
     break;
 
-  case opcode::make_closure:
+  case opcode::make_closure: {
     ptr<procedure> proc = assume<procedure>(get_register(state, instr.x));
     operand::representation_type num_captures = instr.y.immediate_value();
     operand dest = instr.dest;
     std::vector<generic_ptr> captures = collect_data(state, num_captures);
 
     set_register(state, dest, state.ctx.store.make<closure>(proc, captures));
+    break;
+  }
+
+  case opcode::box:
+    set_register(state, instr.dest, state.ctx.store.make<box>(get_register(state, instr.x)));
+    break;
+
+  case opcode::unbox:
+    set_register(state, instr.dest, expect<box>(get_register(state, instr.x))->get());
+    break;
+
+  case opcode::box_set:
+    expect<box>(get_register(state, instr.x))->set(get_register(state, instr.y));
     break;
   }
 }

@@ -700,3 +700,15 @@ TEST_F(scheme, compile_closure) {
   );
   EXPECT_EQ(expect<integer>(result2)->value(), 120);
 }
+
+TEST_F(scheme, compile_box) {
+  generic_ptr result = eval(
+    R"(
+      (#$let ((b1 (#$box 5))
+              (b2 (#$box 7)))
+        (#$box-set! b1 (+ (#$unbox b1) (#$unbox b2)))
+        (#$unbox b1))
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result)->value(), 12);
+}

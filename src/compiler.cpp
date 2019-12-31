@@ -604,6 +604,30 @@ compile_reference(procedure_context& proc, reference_syntax const& stx) {
   }
 }
 
+static shared_register
+compile_box(context& ctx, procedure_context& proc, box_syntax const& stx) {
+  shared_register value = compile_expression(ctx, proc, *stx.expression, false);
+  shared_register result = proc.registers.allocate_local();
+  proc.bytecode.push_back({opcode::box, *value, {}, *result});
+  return result;
+}
+
+static shared_register
+compile_unbox(context& ctx, procedure_context& proc, unbox_syntax const& stx) {
+  shared_register box = compile_expression(ctx, proc, *stx.box_expr, false);
+  shared_register result = proc.registers.allocate_local();
+  proc.bytecode.push_back({opcode::unbox, *box, {}, *result});
+  return result;
+}
+
+static shared_register
+compile_box_set(context& ctx, procedure_context& proc, box_set_syntax const& stx) {
+  shared_register box = compile_expression(ctx, proc, *stx.box_expr, false);
+  shared_register value = compile_expression(ctx, proc, *stx.value_expr, false);
+  proc.bytecode.push_back({opcode::box_set, *box, *value, {}});
+  return shared_register{ctx.statics.void_};
+}
+
 // Translate an expression and return the register where the result is stored.
 static shared_register
 compile_expression(context& ctx, procedure_context& proc, syntax const& stx, bool tail) {
@@ -621,6 +645,12 @@ compile_expression(context& ctx, procedure_context& proc, syntax const& stx, boo
     return compile_lambda(ctx, proc, *lambda);
   else if (auto* if_ = std::get_if<if_syntax>(&stx.value))
     return compile_if(ctx, proc, *if_, tail);
+  else if (auto* box = std::get_if<box_syntax>(&stx.value))
+    return compile_box(ctx, proc, *box);
+  else if (auto* unbox = std::get_if<unbox_syntax>(&stx.value))
+    return compile_unbox(ctx, proc, *unbox);
+  else if (auto* box_set = std::get_if<box_set_syntax>(&stx.value))
+    return compile_box_set(ctx, proc, *box_set);
   else {
     assert(!"Unexpected syntax");
     return {};

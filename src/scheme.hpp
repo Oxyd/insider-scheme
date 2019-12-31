@@ -492,6 +492,12 @@ is_list(generic_ptr);
 std::size_t
 list_length(generic_ptr);
 
+generic_ptr
+cadr(ptr<pair> const&);
+
+generic_ptr
+caddr(ptr<pair> const&);
+
 // Make a list out of given objects.
 template <typename... Ts>
 generic_ptr
@@ -547,6 +553,19 @@ public:
 
 private:
   std::string value_;
+};
+
+// Mutable container for a single element. Essentially a pointer.
+class box : public compound_object<1> {
+public:
+  explicit
+  box(generic_ptr const&);
+
+  generic_ptr
+  get() const;
+
+  void
+  set(generic_ptr const&);
 };
 
 // If the given string has been interned previously in the thread-local context,

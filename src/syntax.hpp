@@ -56,6 +56,19 @@ struct if_syntax {
   std::unique_ptr<syntax> alternative;
 };
 
+struct box_syntax {
+  std::unique_ptr<syntax> expression;
+};
+
+struct unbox_syntax {
+  std::unique_ptr<syntax> box_expr;
+};
+
+struct box_set_syntax {
+  std::unique_ptr<syntax> box_expr;
+  std::unique_ptr<syntax> value_expr;
+};
+
 struct syntax {
   using value_type = std::variant<
     literal_syntax,
@@ -64,7 +77,10 @@ struct syntax {
     let_syntax,
     letrec_syntax,
     lambda_syntax,
-    if_syntax
+    if_syntax,
+    box_syntax,
+    unbox_syntax,
+    box_set_syntax
   >;
 
   value_type value;

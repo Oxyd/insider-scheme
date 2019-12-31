@@ -413,6 +413,16 @@ list_length(generic_ptr x) {
   return result;
 }
 
+generic_ptr
+cadr(ptr<pair> const& x) {
+  return expect<pair>(x->cdr())->car();
+}
+
+generic_ptr
+caddr(ptr<pair> const& x) {
+  return expect<pair>(expect<pair>(x->cdr())->cdr())->car();
+}
+
 vector::vector(std::size_t size)
   : size_{size}
 {
@@ -449,6 +459,20 @@ vector::hash() const {
     result = 3 * result ^ ref(i)->hash();
 
   return result;
+}
+
+box::box(generic_ptr const& value)
+  : compound_object{{value.get()}}
+{ }
+
+generic_ptr
+box::get() const {
+  return subobjects_[0];
+}
+
+void
+box::set(generic_ptr const& value) {
+  subobjects_[0] = value.get();
 }
 
 procedure::procedure(scm::bytecode bc, unsigned locals_size, unsigned num_args)

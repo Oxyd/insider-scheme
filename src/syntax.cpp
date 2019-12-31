@@ -131,6 +131,31 @@ parse_application(context& ctx, ptr<pair> const& datum) {
   return make_syntax<application_syntax>(std::move(target), std::move(arguments));
 }
 
+static std::unique_ptr<syntax>
+parse_box(context& ctx, ptr<pair> const& datum) {
+  if (!is_list(datum) || list_length(datum) != 2)
+    throw std::runtime_error{"Invalid #$box syntax"};
+
+  return make_syntax<box_syntax>(parse(ctx, cadr(datum)));
+}
+
+static std::unique_ptr<syntax>
+parse_unbox(context& ctx, ptr<pair> const& datum) {
+  if (!is_list(datum) || list_length(datum) != 2)
+    throw std::runtime_error{"Invalid #$unbox syntax"};
+
+  return make_syntax<unbox_syntax>(parse(ctx, cadr(datum)));
+}
+
+static std::unique_ptr<syntax>
+parse_box_set(context& ctx, ptr<pair> const& datum) {
+  if (!is_list(datum) || list_length(datum) != 3)
+    throw std::runtime_error{"Invalid #$box-set! syntax"};
+
+  return make_syntax<box_set_syntax>(parse(ctx, cadr(datum)),
+                                     parse(ctx, caddr(datum)));
+}
+
 std::unique_ptr<syntax>
 parse(context& ctx, generic_ptr const& datum) {
   if (is<integer>(datum) || is<boolean>(datum))
@@ -146,6 +171,12 @@ parse(context& ctx, generic_ptr const& datum) {
         return parse_lambda(ctx, p);
       else if (head_symbol->value() == "#$if")
         return parse_if(ctx, p);
+      else if (head_symbol->value() == "#$box")
+        return parse_box(ctx, p);
+      else if (head_symbol->value() == "#$unbox")
+        return parse_unbox(ctx, p);
+      else if (head_symbol->value() == "#$box-set!")
+        return parse_box_set(ctx, p);
     }
 
     return parse_application(ctx, p);
