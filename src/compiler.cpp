@@ -1,6 +1,6 @@
 #include "compiler.hpp"
 
-#include "syntax.hpp"
+#include "analyser.hpp"
 
 #include <fmt/format.h>
 
@@ -670,7 +670,7 @@ compile_body(context& ctx, procedure_context& proc, body_syntax const& stx, bool
 
 ptr<procedure>
 compile_expression(context& ctx, generic_ptr const& datum, ptr<module> const& mod) {
-  auto stx = parse(ctx, datum);
+  auto stx = analyse(ctx, datum);
 
   procedure_context proc{nullptr, mod};
   shared_register result = compile_expression(ctx, proc, *stx, true);

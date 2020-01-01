@@ -1,4 +1,4 @@
-#include "syntax.hpp"
+#include "analyser.hpp"
 
 #include <fmt/format.h>
 
@@ -9,6 +9,9 @@ std::unique_ptr<syntax>
 make_syntax(Args&&... args) {
   return std::make_unique<syntax>(syntax{T{{std::forward<Args>(args)}...}});
 }
+
+static std::unique_ptr<syntax>
+parse(context& ctx, generic_ptr const& datum);
 
 static definition_pair_syntax
 parse_definition_pair(context& ctx, ptr<pair> const& datum, std::string const& form_name) {
@@ -156,7 +159,7 @@ parse_box_set(context& ctx, ptr<pair> const& datum) {
                                      parse(ctx, caddr(datum)));
 }
 
-std::unique_ptr<syntax>
+static std::unique_ptr<syntax>
 parse(context& ctx, generic_ptr const& datum) {
   if (is<integer>(datum) || is<boolean>(datum))
     return make_syntax<literal_syntax>(datum);
@@ -183,6 +186,11 @@ parse(context& ctx, generic_ptr const& datum) {
   }
   else
     throw std::runtime_error{"Unimplemented"};
+}
+
+std::unique_ptr<syntax>
+analyse(context& ctx, generic_ptr const& datum) {
+  return parse(ctx, datum);
 }
 
 } // namespace game::scm

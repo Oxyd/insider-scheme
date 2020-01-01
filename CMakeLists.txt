@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 3.16)
 project(insider-scheme)
 
 set(scheme_sources
+  src/analyser.cpp
   src/bytecode.cpp
   src/compiler.cpp
   src/io.cpp
   src/scheme.cpp
-  src/syntax.cpp
   src/vm.cpp
   )
 

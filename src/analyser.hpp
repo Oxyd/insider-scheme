@@ -1,5 +1,5 @@
-#ifndef SCHEME_SYNTAX_HPP
-#define SCHEME_SYNTAX_HPP
+#ifndef SCHEME_ANALYSER_HPP
+#define SCHEME_ANALYSER_HPP
 
 #include "scheme.hpp"
 
@@ -87,7 +87,7 @@ struct syntax {
 };
 
 std::unique_ptr<syntax>
-parse(context&, generic_ptr const& datum);
+analyse(context&, generic_ptr const& datum);
 
 } // namespace game::scm
 
