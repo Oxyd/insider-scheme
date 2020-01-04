@@ -733,3 +733,13 @@ TEST_F(scheme, compile_box) {
   );
   EXPECT_EQ(expect<integer>(result)->value(), 12);
 }
+
+TEST_F(scheme, compile_higher_order_arithmetic) {
+  generic_ptr result = eval(
+    R"(
+      (#$let ((f (#$lambda (op x y) (op x y))))
+        (f + 2 3))
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result)->value(), 5);
+}
