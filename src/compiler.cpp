@@ -523,7 +523,9 @@ compile_application(context& ctx, procedure_context& proc, application_syntax co
       if (*tag == module::binding_tag::plus || *tag == module::binding_tag::minus
           || *tag == module::binding_tag::times || *tag == module::binding_tag::divide)
         return compile_arithmetic(ctx, proc, stx, *tag);
-      else if (*tag == module::binding_tag::less_than || *tag == module::binding_tag::greater_than)
+      else if (*tag == module::binding_tag::less_than
+               || *tag == module::binding_tag::greater_than
+               || *tag == module::binding_tag::arith_equal)
         return compile_relational(ctx, proc, stx, *tag);
     }
 
