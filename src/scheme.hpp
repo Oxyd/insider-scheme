@@ -498,6 +498,15 @@ cadr(ptr<pair> const&);
 generic_ptr
 caddr(ptr<pair> const&);
 
+generic_ptr
+cadddr(ptr<pair> const&);
+
+generic_ptr
+cddr(ptr<pair> const&);
+
+generic_ptr
+cdddr(ptr<pair> const&);
+
 // Make a list out of given objects.
 template <typename... Ts>
 generic_ptr
@@ -701,6 +710,17 @@ expect(generic_ptr const& x) {
     return {static_cast<T*>(x.get())};
   else
     throw type_error{};
+}
+
+// Same as expect, but throws a runtime_error with the given message if the
+// actual type isn't the expected one.
+template <typename T>
+ptr<T>
+expect(generic_ptr const& x, std::string const& message) {
+  if (is<T>(x))
+    return {static_cast<T*>(x.get())};
+  else
+    throw std::runtime_error{message};
 }
 
 // Assert that an object is of a given type and return the appropriate typed

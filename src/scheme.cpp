@@ -423,6 +423,21 @@ caddr(ptr<pair> const& x) {
   return expect<pair>(expect<pair>(x->cdr())->cdr())->car();
 }
 
+generic_ptr
+cadddr(ptr<pair> const& x) {
+  return expect<pair>(expect<pair>(expect<pair>(x->cdr())->cdr())->cdr())->car();
+}
+
+generic_ptr
+cddr(ptr<pair> const& x) {
+  return expect<pair>(x->cdr())->cdr();
+}
+
+generic_ptr
+cdddr(ptr<pair> const& x) {
+  return expect<pair>(expect<pair>(x->cdr())->cdr())->cdr();
+}
+
 vector::vector(std::size_t size)
   : size_{size}
 {

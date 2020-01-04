@@ -40,9 +40,9 @@ struct let_syntax {
   body_syntax body;
 };
 
-struct letrec_syntax {
-  std::vector<definition_pair_syntax> definitions;
-  body_syntax body;
+struct set_syntax {
+  ptr<symbol> target;
+  std::unique_ptr<syntax> expression;
 };
 
 struct lambda_syntax {
@@ -75,7 +75,7 @@ struct syntax {
     reference_syntax,
     application_syntax,
     let_syntax,
-    letrec_syntax,
+    set_syntax,
     lambda_syntax,
     if_syntax,
     box_syntax,
@@ -83,7 +83,13 @@ struct syntax {
     box_set_syntax
   >;
 
+  syntax* parent = nullptr;
   value_type value;
+
+  syntax(syntax* p, value_type value)
+    : parent{p}
+    , value{std::move(value)}
+  { }
 };
 
 std::unique_ptr<syntax>

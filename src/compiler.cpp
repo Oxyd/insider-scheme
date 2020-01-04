@@ -352,22 +352,6 @@ compile_relational(context& ctx, procedure_context& proc, application_syntax con
   return compile_fold(ctx, proc, stx.arguments, op);
 }
 
-ptr<symbol>
-compile_let_binding(context& ctx, ptr<pair> const& binding, std::string const& form_name) {
-  if (!is<symbol>(binding->car()))
-    throw std::runtime_error{fmt::format("Invalid {} syntax: Binding not a symbol", form_name)};
-
-  auto name = assume<symbol>(binding->car());
-
-  if (binding->cdr() == ctx.constants->null)
-    throw std::runtime_error{fmt::format("Invalid {} syntax: No expression for symbol {}",
-                                         form_name, name->value())};
-  if (!is<pair>(binding->cdr()))
-    throw std::runtime_error{fmt::format("Invalid {} syntax in binding definition", form_name)};
-
-  return name;
-}
-
 static shared_register
 compile_let(context& ctx, procedure_context& proc, let_syntax const& stx, bool tail) {
   symbol_bindings::scope scope;
@@ -381,32 +365,15 @@ compile_let(context& ctx, procedure_context& proc, let_syntax const& stx, bool t
 }
 
 static shared_register
-compile_letrec(context& ctx, procedure_context& proc, letrec_syntax const& stx, bool tail) {
-  struct parsed_binding {
-    ptr<symbol> name;
-    syntax const* expr;
-    shared_register reg;
-  };
+compile_set(context& ctx, procedure_context& proc, set_syntax const& stx) {
+  shared_register dest = proc.bindings.lookup(stx.target);
+  if (!dest)
+    throw std::runtime_error{fmt::format("Unbound symbol {}", stx.target->value())};
 
-  std::vector<parsed_binding> bindings;
-  for (auto const& def : stx.definitions)
-    bindings.push_back({def.name, def.expression.get(), {}});
+  shared_register value = compile_expression(ctx, proc, *stx.expression, false);
+  proc.bytecode.push_back(instruction{opcode::set, *value, {}, *dest});
 
-  symbol_bindings::scope scope;
-  for (parsed_binding& binding : bindings) {
-    shared_register value = proc.registers.allocate_local();
-    proc.bytecode.push_back({opcode::set, ctx.statics.void_, {}, *value});
-    scope.emplace_back(symbol_bindings::binding{binding.name, value});
-    binding.reg = std::move(value);
-  }
-
-  symbol_bindings::unique_scope us = proc.bindings.push_scope(std::move(scope));
-  for (parsed_binding const& binding : bindings) {
-    shared_register value = compile_expression(ctx, proc, *binding.expr, false);
-    proc.bytecode.push_back({opcode::set, *value, {}, *binding.reg});
-  }
-
-  return compile_body(ctx, proc, stx.body, tail);
+  return shared_register{ctx.statics.void_};
 }
 
 static void
@@ -639,8 +606,8 @@ compile_expression(context& ctx, procedure_context& proc, syntax const& stx, boo
     return compile_application(ctx, proc, *app, tail);
   else if (auto* let = std::get_if<let_syntax>(&stx.value))
     return compile_let(ctx, proc, *let, tail);
-  else if (auto* letrec = std::get_if<letrec_syntax>(&stx.value))
-    return compile_letrec(ctx, proc, *letrec, tail);
+  else if (auto* set = std::get_if<set_syntax>(&stx.value))
+    return compile_set(ctx, proc, *set);
   else if (auto* lambda = std::get_if<lambda_syntax>(&stx.value))
     return compile_lambda(ctx, proc, *lambda);
   else if (auto* if_ = std::get_if<if_syntax>(&stx.value))

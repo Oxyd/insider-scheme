@@ -668,17 +668,6 @@ TEST_F(scheme, compile_if) {
   EXPECT_EQ(expect<integer>(result10)->value(), 16);
 }
 
-TEST_F(scheme, compile_letrec) {
-  generic_ptr result1 = eval(
-    R"(
-      (#$letrec ((a 3)
-                 (b (+ a 2)))
-        (+ a b))
-    )"
-  );
-  EXPECT_EQ(expect<integer>(result1)->value(), 8);
-}
-
 TEST_F(scheme, compile_closure) {
   generic_ptr result1 = eval(
     R"(
@@ -691,14 +680,46 @@ TEST_F(scheme, compile_closure) {
 
   generic_ptr result2 = eval(
     R"(
-      (#$letrec ((fact (#$lambda (n)
-                         (#$if (= n 0)
-                           1
-                           (* n (fact (- n 1)))))))
+      (#$let ((x 7))
+        (#$let ((f (#$lambda (y) (+ x y))))
+          (f 3)))
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result2)->value(), 10);
+}
+
+TEST_F(scheme, compile_set) {
+  generic_ptr result1 = eval(
+    R"(
+      (#$let ((x 2))
+        (#$set! x 5)
+        x)
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result1)->value(), 5);
+
+  generic_ptr result2 = eval(
+    R"(
+      (#$let ((fact #void))
+        (#$set! fact (#$lambda (n)
+                       (#$if (= n 0)
+                         1
+                         (* n (fact (- n 1))))))
         (fact 5))
     )"
   );
   EXPECT_EQ(expect<integer>(result2)->value(), 120);
+
+  generic_ptr result3 = eval(
+    R"(
+      (#$let ((f (#$lambda (x)
+                   (#$set! x (* 2 x))
+                   (#$lambda (y)
+                     (+ x y)))))
+        ((f 5) 3))
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result3)->value(), 13);
 }
 
 TEST_F(scheme, compile_box) {

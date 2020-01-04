@@ -19,6 +19,8 @@ struct boolean_literal {
   bool value;
 };
 
+struct void_literal { };
+
 struct identifier {
   std::string value;
 };
@@ -29,6 +31,7 @@ using token = std::variant<
   right_paren,
   integer_literal,
   boolean_literal,
+  void_literal,
   identifier
 >;
 
@@ -141,6 +144,14 @@ read_special_literal(std::istream& stream) {
       return boolean_literal{false};
   }
 
+  case 'v': {
+    std::string literal = read_until_delimiter(stream);
+    if (literal != "void")
+      throw parse_error{fmt::format("Invalid literal: {}", literal)};
+
+    return void_literal{};
+  }
+
   default:
     throw parse_error{"Unimplemented"};
   }
@@ -248,6 +259,8 @@ read(token first_token, std::istream& stream) {
     return intern(i->value);
   else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token))
     return b->value ? thread_context().constants->t : thread_context().constants->f;
+  else if (void_literal* v = std::get_if<void_literal>(&first_token))
+    return thread_context().constants->void_;
 
   throw parse_error{"Probably unimplemented"};
 }
