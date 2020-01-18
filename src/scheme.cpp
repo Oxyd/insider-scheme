@@ -12,42 +12,65 @@ object::eqv(generic_ptr const& other) const {
   return this == other.get();
 }
 
-generic_ptr::generic_ptr(object* value)
-  : generic_ptr(thread_context().store, value)
-{ }
-
 generic_ptr::generic_ptr(free_store& store, object* value)
-  : generic_ptr_base{value}
+  : generic_ptr_base{store, value}
 {
   store.register_root(this);
 }
 
 generic_ptr::generic_ptr(generic_ptr const& other)
-  : generic_ptr(other.value_)
-{ }
+  : generic_ptr_base(other)
+{
+  assert(store_ || !value_);
 
-generic_ptr::~generic_ptr() {
-  thread_context().store.unregister_root(this);
+  if (store_)
+    store_->register_root(this);
 }
 
-generic_weak_ptr::generic_weak_ptr(object* value)
-  : generic_weak_ptr(thread_context().store, value)
-{ }
+generic_ptr::~generic_ptr() {
+  if (store_)
+    store_->unregister_root(this);
+}
+
+generic_ptr&
+generic_ptr::operator = (generic_ptr const& other) {
+  if (this == &other)
+    return *this;
+
+  if (store_ != other.store_) {
+    if (store_)
+      store_->unregister_root(this);
+
+    store_ = other.store_;
+    if (store_)
+      store_->register_root(this);
+  }
+
+  value_ = other.value_;
+  assert(store_ || !value_);
+
+  return *this;
+}
 
 generic_weak_ptr::generic_weak_ptr(free_store& store, object* value)
-  : generic_ptr_base{value}
+  : generic_ptr_base{store, value}
 {
   if (value)
     store.register_weak(this, value);
 }
 
 generic_weak_ptr::generic_weak_ptr(generic_weak_ptr const& other)
-  : generic_weak_ptr{other.value_}
-{ }
+  : generic_weak_ptr{other.store(), other.value_}
+{
+  assert(store_ || !value_);
+
+  if (store_ && value_)
+    store_->register_weak(this, value_);
+}
 
 generic_weak_ptr::~generic_weak_ptr() {
-  if (value_)
-    thread_context().store.unregister_weak(this, value_);
+  if (value_ && store_)
+    store_->unregister_weak(this, value_);
 }
 
 generic_weak_ptr&
@@ -61,19 +84,19 @@ generic_weak_ptr::operator = (generic_weak_ptr const& other) {
 generic_weak_ptr&
 generic_weak_ptr::operator = (object* value) {
   if (value_)
-    thread_context().store.unregister_weak(this, value_);
+    store_->unregister_weak(this, value_);
 
   value_ = value;
 
   if (value_)
-    thread_context().store.register_weak(this, value_);
+    store_->register_weak(this, value_);
 
   return *this;
 }
 
 generic_ptr
 generic_weak_ptr::lock() const {
-  return {value_};
+  return {*store_, value_};
 }
 
 static void
@@ -95,6 +118,10 @@ free_store::register_root(generic_ptr* root) {
 void
 free_store::unregister_root(generic_ptr* root) {
   roots_.erase(root);
+
+#ifndef NDEBUG
+  collect_garbage();
+#endif
 }
 
 void
@@ -160,6 +187,43 @@ free_store::collect_garbage() {
   sweep(objects_, weak_ptrs_, current_mark_);
 }
 
+static void
+export_native(context& ctx, ptr<module> const& m, std::string const& name,
+              generic_ptr (*f)(context&, std::vector<generic_ptr> const&), module::binding_tag tag) {
+  std::size_t o = m->add_object(ctx.store.make<native_procedure>(f));
+  std::size_t b = m->add_binding(o, tag);
+  m->add_export(ctx.intern(name), b);
+}
+
+static ptr<module>
+make_internal_module(context& ctx) {
+  ptr<module> result = ctx.store.make<module>();
+  export_native(ctx, result, "+", add, module::binding_tag::plus);
+  export_native(ctx, result, "-", subtract, module::binding_tag::minus);
+  export_native(ctx, result, "*", multiply, module::binding_tag::times);
+  export_native(ctx, result, "/", divide, module::binding_tag::divide);
+  export_native(ctx, result, "=", arith_equal, module::binding_tag::arith_equal);
+  export_native(ctx, result, "<", less, module::binding_tag::less_than);
+  export_native(ctx, result, ">", greater, module::binding_tag::greater_than);
+  return result;
+}
+
+context::context() {
+  constants = std::make_unique<struct context::constants>();
+  constants->null = store.make<null_type>();
+  constants->void_ = store.make<void_type>();
+  constants->t = store.make<boolean>(true);
+  constants->f = store.make<boolean>(false);
+  constants->internal = make_internal_module(*this);
+
+  statics.null = operand::static_(intern_static(constants->null));
+  statics.void_ = operand::static_(intern_static(constants->void_));
+  statics.t = operand::static_(intern_static(constants->t));
+  statics.f = operand::static_(intern_static(constants->f));
+  statics.zero = operand::static_(intern_static(store.make<integer>(0)));
+  statics.one = operand::static_(intern_static(store.make<integer>(1)));
+}
+
 ptr<symbol>
 context::intern(std::string const& s) {
   auto interned = interned_symbols_.find(s);
@@ -196,74 +260,6 @@ context::get_static(operand::representation_type i) const {
   return statics_[i];
 }
 
-static void
-export_native(context& ctx, ptr<module> const& m, std::string const& name,
-              generic_ptr (*f)(std::vector<generic_ptr> const&), module::binding_tag tag) {
-  m->objects.emplace_back(ctx.store.make<native_procedure>(f).get());
-  m->bindings.push_back({m->objects.size() - 1, tag, m.get()});
-  m->exports.emplace(ctx.intern(name).get(), m->bindings.size() - 1);
-}
-
-static ptr<module>
-make_internal_module(context& ctx) {
-  ptr<module> result = ctx.store.make<module>();
-  export_native(ctx, result, "+", add, module::binding_tag::plus);
-  export_native(ctx, result, "-", subtract, module::binding_tag::minus);
-  export_native(ctx, result, "*", multiply, module::binding_tag::times);
-  export_native(ctx, result, "/", divide, module::binding_tag::divide);
-  export_native(ctx, result, "=", arith_equal, module::binding_tag::arith_equal);
-  export_native(ctx, result, "<", less, module::binding_tag::less_than);
-  export_native(ctx, result, ">", greater, module::binding_tag::greater_than);
-  return result;
-}
-
-void
-context::init() {
-  constants = std::make_unique<struct context::constants>();
-  constants->null = store.make<null_type>();
-  constants->void_ = store.make<void_type>();
-  constants->t = store.make<boolean>(true);
-  constants->f = store.make<boolean>(false);
-  constants->internal = make_internal_module(*this);
-
-  statics.null = operand::static_(intern_static(constants->null));
-  statics.void_ = operand::static_(intern_static(constants->void_));
-  statics.t = operand::static_(intern_static(constants->t));
-  statics.f = operand::static_(intern_static(constants->f));
-  statics.zero = operand::static_(intern_static(store.make<integer>(0)));
-  statics.one = operand::static_(intern_static(store.make<integer>(1)));
-}
-
-void
-context::deinit() {
-  constants.reset();
-  interned_symbols_.clear();
-  statics_.clear();
-  statics_cache_.clear();
-}
-
-thread_local std::unique_ptr<context> thread_context_value;
-
-void
-make_context() {
-  assert(!thread_context_value);
-  thread_context_value = std::unique_ptr<context>(new context);
-  thread_context_value->init();
-}
-
-void
-destroy_context() {
-  assert(thread_context_value);
-  thread_context_value->deinit();
-  thread_context_value.reset();
-}
-
-context&
-thread_context() {
-  assert(thread_context_value);
-  return *thread_context_value;
-}
-
 bool
 integer::eqv(generic_ptr const& other) const {
   if (auto y = match<integer>(other))
@@ -273,141 +269,141 @@ integer::eqv(generic_ptr const& other) const {
 }
 
 ptr<integer>
-add(ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return make<integer>(lhs->value() + rhs->value());
+add(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
+  return make<integer>(ctx, lhs->value() + rhs->value());
 }
 
 template <auto F>
 generic_ptr
-arithmetic(std::vector<generic_ptr> const& xs, bool allow_empty, integer::value_type neutral) {
+arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, integer::value_type neutral) {
   if (xs.empty()) {
     if (allow_empty)
-      return make<integer>(neutral);
+      return make<integer>(ctx, neutral);
     else
       throw std::runtime_error{"Not enough arguments"};
   }
   else if (xs.size() == 1)
-    return F(make<integer>(neutral), expect<integer>(xs.front()));
+    return F(ctx, make<integer>(ctx, neutral), expect<integer>(xs.front()));
   else {
     ptr<integer> result = expect<integer>(xs.front());
     for (auto rhs = xs.begin() + 1; rhs != xs.end(); ++rhs)
-      result = F(result, expect<integer>(*rhs));
+      result = F(ctx, result, expect<integer>(*rhs));
 
     return result;
   }
 }
 
-using primitive_arithmetic_type = ptr<integer>(ptr<integer> const&, ptr<integer> const&);
+using primitive_arithmetic_type = ptr<integer>(context& ctx, ptr<integer> const&, ptr<integer> const&);
 
 generic_ptr
-add(std::vector<generic_ptr> const& xs) {
-  return arithmetic<static_cast<primitive_arithmetic_type*>(&add)>(xs, true, 0);
+add(context& ctx, std::vector<generic_ptr> const& xs) {
+  return arithmetic<static_cast<primitive_arithmetic_type*>(&add)>(ctx, xs, true, 0);
 }
 
 ptr<integer>
-subtract(ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return make<integer>(lhs->value() - rhs->value());
+subtract(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
+  return make<integer>(ctx, lhs->value() - rhs->value());
 }
 
 generic_ptr
-subtract(std::vector<generic_ptr> const& xs) {
-  return arithmetic<static_cast<primitive_arithmetic_type*>(&subtract)>(xs, false, 0);
+subtract(context& ctx, std::vector<generic_ptr> const& xs) {
+  return arithmetic<static_cast<primitive_arithmetic_type*>(&subtract)>(ctx, xs, false, 0);
 }
 
 ptr<integer>
-multiply(ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return make<integer>(lhs->value() * rhs->value());
+multiply(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
+  return make<integer>(ctx, lhs->value() * rhs->value());
 }
 
 generic_ptr
-multiply(std::vector<generic_ptr> const& xs) {
-  return arithmetic<static_cast<primitive_arithmetic_type*>(&multiply)>(xs, true, 1);
+multiply(context& ctx, std::vector<generic_ptr> const& xs) {
+  return arithmetic<static_cast<primitive_arithmetic_type*>(&multiply)>(ctx, xs, true, 1);
 }
 
 ptr<integer>
-divide(ptr<integer> const& lhs, ptr<integer> const& rhs) {
+divide(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
   if (rhs->value() == 0)
     throw std::runtime_error{"Divide by zero"};
   else
-    return make<integer>(lhs->value() / rhs->value());
+    return make<integer>(ctx, lhs->value() / rhs->value());
 }
 
 generic_ptr
-divide(std::vector<generic_ptr> const& xs) {
-  return arithmetic<static_cast<primitive_arithmetic_type*>(&divide)>(xs, false, 1);
+divide(context& ctx, std::vector<generic_ptr> const& xs) {
+  return arithmetic<static_cast<primitive_arithmetic_type*>(&divide)>(ctx, xs, false, 1);
 }
 
-using primitive_relational_type = ptr<boolean>(ptr<integer> const&, ptr<integer> const&);
+using primitive_relational_type = ptr<boolean>(context&, ptr<integer> const&, ptr<integer> const&);
 
 template <primitive_relational_type* F>
 generic_ptr
-relational(std::vector<generic_ptr> const& xs, std::string const& name) {
+relational(context& ctx, std::vector<generic_ptr> const& xs, std::string const& name) {
   if (xs.size() < 2)
     throw std::runtime_error{fmt::format("Not enough arguments to {}", name)};
 
   ptr<integer> lhs = expect<integer>(xs[0]);
   for (std::size_t i = 1; i < xs.size(); ++i) {
     ptr<integer> rhs = expect<integer>(xs[i]);
-    if (F(lhs, rhs) == thread_context().constants->f)
-      return thread_context().constants->f;
+    if (F(ctx, lhs, rhs) == ctx.constants->f)
+      return ctx.constants->f;
 
     lhs = rhs;
   }
 
-  return thread_context().constants->t;
+  return ctx.constants->t;
 }
 
 ptr<boolean>
-arith_equal(ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() == rhs->value() ? thread_context().constants->t : thread_context().constants->f;
+arith_equal(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
+  return lhs->value() == rhs->value() ? ctx.constants->t : ctx.constants->f;
 }
 
 generic_ptr
-arith_equal(std::vector<generic_ptr> const& xs) {
-  return relational<arith_equal>(xs, "=");
+arith_equal(context& ctx, std::vector<generic_ptr> const& xs) {
+  return relational<arith_equal>(ctx, xs, "=");
 }
 
 ptr<boolean>
-less(ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() < rhs->value() ? thread_context().constants->t : thread_context().constants->f;
+less(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
+  return lhs->value() < rhs->value() ? ctx.constants->t : ctx.constants->f;
 }
 
 generic_ptr
-less(std::vector<generic_ptr> const& xs) {
-  return relational<less>(xs, "<");
+less(context& ctx, std::vector<generic_ptr> const& xs) {
+  return relational<less>(ctx, xs, "<");
 }
 
 ptr<boolean>
-greater(ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() > rhs->value() ? thread_context().constants->t : thread_context().constants->f;
+greater(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
+  return lhs->value() > rhs->value() ? ctx.constants->t : ctx.constants->f;
 }
 
 generic_ptr
-greater(std::vector<generic_ptr> const& xs) {
-  return relational<greater>(xs, ">");
+greater(context& ctx, std::vector<generic_ptr> const& xs) {
+  return relational<greater>(ctx, xs, ">");
 }
 
 std::size_t
 pair::hash() const {
-  return 3 * car()->hash() ^ cdr()->hash();
+  return 3 * subobjects_[0]->hash() ^ subobjects_[1]->hash();
 }
 
 bool
-is_list(generic_ptr x) {
+is_list(context& ctx, generic_ptr x) {
   while (true)
-    if (x == null())
+    if (x == ctx.constants->null)
       return true;
     else if (ptr<pair> p = match<pair>(x))
-      x = p->cdr();
+      x = cdr(p);
     else
       return false;
 }
 
 std::size_t
-list_length(generic_ptr x) {
+list_length(context& ctx, generic_ptr x) {
   std::size_t result = 0;
-  while (x != null()) {
-    x = expect<pair>(x)->cdr();
+  while (x != ctx.constants->null) {
+    x = cdr(expect<pair>(x));
     ++result;
   }
   return result;
@@ -415,27 +411,27 @@ list_length(generic_ptr x) {
 
 generic_ptr
 cadr(ptr<pair> const& x) {
-  return expect<pair>(x->cdr())->car();
+  return car(expect<pair>(cdr(x)));
 }
 
 generic_ptr
 caddr(ptr<pair> const& x) {
-  return expect<pair>(expect<pair>(x->cdr())->cdr())->car();
+  return car(expect<pair>(cddr(x)));
 }
 
 generic_ptr
 cadddr(ptr<pair> const& x) {
-  return expect<pair>(expect<pair>(expect<pair>(x->cdr())->cdr())->cdr())->car();
+  return car(expect<pair>(cdddr(x)));
 }
 
 generic_ptr
 cddr(ptr<pair> const& x) {
-  return expect<pair>(x->cdr())->cdr();
+  return cdr(expect<pair>(cdr(x)));
 }
 
 generic_ptr
 cdddr(ptr<pair> const& x) {
-  return expect<pair>(expect<pair>(x->cdr())->cdr())->cdr();
+  return cdr(expect<pair>(cddr(x)));
 }
 
 vector::vector(std::size_t size)
@@ -452,11 +448,11 @@ vector::for_each_subobject(std::function<void(object*)> const& f) {
 }
 
 generic_ptr
-vector::ref(std::size_t i) const {
+vector::ref(free_store& store, std::size_t i) const {
   if (i >= size_)
     throw std::runtime_error{fmt::format("Vector access out of bounds: index = {}, size = {}", i, size_)};
 
-  return dynamic_storage()[i];
+  return {store, dynamic_storage()[i]};
 }
 
 void
@@ -471,7 +467,7 @@ std::size_t
 vector::hash() const {
   std::size_t result = 0;
   for (std::size_t i = 0; i < size_; ++i)
-    result = 3 * result ^ ref(i)->hash();
+    result = 3 * result ^ dynamic_storage()[i]->hash();
 
   return result;
 }
@@ -481,8 +477,8 @@ box::box(generic_ptr const& value)
 { }
 
 generic_ptr
-box::get() const {
-  return subobjects_[0];
+box::get(free_store& store) const {
+  return {store, subobjects_[0]};
 }
 
 void
@@ -505,9 +501,9 @@ closure::closure(ptr<scm::procedure> const& p, std::vector<generic_ptr> const& c
 }
 
 generic_ptr
-closure::ref(std::size_t i) const {
+closure::ref(free_store& store, std::size_t i) const {
   assert(i < size_);
-  return dynamic_storage()[i];
+  return {store, dynamic_storage()[i]};
 }
 
 void
@@ -517,33 +513,46 @@ closure::for_each_subobject(std::function<void(object*)> const& f) {
     f(dynamic_storage()[i]);
 }
 
-void
-module::for_each_subobject(std::function<void(object*)> const& f) {
-  for (object* o : objects)
-    f(o);
+std::optional<std::size_t>
+module::find(ptr<symbol> const& s) const {
+  auto global = symbols_.find(s.get());
+  if (global == symbols_.end()) {
+    global = imports_.find(s.get());
 
-  for (binding const& b : bindings)
-    f(b.parent);
+    if (global == imports_.end())
+      return std::nullopt;
+  }
 
-  for (auto [symbol, index] : symbols)
-    f(symbol);
-
-  for (auto [symbol, index] : exports)
-    f(symbol);
-
-  for (auto [symbol, index] : imports)
-    f(symbol);
+  return global->second;
 }
 
 void
-import_all(ptr<module> const& dest, ptr<module> const& source) {
-  for (auto const& [name, ex] : source->exports) {
-    if (dest->imports.count(name))
+module::import_all(ptr<module> const& source) {
+  for (auto const& [name, ex] : source->exports_) {
+    if (imports_.count(name))
       throw std::runtime_error{fmt::format("Name {} already imported", name->value())};
 
-    dest->bindings.push_back(source->bindings[ex]);
-    dest->imports.emplace(name, dest->bindings.size() - 1);
+    bindings.push_back(source->bindings[ex]);
+    imports_.emplace(name, bindings.size() - 1);
   }
+}
+
+void
+module::for_each_subobject(std::function<void(scm::object*)> const& f) {
+  for (scm::object* o : objects_)
+    f(o);
+
+  for (binding const& b : bindings)
+    f(b.parent_);
+
+  for (auto [symbol, index] : symbols_)
+    f(symbol);
+
+  for (auto [symbol, index] : exports_)
+    f(symbol);
+
+  for (auto [symbol, index] : imports_)
+    f(symbol);
 }
 
 } // namespace scm

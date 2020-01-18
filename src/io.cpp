@@ -218,22 +218,22 @@ read_token(std::istream& stream) {
 }
 
 static generic_ptr
-read(token first_token, std::istream& stream);
+read(context& ctx, token first_token, std::istream& stream);
 
 static generic_ptr
-read_list(std::istream& stream) {
+read_list(context& ctx, std::istream& stream) {
   token t = read_token(stream);
   if (std::holds_alternative<end>(t))
     throw parse_error{"Unterminated list"};
   else if (std::holds_alternative<right_paren>(t))
-    return null();
+    return ctx.constants->null;
 
-  ptr<pair> result = make<pair>(read(t, stream), null());
+  ptr<pair> result = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null);
   ptr<pair> tail = result;
 
   t = read_token(stream);
   while (!std::holds_alternative<end>(t) && !std::holds_alternative<right_paren>(t)) {
-    ptr<pair> new_tail = make<pair>(read(t, stream), null());
+    ptr<pair> new_tail = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null);
     tail->set_cdr(new_tail);
     tail = new_tail;
 
@@ -248,32 +248,32 @@ read_list(std::istream& stream) {
 }
 
 generic_ptr
-read(token first_token, std::istream& stream) {
+read(context& ctx, token first_token, std::istream& stream) {
   if (std::holds_alternative<end>(first_token))
     return {};
   else if (std::holds_alternative<left_paren>(first_token))
-    return read_list(stream);
+    return read_list(ctx, stream);
   else if (integer_literal* i = std::get_if<integer_literal>(&first_token))
-    return make<integer>(i->value);
+    return make<integer>(ctx, i->value);
   else if (identifier* i = std::get_if<identifier>(&first_token))
-    return intern(i->value);
+    return ctx.intern(i->value);
   else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token))
-    return b->value ? thread_context().constants->t : thread_context().constants->f;
+    return b->value ? ctx.constants->t : ctx.constants->f;
   else if (void_literal* v = std::get_if<void_literal>(&first_token))
-    return thread_context().constants->void_;
+    return ctx.constants->void_;
 
   throw parse_error{"Probably unimplemented"};
 }
 
 generic_ptr
-read(std::istream& stream) {
-  return read(read_token(stream), stream);
+read(context& ctx, std::istream& stream) {
+  return read(ctx, read_token(stream), stream);
 }
 
 generic_ptr
-read(std::string const& s) {
+read(context& ctx, std::string const& s) {
   std::istringstream is(s);
-  return read(is);
+  return read(ctx, is);
 }
 
 } // namespace game::scm

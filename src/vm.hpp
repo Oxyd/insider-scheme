@@ -33,21 +33,21 @@ public:
   for_each_subobject(std::function<void(object*)> const& f) override;
 
   ptr<scm::procedure>
-  procedure() const { return procedure_; }
+  procedure(free_store& store) const { return {store, procedure_}; }
 
   generic_ptr
-  local(std::size_t i) const;
+  local(free_store& store, std::size_t i) const;
   void
   set_local(std::size_t i, generic_ptr const& value);
 
   generic_ptr
-  closure(std::size_t i) const;
+  closure(free_store& store, std::size_t i) const;
 
   ptr<call_frame>
-  parent() const { return parent_frame_; }
+  parent(free_store& store) const { return {store, parent_frame_}; }
 
   ptr<scm::module>
-  module() const { return module_; }
+  module(free_store& store) const { return {store, module_}; }
 
 private:
   scm::procedure* procedure_;
@@ -56,6 +56,25 @@ private:
   std::size_t     locals_size_;
   scm::module*    module_;
 };
+
+inline ptr<procedure>
+call_frame_procedure(ptr<call_frame> const& cf) { return cf->procedure(cf.store()); }
+
+inline generic_ptr
+call_frame_local(ptr<call_frame> const& cf, std::size_t i) {
+  return cf->local(cf.store(), i);
+}
+
+inline generic_ptr
+call_frame_closure(ptr<call_frame> const& cf, std::size_t i) {
+  return cf->closure(cf.store(), i);
+}
+
+inline ptr<call_frame>
+call_frame_parent(ptr<call_frame> const& cf) { return cf->parent(cf.store()); }
+
+inline ptr<module>
+call_frame_module(ptr<call_frame> const& cf) { return cf->module(cf.store()); }
 
 struct execution_state {
   context&        ctx;

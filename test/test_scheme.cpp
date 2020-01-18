@@ -9,7 +9,21 @@
 using namespace game::scm;
 
 struct scheme : testing::Test {
-  unique_context ctx;
+  context ctx;
+
+  generic_ptr
+  read(std::string const& expr) {
+    return game::scm::read(ctx, expr);
+  }
+
+  generic_ptr
+  eval(std::string const& expr) {
+    auto m = make<module>(ctx);
+    m->import_all(ctx.constants->internal);
+    auto f = compile_expression(ctx, read(expr), m);
+    auto state = make_state(ctx, f, m);
+    return run(state);
+  }
 };
 
 struct aaa : object {
@@ -23,18 +37,18 @@ struct aaa : object {
 
 TEST_F(scheme, collect_direct_garbage) {
   bool one{}, two{}, three{};
-  ptr<aaa> a = thread_context().store.make<aaa>(&one);
-  ptr<aaa> b = thread_context().store.make<aaa>(&two);
-  ptr<aaa> c = thread_context().store.make<aaa>(&three);
+  ptr<aaa> a = ctx.store.make<aaa>(&one);
+  ptr<aaa> b = ctx.store.make<aaa>(&two);
+  ptr<aaa> c = ctx.store.make<aaa>(&three);
 
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
 
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
   EXPECT_TRUE(three);
 
   a.reset();
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
 
   EXPECT_FALSE(one);
   EXPECT_TRUE(two);
@@ -42,7 +56,7 @@ TEST_F(scheme, collect_direct_garbage) {
 
   b.reset();
   c.reset();
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
 
   EXPECT_FALSE(one);
   EXPECT_FALSE(two);
@@ -66,26 +80,26 @@ struct bbb : object {
 
 TEST_F(scheme, collect_indirect_garbage) {
   bool one{}, two{}, three{}, four{};
-  ptr<bbb> root = thread_context().store.make<bbb>(&one);
-  root->child = thread_context().store.make<bbb>(&two).get();
-  static_cast<bbb*>(root->child)->child = thread_context().store.make<bbb>(&three).get();
-  static_cast<bbb*>(static_cast<bbb*>(root->child)->child)->child = thread_context().store.make<bbb>(&four).get();
+  ptr<bbb> root = ctx.store.make<bbb>(&one);
+  root->child = ctx.store.make<bbb>(&two).get();
+  static_cast<bbb*>(root->child)->child = ctx.store.make<bbb>(&three).get();
+  static_cast<bbb*>(static_cast<bbb*>(root->child)->child)->child = ctx.store.make<bbb>(&four).get();
 
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
   EXPECT_TRUE(three);
   EXPECT_TRUE(four);
 
   static_cast<bbb*>(root->child)->child = nullptr;
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
   EXPECT_FALSE(three);
   EXPECT_FALSE(four);
 
   root.reset();
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
   EXPECT_FALSE(one);
   EXPECT_FALSE(two);
   EXPECT_FALSE(three);
@@ -94,31 +108,31 @@ TEST_F(scheme, collect_indirect_garbage) {
 
 TEST_F(scheme, collect_circles) {
   bool one{}, two{};
-  ptr<bbb> a = thread_context().store.make<bbb>(&one);
-  a->child = thread_context().store.make<bbb>(&two).get();
+  ptr<bbb> a = ctx.store.make<bbb>(&one);
+  a->child = ctx.store.make<bbb>(&two).get();
   static_cast<bbb*>(a->child)->child = a.get();
 
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
 
   a.reset();
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
   EXPECT_FALSE(one);
   EXPECT_FALSE(two);
 }
 
 TEST_F(scheme, weak_ptr) {
   bool one{};
-  ptr<aaa> a = make<aaa>(&one);
+  ptr<aaa> a = make<aaa>(ctx, &one);
   weak_ptr<aaa> w = a;
 
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
   EXPECT_TRUE(one);
   EXPECT_TRUE(w);
 
   a.reset();
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
   EXPECT_FALSE(one);
   EXPECT_FALSE(w);
 
@@ -127,9 +141,9 @@ TEST_F(scheme, weak_ptr) {
 }
 
 TEST_F(scheme, type_predicates) {
-  ptr<pair> p = make<pair>(null(), null());
+  ptr<pair> p = make<pair>(ctx, ctx.constants->null, ctx.constants->null);
   generic_ptr x = p;
-  generic_ptr null = game::scm::null();
+  generic_ptr null = ctx.constants->null;
 
   EXPECT_TRUE(is<pair>(x));
   EXPECT_FALSE(is<pair>(null));
@@ -149,43 +163,46 @@ TEST_F(scheme, type_predicates) {
 
 TEST_F(scheme, is_list) {
   // (1 . 2)
-  ptr<pair> l1 = make<pair>(make<integer>(1), make<integer>(2));
-  EXPECT_FALSE(is_list(l1));
+  ptr<pair> l1 = make<pair>(ctx, make<integer>(ctx, 1), make<integer>(ctx, 2));
+  EXPECT_FALSE(is_list(ctx, l1));
 
   // (1 2)
-  ptr<pair> l2 = make<pair>(make<integer>(1),
-                            make<pair>(make<integer>(2),
-                                       null()));
-  EXPECT_TRUE(is_list(l2));
+  ptr<pair> l2 = make<pair>(ctx,
+                            make<integer>(ctx, 1),
+                            make<pair>(ctx,
+                                       make<integer>(ctx, 2),
+                                       ctx.constants->null));
+  EXPECT_TRUE(is_list(ctx, l2));
 
   // (0 1 2)
-  ptr<pair> l3 = make<pair>(make<integer>(0), l2);
-  EXPECT_TRUE(is_list(l3));
+  ptr<pair> l3 = make<pair>(ctx, make<integer>(ctx, 0), l2);
+  EXPECT_TRUE(is_list(ctx, l3));
 }
 
 TEST_F(scheme, make_list) {
-  generic_ptr empty = make_list();
-  EXPECT_TRUE(empty == null());
+  generic_ptr empty = make_list(ctx);
+  EXPECT_TRUE(empty == ctx.constants->null);
 
-  generic_ptr l = make_list(make<integer>(1),
-                            make<integer>(2),
-                            make<integer>(3));
+  generic_ptr l = make_list(ctx,
+                            make<integer>(ctx, 1),
+                            make<integer>(ctx, 2),
+                            make<integer>(ctx, 3));
   auto first = expect<pair>(l);
-  EXPECT_EQ(expect<integer>(first->car())->value(), 1);
+  EXPECT_EQ(expect<integer>(car(first))->value(), 1);
 
-  auto second = expect<pair>(first->cdr());
-  EXPECT_EQ(expect<integer>(second->car())->value(), 2);
+  auto second = expect<pair>(cdr(first));
+  EXPECT_EQ(expect<integer>(car(second))->value(), 2);
 
-  auto third = expect<pair>(second->cdr());
-  EXPECT_EQ(expect<integer>(third->car())->value(), 3);
+  auto third = expect<pair>(cdr(second));
+  EXPECT_EQ(expect<integer>(car(third))->value(), 3);
 
-  EXPECT_EQ(third->cdr(), null());
+  EXPECT_EQ(cdr(third), ctx.constants->null);
 }
 
 TEST_F(scheme, intern) {
-  ptr<symbol> a_1 = intern("a");
-  ptr<symbol> b_1 = intern("b");
-  ptr<symbol> a_2 = intern("a");
+  ptr<symbol> a_1 = ctx.intern("a");
+  ptr<symbol> b_1 = ctx.intern("b");
+  ptr<symbol> a_2 = ctx.intern("a");
 
   EXPECT_TRUE(a_1);
   EXPECT_TRUE(b_1);
@@ -195,40 +212,40 @@ TEST_F(scheme, intern) {
   EXPECT_NE(a_1, b_1);
 
   b_1.reset();
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
 
-  ptr<symbol> b_2 = intern("b");
-  ptr<symbol> b_3 = intern("b");
+  ptr<symbol> b_2 = ctx.intern("b");
+  ptr<symbol> b_3 = ctx.intern("b");
   EXPECT_TRUE(b_2);
   EXPECT_TRUE(b_3);
   EXPECT_EQ(b_2, b_3);
 }
 
 TEST_F(scheme, vector) {
-  ptr<vector> v1 = make<vector>(3);
-  v1->set(0, make<integer>(1));
-  v1->set(1, make<integer>(2));
-  v1->set(2, make<integer>(3));
+  ptr<vector> v1 = make<vector>(ctx, 3);
+  v1->set(0, make<integer>(ctx, 1));
+  v1->set(1, make<integer>(ctx, 2));
+  v1->set(2, make<integer>(ctx, 3));
 
   EXPECT_EQ(v1->size(), 3u);
 
-  EXPECT_EQ(expect<integer>(v1->ref(0))->value(), 1);
-  EXPECT_EQ(expect<integer>(v1->ref(1))->value(), 2);
-  EXPECT_EQ(expect<integer>(v1->ref(2))->value(), 3);
+  EXPECT_EQ(expect<integer>(vector_ref(v1, 0))->value(), 1);
+  EXPECT_EQ(expect<integer>(vector_ref(v1, 1))->value(), 2);
+  EXPECT_EQ(expect<integer>(vector_ref(v1, 2))->value(), 3);
 
-  EXPECT_THROW(v1->ref(3), std::runtime_error);
-  EXPECT_THROW(v1->set(4, make<integer>(4)), std::runtime_error);
+  EXPECT_THROW(vector_ref(v1, 3), std::runtime_error);
+  EXPECT_THROW(v1->set(4, make<integer>(ctx, 4)), std::runtime_error);
 
-  ptr<vector> v2 = make<vector>(2);
+  ptr<vector> v2 = make<vector>(ctx, 2);
   bool one{}, two{};
-  v2->set(0, make<aaa>(&one));
-  v2->set(1, make<aaa>(&two));
+  v2->set(0, make<aaa>(ctx, &one));
+  v2->set(1, make<aaa>(ctx, &two));
 
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
 
   v2.reset();
-  thread_context().store.collect_garbage();
+  ctx.store.collect_garbage();
 
   EXPECT_FALSE(one);
   EXPECT_FALSE(two);
@@ -253,32 +270,32 @@ TEST_F(scheme, read_integer) {
 
 TEST_F(scheme, read_list) {
   generic_ptr empty_1 = read("()");
-  EXPECT_EQ(empty_1, null());
+  EXPECT_EQ(empty_1, ctx.constants->null);
 
   generic_ptr empty_2 = read("(   )");
-  EXPECT_EQ(empty_2, null());
+  EXPECT_EQ(empty_2, ctx.constants->null);
 
   generic_ptr single_element = read("(1)");
-  EXPECT_TRUE(is_list(single_element));
-  EXPECT_EQ(expect<integer>(expect<pair>(single_element)->car())->value(), 1);
-  EXPECT_EQ(expect<pair>(single_element)->cdr(), null());
+  EXPECT_TRUE(is_list(ctx, single_element));
+  EXPECT_EQ(expect<integer>(car(expect<pair>(single_element)))->value(), 1);
+  EXPECT_EQ(cdr(expect<pair>(single_element)), ctx.constants->null);
 
   generic_ptr two_elements = read("(1 2)");
-  EXPECT_TRUE(is_list(two_elements));
-  EXPECT_EQ(expect<integer>(expect<pair>(two_elements)->car())->value(), 1);
-  EXPECT_EQ(expect<integer>(expect<pair>(expect<pair>(two_elements)->cdr())->car())->value(), 2);
-  EXPECT_EQ(expect<pair>(expect<pair>(two_elements)->cdr())->cdr(), null());
+  EXPECT_TRUE(is_list(ctx, two_elements));
+  EXPECT_EQ(expect<integer>(car(expect<pair>(two_elements)))->value(), 1);
+  EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(expect<pair>(two_elements)))))->value(), 2);
+  EXPECT_EQ(cdr(expect<pair>(cdr(expect<pair>(two_elements)))), ctx.constants->null);
 
   generic_ptr no_elements = read("()");
-  EXPECT_EQ(no_elements, null());
+  EXPECT_EQ(no_elements, ctx.constants->null);
 
   generic_ptr nested = read("(1 (2 3))");
-  EXPECT_TRUE(is_list(nested));
-  EXPECT_EQ(expect<integer>(expect<pair>(nested)->car())->value(), 1);
-  EXPECT_TRUE(is_list(expect<pair>(expect<pair>(nested)->cdr())->car()));
-  ptr<pair> sublist = expect<pair>(expect<pair>(expect<pair>(nested)->cdr())->car());
-  EXPECT_EQ(expect<integer>(sublist->car())->value(), 2);
-  EXPECT_EQ(expect<integer>(expect<pair>(sublist->cdr())->car())->value(), 3);
+  EXPECT_TRUE(is_list(ctx, nested));
+  EXPECT_EQ(expect<integer>(car(expect<pair>(nested)))->value(), 1);
+  EXPECT_TRUE(is_list(ctx, car(expect<pair>(cdr(expect<pair>(nested))))));
+  ptr<pair> sublist = expect<pair>(car(expect<pair>(cdr(expect<pair>(nested)))));
+  EXPECT_EQ(expect<integer>(car(sublist))->value(), 2);
+  EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(sublist))))->value(), 3);
 
   EXPECT_THROW(read("("), parse_error);
   EXPECT_THROW(read("(1 2"), parse_error);
@@ -286,19 +303,19 @@ TEST_F(scheme, read_list) {
 }
 
 TEST_F(scheme, read_symbol) {
-  EXPECT_EQ(read("foo"), intern("foo"));
-  EXPECT_EQ(read("multiple-words"), intern("multiple-words"));
-  EXPECT_EQ(read("%special-symbol"), intern("%special-symbol"));
-  EXPECT_EQ(read("+"), intern("+"));
-  EXPECT_EQ(read("-"), intern("-"));
-  EXPECT_EQ(read("+fun"), intern("+fun"));
-  EXPECT_EQ(read("#$if"), intern("#$if"));
+  EXPECT_EQ(read("foo"), ctx.intern("foo"));
+  EXPECT_EQ(read("multiple-words"), ctx.intern("multiple-words"));
+  EXPECT_EQ(read("%special-symbol"), ctx.intern("%special-symbol"));
+  EXPECT_EQ(read("+"), ctx.intern("+"));
+  EXPECT_EQ(read("-"), ctx.intern("-"));
+  EXPECT_EQ(read("+fun"), ctx.intern("+fun"));
+  EXPECT_EQ(read("#$if"), ctx.intern("#$if"));
 
   generic_ptr l = read("(one two three)");
-  ASSERT_TRUE(is_list(l));
-  EXPECT_EQ(expect<symbol>(expect<pair>(l)->car())->value(), "one");
-  EXPECT_EQ(expect<symbol>(expect<pair>(expect<pair>(l)->cdr())->car())->value(), "two");
-  EXPECT_EQ(expect<symbol>(expect<pair>(expect<pair>(expect<pair>(l)->cdr())->cdr())->car())->value(), "three");
+  ASSERT_TRUE(is_list(ctx, l));
+  EXPECT_EQ(expect<symbol>(car(expect<pair>(l)))->value(), "one");
+  EXPECT_EQ(expect<symbol>(car(expect<pair>(cdr(expect<pair>(l)))))->value(), "two");
+  EXPECT_EQ(expect<symbol>(car(expect<pair>(cdr(expect<pair>(cdr(expect<pair>(l)))))))->value(), "three");
 }
 
 TEST(bytecode, instruction_info_consistency) {
@@ -311,36 +328,38 @@ TEST(bytecode, instruction_info_consistency) {
 
 template <typename T, typename... Args>
 operand
-make_static(Args&&... args) {
-  return operand::static_(thread_context().intern_static(make<T>(std::forward<Args>(args)...)));
+make_static(context& ctx, Args&&... args) {
+  return operand::static_(ctx.intern_static(make<T>(ctx, std::forward<Args>(args)...)));
 }
 
 TEST_F(scheme, exec_arithmetic) {
   // 2 * (3 + 6). The input constants are stored in statics, result is stored in
   // local register 0.
-  auto two = make_static<integer>(2);
-  auto three = make_static<integer>(3);
-  auto six = make_static<integer>(6);
+  auto two = make_static<integer>(ctx, 2);
+  auto three = make_static<integer>(ctx, 3);
+  auto six = make_static<integer>(ctx, 6);
 
   auto proc = make<procedure>(
+    ctx,
     bytecode{{opcode::add,      three, six,               operand::local(1)},
              {opcode::multiply, two,   operand::local(1), operand::local(0)}},
     2,
     0
   );
-  auto state = make_state(thread_context(), proc, make<module>());
+  auto state = make_state(ctx, proc, make<module>(ctx));
   run(state);
 
-  EXPECT_EQ(assume<integer>(state.current_frame->local(0))->value(), 18);
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 18);
 }
 
 TEST_F(scheme, exec_calls) {
   // f(x, y) = 2 * x + y
   // Evaluate: 3 * f(5, 7) + f(2, f(3, 4))
 
-  auto two = make_static<integer>(2);
+  auto two = make_static<integer>(ctx, 2);
 
   auto f = make_static<procedure>(
+    ctx,
     bytecode{{opcode::multiply, two,               operand::local(0), operand::local(2)},
              {opcode::add,      operand::local(2), operand::local(1), operand::local(2)},
              {opcode::ret,      operand::local(2), {},                {}}},
@@ -348,12 +367,13 @@ TEST_F(scheme, exec_calls) {
     2
   );
 
-  auto three = make_static<integer>(3);
-  auto five = make_static<integer>(5);
-  auto seven = make_static<integer>(7);
-  auto four = make_static<integer>(4);
+  auto three = make_static<integer>(ctx, 3);
+  auto five = make_static<integer>(ctx, 5);
+  auto seven = make_static<integer>(ctx, 7);
+  auto four = make_static<integer>(ctx, 4);
 
   auto global = make<procedure>(
+    ctx,
     bytecode{{opcode::call,     f,                 operand::immediate(2), operand::local(0)},
              {opcode::data,     five,              seven,                 {}},
              {opcode::multiply, three,             operand::local(0),     operand::local(0)},
@@ -365,11 +385,11 @@ TEST_F(scheme, exec_calls) {
     3,
     0
   );
-  auto state = make_state(thread_context(), global, make<module>());
+  auto state = make_state(ctx, global, make<module>(ctx));
   run(state);
 
   auto native_f = [] (int x, int y) { return 2 * x + y; };
-  EXPECT_EQ(assume<integer>(state.current_frame->local(0))->value(),
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(),
             3 * native_f(5, 7) + native_f(2, native_f(3, 4)));
 }
 
@@ -377,12 +397,13 @@ TEST_F(scheme, three_argument_calls) {
   // f(x, y, z) = 2 * x + 3 * y + 4 * z
   // Evaluate 2 * f(1, 2, 3)
 
-  auto one = make_static<integer>(1);
-  auto two = make_static<integer>(2);
-  auto three = make_static<integer>(3);
-  auto four = make_static<integer>(4);
+  auto one = make_static<integer>(ctx, 1);
+  auto two = make_static<integer>(ctx, 2);
+  auto three = make_static<integer>(ctx, 3);
+  auto four = make_static<integer>(ctx, 4);
 
   auto f = make_static<procedure>(
+    ctx,
     bytecode{{opcode::multiply, two,               operand::local(0), operand::local(3)},
              {opcode::multiply, three,             operand::local(1), operand::local(4)},
              {opcode::multiply, four,              operand::local(2), operand::local(5)},
@@ -393,47 +414,51 @@ TEST_F(scheme, three_argument_calls) {
     3
   );
   auto global = make<procedure>(
+    ctx,
     bytecode{{opcode::call,     f,   operand::immediate(3), operand::local(0)},
              {opcode::data,     one, two,                   three},
              {opcode::multiply, two, operand::local(0),     operand::local(0)}},
     1,
     0
   );
-  auto state = make_state(thread_context(), global, make<module>());
+  auto state = make_state(ctx, global, make<module>(ctx));
   run(state);
 
   auto native_f = [] (int x, int y, int z) { return 2 * x + 3 * y + 4 * z; };
-  EXPECT_EQ(expect<integer>(state.current_frame->local(0))->value(),
+  EXPECT_EQ(expect<integer>(call_frame_local(state.current_frame, 0))->value(),
             2 * native_f(1, 2, 3));
 }
 
 TEST_F(scheme, exec_tail_calls) {
   // f(x) = g(x)
   // g(x) = 2 * x
-  auto two = make_static<integer>(2);
+  auto two = make_static<integer>(ctx, 2);
   auto g = make_static<procedure>(
+    ctx,
     bytecode{{opcode::multiply, two,               operand::local(0), operand::local(1)},
              {opcode::ret,      operand::local(1), {},                {}}},
     2,
     1
   );
   auto f = make_static<procedure>(
+    ctx,
     bytecode{{opcode::tail_call, g,                 operand::immediate(1), {}},
              {opcode::data,      operand::local(0), {},                    {}}},
     1,
     1
   );
-  auto six = make_static<integer>(6);
+  auto six = make_static<integer>(ctx, 6);
   auto global = make<procedure>(
+    ctx,
     bytecode{{opcode::call, f,   operand::immediate(1), operand::local(0)},
              {opcode::data, six, {},                    {}}},
     1,
     0
   );
-  auto state = make_state(thread_context(), global, make<module>());
+  auto state = make_state(ctx, global, make<module>(ctx));
   run(state);
 
-  EXPECT_EQ(assume<integer>(state.current_frame->local(0))->value(), 12);
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 12);
 }
 
 TEST_F(scheme, exec_loop) {
@@ -443,10 +468,11 @@ TEST_F(scheme, exec_loop) {
   //   sum += i
   //   i += 1
 
-  auto zero = make_static<integer>(0);
-  auto ten = make_static<integer>(10);
-  auto one = make_static<integer>(1);
+  auto zero = make_static<integer>(ctx, 0);
+  auto ten = make_static<integer>(ctx, 10);
+  auto one = make_static<integer>(ctx, 1);
   auto global = make<procedure>(
+    ctx,
     bytecode{{opcode::set,          zero,                {},                 operand::local(0)},
              {opcode::set,          zero,                {},                 operand::local(1)},
              {opcode::less_than,    operand::local(1),   ten,                operand::local(2)},
@@ -458,63 +484,58 @@ TEST_F(scheme, exec_loop) {
     3,
     0
   );
-  auto state = make_state(thread_context(), global, make<module>());
+  auto state = make_state(ctx, global, make<module>(ctx));
   run(state);
 
-  EXPECT_EQ(assume<integer>(state.current_frame->local(0))->value(), 45);
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 45);
 }
 
 TEST_F(scheme, exec_native_call) {
-  auto native = [] (std::vector<generic_ptr> const& args) {
-    return make<integer>(2 * expect<integer>(args[0])->value()
+  auto native = [] (context& ctx, std::vector<generic_ptr> const& args) {
+    return make<integer>(ctx,
+                         2 * expect<integer>(args[0])->value()
                          + 3 * expect<integer>(args[1])->value()
                          + 5 * expect<integer>(args[2])->value());
   };
-  auto native_static = make_static<native_procedure>(native);
-  auto ten = make_static<integer>(10);
-  auto twenty = make_static<integer>(20);
-  auto thirty = make_static<integer>(30);
+  auto native_static = make_static<native_procedure>(ctx, native);
+  auto ten = make_static<integer>(ctx, 10);
+  auto twenty = make_static<integer>(ctx, 20);
+  auto thirty = make_static<integer>(ctx, 30);
   auto global = make<procedure>(
+    ctx,
     bytecode{{opcode::call, native_static, operand::immediate(3), operand::local(0)},
              {opcode::data, ten,           twenty,                thirty}},
     1,
     0
   );
-  auto state = make_state(thread_context(), global, make<module>());
+  auto state = make_state(ctx, global, make<module>(ctx));
   run(state);
 
-  EXPECT_EQ(assume<integer>(state.current_frame->local(0))->value(),
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(),
             2 * 10 + 3 * 20 + 5 * 30);
 }
 
 TEST_F(scheme, exec_closure_ref) {
   auto add = make_static<procedure>(
+    ctx,
     bytecode{{opcode::add, operand::local(0), operand::closure(0), operand::local(0)},
              {opcode::ret, operand::local(0), {},                  {}}},
     1, 1
   );
-  auto three = make_static<integer>(3);
-  auto five = make_static<integer>(5);
+  auto three = make_static<integer>(ctx, 3);
+  auto five = make_static<integer>(ctx, 5);
   auto global = make<procedure>(
+    ctx,
     bytecode{{opcode::make_closure, add,               operand::immediate(1), operand::local(1)},
              {opcode::data,         three,             {},                    {}},
              {opcode::call,         operand::local(1), operand::immediate(1), operand::local(0)},
              {opcode::data,         five,              {},                    {}}},
     2, 0
   );
-  auto state = make_state(thread_context(), global, make<module>());
+  auto state = make_state(ctx, global, make<module>(ctx));
   run(state);
 
-  EXPECT_EQ(assume<integer>(state.current_frame->local(0))->value(), 5 + 3);
-}
-
-static generic_ptr
-eval(std::string const& expr) {
-  auto m = make<module>();
-  import_all(m, thread_context().constants->internal);
-  auto f = compile_expression(thread_context(), read(expr), m);
-  auto state = make_state(thread_context(), f, m);
-  return run(state);
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 5 + 3);
 }
 
 TEST_F(scheme, compile_arithmetic) {
@@ -542,9 +563,9 @@ TEST_F(scheme, compile_let) {
   int product = a * b;
   EXPECT_EQ(expect<integer>(result)->value(), sum - product);
 
-  EXPECT_THROW(compile_expression(thread_context(), read("(let ((a 2)))"), thread_context().constants->internal),
+  EXPECT_THROW(compile_expression(ctx, read("(let ((a 2)))"), ctx.constants->internal),
                std::runtime_error);
-  EXPECT_THROW(compile_expression(thread_context(), read("(let foo)"), thread_context().constants->internal),
+  EXPECT_THROW(compile_expression(ctx, read("(let foo)"), ctx.constants->internal),
                std::runtime_error);
 }
 
@@ -597,7 +618,7 @@ TEST_F(scheme, compile_if) {
   EXPECT_EQ(expect<integer>(result3)->value(), 2);
 
   generic_ptr result4 = eval("(#$if #f 2)");
-  EXPECT_EQ(result4, thread_context().constants->void_);
+  EXPECT_EQ(result4, ctx.constants->void_);
 
   generic_ptr result5 = eval(
     R"(

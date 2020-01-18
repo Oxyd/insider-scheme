@@ -79,8 +79,12 @@ class free_store;
 namespace detail {
   class generic_ptr_base {
   public:
-    explicit
-    generic_ptr_base(object* value) : value_{value} { }
+    generic_ptr_base() = default;
+
+    generic_ptr_base(free_store& store, object* value)
+      : value_{value}
+      , store_{&store}
+    { }
 
     void
     reset() { value_ = nullptr; }
@@ -94,24 +98,27 @@ namespace detail {
     object*
     get() const { return value_; }
 
+    free_store&
+    store() const { return *store_; }
+
     explicit
     operator bool () const { return value_ != nullptr; }
 
   protected:
-    object* value_ = nullptr;
+    object* value_     = nullptr;
+    free_store* store_ = nullptr;
   };
 } // namespace detail
 
 // Untyped pointer to a Scheme object, registered with the garbage collector as a GC root.
 class generic_ptr : public detail::generic_ptr_base {
 public:
-  generic_ptr(object* value = nullptr);
-  explicit
-  generic_ptr(free_store&, object* value = nullptr);
+  generic_ptr() = default;
+  generic_ptr(free_store&, object* value);
   generic_ptr(generic_ptr const& other);
   ~generic_ptr();
   generic_ptr&
-  operator = (generic_ptr const&) = default;
+  operator = (generic_ptr const&);
 };
 
 struct generic_ptr_hash {
@@ -133,9 +140,8 @@ using eqv_unordered_map = std::unordered_map<generic_ptr, Value, generic_ptr_has
 // Like generic_ptr, but does not keep an object alive.
 class generic_weak_ptr : public detail::generic_ptr_base {
 public:
-  generic_weak_ptr(object* value = nullptr);
-  explicit
-  generic_weak_ptr(free_store&, object* value = nullptr);
+  generic_weak_ptr() = default;
+  generic_weak_ptr(free_store&, object* value);
   generic_weak_ptr(generic_weak_ptr const& other);
   ~generic_weak_ptr();
 
@@ -182,7 +188,7 @@ public:
   using generic_weak_ptr::generic_weak_ptr;
 
   weak_ptr(ptr<T> const& other)
-    : weak_ptr{other.get()}
+    : weak_ptr{other.store(), other.get()}
   { }
 
   T&
@@ -195,7 +201,7 @@ public:
   get() const { return static_cast<T*>(generic_weak_ptr::get()); }
 
   ptr<T>
-  lock() const { return {get()}; }
+  lock() const { return {store(), get()}; }
 };
 
 // Garbage-collected storage for Scheme objects.
@@ -215,7 +221,7 @@ public:
 
     auto storage = std::make_unique<std::byte[]>(sizeof(T));
     object* result = new (storage.get()) T(std::forward<Args>(args)...);
-    return add(std::move(storage), result);
+    return {*this, add(std::move(storage), result)};
   }
 
   template <typename T, typename... Args>
@@ -227,7 +233,7 @@ public:
 
     auto storage = std::make_unique<std::byte[]>(sizeof(T) + T::extra_storage_size(args...));
     object* result = new (storage.get()) T(std::forward<Args>(args)...);
-    return add(std::move(storage), result);
+    return {*this, add(std::move(storage), result)};
   }
 
   void
@@ -292,7 +298,7 @@ class boolean;
 class module;
 class symbol;
 
-// Per-thread evaluation context.
+// Evaluation context.
 class context {
 public:
   struct constants {
@@ -316,6 +322,15 @@ public:
   std::unique_ptr<constants> constants;
   statics_list               statics;
 
+  context();
+  context(context const&) = delete;
+  void
+  operator = (context const&) = delete;
+
+  // If the given string has been interned previously in the context, return the
+  // pre-existing symbol. Otherwise, create a new symbol object and return
+  // that. This means that two interned symbols can be compared for equality
+  // using pointer comparison.
   ptr<symbol>
   intern(std::string const&);
 
@@ -329,64 +344,14 @@ private:
   std::unordered_map<std::string, weak_ptr<symbol>> interned_symbols_;
   std::vector<generic_ptr> statics_;
   eqv_unordered_map<std::size_t> statics_cache_;
-
-  // Only make_context is allowed to make context instances because
-  // initialisation needs to be performed in two steps: First we make the object
-  // itself and set the thread-local pointer to it, then we initialise
-  // constants.
-
-  friend void make_context();
-  friend void destroy_context();
-  context() = default;
-  context(context const&) = delete;
-  void
-  operator = (context const&) = delete;
-
-  void
-  init();
-
-  void
-  deinit();
 };
 
-// Make a thread-local context.
-void
-make_context();
-
-// Destroy the thread-local context. It is an error if no context is associated
-// with this thread.
-void
-destroy_context();
-
-// Get the context associated with this thread. It is an error if no context is
-// associcated with this thread.
-context&
-thread_context();
-
-// Access the thread-local context's null instance.
-inline ptr<null_type>
-null() {
-  return thread_context().constants->null;
-}
-
-// Create an instance of an object using the thread-local context's free store.
+// Create an instance of an object using the context's free store.
 template <typename T, typename... Args>
 ptr<T>
-make(Args&&... args) {
-  return thread_context().store.make<T>(std::forward<Args>(args)...);
+make(context& ctx, Args&&... args) {
+  return ctx.store.make<T>(std::forward<Args>(args)...);
 }
-
-// Scope-bound context manager. Creates a new thread-local context in the
-// constructor and destroys it in the destructor. It is an error if there
-// already is a context when an instance of this type is constructed.
-class unique_context {
-public:
-  unique_context()  { make_context(); }
-  ~unique_context() { destroy_context(); }
-
-  unique_context(unique_context const&) = delete;
-  void operator = (unique_context const&) = delete;
-};
 
 // A signed, fixed size integer.
 class integer : public object {
@@ -413,39 +378,39 @@ private:
 };
 
 ptr<integer>
-add(ptr<integer> const&, ptr<integer> const&);
+add(context&, ptr<integer> const&, ptr<integer> const&);
 generic_ptr
-add(std::vector<generic_ptr> const&);
+add(context&, std::vector<generic_ptr> const&);
 
 ptr<integer>
-subtract(ptr<integer> const&, ptr<integer> const&);
+subtract(context&, ptr<integer> const&, ptr<integer> const&);
 generic_ptr
-subtract(std::vector<generic_ptr> const&);
+subtract(context&, std::vector<generic_ptr> const&);
 
 ptr<integer>
-multiply(ptr<integer> const&, ptr<integer> const&);
+multiply(context&, ptr<integer> const&, ptr<integer> const&);
 generic_ptr
-multiply(std::vector<generic_ptr> const&);
+multiply(context&, std::vector<generic_ptr> const&);
 
 ptr<integer>
-divide(ptr<integer> const&, ptr<integer> const&);
+divide(context&, ptr<integer> const&, ptr<integer> const&);
 generic_ptr
-divide(std::vector<generic_ptr> const&);
+divide(context&, std::vector<generic_ptr> const&);
 
 ptr<boolean>
-arith_equal(ptr<integer> const&, ptr<integer> const&);
+arith_equal(context&, ptr<integer> const&, ptr<integer> const&);
 generic_ptr
-arith_equal(std::vector<generic_ptr> const&);
+arith_equal(context&, std::vector<generic_ptr> const&);
 
 ptr<boolean>
-less(ptr<integer> const&, ptr<integer> const&);
+less(context&, ptr<integer> const&, ptr<integer> const&);
 generic_ptr
-less(std::vector<generic_ptr> const&);
+less(context&, std::vector<generic_ptr> const&);
 
 ptr<boolean>
-greater(ptr<integer> const&, ptr<integer> const&);
+greater(context&, ptr<integer> const&, ptr<integer> const&);
 generic_ptr
-greater(std::vector<generic_ptr> const&);
+greater(context&, std::vector<generic_ptr> const&);
 
 // A boolean value.
 class boolean : public object {
@@ -471,9 +436,9 @@ public:
   { }
 
   generic_ptr
-  car() const { return {subobjects_[0]}; }
+  car(free_store& store) const { return {store, subobjects_[0]}; }
   generic_ptr
-  cdr() const { return {subobjects_[1]}; }
+  cdr(free_store& store) const { return {store, subobjects_[1]}; }
 
   void
   set_car(generic_ptr p) { subobjects_[0] = p.get(); }
@@ -487,10 +452,16 @@ public:
 // Is the given object a list? A list is either the null value or a pair whose
 // cdr is a list.
 bool
-is_list(generic_ptr);
+is_list(context&, generic_ptr);
 
 std::size_t
-list_length(generic_ptr);
+list_length(context&, generic_ptr);
+
+inline generic_ptr
+car(ptr<pair> const& x) { return x->car(x.store()); }
+
+inline generic_ptr
+cdr(ptr<pair> const& x) { return x->cdr(x.store()); }
 
 generic_ptr
 cadr(ptr<pair> const&);
@@ -510,13 +481,13 @@ cdddr(ptr<pair> const&);
 // Make a list out of given objects.
 template <typename... Ts>
 generic_ptr
-make_list(Ts... ts) {
+make_list(context& ctx, Ts... ts) {
   constexpr std::size_t n = sizeof...(Ts);
   std::array<generic_ptr, n> elements{std::move(ts)...};
 
-  generic_ptr result = null();
+  generic_ptr result = ctx.constants->null;
   for (std::size_t i = n; i > 0; --i)
-    result = make<pair>(elements[i - 1], result);
+    result = make<pair>(ctx, elements[i - 1], result);
 
   return result;
 }
@@ -536,7 +507,7 @@ public:
   for_each_subobject(std::function<void(object*)> const& f) override;
 
   generic_ptr
-  ref(std::size_t) const;
+  ref(free_store& store, std::size_t) const;
 
   void
   set(std::size_t, generic_ptr);
@@ -550,6 +521,9 @@ public:
 private:
   std::size_t size_;
 };
+
+inline generic_ptr
+vector_ref(ptr<vector> const& v, std::size_t i) { return v->ref(v.store(), i); }
 
 // An immutable string, used for identifying Scheme objects.
 class symbol : public object {
@@ -571,18 +545,14 @@ public:
   box(generic_ptr const&);
 
   generic_ptr
-  get() const;
+  get(free_store& store) const;
 
   void
   set(generic_ptr const&);
 };
 
-// If the given string has been interned previously in the thread-local context,
-// return the pre-existing symbol. Otherwise, create a new symbol object and
-// return that. This means that two interned symbols can be compared for
-// equality using pointer comparison.
-inline ptr<symbol>
-intern(std::string const& s) { return thread_context().intern(s); }
+inline generic_ptr
+unbox(ptr<box> const& b) { return b->get(b.store()); }
 
 // Callable bytecode container. Contains all the information necessary to create
 // a call frame inside the VM.
@@ -606,10 +576,10 @@ public:
   closure(ptr<scm::procedure> const&, std::vector<generic_ptr> const&);
 
   ptr<scm::procedure>
-  procedure() const { return procedure_; }
+  procedure(free_store& store) const { return {store, procedure_}; }
 
   generic_ptr
-  ref(std::size_t) const;
+  ref(free_store& store, std::size_t) const;
 
   void
   for_each_subobject(std::function<void(object*)> const&) override;
@@ -619,10 +589,16 @@ private:
   std::size_t size_;
 };
 
+inline ptr<procedure>
+closure_procedure(ptr<closure> const& c) { return c->procedure(c.store()); }
+
+inline generic_ptr
+closure_ref(ptr<closure> const& c, std::size_t i) { return c->ref(c.store(), i); }
+
 // Like procedure, but when invoked, it calls a C++ function.
 class native_procedure : public object {
 public:
-  using target_type = std::function<generic_ptr(std::vector<generic_ptr> const&)>;
+  using target_type = std::function<generic_ptr(context&, std::vector<generic_ptr> const&)>;
   target_type target;
 
   explicit
@@ -667,26 +643,71 @@ public:
     greater_than,
   };
 
-  struct binding {
+  class binding {
+  public:
+    binding(std::optional<std::size_t> index, binding_tag tag, module* parent)
+      : index{index}
+      , tag{tag}
+      , parent_{parent}
+    { }
+
     std::optional<std::size_t> index;
     binding_tag                tag;
-    module*                    parent;
+
+    ptr<module>
+    parent(free_store& store) const { return {store, parent_}; }
+
+  private:
+    friend class module;
+    module* parent_;
   };
 
-  std::vector<object*>                     objects;
-  std::vector<binding>                     bindings;
-  std::unordered_map<symbol*, std::size_t> symbols; // Bindings defined in this module.
-  std::unordered_map<symbol*, std::size_t> exports; // Subset of `symbols' that are exported.
-  std::unordered_map<symbol*, std::size_t> imports; // Bindings defined in other modules.
+  std::vector<binding> bindings;
+
+  generic_ptr
+  object(free_store& store, std::size_t i) const { return {store, objects_[i]}; }
+
+  // Find binding for the given symbol.
+  std::optional<std::size_t>
+  find(ptr<symbol> const& s) const;
 
   void
-  for_each_subobject(std::function<void(object*)> const&) override;
+  set_object(std::size_t i, generic_ptr const& o) { objects_[i] = o.get(); }
+
+  std::size_t
+  add_object(generic_ptr const& o) { objects_.push_back(o.get()); return objects_.size() - 1; }
+
+  std::size_t
+  add_binding(std::optional<std::size_t> object, binding_tag tag) {
+    bindings.push_back({object, tag, this});
+    return bindings.size() - 1;
+  }
+
+  void
+  add_export(ptr<symbol> const& name, std::size_t binding) { exports_.emplace(name.get(), binding); }
+
+  // Import all symbols from the source module into this module with no
+  // renaming.
+  void
+  import_all(ptr<module> const& source);
+
+private:
+  std::vector<scm::object*>                objects_;
+  std::unordered_map<symbol*, std::size_t> symbols_; // Bindings defined in this module.
+  std::unordered_map<symbol*, std::size_t> exports_; // Subset of `symbols' that are exported.
+  std::unordered_map<symbol*, std::size_t> imports_; // Bindings defined in other modules.
+
+  void
+  for_each_subobject(std::function<void(scm::object*)> const&) override;
 };
 
-// Import all symbols from the source module into the destination module with no
-// renaming.
-void
-import_all(ptr<module> const& dest, ptr<module> const& source);
+inline ptr<module>
+module_binding_parent(ptr<module> const& m, std::size_t binding) {
+  return m->bindings[binding].parent(m.store());
+}
+
+inline generic_ptr
+module_object(ptr<module> const& m, std::size_t i) { return m->object(m.store(), i); }
 
 // Is a given object an instance of the given Scheme type?
 template <typename T>
@@ -707,7 +728,7 @@ template <typename T>
 ptr<T>
 expect(generic_ptr const& x) {
   if (is<T>(x))
-    return {static_cast<T*>(x.get())};
+    return {x.store(), static_cast<T*>(x.get())};
   else
     throw type_error{};
 }
@@ -718,7 +739,7 @@ template <typename T>
 ptr<T>
 expect(generic_ptr const& x, std::string const& message) {
   if (is<T>(x))
-    return {static_cast<T*>(x.get())};
+    return {x.store(), static_cast<T*>(x.get())};
   else
     throw std::runtime_error{message};
 }
@@ -730,7 +751,7 @@ template <typename T>
 ptr<T>
 assume(generic_ptr const& x) {
   assert(is<T>(x));
-  return {static_cast<T*>(x.get())};
+  return {x.store(), static_cast<T*>(x.get())};
 }
 
 // If an object is of the given type, return the typed pointer to it; otherwise,
@@ -739,9 +760,9 @@ template <typename T>
 ptr<T>
 match(generic_ptr const& x) {
   if (is<T>(x))
-    return {static_cast<T*>(x.get())};
+    return {x.store(), static_cast<T*>(x.get())};
   else
-    return {nullptr};
+    return {};
 }
 
 } // namespace game::scm

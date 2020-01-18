@@ -255,19 +255,6 @@ compile_body(context& ctx, procedure_context& proc, body_syntax const&, bool tai
 static shared_register
 compile_reference(procedure_context& proc, reference_syntax const& stx);
 
-static std::optional<std::size_t>
-find_global(ptr<module> const& m, ptr<symbol> const& s) {
-  auto global = m->symbols.find(s.get());
-  if (global == m->symbols.end()) {
-    global = m->imports.find(s.get());
-
-    if (global == m->imports.end())
-      return std::nullopt;
-  }
-
-  return global->second;
-}
-
 static std::optional<module::binding_tag>
 find_tag(procedure_context const& proc, ptr<symbol> const& sym) {
   shared_register r = proc.bindings.lookup(sym);
@@ -275,7 +262,7 @@ find_tag(procedure_context const& proc, ptr<symbol> const& sym) {
     // It's a local, so it can't be an imported symbol.
     return std::nullopt;
   else {
-    std::optional<std::size_t> binding_index = find_global(proc.module, sym);
+    std::optional<std::size_t> binding_index = proc.module->find(sym);
     if (!binding_index)
       return std::nullopt;
 
@@ -561,7 +548,7 @@ compile_reference(procedure_context& proc, reference_syntax const& stx) {
         return result;
       }
 
-    std::optional<std::size_t> binding_index = find_global(proc.module, stx.symbol);
+    std::optional<std::size_t> binding_index = proc.module->find(stx.symbol);
     if (!binding_index)
       throw std::runtime_error{fmt::format("Unbound identifier {}", stx.symbol->value())};
 

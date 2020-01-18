@@ -44,9 +44,9 @@ call_frame::for_each_subobject(std::function<void(object*)> const& f) {
 }
 
 generic_ptr
-call_frame::local(std::size_t i) const {
+call_frame::local(free_store& store, std::size_t i) const {
   assert(i < locals_size_);
-  return dynamic_storage()[i];
+  return {store, dynamic_storage()[i]};
 }
 
 void
@@ -56,22 +56,22 @@ call_frame::set_local(std::size_t i, generic_ptr const& value) {
 }
 
 generic_ptr
-call_frame::closure(std::size_t i) const {
+call_frame::closure(free_store& store, std::size_t i) const {
   assert(closure_);
-  return closure_->ref(i);
+  return closure_->ref(store, i);
 }
 
 static generic_ptr
 get_register(execution_state& state, operand op) {
   switch (op.scope()) {
   case operand::scope_type::local:
-    return state.current_frame->local(op.value());
+    return call_frame_local(state.current_frame, op.value());
   case operand::scope_type::closure:
-    return state.current_frame->closure(op.value());
+    return call_frame_closure(state.current_frame, op.value());
   case operand::scope_type::global: {
-    ptr<module> m = state.current_frame->module();
-    ptr<module> parent = m->bindings[op.value()].parent;
-    return parent->objects[*m->bindings[op.value()].index];
+    ptr<module> m = call_frame_module(state.current_frame);
+    ptr<module> parent = module_binding_parent(m, op.value());
+    return module_object(parent, *m->bindings[op.value()].index);
   }
   case operand::scope_type::static_:
     return state.ctx.get_static(op.value());
@@ -94,12 +94,12 @@ get_register_and_module(execution_state& state, operand op) {
   case operand::scope_type::local:
   case operand::scope_type::static_:
   case operand::scope_type::closure:
-    return {get_register(state, op), state.current_frame->module()};
+    return {get_register(state, op), state.current_frame->module(state.ctx.store)};
 
   case operand::scope_type::global: {
-    ptr<module> m = state.current_frame->module();
-    ptr<module> parent = m->bindings[op.value()].parent;
-    return {parent->objects[*m->bindings[op.value()].index], parent};
+    ptr<module> m = state.current_frame->module(state.ctx.store);
+    ptr<module> parent = module_binding_parent(m, op.value());
+    return {module_object(parent, *m->bindings[op.value()].index), parent};
   }
   }
 
@@ -118,9 +118,9 @@ set_register(execution_state& state, operand op, generic_ptr const& value) {
     // it does.
     throw std::runtime_error{"Cannot write to a closure register"};
   case operand::scope_type::global: {
-    ptr<module> m = state.current_frame->module();
-    ptr<module> parent = m->bindings[op.value()].parent;
-    parent->objects[*m->bindings[op.value()].index] = value.get();
+    ptr<module> m = state.current_frame->module(state.ctx.store);
+    ptr<module> parent = module_binding_parent(m, op.value());
+    parent->set_object(*m->bindings[op.value()].index, value);
     return;
   }
   case operand::scope_type::static_:
@@ -131,12 +131,13 @@ set_register(execution_state& state, operand op, generic_ptr const& value) {
 }
 
 static instruction const&
-find_call(call_frame const& frame) {
-  std::uint32_t i = frame.pc - 1;
-  while (frame.procedure()->bytecode[i].opcode == opcode::data)
+find_call(ptr<call_frame> const& frame) {
+  free_store& store = frame.store();
+  std::uint32_t i = frame->pc - 1;
+  while (frame->procedure(store)->bytecode[i].opcode == opcode::data)
     --i;
 
-  instruction const& call_instr = frame.procedure()->bytecode[i];
+  instruction const& call_instr = frame->procedure(store)->bytecode[i];
   assert(call_instr.opcode == opcode::call);
 
   return call_instr;
@@ -147,7 +148,7 @@ collect_data(execution_state& state, std::size_t num) {
   std::vector<generic_ptr> result(num);
   ptr<call_frame>& frame = state.current_frame;
   for (operand::representation_type i = 0; i < num; ++i) {
-    instruction const& d = frame->procedure()->bytecode[frame->pc];
+    instruction const& d = frame->procedure(state.ctx.store)->bytecode[frame->pc];
     assert(d.opcode == opcode::data);
 
     switch (i % 3) {
@@ -179,7 +180,7 @@ collect_data(execution_state& state, std::size_t num) {
 static void
 execute_one(execution_state& state) {
   ptr<call_frame>& frame = state.current_frame;
-  instruction instr = frame->procedure()->bytecode[frame->pc++];
+  instruction instr = frame->procedure(state.ctx.store)->bytecode[frame->pc++];
 
   switch (instr.opcode) {
   case opcode::no_operation:
@@ -193,10 +194,10 @@ execute_one(execution_state& state) {
     ptr<integer> rhs = expect<integer>(get_register(state, instr.y));
 
     switch (instr.opcode) {
-    case opcode::add:      set_register(state, instr.dest, add(lhs, rhs));      break;
-    case opcode::subtract: set_register(state, instr.dest, subtract(lhs, rhs)); break;
-    case opcode::multiply: set_register(state, instr.dest, multiply(lhs, rhs)); break;
-    case opcode::divide:   set_register(state, instr.dest, divide(lhs, rhs));   break;
+    case opcode::add:      set_register(state, instr.dest, add(state.ctx, lhs, rhs));      break;
+    case opcode::subtract: set_register(state, instr.dest, subtract(state.ctx, lhs, rhs)); break;
+    case opcode::multiply: set_register(state, instr.dest, multiply(state.ctx, lhs, rhs)); break;
+    case opcode::divide:   set_register(state, instr.dest, divide(state.ctx, lhs, rhs));   break;
     default:
       assert(!"Cannot get here");
     }
@@ -210,9 +211,9 @@ execute_one(execution_state& state) {
     ptr<integer> lhs = expect<integer>(get_register(state, instr.x));
     ptr<integer> rhs = expect<integer>(get_register(state, instr.y));
     switch (instr.opcode) {
-    case opcode::arith_equal: set_register(state, instr.dest, arith_equal(lhs, rhs)); break;
-    case opcode::less_than: set_register(state, instr.dest, less(lhs, rhs)); break;
-    case opcode::greater_than: set_register(state, instr.dest, greater(lhs, rhs)); break;
+    case opcode::arith_equal: set_register(state, instr.dest, arith_equal(state.ctx, lhs, rhs)); break;
+    case opcode::less_than: set_register(state, instr.dest, less(state.ctx, lhs, rhs)); break;
+    case opcode::greater_than: set_register(state, instr.dest, greater(state.ctx, lhs, rhs)); break;
     default:
       assert(!"Cannot get here");
     }
@@ -238,18 +239,18 @@ execute_one(execution_state& state) {
 
     if (auto cls = match<scm::closure>(call_target)) {
       closure = cls;
-      call_target = cls->procedure();
+      call_target = cls->procedure(state.ctx.store);
     }
 
     if (auto scheme_proc = match<procedure>(call_target)) {
       if (instr.opcode == opcode::tail_call)
-        state.current_frame = frame->parent();
+        state.current_frame = frame->parent(state.ctx.store);
 
       state.current_frame = state.ctx.store.make<call_frame>(
         scheme_proc, closure, state.current_frame, args, callee.module
       );
     } else if (auto native_proc = match<native_procedure>(call_target)) {
-      generic_ptr result = native_proc->target(args);
+      generic_ptr result = native_proc->target(state.ctx, args);
 
       if (instr.opcode == opcode::call)
         set_register(state, instr.dest, result);
@@ -258,16 +259,16 @@ execute_one(execution_state& state) {
         // go back to this frame's caller. Since this is a native procedure, we
         // have to simulate the ret ourselves.
 
-        if (!frame->parent()) {
+        if (!frame->parent(state.ctx.store)) {
           // Same as in ret below: We're returning from the global procedure.
 
           state.global_return = result;
-          frame->pc = frame->procedure()->bytecode.size();
+          frame->pc = frame->procedure(state.ctx.store)->bytecode.size();
           return;
         }
 
-        state.current_frame = frame->parent();
-        set_register(state, find_call(*frame).dest, result);
+        state.current_frame = frame->parent(state.ctx.store);
+        set_register(state, find_call(frame).dest, result);
       }
     } else
       throw std::runtime_error{"Error in application: Not a procedure"};
@@ -275,24 +276,24 @@ execute_one(execution_state& state) {
   }
 
   case opcode::ret: {
-    if (!frame->parent()) {
+    if (!frame->parent(state.ctx.store)) {
       // We are returning from the global procedure, so we have nowhere to
       // return to. We will set the global_return value and *not* pop the
       // stack. We'll then set pc past all the bytecode so we finish execution.
 
       state.global_return = get_register(state, instr.x);
-      frame->pc = frame->procedure()->bytecode.size();
+      frame->pc = frame->procedure(state.ctx.store)->bytecode.size();
       return;
     }
 
     generic_ptr return_value = get_register(state, instr.x);
-    state.current_frame = frame->parent();
+    state.current_frame = frame->parent(state.ctx.store);
 
     // Now we are in the parent procedure, the PC points to the instruction
     // after the call and all the arguments. So we'll look back to the call
     // instruction and find the destination register for the return value.
 
-    set_register(state, find_call(*frame).dest, return_value);
+    set_register(state, find_call(frame).dest, return_value);
     break;
   }
 
@@ -300,7 +301,7 @@ execute_one(execution_state& state) {
   case opcode::jump_unless: {
     operand::offset_type offset = instr.opcode == opcode::jump ? instr.x.offset() : instr.y.offset();
     assert(offset >= 0 || static_cast<std::uint32_t>(-offset) <= frame->pc);
-    assert(offset < 0 || offset + frame->pc < frame->procedure()->bytecode.size());
+    assert(offset < 0 || offset + frame->pc < frame->procedure(state.ctx.store)->bytecode.size());
     std::uint32_t destination = frame->pc + offset;
 
     if (instr.opcode == opcode::jump_unless) {
@@ -336,7 +337,7 @@ execute_one(execution_state& state) {
     break;
 
   case opcode::unbox:
-    set_register(state, instr.dest, expect<box>(get_register(state, instr.x))->get());
+    set_register(state, instr.dest, unbox(expect<box>(get_register(state, instr.x))));
     break;
 
   case opcode::box_set:
@@ -360,11 +361,11 @@ make_state(context& ctx, ptr<procedure> const& global, ptr<module> const& m) {
 
 generic_ptr
 run(execution_state& state) {
-  while (state.current_frame->pc < state.current_frame->procedure()->bytecode.size())
+  while (state.current_frame->pc < state.current_frame->procedure(state.ctx.store)->bytecode.size())
     execute_one(state);
 
-  assert(!state.current_frame->parent()); // Non-global procedures must finish by
-                                          // executing ret.
+  assert(!state.current_frame->parent(state.ctx.store)); // Non-global procedures must finish by
+                                                         // executing ret.
 
   return state.global_return;
 }

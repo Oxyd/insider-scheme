@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(insider-scheme)
 
+option(ASAN "Enable address sanitizer" OFF)
+
 set(scheme_sources
   src/analyser.cpp
   src/bytecode.cpp
@@ -22,9 +24,14 @@ set_property(TARGET gtest PROPERTY
 set_property(TARGET gtest_main PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
+if (ASAN AND UNIX)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+endif()
+
 add_library(scheme ${scheme_sources})
 target_compile_features(scheme PUBLIC cxx_std_17)
 set_property(TARGET scheme PROPERTY CXX_EXTENSIONS OFF)
+
 target_link_libraries(scheme PRIVATE fmt::fmt-header-only)
 target_include_directories(scheme INTERFACE src)
 set_property(TARGET scheme PROPERTY
@@ -32,6 +39,7 @@ set_property(TARGET scheme PROPERTY
 
 add_executable(tests ${test_sources})
 target_compile_features(tests PUBLIC cxx_std_17)
+set_property(TARGET tests PROPERTY CXX_EXTENSIONS OFF)
 target_link_libraries(tests
   PUBLIC scheme
   PRIVATE gtest_main)

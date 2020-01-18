@@ -18,31 +18,31 @@ parse(context& ctx, syntax* parent, generic_ptr const& datum);
 
 static definition_pair_syntax
 parse_definition_pair(context& ctx, syntax* parent, ptr<pair> const& datum) {
-  if (!is<symbol>(datum->car()))
+  if (!is<symbol>(car(datum)))
     throw std::runtime_error{"Invalid #$let syntax: Binding not a symbol"};
 
-  auto name = assume<symbol>(datum->car());
+  auto name = assume<symbol>(car(datum));
 
-  if (datum->cdr() == ctx.constants->null)
+  if (cdr(datum) == ctx.constants->null)
     throw std::runtime_error{fmt::format("Invalid #$let syntax: No expression for {}",
                                          name->value())};
-  if (!is<pair>(datum->cdr()))
+  if (!is<pair>(cdr(datum)))
     throw std::runtime_error{"Invalid #$let syntax in binding definition"};
 
-  return {name, parse(ctx, parent, assume<pair>(datum->cdr())->car())};
+  return {name, parse(ctx, parent, cadr(datum))};
 }
 
 static body_syntax
 parse_body(context& ctx, syntax* parent, generic_ptr const& datum) {
-  if (!is_list(datum) || datum == ctx.constants->null)
+  if (!is_list(ctx, datum) || datum == ctx.constants->null)
     throw std::runtime_error{"Invalid syntax: Expected a list of expressions"};
 
   generic_ptr expr = datum;
   std::vector<std::unique_ptr<syntax>> result;
   while (expr != ctx.constants->null) {
     auto e = assume<pair>(expr);
-    result.push_back(parse(ctx, parent, e->car()));
-    expr = e->cdr();
+    result.push_back(parse(ctx, parent, car(e)));
+    expr = cdr(e);
   }
 
   return body_syntax{std::move(result)};
@@ -50,23 +50,23 @@ parse_body(context& ctx, syntax* parent, generic_ptr const& datum) {
 
 static std::unique_ptr<syntax>
 parse_let(context& ctx, syntax* parent, ptr<pair> const& datum) {
-  if (!is_list(datum) || list_length(datum) < 3)
+  if (!is_list(ctx, datum) || list_length(ctx, datum) < 3)
     throw std::runtime_error{"Invalid #$let syntax"};
 
   auto bindings = cadr(datum);
-  if (!is_list(bindings))
+  if (!is_list(ctx, bindings))
     throw std::runtime_error{"Invalid #$let syntax in binding definitions"};
 
   auto result = make_syntax<let_syntax>(parent);
   auto& let = std::get<let_syntax>(result->value);
 
   while (bindings != ctx.constants->null) {
-    auto binding = assume<pair>(bindings)->car();
+    auto binding = car(assume<pair>(bindings));
     if (!is<pair>(binding))
       throw std::runtime_error{"Invalid #$let syntax in binding definitions"};
 
     let.definitions.push_back(parse_definition_pair(ctx, result.get(), assume<pair>(binding)));
-    bindings = assume<pair>(bindings)->cdr();
+    bindings = cdr(assume<pair>(bindings));
   }
 
   let.body = parse_body(ctx, result.get(), cddr(datum));
@@ -75,7 +75,7 @@ parse_let(context& ctx, syntax* parent, ptr<pair> const& datum) {
 
 static std::unique_ptr<syntax>
 parse_set(context& ctx, syntax* parent, ptr<pair> const& datum) {
-  if (!is_list(datum) || list_length(datum) != 3)
+  if (!is_list(ctx, datum) || list_length(ctx, datum) != 3)
     throw std::runtime_error{"Invalid #$set! syntax"};
 
   auto result = make_syntax<set_syntax>(parent, expect<symbol>(cadr(datum), "Invalid #$set! syntax"));
@@ -85,11 +85,11 @@ parse_set(context& ctx, syntax* parent, ptr<pair> const& datum) {
 
 static std::unique_ptr<syntax>
 parse_lambda(context& ctx, syntax* parent, ptr<pair> const& datum) {
-  if (!is_list(datum->cdr()) || datum->cdr() == ctx.constants->null)
+  if (!is_list(ctx, cdr(datum)) || cdr(datum) == ctx.constants->null)
     throw std::runtime_error{"Invalid lambda syntax"};
 
   generic_ptr param_names = cadr(datum);
-  if (!is_list(param_names))
+  if (!is_list(ctx, param_names))
     throw std::runtime_error{"Unimplemented"};
 
   auto result = make_syntax<lambda_syntax>(parent);
@@ -98,9 +98,9 @@ parse_lambda(context& ctx, syntax* parent, ptr<pair> const& datum) {
   std::vector<ptr<symbol>> params;
   while (param_names != ctx.constants->null) {
     auto param = assume<pair>(param_names);
-    lambda.parameters.push_back(expect<symbol>(param->car(),
+    lambda.parameters.push_back(expect<symbol>(car(param),
                                                "Invalid lambda syntax: Expected symbol in parameter list"));
-    param_names = param->cdr();
+    param_names = cdr(param);
   }
 
   lambda.body = parse_body(ctx, result.get(), cddr(datum));
@@ -109,7 +109,7 @@ parse_lambda(context& ctx, syntax* parent, ptr<pair> const& datum) {
 
 static std::unique_ptr<syntax>
 parse_if(context& ctx, syntax* parent, ptr<pair> const& datum) {
-  if (!is_list(datum->cdr()) || (list_length(datum) != 3 && list_length(datum) != 4))
+  if (!is_list(ctx, cdr(datum)) || (list_length(ctx, datum) != 3 && list_length(ctx, datum) != 4))
     throw std::runtime_error{"Invalid if syntax"};
 
   generic_ptr test_expr = cadr(datum);
@@ -131,18 +131,18 @@ parse_if(context& ctx, syntax* parent, ptr<pair> const& datum) {
 
 static std::unique_ptr<syntax>
 parse_application(context& ctx, syntax* parent, ptr<pair> const& datum) {
-  if (!is_list(datum->cdr()))
+  if (!is_list(ctx, cdr(datum)))
     throw std::runtime_error{"Invalid function call syntax"};
 
   auto result = make_syntax<application_syntax>(parent);
   auto& app = std::get<application_syntax>(result->value);
 
-  app.target = parse(ctx, result.get(), datum->car());
+  app.target = parse(ctx, result.get(), car(datum));
 
-  auto arg_expr = datum->cdr();
+  auto arg_expr = cdr(datum);
   while (arg_expr != ctx.constants->null) {
-    app.arguments.push_back(parse(ctx, result.get(), assume<pair>(arg_expr)->car()));
-    arg_expr = assume<pair>(arg_expr)->cdr();
+    app.arguments.push_back(parse(ctx, result.get(), car(assume<pair>(arg_expr))));
+    arg_expr = cdr(assume<pair>(arg_expr));
   }
 
   return result;
@@ -150,7 +150,7 @@ parse_application(context& ctx, syntax* parent, ptr<pair> const& datum) {
 
 static std::unique_ptr<syntax>
 parse_box(context& ctx, syntax* parent, ptr<pair> const& datum) {
-  if (!is_list(datum) || list_length(datum) != 2)
+  if (!is_list(ctx, datum) || list_length(ctx, datum) != 2)
     throw std::runtime_error{"Invalid #$box syntax"};
 
   auto result = make_syntax<box_syntax>(parent);
@@ -160,7 +160,7 @@ parse_box(context& ctx, syntax* parent, ptr<pair> const& datum) {
 
 static std::unique_ptr<syntax>
 parse_unbox(context& ctx, syntax* parent, ptr<pair> const& datum) {
-  if (!is_list(datum) || list_length(datum) != 2)
+  if (!is_list(ctx, datum) || list_length(ctx, datum) != 2)
     throw std::runtime_error{"Invalid #$unbox syntax"};
 
   auto result = make_syntax<unbox_syntax>(parent);
@@ -170,7 +170,7 @@ parse_unbox(context& ctx, syntax* parent, ptr<pair> const& datum) {
 
 static std::unique_ptr<syntax>
 parse_box_set(context& ctx, syntax* parent, ptr<pair> const& datum) {
-  if (!is_list(datum) || list_length(datum) != 3)
+  if (!is_list(ctx, datum) || list_length(ctx, datum) != 3)
     throw std::runtime_error{"Invalid #$box-set! syntax"};
 
   auto result = make_syntax<box_set_syntax>(parent);
@@ -189,7 +189,7 @@ parse(context& ctx, syntax* parent, generic_ptr const& datum) {
   else if (auto s = match<symbol>(datum))
     return make_syntax<reference_syntax>(parent, s);
   else if (auto p = match<pair>(datum)) {
-    auto head = p->car();
+    auto head = car(p);
     if (auto head_symbol = match<symbol>(head)) {
       if (head_symbol->value() == "#$let")
         return parse_let(ctx, parent, p);

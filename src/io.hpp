@@ -16,10 +16,10 @@ struct parse_error : std::runtime_error {
 // Read a single S-expression from the given input stream. Returns a null
 // pointer if there is no expression in the stream.
 generic_ptr
-read(std::istream&);
+read(context&, std::istream&);
 
 generic_ptr
-read(std::string const&);
+read(context&, std::string const&);
 
 } // namespace game::csm
 
