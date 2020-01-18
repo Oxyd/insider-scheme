@@ -318,9 +318,9 @@ public:
       ;
   };
 
-  free_store                 store;
-  std::unique_ptr<constants> constants;
-  statics_list               statics;
+  free_store   store;
+  constants    constants;
+  statics_list statics;
 
   context();
   context(context const&) = delete;
@@ -485,7 +485,7 @@ make_list(context& ctx, Ts... ts) {
   constexpr std::size_t n = sizeof...(Ts);
   std::array<generic_ptr, n> elements{std::move(ts)...};
 
-  generic_ptr result = ctx.constants->null;
+  generic_ptr result = ctx.constants.null;
   for (std::size_t i = n; i > 0; --i)
     result = make<pair>(ctx, elements[i - 1], result);
 

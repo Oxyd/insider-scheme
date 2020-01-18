@@ -209,17 +209,16 @@ make_internal_module(context& ctx) {
 }
 
 context::context() {
-  constants = std::make_unique<struct context::constants>();
-  constants->null = store.make<null_type>();
-  constants->void_ = store.make<void_type>();
-  constants->t = store.make<boolean>(true);
-  constants->f = store.make<boolean>(false);
-  constants->internal = make_internal_module(*this);
+  constants.null = store.make<null_type>();
+  constants.void_ = store.make<void_type>();
+  constants.t = store.make<boolean>(true);
+  constants.f = store.make<boolean>(false);
+  constants.internal = make_internal_module(*this);
 
-  statics.null = operand::static_(intern_static(constants->null));
-  statics.void_ = operand::static_(intern_static(constants->void_));
-  statics.t = operand::static_(intern_static(constants->t));
-  statics.f = operand::static_(intern_static(constants->f));
+  statics.null = operand::static_(intern_static(constants.null));
+  statics.void_ = operand::static_(intern_static(constants.void_));
+  statics.t = operand::static_(intern_static(constants.t));
+  statics.f = operand::static_(intern_static(constants.f));
   statics.zero = operand::static_(intern_static(store.make<integer>(0)));
   statics.one = operand::static_(intern_static(store.make<integer>(1)));
 }
@@ -344,18 +343,18 @@ relational(context& ctx, std::vector<generic_ptr> const& xs, std::string const& 
   ptr<integer> lhs = expect<integer>(xs[0]);
   for (std::size_t i = 1; i < xs.size(); ++i) {
     ptr<integer> rhs = expect<integer>(xs[i]);
-    if (F(ctx, lhs, rhs) == ctx.constants->f)
-      return ctx.constants->f;
+    if (F(ctx, lhs, rhs) == ctx.constants.f)
+      return ctx.constants.f;
 
     lhs = rhs;
   }
 
-  return ctx.constants->t;
+  return ctx.constants.t;
 }
 
 ptr<boolean>
 arith_equal(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() == rhs->value() ? ctx.constants->t : ctx.constants->f;
+  return lhs->value() == rhs->value() ? ctx.constants.t : ctx.constants.f;
 }
 
 generic_ptr
@@ -365,7 +364,7 @@ arith_equal(context& ctx, std::vector<generic_ptr> const& xs) {
 
 ptr<boolean>
 less(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() < rhs->value() ? ctx.constants->t : ctx.constants->f;
+  return lhs->value() < rhs->value() ? ctx.constants.t : ctx.constants.f;
 }
 
 generic_ptr
@@ -375,7 +374,7 @@ less(context& ctx, std::vector<generic_ptr> const& xs) {
 
 ptr<boolean>
 greater(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() > rhs->value() ? ctx.constants->t : ctx.constants->f;
+  return lhs->value() > rhs->value() ? ctx.constants.t : ctx.constants.f;
 }
 
 generic_ptr
@@ -391,7 +390,7 @@ pair::hash() const {
 bool
 is_list(context& ctx, generic_ptr x) {
   while (true)
-    if (x == ctx.constants->null)
+    if (x == ctx.constants.null)
       return true;
     else if (ptr<pair> p = match<pair>(x))
       x = cdr(p);
@@ -402,7 +401,7 @@ is_list(context& ctx, generic_ptr x) {
 std::size_t
 list_length(context& ctx, generic_ptr x) {
   std::size_t result = 0;
-  while (x != ctx.constants->null) {
+  while (x != ctx.constants.null) {
     x = cdr(expect<pair>(x));
     ++result;
   }

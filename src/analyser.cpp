@@ -23,7 +23,7 @@ parse_definition_pair(context& ctx, syntax* parent, ptr<pair> const& datum) {
 
   auto name = assume<symbol>(car(datum));
 
-  if (cdr(datum) == ctx.constants->null)
+  if (cdr(datum) == ctx.constants.null)
     throw std::runtime_error{fmt::format("Invalid #$let syntax: No expression for {}",
                                          name->value())};
   if (!is<pair>(cdr(datum)))
@@ -34,12 +34,12 @@ parse_definition_pair(context& ctx, syntax* parent, ptr<pair> const& datum) {
 
 static body_syntax
 parse_body(context& ctx, syntax* parent, generic_ptr const& datum) {
-  if (!is_list(ctx, datum) || datum == ctx.constants->null)
+  if (!is_list(ctx, datum) || datum == ctx.constants.null)
     throw std::runtime_error{"Invalid syntax: Expected a list of expressions"};
 
   generic_ptr expr = datum;
   std::vector<std::unique_ptr<syntax>> result;
-  while (expr != ctx.constants->null) {
+  while (expr != ctx.constants.null) {
     auto e = assume<pair>(expr);
     result.push_back(parse(ctx, parent, car(e)));
     expr = cdr(e);
@@ -60,7 +60,7 @@ parse_let(context& ctx, syntax* parent, ptr<pair> const& datum) {
   auto result = make_syntax<let_syntax>(parent);
   auto& let = std::get<let_syntax>(result->value);
 
-  while (bindings != ctx.constants->null) {
+  while (bindings != ctx.constants.null) {
     auto binding = car(assume<pair>(bindings));
     if (!is<pair>(binding))
       throw std::runtime_error{"Invalid #$let syntax in binding definitions"};
@@ -85,7 +85,7 @@ parse_set(context& ctx, syntax* parent, ptr<pair> const& datum) {
 
 static std::unique_ptr<syntax>
 parse_lambda(context& ctx, syntax* parent, ptr<pair> const& datum) {
-  if (!is_list(ctx, cdr(datum)) || cdr(datum) == ctx.constants->null)
+  if (!is_list(ctx, cdr(datum)) || cdr(datum) == ctx.constants.null)
     throw std::runtime_error{"Invalid lambda syntax"};
 
   generic_ptr param_names = cadr(datum);
@@ -96,7 +96,7 @@ parse_lambda(context& ctx, syntax* parent, ptr<pair> const& datum) {
   auto& lambda = std::get<lambda_syntax>(result->value);
 
   std::vector<ptr<symbol>> params;
-  while (param_names != ctx.constants->null) {
+  while (param_names != ctx.constants.null) {
     auto param = assume<pair>(param_names);
     lambda.parameters.push_back(expect<symbol>(car(param),
                                                "Invalid lambda syntax: Expected symbol in parameter list"));
@@ -115,7 +115,7 @@ parse_if(context& ctx, syntax* parent, ptr<pair> const& datum) {
   generic_ptr test_expr = cadr(datum);
   generic_ptr then_expr = caddr(datum);
   generic_ptr else_expr;
-  if (cdddr(datum) != ctx.constants->null)
+  if (cdddr(datum) != ctx.constants.null)
     else_expr = cadddr(datum);
 
   auto result = make_syntax<if_syntax>(parent);
@@ -140,7 +140,7 @@ parse_application(context& ctx, syntax* parent, ptr<pair> const& datum) {
   app.target = parse(ctx, result.get(), car(datum));
 
   auto arg_expr = cdr(datum);
-  while (arg_expr != ctx.constants->null) {
+  while (arg_expr != ctx.constants.null) {
     app.arguments.push_back(parse(ctx, result.get(), car(assume<pair>(arg_expr))));
     arg_expr = cdr(assume<pair>(arg_expr));
   }

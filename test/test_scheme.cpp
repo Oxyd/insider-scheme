@@ -19,7 +19,7 @@ struct scheme : testing::Test {
   generic_ptr
   eval(std::string const& expr) {
     auto m = make<module>(ctx);
-    m->import_all(ctx.constants->internal);
+    m->import_all(ctx.constants.internal);
     auto f = compile_expression(ctx, read(expr), m);
     auto state = make_state(ctx, f, m);
     return run(state);
@@ -141,9 +141,9 @@ TEST_F(scheme, weak_ptr) {
 }
 
 TEST_F(scheme, type_predicates) {
-  ptr<pair> p = make<pair>(ctx, ctx.constants->null, ctx.constants->null);
+  ptr<pair> p = make<pair>(ctx, ctx.constants.null, ctx.constants.null);
   generic_ptr x = p;
-  generic_ptr null = ctx.constants->null;
+  generic_ptr null = ctx.constants.null;
 
   EXPECT_TRUE(is<pair>(x));
   EXPECT_FALSE(is<pair>(null));
@@ -171,7 +171,7 @@ TEST_F(scheme, is_list) {
                             make<integer>(ctx, 1),
                             make<pair>(ctx,
                                        make<integer>(ctx, 2),
-                                       ctx.constants->null));
+                                       ctx.constants.null));
   EXPECT_TRUE(is_list(ctx, l2));
 
   // (0 1 2)
@@ -181,7 +181,7 @@ TEST_F(scheme, is_list) {
 
 TEST_F(scheme, make_list) {
   generic_ptr empty = make_list(ctx);
-  EXPECT_TRUE(empty == ctx.constants->null);
+  EXPECT_TRUE(empty == ctx.constants.null);
 
   generic_ptr l = make_list(ctx,
                             make<integer>(ctx, 1),
@@ -196,7 +196,7 @@ TEST_F(scheme, make_list) {
   auto third = expect<pair>(cdr(second));
   EXPECT_EQ(expect<integer>(car(third))->value(), 3);
 
-  EXPECT_EQ(cdr(third), ctx.constants->null);
+  EXPECT_EQ(cdr(third), ctx.constants.null);
 }
 
 TEST_F(scheme, intern) {
@@ -270,24 +270,24 @@ TEST_F(scheme, read_integer) {
 
 TEST_F(scheme, read_list) {
   generic_ptr empty_1 = read("()");
-  EXPECT_EQ(empty_1, ctx.constants->null);
+  EXPECT_EQ(empty_1, ctx.constants.null);
 
   generic_ptr empty_2 = read("(   )");
-  EXPECT_EQ(empty_2, ctx.constants->null);
+  EXPECT_EQ(empty_2, ctx.constants.null);
 
   generic_ptr single_element = read("(1)");
   EXPECT_TRUE(is_list(ctx, single_element));
   EXPECT_EQ(expect<integer>(car(expect<pair>(single_element)))->value(), 1);
-  EXPECT_EQ(cdr(expect<pair>(single_element)), ctx.constants->null);
+  EXPECT_EQ(cdr(expect<pair>(single_element)), ctx.constants.null);
 
   generic_ptr two_elements = read("(1 2)");
   EXPECT_TRUE(is_list(ctx, two_elements));
   EXPECT_EQ(expect<integer>(car(expect<pair>(two_elements)))->value(), 1);
   EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(expect<pair>(two_elements)))))->value(), 2);
-  EXPECT_EQ(cdr(expect<pair>(cdr(expect<pair>(two_elements)))), ctx.constants->null);
+  EXPECT_EQ(cdr(expect<pair>(cdr(expect<pair>(two_elements)))), ctx.constants.null);
 
   generic_ptr no_elements = read("()");
-  EXPECT_EQ(no_elements, ctx.constants->null);
+  EXPECT_EQ(no_elements, ctx.constants.null);
 
   generic_ptr nested = read("(1 (2 3))");
   EXPECT_TRUE(is_list(ctx, nested));
@@ -563,9 +563,9 @@ TEST_F(scheme, compile_let) {
   int product = a * b;
   EXPECT_EQ(expect<integer>(result)->value(), sum - product);
 
-  EXPECT_THROW(compile_expression(ctx, read("(let ((a 2)))"), ctx.constants->internal),
+  EXPECT_THROW(compile_expression(ctx, read("(let ((a 2)))"), ctx.constants.internal),
                std::runtime_error);
-  EXPECT_THROW(compile_expression(ctx, read("(let foo)"), ctx.constants->internal),
+  EXPECT_THROW(compile_expression(ctx, read("(let foo)"), ctx.constants.internal),
                std::runtime_error);
 }
 
@@ -618,7 +618,7 @@ TEST_F(scheme, compile_if) {
   EXPECT_EQ(expect<integer>(result3)->value(), 2);
 
   generic_ptr result4 = eval("(#$if #f 2)");
-  EXPECT_EQ(result4, ctx.constants->void_);
+  EXPECT_EQ(result4, ctx.constants.void_);
 
   generic_ptr result5 = eval(
     R"(

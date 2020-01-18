@@ -310,7 +310,7 @@ execute_one(execution_state& state) {
       // The only false value in Scheme is #f. So we only jump if the test_value
       // is exactly #f.
 
-      if (test_value != state.ctx.constants->f)
+      if (test_value != state.ctx.constants.f)
         break;
     }
 

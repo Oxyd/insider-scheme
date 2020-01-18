@@ -226,14 +226,14 @@ read_list(context& ctx, std::istream& stream) {
   if (std::holds_alternative<end>(t))
     throw parse_error{"Unterminated list"};
   else if (std::holds_alternative<right_paren>(t))
-    return ctx.constants->null;
+    return ctx.constants.null;
 
-  ptr<pair> result = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null);
+  ptr<pair> result = make<pair>(ctx, read(ctx, t, stream), ctx.constants.null);
   ptr<pair> tail = result;
 
   t = read_token(stream);
   while (!std::holds_alternative<end>(t) && !std::holds_alternative<right_paren>(t)) {
-    ptr<pair> new_tail = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null);
+    ptr<pair> new_tail = make<pair>(ctx, read(ctx, t, stream), ctx.constants.null);
     tail->set_cdr(new_tail);
     tail = new_tail;
 
@@ -258,9 +258,9 @@ read(context& ctx, token first_token, std::istream& stream) {
   else if (identifier* i = std::get_if<identifier>(&first_token))
     return ctx.intern(i->value);
   else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token))
-    return b->value ? ctx.constants->t : ctx.constants->f;
+    return b->value ? ctx.constants.t : ctx.constants.f;
   else if (void_literal* v = std::get_if<void_literal>(&first_token))
-    return ctx.constants->void_;
+    return ctx.constants.void_;
 
   throw parse_error{"Probably unimplemented"};
 }
