@@ -19,9 +19,9 @@ struct scheme : testing::Test {
   generic_ptr
   eval(std::string const& expr) {
     auto m = make<module>(ctx);
-    m->import_all(ctx.constants.internal);
+    import_all(m, ctx.constants.internal);
     auto f = compile_expression(ctx, read(expr), m);
-    auto state = make_state(ctx, f, m);
+    auto state = make_state(ctx, f);
     return run(state);
   }
 };
@@ -346,7 +346,7 @@ TEST_F(scheme, exec_arithmetic) {
     2,
     0
   );
-  auto state = make_state(ctx, proc, make<module>(ctx));
+  auto state = make_state(ctx, proc);
   run(state);
 
   EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 18);
@@ -385,7 +385,7 @@ TEST_F(scheme, exec_calls) {
     3,
     0
   );
-  auto state = make_state(ctx, global, make<module>(ctx));
+  auto state = make_state(ctx, global);
   run(state);
 
   auto native_f = [] (int x, int y) { return 2 * x + y; };
@@ -421,7 +421,7 @@ TEST_F(scheme, three_argument_calls) {
     1,
     0
   );
-  auto state = make_state(ctx, global, make<module>(ctx));
+  auto state = make_state(ctx, global);
   run(state);
 
   auto native_f = [] (int x, int y, int z) { return 2 * x + 3 * y + 4 * z; };
@@ -455,7 +455,7 @@ TEST_F(scheme, exec_tail_calls) {
     1,
     0
   );
-  auto state = make_state(ctx, global, make<module>(ctx));
+  auto state = make_state(ctx, global);
   run(state);
 
   EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 12);
@@ -484,7 +484,7 @@ TEST_F(scheme, exec_loop) {
     3,
     0
   );
-  auto state = make_state(ctx, global, make<module>(ctx));
+  auto state = make_state(ctx, global);
   run(state);
 
   EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 45);
@@ -508,7 +508,7 @@ TEST_F(scheme, exec_native_call) {
     1,
     0
   );
-  auto state = make_state(ctx, global, make<module>(ctx));
+  auto state = make_state(ctx, global);
   run(state);
 
   EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(),
@@ -532,7 +532,7 @@ TEST_F(scheme, exec_closure_ref) {
              {opcode::data,         five,              {},                    {}}},
     2, 0
   );
-  auto state = make_state(ctx, global, make<module>(ctx));
+  auto state = make_state(ctx, global);
   run(state);
 
   EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 5 + 3);

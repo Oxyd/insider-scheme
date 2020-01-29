@@ -18,16 +18,14 @@ public:
   extra_storage_size(ptr<scm::procedure> const& procedure,
                      ptr<scm::closure> const& closure,
                      ptr<call_frame> const& parent,
-                     std::vector<generic_ptr> const& arguments,
-                     ptr<scm::module> const& m);
+                     std::vector<generic_ptr> const& arguments);
 
   std::uint32_t pc = 0;
 
   call_frame(ptr<scm::procedure> const& procedure,
              ptr<scm::closure> const& closure,
              ptr<call_frame> const& parent,
-             std::vector<generic_ptr> const& arguments,
-             ptr<scm::module> const& m);
+             std::vector<generic_ptr> const& arguments);
 
   void
   for_each_subobject(std::function<void(object*)> const& f) override;
@@ -46,15 +44,11 @@ public:
   ptr<call_frame>
   parent(free_store& store) const { return {store, parent_frame_}; }
 
-  ptr<scm::module>
-  module(free_store& store) const { return {store, module_}; }
-
 private:
   scm::procedure* procedure_;
   scm::closure*   closure_;
   call_frame*     parent_frame_;
   std::size_t     locals_size_;
-  scm::module*    module_;
 };
 
 inline ptr<procedure>
@@ -73,9 +67,6 @@ call_frame_closure(ptr<call_frame> const& cf, std::size_t i) {
 inline ptr<call_frame>
 call_frame_parent(ptr<call_frame> const& cf) { return cf->parent(cf.store()); }
 
-inline ptr<module>
-call_frame_module(ptr<call_frame> const& cf) { return cf->module(cf.store()); }
-
 struct execution_state {
   context&        ctx;
   ptr<call_frame> root_frame;
@@ -85,7 +76,7 @@ struct execution_state {
 
 // Make execution state using the given procedure as the global call frame.
 execution_state
-make_state(context&, ptr<procedure> const&, ptr<module> const&);
+make_state(context&, ptr<procedure> const&);
 
 // Run the bytecode in the execution context's global call frame.
 generic_ptr

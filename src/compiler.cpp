@@ -56,38 +56,42 @@ namespace {
     operator = (shared_register&&);
 
     operand
-    operator * () const { return value_; }
+    operator * () const { assert(has_value()); return value_; }
 
     operand const*
-    operator -> () const { return &value_; }
+    operator -> () const { assert(has_value()); return &value_; }
+
+    bool
+    has_value() const { return value_.scope() != operand::scope_type::local || alloc_ != nullptr; }
 
     operator
-    bool () const { return value_.scope() != operand::scope_type::local || alloc_ != nullptr; }
+    bool () const { return has_value(); }
 
   private:
     register_allocator* alloc_ = nullptr;
     operand             value_;
   };
 
-  class symbol_bindings {
+  class variable_bindings {
   public:
     struct binding {
-      ptr<scm::symbol> symbol;
-      shared_register  destination;
+      std::shared_ptr<scm::variable> variable;
+      shared_register                destination;
     };
     using scope = std::vector<binding>;
+    using free_variables_map = std::unordered_map<std::shared_ptr<variable>, shared_register>;
 
     class unique_scope {
     public:
       explicit
-      unique_scope(symbol_bindings* b) : b_{b} { }
+      unique_scope(variable_bindings* b) : b_{b} { }
       unique_scope(unique_scope const&) = delete;
       void operator = (unique_scope const&) = delete;
 
       ~unique_scope() { b_->pop_scope(); }
 
     private:
-      symbol_bindings* b_;
+      variable_bindings* b_;
     };
 
     unique_scope
@@ -97,23 +101,23 @@ namespace {
     pop_scope();
 
     shared_register
-    lookup(ptr<symbol> const&) const;
+    lookup(std::shared_ptr<variable> const&) const;
 
     void
-    add_free(ptr<symbol> const&, shared_register);
+    add_free(std::shared_ptr<variable>, shared_register);
 
-    eqv_unordered_map<shared_register> const&
+    free_variables_map const&
     free() const { return free_variables_; }
 
   private:
     std::vector<scope> scopes_;
-    eqv_unordered_map<shared_register> free_variables_;
+    free_variables_map free_variables_;
   };
 
   struct procedure_context {
     procedure_context* parent = nullptr;
     register_allocator registers;
-    symbol_bindings    bindings;
+    variable_bindings  bindings;
     scm::bytecode      bytecode;
     ptr<scm::module>   module;
 
@@ -218,32 +222,32 @@ shared_register::operator = (shared_register&& other) {
 }
 
 auto
-symbol_bindings::push_scope(scope s) -> unique_scope {
+variable_bindings::push_scope(scope s) -> unique_scope {
   scopes_.emplace_back(std::move(s));
   return unique_scope{this};
 }
 
 void
-symbol_bindings::pop_scope() {
+variable_bindings::pop_scope() {
   scopes_.pop_back();
 }
 
 shared_register
-symbol_bindings::lookup(ptr<symbol> const& s) const {
+variable_bindings::lookup(std::shared_ptr<variable> const& v) const {
   for (auto scope = scopes_.rbegin(); scope != scopes_.rend(); ++scope)
     for (binding const& b : *scope)
-      if (b.symbol.get() == s.get())
+      if (b.variable == v)
         return b.destination;
 
-  if (auto free = free_variables_.find(s); free != free_variables_.end())
+  if (auto free = free_variables_.find(v); free != free_variables_.end())
     return free->second;
 
   return {};
 }
 
 void
-symbol_bindings::add_free(ptr<symbol> const& s, shared_register dest) {
-  free_variables_.emplace(s, dest);
+variable_bindings::add_free(std::shared_ptr<variable> v, shared_register dest) {
+  free_variables_.emplace(std::move(v), dest);
 }
 
 static shared_register
@@ -253,23 +257,7 @@ static shared_register
 compile_body(context& ctx, procedure_context& proc, body_syntax const&, bool tail);
 
 static shared_register
-compile_reference(procedure_context& proc, reference_syntax const& stx);
-
-static std::optional<module::binding_tag>
-find_tag(procedure_context const& proc, ptr<symbol> const& sym) {
-  shared_register r = proc.bindings.lookup(sym);
-  if (r)
-    // It's a local, so it can't be an imported symbol.
-    return std::nullopt;
-  else {
-    std::optional<std::size_t> binding_index = proc.module->find(sym);
-    if (!binding_index)
-      return std::nullopt;
-
-    module::binding const& binding = proc.module->bindings[*binding_index];
-    return binding.tag;
-  }
-}
+compile_local_reference(procedure_context& proc, local_reference_syntax const& stx);
 
 static shared_register
 compile_fold(context& ctx, procedure_context& proc, std::vector<std::unique_ptr<syntax>> const& arguments,
@@ -289,29 +277,29 @@ compile_fold(context& ctx, procedure_context& proc, std::vector<std::unique_ptr<
 }
 
 static shared_register
-compile_arithmetic(context& ctx, procedure_context& proc, application_syntax const& stx, module::binding_tag tag) {
+compile_arithmetic(context& ctx, procedure_context& proc, application_syntax const& stx, special_top_level_tag tag) {
   if (stx.arguments.empty()) {
-    if (tag == module::binding_tag::plus)
+    if (tag == special_top_level_tag::plus)
       return shared_register{ctx.statics.zero};
-    else if (tag == module::binding_tag::times)
+    else if (tag == special_top_level_tag::times)
       return shared_register{ctx.statics.one};
     else
       throw std::runtime_error{fmt::format("Not enough arguments for {}",
-                                           std::get<reference_syntax>(stx.target->value).symbol->value())};
+                                           std::get<top_level_reference_syntax>(stx.target->value).name)};
   }
 
   opcode op;
   switch (tag) {
-  case module::binding_tag::plus:
+  case special_top_level_tag::plus:
     op = opcode::add;
     break;
-  case module::binding_tag::minus:
+  case special_top_level_tag::minus:
     op = opcode::subtract;
     break;
-  case module::binding_tag::times:
+  case special_top_level_tag::times:
     op = opcode::multiply;
     break;
-  case module::binding_tag::divide:
+  case special_top_level_tag::divide:
     op = opcode::divide;
     break;
   default:
@@ -322,16 +310,16 @@ compile_arithmetic(context& ctx, procedure_context& proc, application_syntax con
 }
 
 static shared_register
-compile_relational(context& ctx, procedure_context& proc, application_syntax const& stx, module::binding_tag tag) {
+compile_relational(context& ctx, procedure_context& proc, application_syntax const& stx, special_top_level_tag tag) {
   if (stx.arguments.size() < 2)
     throw std::runtime_error{fmt::format("Not enough arguments for {}",
-                                         std::get<reference_syntax>(stx.target->value).symbol->value())};
+                                         std::get<local_reference_syntax>(stx.target->value).variable->name)};
 
   opcode op;
   switch (tag) {
-  case module::binding_tag::arith_equal:  op = opcode::arith_equal; break;
-  case module::binding_tag::less_than:    op = opcode::less_than; break;
-  case module::binding_tag::greater_than: op = opcode::greater_than; break;
+  case special_top_level_tag::arith_equal:  op = opcode::arith_equal; break;
+  case special_top_level_tag::less_than:    op = opcode::less_than; break;
+  case special_top_level_tag::greater_than: op = opcode::greater_than; break;
   default:
     assert(!"Unimplemented");
   }
@@ -341,21 +329,20 @@ compile_relational(context& ctx, procedure_context& proc, application_syntax con
 
 static shared_register
 compile_let(context& ctx, procedure_context& proc, let_syntax const& stx, bool tail) {
-  symbol_bindings::scope scope;
+  variable_bindings::scope scope;
   for (auto const& def : stx.definitions) {
     shared_register value = compile_expression(ctx, proc, *def.expression, false);
-    scope.emplace_back(symbol_bindings::binding{def.name, std::move(value)});
+    scope.emplace_back(variable_bindings::binding{def.variable, std::move(value)});
   }
 
-  symbol_bindings::unique_scope us = proc.bindings.push_scope(std::move(scope));
+  variable_bindings::unique_scope us = proc.bindings.push_scope(std::move(scope));
   return compile_body(ctx, proc, stx.body, tail);
 }
 
 static shared_register
 compile_set(context& ctx, procedure_context& proc, set_syntax const& stx) {
   shared_register dest = proc.bindings.lookup(stx.target);
-  if (!dest)
-    throw std::runtime_error{fmt::format("Unbound symbol {}", stx.target->value())};
+  assert(dest);
 
   shared_register value = compile_expression(ctx, proc, *stx.expression, false);
   proc.bytecode.push_back(instruction{opcode::set, *value, {}, *dest});
@@ -387,12 +374,12 @@ emit_data(bytecode& bc, std::vector<shared_register> const& values) {
 static shared_register
 compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx) {
   procedure_context proc{&parent, parent.module};
-  symbol_bindings::scope args_scope;
+  variable_bindings::scope args_scope;
 
   for (auto const& param : stx.parameters)
-    args_scope.push_back(symbol_bindings::binding{param, proc.registers.allocate_local()});
+    args_scope.push_back(variable_bindings::binding{param, proc.registers.allocate_local()});
 
-  symbol_bindings::unique_scope us = proc.bindings.push_scope(std::move(args_scope));
+  variable_bindings::unique_scope us = proc.bindings.push_scope(std::move(args_scope));
 
   shared_register return_value = compile_body(ctx, proc, stx.body, true);
   if (return_value)
@@ -410,17 +397,17 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx
                                           operand::immediate(proc.bindings.free().size()),
                                           *result});
 
-    std::vector<ptr<symbol>> free_symbols;
-    free_symbols.resize(proc.bindings.free().size());
-    for (auto const& [sym, reg] : proc.bindings.free()) {
-      assert(reg->value() < free_symbols.size());
-      free_symbols[reg->value()] = assume<symbol>(sym);
+    std::vector<std::shared_ptr<variable>> free_vars;
+    free_vars.resize(proc.bindings.free().size());
+    for (auto const& [var, reg] : proc.bindings.free()) {
+      assert(reg->value() < free_vars.size());
+      free_vars[reg->value()] = var;
     }
 
     std::vector<shared_register> closure;
-    closure.reserve(free_symbols.size());
-    for (ptr<symbol> const& sym : free_symbols)
-      closure.push_back(compile_reference(parent, reference_syntax{sym}));
+    closure.reserve(free_vars.size());
+    for (std::shared_ptr<variable> const& var : free_vars)
+      closure.push_back(compile_local_reference(parent, local_reference_syntax{var}));
 
     emit_data(parent.bytecode, closure);
 
@@ -505,14 +492,14 @@ compile_if(context& ctx, procedure_context& proc, if_syntax const& stx, bool tai
 
 static shared_register
 compile_application(context& ctx, procedure_context& proc, application_syntax const& stx, bool tail) {
-  if (auto* ref = std::get_if<reference_syntax>(&stx.target->value))
-    if (std::optional<module::binding_tag> tag = find_tag(proc, ref->symbol)) {
-      if (*tag == module::binding_tag::plus || *tag == module::binding_tag::minus
-          || *tag == module::binding_tag::times || *tag == module::binding_tag::divide)
+  if (auto* ref = std::get_if<top_level_reference_syntax>(&stx.target->value))
+    if (std::optional<special_top_level_tag> tag = ctx.find_tag(ref->location.value())) {
+      if (*tag == special_top_level_tag::plus || *tag == special_top_level_tag::minus
+          || *tag == special_top_level_tag::times || *tag == special_top_level_tag::divide)
         return compile_arithmetic(ctx, proc, stx, *tag);
-      else if (*tag == module::binding_tag::less_than
-               || *tag == module::binding_tag::greater_than
-               || *tag == module::binding_tag::arith_equal)
+      else if (*tag == special_top_level_tag::less_than
+               || *tag == special_top_level_tag::greater_than
+               || *tag == special_top_level_tag::arith_equal)
         return compile_relational(ctx, proc, stx, *tag);
     }
 
@@ -533,31 +520,21 @@ compile_application(context& ctx, procedure_context& proc, application_syntax co
 }
 
 static shared_register
-compile_reference(procedure_context& proc, reference_syntax const& stx) {
-  if (shared_register r = proc.bindings.lookup(stx.symbol))
+compile_local_reference(procedure_context& proc, local_reference_syntax const& stx) {
+  if (shared_register r = proc.bindings.lookup(stx.variable))
     return r;
-  else {
-    // Not found in the locals of this procedure. Could be found in outer
-    // procedures, in which case it will be captured into the closure, or it
-    // could be found in the containing module or one of its imports.
 
-    for (procedure_context* parent = proc.parent; parent; parent = parent->parent)
-      if (parent->bindings.lookup(stx.symbol)) {
-        shared_register result = proc.registers.allocate_closure();
-        proc.bindings.add_free(stx.symbol, result);
-        return result;
-      }
+  // Not found in this procedure, and it's a local reference, so it must be
+  // referring to a free variable.
 
-    std::optional<std::size_t> binding_index = proc.module->find(stx.symbol);
-    if (!binding_index)
-      throw std::runtime_error{fmt::format("Unbound identifier {}", stx.symbol->value())};
+  shared_register result = proc.registers.allocate_closure();
+  proc.bindings.add_free(stx.variable, result);
+  return result;
+}
 
-    module::binding const& binding = proc.module->bindings[*binding_index];
-    if (!binding.index)
-      throw std::runtime_error{fmt::format("Invalid use of {} as value", stx.symbol->value())};
-
-    return shared_register{operand::global(*binding_index)};
-  }
+static shared_register
+compile_top_level_reference(procedure_context& proc, top_level_reference_syntax const& stx) {
+  return shared_register{stx.location};
 }
 
 static shared_register
@@ -589,8 +566,10 @@ static shared_register
 compile_expression(context& ctx, procedure_context& proc, syntax const& stx, bool tail) {
   if (auto* lit = std::get_if<literal_syntax>(&stx.value))
     return shared_register{operand::static_(ctx.intern_static(lit->value))};
-  else if (auto* ref = std::get_if<reference_syntax>(&stx.value))
-    return compile_reference(proc, *ref);
+  else if (auto* local_ref = std::get_if<local_reference_syntax>(&stx.value))
+    return compile_local_reference(proc, *local_ref);
+  else if (auto* top_level_ref = std::get_if<top_level_reference_syntax>(&stx.value))
+    return compile_top_level_reference(proc, *top_level_ref);
   else if (auto* app = std::get_if<application_syntax>(&stx.value))
     return compile_application(ctx, proc, *app, tail);
   else if (auto* let = std::get_if<let_syntax>(&stx.value))
@@ -626,7 +605,7 @@ compile_body(context& ctx, procedure_context& proc, body_syntax const& stx, bool
 
 ptr<procedure>
 compile_expression(context& ctx, generic_ptr const& datum, ptr<module> const& mod) {
-  auto stx = analyse(ctx, datum);
+  auto stx = analyse(ctx, datum, mod);
 
   procedure_context proc{nullptr, mod};
   shared_register result = compile_expression(ctx, proc, *stx, true);

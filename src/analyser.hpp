@@ -8,8 +8,19 @@
 
 namespace game::scm {
 
-// The parser expects a Scheme datum (or a list of data) that represents a
+// The analyser expects a Scheme datum (or a list of data) that represents a
 // program, and turns it into an internal representation, defined here.
+
+// Names are translated to variable objects during analysis so that if two parts
+// of the code refer to the same variable, their syntaxes contain pointers to
+// the same variable object.
+struct variable {
+  std::string name;
+  bool is_set = false;
+
+  explicit
+  variable(std::string n) : name{std::move(n)} { }
+};
 
 struct syntax;
 
@@ -17,8 +28,13 @@ struct literal_syntax {
   generic_ptr value;
 };
 
-struct reference_syntax {
-  ptr<scm::symbol> symbol;
+struct local_reference_syntax {
+  std::shared_ptr<scm::variable> variable;
+};
+
+struct top_level_reference_syntax {
+  operand location;
+  std::string name;
 };
 
 struct application_syntax {
@@ -31,7 +47,7 @@ struct body_syntax {
 };
 
 struct definition_pair_syntax {
-  ptr<symbol> name;
+  std::shared_ptr<scm::variable> variable;
   std::unique_ptr<syntax> expression;
 };
 
@@ -41,12 +57,12 @@ struct let_syntax {
 };
 
 struct set_syntax {
-  ptr<symbol> target;
+  std::shared_ptr<variable> target;
   std::unique_ptr<syntax> expression;
 };
 
 struct lambda_syntax {
-  std::vector<ptr<symbol>> parameters;
+  std::vector<std::shared_ptr<variable>> parameters;
   body_syntax body;
 };
 
@@ -72,7 +88,8 @@ struct box_set_syntax {
 struct syntax {
   using value_type = std::variant<
     literal_syntax,
-    reference_syntax,
+    local_reference_syntax,
+    top_level_reference_syntax,
     application_syntax,
     let_syntax,
     set_syntax,
@@ -92,8 +109,10 @@ struct syntax {
   { }
 };
 
+// Analyse a datum within a given module. The module provides the top-level
+// bindings visible to S-expression.
 std::unique_ptr<syntax>
-analyse(context&, generic_ptr const& datum);
+analyse(context&, generic_ptr const& datum, ptr<module> const&);
 
 } // namespace game::scm
 

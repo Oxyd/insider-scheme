@@ -189,22 +189,23 @@ free_store::collect_garbage() {
 
 static void
 export_native(context& ctx, ptr<module> const& m, std::string const& name,
-              generic_ptr (*f)(context&, std::vector<generic_ptr> const&), module::binding_tag tag) {
-  std::size_t o = m->add_object(ctx.store.make<native_procedure>(f));
-  std::size_t b = m->add_binding(o, tag);
-  m->add_export(ctx.intern(name), b);
+              generic_ptr (*f)(context&, std::vector<generic_ptr> const&), special_top_level_tag tag) {
+  auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f));
+  ctx.tag_top_level(index, tag);
+  m->add(name, index);
+  m->export_(name);
 }
 
 static ptr<module>
 make_internal_module(context& ctx) {
   ptr<module> result = ctx.store.make<module>();
-  export_native(ctx, result, "+", add, module::binding_tag::plus);
-  export_native(ctx, result, "-", subtract, module::binding_tag::minus);
-  export_native(ctx, result, "*", multiply, module::binding_tag::times);
-  export_native(ctx, result, "/", divide, module::binding_tag::divide);
-  export_native(ctx, result, "=", arith_equal, module::binding_tag::arith_equal);
-  export_native(ctx, result, "<", less, module::binding_tag::less_than);
-  export_native(ctx, result, ">", greater, module::binding_tag::greater_than);
+  export_native(ctx, result, "+", add, special_top_level_tag::plus);
+  export_native(ctx, result, "-", subtract, special_top_level_tag::minus);
+  export_native(ctx, result, "*", multiply, special_top_level_tag::times);
+  export_native(ctx, result, "/", divide, special_top_level_tag::divide);
+  export_native(ctx, result, "=", arith_equal, special_top_level_tag::arith_equal);
+  export_native(ctx, result, "<", less, special_top_level_tag::less_than);
+  export_native(ctx, result, ">", greater, special_top_level_tag::greater_than);
   return result;
 }
 
@@ -257,6 +258,31 @@ generic_ptr
 context::get_static(operand::representation_type i) const {
   assert(i < statics_.size());
   return statics_[i];
+}
+
+void
+context::set_top_level(operand::representation_type i, generic_ptr const& value) {
+  assert(i < top_level_objects_.size());
+  top_level_objects_[i] = value;
+}
+
+operand::representation_type
+context::add_top_level(generic_ptr const& x) {
+  top_level_objects_.push_back(x);
+  return top_level_objects_.size() - 1;
+}
+
+void
+context::tag_top_level(operand::representation_type i, special_top_level_tag tag) {
+  top_level_tags_.emplace(i, tag);
+}
+
+std::optional<special_top_level_tag>
+context::find_tag(operand::representation_type i) const {
+  if (auto it = top_level_tags_.find(i); it != top_level_tags_.end())
+    return it->second;
+  else
+    return {};
 }
 
 bool
@@ -512,46 +538,38 @@ closure::for_each_subobject(std::function<void(object*)> const& f) {
     f(dynamic_storage()[i]);
 }
 
-std::optional<std::size_t>
-module::find(ptr<symbol> const& s) const {
-  auto global = symbols_.find(s.get());
-  if (global == symbols_.end()) {
-    global = imports_.find(s.get());
+auto
+module::find(std::string const& name) const -> std::optional<index_type> {
+  if (auto it = bindings_.find(name); it != bindings_.end())
+    return it->second;
 
-    if (global == imports_.end())
-      return std::nullopt;
-  }
+  if (auto it = imports_.find(name); it != imports_.end())
+    return it->second;
 
-  return global->second;
+  return {};
 }
 
 void
-module::import_all(ptr<module> const& source) {
-  for (auto const& [name, ex] : source->exports_) {
-    if (imports_.count(name))
-      throw std::runtime_error{fmt::format("Name {} already imported", name->value())};
-
-    bindings.push_back(source->bindings[ex]);
-    imports_.emplace(name, bindings.size() - 1);
-  }
+module::add(std::string name, index_type i) {
+  assert(!bindings_.count(name));
+  bindings_.emplace(std::move(name), i);
 }
 
 void
-module::for_each_subobject(std::function<void(scm::object*)> const& f) {
-  for (scm::object* o : objects_)
-    f(o);
+module::export_(std::string name) {
+  exports_.emplace(std::move(name));
+}
 
-  for (binding const& b : bindings)
-    f(b.parent_);
+void
+module::import(std::string name, index_type i) {
+  assert(!imports_.count(name));
+  imports_.emplace(std::move(name), i);
+}
 
-  for (auto [symbol, index] : symbols_)
-    f(symbol);
-
-  for (auto [symbol, index] : exports_)
-    f(symbol);
-
-  for (auto [symbol, index] : imports_)
-    f(symbol);
+void
+import_all(ptr<module> const& to, ptr<module> const& from) {
+  for (auto const& name : from->exports())
+    to->import(name, *from->find(name));
 }
 
 } // namespace scm

@@ -11,21 +11,18 @@ std::size_t
 call_frame::extra_storage_size(ptr<scm::procedure> const& proc,
                                ptr<scm::closure> const&,
                                ptr<call_frame> const&,
-                               std::vector<generic_ptr> const&,
-                               ptr<scm::module> const&) {
+                               std::vector<generic_ptr> const&) {
   return proc->locals_size * sizeof(object*);
 }
 
 call_frame::call_frame(ptr<scm::procedure> const& proc,
                        ptr<scm::closure> const& closure,
                        ptr<call_frame> const& parent,
-                       std::vector<generic_ptr> const& arguments,
-                       ptr<scm::module> const& m)
+                       std::vector<generic_ptr> const& arguments)
   : procedure_{proc.get()}
   , closure_{closure.get()}
   , parent_frame_{parent.get()}
   , locals_size_{proc->locals_size}
-  , module_{m.get()}
 {
   assert(arguments.size() <= locals_size_);
 
@@ -38,7 +35,6 @@ call_frame::for_each_subobject(std::function<void(object*)> const& f) {
   f(procedure_);
   f(closure_);
   f(parent_frame_);
-  f(module_);
   for (std::size_t i = 0; i < locals_size_; ++i)
     f(dynamic_storage()[i]);
 }
@@ -69,38 +65,10 @@ get_register(execution_state& state, operand op) {
   case operand::scope_type::closure:
     return call_frame_closure(state.current_frame, op.value());
   case operand::scope_type::global: {
-    ptr<module> m = call_frame_module(state.current_frame);
-    ptr<module> parent = module_binding_parent(m, op.value());
-    return module_object(parent, *m->bindings[op.value()].index);
+    return state.ctx.get_top_level(op.value());
   }
   case operand::scope_type::static_:
     return state.ctx.get_static(op.value());
-  }
-
-  assert(!"Cannot get here");
-  return {};
-}
-
-namespace {
-  struct object_and_module {
-    generic_ptr      object;
-    ptr<scm::module> module;
-  };
-}
-
-static object_and_module
-get_register_and_module(execution_state& state, operand op) {
-  switch (op.scope()) {
-  case operand::scope_type::local:
-  case operand::scope_type::static_:
-  case operand::scope_type::closure:
-    return {get_register(state, op), state.current_frame->module(state.ctx.store)};
-
-  case operand::scope_type::global: {
-    ptr<module> m = state.current_frame->module(state.ctx.store);
-    ptr<module> parent = module_binding_parent(m, op.value());
-    return {module_object(parent, *m->bindings[op.value()].index), parent};
-  }
   }
 
   assert(!"Cannot get here");
@@ -118,9 +86,7 @@ set_register(execution_state& state, operand op, generic_ptr const& value) {
     // it does.
     throw std::runtime_error{"Cannot write to a closure register"};
   case operand::scope_type::global: {
-    ptr<module> m = state.current_frame->module(state.ctx.store);
-    ptr<module> parent = module_binding_parent(m, op.value());
-    parent->set_object(*m->bindings[op.value()].index, value);
+    state.ctx.set_top_level(op.value(), value);
     return;
   }
   case operand::scope_type::static_:
@@ -226,15 +192,15 @@ execute_one(execution_state& state) {
 
   case opcode::call:
   case opcode::tail_call: {
-    object_and_module callee = get_register_and_module(state, instr.x);
+    generic_ptr callee = get_register(state, instr.x);
     operand::representation_type num_args = instr.y.immediate_value();
-    if (auto scheme_proc = match<procedure>(callee.object))
+    if (auto scheme_proc = match<procedure>(callee))
       if (num_args != scheme_proc->num_args)
         // TODO: Print the function name
         throw std::runtime_error{"Wrong number of arguments in function call"};
 
     std::vector<generic_ptr> args = collect_data(state, num_args);
-    generic_ptr call_target = callee.object;
+    generic_ptr call_target = callee;
     ptr<scm::closure> closure;
 
     if (auto cls = match<scm::closure>(call_target)) {
@@ -247,7 +213,7 @@ execute_one(execution_state& state) {
         state.current_frame = frame->parent(state.ctx.store);
 
       state.current_frame = state.ctx.store.make<call_frame>(
-        scheme_proc, closure, state.current_frame, args, callee.module
+        scheme_proc, closure, state.current_frame, args
       );
     } else if (auto native_proc = match<native_procedure>(call_target)) {
       generic_ptr result = native_proc->target(state.ctx, args);
@@ -347,13 +313,12 @@ execute_one(execution_state& state) {
 }
 
 execution_state
-make_state(context& ctx, ptr<procedure> const& global, ptr<module> const& m) {
+make_state(context& ctx, ptr<procedure> const& global) {
   ptr<call_frame> root_frame = ctx.store.make<call_frame>(
     global,
     ptr<closure>{},
     ptr<call_frame>{},
-    std::vector<generic_ptr>(global->locals_size),
-    m
+    std::vector<generic_ptr>(global->locals_size)
   );
 
   return execution_state{ctx, root_frame, root_frame, {}};

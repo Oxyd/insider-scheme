@@ -298,6 +298,18 @@ class boolean;
 class module;
 class symbol;
 
+// Some top-level values are tagged to let the compiler understand them and
+// optimise them.
+enum class special_top_level_tag {
+  plus,
+  minus,
+  times,
+  divide,
+  arith_equal,
+  less_than,
+  greater_than
+};
+
 // Evaluation context.
 class context {
 public:
@@ -340,10 +352,27 @@ public:
   generic_ptr
   get_static(operand::representation_type) const;
 
+  generic_ptr
+  get_top_level(operand::representation_type i) const { return top_level_objects_[i]; }
+
+  void
+  set_top_level(operand::representation_type i, generic_ptr const&);
+
+  operand::representation_type
+  add_top_level(generic_ptr const&);
+
+  void
+  tag_top_level(operand::representation_type, special_top_level_tag);
+
+  std::optional<special_top_level_tag>
+  find_tag(operand::representation_type) const;
+
 private:
   std::unordered_map<std::string, weak_ptr<symbol>> interned_symbols_;
   std::vector<generic_ptr> statics_;
   eqv_unordered_map<std::size_t> statics_cache_;
+  std::vector<generic_ptr> top_level_objects_;
+  std::unordered_map<operand::representation_type, special_top_level_tag> top_level_tags_;
 };
 
 // Create an instance of an object using the context's free store.
@@ -605,109 +634,34 @@ public:
   native_procedure(target_type f) : target{std::move(f)} { }
 };
 
-// A collection of objects, some of which may be exported for other modules to
-// use, and a list of bindings. Bindings assign indices to objects -- the objects
-// may belong to this module or some other, imported, module.
-//
-// Objects are indexed, and bindings refer to them through this index. The index
-// refers to the object table of the object's parent module -- not necessarily
-// the current module. Bindings themselves are also indexed, and the VM refers
-// to the bindings through the global scope. This double indirection is so that
-// a binding may refer to an object in a different module, and so that the
-// owning module can change the object it points to by reassigning the
-// corresponding entry in the objects vector.
-//
-// Bindings also carry a tag that allows the compiler to recognise special
-// Scheme built-ins (such as arithmetic procedures like + and *). Some bindings
-// may even only have a tag but no object index -- this is the case with special
-// forms such as if or let.
-//
-// In addition to all of that, a module keeps a symbol table, and a list of
-// exports and imports. These are indexed by symbols and refer to a particular
-// binding by its index. The symbol and import tables are used by the compiler
-// to translate symbolic names into bindings. A symbol may be imported under a
-// different name than it was exported under.
-//
-// The symbol and import tables are separate so that locally-defined names can
-// shadow imported names.
+// A module is a map from symbols to top-level variable indices.
 class module : public object {
 public:
-  enum class binding_tag {
-    value,       // Scheme value with no special meaning
-    plus,
-    minus,
-    times,
-    divide,
-    arith_equal,
-    less_than,
-    greater_than,
-  };
+  using index_type = operand::representation_type;
 
-  class binding {
-  public:
-    binding(std::optional<std::size_t> index, binding_tag tag, module* parent)
-      : index{index}
-      , tag{tag}
-      , parent_{parent}
-    { }
-
-    std::optional<std::size_t> index;
-    binding_tag                tag;
-
-    ptr<module>
-    parent(free_store& store) const { return {store, parent_}; }
-
-  private:
-    friend class module;
-    module* parent_;
-  };
-
-  std::vector<binding> bindings;
-
-  generic_ptr
-  object(free_store& store, std::size_t i) const { return {store, objects_[i]}; }
-
-  // Find binding for the given symbol.
-  std::optional<std::size_t>
-  find(ptr<symbol> const& s) const;
+  std::optional<index_type>
+  find(std::string const&) const;
 
   void
-  set_object(std::size_t i, generic_ptr const& o) { objects_[i] = o.get(); }
-
-  std::size_t
-  add_object(generic_ptr const& o) { objects_.push_back(o.get()); return objects_.size() - 1; }
-
-  std::size_t
-  add_binding(std::optional<std::size_t> object, binding_tag tag) {
-    bindings.push_back({object, tag, this});
-    return bindings.size() - 1;
-  }
+  add(std::string, index_type);
 
   void
-  add_export(ptr<symbol> const& name, std::size_t binding) { exports_.emplace(name.get(), binding); }
+  export_(std::string);
 
-  // Import all symbols from the source module into this module with no
-  // renaming.
   void
-  import_all(ptr<module> const& source);
+  import(std::string, index_type);
+
+  std::unordered_set<std::string> const&
+  exports() const { return exports_; }
 
 private:
-  std::vector<scm::object*>                objects_;
-  std::unordered_map<symbol*, std::size_t> symbols_; // Bindings defined in this module.
-  std::unordered_map<symbol*, std::size_t> exports_; // Subset of `symbols' that are exported.
-  std::unordered_map<symbol*, std::size_t> imports_; // Bindings defined in other modules.
-
-  void
-  for_each_subobject(std::function<void(scm::object*)> const&) override;
+  std::unordered_map<std::string, index_type> bindings_; // Bindings defined in this module.
+  std::unordered_map<std::string, index_type> imports_;  // Bindings imported from other modules.
+  std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
 };
 
-inline ptr<module>
-module_binding_parent(ptr<module> const& m, std::size_t binding) {
-  return m->bindings[binding].parent(m.store());
-}
-
-inline generic_ptr
-module_object(ptr<module> const& m, std::size_t i) { return m->object(m.store(), i); }
+void
+import_all(ptr<module> const& to, ptr<module> const& from);
 
 // Is a given object an instance of the given Scheme type?
 template <typename T>
