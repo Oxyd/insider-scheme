@@ -470,9 +470,9 @@ public:
   cdr(free_store& store) const { return {store, subobjects_[1]}; }
 
   void
-  set_car(generic_ptr p) { subobjects_[0] = p.get(); }
+  set_car(generic_ptr const& p) { subobjects_[0] = p.get(); }
   void
-  set_cdr(generic_ptr p) { subobjects_[1] = p.get(); }
+  set_cdr(generic_ptr const& p) { subobjects_[1] = p.get(); }
 
   std::size_t
   hash() const override;
@@ -634,7 +634,9 @@ public:
   native_procedure(target_type f) : target{std::move(f)} { }
 };
 
-// A module is a map from symbols to top-level variable indices.
+// A module is a map from symbols to top-level variable indices. It also
+// contains a top-level procedure which contains the code to be run when the
+// module is loaded.
 class module : public object {
 public:
   using index_type = operand::representation_type;
@@ -654,14 +656,27 @@ public:
   std::unordered_set<std::string> const&
   exports() const { return exports_; }
 
+  ptr<procedure>
+  top_level_procedure(free_store& store) const { return {store, proc_}; }
+
+  void
+  set_top_level_procedure(ptr<procedure> const& p) { proc_ = p.get(); }
+
+  void
+  for_each_subobject(std::function<void(object*)> const&) override;
+
 private:
   std::unordered_map<std::string, index_type> bindings_; // Bindings defined in this module.
   std::unordered_map<std::string, index_type> imports_;  // Bindings imported from other modules.
   std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
+  procedure* proc_;
 };
 
 void
 import_all(ptr<module> const& to, ptr<module> const& from);
+
+inline ptr<procedure>
+module_top_level_procedure(ptr<module> const& m) { return m->top_level_procedure(m.store()); }
 
 // Is a given object an instance of the given Scheme type?
 template <typename T>

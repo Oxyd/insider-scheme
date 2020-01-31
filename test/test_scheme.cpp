@@ -293,9 +293,9 @@ TEST_F(scheme, read_list) {
   EXPECT_TRUE(is_list(ctx, nested));
   EXPECT_EQ(expect<integer>(car(expect<pair>(nested)))->value(), 1);
   EXPECT_TRUE(is_list(ctx, car(expect<pair>(cdr(expect<pair>(nested))))));
-  ptr<pair> sublist = expect<pair>(car(expect<pair>(cdr(expect<pair>(nested)))));
-  EXPECT_EQ(expect<integer>(car(sublist))->value(), 2);
-  EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(sublist))))->value(), 3);
+  ptr<pair> sublist_1 = expect<pair>(car(expect<pair>(cdr(expect<pair>(nested)))));
+  EXPECT_EQ(expect<integer>(car(sublist_1))->value(), 2);
+  EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(sublist_1))))->value(), 3);
 
   EXPECT_THROW(read("("), parse_error);
   EXPECT_THROW(read("(1 2"), parse_error);
@@ -316,6 +316,22 @@ TEST_F(scheme, read_symbol) {
   EXPECT_EQ(expect<symbol>(car(expect<pair>(l)))->value(), "one");
   EXPECT_EQ(expect<symbol>(car(expect<pair>(cdr(expect<pair>(l)))))->value(), "two");
   EXPECT_EQ(expect<symbol>(car(expect<pair>(cdr(expect<pair>(cdr(expect<pair>(l)))))))->value(), "three");
+}
+
+TEST_F(scheme, read_multiple) {
+  std::vector<generic_ptr> result1 = read_multiple(ctx, "foo bar baz");
+  ASSERT_EQ(result1.size(), 3);
+  EXPECT_EQ(expect<symbol>(result1[0])->value(), "foo");
+  EXPECT_EQ(expect<symbol>(result1[1])->value(), "bar");
+  EXPECT_EQ(expect<symbol>(result1[2])->value(), "baz");
+
+  std::vector<generic_ptr> result2 = read_multiple(ctx, "(foo) (bar 2)");
+  ASSERT_EQ(result2.size(), 2);
+  EXPECT_TRUE(is_list(ctx, result2[0]));
+  EXPECT_EQ(list_length(ctx, result2[0]), 1);
+
+  EXPECT_TRUE(is_list(ctx, result2[1]));
+  EXPECT_EQ(list_length(ctx, result2[1]), 2);
 }
 
 TEST(bytecode, instruction_info_consistency) {
@@ -763,4 +779,28 @@ TEST_F(scheme, compile_higher_order_arithmetic) {
     )"
   );
   EXPECT_EQ(expect<integer>(result)->value(), 5);
+}
+
+TEST_F(scheme, compile_module) {
+  int sum = 0;
+  auto index = ctx.add_top_level(
+    make<native_procedure>(ctx,
+                           [&] (context& ctx, std::vector<generic_ptr> const& args) {
+                             sum += expect<integer>(args[0])->value();
+                             return ctx.constants.void_;
+                           })
+  );
+  ctx.constants.internal->add("f", index);
+  ctx.constants.internal->export_("f");
+
+  auto m = compile_module(ctx,
+                          read_multiple(ctx,
+                                        "(import (insider internal))"
+                                        "(f 3)"
+                                        "(#$let ((x 2))"
+                                        "  (f x))"));
+  auto state = make_state(ctx, module_top_level_procedure(m));
+  run(state);
+
+  EXPECT_EQ(sum, 5);
 }

@@ -616,4 +616,20 @@ compile_expression(context& ctx, generic_ptr const& datum, ptr<module> const& mo
                                    0);
 }
 
+ptr<module>
+compile_module(context& ctx, std::vector<generic_ptr> const& data) {
+  uncompiled_module um = analyse_module(ctx, data);
+
+  procedure_context proc{nullptr, um.module};
+  shared_register result = compile_body(ctx, proc, um.body, true);
+  if (result)
+    proc.bytecode.push_back(instruction{opcode::ret, *result, {}, {}});
+
+  um.module->set_top_level_procedure(make<procedure>(ctx,
+                                                     std::move(proc.bytecode),
+                                                     proc.registers.locals_used(),
+                                                     0));
+  return um.module;
+}
+
 } // namespace game::scm

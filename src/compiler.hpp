@@ -11,6 +11,10 @@ namespace game::scm {
 ptr<procedure>
 compile_expression(context&, generic_ptr const& datum, ptr<module> const&);
 
+// Translate a list of expressions into a module.
+ptr<module>
+compile_module(context&, std::vector<generic_ptr> const& data);
+
 } // namespace game::scm
 
 #endif

@@ -247,7 +247,7 @@ read_list(context& ctx, std::istream& stream) {
   return result;
 }
 
-generic_ptr
+static generic_ptr
 read(context& ctx, token first_token, std::istream& stream) {
   if (std::holds_alternative<end>(first_token))
     return {};
@@ -274,6 +274,21 @@ generic_ptr
 read(context& ctx, std::string const& s) {
   std::istringstream is(s);
   return read(ctx, is);
+}
+
+std::vector<generic_ptr>
+read_multiple(context& ctx, std::istream& in) {
+  std::vector<generic_ptr> result;
+  while (generic_ptr elem = read(ctx, in))
+    result.push_back(elem);
+
+  return result;
+}
+
+std::vector<generic_ptr>
+read_multiple(context& ctx, std::string const& s) {
+  std::istringstream is(s);
+  return read_multiple(ctx, is);
 }
 
 } // namespace game::scm

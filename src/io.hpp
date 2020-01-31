@@ -6,6 +6,7 @@
 #include <istream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace game::scm {
 
@@ -20,6 +21,13 @@ read(context&, std::istream&);
 
 generic_ptr
 read(context&, std::string const&);
+
+// Read multiple S-expressions until the end of the stream or string.
+std::vector<generic_ptr>
+read_multiple(context&, std::istream&);
+
+std::vector<generic_ptr>
+read_multiple(context&, std::string const&);
 
 } // namespace game::csm
 

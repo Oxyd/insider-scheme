@@ -393,4 +393,48 @@ analyse(context& ctx, generic_ptr const& datum, ptr<module> const& m) {
   return result;
 }
 
+static bool
+is_import(generic_ptr const& datum) {
+  return is<pair>(datum)
+         && is<symbol>(car(assume<pair>(datum)))
+         && assume<symbol>(car(assume<pair>(datum)))->value() == "import";
+}
+
+static void
+perform_import(context& ctx, ptr<module> const& m, ptr<pair> const& datum) {
+  if (!is_list(ctx, datum))
+    throw std::runtime_error{"Invalid import syntax"};
+
+  ptr<pair> spec = assume<pair>(cadr(datum));
+  if (!is_list(ctx, spec)
+      || expect<symbol>(car(spec))->value() != "insider"
+      || expect<symbol>(cadr(spec))->value() != "internal")
+    throw std::runtime_error{"Unimplemented"};
+
+  import_all(m, ctx.constants.internal);
+}
+
+static std::vector<generic_ptr>::const_iterator
+perform_imports(context& ctx, ptr<module> const& m, std::vector<generic_ptr> const& data) {
+  auto it = data.begin();
+  while (it != data.end() && is_import(*it)) {
+    perform_import(ctx, m, assume<pair>(*it));
+    ++it;
+  }
+
+  return it;
+}
+
+uncompiled_module
+analyse_module(context& ctx, std::vector<generic_ptr> const& data) {
+  uncompiled_module result;
+  result.module = make<module>(ctx);
+
+  auto body = perform_imports(ctx, result.module, data);
+  for (; body != data.end(); ++body)
+    result.body.expressions.push_back(analyse(ctx, *body, result.module));
+
+  return result;
+}
+
 } // namespace game::scm

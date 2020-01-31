@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <variant>
+#include <vector>
 
 namespace game::scm {
 
@@ -113,6 +114,15 @@ struct syntax {
 // bindings visible to S-expression.
 std::unique_ptr<syntax>
 analyse(context&, generic_ptr const& datum, ptr<module> const&);
+
+struct uncompiled_module {
+  body_syntax body;
+  ptr<scm::module> module;
+};
+
+// Analyse a list of data that forms a module and return that module.
+uncompiled_module
+analyse_module(context&, std::vector<generic_ptr> const& data);
 
 } // namespace game::scm
 

@@ -567,6 +567,11 @@ module::import(std::string name, index_type i) {
 }
 
 void
+module::for_each_subobject(std::function<void(object*)> const& f) {
+  f(proc_);
+}
+
+void
 import_all(ptr<module> const& to, ptr<module> const& from) {
   for (auto const& name : from->exports())
     to->import(name, *from->find(name));
