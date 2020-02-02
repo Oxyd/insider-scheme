@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace game::scm {
+namespace scm {
 
 std::size_t
 call_frame::extra_storage_size(ptr<scm::procedure> const& proc,
@@ -335,4 +335,4 @@ run(execution_state& state) {
   return state.global_return;
 }
 
-} // namespace game::scm
+} // namespace scm

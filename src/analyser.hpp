@@ -7,7 +7,7 @@
 #include <variant>
 #include <vector>
 
-namespace game::scm {
+namespace scm {
 
 // The analyser expects a Scheme datum (or a list of data) that represents a
 // program, and turns it into an internal representation, defined here.
@@ -130,6 +130,6 @@ struct uncompiled_module {
 uncompiled_module
 analyse_module(context&, std::vector<generic_ptr> const& data);
 
-} // namespace game::scm
+} // namespace scm
 
 #endif

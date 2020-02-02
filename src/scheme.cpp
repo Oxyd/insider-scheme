@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cassert>
 
-namespace game::scm {
+namespace scm {
 
 bool
 object::eqv(generic_ptr const& other) const {

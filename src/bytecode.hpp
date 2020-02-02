@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-namespace game::scm {
+namespace scm {
 
 class operand {
 public:
@@ -196,6 +196,6 @@ struct instruction {
 
 using bytecode = std::vector<instruction>;
 
-} // namespace game::scm
+} // namespace scm
 
 #endif

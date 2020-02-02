@@ -17,7 +17,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace game::scm {
+namespace scm {
 
 class generic_ptr;
 
@@ -734,6 +734,6 @@ match(generic_ptr const& x) {
     return {};
 }
 
-} // namespace game::scm
+} // namespace scm
 
 #endif

@@ -3,7 +3,7 @@
 
 #include "scheme.hpp"
 
-namespace game::scm {
+namespace scm {
 
 // The virtual machine. The global environment is represented as a procedure
 // whose call frame is at the top of the call stack. Global variables and
@@ -82,6 +82,6 @@ make_state(context&, ptr<procedure> const&);
 generic_ptr
 run(execution_state&);
 
-} // namespace game::scm
+} // namespace scm
 
 #endif

@@ -6,14 +6,14 @@
 #include "scheme.hpp"
 #include "vm.hpp"
 
-using namespace game::scm;
+using namespace scm;
 
 struct scheme : testing::Test {
   context ctx;
 
   generic_ptr
   read(std::string const& expr) {
-    return game::scm::read(ctx, expr);
+    return scm::read(ctx, expr);
   }
 
   generic_ptr

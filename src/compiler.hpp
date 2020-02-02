@@ -4,7 +4,7 @@
 #include "bytecode.hpp"
 #include "scheme.hpp"
 
-namespace game::scm {
+namespace scm {
 
 // Translate a single expression into bytecode. The resulting procedure will
 // take no arguments and will return the value of the expression.
@@ -15,6 +15,6 @@ compile_expression(context&, generic_ptr const& datum, ptr<module> const&);
 ptr<module>
 compile_module(context&, std::vector<generic_ptr> const& data);
 
-} // namespace game::scm
+} // namespace scm
 
 #endif

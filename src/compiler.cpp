@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <unordered_map>
 
-namespace game::scm {
+namespace scm {
 
 namespace {
   class shared_register;
@@ -642,4 +642,4 @@ compile_module(context& ctx, std::vector<generic_ptr> const& data) {
   return um.module;
 }
 
-} // namespace game::scm
+} // namespace scm

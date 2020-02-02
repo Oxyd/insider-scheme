@@ -2,7 +2,7 @@
 
 #include <cassert>
 
-namespace game::scm {
+namespace scm {
 
 instruction::instruction(std::string_view mnemonic, operand x, operand y, operand dest)
   : opcode{mnemonic_to_info(mnemonic).opcode}
@@ -43,4 +43,4 @@ mnemonic_to_info(std::string_view mnemonic) {
   return it->second;
 }
 
-} // namespace game::scm
+} // namespace scm

@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace game::scm {
+namespace scm {
 
 struct parse_error : std::runtime_error {
   parse_error(std::string const& message);

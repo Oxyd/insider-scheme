@@ -5,7 +5,7 @@
 #include <sstream>
 #include <variant>
 
-namespace game::scm {
+namespace scm {
 
 struct end { };
 struct left_paren { };
@@ -291,4 +291,4 @@ read_multiple(context& ctx, std::string const& s) {
   return read_multiple(ctx, is);
 }
 
-} // namespace game::scm
+} // namespace scm

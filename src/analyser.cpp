@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace game::scm {
+namespace scm {
 
 namespace {
   class environment {
@@ -487,4 +487,4 @@ analyse_module(context& ctx, std::vector<generic_ptr> const& data) {
   return result;
 }
 
-} // namespace game::scm
+} // namespace scm
