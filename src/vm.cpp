@@ -194,10 +194,6 @@ execute_one(execution_state& state) {
   case opcode::tail_call: {
     generic_ptr callee = get_register(state, instr.x);
     operand::representation_type num_args = instr.y.immediate_value();
-    if (auto scheme_proc = match<procedure>(callee))
-      if (num_args != scheme_proc->num_args)
-        // TODO: Print the function name
-        throw std::runtime_error{"Wrong number of arguments in function call"};
 
     std::vector<generic_ptr> args = collect_data(state, num_args);
     generic_ptr call_target = callee;
@@ -209,6 +205,10 @@ execute_one(execution_state& state) {
     }
 
     if (auto scheme_proc = match<procedure>(call_target)) {
+      if (num_args != scheme_proc->num_args)
+        // TODO: Print the function name
+        throw std::runtime_error{"Wrong number of arguments in function call"};
+
       if (instr.opcode == opcode::tail_call)
         state.current_frame = frame->parent(state.ctx.store);
 
