@@ -24,6 +24,13 @@ struct scheme : testing::Test {
     auto state = make_state(ctx, f);
     return run(state);
   }
+
+  generic_ptr
+  eval_module(std::string const& expr) {
+    auto m = compile_module(ctx, read_multiple(ctx, expr));
+    auto state = make_state(ctx, module_top_level_procedure(m));
+    return run(state);
+  }
 };
 
 struct aaa : object {
@@ -803,4 +810,29 @@ TEST_F(scheme, compile_module) {
   run(state);
 
   EXPECT_EQ(sum, 5);
+}
+
+TEST_F(scheme, compile_top_level_define) {
+  auto result1 = eval_module(
+    R"(
+      (import (insider internal))
+      (#$define f
+        (#$lambda (x)
+          (+ x 2)))
+      (#$define var 7)
+      (f var)
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result1)->value(), 9);
+
+  auto result2 = eval_module(
+    R"(
+      (import (insider internal))
+      (#$define x 4)
+      (#$define y 7)
+      (#$set! x (+ y 2))
+      x
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result2)->value(), 9);
 }

@@ -57,8 +57,13 @@ struct let_syntax {
   body_syntax body;
 };
 
-struct set_syntax {
+struct local_set_syntax {
   std::shared_ptr<variable> target;
+  std::unique_ptr<syntax> expression;
+};
+
+struct top_level_set_syntax {
+  operand location;
   std::unique_ptr<syntax> expression;
 };
 
@@ -93,7 +98,8 @@ struct syntax {
     top_level_reference_syntax,
     application_syntax,
     let_syntax,
-    set_syntax,
+    local_set_syntax,
+    top_level_set_syntax,
     lambda_syntax,
     if_syntax,
     box_syntax,

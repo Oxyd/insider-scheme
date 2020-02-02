@@ -340,12 +340,20 @@ compile_let(context& ctx, procedure_context& proc, let_syntax const& stx, bool t
 }
 
 static shared_register
-compile_set(context& ctx, procedure_context& proc, set_syntax const& stx) {
+compile_local_set(context& ctx, procedure_context& proc, local_set_syntax const& stx) {
   shared_register dest = proc.bindings.lookup(stx.target);
   assert(dest);
 
   shared_register value = compile_expression(ctx, proc, *stx.expression, false);
   proc.bytecode.push_back(instruction{opcode::set, *value, {}, *dest});
+
+  return shared_register{ctx.statics.void_};
+}
+
+static shared_register
+compile_top_level_set(context& ctx, procedure_context& proc, top_level_set_syntax const& stx) {
+  shared_register value = compile_expression(ctx, proc, *stx.expression, false);
+  proc.bytecode.push_back(instruction{opcode::set, *value, {}, stx.location});
 
   return shared_register{ctx.statics.void_};
 }
@@ -574,8 +582,10 @@ compile_expression(context& ctx, procedure_context& proc, syntax const& stx, boo
     return compile_application(ctx, proc, *app, tail);
   else if (auto* let = std::get_if<let_syntax>(&stx.value))
     return compile_let(ctx, proc, *let, tail);
-  else if (auto* set = std::get_if<set_syntax>(&stx.value))
-    return compile_set(ctx, proc, *set);
+  else if (auto* local_set = std::get_if<local_set_syntax>(&stx.value))
+    return compile_local_set(ctx, proc, *local_set);
+  else if (auto* top_level_set = std::get_if<top_level_set_syntax>(&stx.value))
+    return compile_top_level_set(ctx, proc, *top_level_set);
   else if (auto* lambda = std::get_if<lambda_syntax>(&stx.value))
     return compile_lambda(ctx, proc, *lambda);
   else if (auto* if_ = std::get_if<if_syntax>(&stx.value))

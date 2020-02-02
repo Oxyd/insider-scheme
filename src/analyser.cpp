@@ -133,16 +133,20 @@ parse_set(parsing_context& pc, syntax* parent, ptr<pair> const& datum) {
     throw std::runtime_error{"Invalid #$set! syntax"};
 
   auto name = expect<symbol>(cadr(datum), "Invalid #$set! syntax");
-  auto var = pc.env.lookup(name->value());
-  if (!var)
-    // TODO: Could also be a top-level set!.
+  if (auto local_var = pc.env.lookup(name->value())) {
+    local_var->is_set = true;
+
+    auto result = make_syntax<local_set_syntax>(parent, std::move(local_var));
+    std::get<local_set_syntax>(result->value).expression = parse(pc, result.get(), caddr(datum));
+    return result;
+  }
+  else if (auto top_level_var = pc.module->find(name->value())) {
+    auto result = make_syntax<top_level_set_syntax>(parent, operand::global(*top_level_var));
+    std::get<top_level_set_syntax>(result->value).expression = parse(pc, result.get(), caddr(datum));
+    return result;
+  }
+  else
     throw std::runtime_error{fmt::format("Unbound symbol {}", name->value())};
-
-  var->is_set = true;
-
-  auto result = make_syntax<set_syntax>(parent, std::move(var));
-  std::get<set_syntax>(result->value).expression = parse(pc, result.get(), caddr(datum));
-  return result;
 }
 
 static std::unique_ptr<syntax>
@@ -260,6 +264,32 @@ parse_reference(parsing_context& pc, syntax* parent, ptr<symbol> const& datum) {
 }
 
 static std::unique_ptr<syntax>
+parse_define(parsing_context& pc, syntax* parent, ptr<pair> const& datum) {
+  // Defines are processed in two passes: First all the define'd variables are
+  // declared within the module or scope and initialised to #void; second, they
+  // are assigned their values as if by set!. This is the second pass, so we
+  // expect the variable to be declared already, and all we have to emit is a
+  // set!.
+
+  if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 3)
+    throw std::runtime_error{"Invalid #$define syntax"};
+
+  ptr<symbol> name = expect<symbol>(cadr(datum), "Invalid #$define syntax");
+  generic_ptr expr = caddr(datum);
+
+  if (pc.env.lookup(name->value()))
+    assert(!"Unimplemented: Local define");
+  else {
+    std::optional<operand::representation_type> dest = pc.module->find(name->value());
+    assert(dest);
+
+    auto result = make_syntax<top_level_set_syntax>(parent, operand::global(*dest));
+    std::get<top_level_set_syntax>(result->value).expression = parse(pc, result.get(), expr);
+    return result;
+  }
+}
+
+static std::unique_ptr<syntax>
 parse(parsing_context& pc, syntax* parent, generic_ptr const& datum) {
   if (is<integer>(datum) || is<boolean>(datum) || is<void_type>(datum))
     return make_syntax<literal_syntax>(parent, datum);
@@ -282,6 +312,8 @@ parse(parsing_context& pc, syntax* parent, generic_ptr const& datum) {
         return parse_unbox(pc, parent, p);
       else if (head_symbol->value() == "#$box-set!")
         return parse_box_set(pc, parent, p);
+      else if (head_symbol->value() == "#$define")
+        return parse_define(pc, parent, p);
     }
 
     return parse_application(pc, parent, p);
@@ -309,8 +341,11 @@ recurse(syntax* s, Args&... args) {
     for (auto const& expr : let->body.expressions)
       F(expr.get(), args...);
   }
-  else if (auto* set = std::get_if<set_syntax>(&s->value)) {
-    F(set->expression.get(), args...);
+  else if (auto* local_set = std::get_if<local_set_syntax>(&s->value)) {
+    F(local_set->expression.get(), args...);
+  }
+  else if (auto* top_level_set = std::get_if<top_level_set_syntax>(&s->value)) {
+    F(top_level_set->expression.get(), args...);
   }
   else if (auto* lambda = std::get_if<lambda_syntax>(&s->value)) {
     for (auto const& expr : lambda->body.expressions)
@@ -345,9 +380,9 @@ box_variable_references(syntax* s, std::shared_ptr<variable> const& var) {
       local_reference_syntax original_ref = *ref;
       s->value = unbox_syntax{std::make_unique<syntax>(s, original_ref)};
     }
-  } else if (auto* set = std::get_if<set_syntax>(&s->value))
+  } else if (auto* set = std::get_if<local_set_syntax>(&s->value))
     if (set->target == var) {
-      set_syntax original_set = std::move(*set);
+      local_set_syntax original_set = std::move(*set);
       s->value = box_set_syntax{
         std::make_unique<syntax>(s, local_reference_syntax{original_set.target}),
         std::move(original_set.expression)
@@ -374,11 +409,11 @@ box_set_variables(syntax* s) {
       if (param->is_set) {
         box_variable_references(s, param);
 
-        auto set = std::make_unique<syntax>(s, set_syntax{param});
+        auto set = std::make_unique<syntax>(s, local_set_syntax{param});
         auto box = std::make_unique<syntax>(set.get(), box_syntax{});
         auto ref = std::make_unique<syntax>(box.get(), local_reference_syntax{param});
         std::get<box_syntax>(box->value).expression = std::move(ref);
-        std::get<set_syntax>(set->value).expression = std::move(box);
+        std::get<local_set_syntax>(set->value).expression = std::move(box);
 
         lambda->body.expressions.insert(lambda->body.expressions.begin(), std::move(set));
       }
@@ -425,12 +460,27 @@ perform_imports(context& ctx, ptr<module> const& m, std::vector<generic_ptr> con
   return it;
 }
 
+static void
+add_top_level_definitions(context& ctx, ptr<module> const& m, std::vector<generic_ptr> const& data) {
+  for (generic_ptr const& datum : data)
+    if (auto p = match<pair>(datum))
+      if (auto head = match<symbol>(car(p)); head->value() == "#$define") {
+        if (!is_list(ctx, p) || list_length(ctx, p) != 3 || !is<symbol>(cadr(p)))
+          throw std::runtime_error{"Invalid #$define syntax"};
+
+        m->add(assume<symbol>(cadr(p))->value(), ctx.add_top_level(ctx.constants.void_));
+      }
+}
+
 uncompiled_module
 analyse_module(context& ctx, std::vector<generic_ptr> const& data) {
   uncompiled_module result;
   result.module = make<module>(ctx);
 
   auto body = perform_imports(ctx, result.module, data);
+
+  add_top_level_definitions(ctx, result.module, data);
+
   for (; body != data.end(); ++body)
     result.body.expressions.push_back(analyse(ctx, *body, result.module));
 
