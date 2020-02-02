@@ -82,12 +82,49 @@ parse_definition_pair(parsing_context& pc, syntax* parent, ptr<pair> const& datu
   return {std::make_shared<variable>(name->value()), parse(pc, parent, cadr(datum))};
 }
 
-static body_syntax
-parse_body(parsing_context& pc, syntax* parent, generic_ptr const& datum) {
-  if (!is_list(pc.ctx, datum) || datum == pc.ctx.constants.null)
-    throw std::runtime_error{"Invalid syntax: Expected a list of expressions"};
+static std::vector<ptr<symbol>>
+gather_defines(context& ctx, generic_ptr list) {
+  std::vector<ptr<symbol>> result;
 
-  generic_ptr expr = datum;
+  while (list != ctx.constants.null) {
+    if (auto elem = match<pair>(car(assume<pair>(list))))
+      if (is_list(ctx, elem))
+        if (auto head = match<symbol>(car(elem)))
+          if (head->value() == "#$define") {
+            if (list_length(ctx, elem) != 3 || !is<symbol>(cadr(elem)))
+              throw std::runtime_error{"Invalid #$define syntax"};
+
+            result.push_back(assume<symbol>(cadr(elem)));
+
+            list = assume<pair>(cdr(assume<pair>(list)));
+            continue;
+          }
+
+    break;
+  }
+
+  if (list == ctx.constants.null) {
+    if (!result.empty())
+      throw std::runtime_error{"No expression after a sequence of internal definitions"};
+    else
+      throw std::runtime_error{"Empty body"};
+  }
+
+  while (list != ctx.constants.null) {
+    if (auto elem = match<pair>(car(assume<pair>(list))))
+      if (is_list(ctx, elem))
+        if (auto head = match<symbol>(car(elem)))
+          if (head->value() == "#$define")
+            throw std::runtime_error{"Internal define after an expression"};
+
+    list = cdr(assume<pair>(list));
+  }
+
+  return result;
+}
+
+static std::vector<std::unique_ptr<syntax>>
+parse_expression_list(parsing_context& pc, syntax* parent, generic_ptr expr) {
   std::vector<std::unique_ptr<syntax>> result;
   while (expr != pc.ctx.constants.null) {
     auto e = assume<pair>(expr);
@@ -95,7 +132,36 @@ parse_body(parsing_context& pc, syntax* parent, generic_ptr const& datum) {
     expr = cdr(e);
   }
 
-  return body_syntax{std::move(result)};
+  return result;
+}
+
+static body_syntax
+parse_body(parsing_context& pc, syntax* parent, generic_ptr const& datum) {
+  if (!is_list(pc.ctx, datum) || datum == pc.ctx.constants.null)
+    throw std::runtime_error{"Invalid syntax: Expected a list of expressions"};
+
+  std::vector<ptr<symbol>> internal_defines = gather_defines(pc.ctx, assume<pair>(datum));
+  if (!internal_defines.empty()) {
+    environment::scope_handle sh = pc.env.push_scope();
+
+    auto let_s = make_syntax<let_syntax>(parent);
+    auto& let = std::get<let_syntax>(let_s->value);
+
+    for (ptr<symbol> const& s : internal_defines) {
+      auto void_expr = make_syntax<literal_syntax>(let_s.get(), pc.ctx.constants.void_);
+      auto var = std::make_shared<variable>(s->value());
+      pc.env.add(var);
+      let.definitions.push_back({std::move(var), std::move(void_expr)});
+    }
+
+    let.body = {parse_expression_list(pc, let_s.get(), datum)};
+
+    body_syntax result;
+    result.expressions.push_back(std::move(let_s));
+    return result;
+  }
+  else
+    return {parse_expression_list(pc, parent, datum)};
 }
 
 static std::unique_ptr<syntax>
@@ -277,8 +343,12 @@ parse_define(parsing_context& pc, syntax* parent, ptr<pair> const& datum) {
   ptr<symbol> name = expect<symbol>(cadr(datum), "Invalid #$define syntax");
   generic_ptr expr = caddr(datum);
 
-  if (pc.env.lookup(name->value()))
-    assert(!"Unimplemented: Local define");
+  if (auto local_var = pc.env.lookup(name->value())) {
+    local_var->is_set = true;
+    auto result = make_syntax<local_set_syntax>(parent, std::move(local_var));
+    std::get<local_set_syntax>(result->value).expression = parse(pc, result.get(), expr);
+    return result;
+  }
   else {
     std::optional<operand::representation_type> dest = pc.module->find(name->value());
     assert(dest);

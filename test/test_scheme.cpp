@@ -836,3 +836,22 @@ TEST_F(scheme, compile_top_level_define) {
   );
   EXPECT_EQ(expect<integer>(result2)->value(), 9);
 }
+
+TEST_F(scheme, compile_internal_define) {
+  auto result1 = eval_module(
+    R"(
+      (import (insider internal))
+
+      (#$define f
+        (#$lambda (n)
+          (#$define go
+            (#$lambda (k accum)
+              (#$if (= k 0)
+                accum
+                (go (- k 1) (+ accum k)))))
+          (go n 0)))
+      (f 5)
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result1)->value(), 5 + 4 + 3 + 2 + 1);
+}
