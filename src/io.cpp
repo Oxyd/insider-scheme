@@ -2,8 +2,11 @@
 
 #include <fmt/format.h>
 
+#include <charconv>
+#include <limits>
 #include <sstream>
 #include <variant>
+#include <vector>
 
 namespace scm {
 
@@ -289,6 +292,120 @@ std::vector<generic_ptr>
 read_multiple(context& ctx, std::string const& s) {
   std::istringstream is(s);
   return read_multiple(ctx, is);
+}
+
+static void
+write_string(ptr<string> const& s, ptr<port> const& out) {
+  out->write_char('"');
+  for (char c : s->value())
+    if (c == '"')
+      out->write_string(R"(\")");
+    else if (c == '\\')
+      out->write_string(R"(\\)");
+    else
+      out->write_char(c);
+  out->write_char('"');
+}
+
+static void
+write_char(ptr<character> const& c, ptr<port> const& out) {
+  out->write_string(R"(#\)");
+  out->write_char(c->value());
+}
+
+static void
+write_integer(ptr<integer> const& value, ptr<port> const& out) {
+  std::array<char, std::numeric_limits<integer::value_type>::digits10 + 1> buffer;
+  std::to_chars_result res = std::to_chars(buffer.begin(), buffer.end(), value->value());
+
+  assert(res.ec == std::errc{});
+  out->write_string(std::string(buffer.begin(), res.ptr));
+}
+
+static void
+write_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
+  if (datum == ctx.constants.null)
+    out->write_string("()");
+  else if (datum == ctx.constants.void_)
+    out->write_string("#void");
+  else if (datum == ctx.constants.t)
+    out->write_string("#t");
+  else if (datum == ctx.constants.f)
+    out->write_string("#f");
+  else if (auto sym = match<symbol>(datum))
+    out->write_string(sym->value());
+  else if (auto str = match<string>(datum))
+    write_string(str, out);
+  else if (auto c = match<character>(datum))
+    write_char(c, out);
+  else if (auto i = match<integer>(datum))
+    write_integer(i, out);
+  else
+    out->write_string(typeid(*datum).name());
+}
+
+void
+write_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
+  struct record {
+    generic_ptr datum;
+    std::size_t written = 0;
+    bool        omit_parens = false;
+  };
+  std::vector<record> stack{{datum}};
+
+  while (!stack.empty()) {
+    record& top = stack.back();
+
+    if (auto pair = match<scm::pair>(top.datum)) {
+      switch (top.written) {
+      case 0:
+        if (!top.omit_parens)
+          out->write_char('(');
+        ++top.written;
+        stack.push_back({car(pair)});
+        break;
+
+      case 1:
+        ++top.written;
+
+        if (is<scm::pair>(cdr(pair))) {
+          out->write_char(' ');
+          stack.push_back({cdr(pair), 0, true});
+        } else if (cdr(pair) == ctx.constants.null) {
+          if (!top.omit_parens)
+            out->write_char(')');
+          stack.pop_back();
+        } else {
+          out->write_string(" . ");
+          stack.push_back({cdr(pair)});
+        }
+        break;
+
+      case 2:
+        if (!top.omit_parens)
+          out->write_char(')');
+        stack.pop_back();
+      }
+    }
+    else if (auto vec = match<vector>(top.datum)) {
+      if (top.written == 0) {
+        out->write_string("#(");
+      } else if (top.written == vec->size()) {
+        out->write_char(')');
+        stack.pop_back();
+        continue;
+      }
+      else
+        out->write_char(' ');
+
+      std::size_t index = top.written++;
+      stack.push_back({vector_ref(vec, index)});
+    }
+    else {
+      write_primitive(ctx, top.datum, out);
+      stack.pop_back();
+    }
+  }
 }
 
 } // namespace scm

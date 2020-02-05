@@ -29,6 +29,12 @@ read_multiple(context&, std::istream&);
 std::vector<generic_ptr>
 read_multiple(context&, std::string const&);
 
+// Write a representation of the given datum to the given output port. This does
+// not check for cycles in the datum, so if it is a cyclic data structure, this
+// will result in an infinite loop.
+void
+write_simple(context& ctx, generic_ptr const&, ptr<port> const&);
+
 } // namespace game::csm
 
 #endif

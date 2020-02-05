@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdio>
 
 namespace scm {
 
@@ -406,6 +407,76 @@ greater(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
 generic_ptr
 greater(context& ctx, std::vector<generic_ptr> const& xs) {
   return relational<greater>(ctx, xs, ">");
+}
+
+void
+string::set(std::size_t i, char c) {
+  assert(i < size_);
+  dynamic_storage()[i] = c;
+}
+
+std::string
+string::value() const {
+  std::string result;
+  result.reserve(size_);
+
+  for (std::size_t i = 0; i < size_; ++i)
+    result += dynamic_storage()[i];
+
+  return result;
+}
+
+ptr<string>
+make_string(context& ctx, std::string const& value) {
+  auto result = make<string>(ctx, value.size());
+
+  for (std::size_t i = 0; i < value.size(); ++i)
+    result->set(i, value[i]);
+
+  return result;
+}
+
+port::port(FILE* f, bool input, bool output, bool should_close)
+  : dest_{f}
+  , input_{input}
+  , output_{output}
+  , should_close_{should_close}
+{ }
+
+port::port(std::string buffer, bool input, bool output)
+  : dest_{std::move(buffer)}
+  , input_{input}
+  , output_{output}
+{ }
+
+void
+port::write_string(std::string const& s) {
+  if (!output_)
+    throw std::runtime_error{"Writing to non-writeable port"};
+
+  if (FILE** f = std::get_if<FILE*>(&dest_))
+    std::fputs(s.c_str(), *f);
+  else
+    std::get<std::string>(dest_) += s;
+}
+
+void
+port::write_char(char c) {
+  if (!output_)
+    throw std::runtime_error{"Writing to non-writeable port"};
+
+  if (FILE** f = std::get_if<FILE*>(&dest_))
+    std::fputc(c, *f);
+  else
+    std::get<std::string>(dest_) += c;
+}
+
+std::string
+port::get_string() const {
+  if (std::string const* s = std::get_if<std::string>(&dest_))
+    return *s;
+  else
+    throw std::runtime_error{"Not a string port"};
 }
 
 std::size_t

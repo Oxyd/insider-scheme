@@ -855,3 +855,42 @@ TEST_F(scheme, compile_internal_define) {
   );
   EXPECT_EQ(expect<integer>(result1)->value(), 5 + 4 + 3 + 2 + 1);
 }
+
+static std::string
+to_string(context& ctx, generic_ptr const& datum) {
+  auto out = make<port>(ctx, std::string{}, false, true);
+  write_simple(ctx, datum, out);
+  return out->get_string();
+}
+
+TEST_F(scheme, test_write) {
+  EXPECT_EQ(to_string(ctx, read("(1 2 3)")), "(1 2 3)");
+
+  auto p1 = make<pair>(ctx, make<integer>(ctx, 1), make<integer>(ctx, 2));
+  EXPECT_EQ(to_string(ctx, p1), "(1 . 2)");
+
+  auto p2 = make<pair>(ctx, make<integer>(ctx, 0), p1);
+  EXPECT_EQ(to_string(ctx, p2), "(0 1 . 2)");
+
+  auto v = make<vector>(ctx, 3);
+  v->set(0, make<character>(ctx, 'r'));
+  v->set(1, p2);
+  v->set(2, make_string(ctx, "foobar"));
+  EXPECT_EQ(to_string(ctx, v), R"(#(#\r (0 1 . 2) "foobar"))");
+
+  auto s = make_string(ctx, R"(one "two" three \ four)");
+  EXPECT_EQ(to_string(ctx, s), R"("one \"two\" three \\ four")");
+
+  auto l = make_list(
+    ctx,
+    ctx.constants.null,
+    ctx.constants.void_,
+    ctx.constants.t,
+    ctx.constants.f,
+    ctx.intern("symbol"),
+    make_string(ctx, "string"),
+    make<character>(ctx, 'c'),
+    make<integer>(ctx, -13)
+  );
+  EXPECT_EQ(to_string(ctx, l), R"((() #void #t #f symbol "string" #\c -13))");
+}

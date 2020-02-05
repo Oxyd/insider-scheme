@@ -15,6 +15,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
+#include <variant>
 #include <vector>
 
 namespace scm {
@@ -62,7 +63,7 @@ protected:
 
 // Helper for Scheme objects with extra dynamic-sized storage allocated after them.
 template <typename Derived, typename T>
-class alignas(T) dynamic_size_object : public object {
+class alignas(T) alignas(object) dynamic_size_object : public object {
 public:
   static constexpr bool is_dynamic_size = true;
 
@@ -455,6 +456,65 @@ public:
 
 private:
   bool value_;
+};
+
+// Character. TODO: Support Unicode.
+class character : public object {
+public:
+  explicit
+  character(char c) : value_{c} { }
+
+  char
+  value() const { return value_; }
+
+private:
+  char value_;
+};
+
+// Fixed-length string. TODO: Support Unicode.
+class string : public dynamic_size_object<string, char> {
+public:
+  static std::size_t
+  extra_storage_size(std::size_t size) { return size; }
+
+  explicit
+  string(std::size_t size) : size_{size} { }
+
+  void
+  set(std::size_t i, char c);
+
+  std::string
+  value() const;
+
+  std::size_t
+  size() const { return size_; }
+
+private:
+  std::size_t size_;
+};
+
+ptr<string>
+make_string(context&, std::string const& value);
+
+// I/O port or a string port. Can be read or write, binary or text.
+class port : public object {
+public:
+  port(FILE*, bool input, bool output, bool should_close = true);
+  port(std::string, bool input, bool output);
+
+  void
+  write_string(std::string const&);
+  void
+  write_char(char c);
+
+  std::string
+  get_string() const;
+
+private:
+  std::variant<FILE*, std::string> dest_;
+  bool input_ = false;
+  bool output_ = false;
+  bool should_close_ = false;
 };
 
 // A cons pair containing two other Scheme values, car and cdr.
