@@ -35,7 +35,7 @@ add_library(scheme ${scheme_sources})
 target_compile_features(scheme PUBLIC cxx_std_17)
 set_property(TARGET scheme PROPERTY CXX_EXTENSIONS OFF)
 
-target_link_libraries(scheme PRIVATE fmt::fmt-header-only)
+target_link_libraries(scheme PUBLIC fmt::fmt-header-only)
 target_include_directories(scheme INTERFACE src)
 set_property(TARGET scheme PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

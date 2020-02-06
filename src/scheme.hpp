@@ -738,6 +738,10 @@ import_all(ptr<module> const& to, ptr<module> const& from);
 inline ptr<procedure>
 module_top_level_procedure(ptr<module> const& m) { return m->top_level_procedure(m.store()); }
 
+void
+define_top_level(context&, ptr<module> const&, std::string const& name, generic_ptr const& object,
+                 bool export_ = false);
+
 // Is a given object an instance of the given Scheme type?
 template <typename T>
 bool

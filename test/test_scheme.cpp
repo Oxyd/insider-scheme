@@ -2,6 +2,7 @@
 
 #include "bytecode.hpp"
 #include "compiler.hpp"
+#include "converters.hpp"
 #include "io.hpp"
 #include "scheme.hpp"
 #include "vm.hpp"
@@ -790,15 +791,15 @@ TEST_F(scheme, compile_higher_order_arithmetic) {
 
 TEST_F(scheme, compile_module) {
   int sum = 0;
-  auto index = ctx.add_top_level(
+  define_top_level(
+    ctx, ctx.constants.internal, "f",
     make<native_procedure>(ctx,
                            [&] (context& ctx, std::vector<generic_ptr> const& args) {
                              sum += expect<integer>(args[0])->value();
                              return ctx.constants.void_;
-                           })
+                           }),
+    true
   );
-  ctx.constants.internal->add("f", index);
-  ctx.constants.internal->export_("f");
 
   auto m = compile_module(ctx,
                           read_multiple(ctx,
@@ -854,6 +855,33 @@ TEST_F(scheme, compile_internal_define) {
     )"
   );
   EXPECT_EQ(expect<integer>(result1)->value(), 5 + 4 + 3 + 2 + 1);
+}
+
+TEST_F(scheme, define_lambda) {
+  define_lambda<int(int, int)>(
+    ctx, ctx.constants.internal, "f", true,
+    [] (int a, int b) { return 2 * a + b; }
+  );
+
+  int x = 0;
+  define_lambda<void(int)>(
+    ctx, ctx.constants.internal, "g", true,
+    [&] (int a) { x += a; }
+  );
+
+  define_lambda<std::string(int)>(
+    ctx, ctx.constants.internal, "to-string", true,
+    [] (int i) { return std::to_string(i); }
+  );
+
+  auto result1 = eval("(f 5 7)");
+  EXPECT_EQ(expect<integer>(result1)->value(), 2 * 5 + 7);
+
+  auto result2 = eval("(g 9)");
+  EXPECT_EQ(x, 9);
+
+  auto result3 = eval("(to-string 3)");
+  EXPECT_EQ(expect<string>(result3)->value(), "3");
 }
 
 static std::string

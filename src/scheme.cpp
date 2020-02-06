@@ -648,4 +648,13 @@ import_all(ptr<module> const& to, ptr<module> const& from) {
     to->import(name, *from->find(name));
 }
 
+void
+define_top_level(context& ctx, ptr<module> const& m, std::string const& name, generic_ptr const& object,
+                 bool export_) {
+  auto index = ctx.add_top_level(object);
+  m->add(name, index);
+  if (export_)
+    m->export_(name);
+}
+
 } // namespace scm
