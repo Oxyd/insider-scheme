@@ -47,8 +47,6 @@ parse_error::parse_error(std::string const& message)
   : std::runtime_error{fmt::format("Parse error: {}", message)}
 { }
 
-static constexpr auto eof = std::char_traits<char>::eof();
-
 static bool
 whitespace(char c) {
   return c == ' ' || c == '\n' || c == '\t';
@@ -64,19 +62,19 @@ delimiter(char c) {
 }
 
 static void
-skip_whitespace(std::istream& stream) {
-  char c = stream.peek();
-  while (c != eof && whitespace(c)) {
-    stream.get();
-    c = stream.peek();
+skip_whitespace(ptr<port> const& stream) {
+  std::optional<char> c = stream->peek_char();
+  while (c && whitespace(*c)) {
+    stream->read_char();
+    c = stream->peek_char();
   }
 }
 
 static std::string
-read_until_delimiter(std::istream& stream) {
+read_until_delimiter(ptr<port> const& stream) {
   std::string result;
-  while (stream.peek() != eof && !delimiter(stream.peek()))
-    result += stream.get();
+  while (stream->peek_char() && !delimiter(*stream->peek_char()))
+    result += *stream->read_char();
 
   return result;
 }
@@ -93,15 +91,15 @@ digit_value(char c) {
 }
 
 static integer_literal
-read_integer_literal(std::istream& stream, bool negative = false) {
+read_integer_literal(ptr<port> const& stream, bool negative = false) {
   integer::storage_type result = 0;
-  char c = stream.peek();
+  std::optional<char> c = stream->peek_char();
 
-  assert(c != eof);
+  assert(c);
   if (c == '-' || c == '+') {
     negative = c == '-';
-    stream.get();
-    c = stream.peek();
+    stream->read_char();
+    c = stream->peek_char();
   }
 
   constexpr integer::storage_type overflow_divisor
@@ -109,16 +107,16 @@ read_integer_literal(std::istream& stream, bool negative = false) {
   constexpr integer::storage_type overflow_remainder
     = std::numeric_limits<integer::storage_type>::max() % 10;
 
-  while (c != eof && digit(c)) {
+  while (c && digit(*c)) {
     if (result > overflow_divisor
-        || (result == overflow_divisor && digit_value(c) > overflow_remainder))
+        || (result == overflow_divisor && digit_value(*c) > overflow_remainder))
       throw parse_error{"Integer literal overflow"};
 
     result *= 10;
-    result += digit_value(c);
+    result += digit_value(*c);
 
-    stream.get();
-    c = stream.peek();
+    stream->read_char();
+    c = stream->peek_char();
   }
 
   if (result > static_cast<integer::storage_type>(std::numeric_limits<integer::value_type>::max())
@@ -132,12 +130,12 @@ read_integer_literal(std::istream& stream, bool negative = false) {
 }
 
 static token
-read_special_literal(std::istream& stream) {
-  char c = stream.peek();
-  if (c == eof)
+read_special_literal(ptr<port> const& stream) {
+  std::optional<char> c = stream->peek_char();
+  if (!c)
     throw parse_error{"Unexpected end of input"};
 
-  switch (c) {
+  switch (*c) {
   case 't':
   case 'f': {
     // These can be either #t or #f, or #true or #false.
@@ -166,33 +164,33 @@ read_special_literal(std::istream& stream) {
 }
 
 static identifier
-read_identifier(std::istream& stream, std::string prefix = "") {
+read_identifier(ptr<port> const& stream, std::string prefix = "") {
   std::string value = std::move(prefix);
-  while (stream.peek() != eof && !delimiter(stream.peek()))
-    value += stream.get();
+  while (stream->peek_char() && !delimiter(*stream->peek_char()))
+    value += *stream->read_char();
 
   return identifier{std::move(value)};
 }
 
 static string_literal
-read_string_literal(std::istream& stream) {
+read_string_literal(ptr<port> const& stream) {
   // The opening " was consumed before calling this function.
 
   std::string result;
   while (true) {
-    char c = stream.get();
-    if (c == eof)
+    std::optional<char> c = stream->read_char();
+    if (!c)
       throw parse_error{"Unexpected end of input"};
 
-    if (c == '"')
+    if (*c == '"')
       break;
 
-    if (c == '\\') {
-      char escape = stream.get();
-      if (escape == eof)
+    if (*c == '\\') {
+      std::optional<char> escape = stream->read_char();
+      if (!escape)
         throw parse_error{"Unexpected end of input"};
 
-      switch (escape) {
+      switch (*escape) {
       case 'a': result += '\a'; break;
       case 'n': result += '\n'; break;
       case 'r': result += '\r'; break;
@@ -201,76 +199,76 @@ read_string_literal(std::istream& stream) {
       case '|': result += '|'; break;
       default:
         // XXX: Support \ at end of line and \xXXXX.
-        throw parse_error{fmt::format("Unrecognised escape sequence \\{}", escape)};
+        throw parse_error{fmt::format("Unrecognised escape sequence \\{}", *escape)};
       }
     }
     else
-      result += c;
+      result += *c;
   }
 
   return string_literal{std::move(result)};
 }
 
 static token
-read_token(std::istream& stream) {
+read_token(ptr<port> const& stream) {
   skip_whitespace(stream);
 
-  char c = stream.peek();
-  if (c == eof)
+  std::optional<char> c = stream->peek_char();
+  if (!c)
     return end{};
 
-  if (c == '(') {
-    stream.get();
+  if (*c == '(') {
+    stream->read_char();
     return left_paren{};
-  } else if (c == ')') {
-    stream.get();
+  } else if (*c == ')') {
+    stream->read_char();
     return right_paren{};
   }
-  else if (c == '+' || c == '-') {
+  else if (*c == '+' || *c == '-') {
     // This can begin either a number (like -2) or a symbol (like + -- the
     // addition function).
 
-    char initial = c;
-    stream.get();
+    char initial = *c;
+    stream->read_char();
     bool negative = false;
     if (initial == '-')
       negative = true;
     else
       assert(initial == '+');
 
-    c = stream.peek();
-    if (c == eof)
+    c = stream->peek_char();
+    if (!c)
       return identifier{std::string(1, initial)};
 
-    if (digit(c))
+    if (digit(*c))
       return read_integer_literal(stream, negative);
     else
       return read_identifier(stream, std::string(1, initial));
   }
-  else if (digit(c))
+  else if (digit(*c))
     return read_integer_literal(stream);
-  else if (c == '#') {
-    stream.get();
-    c = stream.peek();
-    if (c == eof)
+  else if (*c == '#') {
+    stream->read_char();
+    c = stream->peek_char();
+    if (!c)
       throw parse_error{"Unexpected end of input"};
-    else if (c == '$')
+    else if (*c == '$')
       return read_identifier(stream, "#");
     else
       return read_special_literal(stream);
   }
-  else if (c == '"') {
-    stream.get();
+  else if (*c == '"') {
+    stream->read_char();
     return read_string_literal(stream);
   } else
     return read_identifier(stream);
 }
 
 static generic_ptr
-read(context& ctx, token first_token, std::istream& stream);
+read(context& ctx, token first_token, ptr<port> const& stream);
 
 static generic_ptr
-read_list(context& ctx, std::istream& stream) {
+read_list(context& ctx, ptr<port> const& stream) {
   token t = read_token(stream);
   if (std::holds_alternative<end>(t))
     throw parse_error{"Unterminated list"};
@@ -297,7 +295,7 @@ read_list(context& ctx, std::istream& stream) {
 }
 
 static generic_ptr
-read(context& ctx, token first_token, std::istream& stream) {
+read(context& ctx, token first_token, ptr<port> const& stream) {
   if (std::holds_alternative<end>(first_token))
     return {};
   else if (std::holds_alternative<left_paren>(first_token))
@@ -317,18 +315,18 @@ read(context& ctx, token first_token, std::istream& stream) {
 }
 
 generic_ptr
-read(context& ctx, std::istream& stream) {
+read(context& ctx, ptr<port> const& stream) {
   return read(ctx, read_token(stream), stream);
 }
 
 generic_ptr
-read(context& ctx, std::string const& s) {
-  std::istringstream is(s);
-  return read(ctx, is);
+read(context& ctx, std::string s) {
+  auto port = make<scm::port>(ctx, std::move(s), true, false);
+  return read(ctx, port);
 }
 
 std::vector<generic_ptr>
-read_multiple(context& ctx, std::istream& in) {
+read_multiple(context& ctx, ptr<port> const& in) {
   std::vector<generic_ptr> result;
   while (generic_ptr elem = read(ctx, in))
     result.push_back(elem);
@@ -337,9 +335,9 @@ read_multiple(context& ctx, std::istream& in) {
 }
 
 std::vector<generic_ptr>
-read_multiple(context& ctx, std::string const& s) {
-  std::istringstream is(s);
-  return read_multiple(ctx, is);
+read_multiple(context& ctx, std::string s) {
+  auto port = make<scm::port>(ctx, std::move(s), true, false);
+  return read_multiple(ctx, port);
 }
 
 static void

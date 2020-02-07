@@ -507,11 +507,21 @@ public:
   void
   write_char(char c);
 
+  std::optional<char>
+  peek_char();
+  std::optional<char>
+  read_char();
+
   std::string
   get_string() const;
 
 private:
-  std::variant<FILE*, std::string> dest_;
+  struct string_buffer {
+    std::string data;
+    std::size_t read_index = 0;
+  };
+
+  std::variant<FILE*, string_buffer> buffer_;
   bool input_ = false;
   bool output_ = false;
   bool should_close_ = false;

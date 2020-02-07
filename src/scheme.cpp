@@ -437,14 +437,14 @@ make_string(context& ctx, std::string const& value) {
 }
 
 port::port(FILE* f, bool input, bool output, bool should_close)
-  : dest_{f}
+  : buffer_{f}
   , input_{input}
   , output_{output}
   , should_close_{should_close}
 { }
 
 port::port(std::string buffer, bool input, bool output)
-  : dest_{std::move(buffer)}
+  : buffer_{string_buffer{std::move(buffer)}}
   , input_{input}
   , output_{output}
 { }
@@ -454,10 +454,10 @@ port::write_string(std::string const& s) {
   if (!output_)
     throw std::runtime_error{"Writing to non-writeable port"};
 
-  if (FILE** f = std::get_if<FILE*>(&dest_))
+  if (FILE** f = std::get_if<FILE*>(&buffer_))
     std::fputs(s.c_str(), *f);
   else
-    std::get<std::string>(dest_) += s;
+    std::get<string_buffer>(buffer_).data += s;
 }
 
 void
@@ -465,16 +465,53 @@ port::write_char(char c) {
   if (!output_)
     throw std::runtime_error{"Writing to non-writeable port"};
 
-  if (FILE** f = std::get_if<FILE*>(&dest_))
+  if (FILE** f = std::get_if<FILE*>(&buffer_))
     std::fputc(c, *f);
   else
-    std::get<std::string>(dest_) += c;
+    std::get<string_buffer>(buffer_).data += c;
+}
+
+std::optional<char>
+port::peek_char() {
+  if (FILE** f = std::get_if<FILE*>(&buffer_)) {
+    int c = std::getc(*f);
+    if (c == EOF)
+      return {};
+
+    std::ungetc(c, *f);
+    return c;
+  }
+  else {
+    string_buffer const& buf = std::get<string_buffer>(buffer_);
+    if (buf.read_index == buf.data.size())
+      return {};
+    else
+      return buf.data[buf.read_index];
+  }
+}
+
+std::optional<char>
+port::read_char() {
+  if (FILE** f = std::get_if<FILE*>(&buffer_)) {
+    int c = std::getc(*f);
+    if (c == EOF)
+      return {};
+    else
+      return c;
+  }
+  else {
+    string_buffer& buf = std::get<string_buffer>(buffer_);
+    if (buf.read_index == buf.data.size())
+      return {};
+    else
+      return buf.data[buf.read_index++];
+  }
 }
 
 std::string
 port::get_string() const {
-  if (std::string const* s = std::get_if<std::string>(&dest_))
-    return *s;
+  if (string_buffer const* sb = std::get_if<string_buffer>(&buffer_))
+    return sb->data;
   else
     throw std::runtime_error{"Not a string port"};
 }
