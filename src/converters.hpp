@@ -46,9 +46,9 @@ template <typename T, typename Enable = void>
 struct from_scheme_converter;
 
 template <typename T>
-T
+auto
 from_scheme(context& ctx, generic_ptr const& x) {
-  return from_scheme_converter<T>::convert(ctx, x);
+  return from_scheme_converter<std::remove_cv_t<std::remove_reference_t<T>>>::convert(ctx, x);
 }
 
 template <>
@@ -104,6 +104,39 @@ struct from_scheme_converter<std::vector<T>> {
 namespace detail {
   template <typename T>
   struct lambda_definer;
+
+  template <typename R, typename... Args>
+  struct lambda_definer<R(context&, Args...)> {
+    template <typename F>
+    static void
+    define(context& ctx, ptr<module> const& m, std::string const& name, F f, bool export_) {
+      define(ctx, m, name, std::move(f), export_, std::index_sequence_for<Args...>{});
+    }
+
+    template <typename F, std::size_t... Is>
+    static void
+    define(context& ctx, ptr<module> const& m, std::string const& name, F f, bool export_,
+           std::index_sequence<Is...>) {
+      auto proc = make<native_procedure>(
+        ctx,
+        [name, f = std::move(f)] (context& ctx, std::vector<generic_ptr> const& args) {
+          if (args.size() != sizeof...(Args))
+            throw std::runtime_error{fmt::format(
+              "{} called with incorrect number of arguments: {} required; {} given",
+              name, sizeof...(Args), args.size()
+            )};
+
+          if constexpr (std::is_same_v<R, void>) {
+            f(ctx, from_scheme<Args>(ctx, args[Is])...);
+            return ctx.constants.void_;
+          } else
+            return to_scheme(ctx, f(ctx, from_scheme<Args>(ctx, args[Is])...));
+        }
+      );
+
+      define_top_level(ctx, m, name, proc, export_);
+    }
+  };
 
   template <typename R, typename... Args>
   struct lambda_definer<R(Args...)> {

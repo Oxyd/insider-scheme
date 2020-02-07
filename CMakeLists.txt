@@ -19,6 +19,9 @@ set(test_sources
   test/test_scheme.cpp
   )
 
+set(program_sources
+  src/main.cpp)
+
 add_subdirectory(${FMT_SUBDIRECTORY} ${CMAKE_CURRENT_BINARY_DIR}/fmt)
 add_subdirectory(${GOOGLETEST_SUBDIRECTORY} ${CMAKE_CURRENT_BINARY_DIR}/googletest)
 
@@ -47,4 +50,13 @@ target_link_libraries(tests
   PUBLIC scheme
   PRIVATE gtest_main)
 set_property(TARGET tests PROPERTY
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+add_executable(insider ${program_sources})
+target_compile_features(insider PUBLIC cxx_std_17)
+set_property(TARGET insider PROPERTY CXX_EXTENSIONS OFF)
+target_link_libraries(insider
+  PUBLIC scheme)
+target_link_libraries(insider PRIVATE fmt::fmt-header-only)
+set_property(TARGET insider PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

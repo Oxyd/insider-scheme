@@ -1,5 +1,8 @@
 #include "scheme.hpp"
 
+#include "converters.hpp"
+#include "io.hpp"
+
 #include <fmt/format.h>
 
 #include <algorithm>
@@ -207,6 +210,19 @@ make_internal_module(context& ctx) {
   export_native(ctx, result, "=", arith_equal, special_top_level_tag::arith_equal);
   export_native(ctx, result, "<", less, special_top_level_tag::less_than);
   export_native(ctx, result, ">", greater, special_top_level_tag::greater_than);
+
+  define_lambda<void(context&, generic_ptr const&)>(
+    ctx, result, "write-simple", true,
+    [] (context& ctx, generic_ptr const& datum) {
+      write_simple(ctx, datum, ctx.stdout);
+    }
+  );
+
+  define_lambda<void(context&)>(
+    ctx, result, "newline", true,
+    [] (context& ctx) { ctx.stdout->write_char('\n'); }
+  );
+
   return result;
 }
 
@@ -223,6 +239,8 @@ context::context() {
   statics.f = operand::static_(intern_static(constants.f));
   statics.zero = operand::static_(intern_static(store.make<integer>(0)));
   statics.one = operand::static_(intern_static(store.make<integer>(1)));
+
+  stdout = make<port>(*this, ::stdout, false, true, false);
 }
 
 ptr<symbol>

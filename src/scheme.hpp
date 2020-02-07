@@ -297,6 +297,7 @@ struct void_type : object { };
 
 class boolean;
 class module;
+class port;
 class symbol;
 
 // Some top-level values are tagged to let the compiler understand them and
@@ -334,6 +335,7 @@ public:
   free_store   store;
   constants    constants;
   statics_list statics;
+  ptr<port>    stdout;
 
   context();
   context(context const&) = delete;

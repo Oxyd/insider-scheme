@@ -361,7 +361,7 @@ parse_define(parsing_context& pc, syntax* parent, ptr<pair> const& datum) {
 
 static std::unique_ptr<syntax>
 parse(parsing_context& pc, syntax* parent, generic_ptr const& datum) {
-  if (is<integer>(datum) || is<boolean>(datum) || is<void_type>(datum))
+  if (is<integer>(datum) || is<boolean>(datum) || is<void_type>(datum) || is<string>(datum))
     return make_syntax<literal_syntax>(parent, datum);
   else if (auto s = match<symbol>(datum))
     return parse_reference(pc, parent, s);
