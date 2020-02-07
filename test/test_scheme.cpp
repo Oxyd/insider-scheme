@@ -326,6 +326,17 @@ TEST_F(scheme, read_symbol) {
   EXPECT_EQ(expect<symbol>(car(expect<pair>(cdr(expect<pair>(cdr(expect<pair>(l)))))))->value(), "three");
 }
 
+TEST_F(scheme, read_string) {
+  EXPECT_EQ(expect<string>(read(R"("foo")"))->value(), "foo");
+  EXPECT_EQ(expect<string>(read(R"("one\ntwo")"))->value(), "one\ntwo");
+  EXPECT_EQ(expect<string>(read(R"("this \"is\" a quote")"))->value(), "this \"is\" a quote");
+
+  EXPECT_THROW(read(R"("unterminated)"), parse_error);
+  EXPECT_THROW(read(R"("\invalid escape")"), parse_error);
+  EXPECT_THROW(read(R"("\)"), parse_error);
+  EXPECT_THROW(read(R"("\")"), parse_error);
+}
+
 TEST_F(scheme, read_multiple) {
   std::vector<generic_ptr> result1 = read_multiple(ctx, "foo bar baz");
   ASSERT_EQ(result1.size(), 3);

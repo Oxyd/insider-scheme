@@ -28,6 +28,10 @@ struct identifier {
   std::string value;
 };
 
+struct string_literal {
+  std::string value;
+};
+
 using token = std::variant<
   end,
   left_paren,
@@ -35,7 +39,8 @@ using token = std::variant<
   integer_literal,
   boolean_literal,
   void_literal,
-  identifier
+  identifier,
+  string_literal
 >;
 
 parse_error::parse_error(std::string const& message)
@@ -169,6 +174,43 @@ read_identifier(std::istream& stream, std::string prefix = "") {
   return identifier{std::move(value)};
 }
 
+static string_literal
+read_string_literal(std::istream& stream) {
+  // The opening " was consumed before calling this function.
+
+  std::string result;
+  while (true) {
+    char c = stream.get();
+    if (c == eof)
+      throw parse_error{"Unexpected end of input"};
+
+    if (c == '"')
+      break;
+
+    if (c == '\\') {
+      char escape = stream.get();
+      if (escape == eof)
+        throw parse_error{"Unexpected end of input"};
+
+      switch (escape) {
+      case 'a': result += '\a'; break;
+      case 'n': result += '\n'; break;
+      case 'r': result += '\r'; break;
+      case '"': result += '"'; break;
+      case '\\': result += '\\'; break;
+      case '|': result += '|'; break;
+      default:
+        // XXX: Support \ at end of line and \xXXXX.
+        throw parse_error{fmt::format("Unrecognised escape sequence \\{}", escape)};
+      }
+    }
+    else
+      result += c;
+  }
+
+  return string_literal{std::move(result)};
+}
+
 static token
 read_token(std::istream& stream) {
   skip_whitespace(stream);
@@ -216,6 +258,10 @@ read_token(std::istream& stream) {
       return read_identifier(stream, "#");
     else
       return read_special_literal(stream);
+  }
+  else if (c == '"') {
+    stream.get();
+    return read_string_literal(stream);
   } else
     return read_identifier(stream);
 }
@@ -264,6 +310,8 @@ read(context& ctx, token first_token, std::istream& stream) {
     return b->value ? ctx.constants.t : ctx.constants.f;
   else if (void_literal* v = std::get_if<void_literal>(&first_token))
     return ctx.constants.void_;
+  else if (string_literal* s = std::get_if<string_literal>(&first_token))
+    return make_string(ctx, s->value);
 
   throw parse_error{"Probably unimplemented"};
 }
