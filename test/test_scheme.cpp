@@ -310,6 +310,25 @@ TEST_F(scheme, read_list) {
   EXPECT_THROW(read("(()"), parse_error);
 }
 
+TEST_F(scheme, read_vector) {
+  auto v1 = expect<vector>(read("#()"));
+  EXPECT_EQ(expect<vector>(v1)->size(), 0);
+
+  auto v2 = expect<vector>(read("#(1 2 3)"));
+  EXPECT_EQ(v2->size(), 3);
+  EXPECT_EQ(expect<integer>(vector_ref(v2, 0))->value(), 1);
+  EXPECT_EQ(expect<integer>(vector_ref(v2, 1))->value(), 2);
+  EXPECT_EQ(expect<integer>(vector_ref(v2, 2))->value(), 3);
+
+  auto v3 = expect<vector>(read("#(#(a b) c #(d e) f)"));
+  EXPECT_EQ(v3->size(), 4);
+  EXPECT_TRUE(is<vector>(vector_ref(v3, 0)));
+  EXPECT_TRUE(is<symbol>(vector_ref(v3, 1)));
+
+  EXPECT_THROW(read("#("), parse_error);
+  EXPECT_THROW(read("#(1 2"), parse_error);
+}
+
 TEST_F(scheme, read_symbol) {
   EXPECT_EQ(read("foo"), ctx.intern("foo"));
   EXPECT_EQ(read("multiple-words"), ctx.intern("multiple-words"));

@@ -14,6 +14,8 @@ struct end { };
 struct left_paren { };
 struct right_paren { };
 
+struct hash_left_paren { };
+
 struct integer_literal {
   integer::storage_type value;
 };
@@ -38,6 +40,7 @@ using token = std::variant<
   end,
   left_paren,
   right_paren,
+  hash_left_paren,
   integer_literal,
   boolean_literal,
   void_literal,
@@ -261,6 +264,8 @@ read_token(ptr<port> const& stream) {
       throw parse_error{"Unexpected end of input"};
     else if (*c == '$')
       return read_identifier(stream, "#");
+    else if (*c == '(')
+      return hash_left_paren{};
     else
       return read_special_literal(stream);
   }
@@ -302,6 +307,28 @@ read_list(context& ctx, ptr<port> const& stream) {
 }
 
 static generic_ptr
+read_vector(context& ctx, ptr<port> const& stream) {
+  stream->read_char(); // Consume (
+
+  std::vector<generic_ptr> elements;
+
+  token t = read_token(stream);
+  while (!std::holds_alternative<end>(t) && !std::holds_alternative<right_paren>(t)) {
+    elements.push_back(read(ctx, t, stream));
+    t = read_token(stream);
+  }
+
+  if (std::holds_alternative<end>(t))
+    throw parse_error{"Unterminated vector"};
+
+  ptr<vector> result = make<vector>(ctx, elements.size());
+  for (std::size_t i = 0; i < elements.size(); ++i)
+    result->set(i, elements[i]);
+
+  return result;
+}
+
+static generic_ptr
 read_quote(context& ctx, ptr<port> const& stream) {
   token t = read_token(stream);
   if (std::holds_alternative<end>(t))
@@ -316,6 +343,8 @@ read(context& ctx, token first_token, ptr<port> const& stream) {
     return {};
   else if (std::holds_alternative<left_paren>(first_token))
     return read_list(ctx, stream);
+  else if (std::holds_alternative<hash_left_paren>(first_token))
+    return read_vector(ctx, stream);
   else if (std::holds_alternative<quote>(first_token))
     return read_quote(ctx, stream);
   else if (integer_literal* i = std::get_if<integer_literal>(&first_token))
