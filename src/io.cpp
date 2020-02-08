@@ -32,6 +32,8 @@ struct string_literal {
   std::string value;
 };
 
+struct quote { };
+
 using token = std::variant<
   end,
   left_paren,
@@ -40,7 +42,8 @@ using token = std::variant<
   boolean_literal,
   void_literal,
   identifier,
-  string_literal
+  string_literal,
+  quote
 >;
 
 parse_error::parse_error(std::string const& message)
@@ -224,6 +227,10 @@ read_token(ptr<port> const& stream) {
     stream->read_char();
     return right_paren{};
   }
+  else if (*c == '\'') {
+    stream->read_char();
+    return quote{};
+  }
   else if (*c == '+' || *c == '-') {
     // This can begin either a number (like -2) or a symbol (like + -- the
     // addition function).
@@ -295,11 +302,22 @@ read_list(context& ctx, ptr<port> const& stream) {
 }
 
 static generic_ptr
+read_quote(context& ctx, ptr<port> const& stream) {
+  token t = read_token(stream);
+  if (std::holds_alternative<end>(t))
+    throw parse_error{"Expected token after '"};
+
+  return make_list(ctx, make<symbol>(ctx, "#$quote"), read(ctx, t, stream));
+}
+
+static generic_ptr
 read(context& ctx, token first_token, ptr<port> const& stream) {
   if (std::holds_alternative<end>(first_token))
     return {};
   else if (std::holds_alternative<left_paren>(first_token))
     return read_list(ctx, stream);
+  else if (std::holds_alternative<quote>(first_token))
+    return read_quote(ctx, stream);
   else if (integer_literal* i = std::get_if<integer_literal>(&first_token))
     return make<integer>(ctx, i->value);
   else if (identifier* i = std::get_if<identifier>(&first_token))

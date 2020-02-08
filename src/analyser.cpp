@@ -384,6 +384,8 @@ parse(parsing_context& pc, syntax* parent, generic_ptr const& datum) {
         return parse_box_set(pc, parent, p);
       else if (head_symbol->value() == "#$define")
         return parse_define(pc, parent, p);
+      else if (head_symbol->value() == "#$quote")
+        return make_syntax<literal_syntax>(parent, cadr(p));
     }
 
     return parse_application(pc, parent, p);

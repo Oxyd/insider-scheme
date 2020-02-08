@@ -933,3 +933,27 @@ TEST_F(scheme, test_write) {
   );
   EXPECT_EQ(to_string(ctx, l), R"((() #void #t #f symbol "string" #\c -13))");
 }
+
+TEST_F(scheme, quote) {
+  auto result1 = eval("(#$quote (a b c))");
+  EXPECT_TRUE(is_list(ctx, result1));
+  EXPECT_EQ(list_length(ctx, result1), 3);
+
+  auto result2 = eval("(#$quote 2)");
+  EXPECT_EQ(expect<integer>(result2)->value(), 2);
+
+  auto result3 = eval("'3");
+  EXPECT_EQ(expect<integer>(result3)->value(), 3);
+
+  auto result4 = eval("'(a b)");
+  EXPECT_TRUE(is_list(ctx, result4));
+  EXPECT_EQ(list_length(ctx, result4), 2);
+  EXPECT_EQ(expect<symbol>(car(expect<pair>(result4)))->value(), "a");
+  EXPECT_EQ(expect<symbol>(cadr(expect<pair>(result4)))->value(), "b");
+
+  auto result5 = eval("''a");
+  EXPECT_TRUE(is_list(ctx, result5));
+  EXPECT_EQ(list_length(ctx, result5), 2);
+  EXPECT_EQ(expect<symbol>(car(expect<pair>(result5)))->value(), "#$quote");
+  EXPECT_EQ(expect<symbol>(cadr(expect<pair>(result5)))->value(), "a");
+}
