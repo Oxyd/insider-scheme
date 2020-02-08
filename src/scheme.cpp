@@ -56,6 +56,49 @@ generic_ptr::operator = (generic_ptr const& other) {
   return *this;
 }
 
+bool
+equal(generic_ptr const& x, generic_ptr const& y) {
+  // XXX: This will break on infinite data structures.
+
+  struct record {
+    generic_ptr left, right;
+  };
+
+  std::vector<record> stack{{x, y}};
+  while (!stack.empty()) {
+    record top = stack.back();
+    stack.pop_back();
+
+    if (!eqv(top.left, top.right)) {
+      if (is<pair>(top.left) && is<pair>(top.right)) {
+        auto l = assume<pair>(top.left);
+        auto r = assume<pair>(top.right);
+
+        stack.push_back({cdr(l), cdr(r)});
+        stack.push_back({car(l), car(r)});
+      }
+      else if (is<vector>(top.left) && is<vector>(top.right)) {
+        auto l = assume<vector>(top.left);
+        auto r = assume<vector>(top.right);
+
+        if (l->size() != r->size())
+          return false;
+
+        for (std::size_t i = l->size(); i > 0; --i)
+          stack.push_back({vector_ref(l, i - 1), vector_ref(r, i - 1)});
+      }
+      else if (is<string>(top.left) && is<string>(top.right)) {
+        if (assume<string>(top.left)->value() != assume<string>(top.right)->value())
+          return false;
+      }
+      else
+        return false;
+    }
+  }
+
+  return true;
+}
+
 generic_weak_ptr::generic_weak_ptr(free_store& store, object* value)
   : generic_ptr_base{store, value}
 {

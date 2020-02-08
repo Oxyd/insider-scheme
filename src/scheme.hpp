@@ -130,6 +130,9 @@ struct generic_ptr_hash {
 inline bool
 eqv(generic_ptr const& x, generic_ptr const& y) { return x->eqv(y); }
 
+bool
+equal(generic_ptr const&, generic_ptr const&);
+
 struct eqv_compare {
   bool
   operator () (generic_ptr const& x, generic_ptr const& y) const { return x->eqv(y); }

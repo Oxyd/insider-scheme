@@ -307,7 +307,7 @@ read_quote(context& ctx, ptr<port> const& stream) {
   if (std::holds_alternative<end>(t))
     throw parse_error{"Expected token after '"};
 
-  return make_list(ctx, make<symbol>(ctx, "#$quote"), read(ctx, t, stream));
+  return make_list(ctx, ctx.intern("#$quote"), read(ctx, t, stream));
 }
 
 static generic_ptr

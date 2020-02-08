@@ -957,3 +957,15 @@ TEST_F(scheme, quote) {
   EXPECT_EQ(expect<symbol>(car(expect<pair>(result5)))->value(), "#$quote");
   EXPECT_EQ(expect<symbol>(cadr(expect<pair>(result5)))->value(), "a");
 }
+
+TEST_F(scheme, equal) {
+  EXPECT_TRUE(equal(read("1"), read("1")));
+  EXPECT_FALSE(equal(read("1"), read("2")));
+  EXPECT_FALSE(equal(read("1"), read("sym")));
+  EXPECT_TRUE(equal(read("'(1 2)"), read("'(1 2)")));
+  EXPECT_TRUE(equal(read("'(1 2)"), read("(#$quote (1 2))")));
+  EXPECT_FALSE(equal(read("'(1 2)"), read("'(1 3)")));
+  EXPECT_FALSE(equal(read("'(1 2)"), read("'(1 2 3)")));
+  EXPECT_TRUE(equal(make_string(ctx, "foo"), make_string(ctx, "foo")));
+  EXPECT_FALSE(equal(make_string(ctx, "foo"), make_string(ctx, "bar")));
+}
