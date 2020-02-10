@@ -266,6 +266,8 @@ make_internal_module(context& ctx) {
     [] (context& ctx) { ctx.stdout->write_char('\n'); }
   );
 
+  define_top_level(ctx, result, "append", make<native_procedure>(ctx, append), true);
+
   return result;
 }
 
@@ -626,6 +628,52 @@ cddr(ptr<pair> const& x) {
 generic_ptr
 cdddr(ptr<pair> const& x) {
   return cdr(expect<pair>(cddr(x)));
+}
+
+generic_ptr
+append(context& ctx, std::vector<generic_ptr> const& xs) {
+  // If all the lists are empty, we return the empty list as well.
+
+  auto x = xs.begin();
+  while (x != xs.end() && *x == ctx.constants.null)
+    ++x;
+
+  if (x == xs.end())
+    return ctx.constants.null;
+
+  if (x == xs.end() - 1)
+    return *x;
+
+  // We have more than one list, and at least the current list is non-empty. Do
+  // the needful.
+
+  generic_ptr new_head = ctx.constants.null;
+  ptr<pair> new_tail;
+  generic_ptr current = expect<pair>(*x);
+  for (; x != xs.end() - 1; ++x) {
+    current = *x;
+
+    while (current != ctx.constants.null) {
+      ptr<pair> c = expect<pair>(current);
+      ptr<pair> new_c = make<pair>(ctx, car(c), ctx.constants.null);
+
+      if (new_tail)
+        new_tail->set_cdr(new_c);
+      else
+        new_head = new_c;
+
+      new_tail = new_c;
+      current = cdr(c);
+    }
+  }
+
+  assert(x == xs.end() - 1);
+  if (new_tail)
+    new_tail->set_cdr(*x);
+  else
+    new_head = *x;
+
+  return new_head;
 }
 
 vector::vector(std::size_t size)

@@ -596,6 +596,13 @@ make_list(context& ctx, Ts... ts) {
   return result;
 }
 
+// Concatenate a number of lists. If there are 0 lists, return the empty
+// list. If there is 1 list, return it. Otherwise, return a new list whose
+// elements are the elements of the given lists. The last argument doesn't have
+// to be a list -- if it isn't, the result is an improper list.
+generic_ptr
+append(context&, std::vector<generic_ptr> const&);
+
 // An array of a fixed, dynamic size. Elements are allocated as a part of this
 // object, which requires cooperation from the allocator. From the C++ point of
 // view, there is an array of object* allocated right after the vector object.

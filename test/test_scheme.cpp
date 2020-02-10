@@ -1045,3 +1045,29 @@ TEST_F(scheme, quasiquote) {
   auto result7 = eval("(#$let ((a 12)) `#(3 ,a 5 ,(* a 2) 9))");
   EXPECT_TRUE(equal(result7, read("#(3 12 5 24 9)")));
 }
+
+TEST_F(scheme, append) {
+  auto r1 = eval("(append '(a1 a2 a3) '(b1 b2 b3) '(c1 c2) '(d1) '() '(f1 f2))");
+  EXPECT_TRUE(equal(r1, read("(a1 a2 a3 b1 b2 b3 c1 c2 d1 f1 f2)")));
+
+  auto r2 = eval("(append)");
+  EXPECT_TRUE(equal(r2, read("()")));
+
+  auto r3 = eval("(append '(a1 a2 a3))");
+  EXPECT_TRUE(equal(r3, read("(a1 a2 a3)")));
+
+  auto r4 = eval("(append '(a1 a2) 'tail)");
+  EXPECT_EQ(cddr(expect<pair>(r4)), ctx.intern("tail"));
+
+  auto r5 = eval("(append '() '() '() '())");
+  EXPECT_TRUE(equal(r5, ctx.constants.null));
+
+  auto r6 = eval("(append '() '(a1 a2))");
+  EXPECT_TRUE(equal(r6, read("(a1 a2)")));
+
+  auto r7 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3))");
+  EXPECT_TRUE(equal(r7, read("(a1 a2 b1 b2 b3)")));
+
+  auto r8 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3) '())");
+  EXPECT_TRUE(equal(r8, read("(a1 a2 b1 b2 b3)")));
+}
