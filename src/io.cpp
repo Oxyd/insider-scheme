@@ -35,6 +35,9 @@ struct string_literal {
 };
 
 struct quote { };
+struct backquote { };
+struct comma { };
+struct comma_at { };
 
 using token = std::variant<
   end,
@@ -46,7 +49,10 @@ using token = std::variant<
   void_literal,
   identifier,
   string_literal,
-  quote
+  quote,
+  backquote,
+  comma,
+  comma_at
 >;
 
 parse_error::parse_error(std::string const& message)
@@ -234,6 +240,20 @@ read_token(ptr<port> const& stream) {
     stream->read_char();
     return quote{};
   }
+  else if (*c == '`') {
+    stream->read_char();
+    return backquote{};
+  }
+  else if (*c == ',') {
+    stream->read_char();
+    c = stream->peek_char();
+    if (c && *c == '@') {
+      stream->read_char();
+      return comma_at{};
+    }
+    else
+      return comma{};
+  }
   else if (*c == '+' || *c == '-') {
     // This can begin either a number (like -2) or a symbol (like + -- the
     // addition function).
@@ -329,12 +349,13 @@ read_vector(context& ctx, ptr<port> const& stream) {
 }
 
 static generic_ptr
-read_quote(context& ctx, ptr<port> const& stream) {
+read_shortcut(context& ctx, ptr<port> const& stream,
+              std::string const& shortcut, std::string const& expansion) {
   token t = read_token(stream);
   if (std::holds_alternative<end>(t))
-    throw parse_error{"Expected token after '"};
+    throw parse_error{fmt::format("Expected token after {}", shortcut)};
 
-  return make_list(ctx, ctx.intern("#$quote"), read(ctx, t, stream));
+  return make_list(ctx, ctx.intern(expansion), read(ctx, t, stream));
 }
 
 static generic_ptr
@@ -346,7 +367,13 @@ read(context& ctx, token first_token, ptr<port> const& stream) {
   else if (std::holds_alternative<hash_left_paren>(first_token))
     return read_vector(ctx, stream);
   else if (std::holds_alternative<quote>(first_token))
-    return read_quote(ctx, stream);
+    return read_shortcut(ctx, stream, "'", "#$quote");
+  else if (std::holds_alternative<backquote>(first_token))
+    return read_shortcut(ctx, stream, "`", "#$quasiquote");
+  else if (std::holds_alternative<comma>(first_token))
+    return read_shortcut(ctx, stream, ",", "#$unquote");
+  else if (std::holds_alternative<comma_at>(first_token))
+    return read_shortcut(ctx, stream, ",@", "#$unquote-splicing");
   else if (integer_literal* i = std::get_if<integer_literal>(&first_token))
     return make<integer>(ctx, i->value);
   else if (identifier* i = std::get_if<identifier>(&first_token))

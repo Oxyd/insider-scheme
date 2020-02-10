@@ -569,6 +569,29 @@ compile_box_set(context& ctx, procedure_context& proc, box_set_syntax const& stx
   return shared_register{ctx.statics.void_};
 }
 
+static shared_register
+compile_cons(context& ctx, procedure_context& proc, cons_syntax const& stx) {
+  shared_register car = compile_expression(ctx, proc, *stx.car, false);
+  shared_register cdr = compile_expression(ctx, proc, *stx.cdr, false);
+  shared_register result = proc.registers.allocate_local();
+  proc.bytecode.push_back({opcode::cons, *car, *cdr, *result});
+  return result;
+}
+
+static shared_register
+compile_make_vector(context& ctx, procedure_context& proc, make_vector_syntax const& stx) {
+  std::vector<shared_register> exprs;
+  exprs.reserve(stx.elements.size());
+  for (std::unique_ptr<syntax> const& e : stx.elements)
+    exprs.push_back(compile_expression(ctx, proc, *e, false));
+
+  shared_register result = proc.registers.allocate_local();
+  proc.bytecode.push_back({opcode::make_vector, operand::immediate(exprs.size()), {}, *result});
+  emit_data(proc.bytecode, exprs);
+
+  return result;
+}
+
 // Translate an expression and return the register where the result is stored.
 static shared_register
 compile_expression(context& ctx, procedure_context& proc, syntax const& stx, bool tail) {
@@ -596,6 +619,10 @@ compile_expression(context& ctx, procedure_context& proc, syntax const& stx, boo
     return compile_unbox(ctx, proc, *unbox);
   else if (auto* box_set = std::get_if<box_set_syntax>(&stx.value))
     return compile_box_set(ctx, proc, *box_set);
+  else if (auto* cons = std::get_if<cons_syntax>(&stx.value))
+    return compile_cons(ctx, proc, *cons);
+  else if (auto* make_vector = std::get_if<make_vector_syntax>(&stx.value))
+    return compile_make_vector(ctx, proc, *make_vector);
   else {
     assert(!"Unexpected syntax");
     return {};

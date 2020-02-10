@@ -666,6 +666,15 @@ vector::hash() const {
   return result;
 }
 
+ptr<vector>
+make_vector(context& ctx, std::vector<generic_ptr> const& elems) {
+  auto result = make<vector>(ctx, elems.size());
+  for (std::size_t i = 0; i < elems.size(); ++i)
+    result->set(i, elems[i]);
+
+  return result;
+}
+
 box::box(generic_ptr const& value)
   : compound_object{{value.get()}}
 { }

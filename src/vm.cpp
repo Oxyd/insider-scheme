@@ -309,7 +309,20 @@ execute_one(execution_state& state) {
   case opcode::box_set:
     expect<box>(get_register(state, instr.x))->set(get_register(state, instr.y));
     break;
+
+  case opcode::cons:
+    set_register(state, instr.dest, make<pair>(state.ctx,
+                                               get_register(state, instr.x),
+                                               get_register(state, instr.y)));
+    break;
+
+  case opcode::make_vector: {
+    operand::representation_type num_elems = instr.x.immediate_value();
+    std::vector<generic_ptr> elems = collect_data(state, num_elems);
+    set_register(state, instr.dest, make_vector(state.ctx, elems));
+    break;
   }
+  } // end switch
 }
 
 execution_state

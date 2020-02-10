@@ -99,6 +99,8 @@ enum class opcode : std::uint8_t {
   box,             // box <what> <> <destination> -- make a box containing what
   unbox,           // unbox <what> <> <destination> -- extract contained value from a box
   box_set,         // box-set <box> <value> -- replace box's contained value with a new one
+  cons,            // cons <a> <b> <destination> -- make a cons pair (a . b)
+  make_vector      // make-vector <number of elements> <> <destination>
 };
 
 // Metainformation about an opcode. Used for decoding instructions.

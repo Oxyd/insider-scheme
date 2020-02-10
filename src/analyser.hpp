@@ -91,6 +91,15 @@ struct box_set_syntax {
   std::unique_ptr<syntax> value_expr;
 };
 
+struct cons_syntax {
+  std::unique_ptr<syntax> car;
+  std::unique_ptr<syntax> cdr;
+};
+
+struct make_vector_syntax {
+  std::vector<std::unique_ptr<syntax>> elements;
+};
+
 struct syntax {
   using value_type = std::variant<
     literal_syntax,
@@ -104,7 +113,9 @@ struct syntax {
     if_syntax,
     box_syntax,
     unbox_syntax,
-    box_set_syntax
+    box_set_syntax,
+    cons_syntax,
+    make_vector_syntax
   >;
 
   syntax* parent = nullptr;

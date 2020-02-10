@@ -359,6 +359,114 @@ parse_define(parsing_context& pc, syntax* parent, ptr<pair> const& datum) {
   }
 }
 
+namespace {
+  struct qq_template;
+
+  struct cons_pattern {
+    std::unique_ptr<qq_template> car;
+    std::unique_ptr<qq_template> cdr;
+  };
+
+  struct vector_pattern {
+    std::vector<std::unique_ptr<qq_template>> elems;
+  };
+
+  struct literal {
+    generic_ptr value;
+  };
+
+  struct expression {
+    generic_ptr datum;
+  };
+
+  struct qq_template {
+    using value_type = std::variant<
+      cons_pattern,
+      vector_pattern,
+      literal,
+      expression
+    >;
+
+    value_type value;
+
+    explicit
+    qq_template(value_type value)
+      : value(std::move(value))
+    { }
+  };
+} // anonymous namespace
+
+static std::unique_ptr<qq_template>
+parse_qq_template(generic_ptr const& datum) {
+  if (auto p = match<pair>(datum)) {
+    if (auto s = match<symbol>(car(p))) {
+      if (s->value() == "#$unquote")
+        return std::make_unique<qq_template>(expression{cadr(p)});
+    }
+
+    std::unique_ptr<qq_template> car_tpl = parse_qq_template(car(p));
+    std::unique_ptr<qq_template> cdr_tpl = parse_qq_template(cdr(p));
+
+    if (std::holds_alternative<literal>(car_tpl->value)
+        && std::holds_alternative<literal>(cdr_tpl->value))
+      return std::make_unique<qq_template>(literal{datum});
+    else
+      return std::make_unique<qq_template>(cons_pattern{std::move(car_tpl), std::move(cdr_tpl)});
+  }
+  else if (auto v = match<vector>(datum)) {
+    std::vector<std::unique_ptr<qq_template>> templates;
+    templates.reserve(v->size());
+    bool all_literal = true;
+
+    for (std::size_t i = 0; i < v->size(); ++i) {
+      templates.push_back(parse_qq_template(vector_ref(v, i)));
+      if (!std::holds_alternative<literal>(templates.back()->value))
+        all_literal = false;
+    }
+
+    if (all_literal)
+      return std::make_unique<qq_template>(literal{datum});
+    else
+      return std::make_unique<qq_template>(vector_pattern{std::move(templates)});
+  }
+  else
+    return std::make_unique<qq_template>(literal{datum});
+}
+
+static std::unique_ptr<syntax>
+process_qq_template(parsing_context& pc, syntax* parent, std::unique_ptr<qq_template> const& tpl) {
+  if (auto* cp = std::get_if<cons_pattern>(&tpl->value)) {
+    auto result = make_syntax<cons_syntax>(parent);
+    cons_syntax& s = std::get<cons_syntax>(result->value);
+    s.car = process_qq_template(pc, result.get(), cp->car);
+    s.cdr = process_qq_template(pc, result.get(), cp->cdr);
+    return result;
+  }
+  else if (auto* vp = std::get_if<vector_pattern>(&tpl->value)) {
+    auto result = make_syntax<make_vector_syntax>(parent);
+    make_vector_syntax& s = std::get<make_vector_syntax>(result->value);
+    s.elements.reserve(vp->elems.size());
+
+    for (std::unique_ptr<qq_template> const& elem : vp->elems)
+      s.elements.push_back(process_qq_template(pc, result.get(), elem));
+
+    return result;
+  }
+  else if (auto* expr = std::get_if<expression>(&tpl->value))
+    return parse(pc, parent, expr->datum);
+  else if (auto* lit = std::get_if<literal>(&tpl->value))
+    return make_syntax<literal_syntax>(parent, lit->value);
+
+  assert(!"Forgot a pattern");
+  return {};
+}
+
+static std::unique_ptr<syntax>
+parse_quasiquote(parsing_context& pc, syntax* parent, ptr<pair> const& datum) {
+  assert(expect<symbol>(car(datum))->value() == "#$quasiquote");
+  return process_qq_template(pc, parent, parse_qq_template(cadr(datum)));
+}
+
 static std::unique_ptr<syntax>
 parse(parsing_context& pc, syntax* parent, generic_ptr const& datum) {
   if (is<integer>(datum) || is<boolean>(datum) || is<void_type>(datum) || is<string>(datum))
@@ -386,6 +494,8 @@ parse(parsing_context& pc, syntax* parent, generic_ptr const& datum) {
         return parse_define(pc, parent, p);
       else if (head_symbol->value() == "#$quote")
         return make_syntax<literal_syntax>(parent, cadr(p));
+      else if (head_symbol->value() == "#$quasiquote")
+        return parse_quasiquote(pc, parent, p);
     }
 
     return parse_application(pc, parent, p);
@@ -438,6 +548,14 @@ recurse(syntax* s, Args&... args) {
   else if (auto* box_set = std::get_if<box_set_syntax>(&s->value)) {
     F(box_set->box_expr.get(), args...);
     F(box_set->value_expr.get(), args...);
+  }
+  else if (auto* cons = std::get_if<cons_syntax>(&s->value)) {
+    F(cons->car.get(), args...);
+    F(cons->cdr.get(), args...);
+  }
+  else if (auto* make_vector = std::get_if<make_vector_syntax>(&s->value)) {
+    for (std::unique_ptr<syntax> const& e : make_vector->elements)
+      F(e.get(), args...);
   }
   else
     assert(!"Forgot a syntax");

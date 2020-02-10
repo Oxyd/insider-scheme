@@ -629,6 +629,9 @@ private:
 inline generic_ptr
 vector_ref(ptr<vector> const& v, std::size_t i) { return v->ref(v.store(), i); }
 
+ptr<vector>
+make_vector(context&, std::vector<generic_ptr> const&);
+
 // An immutable string, used for identifying Scheme objects.
 class symbol : public object {
 public:

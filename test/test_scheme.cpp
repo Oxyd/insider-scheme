@@ -592,6 +592,40 @@ TEST_F(scheme, exec_closure_ref) {
   EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 5 + 3);
 }
 
+TEST_F(scheme, exec_cons) {
+  auto one = make_static<integer>(ctx, 1);
+  auto two = make_static<integer>(ctx, 2);
+  auto three = make_static<integer>(ctx, 3);
+  auto global = make<procedure>(
+    ctx,
+    bytecode{{opcode::cons, three, ctx.statics.null,  operand::local(0)},
+             {opcode::cons, two,   operand::local(0), operand::local(0)},
+             {opcode::cons, one,   operand::local(0), operand::local(0)}},
+    1, 0
+  );
+  auto state = make_state(ctx, global);
+  run(state);
+
+  EXPECT_TRUE(equal(call_frame_local(state.current_frame, 0), read("(1 2 3)")));
+}
+
+TEST_F(scheme, exec_make_vector) {
+  auto one = make_static<integer>(ctx, 1);
+  auto two = make_static<integer>(ctx, 2);
+  auto three = make_static<integer>(ctx, 3);
+  auto global = make<procedure>(
+    ctx,
+    bytecode{{opcode::make_vector, operand::immediate(3), {},  operand::local(0)},
+             {opcode::data,        one,                   two, three}},
+    1, 0
+  );
+
+  auto state = make_state(ctx, global);
+  run(state);
+
+  EXPECT_TRUE(equal(call_frame_local(state.current_frame, 0), read("#(1 2 3)")));
+}
+
 TEST_F(scheme, compile_arithmetic) {
   generic_ptr result = eval(
     "(+ 2 3 (* 5 9) (- 9 8) (/ 8 2))"
@@ -987,4 +1021,27 @@ TEST_F(scheme, equal) {
   EXPECT_FALSE(equal(read("'(1 2)"), read("'(1 2 3)")));
   EXPECT_TRUE(equal(make_string(ctx, "foo"), make_string(ctx, "foo")));
   EXPECT_FALSE(equal(make_string(ctx, "foo"), make_string(ctx, "bar")));
+}
+
+TEST_F(scheme, quasiquote) {
+  auto result1 = eval("`5");
+  EXPECT_TRUE(equal(result1, read("5")));
+
+  auto result2 = eval("`(1 2 5)");
+  EXPECT_TRUE(equal(result2, read("(1 2 5)")));
+
+  auto result3 = eval("(#$let ((a 7)) `(1 ,a 3))");
+  EXPECT_TRUE(equal(result3, read("(1 7 3)")));
+
+  auto result4 = eval("`(1 ,(+ 2 3) 3)");
+  EXPECT_TRUE(equal(result4, read("(1 5 3)")));
+
+  auto result5 = eval("(#$let ((name 'a)) `(list ,name ',name))");
+  EXPECT_TRUE(equal(result5, read("(list a (#$quote a))")));
+
+  auto result6 = eval("`#(1 2 5)");
+  EXPECT_TRUE(equal(result6, read("#(1 2 5)")));
+
+  auto result7 = eval("(#$let ((a 12)) `#(3 ,a 5 ,(* a 2) 9))");
+  EXPECT_TRUE(equal(result7, read("#(3 12 5 24 9)")));
 }
