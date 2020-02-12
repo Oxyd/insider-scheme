@@ -118,12 +118,11 @@ struct syntax {
     make_vector_syntax
   >;
 
-  syntax* parent = nullptr;
   value_type value;
 
-  syntax(syntax* p, value_type value)
-    : parent{p}
-    , value{std::move(value)}
+  explicit
+  syntax(value_type value)
+    : value{std::move(value)}
   { }
 };
 
