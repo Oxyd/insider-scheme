@@ -60,7 +60,7 @@ namespace {
 template <typename T, typename... Args>
 std::unique_ptr<syntax>
 make_syntax(Args&&... args) {
-  return std::make_unique<syntax>(syntax{T{{std::forward<Args>(args)}...}});
+  return std::make_unique<syntax>(syntax{T{std::forward<Args>(args)...}});
 }
 
 static std::unique_ptr<syntax>
@@ -339,6 +339,7 @@ namespace {
 
   struct expression {
     generic_ptr datum;
+    bool splicing;
   };
 
   struct qq_template {
@@ -363,7 +364,9 @@ parse_qq_template(generic_ptr const& datum) {
   if (auto p = match<pair>(datum)) {
     if (auto s = match<symbol>(car(p))) {
       if (s->value() == "#$unquote")
-        return std::make_unique<qq_template>(expression{cadr(p)});
+        return std::make_unique<qq_template>(expression{cadr(p), false});
+      else if (s->value() == "#$unquote-splicing")
+        return std::make_unique<qq_template>(expression{cadr(p), true});
     }
 
     std::unique_ptr<qq_template> car_tpl = parse_qq_template(car(p));
@@ -396,19 +399,77 @@ parse_qq_template(generic_ptr const& datum) {
 }
 
 static std::unique_ptr<syntax>
+make_internal_reference(parsing_context& pc, std::string name) {
+  std::optional<module::index_type> index = pc.ctx.constants.internal->find(name);
+  assert(index);
+  return make_syntax<top_level_reference_syntax>(operand::global(*index), std::move(name));
+}
+
+static bool
+is_splice(std::unique_ptr<qq_template> const& tpl) {
+  if (auto* expr = std::get_if<expression>(&tpl->value))
+    if (expr->splicing)
+      return true;
+  return false;
+}
+
+static std::unique_ptr<syntax>
 process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl) {
   if (auto* cp = std::get_if<cons_pattern>(&tpl->value)) {
+    if (is_splice(cp->car))
+      return make_syntax<application_syntax>(make_internal_reference(pc, "append"),
+                                             process_qq_template(pc, cp->car),
+                                             process_qq_template(pc, cp->cdr));
+
     return make_syntax<cons_syntax>(process_qq_template(pc, cp->car),
                                     process_qq_template(pc, cp->cdr));
   }
   else if (auto* vp = std::get_if<vector_pattern>(&tpl->value)) {
-    std::vector<std::unique_ptr<syntax>> elements;
-    elements.reserve(vp->elems.size());
+    // If there are no unquote-splicings in the vector, we will simply construct
+    // the vector from its elements. If there are unquote-splicings, we will
+    // translate it to (vector-append v1 v2 ... (list->vector spliced elements)
+    // v3 v4 ...).
 
+    bool any_splices = false;
     for (std::unique_ptr<qq_template> const& elem : vp->elems)
-      elements.push_back(process_qq_template(pc, elem));
+      if (is_splice(elem)) {
+        any_splices = true;
+        break;
+      }
 
-    return make_syntax<make_vector_syntax>(std::move(elements));
+    if (any_splices) {
+      auto result = make_syntax<application_syntax>(make_internal_reference(pc, "vector-append"));
+      application_syntax& app = std::get<application_syntax>(result->value);
+
+      std::vector<std::unique_ptr<syntax>> chunk;
+      for (std::unique_ptr<qq_template> const& elem : vp->elems) {
+        if (is_splice(elem)) {
+          if (!chunk.empty()) {
+            app.arguments.push_back(make_syntax<make_vector_syntax>(std::move(chunk)));
+            chunk.clear();
+          }
+
+          app.arguments.push_back(make_syntax<application_syntax>(make_internal_reference(pc, "list->vector"),
+                                                                  process_qq_template(pc, elem)));
+        }
+        else
+          chunk.push_back(process_qq_template(pc, elem));
+      }
+
+      if (!chunk.empty())
+        app.arguments.push_back(make_syntax<make_vector_syntax>(std::move(chunk)));
+
+      return result;
+    }
+    else {
+      std::vector<std::unique_ptr<syntax>> elements;
+      elements.reserve(vp->elems.size());
+
+      for (std::unique_ptr<qq_template> const& elem : vp->elems)
+        elements.push_back(process_qq_template(pc, elem));
+
+      return make_syntax<make_vector_syntax>(std::move(elements));
+    }
   }
   else if (auto* expr = std::get_if<expression>(&tpl->value))
     return parse(pc, expr->datum);

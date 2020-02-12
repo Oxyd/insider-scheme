@@ -267,6 +267,8 @@ make_internal_module(context& ctx) {
   );
 
   define_top_level(ctx, result, "append", make<native_procedure>(ctx, append), true);
+  define_lambda<ptr<vector>(context&, generic_ptr const&)>(ctx, result, "list->vector", true, list_to_vector);
+  define_top_level(ctx, result, "vector-append", make<native_procedure>(ctx, vector_append), true);
 
   return result;
 }
@@ -719,6 +721,39 @@ make_vector(context& ctx, std::vector<generic_ptr> const& elems) {
   auto result = make<vector>(ctx, elems.size());
   for (std::size_t i = 0; i < elems.size(); ++i)
     result->set(i, elems[i]);
+
+  return result;
+}
+
+ptr<vector>
+list_to_vector(context& ctx, generic_ptr const& lst) {
+  std::size_t size = 0;
+  for (generic_ptr e = lst; e != ctx.constants.null; e = cdr(expect<pair>(e)))
+    ++size;
+
+  auto result = make<vector>(ctx, size);
+  std::size_t i = 0;
+  for (generic_ptr e = lst; e != ctx.constants.null; e = cdr(assume<pair>(e)))
+    result->set(i++, car(assume<pair>(e)));
+
+  return result;
+}
+
+ptr<vector>
+vector_append(context& ctx, std::vector<generic_ptr> const& vs) {
+  std::size_t size = 0;
+  for (generic_ptr const& e : vs) {
+    ptr<vector> v = expect<vector>(e);
+    size += v->size();
+  }
+
+  auto result = make<vector>(ctx, size);
+  std::size_t i = 0;
+  for (generic_ptr const& e : vs) {
+    ptr<vector> v = assume<vector>(e);
+    for (std::size_t j = 0; j < v->size(); ++j)
+      result->set(i++, vector_ref(v, j));
+  }
 
   return result;
 }

@@ -639,6 +639,12 @@ vector_ref(ptr<vector> const& v, std::size_t i) { return v->ref(v.store(), i); }
 ptr<vector>
 make_vector(context&, std::vector<generic_ptr> const&);
 
+ptr<vector>
+list_to_vector(context&, generic_ptr const& lst);
+
+ptr<vector>
+vector_append(context&, std::vector<generic_ptr> const& vs);
+
 // An immutable string, used for identifying Scheme objects.
 class symbol : public object {
 public:

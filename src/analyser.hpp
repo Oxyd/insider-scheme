@@ -41,6 +41,20 @@ struct top_level_reference_syntax {
 struct application_syntax {
   std::unique_ptr<syntax> target;
   std::vector<std::unique_ptr<syntax>> arguments;
+
+  application_syntax(std::unique_ptr<syntax> t,
+                     std::vector<std::unique_ptr<syntax>> args)
+    : target{std::move(t)}
+    , arguments{std::move(args)}
+  { }
+
+  template <typename... Ts>
+  application_syntax(std::unique_ptr<syntax> t, Ts&&... ts)
+    : target{std::move(t)}
+  {
+    arguments.reserve(sizeof...(Ts));
+    (arguments.push_back(std::move(ts)), ...);
+  }
 };
 
 struct body_syntax {

@@ -1044,6 +1044,30 @@ TEST_F(scheme, quasiquote) {
 
   auto result7 = eval("(#$let ((a 12)) `#(3 ,a 5 ,(* a 2) 9))");
   EXPECT_TRUE(equal(result7, read("#(3 12 5 24 9)")));
+
+  auto result8 = eval("(#$let ((b '(b1 b2 b3))) `(a1 a2 ,@b c1 c2))");
+  EXPECT_TRUE(equal(result8, read("(a1 a2 b1 b2 b3 c1 c2)")));
+
+  auto result9 = eval("(#$let ((b '(b1 b2 b3))) `(a1 a2 ,b c1 c2))");
+  EXPECT_TRUE(equal(result9, read("(a1 a2 (b1 b2 b3) c1 c2)")));
+
+  auto result10 = eval("(#$let ((b '(b1 b2))) `(a1 a2 ,@b))");
+  EXPECT_TRUE(equal(result10, read("(a1 a2 b1 b2)")));
+
+  // auto result11 = eval("`(`(a b ,c))");
+  // EXPECT_TRUE(equal(result11, read("(#$quasiquote (a b (#$unquote c)))")));
+
+  auto result12 = eval("(#$let ((b '(b1 b2 b3))) `#(a1 a2 ,@b c1 c2))");
+  EXPECT_TRUE(equal(result12, read("#(a1 a2 b1 b2 b3 c1 c2)")));
+
+  auto result13 = eval("(#$let ((b '(b1 b2 b3))) `#(a1 a2 ,b c1 c2))");
+  EXPECT_TRUE(equal(result13, read("#(a1 a2 (b1 b2 b3) c1 c2)")));
+
+  auto result14 = eval("(#$let ((b '(a1 a2))) `#(,@b b1 b2 b3))");
+  EXPECT_TRUE(equal(result14, read("#(a1 a2 b1 b2 b3)")));
+
+  auto result15 = eval("(#$let ((b '(b1 b2))) `#(a1 a2 ,@b))");
+  EXPECT_TRUE(equal(result15, read("#(a1 a2 b1 b2)")));
 }
 
 TEST_F(scheme, append) {
