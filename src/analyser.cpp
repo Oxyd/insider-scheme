@@ -360,17 +360,29 @@ namespace {
 } // anonymous namespace
 
 static std::unique_ptr<qq_template>
-parse_qq_template(generic_ptr const& datum) {
+parse_qq_template(generic_ptr const& datum, unsigned quote_level) {
   if (auto p = match<pair>(datum)) {
+    unsigned nested_level = quote_level;
+
     if (auto s = match<symbol>(car(p))) {
-      if (s->value() == "#$unquote")
-        return std::make_unique<qq_template>(expression{cadr(p), false});
-      else if (s->value() == "#$unquote-splicing")
-        return std::make_unique<qq_template>(expression{cadr(p), true});
+      if (s->value() == "#$unquote") {
+        if (quote_level == 0)
+          return std::make_unique<qq_template>(expression{cadr(p), false});
+        else
+          nested_level = quote_level - 1;
+      }
+      else if (s->value() == "#$unquote-splicing") {
+        if (quote_level == 0)
+          return std::make_unique<qq_template>(expression{cadr(p), true});
+        else
+          nested_level = quote_level - 1;
+      }
+      else if (s->value() == "#$quasiquote")
+        nested_level = quote_level + 1;
     }
 
-    std::unique_ptr<qq_template> car_tpl = parse_qq_template(car(p));
-    std::unique_ptr<qq_template> cdr_tpl = parse_qq_template(cdr(p));
+    std::unique_ptr<qq_template> car_tpl = parse_qq_template(car(p), nested_level);
+    std::unique_ptr<qq_template> cdr_tpl = parse_qq_template(cdr(p), nested_level);
 
     if (std::holds_alternative<literal>(car_tpl->value)
         && std::holds_alternative<literal>(cdr_tpl->value))
@@ -384,7 +396,7 @@ parse_qq_template(generic_ptr const& datum) {
     bool all_literal = true;
 
     for (std::size_t i = 0; i < v->size(); ++i) {
-      templates.push_back(parse_qq_template(vector_ref(v, i)));
+      templates.push_back(parse_qq_template(vector_ref(v, i), quote_level));
       if (!std::holds_alternative<literal>(templates.back()->value))
         all_literal = false;
     }
@@ -483,7 +495,7 @@ process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl
 static std::unique_ptr<syntax>
 parse_quasiquote(parsing_context& pc, ptr<pair> const& datum) {
   assert(expect<symbol>(car(datum))->value() == "#$quasiquote");
-  return process_qq_template(pc, parse_qq_template(cadr(datum)));
+  return process_qq_template(pc, parse_qq_template(cadr(datum), 0));
 }
 
 static std::unique_ptr<syntax>

@@ -1054,8 +1054,8 @@ TEST_F(scheme, quasiquote) {
   auto result10 = eval("(#$let ((b '(b1 b2))) `(a1 a2 ,@b))");
   EXPECT_TRUE(equal(result10, read("(a1 a2 b1 b2)")));
 
-  // auto result11 = eval("`(`(a b ,c))");
-  // EXPECT_TRUE(equal(result11, read("(#$quasiquote (a b (#$unquote c)))")));
+  auto result11 = eval("``(a b ,c)");
+  EXPECT_TRUE(equal(result11, read("(#$quasiquote (a b (#$unquote c)))")));
 
   auto result12 = eval("(#$let ((b '(b1 b2 b3))) `#(a1 a2 ,@b c1 c2))");
   EXPECT_TRUE(equal(result12, read("#(a1 a2 b1 b2 b3 c1 c2)")));
@@ -1068,6 +1068,9 @@ TEST_F(scheme, quasiquote) {
 
   auto result15 = eval("(#$let ((b '(b1 b2))) `#(a1 a2 ,@b))");
   EXPECT_TRUE(equal(result15, read("#(a1 a2 b1 b2)")));
+
+  auto result16 = eval("(#$let ((b '(b1 b2))) ``(a1 a2 ,b c1 c2 ,(d1 d2 ,b e1 e2)))");
+  EXPECT_TRUE(equal(result16, read("(#$quasiquote (a1 a2 (#$unquote b) c1 c2 (#$unquote (d1 d2 (b1 b2) e1 e2))))")));
 }
 
 TEST_F(scheme, append) {
