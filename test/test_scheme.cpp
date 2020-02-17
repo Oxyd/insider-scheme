@@ -308,6 +308,19 @@ TEST_F(scheme, read_list) {
   EXPECT_THROW(read("("), parse_error);
   EXPECT_THROW(read("(1 2"), parse_error);
   EXPECT_THROW(read("(()"), parse_error);
+
+  ptr<pair> dotted_1 = expect<pair>(read("(1 . 2)"));
+  EXPECT_EQ(expect<integer>(car(dotted_1))->value(), 1);
+  EXPECT_EQ(expect<integer>(cdr(dotted_1))->value(), 2);
+
+  ptr<pair> dotted_2 = expect<pair>(read("(1 2 . 3)"));
+  EXPECT_EQ(expect<integer>(car(dotted_2))->value(), 1);
+  EXPECT_EQ(expect<integer>(cadr(dotted_2))->value(), 2);
+  EXPECT_EQ(expect<integer>(cddr(dotted_2))->value(), 3);
+
+  EXPECT_THROW(read("(1 .)"), parse_error);
+  EXPECT_THROW(read("(. 1)"), parse_error);
+  EXPECT_THROW(read("(1 . 2 3)"), parse_error);
 }
 
 TEST_F(scheme, read_vector) {
@@ -337,6 +350,9 @@ TEST_F(scheme, read_symbol) {
   EXPECT_EQ(read("-"), ctx.intern("-"));
   EXPECT_EQ(read("+fun"), ctx.intern("+fun"));
   EXPECT_EQ(read("#$if"), ctx.intern("#$if"));
+  EXPECT_EQ(read("..."), ctx.intern("..."));
+  EXPECT_EQ(read(".!"), ctx.intern(".!"));
+  EXPECT_EQ(read(".dot"), ctx.intern(".dot"));
 
   generic_ptr l = read("(one two three)");
   ASSERT_TRUE(is_list(ctx, l));

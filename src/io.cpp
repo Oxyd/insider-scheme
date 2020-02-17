@@ -13,8 +13,8 @@ namespace scm {
 struct end { };
 struct left_paren { };
 struct right_paren { };
-
 struct hash_left_paren { };
+struct dot { };
 
 struct integer_literal {
   integer::storage_type value;
@@ -44,6 +44,7 @@ using token = std::variant<
   left_paren,
   right_paren,
   hash_left_paren,
+  dot,
   integer_literal,
   boolean_literal,
   void_literal,
@@ -254,6 +255,17 @@ read_token(ptr<port> const& stream) {
     else
       return comma{};
   }
+  else if (*c == '.') {
+    stream->read_char();
+    c = stream->peek_char();
+    if (!c)
+      throw parse_error{"Unexpected end of input"};
+
+    if (delimiter(*c))
+      return dot{};
+    else
+      return read_identifier(stream, ".");
+  }
   else if (*c == '+' || *c == '-') {
     // This can begin either a number (like -2) or a symbol (like + -- the
     // addition function).
@@ -304,6 +316,8 @@ read_list(context& ctx, ptr<port> const& stream) {
   token t = read_token(stream);
   if (std::holds_alternative<end>(t))
     throw parse_error{"Unterminated list"};
+  else if (std::holds_alternative<dot>(t))
+    throw parse_error{"Unexpected . token"};
   else if (std::holds_alternative<right_paren>(t))
     return ctx.constants.null;
 
@@ -311,7 +325,9 @@ read_list(context& ctx, ptr<port> const& stream) {
   ptr<pair> tail = result;
 
   t = read_token(stream);
-  while (!std::holds_alternative<end>(t) && !std::holds_alternative<right_paren>(t)) {
+  while (!std::holds_alternative<end>(t)
+         && !std::holds_alternative<right_paren>(t)
+         && !std::holds_alternative<dot>(t)) {
     ptr<pair> new_tail = make<pair>(ctx, read(ctx, t, stream), ctx.constants.null);
     tail->set_cdr(new_tail);
     tail = new_tail;
@@ -321,6 +337,14 @@ read_list(context& ctx, ptr<port> const& stream) {
 
   if (std::holds_alternative<end>(t))
     throw parse_error{"Unterminated list"};
+  else if (std::holds_alternative<dot>(t)) {
+    generic_ptr cdr = read(ctx, read_token(stream), stream);
+    tail->set_cdr(cdr);
+
+    t = read_token(stream);
+    if (!std::holds_alternative<right_paren>(t))
+      throw parse_error{"Too many elements after ."};
+  }
 
   assert(std::holds_alternative<right_paren>(t));
   return result;
@@ -384,6 +408,8 @@ read(context& ctx, token first_token, ptr<port> const& stream) {
     return ctx.constants.void_;
   else if (string_literal* s = std::get_if<string_literal>(&first_token))
     return make_string(ctx, s->value);
+  else if (std::holds_alternative<dot>(first_token))
+    throw parse_error{"Unexpected . token"};
 
   throw parse_error{"Probably unimplemented"};
 }
