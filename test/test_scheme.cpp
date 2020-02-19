@@ -323,6 +323,31 @@ TEST_F(scheme, read_list) {
   EXPECT_THROW(read("(1 . 2 3)"), parse_error);
 }
 
+TEST_F(scheme, iterate_list) {
+  auto l1 = read("(1 2 3)");
+  std::vector<generic_ptr> v1(list_iterator{l1}, {});
+  ASSERT_EQ(v1.size(), 3);
+  EXPECT_EQ(expect<integer>(v1[0])->value(), 1);
+  EXPECT_EQ(expect<integer>(v1[1])->value(), 2);
+  EXPECT_EQ(expect<integer>(v1[2])->value(), 3);
+
+  int sum = 0;
+  for (generic_ptr i : in_list{l1})
+    sum += expect<integer>(i)->value();
+  EXPECT_EQ(sum, 6);
+
+  auto l2 = read("()");
+  std::vector<generic_ptr> v2(list_iterator{l2}, {});
+  EXPECT_TRUE(v2.empty());
+
+  auto l3 = read("(1 (2 . 3))");
+  std::vector<generic_ptr> v3(list_iterator{l3}, {});
+  ASSERT_EQ(v3.size(), 2);
+  EXPECT_EQ(expect<integer>(v3[0])->value(), 1);
+  EXPECT_EQ(expect<integer>(car(expect<pair>(v3[1])))->value(), 2);
+  EXPECT_EQ(expect<integer>(cdr(expect<pair>(v3[1])))->value(), 3);
+}
+
 TEST_F(scheme, read_vector) {
   auto v1 = expect<vector>(read("#()"));
   EXPECT_EQ(expect<vector>(v1)->size(), 0);

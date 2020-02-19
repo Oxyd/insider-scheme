@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <functional>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -828,6 +829,74 @@ match(generic_ptr const& x) {
   else
     return {};
 }
+
+// Iterator over Scheme lists. Will throw an exception if the list turns out to
+// be improper (dotted list).
+class list_iterator {
+public:
+  using difference_type = std::ptrdiff_t;
+  using value_type = generic_ptr;
+  using pointer = value_type;
+  using reference = value_type;
+  using iterator_category = std::forward_iterator_tag;
+
+  list_iterator() = default;
+
+  explicit
+  list_iterator(generic_ptr const& x) {
+    if (is<pair>(x))
+      current_ = assume<pair>(x);
+    else if (!is<null_type>(x))
+      throw std::runtime_error{"Expected list"};
+  }
+
+  reference
+  operator * () const { return car(current_); }
+
+  pointer
+  operator -> () const { return car(current_); }
+
+  list_iterator&
+  operator ++ () {
+    generic_ptr next = cdr(current_);
+    if (is<pair>(next))
+      current_ = assume<pair>(next);
+    else if (is<null_type>(next))
+      current_ = {};
+    else
+      throw std::runtime_error{"Expected list"};
+
+    return *this;
+  }
+
+  list_iterator
+  operator ++ (int) { list_iterator result{*this}; operator ++ (); return result; }
+
+  bool
+  operator == (list_iterator const& other) const { return current_ == other.current_; }
+
+  bool
+  operator != (list_iterator const& other) { return !operator == (other); }
+
+private:
+  ptr<pair> current_{};
+};
+
+// Helper to allow range-based for iteration over a Scheme list.
+class in_list {
+public:
+  explicit
+  in_list(generic_ptr const& lst) : head_{lst} { }
+
+  list_iterator
+  begin() const { return list_iterator{head_}; }
+
+  list_iterator
+  end() const { return {}; }
+
+private:
+  generic_ptr head_;
+};
 
 } // namespace scm
 
