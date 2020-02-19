@@ -337,7 +337,7 @@ namespace {
     generic_ptr value;
   };
 
-  struct expression {
+  struct unquote {
     generic_ptr datum;
     bool splicing;
   };
@@ -347,7 +347,7 @@ namespace {
       cons_pattern,
       vector_pattern,
       literal,
-      expression
+      unquote
     >;
 
     value_type value;
@@ -367,13 +367,13 @@ parse_qq_template(generic_ptr const& datum, unsigned quote_level) {
     if (auto s = match<symbol>(car(p))) {
       if (s->value() == "#$unquote") {
         if (quote_level == 0)
-          return std::make_unique<qq_template>(expression{cadr(p), false});
+          return std::make_unique<qq_template>(unquote{cadr(p), false});
         else
           nested_level = quote_level - 1;
       }
       else if (s->value() == "#$unquote-splicing") {
         if (quote_level == 0)
-          return std::make_unique<qq_template>(expression{cadr(p), true});
+          return std::make_unique<qq_template>(unquote{cadr(p), true});
         else
           nested_level = quote_level - 1;
       }
@@ -419,7 +419,7 @@ make_internal_reference(parsing_context& pc, std::string name) {
 
 static bool
 is_splice(std::unique_ptr<qq_template> const& tpl) {
-  if (auto* expr = std::get_if<expression>(&tpl->value))
+  if (auto* expr = std::get_if<unquote>(&tpl->value))
     if (expr->splicing)
       return true;
   return false;
@@ -483,7 +483,7 @@ process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl
       return make_syntax<make_vector_syntax>(std::move(elements));
     }
   }
-  else if (auto* expr = std::get_if<expression>(&tpl->value))
+  else if (auto* expr = std::get_if<unquote>(&tpl->value))
     return parse(pc, expr->datum);
   else if (auto* lit = std::get_if<literal>(&tpl->value))
     return make_syntax<literal_syntax>(lit->value);
