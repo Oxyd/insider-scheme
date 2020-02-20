@@ -2,6 +2,7 @@
 
 #include <fmt/format.h>
 
+#include <optional>
 #include <set>
 #include <unordered_map>
 #include <vector>
@@ -329,6 +330,11 @@ namespace {
     std::unique_ptr<qq_template> cdr;
   };
 
+  struct list_pattern {
+    std::vector<std::unique_ptr<qq_template>> elems;
+    std::optional<cons_pattern> last;
+  };
+
   struct vector_pattern {
     std::vector<std::unique_ptr<qq_template>> elems;
   };
@@ -344,7 +350,7 @@ namespace {
 
   struct qq_template {
     using value_type = std::variant<
-      cons_pattern,
+      list_pattern,
       vector_pattern,
       literal,
       unquote
@@ -381,14 +387,34 @@ parse_qq_template(generic_ptr const& datum, unsigned quote_level) {
         nested_level = quote_level + 1;
     }
 
-    std::unique_ptr<qq_template> car_tpl = parse_qq_template(car(p), nested_level);
-    std::unique_ptr<qq_template> cdr_tpl = parse_qq_template(cdr(p), nested_level);
+    bool all_literal = true;
+    list_pattern result;
 
-    if (std::holds_alternative<literal>(car_tpl->value)
-        && std::holds_alternative<literal>(cdr_tpl->value))
+    generic_ptr elem = p;
+    while (!is<null_type>(elem)) {
+      auto current = assume<pair>(elem);
+      if (!is<pair>(cdr(current)) && !is<null_type>(cdr(current)))
+        break; // Improper list.
+
+      result.elems.push_back(parse_qq_template(car(current), nested_level));
+      elem = cdr(current);
+
+      if (!std::holds_alternative<literal>(result.elems.back()->value))
+        all_literal = false;
+    }
+
+    if (auto pair = match<scm::pair>(elem)) {
+      result.last = cons_pattern{parse_qq_template(car(pair), nested_level),
+                                 parse_qq_template(cdr(pair), nested_level)};
+      all_literal = all_literal
+                    && std::holds_alternative<literal>(result.last->car->value)
+                    && std::holds_alternative<literal>(result.last->cdr->value);
+    }
+
+    if (all_literal)
       return std::make_unique<qq_template>(literal{datum});
     else
-      return std::make_unique<qq_template>(cons_pattern{std::move(car_tpl), std::move(cdr_tpl)});
+      return std::make_unique<qq_template>(std::move(result));
   }
   else if (auto v = match<vector>(datum)) {
     std::vector<std::unique_ptr<qq_template>> templates;
@@ -427,14 +453,41 @@ is_splice(std::unique_ptr<qq_template> const& tpl) {
 
 static std::unique_ptr<syntax>
 process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl) {
-  if (auto* cp = std::get_if<cons_pattern>(&tpl->value)) {
-    if (is_splice(cp->car))
-      return make_syntax<application_syntax>(make_internal_reference(pc, "append"),
-                                             process_qq_template(pc, cp->car),
-                                             process_qq_template(pc, cp->cdr));
+  if (auto* cp = std::get_if<list_pattern>(&tpl->value)) {
+    std::unique_ptr<syntax> tail;
+    if (cp->last) {
+      if (is_splice(cp->last->cdr))
+        throw std::runtime_error{"Invalid use of unquote-splicing"};
 
-    return make_syntax<cons_syntax>(process_qq_template(pc, cp->car),
-                                    process_qq_template(pc, cp->cdr));
+      if (is_splice(cp->last->car))
+        tail = make_syntax<application_syntax>(make_internal_reference(pc, "append"),
+                                               process_qq_template(pc, cp->last->car),
+                                               process_qq_template(pc, cp->last->cdr));
+      else
+        tail = make_syntax<cons_syntax>(process_qq_template(pc, cp->last->car),
+                                        process_qq_template(pc, cp->last->cdr));
+    }
+
+    for (auto elem = cp->elems.rbegin(); elem != cp->elems.rend(); ++elem) {
+      if (tail) {
+        if (is_splice(*elem))
+          tail = make_syntax<application_syntax>(make_internal_reference(pc, "append"),
+                                                 process_qq_template(pc, *elem),
+                                                 std::move(tail));
+        else
+          tail = make_syntax<cons_syntax>(process_qq_template(pc, *elem),
+                                          std::move(tail));
+      } else {
+        if (is_splice(*elem))
+          tail = process_qq_template(pc, *elem);
+        else
+          tail = make_syntax<cons_syntax>(process_qq_template(pc, *elem),
+                                          make_syntax<literal_syntax>(pc.ctx.constants.null));
+      }
+    }
+
+    assert(tail);
+    return tail;
   }
   else if (auto* vp = std::get_if<vector_pattern>(&tpl->value)) {
     // If there are no unquote-splicings in the vector, we will simply construct

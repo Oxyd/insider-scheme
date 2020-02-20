@@ -1112,6 +1112,15 @@ TEST_F(scheme, quasiquote) {
 
   auto result16 = eval("(#$let ((b '(b1 b2))) ``(a1 a2 ,b c1 c2 ,(d1 d2 ,b e1 e2)))");
   EXPECT_TRUE(equal(result16, read("(#$quasiquote (a1 a2 (#$unquote b) c1 c2 (#$unquote (d1 d2 (b1 b2) e1 e2))))")));
+
+  auto result17 = eval("(#$let ((x '(x1 x2))) `(,@x . y))");
+  EXPECT_TRUE(equal(result17, read("(x1 x2 . y)")));
+
+  auto result18 = eval("(#$let ((x '(x1 x2))) `(a1 a2 ,@x . y))");
+  EXPECT_TRUE(equal(result18, read("(a1 a2 x1 x2 . y)")));
+
+  auto result19 = eval("(#$let ((x '(x1 x2))) `(,@x))");
+  EXPECT_TRUE(equal(result19, read("(x1 x2)")));
 }
 
 TEST_F(scheme, append) {
