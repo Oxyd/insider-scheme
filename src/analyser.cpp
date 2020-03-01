@@ -43,10 +43,10 @@ make_syntax(Args&&... args) {
 }
 
 static std::unique_ptr<syntax>
-parse(parsing_context& pc, std::shared_ptr<environment> const&, generic_ptr const& datum);
+parse(parsing_context const& pc, std::shared_ptr<environment> const&, generic_ptr const& datum);
 
 static definition_pair_syntax
-parse_definition_pair(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+parse_definition_pair(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is<symbol>(car(datum)))
     throw std::runtime_error{"Invalid #$let syntax: Binding not a symbol"};
 
@@ -103,7 +103,7 @@ gather_defines(context& ctx, generic_ptr list) {
 }
 
 static std::vector<std::unique_ptr<syntax>>
-parse_expression_list(parsing_context& pc, std::shared_ptr<environment> const& env, generic_ptr expr) {
+parse_expression_list(parsing_context const& pc, std::shared_ptr<environment> const& env, generic_ptr expr) {
   std::vector<std::unique_ptr<syntax>> result;
   while (expr != pc.ctx.constants.null) {
     auto e = assume<pair>(expr);
@@ -115,7 +115,7 @@ parse_expression_list(parsing_context& pc, std::shared_ptr<environment> const& e
 }
 
 static body_syntax
-parse_body(parsing_context& pc, std::shared_ptr<environment> const& env, generic_ptr const& datum) {
+parse_body(parsing_context const& pc, std::shared_ptr<environment> const& env, generic_ptr const& datum) {
   if (!is_list(pc.ctx, datum) || datum == pc.ctx.constants.null)
     throw std::runtime_error{"Invalid syntax: Expected a list of expressions"};
 
@@ -141,7 +141,7 @@ parse_body(parsing_context& pc, std::shared_ptr<environment> const& env, generic
 }
 
 static std::unique_ptr<syntax>
-parse_let(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+parse_let(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) < 3)
     throw std::runtime_error{"Invalid #$let syntax"};
 
@@ -167,7 +167,7 @@ parse_let(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair
 }
 
 static std::unique_ptr<syntax>
-parse_set(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+parse_set(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 3)
     throw std::runtime_error{"Invalid #$set! syntax"};
 
@@ -185,7 +185,7 @@ parse_set(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair
 }
 
 static std::unique_ptr<syntax>
-parse_lambda(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+parse_lambda(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, cdr(datum)) || cdr(datum) == pc.ctx.constants.null)
     throw std::runtime_error{"Invalid lambda syntax"};
 
@@ -210,7 +210,7 @@ parse_lambda(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<p
 }
 
 static std::unique_ptr<syntax>
-parse_if(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+parse_if(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, cdr(datum)) || (list_length(pc.ctx, datum) != 3 && list_length(pc.ctx, datum) != 4))
     throw std::runtime_error{"Invalid if syntax"};
 
@@ -226,7 +226,7 @@ parse_if(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair>
 }
 
 static std::unique_ptr<syntax>
-parse_application(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+parse_application(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, cdr(datum)))
     throw std::runtime_error{"Invalid function call syntax"};
 
@@ -241,7 +241,7 @@ parse_application(parsing_context& pc, std::shared_ptr<environment> const& env, 
 }
 
 static std::unique_ptr<syntax>
-parse_box(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+parse_box(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 2)
     throw std::runtime_error{"Invalid #$box syntax"};
 
@@ -249,7 +249,7 @@ parse_box(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair
 }
 
 static std::unique_ptr<syntax>
-parse_unbox(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+parse_unbox(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 2)
     throw std::runtime_error{"Invalid #$unbox syntax"};
 
@@ -257,7 +257,7 @@ parse_unbox(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pa
 }
 
 static std::unique_ptr<syntax>
-parse_box_set(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+parse_box_set(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 3)
     throw std::runtime_error{"Invalid #$box-set! syntax"};
 
@@ -266,7 +266,7 @@ parse_box_set(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<
 }
 
 static std::unique_ptr<syntax>
-parse_reference(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<symbol> const& datum) {
+parse_reference(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<symbol> const& datum) {
   if (auto local_var = lookup(env, datum->value()))
     return make_syntax<local_reference_syntax>(std::move(local_var));
   else if (auto top_level_var = pc.module->find(datum->value()))
@@ -276,7 +276,7 @@ parse_reference(parsing_context& pc, std::shared_ptr<environment> const& env, pt
 }
 
 static std::unique_ptr<syntax>
-parse_define(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+parse_define(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   // Defines are processed in two passes: First all the define'd variables are
   // declared within the module or scope and initialised to #void; second, they
   // are assigned their values as if by set!. This is the second pass, so we
@@ -416,7 +416,7 @@ parse_qq_template(generic_ptr const& datum, unsigned quote_level) {
 }
 
 static std::unique_ptr<syntax>
-make_internal_reference(parsing_context& pc, std::string name) {
+make_internal_reference(parsing_context const& pc, std::string name) {
   std::optional<module::index_type> index = pc.ctx.constants.internal->find(name);
   assert(index);
   return make_syntax<top_level_reference_syntax>(operand::global(*index), std::move(name));
@@ -431,7 +431,7 @@ is_splice(std::unique_ptr<qq_template> const& tpl) {
 }
 
 static std::unique_ptr<syntax>
-process_qq_template(parsing_context& pc, std::shared_ptr<environment> const& env,
+process_qq_template(parsing_context const& pc, std::shared_ptr<environment> const& env,
                     std::unique_ptr<qq_template> const& tpl) {
   if (auto* cp = std::get_if<list_pattern>(&tpl->value)) {
     std::unique_ptr<syntax> tail;
@@ -526,13 +526,13 @@ process_qq_template(parsing_context& pc, std::shared_ptr<environment> const& env
 }
 
 static std::unique_ptr<syntax>
-parse_quasiquote(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+parse_quasiquote(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   assert(expect<symbol>(car(datum))->value() == "#$quasiquote");
   return process_qq_template(pc, env, parse_qq_template(cadr(datum), 0));
 }
 
 static std::unique_ptr<syntax>
-parse(parsing_context& pc, std::shared_ptr<environment> const& env, generic_ptr const& datum) {
+parse(parsing_context const& pc, std::shared_ptr<environment> const& env, generic_ptr const& datum) {
   if (is<integer>(datum) || is<boolean>(datum) || is<void_type>(datum) || is<string>(datum))
     return make_syntax<literal_syntax>(datum);
   else if (auto s = match<symbol>(datum))
