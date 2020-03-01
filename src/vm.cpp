@@ -331,7 +331,7 @@ make_state(context& ctx, ptr<procedure> const& global) {
     global,
     ptr<closure>{},
     ptr<call_frame>{},
-    std::vector<generic_ptr>(global->locals_size)
+    std::vector<generic_ptr>{}
   );
 
   return execution_state{ctx, root_frame, root_frame, {}};
