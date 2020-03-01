@@ -1148,3 +1148,12 @@ TEST_F(scheme, append) {
   auto r8 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3) '())");
   EXPECT_TRUE(equal(r8, read("(a1 a2 b1 b2 b3)")));
 }
+
+TEST_F(scheme, call_from_native) {
+  auto f = expect<procedure>(eval("(#$lambda (x y) (+ (* 2 x) (* 3 y)))"));
+  generic_ptr result = call(ctx, f, {make<integer>(ctx, 5), make<integer>(ctx, 4)});
+  EXPECT_EQ(expect<integer>(result)->value(), 2 * 5 + 3 * 4);
+
+  scheme_procedure<int(int, int)> g{eval("(#$lambda (x y) (+ (* 2 x) (* 3 y)))")};
+  EXPECT_EQ(g(ctx, 5, 4), 2 * 5 + 3 * 4);
+}

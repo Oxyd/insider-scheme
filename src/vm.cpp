@@ -348,4 +348,14 @@ run(execution_state& state) {
   return state.global_return;
 }
 
+generic_ptr
+call(context& ctx, ptr<procedure> const& p, std::vector<generic_ptr> const& arguments) {
+  if (p->num_args != arguments.size())
+    throw std::runtime_error{"Wrong number of arguments in function call"};
+
+  auto frame = make<call_frame>(ctx, p, ptr<closure>{}, ptr<call_frame>{}, arguments);
+  execution_state state{ctx, frame, frame, {}};
+  return run(state);
+}
+
 } // namespace scm

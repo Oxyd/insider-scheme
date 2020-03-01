@@ -2,6 +2,7 @@
 #define SCHEME_CONVERTERS_HPP
 
 #include "scheme.hpp"
+#include "vm.hpp"
 
 #include <fmt/format.h>
 
@@ -182,6 +183,31 @@ void
 define_lambda(context& ctx, ptr<module> const& m, std::string const& name, bool export_, F f) {
   detail::lambda_definer<T>::define(ctx, m, name, std::move(f), export_);
 }
+
+// Wrapper around a Scheme procedure. Acts as a C++ function of type T. When
+// called, converts its arguments from C++ types to Scheem values, then converts
+// the Scheme value back to a C++ one.
+template <typename T>
+class scheme_procedure;
+
+template <typename Ret, typename... Args>
+class scheme_procedure<Ret(Args...)> {
+public:
+  explicit
+  scheme_procedure(ptr<procedure> const& f) : f_{f} { }
+
+  explicit
+  scheme_procedure(generic_ptr const& f) : f_{expect<procedure>(f)} { }
+
+  Ret
+  operator () (context& ctx, Args&&... args) {
+    std::vector<generic_ptr> arguments{{to_scheme(ctx, std::forward<Args>(args))...}};
+    return from_scheme<Ret>(ctx, call(ctx, f_, arguments));
+  }
+
+private:
+  ptr<procedure> f_;
+};
 
 }
 
