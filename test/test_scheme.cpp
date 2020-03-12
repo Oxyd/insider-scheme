@@ -1157,3 +1157,43 @@ TEST_F(scheme, call_from_native) {
   scheme_procedure<int(int, int)> g{eval("(#$lambda (x y) (+ (* 2 x) (* 3 y)))")};
   EXPECT_EQ(g(ctx, 5, 4), 2 * 5 + 3 * 4);
 }
+
+TEST_F(scheme, top_level_transformers) {
+  auto result1 = eval_module(R"(
+    (import (insider internal))
+    (#$define-syntax num (#$lambda (x) 4))
+    (* (num) 2)
+  )");
+  EXPECT_EQ(expect<integer>(result1)->value(), 8);
+
+  auto result2 = eval_module(R"(
+    (import (insider internal))
+    (#$define-syntax when
+      (#$lambda (datum)
+        (#$let ((test (car (cdr datum)))
+                (body (cdr (cdr datum))))
+          `(#$if ,test ((#$lambda () ,@body)) #f))))
+
+    (#$define value 4)
+    (cons (when (< value 5) (* value 10))
+          (when (> value 5) (* value 20)))
+  )");
+  auto result2p = expect<pair>(result2);
+  EXPECT_EQ(expect<integer>(car(result2p))->value(), 40);
+  EXPECT_EQ(cdr(result2p), ctx.constants.f);
+}
+
+TEST_F(scheme, internal_transformers) {
+  auto result1 = eval_module(R"(
+    (import (insider internal))
+    (#$define foo
+      (#$lambda (x)
+        (#$define-syntax double
+          (#$lambda (datum)
+            (#$let ((var (car (cdr datum))))
+              `(* 2 ,var))))
+        (+ x (double x))))
+    (foo 5)
+  )");
+  EXPECT_EQ(expect<integer>(result1)->value(), 5 + 2 * 5);
+}

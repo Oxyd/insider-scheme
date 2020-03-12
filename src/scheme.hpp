@@ -307,6 +307,7 @@ class symbol;
 // Some top-level values are tagged to let the compiler understand them and
 // optimise them.
 enum class special_top_level_tag {
+  syntax,
   plus,
   minus,
   times,

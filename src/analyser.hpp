@@ -18,9 +18,15 @@ namespace scm {
 struct variable {
   std::string name;
   bool is_set = false;
+  ptr<procedure> transformer;
 
   explicit
   variable(std::string n) : name{std::move(n)} { }
+
+  variable(std::string n, ptr<procedure> const& t)
+    : name{std::move(n)}
+    , transformer{t}
+  { }
 };
 
 struct syntax;

@@ -270,6 +270,15 @@ make_internal_module(context& ctx) {
   define_lambda<ptr<vector>(context&, generic_ptr const&)>(ctx, result, "list->vector", true, list_to_vector);
   define_top_level(ctx, result, "vector-append", make<native_procedure>(ctx, vector_append), true);
 
+  define_lambda<ptr<pair>(context&, generic_ptr const&, generic_ptr const&)>(
+    ctx, result, "cons", true,
+    [] (context& ctx, generic_ptr const& car, generic_ptr const& cdr) {
+      return make<pair>(ctx, car, cdr);
+    }
+  );
+  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "car", true, car);
+  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cdr", true, cdr);
+
   return result;
 }
 

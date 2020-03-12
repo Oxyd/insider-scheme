@@ -1,5 +1,8 @@
 #include "analyser.hpp"
 
+#include "compiler.hpp"
+#include "vm.hpp"
+
 #include <fmt/format.h>
 
 #include <optional>
@@ -36,10 +39,51 @@ lookup(std::shared_ptr<environment> env, std::string const& name) {
   return {};
 }
 
+static ptr<procedure>
+lookup_transformer(parsing_context const& pc, std::shared_ptr<environment> const& env, std::string const& name) {
+  if (auto var = lookup(env, name)) {
+    if (var->transformer)
+      return var->transformer;
+    else
+      return {};
+  }
+
+  if (auto index = pc.module->find(name))
+    if (pc.ctx.find_tag(*index) == special_top_level_tag::syntax)
+      return expect<procedure>(pc.ctx.get_top_level(*index));
+
+  return {};
+}
+
 template <typename T, typename... Args>
 std::unique_ptr<syntax>
 make_syntax(Args&&... args) {
   return std::make_unique<syntax>(syntax{T{std::forward<Args>(args)...}});
+}
+
+// If the head of the given list is bound to a transformer, run the transformer
+// on the datum, and repeat.
+static generic_ptr
+expand(parsing_context const& pc, std::shared_ptr<environment> const& env, generic_ptr datum) {
+  while (auto lst = match<pair>(datum)) {
+    if (auto head = match<symbol>(car(lst))) {
+      if (ptr<procedure> transformer = lookup_transformer(pc, env, head->value())) {
+        datum = call(pc.ctx, transformer, {datum});
+        continue;
+      }
+    }
+
+    break;
+  }
+
+  return datum;
+}
+
+static generic_ptr
+eval_expander(parsing_context const& pc, generic_ptr const& datum) {
+  auto proc = compile_expression(pc.ctx, datum, pc.module);
+  auto state = make_state(pc.ctx, proc);
+  return run(state);
 }
 
 static std::unique_ptr<syntax>
@@ -61,55 +105,85 @@ parse_definition_pair(parsing_context const& pc, std::shared_ptr<environment> co
   return {std::make_shared<variable>(name->value()), parse(pc, env, cadr(datum))};
 }
 
-static std::vector<ptr<symbol>>
-gather_defines(context& ctx, generic_ptr list) {
-  std::vector<ptr<symbol>> result;
+namespace {
+  struct body_content {
+    std::shared_ptr<environment> env;
+    std::vector<generic_ptr>     forms;
+    std::vector<std::string>     internal_variable_names;
+  };
+}
 
-  while (list != ctx.constants.null) {
-    if (auto elem = match<pair>(car(assume<pair>(list))))
-      if (is_list(ctx, elem))
-        if (auto head = match<symbol>(car(elem)))
-          if (head->value() == "#$define") {
-            if (list_length(ctx, elem) != 3 || !is<symbol>(cadr(elem)))
-              throw std::runtime_error{"Invalid #$define syntax"};
+// Process the beginning of a body by adding new transformer and variable
+// definitions to the environment and expanding the heads of each form in the
+// list. Also checks that the list is followed by at least one expression and
+// that internal definitions are not interleaved with expessions. Internal
+// variable definitions are bound in the returned environment to #void values;
+// internal transformer definitions are bound to the transformer.
+static body_content
+process_internal_defines(parsing_context const& pc, std::shared_ptr<environment> const& env, generic_ptr list) {
+  body_content result;
+  result.env = std::make_shared<environment>(env);
 
-            result.push_back(assume<symbol>(cadr(elem)));
+  bool seen_expression = false;
+  for (generic_ptr e : in_list{list}) {
+    generic_ptr expr = expand(pc, result.env, e);
+    if (auto p = match<pair>(expr)) {
+      if (auto head = match<symbol>(car(p))) {
+        if (head->value() == "#$define-syntax") {
+          if (seen_expression)
+            throw std::runtime_error{"define-syntax after a nondefinition"};
 
-            list = assume<pair>(cdr(assume<pair>(list)));
-            continue;
-          }
+          auto name = expect<symbol>(cadr(p));
+          auto transformer = expect<procedure>(eval_expander(pc, caddr(p)));
+          bool inserted = result.env->bindings.emplace(name->value(),
+                                                       std::make_shared<variable>(name->value(), transformer)).second;
 
-    break;
+          if (!inserted)
+            throw std::runtime_error{fmt::format("Cannot redefine {} as a syntax", name->value())};
+
+          continue;
+        }
+        else if (head->value() == "#$define") {
+          if (seen_expression)
+            throw std::runtime_error{"define after a nondefinition"};
+
+          auto name = expect<symbol>(cadr(p));
+          bool inserted = result.env->bindings.emplace(name->value(),
+                                                       std::make_shared<variable>(name->value())).second;
+
+          if (!inserted)
+            throw std::runtime_error{fmt::format("Cannot redefine {}", name->value())};
+
+          result.forms.push_back(expr);
+          result.internal_variable_names.push_back(name->value());
+
+          continue;
+        }
+      }
+    }
+
+    seen_expression = true;
+    result.forms.push_back(expr);
   }
 
-  if (list == ctx.constants.null) {
-    if (!result.empty())
+  if (!seen_expression) {
+    if (!result.forms.empty())
       throw std::runtime_error{"No expression after a sequence of internal definitions"};
     else
       throw std::runtime_error{"Empty body"};
-  }
-
-  while (list != ctx.constants.null) {
-    if (auto elem = match<pair>(car(assume<pair>(list))))
-      if (is_list(ctx, elem))
-        if (auto head = match<symbol>(car(elem)))
-          if (head->value() == "#$define")
-            throw std::runtime_error{"Internal define after an expression"};
-
-    list = cdr(assume<pair>(list));
   }
 
   return result;
 }
 
 static std::vector<std::unique_ptr<syntax>>
-parse_expression_list(parsing_context const& pc, std::shared_ptr<environment> const& env, generic_ptr expr) {
+parse_expression_list(parsing_context const& pc, std::shared_ptr<environment> const& env,
+                      std::vector<generic_ptr> const& exprs) {
   std::vector<std::unique_ptr<syntax>> result;
-  while (expr != pc.ctx.constants.null) {
-    auto e = assume<pair>(expr);
-    result.push_back(parse(pc, env, car(e)));
-    expr = cdr(e);
-  }
+  result.reserve(exprs.size());
+
+  for (generic_ptr const& e : exprs)
+    result.push_back(parse(pc, env, e));
 
   return result;
 }
@@ -119,25 +193,23 @@ parse_body(parsing_context const& pc, std::shared_ptr<environment> const& env, g
   if (!is_list(pc.ctx, datum) || datum == pc.ctx.constants.null)
     throw std::runtime_error{"Invalid syntax: Expected a list of expressions"};
 
-  std::vector<ptr<symbol>> internal_defines = gather_defines(pc.ctx, assume<pair>(datum));
-  if (!internal_defines.empty()) {
-    auto internal_env = std::make_shared<environment>(env);
-
+  body_content content = process_internal_defines(pc, env, datum);
+  if (!content.internal_variable_names.empty()) {
     std::vector<definition_pair_syntax> definitions;
-    for (ptr<symbol> const& s : internal_defines) {
+    for (std::string const& name : content.internal_variable_names) {
       auto void_expr = make_syntax<literal_syntax>(pc.ctx.constants.void_);
-      auto var = std::make_shared<variable>(s->value());
-      internal_env->bindings.emplace(s->value(), var);
-      definitions.push_back({std::move(var), std::move(void_expr)});
+      auto var = content.env->bindings.find(name);
+      assert(var != env->bindings.end());
+      definitions.push_back({var->second, std::move(void_expr)});
     }
 
     body_syntax result;
     result.expressions.push_back(make_syntax<let_syntax>(std::move(definitions),
-                                                         parse_expression_list(pc, internal_env, datum)));
+                                                         parse_expression_list(pc, content.env, content.forms)));
     return result;
   }
   else
-    return {parse_expression_list(pc, env, datum)};
+    return {parse_expression_list(pc, content.env, content.forms)};
 }
 
 static std::unique_ptr<syntax>
@@ -532,7 +604,9 @@ parse_quasiquote(parsing_context const& pc, std::shared_ptr<environment> const& 
 }
 
 static std::unique_ptr<syntax>
-parse(parsing_context const& pc, std::shared_ptr<environment> const& env, generic_ptr const& datum) {
+parse(parsing_context const& pc, std::shared_ptr<environment> const& env, generic_ptr const& d) {
+  generic_ptr datum = expand(pc, env, d);
+
   if (is<integer>(datum) || is<boolean>(datum) || is<void_type>(datum) || is<string>(datum))
     return make_syntax<literal_syntax>(datum);
   else if (auto s = match<symbol>(datum))
@@ -701,40 +775,80 @@ perform_import(context& ctx, ptr<module> const& m, ptr<pair> const& datum) {
   import_all(m, ctx.constants.internal);
 }
 
-static std::vector<generic_ptr>::const_iterator
+static void
 perform_imports(context& ctx, ptr<module> const& m, std::vector<generic_ptr> const& data) {
-  auto it = data.begin();
-  while (it != data.end() && is_import(*it)) {
-    perform_import(ctx, m, assume<pair>(*it));
-    ++it;
-  }
+  for (generic_ptr const& datum : data) {
+    if (!is_import(datum))
+      return;
 
-  return it;
+    perform_import(ctx, m, assume<pair>(datum));
+  }
 }
 
-static void
-add_top_level_definitions(context& ctx, ptr<module> const& m, std::vector<generic_ptr> const& data) {
-  for (generic_ptr const& datum : data)
-    if (auto p = match<pair>(datum))
-      if (auto head = match<symbol>(car(p)); head->value() == "#$define") {
-        if (!is_list(ctx, p) || list_length(ctx, p) != 3 || !is<symbol>(cadr(p)))
-          throw std::runtime_error{"Invalid #$define syntax"};
+// Gather syntax and top-level variable definitions, expand top-level macro
+// uses. Adds the found top-level syntaxes and variables to the module. Returns
+// a list of the expanded top-level commands.
+static std::vector<generic_ptr>
+expand_top_level(parsing_context const& pc, std::vector<generic_ptr> const& data) {
+  // First, scan the module for variable and syntax definitions.
 
-        m->add(assume<symbol>(cadr(p))->value(), ctx.add_top_level(ctx.constants.void_));
+  std::vector<generic_ptr> first_pass;
+
+  for (generic_ptr const& d : data) {
+    generic_ptr datum = expand(pc, {}, d);
+
+    if (auto p = match<pair>(datum)) {
+      if (auto head = match<symbol>(car(p))) {
+        if (head->value() == "import")
+          continue;
+        else if (head->value() == "#$define-syntax") {
+          auto name = expect<symbol>(cadr(p));
+          auto transformer = expect<procedure>(eval_expander(pc, caddr(p)));
+
+          auto index = pc.ctx.add_top_level(transformer);
+          pc.ctx.tag_top_level(index, special_top_level_tag::syntax);
+          pc.module->add(name->value(), index);
+
+          continue;
+        }
+        else if (head->value() == "#$define") {
+          if (!is_list(pc.ctx, p) || list_length(pc.ctx, p) != 3 || !is<symbol>(cadr(p)))
+            throw std::runtime_error{"Invalid #$define syntax"};
+
+          pc.module->add(assume<symbol>(cadr(p))->value(), pc.ctx.add_top_level(pc.ctx.constants.void_));
+        }
       }
+    }
+
+    first_pass.push_back(datum);
+  }
+
+  // Second, expand all macro uses and gather the result.
+  std::vector<generic_ptr> result;
+
+  for (generic_ptr const& datum : first_pass) {
+    if (auto p = match<pair>(datum))
+      if (auto head = match<symbol>(car(p)))
+        if (head->value() == "import" || head->value() == "#$define-syntax")
+          continue;
+
+    result.push_back(datum);
+  }
+
+  return result;
 }
 
 uncompiled_module
 analyse_module(context& ctx, std::vector<generic_ptr> const& data) {
   uncompiled_module result;
   result.module = make<module>(ctx);
+  parsing_context pc{ctx, result.module};
 
-  auto body = perform_imports(ctx, result.module, data);
+  perform_imports(ctx, result.module, data);
+  std::vector<generic_ptr> body = expand_top_level(pc, data);
 
-  add_top_level_definitions(ctx, result.module, data);
-
-  for (; body != data.end(); ++body)
-    result.body.expressions.push_back(analyse(ctx, *body, result.module));
+  for (generic_ptr const& datum : body)
+    result.body.expressions.push_back(analyse(ctx, datum, result.module));
 
   return result;
 }
