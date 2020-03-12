@@ -80,7 +80,7 @@ expand(parsing_context const& pc, std::shared_ptr<environment> const& env, gener
 }
 
 static generic_ptr
-eval_expander(parsing_context const& pc, generic_ptr const& datum) {
+eval_transformer(parsing_context const& pc, generic_ptr const& datum) {
   auto proc = compile_expression(pc.ctx, datum, pc.module);
   auto state = make_state(pc.ctx, proc);
   return run(state);
@@ -134,7 +134,7 @@ process_internal_defines(parsing_context const& pc, std::shared_ptr<environment>
             throw std::runtime_error{"define-syntax after a nondefinition"};
 
           auto name = expect<symbol>(cadr(p));
-          auto transformer = expect<procedure>(eval_expander(pc, caddr(p)));
+          auto transformer = expect<procedure>(eval_transformer(pc, caddr(p)));
           bool inserted = result.env->bindings.emplace(name->value(),
                                                        std::make_shared<variable>(name->value(), transformer)).second;
 
@@ -803,7 +803,7 @@ expand_top_level(parsing_context const& pc, std::vector<generic_ptr> const& data
           continue;
         else if (head->value() == "#$define-syntax") {
           auto name = expect<symbol>(cadr(p));
-          auto transformer = expect<procedure>(eval_expander(pc, caddr(p)));
+          auto transformer = expect<procedure>(eval_transformer(pc, caddr(p)));
 
           auto index = pc.ctx.add_top_level(transformer);
           pc.ctx.tag_top_level(index, special_top_level_tag::syntax);
