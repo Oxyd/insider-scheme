@@ -289,6 +289,31 @@ context::context() {
   constants.f = store.make<boolean>(false);
   constants.internal = make_internal_module(*this);
 
+  struct {
+    ptr<core_form_type>& object;
+    std::string          name;
+  } core_forms[]{
+    {constants.let,              "let"},
+    {constants.set,              "set!"},
+    {constants.lambda,           "lambda"},
+    {constants.if_,              "if"},
+    {constants.box,              "box"},
+    {constants.unbox,            "unbox"},
+    {constants.box_set,          "box-set!"},
+    {constants.define,           "define"},
+    {constants.define_syntax,    "define-syntax"},
+    {constants.quote,            "quote"},
+    {constants.quasiquote,       "quasiquote"},
+    {constants.unquote,          "unquote"},
+    {constants.unquote_splicing, "unquote-splicing"}
+  };
+  for (auto const& form : core_forms) {
+    form.object = store.make<core_form_type>();
+    auto index = add_top_level(form.object);
+    constants.internal->add(form.name, index);
+    constants.internal->export_(form.name);
+  }
+
   statics.null = operand::static_(intern_static(constants.null));
   statics.void_ = operand::static_(intern_static(constants.void_));
   statics.t = operand::static_(intern_static(constants.t));

@@ -374,7 +374,7 @@ TEST_F(scheme, read_symbol) {
   EXPECT_EQ(read("+"), ctx.intern("+"));
   EXPECT_EQ(read("-"), ctx.intern("-"));
   EXPECT_EQ(read("+fun"), ctx.intern("+fun"));
-  EXPECT_EQ(read("#$if"), ctx.intern("#$if"));
+  EXPECT_EQ(read("if"), ctx.intern("if"));
   EXPECT_EQ(read("..."), ctx.intern("..."));
   EXPECT_EQ(read(".!"), ctx.intern(".!"));
   EXPECT_EQ(read(".dot"), ctx.intern(".dot"));
@@ -678,10 +678,10 @@ TEST_F(scheme, compile_arithmetic) {
 TEST_F(scheme, compile_let) {
   generic_ptr result = eval(
     R"(
-      (#$let ((a 2)
-              (b 5))
-        (#$let ((sum (+ a b))
-                (product (* a b)))
+      (let ((a 2)
+            (b 5))
+        (let ((sum (+ a b))
+              (product (* a b)))
           (- sum product)))
     )"
   );
@@ -701,8 +701,8 @@ TEST_F(scheme, compile_let) {
 TEST_F(scheme, let_shadowing) {
   generic_ptr result = eval(
     R"(
-      (#$let ((a 2))
-        (#$let ((a 5))
+      (let ((a 2))
+        (let ((a 5))
           a))
     )"
   );
@@ -712,7 +712,7 @@ TEST_F(scheme, let_shadowing) {
 TEST_F(scheme, compile_lambda) {
   generic_ptr result1 = eval(
     R"(
-      (#$let ((twice (#$lambda (x) (* 2 x))))
+      (let ((twice (lambda (x) (* 2 x))))
         (twice 4))
     )"
   );
@@ -720,7 +720,7 @@ TEST_F(scheme, compile_lambda) {
 
   generic_ptr result2 = eval(
     R"(
-      (#$let ((sum (#$lambda (a b c d) (+ a b c d))))
+      (let ((sum (lambda (a b c d) (+ a b c d))))
         (sum 1 2 3 4))
     )"
   );
@@ -728,8 +728,8 @@ TEST_F(scheme, compile_lambda) {
 
   generic_ptr result3 = eval(
     R"(
-      (#$let ((call-with-sum (#$lambda (f a b) (f (+ a b))))
-              (f (#$lambda (x) (* 2 x))))
+      (let ((call-with-sum (lambda (f a b) (f (+ a b))))
+            (f (lambda (x) (* 2 x))))
         (call-with-sum f 3 4))
     )"
   );
@@ -737,23 +737,23 @@ TEST_F(scheme, compile_lambda) {
 }
 
 TEST_F(scheme, compile_if) {
-  generic_ptr result1 = eval("(#$if #t 2 3)");
+  generic_ptr result1 = eval("(if #t 2 3)");
   EXPECT_EQ(expect<integer>(result1)->value(), 2);
 
-  generic_ptr result2 = eval("(#$if #f 2 3)");
+  generic_ptr result2 = eval("(if #f 2 3)");
   EXPECT_EQ(expect<integer>(result2)->value(), 3);
 
-  generic_ptr result3 = eval("(#$if #t 2)");
+  generic_ptr result3 = eval("(if #t 2)");
   EXPECT_EQ(expect<integer>(result3)->value(), 2);
 
-  generic_ptr result4 = eval("(#$if #f 2)");
+  generic_ptr result4 = eval("(if #f 2)");
   EXPECT_EQ(result4, ctx.constants.void_);
 
   generic_ptr result5 = eval(
     R"(
-      (#$let ((f (#$lambda (x) (* 2 x)))
-              (x 4))
-        (#$if (< x 5)
+      (let ((f (lambda (x) (* 2 x)))
+            (x 4))
+        (if (< x 5)
               (f x)
               0))
     )"
@@ -762,9 +762,9 @@ TEST_F(scheme, compile_if) {
 
   generic_ptr result6 = eval(
     R"(
-      (#$let ((f (#$lambda (x) (* 2 x)))
-              (x 6))
-        (#$if (< x 5)
+      (let ((f (lambda (x) (* 2 x)))
+            (x 6))
+        (if (< x 5)
               (f x)
               0))
     )"
@@ -773,9 +773,9 @@ TEST_F(scheme, compile_if) {
 
   generic_ptr result7 = eval(
     R"(
-      (#$let ((f (#$lambda (x) (* 2 x)))
-              (x 4))
-        (#$if (< x 5)
+      (let ((f (lambda (x) (* 2 x)))
+            (x 4))
+        (if (< x 5)
               0
               (f x)))
     )"
@@ -784,9 +784,9 @@ TEST_F(scheme, compile_if) {
 
   generic_ptr result8 = eval(
     R"(
-      (#$let ((f (#$lambda (x) (* 2 x)))
-              (x 6))
-        (#$if (< x 5)
+      (let ((f (lambda (x) (* 2 x)))
+            (x 6))
+        (if (< x 5)
               0
               (f x)))
     )"
@@ -795,10 +795,10 @@ TEST_F(scheme, compile_if) {
 
   generic_ptr result9 = eval(
     R"(
-      (#$let ((f (#$lambda (x) (* 2 x)))
-              (g (#$lambda (x) (+ 2 x)))
+      (let ((f (lambda (x) (* 2 x)))
+            (g (lambda (x) (+ 2 x)))
             (x 4))
-        (#$if (< x 5)
+        (if (< x 5)
               (f x)
               (g x)))
     )"
@@ -807,10 +807,10 @@ TEST_F(scheme, compile_if) {
 
   generic_ptr result10 = eval(
     R"(
-      (#$let ((f (#$lambda (x) (* 2 x)))
-              (g (#$lambda (x) (+ 10 x)))
+      (let ((f (lambda (x) (* 2 x)))
+            (g (lambda (x) (+ 10 x)))
             (x 6))
-        (#$if (< x 5)
+        (if (< x 5)
               (f x)
               (g x)))
     )"
@@ -821,8 +821,8 @@ TEST_F(scheme, compile_if) {
 TEST_F(scheme, compile_closure) {
   generic_ptr result1 = eval(
     R"(
-      (#$let ((make-adder (#$lambda (x) (#$lambda (y) (+ x y)))))
-        (#$let ((add-2 (make-adder 2)))
+      (let ((make-adder (lambda (x) (lambda (y) (+ x y)))))
+        (let ((add-2 (make-adder 2)))
           (add-2 5)))
     )"
   );
@@ -830,8 +830,8 @@ TEST_F(scheme, compile_closure) {
 
   generic_ptr result2 = eval(
     R"(
-      (#$let ((x 7))
-        (#$let ((f (#$lambda (y) (+ x y))))
+      (let ((x 7))
+        (let ((f (lambda (y) (+ x y))))
           (f 3)))
     )"
   );
@@ -841,8 +841,8 @@ TEST_F(scheme, compile_closure) {
 TEST_F(scheme, compile_set) {
   generic_ptr result1 = eval(
     R"(
-      (#$let ((x 2))
-        (#$set! x 5)
+      (let ((x 2))
+        (set! x 5)
         x)
     )"
   );
@@ -850,11 +850,11 @@ TEST_F(scheme, compile_set) {
 
   generic_ptr result2 = eval(
     R"(
-      (#$let ((fact #void))
-        (#$set! fact (#$lambda (n)
-                       (#$if (= n 0)
-                         1
-                         (* n (fact (- n 1))))))
+      (let ((fact #void))
+        (set! fact (lambda (n)
+                     (if (= n 0)
+                       1
+                       (* n (fact (- n 1))))))
         (fact 5))
     )"
   );
@@ -862,10 +862,10 @@ TEST_F(scheme, compile_set) {
 
   generic_ptr result3 = eval(
     R"(
-      (#$let ((f (#$lambda (x)
-                   (#$set! x (* 2 x))
-                   (#$lambda (y)
-                     (+ x y)))))
+      (let ((f (lambda (x)
+                 (set! x (* 2 x))
+                 (lambda (y)
+                   (+ x y)))))
         ((f 5) 3))
     )"
   );
@@ -875,10 +875,10 @@ TEST_F(scheme, compile_set) {
 TEST_F(scheme, compile_box) {
   generic_ptr result = eval(
     R"(
-      (#$let ((b1 (#$box 5))
-              (b2 (#$box 7)))
-        (#$box-set! b1 (+ (#$unbox b1) (#$unbox b2)))
-        (#$unbox b1))
+      (let ((b1 (box 5))
+            (b2 (box 7)))
+        (box-set! b1 (+ (unbox b1) (unbox b2)))
+        (unbox b1))
     )"
   );
   EXPECT_EQ(expect<integer>(result)->value(), 12);
@@ -887,7 +887,7 @@ TEST_F(scheme, compile_box) {
 TEST_F(scheme, compile_higher_order_arithmetic) {
   generic_ptr result = eval(
     R"(
-      (#$let ((f (#$lambda (op x y) (op x y))))
+      (let ((f (lambda (op x y) (op x y))))
         (f + 2 3))
     )"
   );
@@ -910,7 +910,7 @@ TEST_F(scheme, compile_module) {
                           read_multiple(ctx,
                                         "(import (insider internal))"
                                         "(f 3)"
-                                        "(#$let ((x 2))"
+                                        "(let ((x 2))"
                                         "  (f x))"));
   auto state = make_state(ctx, module_top_level_procedure(m));
   run(state);
@@ -922,10 +922,10 @@ TEST_F(scheme, compile_top_level_define) {
   auto result1 = eval_module(
     R"(
       (import (insider internal))
-      (#$define f
-        (#$lambda (x)
+      (define f
+        (lambda (x)
           (+ x 2)))
-      (#$define var 7)
+      (define var 7)
       (f var)
     )"
   );
@@ -934,9 +934,9 @@ TEST_F(scheme, compile_top_level_define) {
   auto result2 = eval_module(
     R"(
       (import (insider internal))
-      (#$define x 4)
-      (#$define y 7)
-      (#$set! x (+ y 2))
+      (define x 4)
+      (define y 7)
+      (set! x (+ y 2))
       x
     )"
   );
@@ -948,11 +948,11 @@ TEST_F(scheme, compile_internal_define) {
     R"(
       (import (insider internal))
 
-      (#$define f
-        (#$lambda (n)
-          (#$define go
-            (#$lambda (k accum)
-              (#$if (= k 0)
+      (define f
+        (lambda (n)
+          (define go
+            (lambda (k accum)
+              (if (= k 0)
                 accum
                 (go (- k 1) (+ accum k)))))
           (go n 0)))
@@ -1029,11 +1029,11 @@ TEST_F(scheme, test_write) {
 }
 
 TEST_F(scheme, quote) {
-  auto result1 = eval("(#$quote (a b c))");
+  auto result1 = eval("(quote (a b c))");
   EXPECT_TRUE(is_list(ctx, result1));
   EXPECT_EQ(list_length(ctx, result1), 3);
 
-  auto result2 = eval("(#$quote 2)");
+  auto result2 = eval("(quote 2)");
   EXPECT_EQ(expect<integer>(result2)->value(), 2);
 
   auto result3 = eval("'3");
@@ -1048,7 +1048,7 @@ TEST_F(scheme, quote) {
   auto result5 = eval("''a");
   EXPECT_TRUE(is_list(ctx, result5));
   EXPECT_EQ(list_length(ctx, result5), 2);
-  EXPECT_EQ(expect<symbol>(car(expect<pair>(result5)))->value(), "#$quote");
+  EXPECT_EQ(expect<symbol>(car(expect<pair>(result5)))->value(), "quote");
   EXPECT_EQ(expect<symbol>(cadr(expect<pair>(result5)))->value(), "a");
 }
 
@@ -1057,7 +1057,7 @@ TEST_F(scheme, equal) {
   EXPECT_FALSE(equal(read("1"), read("2")));
   EXPECT_FALSE(equal(read("1"), read("sym")));
   EXPECT_TRUE(equal(read("'(1 2)"), read("'(1 2)")));
-  EXPECT_TRUE(equal(read("'(1 2)"), read("(#$quote (1 2))")));
+  EXPECT_TRUE(equal(read("'(1 2)"), read("(quote (1 2))")));
   EXPECT_FALSE(equal(read("'(1 2)"), read("'(1 3)")));
   EXPECT_FALSE(equal(read("'(1 2)"), read("'(1 2 3)")));
   EXPECT_TRUE(equal(make_string(ctx, "foo"), make_string(ctx, "foo")));
@@ -1071,55 +1071,55 @@ TEST_F(scheme, quasiquote) {
   auto result2 = eval("`(1 2 5)");
   EXPECT_TRUE(equal(result2, read("(1 2 5)")));
 
-  auto result3 = eval("(#$let ((a 7)) `(1 ,a 3))");
+  auto result3 = eval("(let ((a 7)) `(1 ,a 3))");
   EXPECT_TRUE(equal(result3, read("(1 7 3)")));
 
   auto result4 = eval("`(1 ,(+ 2 3) 3)");
   EXPECT_TRUE(equal(result4, read("(1 5 3)")));
 
-  auto result5 = eval("(#$let ((name 'a)) `(list ,name ',name))");
-  EXPECT_TRUE(equal(result5, read("(list a (#$quote a))")));
+  auto result5 = eval("(let ((name 'a)) `(list ,name ',name))");
+  EXPECT_TRUE(equal(result5, read("(list a (quote a))")));
 
   auto result6 = eval("`#(1 2 5)");
   EXPECT_TRUE(equal(result6, read("#(1 2 5)")));
 
-  auto result7 = eval("(#$let ((a 12)) `#(3 ,a 5 ,(* a 2) 9))");
+  auto result7 = eval("(let ((a 12)) `#(3 ,a 5 ,(* a 2) 9))");
   EXPECT_TRUE(equal(result7, read("#(3 12 5 24 9)")));
 
-  auto result8 = eval("(#$let ((b '(b1 b2 b3))) `(a1 a2 ,@b c1 c2))");
+  auto result8 = eval("(let ((b '(b1 b2 b3))) `(a1 a2 ,@b c1 c2))");
   EXPECT_TRUE(equal(result8, read("(a1 a2 b1 b2 b3 c1 c2)")));
 
-  auto result9 = eval("(#$let ((b '(b1 b2 b3))) `(a1 a2 ,b c1 c2))");
+  auto result9 = eval("(let ((b '(b1 b2 b3))) `(a1 a2 ,b c1 c2))");
   EXPECT_TRUE(equal(result9, read("(a1 a2 (b1 b2 b3) c1 c2)")));
 
-  auto result10 = eval("(#$let ((b '(b1 b2))) `(a1 a2 ,@b))");
+  auto result10 = eval("(let ((b '(b1 b2))) `(a1 a2 ,@b))");
   EXPECT_TRUE(equal(result10, read("(a1 a2 b1 b2)")));
 
   auto result11 = eval("``(a b ,c)");
-  EXPECT_TRUE(equal(result11, read("(#$quasiquote (a b (#$unquote c)))")));
+  EXPECT_TRUE(equal(result11, read("(quasiquote (a b (unquote c)))")));
 
-  auto result12 = eval("(#$let ((b '(b1 b2 b3))) `#(a1 a2 ,@b c1 c2))");
+  auto result12 = eval("(let ((b '(b1 b2 b3))) `#(a1 a2 ,@b c1 c2))");
   EXPECT_TRUE(equal(result12, read("#(a1 a2 b1 b2 b3 c1 c2)")));
 
-  auto result13 = eval("(#$let ((b '(b1 b2 b3))) `#(a1 a2 ,b c1 c2))");
+  auto result13 = eval("(let ((b '(b1 b2 b3))) `#(a1 a2 ,b c1 c2))");
   EXPECT_TRUE(equal(result13, read("#(a1 a2 (b1 b2 b3) c1 c2)")));
 
-  auto result14 = eval("(#$let ((b '(a1 a2))) `#(,@b b1 b2 b3))");
+  auto result14 = eval("(let ((b '(a1 a2))) `#(,@b b1 b2 b3))");
   EXPECT_TRUE(equal(result14, read("#(a1 a2 b1 b2 b3)")));
 
-  auto result15 = eval("(#$let ((b '(b1 b2))) `#(a1 a2 ,@b))");
+  auto result15 = eval("(let ((b '(b1 b2))) `#(a1 a2 ,@b))");
   EXPECT_TRUE(equal(result15, read("#(a1 a2 b1 b2)")));
 
-  auto result16 = eval("(#$let ((b '(b1 b2))) ``(a1 a2 ,b c1 c2 ,(d1 d2 ,b e1 e2)))");
-  EXPECT_TRUE(equal(result16, read("(#$quasiquote (a1 a2 (#$unquote b) c1 c2 (#$unquote (d1 d2 (b1 b2) e1 e2))))")));
+  auto result16 = eval("(let ((b '(b1 b2))) ``(a1 a2 ,b c1 c2 ,(d1 d2 ,b e1 e2)))");
+  EXPECT_TRUE(equal(result16, read("(quasiquote (a1 a2 (unquote b) c1 c2 (unquote (d1 d2 (b1 b2) e1 e2))))")));
 
-  auto result17 = eval("(#$let ((x '(x1 x2))) `(,@x . y))");
+  auto result17 = eval("(let ((x '(x1 x2))) `(,@x . y))");
   EXPECT_TRUE(equal(result17, read("(x1 x2 . y)")));
 
-  auto result18 = eval("(#$let ((x '(x1 x2))) `(a1 a2 ,@x . y))");
+  auto result18 = eval("(let ((x '(x1 x2))) `(a1 a2 ,@x . y))");
   EXPECT_TRUE(equal(result18, read("(a1 a2 x1 x2 . y)")));
 
-  auto result19 = eval("(#$let ((x '(x1 x2))) `(,@x))");
+  auto result19 = eval("(let ((x '(x1 x2))) `(,@x))");
   EXPECT_TRUE(equal(result19, read("(x1 x2)")));
 }
 
@@ -1150,31 +1150,31 @@ TEST_F(scheme, append) {
 }
 
 TEST_F(scheme, call_from_native) {
-  auto f = expect<procedure>(eval("(#$lambda (x y) (+ (* 2 x) (* 3 y)))"));
+  auto f = expect<procedure>(eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"));
   generic_ptr result = call(ctx, f, {make<integer>(ctx, 5), make<integer>(ctx, 4)});
   EXPECT_EQ(expect<integer>(result)->value(), 2 * 5 + 3 * 4);
 
-  scheme_procedure<int(int, int)> g{eval("(#$lambda (x y) (+ (* 2 x) (* 3 y)))")};
+  scheme_procedure<int(int, int)> g{eval("(lambda (x y) (+ (* 2 x) (* 3 y)))")};
   EXPECT_EQ(g(ctx, 5, 4), 2 * 5 + 3 * 4);
 }
 
 TEST_F(scheme, top_level_transformers) {
   auto result1 = eval_module(R"(
     (import (insider internal))
-    (#$define-syntax num (#$lambda (x) 4))
+    (define-syntax num (lambda (x) 4))
     (* (num) 2)
   )");
   EXPECT_EQ(expect<integer>(result1)->value(), 8);
 
   auto result2 = eval_module(R"(
     (import (insider internal))
-    (#$define-syntax when
-      (#$lambda (datum)
-        (#$let ((test (car (cdr datum)))
-                (body (cdr (cdr datum))))
-          `(#$if ,test ((#$lambda () ,@body)) #f))))
+    (define-syntax when
+      (lambda (datum)
+        (let ((test (car (cdr datum)))
+              (body (cdr (cdr datum))))
+          `(if ,test ((lambda () ,@body)) #f))))
 
-    (#$define value 4)
+    (define value 4)
     (cons (when (< value 5) (* value 10))
           (when (> value 5) (* value 20)))
   )");
@@ -1186,14 +1186,22 @@ TEST_F(scheme, top_level_transformers) {
 TEST_F(scheme, internal_transformers) {
   auto result1 = eval_module(R"(
     (import (insider internal))
-    (#$define foo
-      (#$lambda (x)
-        (#$define-syntax double
-          (#$lambda (datum)
-            (#$let ((var (car (cdr datum))))
+    (define foo
+      (lambda (x)
+        (define-syntax double
+          (lambda (datum)
+            (let ((var (car (cdr datum))))
               `(* 2 ,var))))
         (+ x (double x))))
     (foo 5)
   )");
   EXPECT_EQ(expect<integer>(result1)->value(), 5 + 2 * 5);
+}
+
+TEST_F(scheme, core_shadowing) {
+  auto result1 = eval("(let ((let 'let)) let)");
+  EXPECT_EQ(expect<symbol>(result1)->value(), "let");
+
+  auto result2 = eval("(let ((unquote 'x)) `(1 ,2 3))");
+  EXPECT_TRUE(equal(result2, read("(1 (unquote 2) 3)")));
 }

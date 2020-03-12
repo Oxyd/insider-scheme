@@ -55,6 +55,20 @@ lookup_transformer(parsing_context const& pc, std::shared_ptr<environment> const
   return {};
 }
 
+static ptr<core_form_type>
+lookup_core(parsing_context const& pc, std::shared_ptr<environment> const& env, std::string const& name) {
+  if (lookup(env, name))
+    return {};  // Core forms are never defined in a local environment.
+
+  auto index = pc.module->find(name);
+  if (index) {
+    generic_ptr form = pc.ctx.get_top_level(*index);
+    return match<core_form_type>(form);
+  }
+
+  return {};
+}
+
 template <typename T, typename... Args>
 std::unique_ptr<syntax>
 make_syntax(Args&&... args) {
@@ -92,15 +106,15 @@ parse(parsing_context const& pc, std::shared_ptr<environment> const&, generic_pt
 static definition_pair_syntax
 parse_definition_pair(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is<symbol>(car(datum)))
-    throw std::runtime_error{"Invalid #$let syntax: Binding not a symbol"};
+    throw std::runtime_error{"Invalid let syntax: Binding not a symbol"};
 
   auto name = assume<symbol>(car(datum));
 
   if (cdr(datum) == pc.ctx.constants.null)
-    throw std::runtime_error{fmt::format("Invalid #$let syntax: No expression for {}",
+    throw std::runtime_error{fmt::format("Invalid let syntax: No expression for {}",
                                          name->value())};
   if (!is<pair>(cdr(datum)))
-    throw std::runtime_error{"Invalid #$let syntax in binding definition"};
+    throw std::runtime_error{"Invalid let syntax in binding definition"};
 
   return {std::make_shared<variable>(name->value()), parse(pc, env, cadr(datum))};
 }
@@ -129,7 +143,8 @@ process_internal_defines(parsing_context const& pc, std::shared_ptr<environment>
     generic_ptr expr = expand(pc, result.env, e);
     if (auto p = match<pair>(expr)) {
       if (auto head = match<symbol>(car(p))) {
-        if (head->value() == "#$define-syntax") {
+        auto form = lookup_core(pc, env, head->value());
+        if (form == pc.ctx.constants.define_syntax) {
           if (seen_expression)
             throw std::runtime_error{"define-syntax after a nondefinition"};
 
@@ -143,7 +158,7 @@ process_internal_defines(parsing_context const& pc, std::shared_ptr<environment>
 
           continue;
         }
-        else if (head->value() == "#$define") {
+        else if (form == pc.ctx.constants.define) {
           if (seen_expression)
             throw std::runtime_error{"define after a nondefinition"};
 
@@ -215,17 +230,17 @@ parse_body(parsing_context const& pc, std::shared_ptr<environment> const& env, g
 static std::unique_ptr<syntax>
 parse_let(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) < 3)
-    throw std::runtime_error{"Invalid #$let syntax"};
+    throw std::runtime_error{"Invalid let syntax"};
 
   auto bindings = cadr(datum);
   if (!is_list(pc.ctx, bindings))
-    throw std::runtime_error{"Invalid #$let syntax in binding definitions"};
+    throw std::runtime_error{"Invalid let syntax in binding definitions"};
 
   std::vector<definition_pair_syntax> definitions;
   while (bindings != pc.ctx.constants.null) {
     auto binding = car(assume<pair>(bindings));
     if (!is<pair>(binding))
-      throw std::runtime_error{"Invalid #$let syntax in binding definitions"};
+      throw std::runtime_error{"Invalid let syntax in binding definitions"};
 
     definitions.push_back(parse_definition_pair(pc, env, assume<pair>(binding)));
     bindings = cdr(assume<pair>(bindings));
@@ -241,9 +256,9 @@ parse_let(parsing_context const& pc, std::shared_ptr<environment> const& env, pt
 static std::unique_ptr<syntax>
 parse_set(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 3)
-    throw std::runtime_error{"Invalid #$set! syntax"};
+    throw std::runtime_error{"Invalid set! syntax"};
 
-  auto name = expect<symbol>(cadr(datum), "Invalid #$set! syntax");
+  auto name = expect<symbol>(cadr(datum), "Invalid set! syntax");
   if (auto local_var = lookup(env, name->value())) {
     local_var->is_set = true;
     return make_syntax<local_set_syntax>(std::move(local_var), parse(pc, env, caddr(datum)));
@@ -315,7 +330,7 @@ parse_application(parsing_context const& pc, std::shared_ptr<environment> const&
 static std::unique_ptr<syntax>
 parse_box(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 2)
-    throw std::runtime_error{"Invalid #$box syntax"};
+    throw std::runtime_error{"Invalid box syntax"};
 
   return make_syntax<box_syntax>(parse(pc, env, cadr(datum)));
 }
@@ -323,7 +338,7 @@ parse_box(parsing_context const& pc, std::shared_ptr<environment> const& env, pt
 static std::unique_ptr<syntax>
 parse_unbox(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 2)
-    throw std::runtime_error{"Invalid #$unbox syntax"};
+    throw std::runtime_error{"Invalid unbox syntax"};
 
   return make_syntax<unbox_syntax>(parse(pc, env, cadr(datum)));
 }
@@ -331,7 +346,7 @@ parse_unbox(parsing_context const& pc, std::shared_ptr<environment> const& env, 
 static std::unique_ptr<syntax>
 parse_box_set(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 3)
-    throw std::runtime_error{"Invalid #$box-set! syntax"};
+    throw std::runtime_error{"Invalid box-set! syntax"};
 
   return make_syntax<box_set_syntax>(parse(pc, env, cadr(datum)),
                                      parse(pc, env, caddr(datum)));
@@ -356,9 +371,9 @@ parse_define(parsing_context const& pc, std::shared_ptr<environment> const& env,
   // set!.
 
   if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 3)
-    throw std::runtime_error{"Invalid #$define syntax"};
+    throw std::runtime_error{"Invalid define syntax"};
 
-  ptr<symbol> name = expect<symbol>(cadr(datum), "Invalid #$define syntax");
+  ptr<symbol> name = expect<symbol>(cadr(datum), "Invalid define syntax");
   generic_ptr expr = caddr(datum);
 
   if (auto local_var = lookup(env, name->value())) {
@@ -417,24 +432,26 @@ namespace {
 } // anonymous namespace
 
 static std::unique_ptr<qq_template>
-parse_qq_template(generic_ptr const& datum, unsigned quote_level) {
+parse_qq_template(parsing_context const& pc, std::shared_ptr<environment> const& env,
+                  generic_ptr const& datum, unsigned quote_level) {
   if (auto p = match<pair>(datum)) {
     unsigned nested_level = quote_level;
 
     if (auto s = match<symbol>(car(p))) {
-      if (s->value() == "#$unquote") {
+      auto form = lookup_core(pc, env, s->value());
+      if (form == pc.ctx.constants.unquote) {
         if (quote_level == 0)
           return std::make_unique<qq_template>(unquote{cadr(p), false});
         else
           nested_level = quote_level - 1;
       }
-      else if (s->value() == "#$unquote-splicing") {
+      else if (form == pc.ctx.constants.unquote_splicing) {
         if (quote_level == 0)
           return std::make_unique<qq_template>(unquote{cadr(p), true});
         else
           nested_level = quote_level - 1;
       }
-      else if (s->value() == "#$quasiquote")
+      else if (form == pc.ctx.constants.quasiquote)
         nested_level = quote_level + 1;
     }
 
@@ -447,7 +464,7 @@ parse_qq_template(generic_ptr const& datum, unsigned quote_level) {
       if (!is<pair>(cdr(current)) && !is<null_type>(cdr(current)))
         break; // Improper list.
 
-      result.elems.push_back(parse_qq_template(car(current), nested_level));
+      result.elems.push_back(parse_qq_template(pc, env, car(current), nested_level));
       elem = cdr(current);
 
       if (!std::holds_alternative<literal>(result.elems.back()->value))
@@ -455,8 +472,8 @@ parse_qq_template(generic_ptr const& datum, unsigned quote_level) {
     }
 
     if (auto pair = match<scm::pair>(elem)) {
-      result.last = cons_pattern{parse_qq_template(car(pair), nested_level),
-                                 parse_qq_template(cdr(pair), nested_level)};
+      result.last = cons_pattern{parse_qq_template(pc, env, car(pair), nested_level),
+                                 parse_qq_template(pc, env, cdr(pair), nested_level)};
       all_literal = all_literal
                     && std::holds_alternative<literal>(result.last->car->value)
                     && std::holds_alternative<literal>(result.last->cdr->value);
@@ -473,7 +490,7 @@ parse_qq_template(generic_ptr const& datum, unsigned quote_level) {
     bool all_literal = true;
 
     for (std::size_t i = 0; i < v->size(); ++i) {
-      templates.push_back(parse_qq_template(vector_ref(v, i), quote_level));
+      templates.push_back(parse_qq_template(pc, env, vector_ref(v, i), quote_level));
       if (!std::holds_alternative<literal>(templates.back()->value))
         all_literal = false;
     }
@@ -599,8 +616,7 @@ process_qq_template(parsing_context const& pc, std::shared_ptr<environment> cons
 
 static std::unique_ptr<syntax>
 parse_quasiquote(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
-  assert(expect<symbol>(car(datum))->value() == "#$quasiquote");
-  return process_qq_template(pc, env, parse_qq_template(cadr(datum), 0));
+  return process_qq_template(pc, env, parse_qq_template(pc, env, cadr(datum), 0));
 }
 
 static std::unique_ptr<syntax>
@@ -614,25 +630,26 @@ parse(parsing_context const& pc, std::shared_ptr<environment> const& env, generi
   else if (auto p = match<pair>(datum)) {
     auto head = car(p);
     if (auto head_symbol = match<symbol>(head)) {
-      if (head_symbol->value() == "#$let")
+      auto form = lookup_core(pc, env, head_symbol->value());
+      if (form == pc.ctx.constants.let)
         return parse_let(pc, env, p);
-      else if (head_symbol->value() == "#$set!")
+      else if (form == pc.ctx.constants.set)
         return parse_set(pc, env, p);
-      else if (head_symbol->value() == "#$lambda")
+      else if (form == pc.ctx.constants.lambda)
         return parse_lambda(pc, env, p);
-      else if (head_symbol->value() == "#$if")
+      else if (form == pc.ctx.constants.if_)
         return parse_if(pc, env, p);
-      else if (head_symbol->value() == "#$box")
+      else if (form == pc.ctx.constants.box)
         return parse_box(pc, env, p);
-      else if (head_symbol->value() == "#$unbox")
+      else if (form == pc.ctx.constants.unbox)
         return parse_unbox(pc, env, p);
-      else if (head_symbol->value() == "#$box-set!")
+      else if (form == pc.ctx.constants.box_set)
         return parse_box_set(pc, env, p);
-      else if (head_symbol->value() == "#$define")
+      else if (form == pc.ctx.constants.define)
         return parse_define(pc, env, p);
-      else if (head_symbol->value() == "#$quote")
+      else if (form == pc.ctx.constants.quote)
         return make_syntax<literal_syntax>(cadr(p));
-      else if (head_symbol->value() == "#$quasiquote")
+      else if (form == pc.ctx.constants.quasiquote)
         return parse_quasiquote(pc, env, p);
     }
 
@@ -801,21 +818,25 @@ expand_top_level(parsing_context const& pc, std::vector<generic_ptr> const& data
       if (auto head = match<symbol>(car(p))) {
         if (head->value() == "import")
           continue;
-        else if (head->value() == "#$define-syntax") {
-          auto name = expect<symbol>(cadr(p));
-          auto transformer = expect<procedure>(eval_transformer(pc, caddr(p)));
+        else {
+          auto form = lookup_core(pc, {}, head->value());
 
-          auto index = pc.ctx.add_top_level(transformer);
-          pc.ctx.tag_top_level(index, special_top_level_tag::syntax);
-          pc.module->add(name->value(), index);
+          if (form == pc.ctx.constants.define_syntax) {
+            auto name = expect<symbol>(cadr(p));
+            auto transformer = expect<procedure>(eval_transformer(pc, caddr(p)));
 
-          continue;
-        }
-        else if (head->value() == "#$define") {
-          if (!is_list(pc.ctx, p) || list_length(pc.ctx, p) != 3 || !is<symbol>(cadr(p)))
-            throw std::runtime_error{"Invalid #$define syntax"};
+            auto index = pc.ctx.add_top_level(transformer);
+            pc.ctx.tag_top_level(index, special_top_level_tag::syntax);
+            pc.module->add(name->value(), index);
 
-          pc.module->add(assume<symbol>(cadr(p))->value(), pc.ctx.add_top_level(pc.ctx.constants.void_));
+            continue;
+          }
+          else if (form == pc.ctx.constants.define) {
+            if (!is_list(pc.ctx, p) || list_length(pc.ctx, p) != 3 || !is<symbol>(cadr(p)))
+              throw std::runtime_error{"Invalid define syntax"};
+
+            pc.module->add(assume<symbol>(cadr(p))->value(), pc.ctx.add_top_level(pc.ctx.constants.void_));
+          }
         }
       }
     }
@@ -829,7 +850,7 @@ expand_top_level(parsing_context const& pc, std::vector<generic_ptr> const& data
   for (generic_ptr const& datum : first_pass) {
     if (auto p = match<pair>(datum))
       if (auto head = match<symbol>(car(p)))
-        if (head->value() == "import" || head->value() == "#$define-syntax")
+        if (head->value() == "import" || lookup_core(pc, {}, head->value()) == pc.ctx.constants.define_syntax)
           continue;
 
     result.push_back(datum);

@@ -391,13 +391,13 @@ read(context& ctx, token first_token, ptr<port> const& stream) {
   else if (std::holds_alternative<hash_left_paren>(first_token))
     return read_vector(ctx, stream);
   else if (std::holds_alternative<quote>(first_token))
-    return read_shortcut(ctx, stream, "'", "#$quote");
+    return read_shortcut(ctx, stream, "'", "quote");
   else if (std::holds_alternative<backquote>(first_token))
-    return read_shortcut(ctx, stream, "`", "#$quasiquote");
+    return read_shortcut(ctx, stream, "`", "quasiquote");
   else if (std::holds_alternative<comma>(first_token))
-    return read_shortcut(ctx, stream, ",", "#$unquote");
+    return read_shortcut(ctx, stream, ",", "unquote");
   else if (std::holds_alternative<comma_at>(first_token))
-    return read_shortcut(ctx, stream, ",@", "#$unquote-splicing");
+    return read_shortcut(ctx, stream, ",@", "unquote-splicing");
   else if (integer_literal* i = std::get_if<integer_literal>(&first_token))
     return make<integer>(ctx, i->value);
   else if (identifier* i = std::get_if<identifier>(&first_token))

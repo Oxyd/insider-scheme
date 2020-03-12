@@ -299,6 +299,9 @@ struct null_type : object { };
 // had -- such as the result of evaluating (if #f anything).
 struct void_type : object { };
 
+// Dummy value used to represent core forms.
+struct core_form_type : object { };
+
 class boolean;
 class module;
 class port;
@@ -325,6 +328,8 @@ public:
     ptr<scm::void_type> void_;
     ptr<boolean>        t, f;     // #t and #f.
     ptr<module>         internal; // (insider internal) module.
+    ptr<core_form_type> let, set, lambda, if_, box, unbox, box_set, define, define_syntax,
+                        quote, quasiquote, unquote, unquote_splicing;
   };
 
   struct statics_list {
