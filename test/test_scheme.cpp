@@ -19,8 +19,8 @@ struct scheme : testing::Test {
 
   generic_ptr
   eval(std::string const& expr) {
-    auto m = make<module>(ctx);
-    import_all(m, ctx.constants.internal);
+    module m;
+    import_all(m, ctx.internal_module);
     auto f = compile_expression(ctx, read(expr), m);
     auto state = make_state(ctx, f);
     return run(state);
@@ -29,7 +29,7 @@ struct scheme : testing::Test {
   generic_ptr
   eval_module(std::string const& expr) {
     auto m = compile_module(ctx, read_multiple(ctx, expr));
-    auto state = make_state(ctx, module_top_level_procedure(m));
+    auto state = make_state(ctx, m.top_level_procedure());
     return run(state);
   }
 };
@@ -692,9 +692,9 @@ TEST_F(scheme, compile_let) {
   int product = a * b;
   EXPECT_EQ(expect<integer>(result)->value(), sum - product);
 
-  EXPECT_THROW(compile_expression(ctx, read("(let ((a 2)))"), ctx.constants.internal),
+  EXPECT_THROW(compile_expression(ctx, read("(let ((a 2)))"), ctx.internal_module),
                std::runtime_error);
-  EXPECT_THROW(compile_expression(ctx, read("(let foo)"), ctx.constants.internal),
+  EXPECT_THROW(compile_expression(ctx, read("(let foo)"), ctx.internal_module),
                std::runtime_error);
 }
 
@@ -897,7 +897,7 @@ TEST_F(scheme, compile_higher_order_arithmetic) {
 TEST_F(scheme, compile_module) {
   int sum = 0;
   define_top_level(
-    ctx, ctx.constants.internal, "f",
+    ctx, ctx.internal_module, "f",
     make<native_procedure>(ctx,
                            [&] (context& ctx, std::vector<generic_ptr> const& args) {
                              sum += expect<integer>(args[0])->value();
@@ -912,7 +912,7 @@ TEST_F(scheme, compile_module) {
                                         "(f 3)"
                                         "(let ((x 2))"
                                         "  (f x))"));
-  auto state = make_state(ctx, module_top_level_procedure(m));
+  auto state = make_state(ctx, m.top_level_procedure());
   run(state);
 
   EXPECT_EQ(sum, 5);
@@ -964,18 +964,18 @@ TEST_F(scheme, compile_internal_define) {
 
 TEST_F(scheme, define_lambda) {
   define_lambda<int(int, int)>(
-    ctx, ctx.constants.internal, "f", true,
+    ctx, ctx.internal_module, "f", true,
     [] (int a, int b) { return 2 * a + b; }
   );
 
   int x = 0;
   define_lambda<void(int)>(
-    ctx, ctx.constants.internal, "g", true,
+    ctx, ctx.internal_module, "g", true,
     [&] (int a) { x += a; }
   );
 
   define_lambda<std::string(int)>(
-    ctx, ctx.constants.internal, "to-string", true,
+    ctx, ctx.internal_module, "to-string", true,
     [] (int i) { return std::to_string(i); }
   );
 

@@ -22,8 +22,8 @@ namespace {
   };
 
   struct parsing_context {
-    context&         ctx;
-    ptr<scm::module> module;
+    context&     ctx;
+    scm::module& module;
   };
 } // anonymous namespace
 
@@ -48,7 +48,7 @@ lookup_transformer(parsing_context const& pc, std::shared_ptr<environment> const
       return {};
   }
 
-  if (auto index = pc.module->find(name))
+  if (auto index = pc.module.find(name))
     if (pc.ctx.find_tag(*index) == special_top_level_tag::syntax)
       return expect<procedure>(pc.ctx.get_top_level(*index));
 
@@ -60,7 +60,7 @@ lookup_core(parsing_context const& pc, std::shared_ptr<environment> const& env, 
   if (lookup(env, name))
     return {};  // Core forms are never defined in a local environment.
 
-  auto index = pc.module->find(name);
+  auto index = pc.module.find(name);
   if (index) {
     generic_ptr form = pc.ctx.get_top_level(*index);
     return match<core_form_type>(form);
@@ -263,7 +263,7 @@ parse_set(parsing_context const& pc, std::shared_ptr<environment> const& env, pt
     local_var->is_set = true;
     return make_syntax<local_set_syntax>(std::move(local_var), parse(pc, env, caddr(datum)));
   }
-  else if (auto top_level_var = pc.module->find(name->value())) {
+  else if (auto top_level_var = pc.module.find(name->value())) {
     return make_syntax<top_level_set_syntax>(operand::global(*top_level_var),
                                              parse(pc, env, caddr(datum)));
   }
@@ -356,7 +356,7 @@ static std::unique_ptr<syntax>
 parse_reference(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<symbol> const& datum) {
   if (auto local_var = lookup(env, datum->value()))
     return make_syntax<local_reference_syntax>(std::move(local_var));
-  else if (auto top_level_var = pc.module->find(datum->value()))
+  else if (auto top_level_var = pc.module.find(datum->value()))
     return make_syntax<top_level_reference_syntax>(operand::global(*top_level_var), datum->value());
   else
     throw std::runtime_error{fmt::format("Unbound symbol {}", datum->value())};
@@ -381,7 +381,7 @@ parse_define(parsing_context const& pc, std::shared_ptr<environment> const& env,
     return make_syntax<local_set_syntax>(std::move(local_var), parse(pc, env, expr));
   }
   else {
-    std::optional<operand::representation_type> dest = pc.module->find(name->value());
+    std::optional<operand::representation_type> dest = pc.module.find(name->value());
     assert(dest);
 
     return make_syntax<top_level_set_syntax>(operand::global(*dest), parse(pc, env, expr));
@@ -506,7 +506,7 @@ parse_qq_template(parsing_context const& pc, std::shared_ptr<environment> const&
 
 static std::unique_ptr<syntax>
 make_internal_reference(parsing_context const& pc, std::string name) {
-  std::optional<module::index_type> index = pc.ctx.constants.internal->find(name);
+  std::optional<module::index_type> index = pc.ctx.internal_module.find(name);
   assert(index);
   return make_syntax<top_level_reference_syntax>(operand::global(*index), std::move(name));
 }
@@ -764,7 +764,7 @@ box_set_variables(syntax* s) {
 }
 
 std::unique_ptr<syntax>
-analyse(context& ctx, generic_ptr const& datum, ptr<module> const& m) {
+analyse(context& ctx, generic_ptr const& datum, module& m) {
   parsing_context pc{ctx, m};
   std::unique_ptr<syntax> result = parse(pc, {}, datum);
   box_set_variables(result.get());
@@ -779,7 +779,7 @@ is_import(generic_ptr const& datum) {
 }
 
 static void
-perform_import(context& ctx, ptr<module> const& m, ptr<pair> const& datum) {
+perform_import(context& ctx, module& m, ptr<pair> const& datum) {
   if (!is_list(ctx, datum))
     throw std::runtime_error{"Invalid import syntax"};
 
@@ -789,11 +789,11 @@ perform_import(context& ctx, ptr<module> const& m, ptr<pair> const& datum) {
       || expect<symbol>(cadr(spec))->value() != "internal")
     throw std::runtime_error{"Unimplemented"};
 
-  import_all(m, ctx.constants.internal);
+  import_all(m, ctx.internal_module);
 }
 
 static void
-perform_imports(context& ctx, ptr<module> const& m, std::vector<generic_ptr> const& data) {
+perform_imports(context& ctx, module& m, std::vector<generic_ptr> const& data) {
   for (generic_ptr const& datum : data) {
     if (!is_import(datum))
       return;
@@ -827,7 +827,7 @@ expand_top_level(parsing_context const& pc, std::vector<generic_ptr> const& data
 
             auto index = pc.ctx.add_top_level(transformer);
             pc.ctx.tag_top_level(index, special_top_level_tag::syntax);
-            pc.module->add(name->value(), index);
+            pc.module.add(name->value(), index);
 
             continue;
           }
@@ -835,7 +835,7 @@ expand_top_level(parsing_context const& pc, std::vector<generic_ptr> const& data
             if (!is_list(pc.ctx, p) || list_length(pc.ctx, p) != 3 || !is<symbol>(cadr(p)))
               throw std::runtime_error{"Invalid define syntax"};
 
-            pc.module->add(assume<symbol>(cadr(p))->value(), pc.ctx.add_top_level(pc.ctx.constants.void_));
+            pc.module.add(assume<symbol>(cadr(p))->value(), pc.ctx.add_top_level(pc.ctx.constants.void_));
           }
         }
       }
@@ -862,7 +862,6 @@ expand_top_level(parsing_context const& pc, std::vector<generic_ptr> const& data
 uncompiled_module
 analyse_module(context& ctx, std::vector<generic_ptr> const& data) {
   uncompiled_module result;
-  result.module = make<module>(ctx);
   parsing_context pc{ctx, result.module};
 
   perform_imports(ctx, result.module, data);

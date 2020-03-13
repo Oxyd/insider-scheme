@@ -147,13 +147,14 @@ struct syntax {
 };
 
 // Analyse a datum within a given module. The module provides the top-level
-// bindings visible to S-expression.
+// bindings visible to S-expression. The module is modified by adding a new
+// top-level binding if the datum is a top-level definition.
 std::unique_ptr<syntax>
-analyse(context&, generic_ptr const& datum, ptr<module> const&);
+analyse(context&, generic_ptr const& datum, module&);
 
 struct uncompiled_module {
   body_syntax body;
-  ptr<scm::module> module;
+  scm::module module;
 };
 
 // Analyse a list of data that forms a module and return that module.

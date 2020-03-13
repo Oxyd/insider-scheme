@@ -303,9 +303,53 @@ struct void_type : object { };
 struct core_form_type : object { };
 
 class boolean;
+class context;
 class module;
 class port;
+class procedure;
 class symbol;
+
+// A module is a map from symbols to top-level variable indices. It also
+// contains a top-level procedure which contains the code to be run when the
+// module is loaded.
+class module {
+public:
+  using index_type = operand::representation_type;
+
+  std::optional<index_type>
+  find(std::string const&) const;
+
+  void
+  add(std::string, index_type);
+
+  void
+  export_(std::string);
+
+  void
+  import(std::string, index_type);
+
+  std::unordered_set<std::string> const&
+  exports() const { return exports_; }
+
+  ptr<procedure>
+  top_level_procedure() const { return proc_; }
+
+  void
+  set_top_level_procedure(ptr<procedure> const& p) { proc_ = p; }
+
+private:
+  std::unordered_map<std::string, index_type> bindings_; // Bindings defined in this module.
+  std::unordered_map<std::string, index_type> imports_;  // Bindings imported from other modules.
+  std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
+  ptr<procedure> proc_;
+};
+
+void
+import_all(module& to, module const& from);
+
+void
+define_top_level(context&, module&, std::string const& name, generic_ptr const& object,
+                 bool export_ = false);
 
 // Some top-level values are tagged to let the compiler understand them and
 // optimise them.
@@ -327,7 +371,6 @@ public:
     ptr<scm::null_type> null;
     ptr<scm::void_type> void_;
     ptr<boolean>        t, f;     // #t and #f.
-    ptr<module>         internal; // (insider internal) module.
     ptr<core_form_type> let, set, lambda, if_, box, unbox, box_set, define, define_syntax,
                         quote, quasiquote, unquote, unquote_splicing;
   };
@@ -346,6 +389,7 @@ public:
   constants    constants;
   statics_list statics;
   ptr<port>    stdout;
+  module       internal_module; // (insider internal)
 
   context();
   context(context const&) = delete;
@@ -731,54 +775,6 @@ public:
   explicit
   native_procedure(target_type f) : target{std::move(f)} { }
 };
-
-// A module is a map from symbols to top-level variable indices. It also
-// contains a top-level procedure which contains the code to be run when the
-// module is loaded.
-class module : public object {
-public:
-  using index_type = operand::representation_type;
-
-  std::optional<index_type>
-  find(std::string const&) const;
-
-  void
-  add(std::string, index_type);
-
-  void
-  export_(std::string);
-
-  void
-  import(std::string, index_type);
-
-  std::unordered_set<std::string> const&
-  exports() const { return exports_; }
-
-  ptr<procedure>
-  top_level_procedure(free_store& store) const { return {store, proc_}; }
-
-  void
-  set_top_level_procedure(ptr<procedure> const& p) { proc_ = p.get(); }
-
-  void
-  for_each_subobject(std::function<void(object*)> const&) override;
-
-private:
-  std::unordered_map<std::string, index_type> bindings_; // Bindings defined in this module.
-  std::unordered_map<std::string, index_type> imports_;  // Bindings imported from other modules.
-  std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
-  procedure* proc_;
-};
-
-void
-import_all(ptr<module> const& to, ptr<module> const& from);
-
-inline ptr<procedure>
-module_top_level_procedure(ptr<module> const& m) { return m->top_level_procedure(m.store()); }
-
-void
-define_top_level(context&, ptr<module> const&, std::string const& name, generic_ptr const& object,
-                 bool export_ = false);
 
 // Is a given object an instance of the given Scheme type?
 template <typename T>

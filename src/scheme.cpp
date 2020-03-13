@@ -234,18 +234,61 @@ free_store::collect_garbage() {
   sweep(objects_, weak_ptrs_, current_mark_);
 }
 
+auto
+module::find(std::string const& name) const -> std::optional<index_type> {
+  if (auto it = bindings_.find(name); it != bindings_.end())
+    return it->second;
+
+  if (auto it = imports_.find(name); it != imports_.end())
+    return it->second;
+
+  return {};
+}
+
+void
+module::add(std::string name, index_type i) {
+  assert(!bindings_.count(name));
+  bindings_.emplace(std::move(name), i);
+}
+
+void
+module::export_(std::string name) {
+  exports_.emplace(std::move(name));
+}
+
+void
+module::import(std::string name, index_type i) {
+  assert(!imports_.count(name));
+  imports_.emplace(std::move(name), i);
+}
+
+void
+import_all(module& to, module const& from) {
+  for (auto const& name : from.exports())
+    to.import(name, *from.find(name));
+}
+
+void
+define_top_level(context& ctx, module& m, std::string const& name, generic_ptr const& object,
+                 bool export_) {
+  auto index = ctx.add_top_level(object);
+  m.add(name, index);
+  if (export_)
+    m.export_(name);
+}
+
 static void
-export_native(context& ctx, ptr<module> const& m, std::string const& name,
+export_native(context& ctx, module& m, std::string const& name,
               generic_ptr (*f)(context&, std::vector<generic_ptr> const&), special_top_level_tag tag) {
   auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f));
   ctx.tag_top_level(index, tag);
-  m->add(name, index);
-  m->export_(name);
+  m.add(name, index);
+  m.export_(name);
 }
 
-static ptr<module>
+static module
 make_internal_module(context& ctx) {
-  ptr<module> result = ctx.store.make<module>();
+  module result;
   export_native(ctx, result, "+", add, special_top_level_tag::plus);
   export_native(ctx, result, "-", subtract, special_top_level_tag::minus);
   export_native(ctx, result, "*", multiply, special_top_level_tag::times);
@@ -287,7 +330,8 @@ context::context() {
   constants.void_ = store.make<void_type>();
   constants.t = store.make<boolean>(true);
   constants.f = store.make<boolean>(false);
-  constants.internal = make_internal_module(*this);
+
+  internal_module = make_internal_module(*this);
 
   struct {
     ptr<core_form_type>& object;
@@ -310,8 +354,8 @@ context::context() {
   for (auto const& form : core_forms) {
     form.object = store.make<core_form_type>();
     auto index = add_top_level(form.object);
-    constants.internal->add(form.name, index);
-    constants.internal->export_(form.name);
+    internal_module.add(form.name, index);
+    internal_module.export_(form.name);
   }
 
   statics.null = operand::static_(intern_static(constants.null));
@@ -831,54 +875,6 @@ closure::for_each_subobject(std::function<void(object*)> const& f) {
   f(procedure_);
   for (std::size_t i = 0; i < size_; ++i)
     f(dynamic_storage()[i]);
-}
-
-auto
-module::find(std::string const& name) const -> std::optional<index_type> {
-  if (auto it = bindings_.find(name); it != bindings_.end())
-    return it->second;
-
-  if (auto it = imports_.find(name); it != imports_.end())
-    return it->second;
-
-  return {};
-}
-
-void
-module::add(std::string name, index_type i) {
-  assert(!bindings_.count(name));
-  bindings_.emplace(std::move(name), i);
-}
-
-void
-module::export_(std::string name) {
-  exports_.emplace(std::move(name));
-}
-
-void
-module::import(std::string name, index_type i) {
-  assert(!imports_.count(name));
-  imports_.emplace(std::move(name), i);
-}
-
-void
-module::for_each_subobject(std::function<void(object*)> const& f) {
-  f(proc_);
-}
-
-void
-import_all(ptr<module> const& to, ptr<module> const& from) {
-  for (auto const& name : from->exports())
-    to->import(name, *from->find(name));
-}
-
-void
-define_top_level(context& ctx, ptr<module> const& m, std::string const& name, generic_ptr const& object,
-                 bool export_) {
-  auto index = ctx.add_top_level(object);
-  m->add(name, index);
-  if (export_)
-    m->export_(name);
 }
 
 } // namespace scm

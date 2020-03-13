@@ -119,9 +119,9 @@ namespace {
     register_allocator registers;
     variable_bindings  bindings;
     scm::bytecode      bytecode;
-    ptr<scm::module>   module;
+    scm::module&       module;
 
-    procedure_context(procedure_context* parent, ptr<scm::module> const& m)
+    procedure_context(procedure_context* parent, scm::module& m)
       : parent{parent}
       , module{m} { }
   };
@@ -641,7 +641,7 @@ compile_body(context& ctx, procedure_context& proc, body_syntax const& stx, bool
 }
 
 ptr<procedure>
-compile_expression(context& ctx, generic_ptr const& datum, ptr<module> const& mod) {
+compile_expression(context& ctx, generic_ptr const& datum, module& mod) {
   auto stx = analyse(ctx, datum, mod);
 
   procedure_context proc{nullptr, mod};
@@ -653,7 +653,7 @@ compile_expression(context& ctx, generic_ptr const& datum, ptr<module> const& mo
                                    0);
 }
 
-ptr<module>
+scm::module
 compile_module(context& ctx, std::vector<generic_ptr> const& data) {
   uncompiled_module um = analyse_module(ctx, data);
 
@@ -662,10 +662,10 @@ compile_module(context& ctx, std::vector<generic_ptr> const& data) {
   if (result)
     proc.bytecode.push_back(instruction{opcode::ret, *result, {}, {}});
 
-  um.module->set_top_level_procedure(make<procedure>(ctx,
-                                                     std::move(proc.bytecode),
-                                                     proc.registers.locals_used(),
-                                                     0));
+  um.module.set_top_level_procedure(make<procedure>(ctx,
+                                                    std::move(proc.bytecode),
+                                                    proc.registers.locals_used(),
+                                                    0));
   return um.module;
 }
 

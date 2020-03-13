@@ -7,12 +7,14 @@
 namespace scm {
 
 // Translate a single expression into bytecode. The resulting procedure will
-// take no arguments and will return the value of the expression.
+// take no arguments and will return the value of the expression. The module is
+// modified by adding a top-level binding if the datum is a top-level
+// definition.
 ptr<procedure>
-compile_expression(context&, generic_ptr const& datum, ptr<module> const&);
+compile_expression(context&, generic_ptr const& datum, module&);
 
 // Translate a list of expressions into a module.
-ptr<module>
+module
 compile_module(context&, std::vector<generic_ptr> const& data);
 
 } // namespace scm

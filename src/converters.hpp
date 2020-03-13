@@ -110,13 +110,13 @@ namespace detail {
   struct lambda_definer<R(context&, Args...)> {
     template <typename F>
     static void
-    define(context& ctx, ptr<module> const& m, std::string const& name, F f, bool export_) {
+    define(context& ctx, module& m, std::string const& name, F f, bool export_) {
       define(ctx, m, name, std::move(f), export_, std::index_sequence_for<Args...>{});
     }
 
     template <typename F, std::size_t... Is>
     static void
-    define(context& ctx, ptr<module> const& m, std::string const& name, F f, bool export_,
+    define(context& ctx, module& m, std::string const& name, F f, bool export_,
            std::index_sequence<Is...>) {
       auto proc = make<native_procedure>(
         ctx,
@@ -143,13 +143,13 @@ namespace detail {
   struct lambda_definer<R(Args...)> {
     template <typename F>
     static void
-    define(context& ctx, ptr<module> const& m, std::string const& name, F f, bool export_) {
+    define(context& ctx, module& m, std::string const& name, F f, bool export_) {
       define(ctx, m, name, std::move(f), export_, std::index_sequence_for<Args...>{});
     }
 
     template <typename F, std::size_t... Is>
     static void
-    define(context& ctx, ptr<module> const& m, std::string const& name, F f, bool export_,
+    define(context& ctx, module& m, std::string const& name, F f, bool export_,
            std::index_sequence<Is...>) {
       auto proc = make<native_procedure>(
         ctx,
@@ -180,7 +180,7 @@ namespace detail {
 // callable with different argument types).
 template <typename T, typename F>
 void
-define_lambda(context& ctx, ptr<module> const& m, std::string const& name, bool export_, F f) {
+define_lambda(context& ctx, module& m, std::string const& name, bool export_, F f) {
   detail::lambda_definer<T>::define(ctx, m, name, std::move(f), export_);
 }
 
