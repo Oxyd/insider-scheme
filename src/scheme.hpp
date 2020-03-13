@@ -607,10 +607,10 @@ public:
 // Is the given object a list? A list is either the null value or a pair whose
 // cdr is a list.
 bool
-is_list(context&, generic_ptr);
+is_list(generic_ptr);
 
 std::size_t
-list_length(context&, generic_ptr);
+list_length(generic_ptr);
 
 inline generic_ptr
 car(ptr<pair> const& x) { return x->car(x.store()); }

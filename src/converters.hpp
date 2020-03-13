@@ -87,7 +87,7 @@ struct from_scheme_converter<std::vector<T>> {
       for (std::size_t i = 0; i < v->size(); ++i)
         result.emplace_back(from_scheme<T>(vector_ref(v, i)));
     }
-    else if (is_list(ctx, x)) {
+    else if (is_list(x)) {
       generic_ptr elem = x;
       while (elem != ctx.constants.null) {
         auto p = assume<pair>(elem);

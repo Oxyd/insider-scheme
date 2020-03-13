@@ -665,9 +665,9 @@ pair::hash() const {
 }
 
 bool
-is_list(context& ctx, generic_ptr x) {
+is_list(generic_ptr x) {
   while (true)
-    if (x == ctx.constants.null)
+    if (is<null_type>(x))
       return true;
     else if (ptr<pair> p = match<pair>(x))
       x = cdr(p);
@@ -676,9 +676,9 @@ is_list(context& ctx, generic_ptr x) {
 }
 
 std::size_t
-list_length(context& ctx, generic_ptr x) {
+list_length(generic_ptr x) {
   std::size_t result = 0;
-  while (x != ctx.constants.null) {
+  while (!is<null_type>(x)) {
     x = cdr(expect<pair>(x));
     ++result;
   }

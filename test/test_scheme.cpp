@@ -172,7 +172,7 @@ TEST_F(scheme, type_predicates) {
 TEST_F(scheme, is_list) {
   // (1 . 2)
   ptr<pair> l1 = make<pair>(ctx, make<integer>(ctx, 1), make<integer>(ctx, 2));
-  EXPECT_FALSE(is_list(ctx, l1));
+  EXPECT_FALSE(is_list(l1));
 
   // (1 2)
   ptr<pair> l2 = make<pair>(ctx,
@@ -180,11 +180,11 @@ TEST_F(scheme, is_list) {
                             make<pair>(ctx,
                                        make<integer>(ctx, 2),
                                        ctx.constants.null));
-  EXPECT_TRUE(is_list(ctx, l2));
+  EXPECT_TRUE(is_list(l2));
 
   // (0 1 2)
   ptr<pair> l3 = make<pair>(ctx, make<integer>(ctx, 0), l2);
-  EXPECT_TRUE(is_list(ctx, l3));
+  EXPECT_TRUE(is_list(l3));
 }
 
 TEST_F(scheme, make_list) {
@@ -284,12 +284,12 @@ TEST_F(scheme, read_list) {
   EXPECT_EQ(empty_2, ctx.constants.null);
 
   generic_ptr single_element = read("(1)");
-  EXPECT_TRUE(is_list(ctx, single_element));
+  EXPECT_TRUE(is_list(single_element));
   EXPECT_EQ(expect<integer>(car(expect<pair>(single_element)))->value(), 1);
   EXPECT_EQ(cdr(expect<pair>(single_element)), ctx.constants.null);
 
   generic_ptr two_elements = read("(1 2)");
-  EXPECT_TRUE(is_list(ctx, two_elements));
+  EXPECT_TRUE(is_list(two_elements));
   EXPECT_EQ(expect<integer>(car(expect<pair>(two_elements)))->value(), 1);
   EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(expect<pair>(two_elements)))))->value(), 2);
   EXPECT_EQ(cdr(expect<pair>(cdr(expect<pair>(two_elements)))), ctx.constants.null);
@@ -298,9 +298,9 @@ TEST_F(scheme, read_list) {
   EXPECT_EQ(no_elements, ctx.constants.null);
 
   generic_ptr nested = read("(1 (2 3))");
-  EXPECT_TRUE(is_list(ctx, nested));
+  EXPECT_TRUE(is_list(nested));
   EXPECT_EQ(expect<integer>(car(expect<pair>(nested)))->value(), 1);
-  EXPECT_TRUE(is_list(ctx, car(expect<pair>(cdr(expect<pair>(nested))))));
+  EXPECT_TRUE(is_list(car(expect<pair>(cdr(expect<pair>(nested))))));
   ptr<pair> sublist_1 = expect<pair>(car(expect<pair>(cdr(expect<pair>(nested)))));
   EXPECT_EQ(expect<integer>(car(sublist_1))->value(), 2);
   EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(sublist_1))))->value(), 3);
@@ -380,7 +380,7 @@ TEST_F(scheme, read_symbol) {
   EXPECT_EQ(read(".dot"), ctx.intern(".dot"));
 
   generic_ptr l = read("(one two three)");
-  ASSERT_TRUE(is_list(ctx, l));
+  ASSERT_TRUE(is_list(l));
   EXPECT_EQ(expect<symbol>(car(expect<pair>(l)))->value(), "one");
   EXPECT_EQ(expect<symbol>(car(expect<pair>(cdr(expect<pair>(l)))))->value(), "two");
   EXPECT_EQ(expect<symbol>(car(expect<pair>(cdr(expect<pair>(cdr(expect<pair>(l)))))))->value(), "three");
@@ -406,11 +406,11 @@ TEST_F(scheme, read_multiple) {
 
   std::vector<generic_ptr> result2 = read_multiple(ctx, "(foo) (bar 2)");
   ASSERT_EQ(result2.size(), 2);
-  EXPECT_TRUE(is_list(ctx, result2[0]));
-  EXPECT_EQ(list_length(ctx, result2[0]), 1);
+  EXPECT_TRUE(is_list(result2[0]));
+  EXPECT_EQ(list_length(result2[0]), 1);
 
-  EXPECT_TRUE(is_list(ctx, result2[1]));
-  EXPECT_EQ(list_length(ctx, result2[1]), 2);
+  EXPECT_TRUE(is_list(result2[1]));
+  EXPECT_EQ(list_length(result2[1]), 2);
 }
 
 TEST(bytecode, instruction_info_consistency) {
@@ -1030,8 +1030,8 @@ TEST_F(scheme, test_write) {
 
 TEST_F(scheme, quote) {
   auto result1 = eval("(quote (a b c))");
-  EXPECT_TRUE(is_list(ctx, result1));
-  EXPECT_EQ(list_length(ctx, result1), 3);
+  EXPECT_TRUE(is_list(result1));
+  EXPECT_EQ(list_length(result1), 3);
 
   auto result2 = eval("(quote 2)");
   EXPECT_EQ(expect<integer>(result2)->value(), 2);
@@ -1040,14 +1040,14 @@ TEST_F(scheme, quote) {
   EXPECT_EQ(expect<integer>(result3)->value(), 3);
 
   auto result4 = eval("'(a b)");
-  EXPECT_TRUE(is_list(ctx, result4));
-  EXPECT_EQ(list_length(ctx, result4), 2);
+  EXPECT_TRUE(is_list(result4));
+  EXPECT_EQ(list_length(result4), 2);
   EXPECT_EQ(expect<symbol>(car(expect<pair>(result4)))->value(), "a");
   EXPECT_EQ(expect<symbol>(cadr(expect<pair>(result4)))->value(), "b");
 
   auto result5 = eval("''a");
-  EXPECT_TRUE(is_list(ctx, result5));
-  EXPECT_EQ(list_length(ctx, result5), 2);
+  EXPECT_TRUE(is_list(result5));
+  EXPECT_EQ(list_length(result5), 2);
   EXPECT_EQ(expect<symbol>(car(expect<pair>(result5)))->value(), "quote");
   EXPECT_EQ(expect<symbol>(cadr(expect<pair>(result5)))->value(), "a");
 }

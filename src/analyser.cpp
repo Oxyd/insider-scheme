@@ -205,7 +205,7 @@ parse_expression_list(parsing_context const& pc, std::shared_ptr<environment> co
 
 static body_syntax
 parse_body(parsing_context const& pc, std::shared_ptr<environment> const& env, generic_ptr const& datum) {
-  if (!is_list(pc.ctx, datum) || datum == pc.ctx.constants.null)
+  if (!is_list(datum) || datum == pc.ctx.constants.null)
     throw std::runtime_error{"Invalid syntax: Expected a list of expressions"};
 
   body_content content = process_internal_defines(pc, env, datum);
@@ -229,11 +229,11 @@ parse_body(parsing_context const& pc, std::shared_ptr<environment> const& env, g
 
 static std::unique_ptr<syntax>
 parse_let(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
-  if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) < 3)
+  if (!is_list(datum) || list_length(datum) < 3)
     throw std::runtime_error{"Invalid let syntax"};
 
   auto bindings = cadr(datum);
-  if (!is_list(pc.ctx, bindings))
+  if (!is_list(bindings))
     throw std::runtime_error{"Invalid let syntax in binding definitions"};
 
   std::vector<definition_pair_syntax> definitions;
@@ -255,7 +255,7 @@ parse_let(parsing_context const& pc, std::shared_ptr<environment> const& env, pt
 
 static std::unique_ptr<syntax>
 parse_set(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
-  if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 3)
+  if (!is_list(datum) || list_length(datum) != 3)
     throw std::runtime_error{"Invalid set! syntax"};
 
   auto name = expect<symbol>(cadr(datum), "Invalid set! syntax");
@@ -273,11 +273,11 @@ parse_set(parsing_context const& pc, std::shared_ptr<environment> const& env, pt
 
 static std::unique_ptr<syntax>
 parse_lambda(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
-  if (!is_list(pc.ctx, cdr(datum)) || cdr(datum) == pc.ctx.constants.null)
+  if (!is_list(cdr(datum)) || cdr(datum) == pc.ctx.constants.null)
     throw std::runtime_error{"Invalid lambda syntax"};
 
   generic_ptr param_names = cadr(datum);
-  if (!is_list(pc.ctx, param_names))
+  if (!is_list(param_names))
     throw std::runtime_error{"Unimplemented"};
 
   std::vector<std::shared_ptr<variable>> parameters;
@@ -298,7 +298,7 @@ parse_lambda(parsing_context const& pc, std::shared_ptr<environment> const& env,
 
 static std::unique_ptr<syntax>
 parse_if(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
-  if (!is_list(pc.ctx, cdr(datum)) || (list_length(pc.ctx, datum) != 3 && list_length(pc.ctx, datum) != 4))
+  if (!is_list(cdr(datum)) || (list_length(datum) != 3 && list_length(datum) != 4))
     throw std::runtime_error{"Invalid if syntax"};
 
   generic_ptr test_expr = cadr(datum);
@@ -314,7 +314,7 @@ parse_if(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr
 
 static std::unique_ptr<syntax>
 parse_application(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
-  if (!is_list(pc.ctx, cdr(datum)))
+  if (!is_list(cdr(datum)))
     throw std::runtime_error{"Invalid function call syntax"};
 
   std::vector<std::unique_ptr<syntax>> arguments;
@@ -329,7 +329,7 @@ parse_application(parsing_context const& pc, std::shared_ptr<environment> const&
 
 static std::unique_ptr<syntax>
 parse_box(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
-  if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 2)
+  if (!is_list(datum) || list_length(datum) != 2)
     throw std::runtime_error{"Invalid box syntax"};
 
   return make_syntax<box_syntax>(parse(pc, env, cadr(datum)));
@@ -337,7 +337,7 @@ parse_box(parsing_context const& pc, std::shared_ptr<environment> const& env, pt
 
 static std::unique_ptr<syntax>
 parse_unbox(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
-  if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 2)
+  if (!is_list(datum) || list_length(datum) != 2)
     throw std::runtime_error{"Invalid unbox syntax"};
 
   return make_syntax<unbox_syntax>(parse(pc, env, cadr(datum)));
@@ -345,7 +345,7 @@ parse_unbox(parsing_context const& pc, std::shared_ptr<environment> const& env, 
 
 static std::unique_ptr<syntax>
 parse_box_set(parsing_context const& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
-  if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 3)
+  if (!is_list(datum) || list_length(datum) != 3)
     throw std::runtime_error{"Invalid box-set! syntax"};
 
   return make_syntax<box_set_syntax>(parse(pc, env, cadr(datum)),
@@ -370,7 +370,7 @@ parse_define(parsing_context const& pc, std::shared_ptr<environment> const& env,
   // expect the variable to be declared already, and all we have to emit is a
   // set!.
 
-  if (!is_list(pc.ctx, datum) || list_length(pc.ctx, datum) != 3)
+  if (!is_list(datum) || list_length(datum) != 3)
     throw std::runtime_error{"Invalid define syntax"};
 
   ptr<symbol> name = expect<symbol>(cadr(datum), "Invalid define syntax");
@@ -780,11 +780,11 @@ is_import(generic_ptr const& datum) {
 
 static void
 perform_import(context& ctx, module& m, ptr<pair> const& datum) {
-  if (!is_list(ctx, datum))
+  if (!is_list(datum))
     throw std::runtime_error{"Invalid import syntax"};
 
   ptr<pair> spec = assume<pair>(cadr(datum));
-  if (!is_list(ctx, spec)
+  if (!is_list(spec)
       || expect<symbol>(car(spec))->value() != "insider"
       || expect<symbol>(cadr(spec))->value() != "internal")
     throw std::runtime_error{"Unimplemented"};
@@ -832,7 +832,7 @@ expand_top_level(parsing_context const& pc, std::vector<generic_ptr> const& data
             continue;
           }
           else if (form == pc.ctx.constants.define) {
-            if (!is_list(pc.ctx, p) || list_length(pc.ctx, p) != 3 || !is<symbol>(cadr(p)))
+            if (!is_list(p) || list_length(p) != 3 || !is<symbol>(cadr(p)))
               throw std::runtime_error{"Invalid define syntax"};
 
             pc.module.add(assume<symbol>(cadr(p))->value(), pc.ctx.add_top_level(pc.ctx.constants.void_));
