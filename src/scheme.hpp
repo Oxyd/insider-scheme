@@ -776,6 +776,19 @@ public:
   native_procedure(target_type f) : target{std::move(f)} { }
 };
 
+// Wrapper for C++ values that don't contain references to any Scheme objects.
+template <typename T>
+class opaque_value : public object {
+public:
+  T value;
+
+  template <typename... Args>
+  explicit
+  opaque_value(Args&&... args)
+    : value(std::forward<Args>(args)...)
+  { }
+};
+
 // Is a given object an instance of the given Scheme type?
 template <typename T>
 bool

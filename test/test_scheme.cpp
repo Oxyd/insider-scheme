@@ -1205,3 +1205,12 @@ TEST_F(scheme, core_shadowing) {
   auto result2 = eval("(let ((unquote 'x)) `(1 ,2 3))");
   EXPECT_TRUE(equal(result2, read("(1 (unquote 2) 3)")));
 }
+
+TEST_F(scheme, opaque_value) {
+  define_lambda<opaque_value<int>(context&)>(
+    ctx, ctx.internal_module, "make-value", true,
+    [] (context& ctx) { return make<opaque_value<int>>(ctx, 7); }
+  );
+  auto result = eval("(make-value)");
+  EXPECT_EQ(expect<opaque_value<int>>(result)->value, 7);
+}
