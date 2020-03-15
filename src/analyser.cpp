@@ -24,13 +24,13 @@ lookup(std::shared_ptr<environment> env, std::string const& name) {
   return {};
 }
 
-static ptr<procedure>
+static ptr<transformer>
 lookup_transformer(context& ctx, std::shared_ptr<environment> const& env, std::string const& name) {
   if (auto var = lookup(env, name)) {
     if (var->transformer)
       return var->transformer;
     else if (var->global && ctx.find_tag(*var->global) == special_top_level_tag::syntax)
-      return expect<procedure>(ctx.get_top_level(*var->global));
+      return expect<transformer>(ctx.get_top_level(*var->global));
   }
 
   return {};
@@ -58,8 +58,10 @@ static generic_ptr
 expand(context& ctx, std::shared_ptr<environment> const& env, generic_ptr datum) {
   while (auto lst = match<pair>(datum)) {
     if (auto head = match<symbol>(car(lst))) {
-      if (ptr<procedure> transformer = lookup_transformer(ctx, env, head->value())) {
-        datum = call(ctx, transformer, {datum});
+      if (ptr<transformer> t = lookup_transformer(ctx, env, head->value())) {
+        auto trans_env = make<environment_holder>(ctx, t->environment());
+        auto usage_env = make<environment_holder>(ctx, env);
+        datum = call(ctx, transformer_procedure(t), {datum, trans_env, usage_env});
         continue;
       }
     }
@@ -70,11 +72,11 @@ expand(context& ctx, std::shared_ptr<environment> const& env, generic_ptr datum)
   return datum;
 }
 
-static generic_ptr
+static ptr<procedure>
 eval_transformer(context& ctx, module& m, generic_ptr const& datum) {
   auto proc = compile_expression(ctx, datum, m);
   auto state = make_state(ctx, proc);
-  return run(state);
+  return expect<procedure>(run(state));
 }
 
 namespace {
@@ -133,7 +135,8 @@ process_internal_defines(parsing_context& pc, std::shared_ptr<environment> const
             throw std::runtime_error{"define-syntax after a nondefinition"};
 
           auto name = expect<symbol>(cadr(p));
-          auto transformer = expect<procedure>(eval_transformer(pc.ctx, pc.module, caddr(p)));
+          auto transformer_proc = eval_transformer(pc.ctx, pc.module, caddr(p));
+          auto transformer = make<scm::transformer>(pc.ctx, env, transformer_proc);
           bool inserted = result.env->bindings.emplace(name->value(),
                                                        std::make_shared<variable>(name->value(), transformer)).second;
 
@@ -376,6 +379,18 @@ parse_define(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<p
     return make_syntax<top_level_set_syntax>(operand::global(*var->global), parse(pc, env, expr));
 }
 
+static std::unique_ptr<syntax>
+parse_syntactic_closure(parsing_context& pc, std::shared_ptr<environment> const& env,
+                        ptr<syntactic_closure> const& sc) {
+  auto new_env = std::make_shared<environment>(sc->environment);
+
+  for (ptr<symbol> const& free : syntactic_closure_free(sc))
+    if (auto var = lookup(env, free->value()))
+      new_env->bindings.emplace(free->value(), var);
+
+  return parse(pc, new_env, syntactic_closure_expression(sc));
+}
+
 namespace {
   struct qq_template;
 
@@ -615,6 +630,8 @@ parse(parsing_context& pc, std::shared_ptr<environment> const& env, generic_ptr 
     return make_syntax<literal_syntax>(datum);
   else if (auto s = match<symbol>(datum))
     return parse_reference(env, s);
+  else if (auto sc = match<syntactic_closure>(datum))
+    return parse_syntactic_closure(pc, env, sc);
   else if (auto p = match<pair>(datum)) {
     auto head = car(p);
     if (auto head_symbol = match<symbol>(head)) {
@@ -811,7 +828,8 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
 
           if (form == ctx.constants.define_syntax) {
             auto name = expect<symbol>(cadr(p));
-            auto transformer = expect<procedure>(eval_transformer(ctx, m, caddr(p)));
+            auto transformer_proc = expect<procedure>(eval_transformer(ctx, m, caddr(p)));
+            auto transformer = make<scm::transformer>(ctx, m.environment(), transformer_proc);
 
             auto index = ctx.add_top_level(transformer);
             ctx.tag_top_level(index, special_top_level_tag::syntax);

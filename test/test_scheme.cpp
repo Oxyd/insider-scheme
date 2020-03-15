@@ -1161,7 +1161,7 @@ TEST_F(scheme, call_from_native) {
 TEST_F(scheme, top_level_transformers) {
   auto result1 = eval_module(R"(
     (import (insider internal))
-    (define-syntax num (lambda (x) 4))
+    (define-syntax num (lambda (x transformer-env usage-env) 4))
     (* (num) 2)
   )");
   EXPECT_EQ(expect<integer>(result1)->value(), 8);
@@ -1169,7 +1169,7 @@ TEST_F(scheme, top_level_transformers) {
   auto result2 = eval_module(R"(
     (import (insider internal))
     (define-syntax when
-      (lambda (datum)
+      (lambda (datum transformer-env usage-env)
         (let ((test (car (cdr datum)))
               (body (cdr (cdr datum))))
           `(if ,test ((lambda () ,@body)) #f))))
@@ -1189,7 +1189,7 @@ TEST_F(scheme, internal_transformers) {
     (define foo
       (lambda (x)
         (define-syntax double
-          (lambda (datum)
+          (lambda (datum transformer-env usage-env)
             (let ((var (car (cdr datum))))
               `(* 2 ,var))))
         (+ x (double x))))
@@ -1213,4 +1213,38 @@ TEST_F(scheme, opaque_value) {
   );
   auto result = eval("(make-value)");
   EXPECT_EQ(expect<opaque_value<int>>(result)->value, 7);
+}
+
+TEST_F(scheme, sc_transformer) {
+  auto result1 = eval_module(R"(
+    (import (insider internal))
+
+    (define-syntax run
+      (lambda (form transformer-env usage-env)
+        (let ((expr (make-syntactic-closure usage-env '() (car (cdr form)))))
+          (make-syntactic-closure transformer-env '()
+                                  `(let ((value 4))
+                                     ,expr)))))
+
+    (let ((value 10))
+      (run
+        value))
+  )");
+  EXPECT_EQ(expect<integer>(result1)->value(), 10);
+
+  auto result2 = eval_module(R"(
+    (import (insider internal))
+
+    (define-syntax run
+      (lambda (form transformer-env usage-env)
+        (let ((expr (make-syntactic-closure usage-env '(value) (car (cdr form)))))
+          (make-syntactic-closure transformer-env '()
+                                  `(let ((value 4))
+                                     ,expr)))))
+
+    (let ((value 10))
+      (run
+        value))
+  )");
+  EXPECT_EQ(expect<integer>(result2)->value(), 4);
 }

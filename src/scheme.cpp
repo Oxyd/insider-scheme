@@ -313,6 +313,14 @@ make_internal_module(context& ctx) {
   define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "car", true, car);
   define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cdr", true, cdr);
 
+  define_lambda<ptr<syntactic_closure>(context&, ptr<environment_holder> const&,
+                                       generic_ptr const&, generic_ptr const&)>(
+    ctx, result, "make-syntactic-closure", true,
+    [] (context& ctx, ptr<environment_holder> const& env, generic_ptr const& free, generic_ptr const& form) {
+      return make<syntactic_closure>(ctx, env->value, form, free);
+    }
+  );
+
   return result;
 }
 
@@ -865,6 +873,42 @@ void
 closure::for_each_subobject(std::function<void(object*)> const& f) {
   f(procedure_);
   for (std::size_t i = 0; i < size_; ++i)
+    f(dynamic_storage()[i]);
+}
+
+std::size_t
+syntactic_closure::extra_storage_size(std::shared_ptr<scm::environment>,
+                                      generic_ptr const& expr, generic_ptr const& free) {
+  return list_length(free) * sizeof(object*);
+}
+
+syntactic_closure::syntactic_closure(std::shared_ptr<scm::environment> env,
+                                     generic_ptr const& expr, generic_ptr const& free)
+  : environment{std::move(env)}
+  , expression_{expr.get()}
+  , free_size_{0}
+{
+  for (generic_ptr name : in_list{free}) {
+    expect<symbol>(name);
+    dynamic_storage()[free_size_++] = name.get();
+  }
+}
+
+std::vector<ptr<symbol>>
+syntactic_closure::free(free_store& store) const {
+  std::vector<ptr<symbol>> result;
+  result.reserve(free_size_);
+
+  for (std::size_t i = 0; i < free_size_; ++i)
+    result.push_back(ptr<symbol>{store, dynamic_storage()[i]});
+
+  return result;
+}
+
+void
+syntactic_closure::for_each_subobject(std::function<void(object*)> const& f) {
+  f(expression_);
+  for (std::size_t i = 0; i < free_size_; ++i)
     f(dynamic_storage()[i]);
 }
 

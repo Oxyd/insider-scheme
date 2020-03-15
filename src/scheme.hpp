@@ -308,6 +308,7 @@ class module;
 class port;
 class procedure;
 class symbol;
+class transformer;
 
 // The binding between a name and its value. For top-level values, this directly
 // contains the index of the value. For non-top-level syntax transformers, it
@@ -317,13 +318,13 @@ class symbol;
 struct variable {
   std::string                                 name;
   bool                                        is_set = false;
-  ptr<procedure>                              transformer;
+  ptr<scm::transformer>                       transformer;
   std::optional<operand::representation_type> global;
 
   explicit
   variable(std::string n) : name{std::move(n)} { }
 
-  variable(std::string n, ptr<procedure> const& t)
+  variable(std::string n, ptr<scm::transformer> const& t)
     : name{std::move(n)}
     , transformer{t}
   { }
@@ -822,6 +823,65 @@ public:
     : value(std::forward<Args>(args)...)
   { }
 };
+
+using environment_holder = opaque_value<std::shared_ptr<environment>>;
+
+// An expression together with an environment and a module in which to look up
+// the names used in the expression. Some names may be explicitly marked as
+// free, and they will be looked up in the environment in which the syntactic
+// closure is being used.
+class syntactic_closure : public dynamic_size_object<syntactic_closure, object*> {
+public:
+  std::shared_ptr<scm::environment> environment;
+
+  static std::size_t
+  extra_storage_size(std::shared_ptr<scm::environment>,
+                     generic_ptr const& expr, generic_ptr const& free);
+
+  syntactic_closure(std::shared_ptr<scm::environment>,
+                    generic_ptr const& expr, generic_ptr const& free);
+
+  generic_ptr
+  expression(free_store& store) const { return {store, expression_}; }
+
+  std::vector<ptr<symbol>>
+  free(free_store&) const;
+
+  void
+  for_each_subobject(std::function<void(object*)> const& f) override;
+
+private:
+  object*     expression_;
+  std::size_t free_size_;
+};
+
+inline generic_ptr
+syntactic_closure_expression(ptr<syntactic_closure> const& sc) { return sc->expression(sc.store()); }
+
+inline auto
+syntactic_closure_free(ptr<syntactic_closure> const& sc) { return sc->free(sc.store()); }
+
+// A procedure together with the environment it was defined in.
+class transformer : public object {
+public:
+  transformer(std::shared_ptr<scm::environment> env, ptr<procedure> const& proc)
+    : env_{std::move(env)}
+    , proc_{proc.get()}
+  { }
+
+  std::shared_ptr<scm::environment>
+  environment() const { return env_; }
+
+  ptr<scm::procedure>
+  procedure(free_store& store) const { return {store, proc_}; }
+
+private:
+  std::shared_ptr<scm::environment> env_;
+  scm::procedure*                   proc_;
+};
+
+inline ptr<procedure>
+transformer_procedure(ptr<transformer> const& t) { return t->procedure(t.store()); }
 
 // Is a given object an instance of the given Scheme type?
 template <typename T>
