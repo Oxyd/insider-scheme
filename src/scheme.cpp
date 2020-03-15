@@ -236,19 +236,16 @@ free_store::collect_garbage() {
 
 auto
 module::find(std::string const& name) const -> std::optional<index_type> {
-  if (auto it = bindings_.find(name); it != bindings_.end())
-    return it->second;
-
-  if (auto it = imports_.find(name); it != imports_.end())
-    return it->second;
+  if (auto it = env_->bindings.find(name); it != env_->bindings.end())
+    return it->second->global;
 
   return {};
 }
 
 void
 module::add(std::string name, index_type i) {
-  assert(!bindings_.count(name));
-  bindings_.emplace(std::move(name), i);
+  assert(!env_->bindings.count(name));
+  env_->bindings.emplace(name, std::make_shared<variable>(name, i));
 }
 
 void
@@ -257,15 +254,9 @@ module::export_(std::string name) {
 }
 
 void
-module::import(std::string name, index_type i) {
-  assert(!imports_.count(name));
-  imports_.emplace(std::move(name), i);
-}
-
-void
 import_all(module& to, module const& from) {
   for (auto const& name : from.exports())
-    to.import(name, *from.find(name));
+    to.add(name, *from.find(name));
 }
 
 void

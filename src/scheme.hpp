@@ -309,6 +309,41 @@ class port;
 class procedure;
 class symbol;
 
+// The binding between a name and its value. For top-level values, this directly
+// contains the index of the value. For non-top-level syntax transformers, it
+// directly contains the transformer. Otherwise, it's just an object
+// representing the binding itself and the compiler will use these to translate
+// them to local registers.
+struct variable {
+  std::string                                 name;
+  bool                                        is_set = false;
+  ptr<procedure>                              transformer;
+  std::optional<operand::representation_type> global;
+
+  explicit
+  variable(std::string n) : name{std::move(n)} { }
+
+  variable(std::string n, ptr<procedure> const& t)
+    : name{std::move(n)}
+    , transformer{t}
+  { }
+
+  variable(std::string n, operand::representation_type index)
+    : name{std::move(n)}
+    , global{index}
+  { }
+};
+
+struct environment {
+  std::shared_ptr<environment> parent;
+  std::unordered_map<std::string, std::shared_ptr<variable>> bindings;
+
+  explicit
+  environment(std::shared_ptr<environment> parent)
+    : parent{std::move(parent)}
+  { }
+};
+
 // A module is a map from symbols to top-level variable indices. It also
 // contains a top-level procedure which contains the code to be run when the
 // module is loaded.
@@ -325,9 +360,6 @@ public:
   void
   export_(std::string);
 
-  void
-  import(std::string, index_type);
-
   std::unordered_set<std::string> const&
   exports() const { return exports_; }
 
@@ -337,11 +369,13 @@ public:
   void
   set_top_level_procedure(ptr<procedure> const& p) { proc_ = p; }
 
+  std::shared_ptr<scm::environment>
+  environment() const { return env_; }
+
 private:
-  std::unordered_map<std::string, index_type> bindings_; // Bindings defined in this module.
-  std::unordered_map<std::string, index_type> imports_;  // Bindings imported from other modules.
-  std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
-  ptr<procedure> proc_;
+  std::shared_ptr<scm::environment> env_ = std::make_shared<scm::environment>(nullptr);
+  std::unordered_set<std::string>   exports_; // Bindings available for export to other modules.
+  ptr<procedure>                    proc_;
 };
 
 void

@@ -4,6 +4,7 @@
 #include "scheme.hpp"
 
 #include <memory>
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -11,23 +12,6 @@ namespace scm {
 
 // The analyser expects a Scheme datum (or a list of data) that represents a
 // program, and turns it into an internal representation, defined here.
-
-// Names are translated to variable objects during analysis so that if two parts
-// of the code refer to the same variable, their syntaxes contain pointers to
-// the same variable object.
-struct variable {
-  std::string name;
-  bool is_set = false;
-  ptr<procedure> transformer;
-
-  explicit
-  variable(std::string n) : name{std::move(n)} { }
-
-  variable(std::string n, ptr<procedure> const& t)
-    : name{std::move(n)}
-    , transformer{t}
-  { }
-};
 
 struct syntax;
 
