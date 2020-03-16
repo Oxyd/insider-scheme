@@ -423,7 +423,7 @@ public:
   free_store   store;
   constants    constants;
   statics_list statics;
-  ptr<port>    stdout;
+  ptr<port>    output_port;
   module       internal_module; // (insider internal)
 
   context();

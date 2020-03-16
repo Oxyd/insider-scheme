@@ -291,13 +291,13 @@ make_internal_module(context& ctx) {
   define_lambda<void(context&, generic_ptr const&)>(
     ctx, result, "write-simple", true,
     [] (context& ctx, generic_ptr const& datum) {
-      write_simple(ctx, datum, ctx.stdout);
+      write_simple(ctx, datum, ctx.output_port);
     }
   );
 
   define_lambda<void(context&)>(
     ctx, result, "newline", true,
-    [] (context& ctx) { ctx.stdout->write_char('\n'); }
+    [] (context& ctx) { ctx.output_port->write_char('\n'); }
   );
 
   define_top_level(ctx, result, "append", make<native_procedure>(ctx, append), true);
@@ -364,7 +364,7 @@ context::context() {
   statics.zero = operand::static_(intern_static(store.make<integer>(0)));
   statics.one = operand::static_(intern_static(store.make<integer>(1)));
 
-  stdout = make<port>(*this, ::stdout, false, true, false);
+  output_port = make<port>(*this, stdout, false, true, false);
 }
 
 ptr<symbol>

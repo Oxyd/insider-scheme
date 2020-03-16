@@ -3,8 +3,10 @@ project(insider-scheme)
 
 option(ASAN "Enable address sanitizer" OFF)
 
-set(CMAKE_C_FLAGS_DEBUG "-ggdb3")
-set(CMAKE_CXX_FLAGS_DEBUG "-ggdb3")
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  set(CMAKE_C_FLAGS_DEBUG "-ggdb3")
+  set(CMAKE_CXX_FLAGS_DEBUG "-ggdb3")
+endif()
 
 set(scheme_sources
   src/analyser.cpp

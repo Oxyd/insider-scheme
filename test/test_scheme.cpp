@@ -308,44 +308,6 @@ TEST_F(scheme, read_list) {
   EXPECT_THROW(read("("), parse_error);
   EXPECT_THROW(read("(1 2"), parse_error);
   EXPECT_THROW(read("(()"), parse_error);
-
-  ptr<pair> dotted_1 = expect<pair>(read("(1 . 2)"));
-  EXPECT_EQ(expect<integer>(car(dotted_1))->value(), 1);
-  EXPECT_EQ(expect<integer>(cdr(dotted_1))->value(), 2);
-
-  ptr<pair> dotted_2 = expect<pair>(read("(1 2 . 3)"));
-  EXPECT_EQ(expect<integer>(car(dotted_2))->value(), 1);
-  EXPECT_EQ(expect<integer>(cadr(dotted_2))->value(), 2);
-  EXPECT_EQ(expect<integer>(cddr(dotted_2))->value(), 3);
-
-  EXPECT_THROW(read("(1 .)"), parse_error);
-  EXPECT_THROW(read("(. 1)"), parse_error);
-  EXPECT_THROW(read("(1 . 2 3)"), parse_error);
-}
-
-TEST_F(scheme, iterate_list) {
-  auto l1 = read("(1 2 3)");
-  std::vector<generic_ptr> v1(list_iterator{l1}, {});
-  ASSERT_EQ(v1.size(), 3);
-  EXPECT_EQ(expect<integer>(v1[0])->value(), 1);
-  EXPECT_EQ(expect<integer>(v1[1])->value(), 2);
-  EXPECT_EQ(expect<integer>(v1[2])->value(), 3);
-
-  int sum = 0;
-  for (generic_ptr i : in_list{l1})
-    sum += expect<integer>(i)->value();
-  EXPECT_EQ(sum, 6);
-
-  auto l2 = read("()");
-  std::vector<generic_ptr> v2(list_iterator{l2}, {});
-  EXPECT_TRUE(v2.empty());
-
-  auto l3 = read("(1 (2 . 3))");
-  std::vector<generic_ptr> v3(list_iterator{l3}, {});
-  ASSERT_EQ(v3.size(), 2);
-  EXPECT_EQ(expect<integer>(v3[0])->value(), 1);
-  EXPECT_EQ(expect<integer>(car(expect<pair>(v3[1])))->value(), 2);
-  EXPECT_EQ(expect<integer>(cdr(expect<pair>(v3[1])))->value(), 3);
 }
 
 TEST_F(scheme, read_vector) {
@@ -389,12 +351,18 @@ TEST_F(scheme, read_symbol) {
 TEST_F(scheme, read_string) {
   EXPECT_EQ(expect<string>(read(R"("foo")"))->value(), "foo");
   EXPECT_EQ(expect<string>(read(R"("one\ntwo")"))->value(), "one\ntwo");
-  EXPECT_EQ(expect<string>(read(R"("this \"is\" a quote")"))->value(), "this \"is\" a quote");
+  char const* msvc_workaround1 = R"("this \"is\" a quote")";
+  EXPECT_EQ(expect<string>(read(msvc_workaround1))->value(), "this \"is\" a quote");
+  char const* msvc_workaround2 = R"("foo\"bar\"baz")";
+  EXPECT_EQ(msvc_workaround2, "foo\"bar\"baz");
 
   EXPECT_THROW(read(R"("unterminated)"), parse_error);
-  EXPECT_THROW(read(R"("\invalid escape")"), parse_error);
-  EXPECT_THROW(read(R"("\)"), parse_error);
-  EXPECT_THROW(read(R"("\")"), parse_error);
+  char const* msvc_workaround3 = R"("\invalid escape")";
+  EXPECT_THROW(read(msvc_workaround3), parse_error);
+  char const* msvc_workaround4 = R"("\)";
+  EXPECT_THROW(read(msvc_workaround4), parse_error);
+  char const* msvc_workaround5 = R"("\")";
+  EXPECT_THROW(read(msvc_workaround5), parse_error);
 }
 
 TEST_F(scheme, read_multiple) {
@@ -1012,7 +980,8 @@ TEST_F(scheme, test_write) {
   EXPECT_EQ(to_string(ctx, v), R"(#(#\r (0 1 . 2) "foobar"))");
 
   auto s = make_string(ctx, R"(one "two" three \ four)");
-  EXPECT_EQ(to_string(ctx, s), R"("one \"two\" three \\ four")");
+  char const* msvc_workaround1 = R"("one \"two\" three \\ four")";
+  EXPECT_EQ(to_string(ctx, s), msvc_workaround1);
 
   auto l = make_list(
     ctx,

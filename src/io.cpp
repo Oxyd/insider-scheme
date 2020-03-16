@@ -462,10 +462,11 @@ write_char(ptr<character> const& c, ptr<port> const& out) {
 static void
 write_integer(ptr<integer> const& value, ptr<port> const& out) {
   std::array<char, std::numeric_limits<integer::value_type>::digits10 + 1> buffer;
-  std::to_chars_result res = std::to_chars(buffer.begin(), buffer.end(), value->value());
+  std::to_chars_result res = std::to_chars(buffer.data(), buffer.data() + buffer.size(),
+                                           value->value());
 
   assert(res.ec == std::errc{});
-  out->write_string(std::string(buffer.begin(), res.ptr));
+  out->write_string(std::string(buffer.data(), res.ptr));
 }
 
 static void
