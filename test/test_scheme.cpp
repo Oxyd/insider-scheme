@@ -153,9 +153,9 @@ TEST_F(scheme, weak_ptr) {
 }
 
 TEST_F(scheme, type_predicates) {
-  ptr<pair> p = make<pair>(ctx, ctx.constants.null, ctx.constants.null);
+  ptr<pair> p = make<pair>(ctx, ctx.constants->null, ctx.constants->null);
   generic_ptr x = p;
-  generic_ptr null = ctx.constants.null;
+  generic_ptr null = ctx.constants->null;
 
   EXPECT_TRUE(is<pair>(x));
   EXPECT_FALSE(is<pair>(null));
@@ -183,7 +183,7 @@ TEST_F(scheme, is_list) {
                             make<integer>(ctx, 1),
                             make<pair>(ctx,
                                        make<integer>(ctx, 2),
-                                       ctx.constants.null));
+                                       ctx.constants->null));
   EXPECT_TRUE(is_list(l2));
 
   // (0 1 2)
@@ -193,7 +193,7 @@ TEST_F(scheme, is_list) {
 
 TEST_F(scheme, make_list) {
   generic_ptr empty = make_list(ctx);
-  EXPECT_TRUE(empty == ctx.constants.null);
+  EXPECT_TRUE(empty == ctx.constants->null);
 
   generic_ptr l = make_list(ctx,
                             make<integer>(ctx, 1),
@@ -208,7 +208,7 @@ TEST_F(scheme, make_list) {
   auto third = expect<pair>(cdr(second));
   EXPECT_EQ(expect<integer>(car(third))->value(), 3);
 
-  EXPECT_EQ(cdr(third), ctx.constants.null);
+  EXPECT_EQ(cdr(third), ctx.constants->null);
 }
 
 TEST_F(scheme, intern) {
@@ -282,24 +282,24 @@ TEST_F(scheme, read_integer) {
 
 TEST_F(scheme, read_list) {
   generic_ptr empty_1 = read("()");
-  EXPECT_EQ(empty_1, ctx.constants.null);
+  EXPECT_EQ(empty_1, ctx.constants->null);
 
   generic_ptr empty_2 = read("(   )");
-  EXPECT_EQ(empty_2, ctx.constants.null);
+  EXPECT_EQ(empty_2, ctx.constants->null);
 
   generic_ptr single_element = read("(1)");
   EXPECT_TRUE(is_list(single_element));
   EXPECT_EQ(expect<integer>(car(expect<pair>(single_element)))->value(), 1);
-  EXPECT_EQ(cdr(expect<pair>(single_element)), ctx.constants.null);
+  EXPECT_EQ(cdr(expect<pair>(single_element)), ctx.constants->null);
 
   generic_ptr two_elements = read("(1 2)");
   EXPECT_TRUE(is_list(two_elements));
   EXPECT_EQ(expect<integer>(car(expect<pair>(two_elements)))->value(), 1);
   EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(expect<pair>(two_elements)))))->value(), 2);
-  EXPECT_EQ(cdr(expect<pair>(cdr(expect<pair>(two_elements)))), ctx.constants.null);
+  EXPECT_EQ(cdr(expect<pair>(cdr(expect<pair>(two_elements)))), ctx.constants->null);
 
   generic_ptr no_elements = read("()");
-  EXPECT_EQ(no_elements, ctx.constants.null);
+  EXPECT_EQ(no_elements, ctx.constants->null);
 
   generic_ptr nested = read("(1 (2 3))");
   EXPECT_TRUE(is_list(nested));
@@ -719,7 +719,7 @@ TEST_F(scheme, compile_if) {
   EXPECT_EQ(expect<integer>(result3)->value(), 2);
 
   generic_ptr result4 = eval("(if #f 2)");
-  EXPECT_EQ(result4, ctx.constants.void_);
+  EXPECT_EQ(result4, ctx.constants->void_);
 
   generic_ptr result5 = eval(
     R"(
@@ -873,7 +873,7 @@ TEST_F(scheme, compile_module) {
     make<native_procedure>(ctx,
                            [&] (context& ctx, std::vector<generic_ptr> const& args) {
                              sum += expect<integer>(args[0])->value();
-                             return ctx.constants.void_;
+                             return ctx.constants->void_;
                            }),
     true
   );
@@ -989,10 +989,10 @@ TEST_F(scheme, test_write) {
 
   auto l = make_list(
     ctx,
-    ctx.constants.null,
-    ctx.constants.void_,
-    ctx.constants.t,
-    ctx.constants.f,
+    ctx.constants->null,
+    ctx.constants->void_,
+    ctx.constants->t,
+    ctx.constants->f,
     ctx.intern("symbol"),
     make_string(ctx, "string"),
     make<character>(ctx, 'c'),
@@ -1110,7 +1110,7 @@ TEST_F(scheme, append) {
   EXPECT_EQ(cddr(expect<pair>(r4)), ctx.intern("tail"));
 
   auto r5 = eval("(append '() '() '() '())");
-  EXPECT_TRUE(equal(r5, ctx.constants.null));
+  EXPECT_TRUE(equal(r5, ctx.constants->null));
 
   auto r6 = eval("(append '() '(a1 a2))");
   EXPECT_TRUE(equal(r6, read("(a1 a2)")));
@@ -1153,7 +1153,7 @@ TEST_F(scheme, top_level_transformers) {
   )");
   auto result2p = expect<pair>(result2);
   EXPECT_EQ(expect<integer>(car(result2p))->value(), 40);
-  EXPECT_EQ(cdr(result2p), ctx.constants.f);
+  EXPECT_EQ(cdr(result2p), ctx.constants->f);
 }
 
 TEST_F(scheme, internal_transformers) {

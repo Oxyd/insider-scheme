@@ -359,10 +359,11 @@ make_internal_module(context& ctx) {
 }
 
 context::context() {
-  constants.null = store.make<null_type>();
-  constants.void_ = store.make<void_type>();
-  constants.t = store.make<boolean>(true);
-  constants.f = store.make<boolean>(false);
+  constants = std::make_unique<struct constants>();
+  constants->null = store.make<null_type>();
+  constants->void_ = store.make<void_type>();
+  constants->t = store.make<boolean>(true);
+  constants->f = store.make<boolean>(false);
 
   internal_module = make_internal_module(*this);
 
@@ -370,19 +371,19 @@ context::context() {
     ptr<core_form_type>& object;
     std::string          name;
   } core_forms[]{
-    {constants.let,              "let"},
-    {constants.set,              "set!"},
-    {constants.lambda,           "lambda"},
-    {constants.if_,              "if"},
-    {constants.box,              "box"},
-    {constants.unbox,            "unbox"},
-    {constants.box_set,          "box-set!"},
-    {constants.define,           "define"},
-    {constants.define_syntax,    "define-syntax"},
-    {constants.quote,            "quote"},
-    {constants.quasiquote,       "quasiquote"},
-    {constants.unquote,          "unquote"},
-    {constants.unquote_splicing, "unquote-splicing"}
+    {constants->let,              "let"},
+    {constants->set,              "set!"},
+    {constants->lambda,           "lambda"},
+    {constants->if_,              "if"},
+    {constants->box,              "box"},
+    {constants->unbox,            "unbox"},
+    {constants->box_set,          "box-set!"},
+    {constants->define,           "define"},
+    {constants->define_syntax,    "define-syntax"},
+    {constants->quote,            "quote"},
+    {constants->quasiquote,       "quasiquote"},
+    {constants->unquote,          "unquote"},
+    {constants->unquote_splicing, "unquote-splicing"}
   };
   for (auto const& form : core_forms) {
     form.object = store.make<core_form_type>();
@@ -391,14 +392,18 @@ context::context() {
     internal_module.export_(form.name);
   }
 
-  statics.null = operand::static_(intern_static(constants.null));
-  statics.void_ = operand::static_(intern_static(constants.void_));
-  statics.t = operand::static_(intern_static(constants.t));
-  statics.f = operand::static_(intern_static(constants.f));
+  statics.null = operand::static_(intern_static(constants->null));
+  statics.void_ = operand::static_(intern_static(constants->void_));
+  statics.t = operand::static_(intern_static(constants->t));
+  statics.f = operand::static_(intern_static(constants->f));
   statics.zero = operand::static_(intern_static(store.make<integer>(0)));
   statics.one = operand::static_(intern_static(store.make<integer>(1)));
 
   output_port = make<port>(*this, stdout, false, true, false);
+}
+
+context::~context() {
+  constants.reset();
 }
 
 ptr<symbol>
@@ -606,18 +611,18 @@ relational(context& ctx, std::vector<generic_ptr> const& xs, std::string const& 
   ptr<integer> lhs = expect<integer>(xs[0]);
   for (std::size_t i = 1; i < xs.size(); ++i) {
     ptr<integer> rhs = expect<integer>(xs[i]);
-    if (F(ctx, lhs, rhs) == ctx.constants.f)
-      return ctx.constants.f;
+    if (F(ctx, lhs, rhs) == ctx.constants->f)
+      return ctx.constants->f;
 
     lhs = rhs;
   }
 
-  return ctx.constants.t;
+  return ctx.constants->t;
 }
 
 ptr<boolean>
 arith_equal(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() == rhs->value() ? ctx.constants.t : ctx.constants.f;
+  return lhs->value() == rhs->value() ? ctx.constants->t : ctx.constants->f;
 }
 
 generic_ptr
@@ -627,7 +632,7 @@ arith_equal(context& ctx, std::vector<generic_ptr> const& xs) {
 
 ptr<boolean>
 less(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() < rhs->value() ? ctx.constants.t : ctx.constants.f;
+  return lhs->value() < rhs->value() ? ctx.constants->t : ctx.constants->f;
 }
 
 generic_ptr
@@ -637,7 +642,7 @@ less(context& ctx, std::vector<generic_ptr> const& xs) {
 
 ptr<boolean>
 greater(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() > rhs->value() ? ctx.constants.t : ctx.constants.f;
+  return lhs->value() > rhs->value() ? ctx.constants->t : ctx.constants->f;
 }
 
 generic_ptr
@@ -808,11 +813,11 @@ append(context& ctx, std::vector<generic_ptr> const& xs) {
   // If all the lists are empty, we return the empty list as well.
 
   auto x = xs.begin();
-  while (x != xs.end() && *x == ctx.constants.null)
+  while (x != xs.end() && *x == ctx.constants->null)
     ++x;
 
   if (x == xs.end())
-    return ctx.constants.null;
+    return ctx.constants->null;
 
   if (x == xs.end() - 1)
     return *x;
@@ -820,15 +825,15 @@ append(context& ctx, std::vector<generic_ptr> const& xs) {
   // We have more than one list, and at least the current list is non-empty. Do
   // the needful.
 
-  generic_ptr new_head = ctx.constants.null;
+  generic_ptr new_head = ctx.constants->null;
   ptr<pair> new_tail;
   generic_ptr current = expect<pair>(*x);
   for (; x != xs.end() - 1; ++x) {
     current = *x;
 
-    while (current != ctx.constants.null) {
+    while (current != ctx.constants->null) {
       ptr<pair> c = expect<pair>(current);
-      ptr<pair> new_c = make<pair>(ctx, car(c), ctx.constants.null);
+      ptr<pair> new_c = make<pair>(ctx, car(c), ctx.constants->null);
 
       if (new_tail)
         new_tail->set_cdr(new_c);
@@ -899,12 +904,12 @@ make_vector(context& ctx, std::vector<generic_ptr> const& elems) {
 ptr<vector>
 list_to_vector(context& ctx, generic_ptr const& lst) {
   std::size_t size = 0;
-  for (generic_ptr e = lst; e != ctx.constants.null; e = cdr(expect<pair>(e)))
+  for (generic_ptr e = lst; e != ctx.constants->null; e = cdr(expect<pair>(e)))
     ++size;
 
   auto result = make<vector>(ctx, size);
   std::size_t i = 0;
-  for (generic_ptr e = lst; e != ctx.constants.null; e = cdr(assume<pair>(e)))
+  for (generic_ptr e = lst; e != ctx.constants->null; e = cdr(assume<pair>(e)))
     result->set(i++, car(assume<pair>(e)));
 
   return result;

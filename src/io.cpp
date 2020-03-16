@@ -319,16 +319,16 @@ read_list(context& ctx, ptr<port> const& stream) {
   else if (std::holds_alternative<dot>(t))
     throw parse_error{"Unexpected . token"};
   else if (std::holds_alternative<right_paren>(t))
-    return ctx.constants.null;
+    return ctx.constants->null;
 
-  ptr<pair> result = make<pair>(ctx, read(ctx, t, stream), ctx.constants.null);
+  ptr<pair> result = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null);
   ptr<pair> tail = result;
 
   t = read_token(stream);
   while (!std::holds_alternative<end>(t)
          && !std::holds_alternative<right_paren>(t)
          && !std::holds_alternative<dot>(t)) {
-    ptr<pair> new_tail = make<pair>(ctx, read(ctx, t, stream), ctx.constants.null);
+    ptr<pair> new_tail = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null);
     tail->set_cdr(new_tail);
     tail = new_tail;
 
@@ -403,9 +403,9 @@ read(context& ctx, token first_token, ptr<port> const& stream) {
   else if (identifier* i = std::get_if<identifier>(&first_token))
     return ctx.intern(i->value);
   else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token))
-    return b->value ? ctx.constants.t : ctx.constants.f;
+    return b->value ? ctx.constants->t : ctx.constants->f;
   else if (void_literal* v = std::get_if<void_literal>(&first_token))
-    return ctx.constants.void_;
+    return ctx.constants->void_;
   else if (string_literal* s = std::get_if<string_literal>(&first_token))
     return make_string(ctx, s->value);
   else if (std::holds_alternative<dot>(first_token))
@@ -471,13 +471,13 @@ write_integer(ptr<integer> const& value, ptr<port> const& out) {
 
 static void
 write_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
-  if (datum == ctx.constants.null)
+  if (datum == ctx.constants->null)
     out->write_string("()");
-  else if (datum == ctx.constants.void_)
+  else if (datum == ctx.constants->void_)
     out->write_string("#void");
-  else if (datum == ctx.constants.t)
+  else if (datum == ctx.constants->t)
     out->write_string("#t");
-  else if (datum == ctx.constants.f)
+  else if (datum == ctx.constants->f)
     out->write_string("#f");
   else if (auto sym = match<symbol>(datum))
     out->write_string(sym->value());
@@ -518,7 +518,7 @@ write_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
         if (is<scm::pair>(cdr(pair))) {
           out->write_char(' ');
           stack.push_back({cdr(pair), 0, true});
-        } else if (cdr(pair) == ctx.constants.null) {
+        } else if (cdr(pair) == ctx.constants->null) {
           if (!top.omit_parens)
             out->write_char(')');
           stack.pop_back();

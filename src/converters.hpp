@@ -89,7 +89,7 @@ struct from_scheme_converter<std::vector<T>> {
     }
     else if (is_list(x)) {
       generic_ptr elem = x;
-      while (elem != ctx.constants.null) {
+      while (elem != ctx.constants->null) {
         auto p = assume<pair>(elem);
         result.emplace_back(from_scheme<T>(car(p)));
         elem = cdr(p);
@@ -129,7 +129,7 @@ namespace detail {
 
           if constexpr (std::is_same_v<R, void>) {
             f(ctx, from_scheme<Args>(ctx, args[Is])...);
-            return ctx.constants.void_;
+            return ctx.constants->void_;
           } else
             return to_scheme(ctx, f(ctx, from_scheme<Args>(ctx, args[Is])...));
         }
@@ -162,7 +162,7 @@ namespace detail {
 
           if constexpr (std::is_same_v<R, void>) {
             f(from_scheme<Args>(ctx, args[Is])...);
-            return ctx.constants.void_;
+            return ctx.constants->void_;
           } else
             return to_scheme(ctx, f(from_scheme<Args>(ctx, args[Is])...));
         }
