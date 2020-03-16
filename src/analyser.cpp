@@ -79,6 +79,17 @@ eval_transformer(context& ctx, module& m, generic_ptr const& datum) {
   return expect<procedure>(run(state));
 }
 
+static std::shared_ptr<environment>
+syntactic_closure_to_environment(ptr<syntactic_closure> const& sc, std::shared_ptr<environment> const& env) {
+  auto result = std::make_shared<environment>(sc->environment);
+
+  for (ptr<symbol> const& free : syntactic_closure_free(sc))
+    if (auto var = lookup(env, free->value()))
+      result->bindings.emplace(free->value(), var);
+
+  return result;
+}
+
 namespace {
   struct parsing_context {
     context&     ctx;
@@ -240,16 +251,25 @@ parse_let(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair
   return make_syntax<let_syntax>(std::move(definitions), parse_body(pc, subenv, cddr(datum)));
 }
 
+static std::shared_ptr<variable>
+lookup_expression(std::shared_ptr<environment> env, generic_ptr datum) {
+  while (auto sc = match<syntactic_closure>(datum)) {
+    env = syntactic_closure_to_environment(sc, env);
+    datum = syntactic_closure_expression(sc);
+  }
+
+  return lookup(env, expect<symbol>(datum, "Expected symbol")->value());
+}
+
 static std::unique_ptr<syntax>
 parse_set(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(datum) || list_length(datum) != 3)
     throw std::runtime_error{"Invalid set! syntax"};
 
-  auto name = expect<symbol>(cadr(datum), "Invalid set! syntax");
-  auto var = lookup(env, name->value());
+  auto var = lookup_expression(env, cadr(datum));
 
   if (!var)
-    throw std::runtime_error{fmt::format("Unbound symbol {}", name->value())};
+    throw std::runtime_error{fmt::format("Unbound symbol {}", var->name)};
 
   if (!var->global) {
     var->is_set = true;
@@ -382,12 +402,7 @@ parse_define(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<p
 static std::unique_ptr<syntax>
 parse_syntactic_closure(parsing_context& pc, std::shared_ptr<environment> const& env,
                         ptr<syntactic_closure> const& sc) {
-  auto new_env = std::make_shared<environment>(sc->environment);
-
-  for (ptr<symbol> const& free : syntactic_closure_free(sc))
-    if (auto var = lookup(env, free->value()))
-      new_env->bindings.emplace(free->value(), var);
-
+  auto new_env = syntactic_closure_to_environment(sc, env);
   return parse(pc, new_env, syntactic_closure_expression(sc));
 }
 
