@@ -354,7 +354,7 @@ TEST_F(scheme, read_string) {
   char const* msvc_workaround1 = R"("this \"is\" a quote")";
   EXPECT_EQ(expect<string>(read(msvc_workaround1))->value(), "this \"is\" a quote");
   char const* msvc_workaround2 = R"("foo\"bar\"baz")";
-  EXPECT_EQ(msvc_workaround2, "foo\"bar\"baz");
+  EXPECT_EQ(expect<string>(read(msvc_workaround2))->value(), "foo\"bar\"baz");
 
   EXPECT_THROW(read(R"("unterminated)"), parse_error);
   char const* msvc_workaround3 = R"("\invalid escape")";
