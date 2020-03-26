@@ -13,9 +13,14 @@ namespace scm {
 ptr<procedure>
 compile_expression(context&, generic_ptr const& datum, module&);
 
-// Translate a list of expressions into a module.
+// Interpret a list of expressions and import declarations as a main module and
+// create the module.
 module
-compile_module(context&, std::vector<generic_ptr> const& data);
+compile_main_module(context&, std::vector<generic_ptr> const& data);
+
+// Translate a list of expressions as a module body.
+void
+compile_module_body(context&, module&, std::vector<generic_ptr> const& data);
 
 } // namespace scm
 

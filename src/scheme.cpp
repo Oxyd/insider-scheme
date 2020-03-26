@@ -1,5 +1,7 @@
 #include "scheme.hpp"
 
+#include "analyser.hpp"
+#include "compiler.hpp"
 #include "converters.hpp"
 #include "io.hpp"
 
@@ -250,6 +252,9 @@ module::add(std::string name, index_type i) {
 
 void
 module::export_(std::string name) {
+  if (!env_->bindings.count(name))
+    throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name)};
+
   exports_.emplace(std::move(name));
 }
 
@@ -260,12 +265,39 @@ import_all(module& to, module const& from) {
 }
 
 void
+perform_imports(context& ctx, module& m, protomodule const& pm) {
+  for (module_name const& imp : pm.imports) {
+    module* source = ctx.find_module(imp);
+    import_all(m, *source);
+    m.add_dependency(source);
+  }
+}
+
+void
 define_top_level(context& ctx, module& m, std::string const& name, generic_ptr const& object,
                  bool export_) {
   auto index = ctx.add_top_level(object);
   m.add(name, index);
   if (export_)
     m.export_(name);
+}
+
+static generic_ptr
+run_module(context& ctx, module& m) {
+  auto state = make_state(ctx, m.top_level_procedure());
+  return run(state);
+}
+
+generic_ptr
+execute(context& ctx, module& mod) {
+  for (module* dep : mod.dependencies())
+    if (!dep->active())
+      execute(ctx, *dep);
+
+  generic_ptr result = run_module(ctx, mod);
+  mod.mark_active();
+
+  return result;
 }
 
 static void
@@ -280,6 +312,8 @@ export_native(context& ctx, module& m, std::string const& name,
 static module
 make_internal_module(context& ctx) {
   module result;
+  result.mark_active();
+
   export_native(ctx, result, "+", add, special_top_level_tag::plus);
   export_native(ctx, result, "-", subtract, special_top_level_tag::minus);
   export_native(ctx, result, "*", multiply, special_top_level_tag::times);
@@ -426,6 +460,66 @@ context::find_tag(operand::representation_type i) const {
     return it->second;
   else
     return {};
+}
+
+static std::string
+module_name_to_string(module_name const& name) {
+  std::string result = "(";
+  for (auto it = name.begin(); it != name.end(); ++it) {
+    if (it != name.begin())
+      result += " ";
+    result += *it;
+  }
+  result += ")";
+
+  return result;
+}
+
+void
+context::load_library_module(std::vector<generic_ptr> const& data) {
+  protomodule pm = read_library(data);
+  assert(pm.name);
+
+  module_name name = *pm.name;
+  bool inserted = protomodules_.emplace(name, std::move(pm)).second;
+
+  if (!inserted)
+    throw std::runtime_error{fmt::format("Module {} already loaded", module_name_to_string(*pm.name))};
+}
+
+static std::unique_ptr<module>
+instantiate(context& ctx, protomodule const& pm) {
+  auto result = std::make_unique<module>();
+
+  perform_imports(ctx, *result, pm);
+  compile_module_body(ctx, *result, pm.body);
+
+  for (std::string const& name : pm.exports)
+    result->export_(name);
+
+  return result;
+}
+
+module*
+context::find_module(module_name const& name) {
+  using namespace std::literals;
+
+  if (name == std::vector{"insider"s, "internal"s})
+    return &internal_module;
+
+  auto mod_it = modules_.find(name);
+  if (mod_it != modules_.end())
+    return mod_it->second.get();
+
+  auto pm = protomodules_.find(name);
+  if (pm == protomodules_.end())
+    throw std::runtime_error{fmt::format("Unknown module {}", module_name_to_string(name))};
+
+  std::unique_ptr<module> m = instantiate(*this, pm->second);
+  protomodules_.erase(pm);
+
+  mod_it = modules_.emplace(name, std::move(m)).first;
+  return mod_it->second.get();
 }
 
 bool

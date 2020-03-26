@@ -21,9 +21,8 @@ main(int argc, char** argv) {
 
       scm::context ctx;
       auto in = scm::make<scm::port>(ctx, f, true, false);
-      auto mod = scm::compile_module(ctx, scm::read_multiple(ctx, in));
-      auto state = scm::make_state(ctx, mod.top_level_procedure());
-      scm::run(state);
+      auto mod = scm::compile_main_module(ctx, scm::read_multiple(ctx, in));
+      scm::execute(ctx, mod);
       return 0;
     }
     else {

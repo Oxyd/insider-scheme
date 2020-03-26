@@ -10,6 +10,7 @@
 #include <functional>
 #include <functional>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -345,6 +346,17 @@ struct environment {
   { }
 };
 
+using module_name = std::vector<std::string>;
+
+// Metainformation about a module -- its name, list of imports and exports, plus
+// its body as a list of unparsed data.
+struct protomodule {
+  std::optional<module_name> name;
+  std::vector<module_name>   imports;
+  std::vector<std::string>   exports;
+  std::vector<generic_ptr>   body;
+};
+
 // A module is a map from symbols to top-level variable indices. It also
 // contains a top-level procedure which contains the code to be run when the
 // module is loaded.
@@ -373,18 +385,42 @@ public:
   std::shared_ptr<scm::environment>
   environment() const { return env_; }
 
+  bool
+  active() const { return active_; }
+
+  void
+  mark_active() { active_ = true; }
+
+  void
+  add_dependency(module* d) { dependencies_.push_back(d); }
+
+  std::vector<module*> const&
+  dependencies() const { return dependencies_; }
+
 private:
-  std::shared_ptr<scm::environment> env_ = std::make_shared<scm::environment>(nullptr);
+  std::shared_ptr<scm::environment> env_    = std::make_shared<scm::environment>(nullptr);
   std::unordered_set<std::string>   exports_; // Bindings available for export to other modules.
   ptr<procedure>                    proc_;
+  bool                              active_ = false;
+  std::vector<module*>              dependencies_;
 };
 
 void
 import_all(module& to, module const& from);
 
+// Given a protomodule, go through all of its import declarations and perform
+// them in the given module.
+void
+perform_imports(context&, module& to, protomodule const& import_declarations);
+
 void
 define_top_level(context&, module&, std::string const& name, generic_ptr const& object,
                  bool export_ = false);
+
+// Recursively activate all dependencies of the given module, execute the
+// module's body and return the result of the last expression in its body.
+generic_ptr
+execute(context&, module&);
 
 // Some top-level values are tagged to let the compiler understand them and
 // optimise them.
@@ -459,12 +495,20 @@ public:
   std::optional<special_top_level_tag>
   find_tag(operand::representation_type) const;
 
+  void
+  load_library_module(std::vector<generic_ptr> const&);
+
+  module*
+  find_module(module_name const&);
+
 private:
   std::unordered_map<std::string, weak_ptr<symbol>> interned_symbols_;
   std::vector<generic_ptr> statics_;
   eqv_unordered_map<std::size_t> statics_cache_;
   std::vector<generic_ptr> top_level_objects_;
   std::unordered_map<operand::representation_type, special_top_level_tag> top_level_tags_;
+  std::map<module_name, protomodule> protomodules_;
+  std::map<module_name, std::unique_ptr<module>> modules_;
 };
 
 // Create an instance of an object using the context's free store.

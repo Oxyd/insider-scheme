@@ -653,20 +653,28 @@ compile_expression(context& ctx, generic_ptr const& datum, module& mod) {
                                    0);
 }
 
-scm::module
-compile_module(context& ctx, std::vector<generic_ptr> const& data) {
-  uncompiled_module um = analyse_module(ctx, data);
+module
+compile_main_module(context& ctx, std::vector<generic_ptr> const& data) {
+  protomodule pm = read_main_module(data);
+  module result;
+  perform_imports(ctx, result, pm);
+  compile_module_body(ctx, result, pm.body);
+  return result;
+}
 
-  procedure_context proc{nullptr, um.module};
-  shared_register result = compile_body(ctx, proc, um.body, true);
+void
+compile_module_body(context& ctx, module& m, std::vector<generic_ptr> const& data) {
+  body_syntax body = analyse_module(ctx, m, data);
+
+  procedure_context proc{nullptr, m};
+  shared_register result = compile_body(ctx, proc, body, true);
   if (result)
     proc.bytecode.push_back(instruction{opcode::ret, *result, {}, {}});
 
-  um.module.set_top_level_procedure(make<procedure>(ctx,
-                                                    std::move(proc.bytecode),
-                                                    proc.registers.locals_used(),
-                                                    0));
-  return um.module;
+  m.set_top_level_procedure(make<procedure>(ctx,
+                                            std::move(proc.bytecode),
+                                            proc.registers.locals_used(),
+                                            0));
 }
 
 } // namespace scm

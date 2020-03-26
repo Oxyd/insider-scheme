@@ -792,34 +792,25 @@ analyse(context& ctx, generic_ptr const& datum, module& m) {
 }
 
 static bool
-is_import(generic_ptr const& datum) {
+is_directive(generic_ptr const& datum, std::string const& directive) {
   return is<pair>(datum)
          && is<symbol>(car(assume<pair>(datum)))
-         && assume<symbol>(car(assume<pair>(datum)))->value() == "import";
+         && assume<symbol>(car(assume<pair>(datum)))->value() == directive;
 }
 
-static void
-perform_import(context& ctx, module& m, ptr<pair> const& datum) {
-  if (!is_list(datum))
-    throw std::runtime_error{"Invalid import syntax"};
+static module_name
+parse_module_name(generic_ptr const& datum) {
+  module_name result;
 
-  ptr<pair> spec = assume<pair>(cadr(datum));
-  if (!is_list(spec)
-      || expect<symbol>(car(spec))->value() != "insider"
-      || expect<symbol>(cadr(spec))->value() != "internal")
-    throw std::runtime_error{"Unimplemented"};
+  for (generic_ptr elem : in_list{datum})
+    if (auto s = match<symbol>(elem))
+      result.push_back(s->value());
+    else if (auto i = match<integer>(elem))
+      result.push_back(std::to_string(i->value()));
+    else
+      throw std::runtime_error{fmt::format("Invalid module name")};
 
-  import_all(m, ctx.internal_module);
-}
-
-static void
-perform_imports(context& ctx, module& m, std::vector<generic_ptr> const& data) {
-  for (generic_ptr const& datum : data) {
-    if (!is_import(datum))
-      return;
-
-    perform_import(ctx, m, assume<pair>(datum));
-  }
+  return result;
 }
 
 // Gather syntax and top-level variable definitions, expand top-level macro
@@ -836,30 +827,26 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
 
     if (auto p = match<pair>(datum)) {
       if (auto head = match<symbol>(car(p))) {
-        if (head->value() == "import")
+        auto form = lookup_core(ctx, m.environment(), head->value());
+
+        if (form == ctx.constants.define_syntax) {
+          auto name = expect<symbol>(cadr(p));
+          auto transformer_proc = expect<procedure>(eval_transformer(ctx, m, caddr(p)));
+          auto transformer = make<scm::transformer>(ctx, m.environment(), transformer_proc);
+
+          auto index = ctx.add_top_level(transformer);
+          ctx.tag_top_level(index, special_top_level_tag::syntax);
+          m.add(name->value(), index);
+
           continue;
-        else {
-          auto form = lookup_core(ctx, m.environment(), head->value());
+        }
+        else if (form == ctx.constants.define) {
+          if (!is_list(p) || list_length(p) != 3 || !is<symbol>(cadr(p)))
+            throw std::runtime_error{"Invalid define syntax"};
 
-          if (form == ctx.constants.define_syntax) {
-            auto name = expect<symbol>(cadr(p));
-            auto transformer_proc = expect<procedure>(eval_transformer(ctx, m, caddr(p)));
-            auto transformer = make<scm::transformer>(ctx, m.environment(), transformer_proc);
-
-            auto index = ctx.add_top_level(transformer);
-            ctx.tag_top_level(index, special_top_level_tag::syntax);
-            m.add(name->value(), index);
-
-            continue;
-          }
-          else if (form == ctx.constants.define) {
-            if (!is_list(p) || list_length(p) != 3 || !is<symbol>(cadr(p)))
-              throw std::runtime_error{"Invalid define syntax"};
-
-            auto name = assume<symbol>(cadr(p));
-            auto index = ctx.add_top_level(ctx.constants.void_);
-            m.add(name->value(), index);
-          }
+          auto name = assume<symbol>(cadr(p));
+          auto index = ctx.add_top_level(ctx.constants.void_);
+          m.add(name->value(), index);
         }
       }
     }
@@ -873,8 +860,7 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
   for (generic_ptr const& datum : first_pass) {
     if (auto p = match<pair>(datum))
       if (auto head = match<symbol>(car(p)))
-        if (head->value() == "import"
-            || lookup_core(ctx, m.environment(), head->value()) == ctx.constants.define_syntax)
+        if (lookup_core(ctx, m.environment(), head->value()) == ctx.constants.define_syntax)
           continue;
 
     result.push_back(datum);
@@ -883,15 +869,67 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
   return result;
 }
 
-uncompiled_module
-analyse_module(context& ctx, std::vector<generic_ptr> const& data) {
-  uncompiled_module result;
+protomodule
+read_main_module(std::vector<generic_ptr> const& data) {
+  protomodule result;
 
-  perform_imports(ctx, result.module, data);
-  std::vector<generic_ptr> body = expand_top_level(ctx, result.module, data);
+  auto datum = data.begin();
+  while (datum != data.end()) {
+    if (is_directive(*datum, "import")) {
+      result.imports.push_back(parse_module_name(cadr(assume<pair>(*datum))));
+      ++datum;
+    } else
+      break;
+  }
 
+  result.body.reserve(data.end() - datum);
+  for (; datum != data.end(); ++datum)
+    result.body.push_back(*datum);
+
+  return result;
+}
+
+protomodule
+read_library(std::vector<generic_ptr> const& data) {
+  if (data.empty())
+    throw std::runtime_error{"Empty library body"};
+
+  protomodule result;
+  auto current = data.begin();
+  if (is_directive(*current++, "library"))
+    result.name = parse_module_name(cadr(expect<pair>(data.front())));
+  else
+    throw std::runtime_error{"Missing library declaration"};
+
+  while (true) {
+    if (is_directive(*current, "import")) {
+      result.imports.push_back(parse_module_name(cadr(assume<pair>(*current))));
+      ++current;
+      continue;
+    }
+    else if (is_directive(*current, "export")) {
+      result.exports.push_back(expect<symbol>(cadr(assume<pair>(*current)))->value());
+      ++current;
+      continue;
+    }
+    else
+      break;
+  }
+
+  result.body.reserve(data.end() - current);
+  for (; current != data.end(); ++current)
+    result.body.push_back(*current);
+
+  return result;
+}
+
+body_syntax
+analyse_module(context& ctx, module& m, std::vector<generic_ptr> const& data) {
+  std::vector<generic_ptr> body = expand_top_level(ctx, m, data);
+
+  body_syntax result;
   for (generic_ptr const& datum : body)
-    result.body.expressions.push_back(analyse(ctx, datum, result.module));
+    result.expressions.push_back(analyse(ctx, datum, m));
 
   return result;
 }

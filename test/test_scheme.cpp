@@ -28,9 +28,13 @@ struct scheme : testing::Test {
 
   generic_ptr
   eval_module(std::string const& expr) {
-    auto m = compile_module(ctx, read_multiple(ctx, expr));
-    auto state = make_state(ctx, m.top_level_procedure());
-    return run(state);
+    module m = compile_main_module(ctx, read_multiple(ctx, expr));
+    return execute(ctx, m);
+  }
+
+  void
+  add_library(std::string const& body) {
+    ctx.load_library_module(read_multiple(ctx, body));
   }
 };
 
@@ -874,12 +878,12 @@ TEST_F(scheme, compile_module) {
     true
   );
 
-  auto m = compile_module(ctx,
-                          read_multiple(ctx,
-                                        "(import (insider internal))"
-                                        "(f 3)"
-                                        "(let ((x 2))"
-                                        "  (f x))"));
+  auto m = compile_main_module(ctx,
+                               read_multiple(ctx,
+                                             "(import (insider internal))"
+                                             "(f 3)"
+                                             "(let ((x 2))"
+                                             "  (f x))"));
   auto state = make_state(ctx, m.top_level_procedure());
   run(state);
 
@@ -1216,4 +1220,102 @@ TEST_F(scheme, sc_transformer) {
         value))
   )");
   EXPECT_EQ(expect<integer>(result2)->value(), 4);
+}
+
+TEST_F(scheme, module_activation) {
+  std::vector<int> trace;
+  define_lambda<void(int)>(
+    ctx, ctx.internal_module, "leave-mark", true,
+    [&] (int value) { trace.push_back(value); }
+  );
+
+  add_library(R"(
+    (library (foo))
+    (import (insider internal))
+
+    (leave-mark 1)
+  )");
+  EXPECT_TRUE(trace.empty());
+
+  add_library(R"(
+    (library (bar))
+    (import (insider internal))
+    (import (foo))
+
+    (leave-mark 2)
+  )");
+  EXPECT_TRUE(trace.empty());
+
+  eval_module(R"(
+    (import (insider internal))
+    (import (bar))
+
+    (leave-mark 3)
+  )");
+  EXPECT_EQ(trace, (std::vector{1, 2, 3}));
+}
+
+TEST_F(scheme, module_variable_export) {
+  add_library(R"(
+    (library (foo))
+    (import (insider internal))
+    (export foo)
+    (export exported)
+
+    (define foo
+      (lambda (x)
+        (* 2 x)))
+
+    (define exported 2)
+    (define not-exported 3)
+  )");
+
+  auto result = eval_module(R"(
+    (import (foo))
+    (foo 3)
+  )");
+  EXPECT_EQ(expect<integer>(result)->value(), 6);
+
+  EXPECT_EQ(expect<integer>(eval_module("(import (foo)) exported"))->value(), 2);
+  EXPECT_THROW(eval_module("(import (foo)) not-exported"), std::runtime_error);
+}
+
+TEST_F(scheme, module_syntax_export) {
+  add_library(R"(
+    (library (foo))
+    (import (insider internal))
+    (export double)
+
+    (define-syntax double
+      (lambda (form transformer-env usage-env)
+        (let ((value (car (cdr form))))
+          `(* 2 ,value))))
+  )");
+
+  auto result1 = eval_module(R"(
+    (import (foo))
+    (import (insider internal))
+
+    (double 3)
+  )");
+  EXPECT_EQ(expect<integer>(result1)->value(), 6);
+
+  add_library(R"(
+    (library (bar))
+    (import (insider internal))
+    (export get-var)
+
+    (define var 7)
+    (define-syntax get-var
+      (lambda (form transformer-env usage-env)
+        (make-syntactic-closure transformer-env '() 'var)))
+  )");
+  auto result2 = eval_module(R"(
+    (import (bar))
+    (import (insider internal))
+
+    (define var 3)
+    (get-var)
+  )");
+  EXPECT_EQ(expect<integer>(result2)->value(), 7);
 }

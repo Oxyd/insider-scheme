@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -136,14 +137,17 @@ struct syntax {
 std::unique_ptr<syntax>
 analyse(context&, generic_ptr const& datum, module&);
 
-struct uncompiled_module {
-  body_syntax body;
-  scm::module module;
-};
+// Interpret the given list of data as a main (program) module.
+protomodule
+read_main_module(std::vector<generic_ptr> const& data);
 
-// Analyse a list of data that forms a module and return that module.
-uncompiled_module
-analyse_module(context&, std::vector<generic_ptr> const& data);
+// Interpret the given list of data as a library.
+protomodule
+read_library(std::vector<generic_ptr> const& data);
+
+// Analyse a list of data that forms a module body.
+body_syntax
+analyse_module(context&, module&, std::vector<generic_ptr> const& data);
 
 } // namespace scm
 
