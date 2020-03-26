@@ -391,18 +391,11 @@ public:
   void
   mark_active() { active_ = true; }
 
-  void
-  add_dependency(module* d) { dependencies_.push_back(d); }
-
-  std::vector<module*> const&
-  dependencies() const { return dependencies_; }
-
 private:
   std::shared_ptr<scm::environment> env_    = std::make_shared<scm::environment>(nullptr);
   std::unordered_set<std::string>   exports_; // Bindings available for export to other modules.
   ptr<procedure>                    proc_;
   bool                              active_ = false;
-  std::vector<module*>              dependencies_;
 };
 
 void

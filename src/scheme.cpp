@@ -269,7 +269,9 @@ perform_imports(context& ctx, module& m, protomodule const& pm) {
   for (module_name const& imp : pm.imports) {
     module* source = ctx.find_module(imp);
     import_all(m, *source);
-    m.add_dependency(source);
+
+    if (!source->active())
+      execute(ctx, *source);
   }
 }
 
@@ -290,10 +292,6 @@ run_module(context& ctx, module& m) {
 
 generic_ptr
 execute(context& ctx, module& mod) {
-  for (module* dep : mod.dependencies())
-    if (!dep->active())
-      execute(ctx, *dep);
-
   generic_ptr result = run_module(ctx, mod);
   mod.mark_active();
 

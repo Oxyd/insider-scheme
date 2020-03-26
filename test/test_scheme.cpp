@@ -1318,4 +1318,20 @@ TEST_F(scheme, module_syntax_export) {
     (get-var)
   )");
   EXPECT_EQ(expect<integer>(result2)->value(), 7);
+
+  add_library(R"(
+    (library (baz))
+    (import (insider internal))
+    (export get-value)
+
+    (define value 14)
+    (define-syntax get-value
+      (lambda (form transformer-env usage-env)
+        value))
+  )");
+  auto result3 = eval_module(R"(
+    (import (baz))
+    (get-value)
+  )");
+  EXPECT_EQ(expect<integer>(result3)->value(), 14);
 }
