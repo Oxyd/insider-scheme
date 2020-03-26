@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <functional>
 #include <iterator>
@@ -415,6 +416,37 @@ define_top_level(context&, module&, std::string const& name, generic_ptr const& 
 generic_ptr
 execute(context&, module&);
 
+// Interface for module providers. A module provider is used when a library is
+// requested that isn't currently known in the given context. The registered
+// providers are then tried in order until one of them successfully provides the
+// library.
+class module_provider {
+public:
+  virtual
+  ~module_provider() = default;
+
+  // Try to provide the module with the given name. This function must only
+  // return either nullopt or a library with the specified name.
+  virtual std::optional<std::vector<generic_ptr>>
+  find_module(context&, module_name const&) = 0;
+};
+
+// Module provider that looks for files within a given directory and its
+// subdirectories for libraries. Library (foo bar baz) must be located in a file
+// called foo/bar/baz.{sld,scm} relative to the directory given to this
+// provider.
+class filesystem_module_provider : public module_provider {
+public:
+  explicit
+  filesystem_module_provider(std::filesystem::path root) : root_{std::move(root)} { }
+
+  std::optional<std::vector<generic_ptr>>
+  find_module(context&, module_name const&) override;
+
+private:
+  std::filesystem::path root_;
+};
+
 // Some top-level values are tagged to let the compiler understand them and
 // optimise them.
 enum class special_top_level_tag {
@@ -495,6 +527,12 @@ public:
   module*
   find_module(module_name const&);
 
+  void
+  prepend_module_provider(std::unique_ptr<module_provider>);
+
+  void
+  append_module_provider(std::unique_ptr<module_provider>);
+
 private:
   std::unordered_map<std::string, weak_ptr<symbol>> interned_symbols_;
   std::vector<generic_ptr> statics_;
@@ -503,6 +541,7 @@ private:
   std::unordered_map<operand::representation_type, special_top_level_tag> top_level_tags_;
   std::map<module_name, protomodule> protomodules_;
   std::map<module_name, std::unique_ptr<module>> modules_;
+  std::vector<std::unique_ptr<module_provider>> module_providers_;
 };
 
 // Create an instance of an object using the context's free store.
@@ -643,6 +682,9 @@ public:
 
   std::string
   get_string() const;
+
+  void
+  rewind();
 
 private:
   struct string_buffer {

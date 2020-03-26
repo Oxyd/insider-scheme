@@ -1,6 +1,7 @@
 #include "analyser.hpp"
 
 #include "compiler.hpp"
+#include "io.hpp"
 #include "vm.hpp"
 
 #include <fmt/format.h>
@@ -920,6 +921,21 @@ read_library(std::vector<generic_ptr> const& data) {
     result.body.push_back(*current);
 
   return result;
+}
+
+std::optional<module_name>
+read_library_name(context& ctx, ptr<port> const& in) {
+  try {
+    generic_ptr first_datum = read(ctx, in);
+    if (is_directive(first_datum, "library"))
+      return parse_module_name(cadr(assume<pair>(first_datum)));
+
+    return {};
+  }
+  catch (parse_error const&) {
+    // The file probably isn't a library at all. That is not an error.
+    return {};
+  }
 }
 
 body_syntax

@@ -298,6 +298,29 @@ execute(context& ctx, module& mod) {
   return result;
 }
 
+std::optional<std::vector<generic_ptr>>
+filesystem_module_provider::find_module(context& ctx, module_name const& name) {
+  std::filesystem::path p = root_;
+  for (std::string const& element : name)
+    p /= element;
+
+  std::vector<std::filesystem::path> candidates{p.replace_extension(".sld"),
+                                                p.replace_extension(".scm")};
+  for (auto const& candidate : candidates) {
+    FILE* f = std::fopen(candidate.c_str(), "r");
+    if (f) {
+      auto in = make<port>(ctx, f, true, false);
+      std::optional<module_name> candidate_name = read_library_name(ctx, in);
+      if (candidate_name == name) {
+        in->rewind();
+        return read_multiple(ctx, in);
+      }
+    }
+  }
+
+  return std::nullopt;
+}
+
 static void
 export_native(context& ctx, module& m, std::string const& name,
               generic_ptr (*f)(context&, std::vector<generic_ptr> const&), special_top_level_tag tag) {
@@ -515,14 +538,36 @@ context::find_module(module_name const& name) {
     return mod_it->second.get();
 
   auto pm = protomodules_.find(name);
-  if (pm == protomodules_.end())
-    throw std::runtime_error{fmt::format("Unknown module {}", module_name_to_string(name))};
+  if (pm == protomodules_.end()) {
+    for (std::unique_ptr<module_provider> const& provider : module_providers_)
+      if (std::optional<std::vector<generic_ptr>> lib = provider->find_module(*this, name)) {
+        load_library_module(*lib);
+
+        pm = protomodules_.find(name);
+        assert(pm != protomodules_.end());
+
+        break;
+      }
+
+    if (pm == protomodules_.end())
+      throw std::runtime_error{fmt::format("Unknown module {}", module_name_to_string(name))};
+  }
 
   std::unique_ptr<module> m = instantiate(*this, pm->second);
   protomodules_.erase(pm);
 
   mod_it = modules_.emplace(name, std::move(m)).first;
   return mod_it->second.get();
+}
+
+void
+context::prepend_module_provider(std::unique_ptr<module_provider> provider) {
+  module_providers_.insert(module_providers_.begin(), std::move(provider));
+}
+
+void
+context::append_module_provider(std::unique_ptr<module_provider> provider) {
+  module_providers_.push_back(std::move(provider));
 }
 
 bool
@@ -753,6 +798,14 @@ port::get_string() const {
     return sb->data;
   else
     throw std::runtime_error{"Not a string port"};
+}
+
+void
+port::rewind() {
+  if (string_buffer* sb = std::get_if<string_buffer>(&buffer_))
+    sb->read_index = 0;
+  else
+    std::rewind(std::get<FILE*>(buffer_));
 }
 
 std::size_t
