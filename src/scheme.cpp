@@ -14,51 +14,6 @@
 namespace scm {
 
 bool
-object::eqv(generic_ptr const& other) const {
-  return this == other.get();
-}
-
-generic_ptr::generic_ptr(free_store& store, object* value)
-  : generic_ptr_base{store, value}
-{
-  store.register_root(this);
-}
-
-generic_ptr::generic_ptr(generic_ptr const& other)
-  : generic_ptr_base(other)
-{
-  assert(store_ || !value_);
-
-  if (store_)
-    store_->register_root(this);
-}
-
-generic_ptr::~generic_ptr() {
-  if (store_)
-    store_->unregister_root(this);
-}
-
-generic_ptr&
-generic_ptr::operator = (generic_ptr const& other) {
-  if (this == &other)
-    return *this;
-
-  if (store_ != other.store_) {
-    if (store_)
-      store_->unregister_root(this);
-
-    store_ = other.store_;
-    if (store_)
-      store_->register_root(this);
-  }
-
-  value_ = other.value_;
-  assert(store_ || !value_);
-
-  return *this;
-}
-
-bool
 equal(generic_ptr const& x, generic_ptr const& y) {
   // XXX: This will break on infinite data structures.
 
@@ -101,141 +56,6 @@ equal(generic_ptr const& x, generic_ptr const& y) {
   return true;
 }
 
-generic_weak_ptr::generic_weak_ptr(free_store& store, object* value)
-  : generic_ptr_base{store, value}
-{
-  if (value)
-    store.register_weak(this, value);
-}
-
-generic_weak_ptr::generic_weak_ptr(generic_weak_ptr const& other)
-  : generic_weak_ptr{other.store(), other.value_}
-{
-  assert(store_ || !value_);
-
-  if (store_ && value_)
-    store_->register_weak(this, value_);
-}
-
-generic_weak_ptr::~generic_weak_ptr() {
-  if (value_ && store_)
-    store_->unregister_weak(this, value_);
-}
-
-generic_weak_ptr&
-generic_weak_ptr::operator = (generic_weak_ptr const& other) {
-  if (this == &other)
-    return *this;
-  else
-    return operator = (other.value_);
-}
-
-generic_weak_ptr&
-generic_weak_ptr::operator = (object* value) {
-  if (value_)
-    store_->unregister_weak(this, value_);
-
-  value_ = value;
-
-  if (value_)
-    store_->register_weak(this, value_);
-
-  return *this;
-}
-
-generic_ptr
-generic_weak_ptr::lock() const {
-  return {*store_, value_};
-}
-
-static void
-destroy(object* o) {
-  o->~object();
-  delete [] reinterpret_cast<std::byte*>(o);
-}
-
-free_store::~free_store() {
-  for (object* o : objects_)
-    destroy(o);
-}
-
-void
-free_store::register_root(generic_ptr* root) {
-  roots_.emplace(root);
-}
-
-void
-free_store::unregister_root(generic_ptr* root) {
-  roots_.erase(root);
-
-#ifndef NDEBUG
-  collect_garbage();
-#endif
-}
-
-void
-free_store::register_weak(generic_weak_ptr* ptr, object* pointee) {
-  weak_ptrs_.emplace(pointee, ptr);
-}
-
-void
-free_store::unregister_weak(generic_weak_ptr* ptr, object* pointee) {
-  auto [begin, end] = weak_ptrs_.equal_range(pointee);
-  for (auto it = begin; it != end; ++it)
-    if (it->second == ptr) {
-      weak_ptrs_.erase(it);
-      return;
-    }
-}
-
-static void
-mark(std::unordered_set<generic_ptr*> const& roots, bool current_mark) {
-  std::vector<object*> stack;
-  for (generic_ptr const* root : roots)
-    if (*root)
-      stack.push_back(root->get());
-
-  while (!stack.empty()) {
-    object* top = stack.back();
-    stack.pop_back();
-
-    if (top->mark != current_mark) {
-      top->mark = current_mark;
-      top->for_each_subobject([&] (object* subobject) {
-        if (subobject && subobject->mark != current_mark)
-          stack.push_back(subobject);
-      });
-    }
-  }
-}
-
-static void
-sweep(std::vector<object*>& objects,
-      std::unordered_multimap<object*, generic_weak_ptr*>& weak_ptrs,
-      bool current_mark) {
-  auto live_end = std::partition(objects.begin(), objects.end(),
-                                 [&] (auto const& object) {
-                                   return object->mark == current_mark;
-                                 });
-  for (auto dead = live_end; dead != objects.end(); ++dead) {
-    auto [weak_begin, weak_end] = weak_ptrs.equal_range(*dead);
-    for (auto weak_ptr = weak_begin; weak_ptr != weak_end; ++weak_ptr)
-      weak_ptr->second->reset();
-
-    weak_ptrs.erase(weak_begin, weak_end);
-    destroy(*dead);
-  }
-
-  objects.erase(live_end, objects.end());
-}
-
-void
-free_store::collect_garbage() {
-  current_mark_ = !current_mark_;
-  mark(roots_, current_mark_);
-  sweep(objects_, weak_ptrs_, current_mark_);
-}
-
 auto
 module::find(std::string const& name) const -> std::optional<index_type> {
   if (auto it = env_->bindings.find(name); it != env_->bindings.end())
@@ -264,14 +84,78 @@ import_all(module& to, module const& from) {
     to.add(name, *from.find(name));
 }
 
+namespace {
+  struct import_set {
+    module* source;
+    std::vector<std::tuple<std::string, std::string>> names;
+  };
+}
+
+static import_set
+parse_import_set(context& ctx, import_specifier const& spec) {
+  if (auto* mn = std::get_if<module_name>(&spec.value)) {
+    import_set result;
+    result.source = ctx.find_module(*mn);
+
+    for (std::string const& name : result.source->exports())
+      result.names.push_back(std::tuple{name, name});
+
+    return result;
+  }
+  else if (auto* o = std::get_if<import_specifier::only>(&spec.value)) {
+    import_set result = parse_import_set(ctx, *o->from);
+    result.names.erase(std::remove_if(result.names.begin(), result.names.end(),
+                                      [&] (auto const& name) {
+                                        return std::find(o->identifiers.begin(), o->identifiers.end(),
+                                                         std::get<0>(name)) == o->identifiers.end();
+                                      }),
+                       result.names.end());
+    return result;
+  }
+  else if (auto* e = std::get_if<import_specifier::except>(&spec.value)) {
+    import_set result = parse_import_set(ctx, *e->from);
+    result.names.erase(std::remove_if(result.names.begin(), result.names.end(),
+                                      [&] (auto const& name) {
+                                        return std::find(e->identifiers.begin(), e->identifiers.end(),
+                                                         std::get<0>(name)) != e->identifiers.end();
+                                      }),
+                       result.names.end());
+    return result;
+  }
+  else if (auto* p = std::get_if<import_specifier::prefix>(&spec.value)) {
+    import_set result = parse_import_set(ctx, *p->from);
+    for (auto& [target, source] : result.names)
+      target = p->prefix + target;
+    return result;
+  }
+  else if (auto* r = std::get_if<import_specifier::rename>(&spec.value)) {
+    import_set result = parse_import_set(ctx, *r->from);
+
+    for (auto& [target, source] : result.names) {
+      for (auto const& [rename_from, rename_to] : r->renames) {
+        if (source == rename_from) {
+          target = rename_to;
+          break;
+        }
+      }
+    }
+
+    return result;
+  }
+  else
+    assert(!"Can't happen");
+}
+
 void
 perform_imports(context& ctx, module& m, protomodule const& pm) {
-  for (module_name const& imp : pm.imports) {
-    module* source = ctx.find_module(imp);
-    import_all(m, *source);
+  for (import_specifier const& spec : pm.imports) {
+    import_set set = parse_import_set(ctx, spec);
 
-    if (!source->active())
-      execute(ctx, *source);
+    for (auto const& [to_name, from_name] : set.names)
+      m.add(to_name, *set.source->find(from_name));
+
+    if (!set.source->active())
+      execute(ctx, *set.source);
   }
 }
 

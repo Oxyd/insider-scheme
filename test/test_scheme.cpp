@@ -1335,3 +1335,62 @@ TEST_F(scheme, module_syntax_export) {
   )");
   EXPECT_EQ(expect<integer>(result3)->value(), 14);
 }
+
+TEST_F(scheme, import_specifiers) {
+  add_library(R"(
+    (library (foo))
+    (import (insider internal))
+    (export a b c d e)
+    (define a 1)
+    (define b 2)
+    (define c 3)
+    (define d 4)
+    (define e 5)
+  )");
+
+  auto result1 = eval_module(R"(
+    (import (insider internal)
+            (only (foo) a b))
+    (+ a b)
+  )");
+  EXPECT_EQ(expect<integer>(result1)->value(), 1 + 2);
+
+  EXPECT_THROW(eval_module("(import (insider internal) (only (foo) a b)) (+ a b c)"),
+               std::runtime_error);
+
+  auto result2 = eval_module(R"(
+    (import (insider internal)
+            (except (foo) a b))
+    (+ c d e)
+  )");
+  EXPECT_EQ(expect<integer>(result2)->value(), 3 + 4 + 5);
+
+  EXPECT_THROW(eval_module("(import (insider internal) (except (foo) a b)) (+ a b c d e)"),
+               std::runtime_error);
+
+  auto result3 = eval_module(R"(
+    (import (insider internal)
+            (prefix (foo) foo:))
+    (+ foo:a foo:b foo:c foo:d foo:e)
+  )");
+  EXPECT_EQ(expect<integer>(result3)->value(), 1 + 2 + 3 + 4 + 5);
+
+  auto result4 = eval_module(R"(
+    (import (insider internal)
+            (rename (foo)
+                    (a first)
+                    (b second)
+                    (c third)
+                    (d fourth)
+                    (e fifth)))
+    (+ first second third fourth fifth)
+  )");
+  EXPECT_EQ(expect<integer>(result4)->value(), 1 + 2 + 3 + 4 + 5);
+
+  auto result5 = eval_module(R"(
+    (import (insider internal)
+            (prefix (only (foo) a b) foo:))
+    (+ foo:a foo:b)
+  )");
+  EXPECT_EQ(expect<integer>(result5)->value(), 1 + 2);
+}

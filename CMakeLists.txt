@@ -12,6 +12,7 @@ set(scheme_sources
   src/analyser.cpp
   src/bytecode.cpp
   src/compiler.cpp
+  src/free_store.cpp
   src/io.cpp
   src/scheme.cpp
   src/vm.cpp

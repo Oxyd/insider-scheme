@@ -869,6 +869,65 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
   return result;
 }
 
+static import_specifier
+parse_import_set(generic_ptr const& spec) {
+  if (is<null_type>(spec) || !is_list(spec))
+    throw std::runtime_error{"import: Expected a non-empty list"};
+
+  auto p = assume<pair>(spec);
+
+  if (auto head = match<symbol>(car(p))) {
+    if (head->value() == "only") {
+      import_specifier::only result;
+      result.from = std::make_unique<import_specifier>(parse_import_set(cadr(p)));
+
+      for (generic_ptr identifier : in_list{cddr(p)})
+        result.identifiers.push_back(expect<symbol>(identifier)->value());
+
+      return import_specifier{std::move(result)};
+    }
+    else if (head->value() == "except") {
+      import_specifier::except result;
+      result.from = std::make_unique<import_specifier>(parse_import_set(cadr(p)));
+
+      for (generic_ptr identifier : in_list{cddr(p)})
+        result.identifiers.push_back(expect<symbol>(identifier)->value());
+
+      return import_specifier{std::move(result)};
+    }
+    else if (head->value() == "prefix") {
+      import_specifier::prefix result;
+      result.from = std::make_unique<import_specifier>(parse_import_set(cadr(p)));
+      result.prefix = expect<symbol>(caddr(p))->value();
+
+      return import_specifier{std::move(result)};
+    }
+    else if (head->value() == "rename") {
+      import_specifier::rename result;
+      result.from = std::make_unique<import_specifier>(parse_import_set(cadr(p)));
+
+      for (generic_ptr name_pair : in_list{cddr(p)}) {
+        if (list_length(name_pair) != 2)
+          throw std::runtime_error{"import: rename: Expected a list of length 2"};
+
+        auto np = assume<pair>(name_pair);
+
+        result.renames.push_back(std::tuple{expect<symbol>(car(np))->value(),
+                                            expect<symbol>(cadr(np))->value()});
+      }
+
+      return import_specifier{std::move(result)};
+    }
+    else
+      return import_specifier{parse_module_name(p)};
+  }
+  else
+    return import_specifier{parse_module_name(p)};
+
+  assert(!"Unreachable");
+  throw std::logic_error{"Unreachable"};
+}
+
 protomodule
 read_main_module(std::vector<generic_ptr> const& data) {
   protomodule result;
@@ -876,7 +935,9 @@ read_main_module(std::vector<generic_ptr> const& data) {
   auto datum = data.begin();
   while (datum != data.end()) {
     if (is_directive(*datum, "import")) {
-      result.imports.push_back(parse_module_name(cadr(assume<pair>(*datum))));
+      for (generic_ptr set : in_list{cdr(assume<pair>(*datum))})
+        result.imports.push_back(parse_import_set(set));
+
       ++datum;
     } else
       break;
@@ -903,12 +964,14 @@ read_library(std::vector<generic_ptr> const& data) {
 
   while (true) {
     if (is_directive(*current, "import")) {
-      result.imports.push_back(parse_module_name(cadr(assume<pair>(*current))));
+      for (generic_ptr set : in_list{cdr(assume<pair>(*current))})
+        result.imports.push_back(parse_import_set(set));
       ++current;
       continue;
     }
     else if (is_directive(*current, "export")) {
-      result.exports.push_back(expect<symbol>(cadr(assume<pair>(*current)))->value());
+      for (generic_ptr name : in_list{cdr(assume<pair>(*current))})
+        result.exports.push_back(expect<symbol>(name)->value());
       ++current;
       continue;
     }
