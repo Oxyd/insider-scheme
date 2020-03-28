@@ -202,7 +202,7 @@ parse_expression_list(parsing_context& pc, std::shared_ptr<environment> const& e
   return result;
 }
 
-static body_syntax
+static sequence_syntax
 parse_body(parsing_context& pc, std::shared_ptr<environment> const& env, generic_ptr const& datum) {
   if (!is_list(datum) || datum == pc.ctx.constants->null)
     throw std::runtime_error{"Invalid syntax: Expected a list of expressions"};
@@ -217,7 +217,7 @@ parse_body(parsing_context& pc, std::shared_ptr<environment> const& env, generic
       definitions.push_back({var->second, std::move(void_expr)});
     }
 
-    body_syntax result;
+    sequence_syntax result;
     result.expressions.push_back(make_syntax<let_syntax>(std::move(definitions),
                                                          parse_expression_list(pc, content.env, content.forms)));
     return result;
@@ -360,6 +360,15 @@ parse_box_set(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<
 
   return make_syntax<box_set_syntax>(parse(pc, env, cadr(datum)),
                                      parse(pc, env, caddr(datum)));
+}
+
+static std::unique_ptr<syntax>
+parse_sequence(parsing_context& pc, std::shared_ptr<environment> const& env, ptr<pair> const& datum) {
+  std::vector<std::unique_ptr<syntax>> exprs;
+  for (generic_ptr expr : in_list{cdr(datum)})
+    exprs.push_back(parse(pc, env, expr));
+
+  return make_syntax<sequence_syntax>(std::move(exprs));
 }
 
 static std::unique_ptr<syntax>
@@ -666,6 +675,8 @@ parse(parsing_context& pc, std::shared_ptr<environment> const& env, generic_ptr 
         return parse_unbox(pc, env, p);
       else if (form == pc.ctx.constants->box_set)
         return parse_box_set(pc, env, p);
+      else if (form == pc.ctx.constants->begin)
+        return parse_sequence(pc, env, p);
       else if (form == pc.ctx.constants->define)
         return parse_define(pc, env, p);
       else if (form == pc.ctx.constants->quote)
@@ -731,6 +742,10 @@ recurse(syntax* s, Args&... args) {
   }
   else if (auto* make_vector = std::get_if<make_vector_syntax>(&s->value)) {
     for (std::unique_ptr<syntax> const& e : make_vector->elements)
+      F(e.get(), args...);
+  }
+  else if (auto* sequence = std::get_if<sequence_syntax>(&s->value)) {
+    for (std::unique_ptr<syntax> const& e : sequence->expressions)
       F(e.get(), args...);
   }
   else
@@ -1001,11 +1016,11 @@ read_library_name(context& ctx, ptr<port> const& in) {
   }
 }
 
-body_syntax
+sequence_syntax
 analyse_module(context& ctx, module& m, std::vector<generic_ptr> const& data) {
   std::vector<generic_ptr> body = expand_top_level(ctx, m, data);
 
-  body_syntax result;
+  sequence_syntax result;
   for (generic_ptr const& datum : body)
     result.expressions.push_back(analyse(ctx, datum, m));
 

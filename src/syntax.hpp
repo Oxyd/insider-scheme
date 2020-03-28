@@ -71,7 +71,7 @@ struct application_syntax {
   }
 };
 
-struct body_syntax {
+struct sequence_syntax {
   std::vector<std::unique_ptr<syntax>> expressions;
 };
 
@@ -82,7 +82,7 @@ struct definition_pair_syntax {
 
 struct let_syntax {
   std::vector<definition_pair_syntax> definitions;
-  body_syntax body;
+  sequence_syntax body;
 };
 
 struct local_set_syntax {
@@ -97,7 +97,7 @@ struct top_level_set_syntax {
 
 struct lambda_syntax {
   std::vector<std::shared_ptr<variable>> parameters;
-  body_syntax body;
+  sequence_syntax body;
 };
 
 struct if_syntax {
@@ -143,7 +143,8 @@ struct syntax {
     unbox_syntax,
     box_set_syntax,
     cons_syntax,
-    make_vector_syntax
+    make_vector_syntax,
+    sequence_syntax
   >;
 
   value_type value;

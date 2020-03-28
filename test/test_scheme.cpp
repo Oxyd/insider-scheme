@@ -856,6 +856,20 @@ TEST_F(scheme, compile_box) {
   EXPECT_EQ(expect<integer>(result)->value(), 12);
 }
 
+TEST_F(scheme, compile_sequence) {
+  generic_ptr result = eval(R"(
+    (let ((a 0)
+          (b 0))
+      (if #t
+          (begin
+            (set! a 1)
+            (set! b 2))
+          'unpossible)
+      (+ a b))
+  )");
+  EXPECT_EQ(expect<integer>(result)->value(), 3);
+}
+
 TEST_F(scheme, compile_higher_order_arithmetic) {
   generic_ptr result = eval(
     R"(

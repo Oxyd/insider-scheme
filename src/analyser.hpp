@@ -33,7 +33,7 @@ std::optional<module_name>
 read_library_name(context&, ptr<port> const&);
 
 // Analyse a list of data that forms a module body.
-body_syntax
+sequence_syntax
 analyse_module(context&, module&, std::vector<generic_ptr> const& data);
 
 } // namespace scm

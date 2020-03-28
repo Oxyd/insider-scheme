@@ -182,7 +182,7 @@ public:
     ptr<scm::null_type> null;
     ptr<scm::void_type> void_;
     ptr<boolean>        t, f;     // #t and #f.
-    ptr<core_form_type> let, set, lambda, if_, box, unbox, box_set, define, define_syntax,
+    ptr<core_form_type> let, set, lambda, if_, box, unbox, box_set, define, define_syntax, begin,
                         quote, quasiquote, unquote, unquote_splicing;
   };
 

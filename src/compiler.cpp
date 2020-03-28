@@ -254,7 +254,7 @@ static shared_register
 compile_expression(context& ctx, procedure_context& proc, syntax const&, bool tail);
 
 static shared_register
-compile_body(context& ctx, procedure_context& proc, body_syntax const&, bool tail);
+compile_sequence(context& ctx, procedure_context& proc, sequence_syntax const&, bool tail);
 
 static shared_register
 compile_local_reference(procedure_context& proc, local_reference_syntax const& stx);
@@ -336,7 +336,7 @@ compile_let(context& ctx, procedure_context& proc, let_syntax const& stx, bool t
   }
 
   variable_bindings::unique_scope us = proc.bindings.push_scope(std::move(scope));
-  return compile_body(ctx, proc, stx.body, tail);
+  return compile_sequence(ctx, proc, stx.body, tail);
 }
 
 static shared_register
@@ -389,7 +389,7 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx
 
   variable_bindings::unique_scope us = proc.bindings.push_scope(std::move(args_scope));
 
-  shared_register return_value = compile_body(ctx, proc, stx.body, true);
+  shared_register return_value = compile_sequence(ctx, proc, stx.body, true);
   if (return_value)
     proc.bytecode.push_back(instruction{opcode::ret, *return_value, {}, {}});
 
@@ -623,6 +623,8 @@ compile_expression(context& ctx, procedure_context& proc, syntax const& stx, boo
     return compile_cons(ctx, proc, *cons);
   else if (auto* make_vector = std::get_if<make_vector_syntax>(&stx.value))
     return compile_make_vector(ctx, proc, *make_vector);
+  else if (auto* sequence = std::get_if<sequence_syntax>(&stx.value))
+    return compile_sequence(ctx, proc, *sequence, tail);
   else {
     assert(!"Unexpected syntax");
     return {};
@@ -630,7 +632,7 @@ compile_expression(context& ctx, procedure_context& proc, syntax const& stx, boo
 }
 
 static shared_register
-compile_body(context& ctx, procedure_context& proc, body_syntax const& stx, bool tail) {
+compile_sequence(context& ctx, procedure_context& proc, sequence_syntax const& stx, bool tail) {
   shared_register result;
   for (auto expr = stx.expressions.begin(); expr != stx.expressions.end(); ++expr) {
     bool last = std::next(expr) == stx.expressions.end();
@@ -664,10 +666,10 @@ compile_main_module(context& ctx, std::vector<generic_ptr> const& data) {
 
 void
 compile_module_body(context& ctx, module& m, std::vector<generic_ptr> const& data) {
-  body_syntax body = analyse_module(ctx, m, data);
+  sequence_syntax body = analyse_module(ctx, m, data);
 
   procedure_context proc{nullptr, m};
-  shared_register result = compile_body(ctx, proc, body, true);
+  shared_register result = compile_sequence(ctx, proc, body, true);
   if (result)
     proc.bytecode.push_back(instruction{opcode::ret, *result, {}, {}});
 

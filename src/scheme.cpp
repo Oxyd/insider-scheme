@@ -285,6 +285,7 @@ context::context() {
     {constants->box_set,          "box-set!"},
     {constants->define,           "define"},
     {constants->define_syntax,    "define-syntax"},
+    {constants->begin,            "begin"},
     {constants->quote,            "quote"},
     {constants->quasiquote,       "quasiquote"},
     {constants->unquote,          "unquote"},
