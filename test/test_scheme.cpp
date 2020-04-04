@@ -19,8 +19,8 @@ struct scheme : testing::Test {
 
   generic_ptr
   eval(std::string const& expr) {
-    module m;
-    import_all(m, ctx.internal_module);
+    module m{ctx};
+    import_all(ctx, m, ctx.internal_module);
     auto f = compile_expression(ctx, read(expr), m);
     auto state = make_state(ctx, f);
     return run(state);

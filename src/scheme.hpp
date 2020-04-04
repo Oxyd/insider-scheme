@@ -63,15 +63,48 @@ class procedure;
 class symbol;
 class transformer;
 
-struct environment {
-  std::shared_ptr<environment> parent;
-  std::unordered_map<std::string, std::shared_ptr<variable>> bindings;
-
+class environment : public object {
+public:
   explicit
-  environment(std::shared_ptr<environment> parent)
-    : parent{std::move(parent)}
+  environment(ptr<environment> const& parent)
+    : parent_{parent.get()}
   { }
+
+  void
+  add(std::string const& name, std::shared_ptr<variable>);
+
+  void
+  add_transformer(std::string const& name, ptr<transformer> const&);
+
+  ptr<environment>
+  parent(free_store& fs) const { return {fs, parent_}; }
+
+  std::shared_ptr<variable>
+  lookup(std::string const&) const;
+
+  ptr<transformer>
+  lookup_transformer(free_store&, std::string const& name) const;
+
+  bool
+  has(std::string const& name) const { return bindings_.count(name); }
+
+  void
+  for_each_subobject(std::function<void(object*)> const&);
+
+private:
+  using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
+
+  environment* parent_;
+  std::unordered_map<std::string, value_type> bindings_;
 };
+
+inline ptr<environment>
+environment_parent(ptr<environment> const& e) { return e->parent(e.store()); }
+
+inline ptr<transformer>
+environment_lookup_transformer(ptr<environment> const& e, std::string const& name) {
+  return e->lookup_transformer(e.store(), name);
+}
 
 // A module is a map from symbols to top-level variable indices. It also
 // contains a top-level procedure which contains the code to be run when the
@@ -79,6 +112,9 @@ struct environment {
 class module {
 public:
   using index_type = operand::representation_type;
+
+  explicit
+  module(context&);
 
   std::optional<index_type>
   find(std::string const&) const;
@@ -98,7 +134,7 @@ public:
   void
   set_top_level_procedure(ptr<procedure> const& p) { proc_ = p; }
 
-  std::shared_ptr<scm::environment>
+  ptr<scm::environment>
   environment() const { return env_; }
 
   bool
@@ -108,14 +144,14 @@ public:
   mark_active() { active_ = true; }
 
 private:
-  std::shared_ptr<scm::environment> env_    = std::make_shared<scm::environment>(nullptr);
-  std::unordered_set<std::string>   exports_; // Bindings available for export to other modules.
-  ptr<procedure>                    proc_;
-  bool                              active_ = false;
+  ptr<scm::environment>           env_;
+  std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
+  ptr<procedure>                  proc_;
+  bool                            active_ = false;
 };
 
 void
-import_all(module& to, module const& from);
+import_all(context&, module& to, module& from);
 
 // Given a protomodule, go through all of its import declarations and perform
 // them in the given module.
@@ -165,7 +201,6 @@ private:
 // Some top-level values are tagged to let the compiler understand them and
 // optimise them.
 enum class special_top_level_tag {
-  syntax,
   plus,
   minus,
   times,
@@ -619,25 +654,24 @@ public:
   { }
 };
 
-using environment_holder = opaque_value<std::shared_ptr<environment>>;
-
 // An expression together with an environment and a module in which to look up
 // the names used in the expression. Some names may be explicitly marked as
 // free, and they will be looked up in the environment in which the syntactic
 // closure is being used.
 class syntactic_closure : public dynamic_size_object<syntactic_closure, object*> {
 public:
-  std::shared_ptr<scm::environment> environment;
-
   static std::size_t
-  extra_storage_size(std::shared_ptr<scm::environment>,
+  extra_storage_size(ptr<scm::environment>,
                      generic_ptr const& expr, generic_ptr const& free);
 
-  syntactic_closure(std::shared_ptr<scm::environment>,
+  syntactic_closure(ptr<scm::environment>,
                     generic_ptr const& expr, generic_ptr const& free);
 
   generic_ptr
   expression(free_store& store) const { return {store, expression_}; }
+
+  ptr<scm::environment>
+  environment(free_store& store) const { return {store, env_}; }
 
   std::vector<ptr<symbol>>
   free(free_store&) const;
@@ -646,12 +680,16 @@ public:
   for_each_subobject(std::function<void(object*)> const& f) override;
 
 private:
-  object*     expression_;
-  std::size_t free_size_;
+  object*           expression_;
+  scm::environment* env_;
+  std::size_t       free_size_;
 };
 
 inline generic_ptr
 syntactic_closure_expression(ptr<syntactic_closure> const& sc) { return sc->expression(sc.store()); }
+
+inline ptr<environment>
+syntactic_closure_environment(ptr<syntactic_closure> const& sc) { return sc->environment(sc.store()); }
 
 inline auto
 syntactic_closure_free(ptr<syntactic_closure> const& sc) { return sc->free(sc.store()); }
@@ -659,21 +697,24 @@ syntactic_closure_free(ptr<syntactic_closure> const& sc) { return sc->free(sc.st
 // A procedure together with the environment it was defined in.
 class transformer : public object {
 public:
-  transformer(std::shared_ptr<scm::environment> env, ptr<procedure> const& proc)
-    : env_{std::move(env)}
+  transformer(ptr<scm::environment> env, ptr<procedure> const& proc)
+    : env_{env.get()}
     , proc_{proc.get()}
   { }
 
-  std::shared_ptr<scm::environment>
-  environment() const { return env_; }
+  ptr<scm::environment>
+  environment(free_store& store) const { return {store, env_}; }
 
   ptr<scm::procedure>
   procedure(free_store& store) const { return {store, proc_}; }
 
 private:
-  std::shared_ptr<scm::environment> env_;
-  scm::procedure*                   proc_;
+  scm::environment* env_;
+  scm::procedure*   proc_;
 };
+
+inline ptr<environment>
+transformer_environment(ptr<transformer> const& t) { return t->environment(t.store()); }
 
 inline ptr<procedure>
 transformer_procedure(ptr<transformer> const& t) { return t->procedure(t.store()); }

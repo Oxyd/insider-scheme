@@ -20,16 +20,10 @@ class transformer;
 struct variable {
   std::string                                 name;
   bool                                        is_set = false;
-  ptr<scm::transformer>                       transformer;
   std::optional<operand::representation_type> global;
 
   explicit
   variable(std::string n) : name{std::move(n)} { }
-
-  variable(std::string n, ptr<scm::transformer> const& t)
-    : name{std::move(n)}
-    , transformer{t}
-  { }
 
   variable(std::string n, operand::representation_type index)
     : name{std::move(n)}

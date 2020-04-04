@@ -56,32 +56,69 @@ equal(generic_ptr const& x, generic_ptr const& y) {
   return true;
 }
 
+void
+environment::add(std::string const& name, std::shared_ptr<variable> var) {
+  bool inserted = bindings_.emplace(name, std::move(var)).second;
+  if (!inserted)
+    throw std::runtime_error{fmt::format("Redefinition of {}", name)};
+}
+
+void
+environment::add_transformer(std::string const& name, ptr<transformer> const& tr) {
+  bool inserted = bindings_.emplace(name, tr.get()).second;
+  if (!inserted)
+    throw std::runtime_error{fmt::format("Redefinition of {}", name)};
+}
+
+std::shared_ptr<variable>
+environment::lookup(std::string const& name) const {
+  if (auto it = bindings_.find(name); it != bindings_.end())
+    if (auto var = std::get_if<std::shared_ptr<variable>>(&it->second))
+      return *var;
+
+  return {};
+}
+
+ptr<transformer>
+environment::lookup_transformer(free_store& fs, std::string const& name) const {
+  if (auto it = bindings_.find(name); it != bindings_.end())
+    if (auto tr = std::get_if<transformer*>(&it->second))
+      return {fs, *tr};
+
+  return {};
+}
+
+void
+environment::for_each_subobject(std::function<void(object*)> const& f) {
+  for (auto& [name, binding] : bindings_)
+    if (transformer** tr = std::get_if<transformer*>(&binding))
+      f(*tr);
+}
+
+module::module(context& ctx)
+  : env_{make<scm::environment>(ctx, ptr<scm::environment>{})}
+{ }
+
 auto
 module::find(std::string const& name) const -> std::optional<index_type> {
-  if (auto it = env_->bindings.find(name); it != env_->bindings.end())
-    return it->second->global;
+  if (std::shared_ptr<variable> var = env_->lookup(name))
+    return var->global;
 
   return {};
 }
 
 void
 module::add(std::string name, index_type i) {
-  assert(!env_->bindings.count(name));
-  env_->bindings.emplace(name, std::make_shared<variable>(name, i));
+  assert(!env_->lookup(name));
+  env_->add(name, std::make_shared<variable>(name, i));
 }
 
 void
 module::export_(std::string name) {
-  if (!env_->bindings.count(name))
+  if (!env_->has(name))
     throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name)};
 
   exports_.emplace(std::move(name));
-}
-
-void
-import_all(module& to, module const& from) {
-  for (auto const& name : from.exports())
-    to.add(name, *from.find(name));
 }
 
 namespace {
@@ -146,17 +183,35 @@ parse_import_set(context& ctx, import_specifier const& spec) {
     assert(!"Can't happen");
 }
 
+static void
+perform_imports(context& ctx, module& m, import_set const& set) {
+  for (auto const& [to_name, from_name] : set.names) {
+    if (std::optional<module::index_type> var = set.source->find(from_name))
+      m.add(to_name, *var);
+    else if (ptr<transformer> tr = set.source->environment()->lookup_transformer(ctx.store, from_name))
+      m.environment()->add_transformer(to_name, tr);
+    else
+      assert(!"Trying to import a nonexistent symbol");
+  }
+
+  if (!set.source->active())
+    execute(ctx, *set.source);
+}
+
+void
+import_all(context& ctx, module& to, module& from) {
+  import_set is{&from};
+
+  for (std::string const& name : from.exports())
+    is.names.push_back(std::tuple{name, name});
+
+  perform_imports(ctx, to, is);
+}
+
 void
 perform_imports(context& ctx, module& m, protomodule const& pm) {
-  for (import_specifier const& spec : pm.imports) {
-    import_set set = parse_import_set(ctx, spec);
-
-    for (auto const& [to_name, from_name] : set.names)
-      m.add(to_name, *set.source->find(from_name));
-
-    if (!set.source->active())
-      execute(ctx, *set.source);
-  }
+  for (import_specifier const& spec : pm.imports)
+    perform_imports(ctx, m, parse_import_set(ctx, spec));
 }
 
 void
@@ -216,7 +271,7 @@ export_native(context& ctx, module& m, std::string const& name,
 
 static module
 make_internal_module(context& ctx) {
-  module result;
+  module result{ctx};
   result.mark_active();
 
   export_native(ctx, result, "+", add, special_top_level_tag::plus);
@@ -252,18 +307,20 @@ make_internal_module(context& ctx) {
   define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "car", true, car);
   define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cdr", true, cdr);
 
-  define_lambda<ptr<syntactic_closure>(context&, ptr<environment_holder> const&,
+  define_lambda<ptr<syntactic_closure>(context&, ptr<environment> const&,
                                        generic_ptr const&, generic_ptr const&)>(
     ctx, result, "make-syntactic-closure", true,
-    [] (context& ctx, ptr<environment_holder> const& env, generic_ptr const& free, generic_ptr const& form) {
-      return make<syntactic_closure>(ctx, env->value, form, free);
+    [] (context& ctx, ptr<environment> const& env, generic_ptr const& free, generic_ptr const& form) {
+      return make<syntactic_closure>(ctx, env, form, free);
     }
   );
 
   return result;
 }
 
-context::context() {
+context::context()
+  : internal_module{*this}
+{
   constants = std::make_unique<struct constants>();
   constants->null = store.make<null_type>();
   constants->void_ = store.make<void_type>();
@@ -400,7 +457,7 @@ context::load_library_module(std::vector<generic_ptr> const& data) {
 
 static std::unique_ptr<module>
 instantiate(context& ctx, protomodule const& pm) {
-  auto result = std::make_unique<module>();
+  auto result = std::make_unique<module>(ctx);
 
   perform_imports(ctx, *result, pm);
   compile_module_body(ctx, *result, pm.body);
@@ -912,15 +969,15 @@ closure::for_each_subobject(std::function<void(object*)> const& f) {
 }
 
 std::size_t
-syntactic_closure::extra_storage_size(std::shared_ptr<scm::environment>,
+syntactic_closure::extra_storage_size(ptr<scm::environment>,
                                       generic_ptr const& expr, generic_ptr const& free) {
   return list_length(free) * sizeof(object*);
 }
 
-syntactic_closure::syntactic_closure(std::shared_ptr<scm::environment> env,
+syntactic_closure::syntactic_closure(ptr<scm::environment> env,
                                      generic_ptr const& expr, generic_ptr const& free)
-  : environment{std::move(env)}
-  , expression_{expr.get()}
+  : expression_{expr.get()}
+  , env_{env.get()}
   , free_size_{0}
 {
   for (generic_ptr name : in_list{free}) {
@@ -943,6 +1000,7 @@ syntactic_closure::free(free_store& store) const {
 void
 syntactic_closure::for_each_subobject(std::function<void(object*)> const& f) {
   f(expression_);
+  f(env_);
   for (std::size_t i = 0; i < free_size_; ++i)
     f(dynamic_storage()[i]);
 }
