@@ -114,6 +114,14 @@ free_store::register_root(generic_ptr* root) {
 
 void
 free_store::unregister_root(generic_ptr* root) {
+#ifndef NDEBUG
+  // Unregistering a root during a collection means there is a generic_ptr owned
+  // (perhaps indirectly) by a Scheme object. This is not how we want things to
+  // work.
+
+  assert(!collecting_);
+#endif
+
   roots_.erase(root);
 
 #ifndef NDEBUG
@@ -179,6 +187,16 @@ sweep(std::vector<object*>& objects,
 
 void
 free_store::collect_garbage() {
+#ifndef NDEBUG
+  collecting_ = true;
+
+  struct guard {
+    free_store* fs;
+
+    ~guard() { fs->collecting_ = false; }
+  } guard{this};
+#endif
+
   current_mark_ = !current_mark_;
   mark(roots_, current_mark_);
   sweep(objects_, weak_ptrs_, current_mark_);

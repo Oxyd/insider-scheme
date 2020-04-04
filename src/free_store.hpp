@@ -249,6 +249,10 @@ private:
   std::unordered_multimap<object*, generic_weak_ptr*> weak_ptrs_;
   bool current_mark_ = false;
 
+#ifndef NDEBUG
+  bool collecting_ = false;
+#endif
+
   object*
   add(std::unique_ptr<std::byte[]> storage, object* result) {
     try {
