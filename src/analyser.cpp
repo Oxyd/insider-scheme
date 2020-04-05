@@ -326,35 +326,6 @@ parse_let(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& dat
   return make_syntax<let_syntax>(std::move(definitions), parse_body(pc, subenv, cddr(datum)));
 }
 
-static std::shared_ptr<variable>
-lookup_expression(context& ctx, ptr<environment> env, generic_ptr datum) {
-  while (auto sc = match<syntactic_closure>(datum)) {
-    env = syntactic_closure_to_environment(ctx, sc, env);
-    datum = syntactic_closure_expression(sc);
-  }
-
-  return lookup(env, expect<symbol>(datum, "Expected symbol")->value());
-}
-
-static std::unique_ptr<syntax>
-parse_set(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
-  if (!is_list(datum) || list_length(datum) != 3)
-    throw std::runtime_error{"Invalid set! syntax"};
-
-  auto var = lookup_expression(pc.ctx, env, cadr(datum));
-
-  if (!var)
-    throw std::runtime_error{fmt::format("Unbound symbol {}", var->name)};
-
-  if (!var->global) {
-    var->is_set = true;
-    return make_syntax<local_set_syntax>(std::move(var), parse(pc, env, caddr(datum)));
-  }
-  else
-    return make_syntax<top_level_set_syntax>(operand::global(*var->global),
-                                             parse(pc, env, caddr(datum)));
-}
-
 static std::unique_ptr<syntax>
 parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(cdr(datum)) || cdr(datum) == pc.ctx.constants->null)
@@ -459,22 +430,25 @@ parse_reference(ptr<environment> const& env, ptr<symbol> const& datum) {
 }
 
 static std::unique_ptr<syntax>
-parse_define(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
+parse_define_or_set(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum,
+                    std::string const& form_name) {
   // Defines are processed in two passes: First all the define'd variables are
   // declared within the module or scope and initialised to #void; second, they
-  // are assigned their values as if by set!. This is the second pass, so we
-  // expect the variable to be declared already, and all we have to emit is a
-  // set!.
+  // are assigned their values as if by set!.
+  //
+  // This function can be therefore be used for both set! and define forms -- in
+  // either case, we emit a set! syntax.
 
   if (!is_list(datum) || list_length(datum) != 3)
-    throw std::runtime_error{"Invalid define syntax"};
+    throw std::runtime_error{fmt::format("Invalid {} syntax", form_name)};
 
   ptr<symbol> name = expect<symbol>(strip_syntactic_closures(cadr(datum)),
-                                    "Invalid define syntax");
+                                    fmt::format("Invalid {} syntax", form_name));
   generic_ptr expr = caddr(datum);
 
   auto var = lookup(env, name->value());
-  assert(var);
+  if (!var)
+    throw std::runtime_error{fmt::format("Unbound symbol {}", name->value())};
 
   if (!var->global) {
     var->is_set = true;
@@ -739,7 +713,7 @@ parse(parsing_context& pc, ptr<environment> const& env, generic_ptr const& d) {
       if (form == pc.ctx.constants->let)
         return parse_let(pc, env, p);
       else if (form == pc.ctx.constants->set)
-        return parse_set(pc, env, p);
+        return parse_define_or_set(pc, env, p, "set!");
       else if (form == pc.ctx.constants->lambda)
         return parse_lambda(pc, env, p);
       else if (form == pc.ctx.constants->if_)
@@ -753,7 +727,7 @@ parse(parsing_context& pc, ptr<environment> const& env, generic_ptr const& d) {
       else if (form == pc.ctx.constants->begin)
         return parse_sequence(pc, env, p);
       else if (form == pc.ctx.constants->define)
-        return parse_define(pc, env, p);
+        return parse_define_or_set(pc, env, p, "define");
       else if (form == pc.ctx.constants->quote)
         return make_syntax<literal_syntax>(cadr(p));
       else if (form == pc.ctx.constants->quasiquote)
