@@ -469,6 +469,11 @@ public:
   hash() const override;
 };
 
+inline ptr<pair>
+cons(context& ctx, generic_ptr const& car, generic_ptr const& cdr) {
+  return make<pair>(ctx, car, cdr);
+}
+
 // Is the given object a list? A list is either the null value or a pair whose
 // cdr is a list.
 bool
@@ -511,6 +516,9 @@ make_list(context& ctx, Ts... ts) {
 
   return result;
 }
+
+generic_ptr
+make_list_from_vector(context&, std::vector<generic_ptr> const& values);
 
 // Concatenate a number of lists. If there are 0 lists, return the empty
 // list. If there is 1 list, return it. Otherwise, return a new list whose

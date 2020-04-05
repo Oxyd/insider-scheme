@@ -927,6 +927,22 @@ TEST_F(scheme, compile_top_level_define) {
     )"
   );
   EXPECT_EQ(expect<integer>(result2)->value(), 9);
+
+  auto result3 = eval_module(R"(
+    (import (insider internal))
+
+    (define a 1)
+    (begin
+      (define b 2)
+      (define c 3)
+      (begin
+        (define d 4)
+        (define e 5))
+      (define f 6))
+    (define g 7)
+    (+ a b c d e f g)
+  )");
+  EXPECT_EQ(expect<integer>(result3)->value(), 1 + 2 + 3 + 4 + 5 + 6 + 7);
 }
 
 TEST_F(scheme, compile_internal_define) {
@@ -946,6 +962,20 @@ TEST_F(scheme, compile_internal_define) {
     )"
   );
   EXPECT_EQ(expect<integer>(result1)->value(), 5 + 4 + 3 + 2 + 1);
+
+  auto result2 = eval_module(R"(
+    (import (insider internal))
+
+    (define f
+      (lambda (x y)
+        (define sum (+ x y))
+        (begin
+          (define product (* x y))
+          (define sum-of-squares (+ (* x x) (* y y))))
+        (+ sum product sum-of-squares)))
+    (f 4 5)
+  )");
+  EXPECT_EQ(expect<integer>(result2)->value(), 4 + 5 + 4 * 5 + 4 * 4 + 5 * 5);
 }
 
 TEST_F(scheme, define_lambda) {
@@ -1234,6 +1264,72 @@ TEST_F(scheme, sc_transformer) {
         value))
   )");
   EXPECT_EQ(expect<integer>(result2)->value(), 4);
+}
+
+TEST_F(scheme, transformers_producing_definitions) {
+  auto result1 = eval_module(R"(
+    (import (insider internal))
+
+    (define-syntax define-double
+      (lambda (expr transformer-env usage-env)
+        (let ((name (make-syntactic-closure usage-env '() (car (cdr expr))))
+              (value (make-syntactic-closure usage-env '() (car (cdr (cdr expr))))))
+          (make-syntactic-closure transformer-env '()
+                                  `(define ,name (* 2 ,value))))))
+
+    (define f
+      (lambda (x y)
+        (define sum (+ x y))
+        (define-double result (* 3 sum))
+        result))
+    (f 4 5)
+  )");
+  EXPECT_EQ(expect<integer>(result1)->value(), 2 * 3 * (4 + 5));
+
+  auto result2 = eval_module(R"(
+    (import (insider internal))
+
+    (define-syntax define-two
+      (lambda (expr transformer-env usage-env)
+        (let ((name-1 (make-syntactic-closure usage-env '() (car (cdr expr))))
+              (init-1 (make-syntactic-closure usage-env '() (car (cdr (cdr expr)))))
+              (name-2 (make-syntactic-closure usage-env '() (car (cdr (cdr (cdr expr))))))
+              (init-2 (make-syntactic-closure usage-env '() (car (cdr (cdr (cdr (cdr expr))))))))
+          (make-syntactic-closure transformer-env '()
+            `(begin
+               (define ,name-1 ,init-1)
+               (define ,name-2 ,init-2))))))
+
+    (define f
+      (lambda (x y)
+        (define-two twice-x (* 2 x)
+                    twice-y (* 2 y))
+        (+ twice-x twice-y)))
+
+    (f 4 5)
+  )");
+  EXPECT_EQ(expect<integer>(result2)->value(), 2 * 4 + 2 * 5);
+
+  auto result3 = eval_module(R"(
+    (import (insider internal))
+
+
+    (define-syntax define-two
+      (lambda (expr transformer-env usage-env)
+        (let ((name-1 (make-syntactic-closure usage-env '() (car (cdr expr))))
+              (init-1 (make-syntactic-closure usage-env '() (car (cdr (cdr expr)))))
+              (name-2 (make-syntactic-closure usage-env '() (car (cdr (cdr (cdr expr))))))
+              (init-2 (make-syntactic-closure usage-env '() (car (cdr (cdr (cdr (cdr expr))))))))
+          (make-syntactic-closure transformer-env '()
+            `(begin
+               (define ,name-1 ,init-1)
+               (define ,name-2 ,init-2))))))
+
+    (define-two a 7
+                b 12)
+    (+ a b)
+  )");
+  EXPECT_EQ(expect<integer>(result3)->value(), 7 + 12);
 }
 
 TEST_F(scheme, module_activation) {

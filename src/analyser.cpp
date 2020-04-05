@@ -6,6 +6,7 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <optional>
 #include <set>
 #include <unordered_map>
@@ -127,6 +128,63 @@ namespace {
   };
 }
 
+// Given
+//   (syntactic-closure
+//    (syntactic-closure
+//     ...
+//      (define name expr)
+//      - or -
+//      (define-syntax name expr)
+//      - or -
+//      (begin
+//       expr ...) ...))
+//
+// Transform it into
+//   (define name (syntactic-closure expr))
+//   - or -
+//   (define-syntax name (syntactic-closure expr))
+//   - or -
+//   (begin (syntactic-closure expr) ...)
+//
+// If the input form doesn't contain a begin or define, return nothing. The
+// input syntactic closures are all collapsed into one, and the output syntactic
+// closure has no free variables even if the input ones did.
+static generic_ptr
+transpose_syntactic_closure(context& ctx, ptr<syntactic_closure> sc, ptr<environment> env) {
+  while (auto inner_sc = match<syntactic_closure>(syntactic_closure_expression(sc))) {
+    env = syntactic_closure_to_environment(ctx, inner_sc, env);
+    sc = inner_sc;
+  }
+
+  generic_ptr expr = syntactic_closure_expression(sc);
+  if (auto p = match<pair>(expr))
+    if (auto head = match<symbol>(car(p))) {
+      auto form = lookup_core(ctx, env, head->value());
+      if (form == ctx.constants->define || form == ctx.constants->define_syntax) {
+        auto name = cadr(p);
+        auto expr = caddr(p);
+        return make_list(ctx, head, name, make<syntactic_closure>(ctx, env, expr, ctx.constants->null));
+      }
+      else if (form == ctx.constants->begin) {
+        std::vector<generic_ptr> exprs;
+        for (generic_ptr e : in_list{cdr(p)})
+          exprs.push_back(make<syntactic_closure>(ctx, env, e, ctx.constants->null));
+
+        return cons(ctx, head, make_list_from_vector(ctx, exprs));
+      }
+    }
+
+  return {};
+}
+
+static generic_ptr
+strip_syntactic_closures(generic_ptr expr) {
+  while (auto sc = match<syntactic_closure>(expr))
+    expr = syntactic_closure_expression(sc);
+
+  return expr;
+}
+
 // Process the beginning of a body by adding new transformer and variable
 // definitions to the environment and expanding the heads of each form in the
 // list. Also checks that the list is followed by at least one expression and
@@ -138,19 +196,27 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
   body_content result;
   result.env = make<environment>(pc.ctx, env);
 
+  std::vector<generic_ptr> stack;
+  for (generic_ptr e : in_list{list})
+    stack.push_back(e);
+  std::reverse(stack.begin(), stack.end());
+
   bool seen_expression = false;
-  for (generic_ptr e : in_list{list}) {
-    generic_ptr expr = expand(pc.ctx, result.env, e);
+  while (!stack.empty()) {
+    generic_ptr expr = expand(pc.ctx, result.env, stack.back());
+    stack.pop_back();
+
     if (auto p = match<pair>(expr)) {
       if (auto head = match<symbol>(car(p))) {
-        auto form = lookup_core(pc.ctx, env, head->value());
+        auto form = lookup_core(pc.ctx, result.env, head->value());
+
         if (form == pc.ctx.constants->define_syntax) {
           if (seen_expression)
             throw std::runtime_error{"define-syntax after a nondefinition"};
 
-          auto name = expect<symbol>(cadr(p));
+          auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
           auto transformer_proc = eval_transformer(pc.ctx, pc.module, caddr(p));
-          auto transformer = make<scm::transformer>(pc.ctx, env, transformer_proc);
+          auto transformer = make<scm::transformer>(pc.ctx, result.env, transformer_proc);
           result.env->add_transformer(name->value(), transformer);
 
           continue;
@@ -159,7 +225,7 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
           if (seen_expression)
             throw std::runtime_error{"define after a nondefinition"};
 
-          auto name = expect<symbol>(cadr(p));
+          auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
           result.env->add(name->value(), std::make_shared<variable>(name->value()));
 
           result.forms.push_back(expr);
@@ -167,6 +233,20 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
 
           continue;
         }
+        else if (form == pc.ctx.constants->begin) {
+          std::vector<generic_ptr> subforms;
+          for (generic_ptr e : in_list{cdr(p)})
+            subforms.push_back(e);
+
+          std::copy(subforms.rbegin(), subforms.rend(), std::back_inserter(stack));
+          continue;
+        }
+      }
+    }
+    else if (auto sc = match<syntactic_closure>(expr)) {
+      if (generic_ptr subform = transpose_syntactic_closure(pc.ctx, sc, result.env)) {
+        stack.push_back(subform);
+        continue;
       }
     }
 
@@ -389,7 +469,8 @@ parse_define(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& 
   if (!is_list(datum) || list_length(datum) != 3)
     throw std::runtime_error{"Invalid define syntax"};
 
-  ptr<symbol> name = expect<symbol>(cadr(datum), "Invalid define syntax");
+  ptr<symbol> name = expect<symbol>(strip_syntactic_closures(cadr(datum)),
+                                    "Invalid define syntax");
   generic_ptr expr = caddr(datum);
 
   auto var = lookup(env, name->value());
@@ -828,19 +909,21 @@ parse_module_name(generic_ptr const& datum) {
 // a list of the expanded top-level commands.
 static std::vector<generic_ptr>
 expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) {
-  // First, scan the module for variable and syntax definitions.
+  std::vector<generic_ptr> stack;
+  stack.reserve(data.size());
+  std::copy(data.rbegin(), data.rend(), std::back_inserter(stack));
 
-  std::vector<generic_ptr> first_pass;
-
-  for (generic_ptr const& d : data) {
-    generic_ptr datum = expand(ctx, m.environment(), d);
+  std::vector<generic_ptr> result;
+  while (!stack.empty()) {
+    generic_ptr datum = expand(ctx, m.environment(), stack.back());
+    stack.pop_back();
 
     if (auto p = match<pair>(datum)) {
       if (auto head = match<symbol>(car(p))) {
         auto form = lookup_core(ctx, m.environment(), head->value());
 
         if (form == ctx.constants->define_syntax) {
-          auto name = expect<symbol>(cadr(p));
+          auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
           auto transformer_proc = expect<procedure>(eval_transformer(ctx, m, caddr(p)));
           auto transformer = make<scm::transformer>(ctx, m.environment(), transformer_proc);
           m.environment()->add_transformer(name->value(), transformer);
@@ -848,27 +931,30 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
           continue;
         }
         else if (form == ctx.constants->define) {
-          if (!is_list(p) || list_length(p) != 3 || !is<symbol>(cadr(p)))
+          if (!is_list(p) || list_length(p) != 3)
             throw std::runtime_error{"Invalid define syntax"};
 
-          auto name = assume<symbol>(cadr(p));
+          auto name = expect<symbol>(strip_syntactic_closures(cadr(p)),
+                                     "Invalid define syntax");
           auto index = ctx.add_top_level(ctx.constants->void_);
           m.add(name->value(), index);
         }
+        else if (form == ctx.constants->begin) {
+          std::vector<generic_ptr> subforms;
+          for (generic_ptr e : in_list{cdr(p)})
+            subforms.push_back(e);
+
+          std::copy(subforms.rbegin(), subforms.rend(), std::back_inserter(stack));
+          continue;
+        }
       }
     }
-
-    first_pass.push_back(datum);
-  }
-
-  // Second, expand all macro uses and gather the result.
-  std::vector<generic_ptr> result;
-
-  for (generic_ptr const& datum : first_pass) {
-    if (auto p = match<pair>(datum))
-      if (auto head = match<symbol>(car(p)))
-        if (lookup_core(ctx, m.environment(), head->value()) == ctx.constants->define_syntax)
-          continue;
+    else if (auto sc = match<syntactic_closure>(datum)) {
+      if (generic_ptr subform = transpose_syntactic_closure(ctx, sc, m.environment())) {
+        stack.push_back(subform);
+        continue;
+      }
+    }
 
     result.push_back(datum);
   }

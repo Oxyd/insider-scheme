@@ -802,6 +802,16 @@ cdddr(ptr<pair> const& x) {
 }
 
 generic_ptr
+make_list_from_vector(context& ctx, std::vector<generic_ptr> const& values) {
+  generic_ptr head = ctx.constants->null;
+
+  for (auto elem = values.rbegin(); elem != values.rend(); ++elem)
+    head = cons(ctx, *elem, head);
+
+  return head;
+}
+
+generic_ptr
 append(context& ctx, std::vector<generic_ptr> const& xs) {
   // If all the lists are empty, we return the empty list as well.
 
