@@ -14,6 +14,7 @@ set(scheme_sources
   src/compiler.cpp
   src/free_store.cpp
   src/io.cpp
+  src/numeric.cpp
   src/scheme.cpp
   src/vm.cpp
   )

@@ -1,6 +1,7 @@
 #ifndef SCHEME_CONVERTERS_HPP
 #define SCHEME_CONVERTERS_HPP
 
+#include "numeric.hpp"
 #include "scheme.hpp"
 #include "vm.hpp"
 

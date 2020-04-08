@@ -1,5 +1,7 @@
 #include "io.hpp"
 
+#include "numeric.hpp"
+
 #include <fmt/format.h>
 
 #include <charconv>

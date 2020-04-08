@@ -2,6 +2,7 @@
 
 #include "compiler.hpp"
 #include "io.hpp"
+#include "numeric.hpp"
 #include "vm.hpp"
 
 #include <fmt/format.h>

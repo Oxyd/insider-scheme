@@ -1,5 +1,7 @@
 #include "vm.hpp"
 
+#include "numeric.hpp"
+
 #include <cassert>
 #include <cstdint>
 #include <stdexcept>
