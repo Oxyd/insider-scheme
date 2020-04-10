@@ -87,6 +87,9 @@ private:
 generic_ptr
 read_number(context&, ptr<port> const&, bool negate = false);
 
+void
+write_number(ptr<integer> const& value, ptr<port> const& out);
+
 ptr<integer>
 add(context&, ptr<integer> const&, ptr<integer> const&);
 generic_ptr

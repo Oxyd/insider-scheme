@@ -4,7 +4,6 @@
 
 #include <fmt/format.h>
 
-#include <charconv>
 #include <limits>
 #include <sstream>
 #include <variant>
@@ -415,16 +414,6 @@ write_char(ptr<character> const& c, ptr<port> const& out) {
 }
 
 static void
-write_integer(ptr<integer> const& value, ptr<port> const& out) {
-  std::array<char, std::numeric_limits<integer::value_type>::digits10 + 1> buffer;
-  std::to_chars_result res = std::to_chars(buffer.data(), buffer.data() + buffer.size(),
-                                           value->value());
-
-  assert(res.ec == std::errc{});
-  out->write_string(std::string(buffer.data(), res.ptr));
-}
-
-static void
 write_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
   if (datum == ctx.constants->null)
     out->write_string("()");
@@ -441,7 +430,7 @@ write_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
   else if (auto c = match<character>(datum))
     write_char(c, out);
   else if (auto i = match<integer>(datum))
-    write_integer(i, out);
+    write_number(i, out);
   else
     out->write_string(typeid(*datum).name());
 }

@@ -4,6 +4,8 @@
 #include "io.hpp"
 #include "scheme.hpp"
 
+#include <charconv>
+
 namespace scm {
 
 static constexpr std::size_t limb_storage_width = detail::limb_storage_width;
@@ -78,6 +80,16 @@ read_number(context& ctx, ptr<port> const& stream, bool negative) {
     result = ~result + 1;
 
   return make<integer>(ctx, result);
+}
+
+void
+write_number(ptr<integer> const& value, ptr<port> const& out) {
+  std::array<char, std::numeric_limits<integer::value_type>::digits10 + 1> buffer;
+  std::to_chars_result res = std::to_chars(buffer.data(), buffer.data() + buffer.size(),
+                                           value->value());
+
+  assert(res.ec == std::errc{});
+  out->write_string(std::string(buffer.data(), res.ptr));
 }
 
 ptr<integer>
