@@ -18,8 +18,8 @@ struct right_paren { };
 struct hash_left_paren { };
 struct dot { };
 
-struct integer_literal {
-  integer::storage_type value;
+struct generic_literal {
+  generic_ptr value;
 };
 
 struct boolean_literal {
@@ -29,10 +29,6 @@ struct boolean_literal {
 struct void_literal { };
 
 struct identifier {
-  std::string value;
-};
-
-struct string_literal {
   std::string value;
 };
 
@@ -47,11 +43,10 @@ using token = std::variant<
   right_paren,
   hash_left_paren,
   dot,
-  integer_literal,
+  generic_literal,
   boolean_literal,
   void_literal,
   identifier,
-  string_literal,
   quote,
   backquote,
   comma,
@@ -99,49 +94,9 @@ digit(char c) {
   return c >= '0' && c <= '9';
 }
 
-static unsigned
-digit_value(char c) {
-  assert(digit(c));
-  return c - '0';
-}
-
-static integer_literal
-read_integer_literal(ptr<port> const& stream, bool negative = false) {
-  integer::storage_type result = 0;
-  std::optional<char> c = stream->peek_char();
-
-  assert(c);
-  if (c == '-' || c == '+') {
-    negative = c == '-';
-    stream->read_char();
-    c = stream->peek_char();
-  }
-
-  constexpr integer::storage_type overflow_divisor
-    = std::numeric_limits<integer::storage_type>::max() / 10;
-  constexpr integer::storage_type overflow_remainder
-    = std::numeric_limits<integer::storage_type>::max() % 10;
-
-  while (c && digit(*c)) {
-    if (result > overflow_divisor
-        || (result == overflow_divisor && digit_value(*c) > overflow_remainder))
-      throw parse_error{"Integer literal overflow"};
-
-    result *= 10;
-    result += digit_value(*c);
-
-    stream->read_char();
-    c = stream->peek_char();
-  }
-
-  if (result > static_cast<integer::storage_type>(std::numeric_limits<integer::value_type>::max())
-               + (negative ? 1 : 0))
-    throw parse_error{"Integer literal overflow"};
-
-  if (negative)
-    result = ~result + 1;
-
-  return integer_literal{result};
+static generic_literal
+read_integer_literal(context& ctx, ptr<port> const& stream, bool negative = false) {
+  return generic_literal{read_number(ctx, stream, negative)};
 }
 
 static token
@@ -187,8 +142,8 @@ read_identifier(ptr<port> const& stream, std::string prefix = "") {
   return identifier{std::move(value)};
 }
 
-static string_literal
-read_string_literal(ptr<port> const& stream) {
+static generic_literal
+read_string_literal(context& ctx, ptr<port> const& stream) {
   // The opening " was consumed before calling this function.
 
   std::string result;
@@ -221,11 +176,11 @@ read_string_literal(ptr<port> const& stream) {
       result += *c;
   }
 
-  return string_literal{std::move(result)};
+  return generic_literal{make_string(ctx, result)};
 }
 
 static token
-read_token(ptr<port> const& stream) {
+read_token(context& ctx, ptr<port> const& stream) {
   skip_whitespace(stream);
 
   std::optional<char> c = stream->peek_char();
@@ -285,12 +240,12 @@ read_token(ptr<port> const& stream) {
       return identifier{std::string(1, initial)};
 
     if (digit(*c))
-      return read_integer_literal(stream, negative);
+      return read_integer_literal(ctx, stream, negative);
     else
       return read_identifier(stream, std::string(1, initial));
   }
   else if (digit(*c))
-    return read_integer_literal(stream);
+    return read_integer_literal(ctx, stream);
   else if (*c == '#') {
     stream->read_char();
     c = stream->peek_char();
@@ -305,7 +260,7 @@ read_token(ptr<port> const& stream) {
   }
   else if (*c == '"') {
     stream->read_char();
-    return read_string_literal(stream);
+    return read_string_literal(ctx, stream);
   } else
     return read_identifier(stream);
 }
@@ -315,7 +270,7 @@ read(context& ctx, token first_token, ptr<port> const& stream);
 
 static generic_ptr
 read_list(context& ctx, ptr<port> const& stream) {
-  token t = read_token(stream);
+  token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t))
     throw parse_error{"Unterminated list"};
   else if (std::holds_alternative<dot>(t))
@@ -326,7 +281,7 @@ read_list(context& ctx, ptr<port> const& stream) {
   ptr<pair> result = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null);
   ptr<pair> tail = result;
 
-  t = read_token(stream);
+  t = read_token(ctx, stream);
   while (!std::holds_alternative<end>(t)
          && !std::holds_alternative<right_paren>(t)
          && !std::holds_alternative<dot>(t)) {
@@ -334,16 +289,16 @@ read_list(context& ctx, ptr<port> const& stream) {
     tail->set_cdr(new_tail);
     tail = new_tail;
 
-    t = read_token(stream);
+    t = read_token(ctx, stream);
   }
 
   if (std::holds_alternative<end>(t))
     throw parse_error{"Unterminated list"};
   else if (std::holds_alternative<dot>(t)) {
-    generic_ptr cdr = read(ctx, read_token(stream), stream);
+    generic_ptr cdr = read(ctx, read_token(ctx, stream), stream);
     tail->set_cdr(cdr);
 
-    t = read_token(stream);
+    t = read_token(ctx, stream);
     if (!std::holds_alternative<right_paren>(t))
       throw parse_error{"Too many elements after ."};
   }
@@ -358,10 +313,10 @@ read_vector(context& ctx, ptr<port> const& stream) {
 
   std::vector<generic_ptr> elements;
 
-  token t = read_token(stream);
+  token t = read_token(ctx, stream);
   while (!std::holds_alternative<end>(t) && !std::holds_alternative<right_paren>(t)) {
     elements.push_back(read(ctx, t, stream));
-    t = read_token(stream);
+    t = read_token(ctx, stream);
   }
 
   if (std::holds_alternative<end>(t))
@@ -377,7 +332,7 @@ read_vector(context& ctx, ptr<port> const& stream) {
 static generic_ptr
 read_shortcut(context& ctx, ptr<port> const& stream,
               std::string const& shortcut, std::string const& expansion) {
-  token t = read_token(stream);
+  token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t))
     throw parse_error{fmt::format("Expected token after {}", shortcut)};
 
@@ -400,16 +355,14 @@ read(context& ctx, token first_token, ptr<port> const& stream) {
     return read_shortcut(ctx, stream, ",", "unquote");
   else if (std::holds_alternative<comma_at>(first_token))
     return read_shortcut(ctx, stream, ",@", "unquote-splicing");
-  else if (integer_literal* i = std::get_if<integer_literal>(&first_token))
-    return make<integer>(ctx, i->value);
+  else if (generic_literal* lit = std::get_if<generic_literal>(&first_token))
+    return lit->value;
   else if (identifier* i = std::get_if<identifier>(&first_token))
     return ctx.intern(i->value);
   else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token))
     return b->value ? ctx.constants->t : ctx.constants->f;
   else if (void_literal* v = std::get_if<void_literal>(&first_token))
     return ctx.constants->void_;
-  else if (string_literal* s = std::get_if<string_literal>(&first_token))
-    return make_string(ctx, s->value);
   else if (std::holds_alternative<dot>(first_token))
     throw parse_error{"Unexpected . token"};
 
@@ -418,7 +371,7 @@ read(context& ctx, token first_token, ptr<port> const& stream) {
 
 generic_ptr
 read(context& ctx, ptr<port> const& stream) {
-  return read(ctx, read_token(stream), stream);
+  return read(ctx, read_token(ctx, stream), stream);
 }
 
 generic_ptr

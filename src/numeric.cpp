@@ -1,9 +1,84 @@
 #include "numeric.hpp"
 
 #include "converters.hpp"
+#include "io.hpp"
 #include "scheme.hpp"
 
 namespace scm {
+
+static constexpr std::size_t limb_storage_width = detail::limb_storage_width;
+static constexpr std::size_t limb_value_width = detail::limb_value_width;
+
+using limb_type = detail::limb_type;
+
+static constexpr limb_type max_signed_limb_value =
+  (limb_type{1} << (limb_value_width - 1)) - 1;
+
+std::size_t
+big_integer::extra_storage_size(std::size_t length) {
+  return sizeof(detail::limb_type) * length;
+}
+
+big_integer::big_integer(std::size_t length)
+  : length_{length}
+{ }
+
+limb_type*
+big_integer::begin() {
+  return dynamic_storage();
+}
+
+limb_type*
+big_integer::end() {
+  return dynamic_storage() + length_;
+}
+
+static bool
+digit(char c) {
+  return c >= '0' && c <= '9';
+}
+
+static unsigned
+digit_value(char c) {
+  assert(digit(c));
+  return c - '0';
+}
+
+generic_ptr
+read_number(context& ctx, ptr<port> const& stream, bool negative) {
+  integer::storage_type result = 0;
+  std::optional<char> c = stream->peek_char();
+
+  assert(c);
+  if (c == '-' || c == '+') {
+    negative = c == '-';
+    stream->read_char();
+    c = stream->peek_char();
+  }
+
+  constexpr integer::storage_type overflow_divisor = max_signed_limb_value / 10;
+  constexpr integer::storage_type overflow_remainder = max_signed_limb_value % 10;
+
+  while (c && digit(*c)) {
+    if (result > overflow_divisor
+        || (result == overflow_divisor && digit_value(*c) > overflow_remainder))
+      throw parse_error{"Integer literal overflow"};
+
+    result *= 10;
+    result += digit_value(*c);
+
+    stream->read_char();
+    c = stream->peek_char();
+  }
+
+  if (result > max_signed_limb_value + (negative ? 1 : 0))
+    throw parse_error{"Integer literal overflow"};
+
+  if (negative)
+    result = ~result + 1;
+
+  return make<integer>(ctx, result);
+}
 
 ptr<integer>
 add(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {

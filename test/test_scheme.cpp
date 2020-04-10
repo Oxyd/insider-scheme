@@ -270,14 +270,12 @@ TEST_F(scheme, read_integer) {
   EXPECT_EQ(expect<integer>(read("-2"))->value(), -2);
   EXPECT_EQ(expect<integer>(read("+215"))->value(), +215);
   EXPECT_EQ(expect<integer>(read("-3812"))->value(), -3812);
-  EXPECT_EQ(expect<integer>(read("9223372036854775807"))->value(), 9223372036854775807);
-  EXPECT_EQ(expect<integer>(read("9223372036854775806"))->value(), 9223372036854775806);
-  EXPECT_EQ(expect<integer>(read("-9223372036854775808"))->value(),
-            std::numeric_limits<integer::value_type>::min());
-  EXPECT_THROW(read("9223372036854775808"), parse_error);
-  EXPECT_THROW(read("-9223372036854775809"), parse_error);
-  EXPECT_EQ(expect<integer>(read("9223372036854775806"))->value(), 9223372036854775806);
-  EXPECT_EQ(expect<integer>(read("-9223372036854775806"))->value(), -9223372036854775806);
+  EXPECT_EQ(expect<integer>(read("4611686018427387903"))->value(), 4611686018427387903);
+  EXPECT_EQ(expect<integer>(read("4611686018427387902"))->value(), 4611686018427387902);
+  EXPECT_EQ(expect<integer>(read("-4611686018427387903"))->value(), -4611686018427387903);
+  EXPECT_EQ(expect<integer>(read("-4611686018427387902"))->value(), -4611686018427387902);
+  EXPECT_THROW(read("4611686018427387904"), parse_error);
+  EXPECT_THROW(read("-4611686018427387904"), parse_error);
 }
 
 TEST_F(scheme, read_list) {
