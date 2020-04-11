@@ -180,8 +180,10 @@ parse_import_set(context& ctx, import_specifier const& spec) {
 
     return result;
   }
-  else
+  else {
     assert(!"Can't happen");
+    return {};
+  }
 }
 
 static void
