@@ -158,8 +158,8 @@ execute_one(execution_state& state) {
   case opcode::subtract:
   case opcode::multiply:
   case opcode::divide: {
-    ptr<integer> lhs = expect<integer>(get_register(state, instr.x));
-    ptr<integer> rhs = expect<integer>(get_register(state, instr.y));
+    generic_ptr lhs = get_register(state, instr.x);
+    generic_ptr rhs = get_register(state, instr.y);
 
     switch (instr.opcode) {
     case opcode::add:      set_register(state, instr.dest, add(state.ctx, lhs, rhs));      break;

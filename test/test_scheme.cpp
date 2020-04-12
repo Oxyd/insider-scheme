@@ -1502,3 +1502,29 @@ TEST_F(scheme, import_specifiers) {
   )");
   EXPECT_EQ(expect<integer>(result5)->value(), 1 + 2);
 }
+
+TEST_F(scheme, bignum_add_subtract) {
+  using limb_type = big_integer::limb_type;
+  using limb_vector = std::vector<limb_type>;
+  constexpr limb_type limb_max = std::numeric_limits<limb_type>::max();
+
+  auto make_big = [&] (limb_vector const& limbs) {
+    return make<big_integer>(ctx, limbs);
+  };
+
+  auto test_add = [&] (limb_vector const& x, limb_vector const& y, limb_vector const& result) {
+    EXPECT_EQ(arith_equal(ctx, add(ctx, make_big(x), make_big(y)), make_big(result)),
+              ctx.constants->t);
+  };
+
+  test_add({limb_max}, {1}, {0, 1});
+  test_add({limb_max}, {5}, {4, 1});
+  test_add({3, 2, 1}, {6, 5, 4}, {9, 7, 5});
+  test_add({}, {17}, {17});
+  test_add({limb_max, limb_max, limb_max}, {1}, {0, 0, 0, 1});
+  test_add({limb_max - 1}, {1}, {limb_max});
+  test_add({limb_max - 1}, {2}, {0, 1});
+  test_add({limb_max, 1}, {1}, {0, 2});
+  test_add({1, 1, 1}, {1}, {2, 1, 1});
+  test_add({1, 1, 1}, {limb_max}, {0, 2, 1});
+}

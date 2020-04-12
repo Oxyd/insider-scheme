@@ -4,35 +4,88 @@
 #include "io.hpp"
 #include "scheme.hpp"
 
+#include <algorithm>
 #include <charconv>
 
 namespace scm {
 
-static constexpr std::size_t limb_storage_width = detail::limb_storage_width;
-static constexpr std::size_t limb_value_width = detail::limb_value_width;
-
 using limb_type = detail::limb_type;
 
-static constexpr limb_type max_signed_limb_value =
-  (limb_type{1} << (limb_value_width - 1)) - 1;
+static constexpr limb_type max_short_integer_value =
+  (limb_type{1} << (detail::short_integer_value_width - 1)) - 1;
+static constexpr limb_type max_limb_value = std::numeric_limits<limb_type>::max();
 
 std::size_t
 big_integer::extra_storage_size(std::size_t length) {
-  return sizeof(detail::limb_type) * length;
+  return sizeof(limb_type) * length;
+}
+
+std::size_t
+big_integer::extra_storage_size(std::vector<detail::limb_type> const& limbs, bool) {
+  return sizeof(limb_type) * limbs.size();
+}
+
+std::size_t
+big_integer::extra_storage_size(ptr<integer> const& i) {
+  return i->value() != 0 ? sizeof(limb_type) : 0;
 }
 
 big_integer::big_integer(std::size_t length)
   : length_{length}
+{
+  std::fill(begin(), end(), limb_type{0});
+}
+
+big_integer::big_integer(std::size_t length, dont_initialize_t)
+  : length_{length}
 { }
 
-limb_type*
-big_integer::begin() {
+big_integer::big_integer(std::vector<detail::limb_type> const& limbs, bool positive)
+  : length_{limbs.size()}
+  , positive_{positive}
+{
+  assert(end() - begin() == limbs.size());
+  std::copy(limbs.begin(), limbs.end(), begin());
+}
+
+static std::tuple<bool, limb_type>
+short_integer_to_sign_magnitude(integer::value_type i) {
+  if (i == 0)
+    return {true, 0};
+  else if (i > 0)
+    return {true, i};
+  else
+    return {false, ~*reinterpret_cast<limb_type*>(&i) + 1};
+}
+
+big_integer::big_integer(ptr<integer> const& i) {
+  auto [sign, magnitude] = short_integer_to_sign_magnitude(i->value());
+  positive_ = sign;
+
+  if (magnitude > 0) {
+    assert(end() - begin() == 1);
+    *begin() = magnitude;
+  }
+}
+
+auto
+big_integer::begin() -> iterator {
   return dynamic_storage();
 }
 
-limb_type*
-big_integer::end() {
+auto
+big_integer::end() -> iterator{
   return dynamic_storage() + length_;
+}
+
+auto
+big_integer::rbegin() -> reverse_iterator {
+  return reverse_iterator{end()};
+}
+
+auto
+big_integer::rend() -> reverse_iterator {
+  return reverse_iterator{begin()};
 }
 
 static bool
@@ -58,8 +111,8 @@ read_number(context& ctx, ptr<port> const& stream, bool negative) {
     c = stream->peek_char();
   }
 
-  constexpr integer::storage_type overflow_divisor = max_signed_limb_value / 10;
-  constexpr integer::storage_type overflow_remainder = max_signed_limb_value % 10;
+  constexpr integer::storage_type overflow_divisor = max_short_integer_value / 10;
+  constexpr integer::storage_type overflow_remainder = max_short_integer_value % 10;
 
   while (c && digit(*c)) {
     if (result > overflow_divisor
@@ -73,7 +126,7 @@ read_number(context& ctx, ptr<port> const& stream, bool negative) {
     c = stream->peek_char();
   }
 
-  if (result > max_signed_limb_value + (negative ? 1 : 0))
+  if (result > max_short_integer_value + (negative ? 1 : 0))
     throw parse_error{"Integer literal overflow"};
 
   if (negative)
@@ -92,9 +145,139 @@ write_number(ptr<integer> const& value, ptr<port> const& out) {
   out->write_string(std::string(buffer.data(), res.ptr));
 }
 
-ptr<integer>
-add(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return make<integer>(ctx, lhs->value() + rhs->value());
+static ptr<big_integer>
+extend_big(context& ctx, ptr<big_integer> const& i, limb_type new_limb) {
+  auto result = make<big_integer>(ctx, i->length() + 1, big_integer::dont_initialize);
+  std::copy(i->begin(), i->end(), result->begin());
+  result->back() = new_limb;
+  result->set_positive(i->positive());
+  return result;
+}
+
+static ptr<big_integer>
+add_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
+  if (lhs->zero())
+    return rhs;
+  if (rhs->zero())
+    return lhs;
+
+  // lhs is always going to be the bigger of the two to simplify things in the
+  // implementation.
+
+  if (lhs->length() < rhs->length())
+    std::swap(lhs, rhs);
+
+  auto result = make<big_integer>(ctx, lhs->length());
+  limb_type* x = lhs->begin();
+  limb_type* y = rhs->begin();
+  limb_type* out = result->begin();
+  limb_type carry = 0;
+
+  for (std::size_t i = 0; i < rhs->length(); ++i) {
+    limb_type s = x[i] + y[i];
+    out[i] = s + carry;
+    carry = x[i] > max_limb_value - y[i] || s > max_limb_value - carry;
+  }
+
+  for (std::size_t i = rhs->length(); i < lhs->length(); ++i) {
+    out[i] = x[i] + carry;
+    carry = x[i] > max_limb_value - carry;
+  }
+
+  if (carry)
+    return extend_big(ctx, result, limb_type{1});
+  else
+    return result;
+}
+
+namespace {
+  enum class compare {
+    less,
+    equal,
+    greater
+  };
+}
+
+static compare
+compare_big(ptr<big_integer> const& lhs, ptr<big_integer> const& rhs) {
+  if (lhs->positive() != rhs->positive()) {
+    if (!lhs->positive() && rhs->positive())
+      return compare::less;
+    else
+      return compare::greater;
+  }
+
+  if (lhs->length() < rhs->length())
+    return compare::less;
+  else if (lhs->length() > rhs->length())
+    return compare::greater;
+
+  compare result = compare::equal;
+  auto x = lhs->rbegin();
+  auto y = rhs->rbegin();
+  for (; x != lhs->rend() && y != rhs->rend(); ++x, ++y) {
+    if (*x != *y) {
+      if (*x < *y)
+        result = compare::less;
+      else
+        result = compare::greater;
+
+      break;
+    }
+  }
+
+  if (result == compare::equal)
+    return result;
+
+  if (!lhs->positive()) {
+    if (result == compare::less)
+      return compare::greater;
+    else
+      return compare::less;
+  }
+
+  return result;
+}
+
+namespace {
+  enum class common_type {
+    small,
+    big
+  };
+}
+
+static common_type
+find_common_type(generic_ptr const& lhs, generic_ptr const& rhs) {
+  if (is<integer>(lhs) && is<integer>(rhs))
+    return common_type::small;
+  else
+    return common_type::big;
+}
+
+static ptr<big_integer>
+make_big(context& ctx, generic_ptr const& x) {
+  if (auto b = match<big_integer>(x))
+    return b;
+  else if (auto s = match<integer>(x)) {
+    return make<big_integer>(ctx, s);
+  }
+  else {
+    assert(!"Can't happen");
+    return {};
+  }
+}
+
+generic_ptr
+add(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  switch (find_common_type(lhs, rhs)) {
+  case common_type::small:
+    return make<integer>(ctx, assume<integer>(lhs)->value() + assume<integer>(rhs)->value());
+  case common_type::big:
+    return add_big(ctx, make_big(ctx, lhs), make_big(ctx, rhs));
+  }
+
+  assert(false);
+  return {};
 }
 
 template <auto F>
@@ -109,7 +292,7 @@ arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, i
   else if (xs.size() == 1)
     return F(ctx, make<integer>(ctx, neutral), expect<integer>(xs.front()));
   else {
-    ptr<integer> result = expect<integer>(xs.front());
+    generic_ptr result = xs.front();
     for (auto rhs = xs.begin() + 1; rhs != xs.end(); ++rhs)
       result = F(ctx, result, expect<integer>(*rhs));
 
@@ -117,16 +300,16 @@ arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, i
   }
 }
 
-using primitive_arithmetic_type = ptr<integer>(context& ctx, ptr<integer> const&, ptr<integer> const&);
+using primitive_arithmetic_type = generic_ptr(context& ctx, generic_ptr const&, generic_ptr const&);
 
 generic_ptr
 add(context& ctx, std::vector<generic_ptr> const& xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&add)>(ctx, xs, true, 0);
 }
 
-ptr<integer>
-subtract(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return make<integer>(ctx, lhs->value() - rhs->value());
+generic_ptr
+subtract(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  return make<integer>(ctx, expect<integer>(lhs)->value() - expect<integer>(rhs)->value());
 }
 
 generic_ptr
@@ -134,9 +317,9 @@ subtract(context& ctx, std::vector<generic_ptr> const& xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&subtract)>(ctx, xs, false, 0);
 }
 
-ptr<integer>
-multiply(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return make<integer>(ctx, lhs->value() * rhs->value());
+generic_ptr
+multiply(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  return make<integer>(ctx, expect<integer>(lhs)->value() * expect<integer>(rhs)->value());
 }
 
 generic_ptr
@@ -144,12 +327,12 @@ multiply(context& ctx, std::vector<generic_ptr> const& xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&multiply)>(ctx, xs, true, 1);
 }
 
-ptr<integer>
-divide(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  if (rhs->value() == 0)
+generic_ptr
+divide(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  if (expect<integer>(rhs)->value() == 0)
     throw std::runtime_error{"Divide by zero"};
   else
-    return make<integer>(ctx, lhs->value() / rhs->value());
+    return make<integer>(ctx, expect<integer>(lhs)->value() / expect<integer>(rhs)->value());
 }
 
 generic_ptr
@@ -157,7 +340,7 @@ divide(context& ctx, std::vector<generic_ptr> const& xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&divide)>(ctx, xs, false, 1);
 }
 
-using primitive_relational_type = ptr<boolean>(context&, ptr<integer> const&, ptr<integer> const&);
+using primitive_relational_type = ptr<boolean>(context&, generic_ptr const&, generic_ptr const&);
 
 template <primitive_relational_type* F>
 generic_ptr
@@ -178,8 +361,17 @@ relational(context& ctx, std::vector<generic_ptr> const& xs, std::string const& 
 }
 
 ptr<boolean>
-arith_equal(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() == rhs->value() ? ctx.constants->t : ctx.constants->f;
+arith_equal(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  switch (find_common_type(lhs, rhs)) {
+  case common_type::small:
+    return assume<integer>(lhs)->value() == assume<integer>(rhs)->value() ? ctx.constants->t : ctx.constants->f;
+  case common_type::big:
+    return compare_big(make_big(ctx, lhs), make_big(ctx, rhs)) == compare::equal
+           ? ctx.constants->t : ctx.constants->f;
+  }
+
+  assert(false);
+  return {};
 }
 
 generic_ptr
@@ -188,8 +380,8 @@ arith_equal(context& ctx, std::vector<generic_ptr> const& xs) {
 }
 
 ptr<boolean>
-less(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() < rhs->value() ? ctx.constants->t : ctx.constants->f;
+less(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  return expect<integer>(lhs)->value() < expect<integer>(rhs)->value() ? ctx.constants->t : ctx.constants->f;
 }
 
 generic_ptr
@@ -198,8 +390,8 @@ less(context& ctx, std::vector<generic_ptr> const& xs) {
 }
 
 ptr<boolean>
-greater(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return lhs->value() > rhs->value() ? ctx.constants->t : ctx.constants->f;
+greater(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  return expect<integer>(lhs)->value() > expect<integer>(rhs)->value() ? ctx.constants->t : ctx.constants->f;
 }
 
 generic_ptr

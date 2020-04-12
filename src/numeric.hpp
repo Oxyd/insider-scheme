@@ -15,20 +15,20 @@ class module;
 class port;
 
 namespace detail {
-  constexpr std::size_t limb_storage_width = 64;
-  constexpr std::size_t limb_value_width = 63;
+  constexpr std::size_t short_integer_storage_width = 64;
+  constexpr std::size_t short_integer_value_width = 63;
 
   using limb_type = std::uint64_t;
   using signed_limb_type = std::int64_t;
 
   constexpr unsigned
   highest_storage_bit(limb_type x) {
-    return x >> (limb_storage_width - 1);
+    return x >> (short_integer_storage_width - 1);
   }
 
   constexpr unsigned
   highest_value_bit(limb_type x) {
-    return (x >> (limb_value_width - 1)) & 1;
+    return (x >> (short_integer_value_width - 1)) & 1;
   }
 
   inline void
@@ -44,12 +44,12 @@ public:
   using value_type = detail::signed_limb_type;
 
   integer() = default;
-  integer(std::uint64_t value) : value_{value} { detail::assert_normal(value_); }
-  integer(std::int64_t value) : value_{static_cast<std::uint64_t>(value)} { detail::assert_normal(value_); }
-  integer(int value) : value_{static_cast<std::uint64_t>(value)} { detail::assert_normal(value_); }
+  integer(storage_type value) : value_{value} { detail::assert_normal(value_); }
+  integer(value_type value) : value_{static_cast<storage_type>(value)} { detail::assert_normal(value_); }
+  integer(int value) : value_{static_cast<storage_type>(value)} { detail::assert_normal(value_); }
 
   std::int64_t
-  value() const { return static_cast<std::int64_t>(value_); }
+  value() const { return static_cast<value_type>(value_); }
 
   std::size_t
   hash() const override { return static_cast<std::size_t>(value_); }
@@ -61,27 +61,71 @@ private:
   storage_type value_ = 0;
 };
 
-// An arbitray-length signed integer. It is made up of 63-bit limbs. Negative
-// numbers are represented using two's complement.
+// An arbitray-length signed magnitude integer. It is made up of 64-bit unsigned
+// limbs. The least-significant limb is stored first.
 class big_integer : public dynamic_size_object<big_integer, detail::limb_type> {
 public:
+  struct dont_initialize_t { } static constexpr dont_initialize{};
+  using iterator = detail::limb_type*;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using limb_type = detail::limb_type;
+
   static std::size_t
   extra_storage_size(std::size_t length);
+
+  static std::size_t
+  extra_storage_size(std::size_t length, dont_initialize_t) { return big_integer::extra_storage_size(length); }
+
+  static std::size_t
+  extra_storage_size(std::vector<limb_type> const&, bool = true);
+
+  static std::size_t
+  extra_storage_size(ptr<integer> const&);
 
   explicit
   big_integer(std::size_t length);
 
-  detail::limb_type*
+  big_integer(std::size_t length, dont_initialize_t);
+
+  explicit
+  big_integer(std::vector<limb_type> const&, bool positive = true);
+
+  explicit
+  big_integer(ptr<integer> const&);
+
+  iterator
   begin();
 
-  detail::limb_type*
+  iterator
   end();
+
+  reverse_iterator
+  rbegin();
+
+  reverse_iterator
+  rend();
+
+  limb_type&
+  front() { return *begin(); }
+
+  limb_type&
+  back() { return *(end() - 1); }
 
   std::size_t
   length() const { return length_; }
 
+  bool
+  zero() const { return length_ == 0; }
+
+  bool
+  positive() const { return positive_; }
+
+  void
+  set_positive(bool p) { positive_ = p; }
+
 private:
   std::size_t length_;
+  bool positive_ = true;
 };
 
 generic_ptr
@@ -90,38 +134,38 @@ read_number(context&, ptr<port> const&, bool negate = false);
 void
 write_number(ptr<integer> const& value, ptr<port> const& out);
 
-ptr<integer>
-add(context&, ptr<integer> const&, ptr<integer> const&);
+generic_ptr
+add(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
 add(context&, std::vector<generic_ptr> const&);
 
-ptr<integer>
-subtract(context&, ptr<integer> const&, ptr<integer> const&);
+generic_ptr
+subtract(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
 subtract(context&, std::vector<generic_ptr> const&);
 
-ptr<integer>
-multiply(context&, ptr<integer> const&, ptr<integer> const&);
+generic_ptr
+multiply(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
 multiply(context&, std::vector<generic_ptr> const&);
 
-ptr<integer>
-divide(context&, ptr<integer> const&, ptr<integer> const&);
+generic_ptr
+divide(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
 divide(context&, std::vector<generic_ptr> const&);
 
 ptr<boolean>
-arith_equal(context&, ptr<integer> const&, ptr<integer> const&);
+arith_equal(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
 arith_equal(context&, std::vector<generic_ptr> const&);
 
 ptr<boolean>
-less(context&, ptr<integer> const&, ptr<integer> const&);
+less(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
 less(context&, std::vector<generic_ptr> const&);
 
 ptr<boolean>
-greater(context&, ptr<integer> const&, ptr<integer> const&);
+greater(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
 greater(context&, std::vector<generic_ptr> const&);
 
