@@ -51,8 +51,11 @@ public:
   integer(value_type value) : value_{static_cast<storage_type>(value)} { detail::assert_normal(value_); }
   integer(int value) : value_{static_cast<storage_type>(value)} { detail::assert_normal(value_); }
 
-  std::int64_t
+  value_type
   value() const { return static_cast<value_type>(value_); }
+
+  storage_type
+  data() const { return value_; }
 
   std::size_t
   hash() const override { return static_cast<std::size_t>(value_); }

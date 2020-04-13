@@ -68,7 +68,9 @@ short_integer_to_sign_magnitude(integer::value_type i) {
     return {false, ~*reinterpret_cast<limb_type*>(&i) + 1};
 }
 
-big_integer::big_integer(ptr<integer> const& i) {
+big_integer::big_integer(ptr<integer> const& i)
+  : length_{i->value() != 0 ? std::size_t{1} : std::size_t{0}}
+{
   auto [sign, magnitude] = short_integer_to_sign_magnitude(i->value());
   positive_ = sign;
 
@@ -296,9 +298,9 @@ flip_sign(ptr<big_integer> const& i) {
   return i;
 }
 
-static generic_ptr
-add_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return make<integer>(ctx, lhs->value() + rhs->value());
+static bool
+overflow(integer::storage_type i) {
+  return detail::highest_storage_bit(i) != detail::highest_value_bit(i);
 }
 
 static ptr<big_integer>
@@ -323,8 +325,12 @@ add_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
 }
 
 static generic_ptr
-sub_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  return make<integer>(ctx, lhs->value() - rhs->value());
+add_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
+  integer::storage_type sum = lhs->data() + rhs->data();
+  if (overflow(sum))
+    return add_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
+  else
+    return make<integer>(ctx, sum);
 }
 
 static ptr<big_integer>
@@ -347,6 +353,15 @@ sub_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
     return result;
   else
     return flip_sign(result);
+}
+
+static generic_ptr
+sub_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
+  integer::storage_type dif = lhs->data() + ~rhs->data() + 1;
+  if (overflow(dif))
+    return sub_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
+  else
+    return make<integer>(ctx, dif);
 }
 
 static compare

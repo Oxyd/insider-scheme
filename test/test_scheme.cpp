@@ -1512,6 +1512,10 @@ TEST_F(scheme, bignum_add_subtract) {
     return make<big_integer>(ctx, limbs, positive);
   };
 
+  auto make_small = [&] (integer::value_type v) {
+    return make<integer>(ctx, v);
+  };
+
   auto test_add1 = [&] (limb_vector const& x, limb_vector const& y, limb_vector const& result) {
     EXPECT_EQ(arith_equal(ctx, add(ctx, make_big(x), make_big(y)), make_big(result)),
               ctx.constants->t);
@@ -1528,7 +1532,16 @@ TEST_F(scheme, bignum_add_subtract) {
   test_add1({1, 1, 1}, {1}, {2, 1, 1});
   test_add1({1, 1, 1}, {limb_max}, {0, 2, 1});
 
-  auto test_sub = [&] (ptr<big_integer> const& x, ptr<big_integer> const& y, ptr<big_integer> const& result) {
+  auto test_add2 = [&] (generic_ptr const& x, generic_ptr const& y, generic_ptr const& result) {
+    EXPECT_EQ(arith_equal(ctx, add(ctx, x, y), result), ctx.constants->t);
+  };
+
+  test_add2(make_small(integer::max), make_small(1), make_big({integer::max + 1}));
+  test_add2(make_small(integer::max / 2 + 1), make_small(integer::max / 2 + 1),
+            make_big({2 * (integer::max / 2 + 1)}));
+  test_add2(make_small(integer::min), make_small(-1), make_big({-integer::min + 1}, false));
+
+  auto test_sub = [&] (generic_ptr const& x, generic_ptr const& y, generic_ptr const& result) {
     EXPECT_EQ(arith_equal(ctx, subtract(ctx, x, y), result), ctx.constants->t);
   };
 
@@ -1537,4 +1550,6 @@ TEST_F(scheme, bignum_add_subtract) {
   test_sub(make_big({}), make_big({2}), make_big({2}, false));
   test_sub(make_big({0, 1}), make_big({1}), make_big({limb_max}));
   test_sub(make_big({1}), make_big({0, 1}), make_big({limb_max}, false));
+  test_sub(make_small(integer::min), make_small(1), make_big({-integer::min + 1}, false));
+  test_sub(make_small(integer::max), make_small(-1), make_big({integer::max + 1}));
 }
