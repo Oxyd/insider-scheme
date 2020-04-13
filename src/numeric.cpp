@@ -11,9 +11,6 @@ namespace scm {
 
 using limb_type = detail::limb_type;
 
-static constexpr limb_type max_short_integer_value =
-  (limb_type{1} << (detail::short_integer_value_width - 1)) - 1;
-static constexpr limb_type min_short_integer_value = ~max_short_integer_value + 1;
 static constexpr limb_type max_limb_value = std::numeric_limits<limb_type>::max();
 
 std::size_t
@@ -124,8 +121,8 @@ read_number(context& ctx, ptr<port> const& stream, bool negative) {
     c = stream->peek_char();
   }
 
-  constexpr integer::storage_type overflow_divisor = max_short_integer_value / 10;
-  constexpr integer::storage_type overflow_remainder = max_short_integer_value % 10;
+  constexpr integer::storage_type overflow_divisor = integer::max / 10;
+  constexpr integer::storage_type overflow_remainder = integer::max % 10;
 
   while (c && digit(*c)) {
     if (result > overflow_divisor
@@ -139,7 +136,7 @@ read_number(context& ctx, ptr<port> const& stream, bool negative) {
     c = stream->peek_char();
   }
 
-  if (result > max_short_integer_value + (negative ? 1 : 0))
+  if (result > integer::max + (negative ? 1 : 0))
     throw parse_error{"Integer literal overflow"};
 
   if (negative)
@@ -181,12 +178,10 @@ normalize(context& ctx, ptr<big_integer> const& i) {
 
   if (new_length == 1) {
     limb_type l = i->front();
-    if (i->positive() && l < max_short_integer_value)
+    if (i->positive() && l <= integer::max)
       return make<integer>(ctx, l);
-    else if (!i->positive()) {
-      integer::value_type v = ~l + 1;
-      if (v > min_short_integer_value)
-        return make<integer>(ctx, v);
+    else if (!i->positive() && l <= -integer::min) {
+      return make<integer>(ctx, ~l + 1);
     }
   }
 
