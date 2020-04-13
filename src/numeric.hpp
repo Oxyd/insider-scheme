@@ -82,6 +82,9 @@ public:
   static std::size_t
   extra_storage_size(ptr<integer> const&);
 
+  static std::size_t
+  extra_storage_size(ptr<big_integer> const&);
+
   explicit
   big_integer(std::size_t length);
 
@@ -92,6 +95,9 @@ public:
 
   explicit
   big_integer(ptr<integer> const&);
+
+  explicit
+  big_integer(ptr<big_integer> const&);
 
   iterator
   begin();
@@ -110,6 +116,9 @@ public:
 
   limb_type&
   back() { return *(end() - 1); }
+
+  limb_type*
+  data() { return begin(); }
 
   std::size_t
   length() const { return length_; }

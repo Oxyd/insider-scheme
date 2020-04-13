@@ -1508,23 +1508,33 @@ TEST_F(scheme, bignum_add_subtract) {
   using limb_vector = std::vector<limb_type>;
   constexpr limb_type limb_max = std::numeric_limits<limb_type>::max();
 
-  auto make_big = [&] (limb_vector const& limbs) {
-    return make<big_integer>(ctx, limbs);
+  auto make_big = [&] (limb_vector const& limbs, bool positive = true) {
+    return make<big_integer>(ctx, limbs, positive);
   };
 
-  auto test_add = [&] (limb_vector const& x, limb_vector const& y, limb_vector const& result) {
+  auto test_add1 = [&] (limb_vector const& x, limb_vector const& y, limb_vector const& result) {
     EXPECT_EQ(arith_equal(ctx, add(ctx, make_big(x), make_big(y)), make_big(result)),
               ctx.constants->t);
   };
 
-  test_add({limb_max}, {1}, {0, 1});
-  test_add({limb_max}, {5}, {4, 1});
-  test_add({3, 2, 1}, {6, 5, 4}, {9, 7, 5});
-  test_add({}, {17}, {17});
-  test_add({limb_max, limb_max, limb_max}, {1}, {0, 0, 0, 1});
-  test_add({limb_max - 1}, {1}, {limb_max});
-  test_add({limb_max - 1}, {2}, {0, 1});
-  test_add({limb_max, 1}, {1}, {0, 2});
-  test_add({1, 1, 1}, {1}, {2, 1, 1});
-  test_add({1, 1, 1}, {limb_max}, {0, 2, 1});
+  test_add1({limb_max}, {1}, {0, 1});
+  test_add1({limb_max}, {5}, {4, 1});
+  test_add1({3, 2, 1}, {6, 5, 4}, {9, 7, 5});
+  test_add1({}, {17}, {17});
+  test_add1({limb_max, limb_max, limb_max}, {1}, {0, 0, 0, 1});
+  test_add1({limb_max - 1}, {1}, {limb_max});
+  test_add1({limb_max - 1}, {2}, {0, 1});
+  test_add1({limb_max, 1}, {1}, {0, 2});
+  test_add1({1, 1, 1}, {1}, {2, 1, 1});
+  test_add1({1, 1, 1}, {limb_max}, {0, 2, 1});
+
+  auto test_sub = [&] (ptr<big_integer> const& x, ptr<big_integer> const& y, ptr<big_integer> const& result) {
+    EXPECT_EQ(arith_equal(ctx, subtract(ctx, x, y), result), ctx.constants->t);
+  };
+
+  test_sub(make_big({7}), make_big({5}), make_big({2}));
+  test_sub(make_big({5}), make_big({7}), make_big({2}, false));
+  test_sub(make_big({}), make_big({2}), make_big({2}, false));
+  test_sub(make_big({0, 1}), make_big({1}), make_big({limb_max}));
+  test_sub(make_big({1}), make_big({0, 1}), make_big({limb_max}, false));
 }
