@@ -1503,11 +1503,11 @@ TEST_F(scheme, import_specifiers) {
   EXPECT_EQ(expect<integer>(result5)->value(), 1 + 2);
 }
 
-TEST_F(scheme, bignum_add_subtract) {
-  using limb_type = big_integer::limb_type;
-  using limb_vector = std::vector<limb_type>;
-  constexpr limb_type limb_max = std::numeric_limits<limb_type>::max();
+using limb_type = big_integer::limb_type;
+using limb_vector = std::vector<limb_type>;
+constexpr limb_type limb_max = std::numeric_limits<limb_type>::max();
 
+TEST_F(scheme, bignum_add_subtract) {
   auto make_big = [&] (limb_vector const& limbs, bool positive = true) {
     return make<big_integer>(ctx, limbs, positive);
   };
@@ -1552,4 +1552,126 @@ TEST_F(scheme, bignum_add_subtract) {
   test_sub(make_big({1}), make_big({0, 1}), make_big({limb_max}, false));
   test_sub(make_small(integer::min), make_small(1), make_big({-integer::min + 1}, false));
   test_sub(make_small(integer::max), make_small(-1), make_big({integer::max + 1}));
+}
+
+TEST_F(scheme, bignum_multiply) {
+  auto make_big = [&] (limb_vector const& limbs, bool positive = true) {
+    return make<big_integer>(ctx, limbs, positive);
+  };
+
+  auto make_small = [&] (integer::value_type v) {
+    return make<integer>(ctx, v);
+  };
+
+  auto test_mul = [&] (generic_ptr const& x, generic_ptr const& y, generic_ptr const& result) {
+    EXPECT_EQ(arith_equal(ctx, multiply(ctx, x, y), result), ctx.constants->t);
+  };
+
+  test_mul(make_big({6}), make_big({4}), make_big({24}));
+  test_mul(make_big({3, 7}), make_big({2}), make_big({6, 14}));
+  test_mul(make_big({limb_max / 2 + 2}), make_small(2), make_big({2, 1}));
+  test_mul(make_big({0xAAAAAAAAAAAAAAAA}), make_big({0x5555555555555555}),
+           make_big({2049638230412172402, 4099276460824344803}));
+  test_mul(make_big({limb_max, limb_max, limb_max}), make_big({limb_max, limb_max, limb_max}),
+           make_big({1ull, 0ull, 0ull, 18446744073709551614ull, 18446744073709551615ull, 18446744073709551615ull}));
+  test_mul(make_big({7553641000729792380ull,
+                     5922650218298786245ull,
+                     16162713787851717198ull,
+                     10217089460051462907ull,
+                     8909038635035976174ull,
+                     6264544477583426584ull}),
+           make_big({135006098906616526ull,
+                     18228197287099656848ull,
+                     16295224771980191197ull,
+                     12041080681835578308ull,
+                     12088442273849314669ull,
+                     16369766287213198900ull}),
+           make_big({17587943455618018760ull,
+                     3661188350774644697ull,
+                     18134422418394596149ull,
+                     2811448761515084749ull,
+                     9308728024445826184ull,
+                     13579246687949292473ull,
+                     14227902833484535106ull,
+                     9980069117625531926ull,
+                     17630642390782412258ull,
+                     10715135489352511738ull,
+                     2172624792098790866ull,
+                     5559199422083740143ull}));
+  test_mul(make_big({4973457347152855529ull,
+                     3974748182163407329ull,
+                     12985577770049413009ull,
+                     9076302685846177862ull,
+                     738070451437927480ull,
+                     15264537084396607285ull}),
+           make_big({18446486188639752782ull,
+                     3232568627881589338ull,
+                     6067942679178015607ull,
+                     5102215575270724457ull,
+                     9073736952742515913ull,
+                     1132841502366999848ull}),
+           make_big({10907754461151885054ull,
+                     17739271069039180747ull,
+                     43421228727999234ull,
+                     15577091673733669039ull,
+                     16779690354161498684ull,
+                     8434430878092964694ull,
+                     5379906370098889887ull,
+                     3835003850008530511ull,
+                     10897188578878994922ull,
+                     9109306920291096961ull,
+                     4303885782369079147ull,
+                     937417522275367995ull}));
+  test_mul(make_big({7198000039145371562ull,
+                     1123912303584447440ull,
+                     3980891719142245558ull,
+                     8577746048298875858ull,
+                     8311727073236976024ull,
+                     17884054197143250996ull}),
+           make_big({1188782814227785944ull,
+                     2325270131132468069ull,
+                     16644864265523681630ull,
+                     1350302678026269136ull,
+                     2920890536911698555ull,
+                     14188063578955447128ull}),
+           make_big({2755251443097077616ull,
+                     3689811377661473058ull,
+                     8877032773261469093ull,
+                     3501002863683630417ull,
+                     3353221143724972381ull,
+                     12641577925382422259ull,
+                     4772326402676056ull,
+                     13270911720695667193ull,
+                     1977996037122781734ull,
+                     9541927886011288034ull,
+                     10643155227105218129ull,
+                     13755278274835822806ull}));
+  test_mul(make_big({14406138149647546023ull,
+                     10014334381816322851ull,
+                     11337790629485301035ull,
+                     4430716325805898191ull,
+                     194131313579415733ull,
+                     15917838048752608414ull}),
+           make_big({14581525398179601359ull,
+                     16070399142870265493ull,
+                     2186843138437186843ull,
+                     4427149851635696604ull,
+                     16869355141075854150ull,
+                     7241713424351240708ull}),
+           make_big({14269956649823456777ull,
+                     12265344471916286582ull,
+                     11559624670299181550ull,
+                     17455721097159657918ull,
+                     12556885120134179191ull,
+                     10585635572377579879ull,
+                     16816908444647058668ull,
+                     15251982720436126217ull,
+                     7735126288172378743ull,
+                     2550247449105320530ull,
+                     17493571027862026555ull,
+                     6248930490047179004ull}));
+  test_mul(make_small(limb_max / 8), make_small(16), make_big({18446744073709551600ull, 1ull}));
+  test_mul(make_small(limb_max / 8), make_small(-16), make_big({18446744073709551600ull, 1ull}, false));
+  test_mul(make_small(-(limb_max / 8)), make_small(16), make_big({18446744073709551600ull, 1ull}, false));
+  test_mul(make_small(-(limb_max / 8)), make_small(-16), make_big({18446744073709551600ull, 1ull}));
 }

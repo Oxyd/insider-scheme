@@ -44,7 +44,7 @@ public:
   using value_type = detail::signed_limb_type;
 
   static constexpr value_type max = (value_type{1} << (detail::short_integer_value_width - 1)) - 1;
-  static constexpr value_type min = -max;
+  static constexpr value_type min = -max - 1;
 
   integer() = default;
   integer(storage_type value) : value_{value} { detail::assert_normal(value_); }

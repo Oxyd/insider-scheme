@@ -10,8 +10,12 @@
 namespace scm {
 
 using limb_type = detail::limb_type;
+using half_limb_type = std::uint32_t;
 
 static constexpr limb_type max_limb_value = std::numeric_limits<limb_type>::max();
+static constexpr limb_type max_half_limb_value = std::numeric_limits<half_limb_type>::max();
+static constexpr unsigned half_limb_width = 32;
+static constexpr limb_type half_limb_mask = (limb_type{1} << half_limb_width) - 1;
 
 std::size_t
 big_integer::extra_storage_size(std::size_t length) {
@@ -298,6 +302,15 @@ flip_sign(ptr<big_integer> const& i) {
   return i;
 }
 
+static ptr<big_integer>
+set_sign_copy(context& ctx, ptr<big_integer> const& value, bool sign) {
+  if (value->positive() == sign)
+    return value;
+
+  auto result = make<big_integer>(ctx, value);
+  return flip_sign(result);
+}
+
 static bool
 overflow(integer::storage_type i) {
   return detail::highest_storage_bit(i) != detail::highest_value_bit(i);
@@ -362,6 +375,135 @@ sub_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
     return sub_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
   else
     return make<integer>(ctx, dif);
+}
+
+static std::tuple<limb_type, limb_type>
+mul_limb_by_limb(limb_type lhs, limb_type rhs) {
+  limb_type a1 = lhs >> half_limb_width;
+  limb_type a0 = lhs & half_limb_mask;
+  limb_type b1 = rhs >> half_limb_width;
+  limb_type b0 = rhs & half_limb_mask;
+
+  // (a1 B + a0) * (b1 B + b0) = a1 b1 B^2 + (a1 b0 + a0 b1) B + a0 b0,
+  // where B is 2^(half limb width), so B^2 is 2^(limb width).
+
+  limb_type c1 = a1 * b1;
+  limb_type c0 = a0 * b0;
+
+  limb_type temp1 = a1 * b0;
+  limb_type temp2 = a0 * b1;
+  limb_type d1 = temp1 >> half_limb_width;
+  limb_type d0 = temp1 & half_limb_mask;
+  limb_type e1 = temp2 >> half_limb_width;
+  limb_type e0 = temp2 & half_limb_mask;
+
+  assert(d1 + e1 <= max_limb_value - c1);
+  c1 += d1 + e1;
+
+  if (d0 + e0 > max_half_limb_value) {
+    assert(c1 < max_limb_value);
+    ++c1;
+  }
+
+  if ((d0 + e0) << half_limb_width > max_limb_value - c0) {
+    assert(c1 < max_limb_value);
+    ++c1;
+  }
+
+  c0 += (d0 + e0) << half_limb_width;
+
+  assert(c1 <= max_limb_value - 1);
+  return {c1, c0};
+}
+
+static ptr<big_integer>
+mul_big_magnitude_by_limb(context& ctx, ptr<big_integer> const& lhs, limb_type rhs) {
+  if (rhs == 0)
+    return make<big_integer>(ctx, 0);
+  if (rhs == 1)
+    return lhs;
+
+  auto result = make<big_integer>(ctx, lhs->length(), big_integer::dont_initialize);
+  limb_type carry = 0;
+  limb_type* x = lhs->data();
+  limb_type* out = result->data();
+
+  for (std::size_t i = 0; i < result->length(); ++i) {
+    auto [new_carry, term] = mul_limb_by_limb(x[i], rhs);
+    out[i] = term + carry;
+
+    if (term > max_limb_value - carry) {
+      assert(new_carry <= max_limb_value - 1); // So the ++ won't overflow.
+      ++new_carry;
+    }
+
+    carry = new_carry;
+  }
+
+  if (carry)
+    return extend_big(ctx, result, carry);
+  else
+    return result;
+}
+
+static bool
+magnitude_one(ptr<big_integer> const& i) {
+  return i->length() == 1 && i->front() == 1;
+}
+
+static ptr<big_integer>
+shift(context& ctx, ptr<big_integer> const& i, unsigned k) {
+  if (k == 0)
+    return i;
+
+  auto result = make<big_integer>(ctx, i->length() + k);
+  std::copy(i->begin(), i->end(), result->begin() + k);
+  result->set_positive(i->positive());
+  return result;
+}
+
+static ptr<big_integer>
+mul_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
+  if (lhs->zero())
+    return lhs;
+  if (rhs->zero())
+    return rhs;
+
+  if (magnitude_one(lhs))
+    return set_sign_copy(ctx, rhs, lhs->positive());
+  if (magnitude_one(rhs))
+    return set_sign_copy(ctx, lhs, rhs->positive());
+
+  if (lhs->length() < rhs->length())
+    std::swap(lhs, rhs);
+
+  limb_type* y = rhs->data();
+  auto result = mul_big_magnitude_by_limb(ctx, lhs, rhs->front());
+  for (std::size_t i = 1; i < rhs->length(); ++i) {
+    auto term = mul_big_magnitude_by_limb(ctx, lhs, y[i]);
+    if (!term->zero())
+      result = add_magnitude(ctx, result, shift(ctx, term, i));
+  }
+
+  if (lhs->positive() != rhs->positive())
+    result->set_positive(false);
+
+  return result;
+}
+
+static generic_ptr
+mul_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
+  limb_type x = lhs->value() > 0 ? lhs->value() : -lhs->value();
+  limb_type y = rhs->value() > 0 ? rhs->value() : -rhs->value();
+  bool result_positive = (lhs->value() > 0) == (rhs->value() > 0);
+
+  auto [high, low] = mul_limb_by_limb(x, y);
+  if (high > 0
+      || (result_positive && low > integer::max)
+      || (!result_positive && low > integer::max + 1))
+    return mul_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
+  else
+    return make<integer>(ctx, result_positive ? integer::value_type(low) : -integer::value_type(low));
 }
 
 static compare
@@ -474,7 +616,7 @@ subtract(context& ctx, std::vector<generic_ptr> const& xs) {
 
 generic_ptr
 multiply(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return make<integer>(ctx, expect<integer>(lhs)->value() * expect<integer>(rhs)->value());
+  return arithmetic_two<mul_small, mul_big>(ctx, lhs, rhs);
 }
 
 generic_ptr
