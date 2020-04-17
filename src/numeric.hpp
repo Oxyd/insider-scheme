@@ -18,21 +18,22 @@ namespace detail {
   constexpr std::size_t short_integer_storage_width = 64;
   constexpr std::size_t short_integer_value_width = 63;
 
+  using integer_storage_type = std::uint64_t;
+  using integer_value_type = std::int64_t;
   using limb_type = std::uint64_t;
-  using signed_limb_type = std::int64_t;
 
   constexpr unsigned
-  highest_storage_bit(limb_type x) {
+  highest_storage_bit(integer_storage_type x) {
     return x >> (short_integer_storage_width - 1);
   }
 
   constexpr unsigned
-  highest_value_bit(limb_type x) {
+  highest_value_bit(integer_storage_type x) {
     return (x >> (short_integer_value_width - 1)) & 1;
   }
 
   inline void
-  assert_normal(limb_type x) {
+  assert_normal(integer_storage_type x) {
     assert(highest_storage_bit(x) == highest_value_bit(x));
   }
 }
@@ -40,8 +41,8 @@ namespace detail {
 // A signed, fixed size integer.
 class integer : public object {
 public:
-  using storage_type = detail::limb_type;
-  using value_type = detail::signed_limb_type;
+  using storage_type = detail::integer_storage_type;
+  using value_type = detail::integer_value_type;
 
   static constexpr value_type max = (value_type{1} << (detail::short_integer_value_width - 1)) - 1;
   static constexpr value_type min = -max - 1;

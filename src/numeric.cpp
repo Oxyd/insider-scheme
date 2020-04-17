@@ -23,7 +23,7 @@ big_integer::extra_storage_size(std::size_t length) {
 }
 
 std::size_t
-big_integer::extra_storage_size(std::vector<detail::limb_type> const& limbs, bool) {
+big_integer::extra_storage_size(std::vector<limb_type> const& limbs, bool) {
   return sizeof(limb_type) * limbs.size();
 }
 
@@ -47,7 +47,7 @@ big_integer::big_integer(std::size_t length, dont_initialize_t)
   : length_{length}
 { }
 
-big_integer::big_integer(std::vector<detail::limb_type> const& limbs, bool positive)
+big_integer::big_integer(std::vector<limb_type> const& limbs, bool positive)
   : length_{limbs.size()}
   , positive_{positive}
 {
