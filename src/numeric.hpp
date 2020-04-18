@@ -18,9 +18,18 @@ namespace detail {
   constexpr std::size_t short_integer_storage_width = 64;
   constexpr std::size_t short_integer_value_width = 63;
 
+#if (defined __GNUC__ || defined __clang__)
+  #define INSIDER_SCHEME_LIMB_WIDTH 64
+  using limb_type = std::uint64_t;
+  using double_limb_type = __uint128_t;
+#else
+  #define INSIDER_SCHEME_LIMB_WIDTH 32
+  using limb_type = std::uint32_t;
+  using double_limb_type = std::uint64_t;
+#endif
+
   using integer_storage_type = std::uint64_t;
   using integer_value_type = std::int64_t;
-  using limb_type = std::uint64_t;
 
   constexpr unsigned
   highest_storage_bit(integer_storage_type x) {

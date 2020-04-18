@@ -10,12 +10,11 @@
 namespace scm {
 
 using limb_type = detail::limb_type;
-using half_limb_type = std::uint32_t;
+using double_limb_type = detail::double_limb_type;
 
 static constexpr limb_type max_limb_value = std::numeric_limits<limb_type>::max();
-static constexpr limb_type max_half_limb_value = std::numeric_limits<half_limb_type>::max();
-static constexpr unsigned half_limb_width = 32;
-static constexpr limb_type half_limb_mask = (limb_type{1} << half_limb_width) - 1;
+static constexpr unsigned  limb_width = std::numeric_limits<limb_type>::digits;
+static constexpr double_limb_type limb_mask = (double_limb_type{1} << limb_width) - 1;
 
 std::size_t
 big_integer::extra_storage_size(std::size_t length) {
@@ -27,9 +26,19 @@ big_integer::extra_storage_size(std::vector<limb_type> const& limbs, bool) {
   return sizeof(limb_type) * limbs.size();
 }
 
+static std::size_t
+number_of_limbs_for_small_integer(integer::storage_type i) {
+  if (i == 0)
+    return 0;
+  else if (i <= max_limb_value)
+    return 1;
+  else
+    return 2;
+}
+
 std::size_t
 big_integer::extra_storage_size(ptr<integer> const& i) {
-  return i->value() != 0 ? sizeof(limb_type) : 0;
+  return sizeof(limb_type) * number_of_limbs_for_small_integer(i->value());
 }
 
 std::size_t
@@ -62,25 +71,30 @@ big_integer::big_integer(ptr<big_integer> const& i)
   std::copy(i->begin(), i->end(), begin());
 }
 
-static std::tuple<bool, limb_type>
+static std::tuple<bool, integer::storage_type>
 short_integer_to_sign_magnitude(integer::value_type i) {
   if (i == 0)
     return {true, 0};
   else if (i > 0)
     return {true, i};
   else
-    return {false, ~*reinterpret_cast<limb_type*>(&i) + 1};
+    return {false, ~*reinterpret_cast<integer::storage_type*>(&i) + 1};
 }
 
 big_integer::big_integer(ptr<integer> const& i)
-  : length_{i->value() != 0 ? std::size_t{1} : std::size_t{0}}
+  : length_{number_of_limbs_for_small_integer(i->value())}
 {
   auto [sign, magnitude] = short_integer_to_sign_magnitude(i->value());
   positive_ = sign;
 
-  if (magnitude > 0) {
-    assert(end() - begin() == 1);
-    *begin() = magnitude;
+  if constexpr (sizeof(integer::storage_type) <= sizeof(limb_type)) {
+    front() = magnitude;
+  } else {
+    auto it = begin();
+    for (std::size_t k = 0; k < number_of_limbs_for_small_integer(i->value()); ++k) {
+      *it++ = magnitude & limb_mask;
+      magnitude >>= limb_width;
+    }
   }
 }
 
@@ -182,12 +196,26 @@ normalize(context& ctx, ptr<big_integer> const& i) {
   if (new_length == 0)
     return make<integer>(ctx, 0);
 
-  if (new_length == 1) {
-    limb_type l = i->front();
-    if (i->positive() && l <= integer::max)
-      return make<integer>(ctx, l);
-    else if (!i->positive() && l <= -integer::min) {
-      return make<integer>(ctx, ~l + 1);
+  if constexpr (max_limb_value >= integer::max) {
+    if (new_length == 1) {
+      limb_type l = i->front();
+      if (i->positive() && l <= integer::max)
+        return make<integer>(ctx, l);
+      else if (!i->positive() && l <= -integer::min) {
+        return make<integer>(ctx, ~l + 1);
+      }
+    }
+  }
+  else {
+    if (new_length <= sizeof(integer::storage_type) / sizeof(limb_type)) {
+      integer::storage_type small = 0;
+      for (std::size_t k = 0; k < i->length(); ++k)
+        small = (small << limb_width) | i->data()[k];
+
+      if (i->positive() && small <= integer::max)
+        return make<integer>(ctx, small);
+      else if (!i->positive() && small <= integer::storage_type(-integer::min))
+        return make<integer>(ctx, ~small + 1);
     }
   }
 
@@ -379,41 +407,8 @@ sub_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
 
 static std::tuple<limb_type, limb_type>
 mul_limb_by_limb(limb_type lhs, limb_type rhs) {
-  limb_type a1 = lhs >> half_limb_width;
-  limb_type a0 = lhs & half_limb_mask;
-  limb_type b1 = rhs >> half_limb_width;
-  limb_type b0 = rhs & half_limb_mask;
-
-  // (a1 B + a0) * (b1 B + b0) = a1 b1 B^2 + (a1 b0 + a0 b1) B + a0 b0,
-  // where B is 2^(half limb width), so B^2 is 2^(limb width).
-
-  limb_type c1 = a1 * b1;
-  limb_type c0 = a0 * b0;
-
-  limb_type temp1 = a1 * b0;
-  limb_type temp2 = a0 * b1;
-  limb_type d1 = temp1 >> half_limb_width;
-  limb_type d0 = temp1 & half_limb_mask;
-  limb_type e1 = temp2 >> half_limb_width;
-  limb_type e0 = temp2 & half_limb_mask;
-
-  assert(d1 + e1 <= max_limb_value - c1);
-  c1 += d1 + e1;
-
-  if (d0 + e0 > max_half_limb_value) {
-    assert(c1 < max_limb_value);
-    ++c1;
-  }
-
-  if ((d0 + e0) << half_limb_width > max_limb_value - c0) {
-    assert(c1 < max_limb_value);
-    ++c1;
-  }
-
-  c0 += (d0 + e0) << half_limb_width;
-
-  assert(c1 <= max_limb_value - 1);
-  return {c1, c0};
+  double_limb_type result = double_limb_type{lhs} * double_limb_type{rhs};
+  return {limb_type(result >> limb_width), limb_type(result & limb_mask)};
 }
 
 static ptr<big_integer>
@@ -493,17 +488,16 @@ mul_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
 
 static generic_ptr
 mul_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  limb_type x = lhs->value() > 0 ? lhs->value() : -lhs->value();
-  limb_type y = rhs->value() > 0 ? rhs->value() : -rhs->value();
+  integer::storage_type x = lhs->value() > 0 ? lhs->value() : -lhs->value();
+  integer::storage_type y = rhs->value() > 0 ? rhs->value() : -rhs->value();
   bool result_positive = (lhs->value() > 0) == (rhs->value() > 0);
 
-  auto [high, low] = mul_limb_by_limb(x, y);
-  if (high > 0
-      || (result_positive && low > integer::max)
-      || (!result_positive && low > integer::max + 1))
+  double_limb_type product = double_limb_type{x} * double_limb_type{y};
+  if ((result_positive && product > integer::max)
+      || (!result_positive && product > -integer::min))
     return mul_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
   else
-    return make<integer>(ctx, result_positive ? integer::value_type(low) : -integer::value_type(low));
+    return make<integer>(ctx, result_positive ? integer::value_type(product) : -integer::value_type(product));
 }
 
 static compare
