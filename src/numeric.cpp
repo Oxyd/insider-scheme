@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cstdlib>
 
 namespace scm {
 
@@ -184,11 +185,18 @@ extend_big(context& ctx, ptr<big_integer> const& i, limb_type new_limb) {
   return result;
 }
 
+static std::size_t
+normal_length(ptr<big_integer> const& i) {
+  std::size_t result = i->length();
+  while (result > 0 && i->data()[result - 1] == limb_type{0})
+    --result;
+
+  return result;
+}
+
 static generic_ptr
 normalize(context& ctx, ptr<big_integer> const& i) {
-  std::size_t new_length = i->length();
-  while (new_length > 0 && i->data()[new_length - 1] == limb_type{0})
-    --new_length;
+  std::size_t new_length = normal_length(i);
 
   if (new_length == i->length())
     return i;
@@ -265,17 +273,19 @@ namespace {
 }
 
 static compare
-compare_magnitude(ptr<big_integer> const& lhs, ptr<big_integer> const& rhs) {
-  if (lhs->length() < rhs->length())
+compare_magnitude(ptr<big_integer> const& lhs, ptr<big_integer> const& rhs,
+                  std::size_t lhs_length, std::size_t rhs_length) {
+  if (lhs_length < rhs_length)
     return compare::less;
-  else if (lhs->length() > rhs->length())
+  else if (lhs_length > rhs_length)
     return compare::greater;
 
-  auto x = lhs->rbegin();
-  auto y = rhs->rbegin();
-  for (; x != lhs->rend() && y != rhs->rend(); ++x, ++y) {
-    if (*x != *y) {
-      if (*x < *y)
+  for (std::size_t i = lhs_length; i > 0; --i) {
+    limb_type x = lhs->data()[i - 1];
+    limb_type y = rhs->data()[i - 1];
+
+    if (x != y) {
+      if (x < y)
         return compare::less;
       else
         return compare::greater;
@@ -285,14 +295,22 @@ compare_magnitude(ptr<big_integer> const& lhs, ptr<big_integer> const& rhs) {
   return compare::equal;
 }
 
+static compare
+compare_magnitude(ptr<big_integer> const& lhs, ptr<big_integer> const& rhs) {
+  return compare_magnitude(lhs, rhs, lhs->length(), rhs->length());
+}
+
 static ptr<big_integer>
 sub_magnitude(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   // We want the bigger number to be the LHS to simplify stuff below.
 
   bool positive = true;
-  switch (compare_magnitude(lhs, rhs)) {
+  std::size_t lhs_length = normal_length(lhs);
+  std::size_t rhs_length = normal_length(rhs);
+  switch (compare_magnitude(lhs, rhs, lhs_length, rhs_length)) {
   case compare::less:
     std::swap(lhs, rhs);
+    std::swap(lhs_length, rhs_length);
     positive = false;
     break;
   case compare::equal:
@@ -301,7 +319,7 @@ sub_magnitude(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
     break;
   }
 
-  auto result = make<big_integer>(ctx, std::max(lhs->length(), rhs->length()));
+  auto result = make<big_integer>(ctx, std::max(lhs_length, rhs_length));
   result->set_positive(positive);
 
   limb_type* x = lhs->data();
@@ -309,13 +327,13 @@ sub_magnitude(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   limb_type* out = result->data();
   limb_type borrow = 0;
 
-  for (std::size_t i = 0; i < rhs->length(); ++i) {
+  for (std::size_t i = 0; i < rhs_length; ++i) {
     limb_type d = x[i] - y[i];
     out[i] = d - borrow;
     borrow = x[i] < y[i] || d < borrow;
   }
 
-  for (std::size_t i = rhs->length(); i < lhs->length(); ++i) {
+  for (std::size_t i = rhs_length; i < lhs_length; ++i) {
     out[i] = x[i] - borrow;
     borrow = x[i] < borrow;
   }
@@ -355,7 +373,7 @@ add_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
     if (lhs->positive())
       return sub_magnitude(ctx, lhs, rhs);
     else
-      return flip_sign(sub_magnitude(ctx, rhs, lhs));
+      return sub_magnitude(ctx, rhs, lhs);
   }
 
   auto result = add_magnitude(ctx, lhs, rhs);
@@ -500,6 +518,170 @@ mul_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
     return make<integer>(ctx, result_positive ? integer::value_type(product) : -integer::value_type(product));
 }
 
+static ptr<big_integer>
+bitshift_left(context& ctx, ptr<big_integer> i, unsigned k) {
+  i = make<big_integer>(ctx, i);
+  if (k == 0)
+    return i;
+
+  assert(k < limb_width);
+
+  limb_type const top_k_bits = ~limb_type{0} << (limb_width - k);
+  if ((i->back() & top_k_bits) != 0)
+    i = extend_big(ctx, i, 0);
+
+  for (std::size_t n = i->length(); n > 0; --n) {
+    limb_type& current = i->data()[n - 1];
+    current <<= k;
+
+    if (n - 1 > 0) {
+      limb_type lower = i->data()[n - 2];
+      current |= (lower & top_k_bits) >> (limb_width - k);
+    }
+  }
+
+  return i;
+}
+
+static ptr<big_integer>
+bitshift_right(context& ctx, ptr<big_integer> i, unsigned k) {
+  i = make<big_integer>(ctx, i);
+  if (k == 0)
+    return i;
+
+  assert(k < limb_width);
+
+  limb_type const bottom_k_bits = ~limb_type{1} >> (limb_width - k);
+  assert((i->front() & bottom_k_bits) == 0);
+
+  for (std::size_t n = 0; n < i->length(); ++n) {
+    limb_type& current = i->data()[n];
+    current >>= k;
+
+    if (n + 1 < i->length()) {
+      limb_type upper = i->data()[n + 1];
+      current |= (upper & bottom_k_bits) << (limb_width - k);
+    }
+  }
+
+  return i;
+}
+
+static unsigned
+count_leading_zeroes(limb_type i) {
+  limb_type const top_bit = limb_type{1} << (limb_width - 1);
+
+  unsigned count = 0;
+  while ((i & top_bit) == 0) {
+    i <<= 1;
+    ++count;
+  }
+
+  return count;
+}
+
+static limb_type
+guess_quotient(limb_type a_hi, limb_type a_lo, limb_type b) {
+  double_limb_type a = (double_limb_type{a_hi} << limb_width) | a_lo;
+  double_limb_type q = a / b;
+  return std::min(q, double_limb_type{max_limb_value});
+}
+
+static std::tuple<ptr<big_integer>, limb_type>
+div_rem_by_limb_magnitude(context& ctx, ptr<big_integer> dividend, limb_type divisor) {
+  auto quotient = make<big_integer>(ctx, dividend->length());
+  double_limb_type d{};
+
+  for (std::size_t i = dividend->length(); i > 0; --i) {
+    d = (d << limb_width) | dividend->data()[i - 1];
+    limb_type q = d / divisor;
+    quotient->data()[i - 1] = q;
+    d -= double_limb_type{q} * double_limb_type{divisor};
+    assert(d <= max_limb_value);
+  }
+
+  return {quotient, limb_type(d)};
+}
+
+static std::tuple<ptr<big_integer>, ptr<big_integer>>
+div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divisor) {
+  assert(!divisor->zero());
+  assert(divisor->back() != 0);
+
+  if (divisor->length() == 1) {
+    auto [quot, rem] = div_rem_by_limb_magnitude(ctx, dividend, divisor->front());
+    return {quot, make<big_integer>(ctx, std::vector{rem})};
+  }
+
+  unsigned normalisation_shift = count_leading_zeroes(divisor->back());
+  dividend = bitshift_left(ctx, dividend, normalisation_shift);
+  divisor = bitshift_left(ctx, divisor, normalisation_shift);
+
+  std::size_t dividend_len = dividend->length();
+  std::size_t divisor_len = divisor->length();
+  assert(dividend_len >= divisor_len);
+  assert(divisor_len >= 2);
+  assert(divisor->positive());
+  assert(dividend->positive());
+
+  auto quotient = make<big_integer>(ctx, dividend_len - divisor_len + 1);
+
+  ptr<big_integer> first_shifted_divisor = shift(ctx, divisor, dividend_len - divisor_len);
+  if (compare_magnitude(dividend, first_shifted_divisor) != compare::less) {
+    quotient->data()[dividend_len - divisor_len] = 1;
+    dividend = sub_big(ctx, dividend, first_shifted_divisor);
+  }
+
+  for (std::size_t i = dividend_len - divisor_len; i > 0; --i) {
+    std::size_t j = i - 1;
+    assert(divisor_len + j < dividend->length());
+    assert(divisor_len + j >= 1);
+    assert(divisor->positive());
+
+    limb_type q = guess_quotient(dividend->data()[divisor_len + j],
+                                 dividend->data()[divisor_len + j - 1],
+                                 divisor->back());
+    ptr<big_integer> shifted_divisor = shift(ctx, divisor, j);
+    dividend = sub_big(ctx, dividend, mul_big_magnitude_by_limb(ctx, shifted_divisor, q));
+
+    while (!dividend->positive()) {
+      --q;
+      dividend = add_big(ctx, dividend, shifted_divisor);
+    }
+
+    quotient->data()[j] = q;
+  }
+
+  return {quotient, bitshift_right(ctx, dividend, normalisation_shift)};
+}
+
+static std::tuple<generic_ptr, generic_ptr>
+div_rem_big(context& ctx, ptr<big_integer> const& dividend, ptr<big_integer> const& divisor) {
+  if (divisor->zero())
+    throw std::runtime_error{"Division by zero"};
+
+  if (magnitude_one(divisor)) {
+    if (divisor->positive())
+      return {dividend, make<big_integer>(ctx, 0)};
+    else
+      return {set_sign_copy(ctx, dividend, !dividend->positive()),
+              make<big_integer>(ctx, 0)};
+  }
+
+  auto [quot, rem] = div_rem_magnitude(ctx, dividend, divisor);
+  if (divisor->positive())
+    return {normalize(ctx, quot), normalize(ctx, rem)};
+  else
+    return {normalize(ctx, set_sign_copy(ctx, quot, !dividend->positive())),
+            normalize(ctx, rem)};
+}
+
+static std::tuple<ptr<integer>, ptr<integer>>
+div_rem_small(context& ctx, ptr<integer> const& dividend, ptr<integer> const& divisor) {
+  auto [quot, rem] = std::div(dividend->value(), divisor->value());
+  return {make<integer>(ctx, quot), make<integer>(ctx, rem)};
+}
+
 static compare
 compare_big(ptr<big_integer> const& lhs, ptr<big_integer> const& rhs) {
   if (lhs->positive() != rhs->positive()) {
@@ -629,6 +811,19 @@ divide(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
 generic_ptr
 divide(context& ctx, std::vector<generic_ptr> const& xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&divide)>(ctx, xs, false, 1);
+}
+
+std::tuple<generic_ptr, generic_ptr>
+quotient_remainder(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  switch (find_common_type(lhs, rhs)) {
+  case common_type::small:
+    return div_rem_small(ctx, assume<integer>(lhs), assume<integer>(rhs));
+  case common_type::big:
+    return div_rem_big(ctx, make_big(ctx, lhs), make_big(ctx, rhs));
+  }
+
+  assert(false);
+  return {};
 }
 
 using primitive_relational_type = ptr<boolean>(context&, generic_ptr const&, generic_ptr const&);

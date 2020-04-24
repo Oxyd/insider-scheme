@@ -179,6 +179,9 @@ divide(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
 divide(context&, std::vector<generic_ptr> const&);
 
+std::tuple<generic_ptr, generic_ptr>
+quotient_remainder(context&, generic_ptr const&, generic_ptr const&);
+
 ptr<boolean>
 arith_equal(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
