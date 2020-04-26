@@ -18,7 +18,7 @@ namespace detail {
   constexpr std::size_t short_integer_storage_width = 64;
   constexpr std::size_t short_integer_value_width = 63;
 
-#if (defined __GNUC__ || defined __clang__)
+#if defined __GNUC__ || defined __clang__
   #define INSIDER_SCHEME_LIMB_WIDTH 64
   using limb_type = std::uint64_t;
   using double_limb_type = __uint128_t;

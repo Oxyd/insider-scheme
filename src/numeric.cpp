@@ -28,10 +28,10 @@ big_integer::extra_storage_size(std::vector<limb_type> const& limbs, bool) {
 }
 
 static std::size_t
-number_of_limbs_for_small_integer(integer::storage_type i) {
+number_of_limbs_for_small_integer(integer::value_type i) {
   if (i == 0)
     return 0;
-  else if (i <= max_limb_value)
+  else if (i <= max_limb_value && -i <= max_limb_value)
     return 1;
   else
     return 2;
@@ -217,13 +217,15 @@ normalize(context& ctx, ptr<big_integer> const& i) {
   else {
     if (new_length <= sizeof(integer::storage_type) / sizeof(limb_type)) {
       integer::storage_type small = 0;
-      for (std::size_t k = 0; k < i->length(); ++k)
-        small = (small << limb_width) | i->data()[k];
+      for (std::size_t k = i->length(); k > 0; --k)
+        small = (small << limb_width) | i->data()[k - 1];
 
       if (i->positive() && small <= integer::max)
         return make<integer>(ctx, small);
-      else if (!i->positive() && small <= integer::storage_type(-integer::min))
-        return make<integer>(ctx, ~small + 1);
+      else if (!i->positive() && small <= integer::storage_type(-integer::min)) {
+        assert(small <= std::numeric_limits<integer::value_type>::max());
+        return make<integer>(ctx, -static_cast<integer::value_type>(small));
+      }
     }
   }
 

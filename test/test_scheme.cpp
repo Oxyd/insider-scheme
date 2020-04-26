@@ -36,6 +36,11 @@ struct scheme : testing::Test {
   add_library(std::string const& body) {
     ctx.load_library_module(read_multiple(ctx, body));
   }
+
+  bool
+  num_equal(generic_ptr const& lhs, generic_ptr const& rhs) {
+    return arith_equal(ctx, lhs, rhs) == ctx.constants->t;
+  }
 };
 
 struct aaa : object {
@@ -1520,7 +1525,7 @@ convert_limbs(limb_vector& limbs, Limb first, Limbs... rest) {
     Limb mask = (Limb{1} << std::numeric_limits<limb_type>::digits) - 1;
     limbs.push_back(first & mask);
     limb_type hi = first >> std::numeric_limits<limb_type>::digits;
-    if (hi > 0)
+    if (hi > 0 || sizeof...(rest) > 0)
       limbs.push_back(hi);
     convert_limbs(limbs, rest...);
   } else
@@ -1531,8 +1536,13 @@ template <typename... Limbs>
 ptr<big_integer>
 make_big(context& ctx, Limbs... limbs) {
   limb_vector ls;
-  convert_limbs(ls, limbs...);
+  convert_limbs(ls, static_cast<std::uint64_t>(limbs)...);
   return make<big_integer>(ctx, ls, true);
+}
+
+ptr<big_integer>
+make_big_literal(context& ctx, limb_vector limbs) {
+  return make<big_integer>(ctx, std::move(limbs), true);
 }
 
 template <typename... Limbs>
@@ -1543,49 +1553,54 @@ make_big_negative(context& ctx, Limbs... limbs) {
   return make<big_integer>(ctx, ls, false);
 }
 
+ptr<big_integer>
+make_big_negative_literal(context& ctx, limb_vector limbs) {
+  return make<big_integer>(ctx, std::move(limbs), false);
+}
+
 TEST_F(scheme, bignum_add_subtract) {
   auto make_small = [&] (integer::value_type v) {
     return make<integer>(ctx, v);
   };
 
-  auto test_add1 = [&] (generic_ptr const& x, generic_ptr const& y, generic_ptr const& result) {
-    EXPECT_EQ(arith_equal(ctx, add(ctx, x, y), result), ctx.constants->t);
-  };
+#define TEST_ADD1(lhs, rhs, result) EXPECT_TRUE(num_equal(add(ctx, lhs, rhs), result))
 
-  test_add1(make_big(ctx, limb_max), make_big(ctx, 1), make_big(ctx, 0, 1));
-  test_add1(make_big(ctx, limb_max), make_big(ctx, 5), make_big(ctx, 4, 1));
-  test_add1(make_big(ctx, 3, 2, 1), make_big(ctx, 6, 5, 4), make_big(ctx, 9, 7, 5));
-  test_add1(make_big(ctx, 0), make_big(ctx, 17), make_big(ctx, 17));
-  test_add1(make_big(ctx, limb_max, limb_max, limb_max), make_big(ctx, 1), make_big(ctx, 0, 0, 0, 1));
-  test_add1(make_big(ctx, limb_max - 1), make_big(ctx, 1), make_big(ctx, limb_max));
-  test_add1(make_big(ctx, limb_max - 1), make_big(ctx, 2), make_big(ctx, 0, 1));
-  test_add1(make_big(ctx, limb_max, 1), make_big(ctx, 1), make_big(ctx, 0, 2));
-  test_add1(make_big(ctx, 1, 1, 1), make_big(ctx, 1), make_big(ctx, 2, 1, 1));
-  test_add1(make_big(ctx, 1, 1, 1), make_big(ctx, limb_max), make_big(ctx, 0, 2, 1));
+  TEST_ADD1(make_big_literal(ctx, {limb_max}), make_big_literal(ctx, {1}), make_big_literal(ctx, {0, 1}));
+  TEST_ADD1(make_big_literal(ctx, {limb_max}), make_big_literal(ctx, {5}), make_big_literal(ctx, {4, 1}));
+  TEST_ADD1(make_big(ctx, 3, 2, 1), make_big(ctx, 6, 5, 4), make_big(ctx, 9, 7, 5));
+  TEST_ADD1(make_big(ctx, 0), make_big(ctx, 17), make_big(ctx, 17));
+  TEST_ADD1(make_big_literal(ctx, {limb_max, limb_max, limb_max}), make_small(1), make_big_literal(ctx, {0, 0, 0, 1}));
+  TEST_ADD1(make_big_literal(ctx, {limb_max - 1}), make_small(1), make_big_literal(ctx, {limb_max}));
+  TEST_ADD1(make_big_literal(ctx, {limb_max - 1}), make_small(2), make_big_literal(ctx, {0, 1}));
+  TEST_ADD1(make_big_literal(ctx, {limb_max, 1}), make_small(1), make_big_literal(ctx, {0, 2}));
+  TEST_ADD1(make_big(ctx, 1, 1, 1), make_big(ctx, 1), make_big(ctx, 2, 1, 1));
+  TEST_ADD1(make_big_literal(ctx, {1, 1, 1}), make_big_literal(ctx, {limb_max}), make_big_literal(ctx, {0, 2, 1}));
 
-  auto test_add2 = [&] (generic_ptr const& x, generic_ptr const& y, generic_ptr const& result) {
-    EXPECT_EQ(arith_equal(ctx, add(ctx, x, y), result), ctx.constants->t);
-  };
+#undef TEST_ADD1
 
-  test_add2(make_small(integer::max), make_small(1), make_big(ctx, integer::max + 1));
-  test_add2(make_small(integer::max / 2 + 1), make_small(integer::max / 2 + 1),
+#define TEST_ADD2(lhs, rhs, result) EXPECT_TRUE(num_equal(add(ctx, lhs, rhs), result))
+
+  TEST_ADD2(make_small(integer::max), make_small(1), make_big(ctx, integer::max + 1));
+  TEST_ADD2(make_small(integer::max / 2 + 1), make_small(integer::max / 2 + 1),
             make_big(ctx, 2 * (integer::max / 2 + 1)));
-  test_add2(make_small(integer::min), make_small(-1), make_big_negative(ctx, -integer::min + 1));
-  test_add2(make_big_negative(ctx, 0, 1), make_big(ctx, 0, 2), make_big(ctx, 0, 1));
-  test_add2(make_big(ctx, 0, 2), make_big_negative(ctx, 0, 1), make_big(ctx, 0, 1));
-  test_add2(make_big_negative(ctx, 0, 1), make_big_negative(ctx, 0, 2), make_big_negative(ctx, 0, 3));
+  TEST_ADD2(make_small(integer::min), make_small(-1), make_big_negative(ctx, -integer::min + 1));
+  TEST_ADD2(make_big_negative_literal(ctx, {0, 1}), make_big_literal(ctx, {0, 2}), make_big_literal(ctx, {0, 1}));
+  TEST_ADD2(make_big_literal(ctx, {0, 2}), make_big_negative_literal(ctx, {0, 1}), make_big_literal(ctx, {0, 1}));
+  TEST_ADD2(make_big_negative(ctx, 0, 1), make_big_negative(ctx, 0, 2), make_big_negative(ctx, 0, 3));
 
-  auto test_sub = [&] (generic_ptr const& x, generic_ptr const& y, generic_ptr const& result) {
-    EXPECT_EQ(arith_equal(ctx, subtract(ctx, x, y), result), ctx.constants->t);
-  };
+#undef TEST_ADD2
 
-  test_sub(make_big(ctx, 7), make_big(ctx, 5), make_big(ctx, 2));
-  test_sub(make_big(ctx, 5), make_big(ctx, 7), make_big_negative(ctx, 2));
-  test_sub(make_big(ctx, 0), make_big(ctx, 2), make_big_negative(ctx, 2));
-  test_sub(make_big(ctx, 0, 1), make_big(ctx, 1), make_big(ctx, limb_max));
-  test_sub(make_big(ctx, 1), make_big(ctx, 0, 1), make_big_negative(ctx, limb_max));
-  test_sub(make_small(integer::min), make_small(1), make_big_negative(ctx, -integer::min + 1));
-  test_sub(make_small(integer::max), make_small(-1), make_big(ctx, integer::max + 1));
+#define TEST_SUB(lhs, rhs, result) EXPECT_TRUE(num_equal(subtract(ctx, lhs, rhs), result))
+
+  TEST_SUB(make_big(ctx, 7), make_big(ctx, 5), make_big(ctx, 2));
+  TEST_SUB(make_big(ctx, 5), make_big(ctx, 7), make_big_negative(ctx, 2));
+  TEST_SUB(make_big(ctx, 0), make_big(ctx, 2), make_big_negative(ctx, 2));
+  TEST_SUB(make_big_literal(ctx, {0, 1}), make_small(1), make_big_literal(ctx, {limb_max}));
+  TEST_SUB(make_small(1), make_big_literal(ctx, {0, 1}), make_big_negative_literal(ctx, {limb_max}));
+  TEST_SUB(make_small(integer::min), make_small(1), make_big_negative(ctx, -integer::min + 1));
+  TEST_SUB(make_small(integer::max), make_small(-1), make_big(ctx, integer::max + 1));
+
+#undef TEST_SUB
 }
 
 TEST_F(scheme, bignum_multiply) {
@@ -1593,18 +1608,17 @@ TEST_F(scheme, bignum_multiply) {
     return make<integer>(ctx, v);
   };
 
-  auto test_mul = [&] (generic_ptr const& x, generic_ptr const& y, generic_ptr const& result) {
-    EXPECT_EQ(arith_equal(ctx, multiply(ctx, x, y), result), ctx.constants->t);
-  };
+#define TEST_MUL(lhs, rhs, result) EXPECT_TRUE(num_equal(multiply(ctx, lhs, rhs), result))
 
-  test_mul(make_big(ctx, 6), make_big(ctx, 4), make_big(ctx, 24));
-  test_mul(make_big(ctx, 3, 7), make_big(ctx, 2), make_big(ctx, 6, 14));
-  test_mul(make_big(ctx, limb_max / 2 + 2), make_small(2), make_big(ctx, 2, 1));
-  test_mul(make_big(ctx, 0xAAAAAAAAAAAAAAAA), make_big(ctx, 0x5555555555555555),
+  TEST_MUL(make_big(ctx, 6), make_big(ctx, 4), make_big(ctx, 24));
+  TEST_MUL(make_big(ctx, 3, 7), make_big(ctx, 2), make_big(ctx, 6, 14));
+  TEST_MUL(make_big_literal(ctx, {limb_max / 2 + 2}), make_small(2), make_big_literal(ctx, {2, 1}));
+  TEST_MUL(make_big(ctx, 0xAAAAAAAAAAAAAAAA), make_big(ctx, 0x5555555555555555),
            make_big(ctx, 2049638230412172402, 4099276460824344803));
-  test_mul(make_big(ctx, limb_max, limb_max, limb_max), make_big(ctx, limb_max, limb_max, limb_max),
-           make_big(ctx, 1ull, 0ull, 0ull, limb_max - 1, limb_max, limb_max));
-  test_mul(make_big(ctx,
+  TEST_MUL(make_big_literal(ctx, {limb_max, limb_max, limb_max}),
+           make_big_literal(ctx, {limb_max, limb_max, limb_max}),
+           make_big_literal(ctx, {1ull, 0ull, 0ull, limb_max - 1, limb_max, limb_max}));
+  TEST_MUL(make_big(ctx,
                     7553641000729792380ull,
                     5922650218298786245ull,
                     16162713787851717198ull,
@@ -1631,7 +1645,7 @@ TEST_F(scheme, bignum_multiply) {
                     10715135489352511738ull,
                     2172624792098790866ull,
                     5559199422083740143ull));
-  test_mul(make_big(ctx,
+  TEST_MUL(make_big(ctx,
                     4973457347152855529ull,
                     3974748182163407329ull,
                     12985577770049413009ull,
@@ -1658,7 +1672,7 @@ TEST_F(scheme, bignum_multiply) {
                     9109306920291096961ull,
                     4303885782369079147ull,
                     937417522275367995ull));
-  test_mul(make_big(ctx,
+  TEST_MUL(make_big(ctx,
                     7198000039145371562ull,
                     1123912303584447440ull,
                     3980891719142245558ull,
@@ -1685,7 +1699,7 @@ TEST_F(scheme, bignum_multiply) {
                     9541927886011288034ull,
                     10643155227105218129ull,
                     13755278274835822806ull));
-  test_mul(make_big(ctx,
+  TEST_MUL(make_big(ctx,
                     14406138149647546023ull,
                     10014334381816322851ull,
                     11337790629485301035ull,
@@ -1712,10 +1726,12 @@ TEST_F(scheme, bignum_multiply) {
                     2550247449105320530ull,
                     17493571027862026555ull,
                     6248930490047179004ull));
-  test_mul(make_small(limb_max / 8), make_small(16), make_big(ctx, limb_max - 15, 1ull));
-  test_mul(make_small(limb_max / 8), make_small(-16), make_big_negative(ctx, limb_max - 15, 1ull));
-  test_mul(make_small(-(limb_max / 8)), make_small(16), make_big_negative(ctx, limb_max - 15, 1ull));
-  test_mul(make_small(-(limb_max / 8)), make_small(-16), make_big(ctx, limb_max - 15, 1ull));
+  TEST_MUL(make_small(limb_max / 8), make_small(16), make_big_literal(ctx, {limb_max - 15, 1}));
+  TEST_MUL(make_small(limb_max / 8), make_small(-16), make_big_negative_literal(ctx, {limb_max - 15, 1}));
+  TEST_MUL(make_small(-(limb_max / 8)), make_small(16), make_big_negative_literal(ctx, {limb_max - 15, 1}));
+  TEST_MUL(make_small(-(limb_max / 8)), make_small(-16), make_big_literal(ctx, {limb_max - 15, 1}));
+
+#undef TEST_MUL
 }
 
 TEST_F(scheme, bignum_divide) {
@@ -1726,20 +1742,21 @@ TEST_F(scheme, bignum_divide) {
   auto test_div = [&] (generic_ptr const& x, generic_ptr const& y,
                        generic_ptr const& quotient, generic_ptr const& remainder) {
     auto [q, r] = quotient_remainder(ctx, x, y);
-    EXPECT_EQ(arith_equal(ctx, q, quotient), ctx.constants->t);
-    EXPECT_EQ(arith_equal(ctx, r, remainder), ctx.constants->t);
+    EXPECT_TRUE(num_equal(q, quotient));
+    EXPECT_TRUE(num_equal(r, remainder));
   };
 
   test_div(make_big(ctx, 0, 0, 8), make_small(2), make_big(ctx, 0, 0, 4), make_small(0));
   test_div(make_big(ctx, 1, 0, 8), make_small(2), make_big(ctx, 0, 0, 4), make_small(1));
   test_div(make_big(ctx, 0, 0, 9), make_small(2), make_big(ctx, 0, 9223372036854775808ull, 4), make_small(0));
-  test_div(make_big(ctx, 1ull, 0ull, 0ull, limb_max - 1, limb_max, limb_max),
-           make_big(ctx, limb_max, limb_max, limb_max),
-           make_big(ctx, limb_max, limb_max, limb_max),
+  test_div(make<big_integer>(ctx, limb_vector{1, 0, 0, limb_max - 1, limb_max, limb_max}),
+           make<big_integer>(ctx, limb_vector{limb_max, limb_max, limb_max}),
+           make<big_integer>(ctx, limb_vector{limb_max, limb_max, limb_max}),
            make_small(0));
-  test_div(make_big(ctx, limb_max, limb_max), make_big(ctx, 2, limb_max),
+  test_div(make<big_integer>(ctx, limb_vector{limb_max, limb_max}),
+           make<big_integer>(ctx, limb_vector{2, limb_max}),
            make_small(1),
-           make_big(ctx, limb_max - 2));
+           make<big_integer>(ctx, limb_vector{limb_max - 2}));
   test_div(make_small(-5), make_small(2), make_small(-2), make_small(-1));
   test_div(make_small(5), make_small(-2), make_small(-2), make_small(1));
   test_div(make_small(-5), make_small(-2), make_small(2), make_small(-1));
@@ -1763,7 +1780,7 @@ TEST_F(scheme, bignum_divide) {
                     10961764771554828402ull,
                     6611077199486813791ull,
                     2901902384916741495ull),
-           make_big(ctx, 3ull),
+           make_small(3),
            make_big(ctx,
                     18185039591879052364ull,
                     14567408555740193048ull,
@@ -1774,6 +1791,7 @@ TEST_F(scheme, bignum_divide) {
                     11464597622140845160ull,
                     18136592265817637203ull,
                     2175771885217796184ull));
+
   test_div(make_big(ctx,
                     7692261422231040055ull,
                     15384495960622693763ull,
