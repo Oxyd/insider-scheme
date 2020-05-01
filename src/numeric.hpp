@@ -64,6 +64,9 @@ public:
   value_type
   value() const { return static_cast<value_type>(value_); }
 
+  void
+  set_value(storage_type v) { value_ = v; }
+
   storage_type
   data() const { return value_; }
 
@@ -154,12 +157,6 @@ private:
 };
 
 generic_ptr
-read_number(context&, ptr<port> const&, bool negate = false);
-
-void
-write_number(ptr<integer> const& value, ptr<port> const& out);
-
-generic_ptr
 add(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
 add(context&, std::vector<generic_ptr> const&);
@@ -196,6 +193,12 @@ ptr<boolean>
 greater(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
 greater(context&, std::vector<generic_ptr> const&);
+
+generic_ptr
+read_number(context&, ptr<port> const&, bool negate = false);
+
+void
+write_number(ptr<integer> const& value, ptr<port> const& out);
 
 void
 export_numeric(context&, module&);

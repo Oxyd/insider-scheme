@@ -268,8 +268,7 @@ TEST_F(scheme, vector) {
   EXPECT_FALSE(two);
 }
 
-TEST_F(scheme, read_integer) {
-  using namespace std::literals;
+TEST_F(scheme, read_small_integer) {
   EXPECT_EQ(expect<integer>(read("0"))->value(), 0);
   EXPECT_EQ(expect<integer>(read("2"))->value(), 2);
   EXPECT_EQ(expect<integer>(read("-2"))->value(), -2);
@@ -279,8 +278,6 @@ TEST_F(scheme, read_integer) {
   EXPECT_EQ(expect<integer>(read("4611686018427387902"))->value(), 4611686018427387902);
   EXPECT_EQ(expect<integer>(read("-4611686018427387903"))->value(), -4611686018427387903);
   EXPECT_EQ(expect<integer>(read("-4611686018427387902"))->value(), -4611686018427387902);
-  EXPECT_THROW(read("4611686018427387904"), parse_error);
-  EXPECT_THROW(read("-4611686018427387904"), parse_error);
 }
 
 TEST_F(scheme, read_list) {
@@ -2001,4 +1998,18 @@ TEST_F(scheme, bignum_divide) {
                     13150424515817646992ull,
                     12367838195135482048ull,
                     731834574828767176ull));
+}
+
+TEST_F(scheme, read_bignum) {
+  EXPECT_TRUE(num_equal(read("18446744073709551616"), make_big(ctx, 0ull, 1ull)));
+  EXPECT_TRUE(num_equal(read("-18446744073709551616"), make_big_negative(ctx, 0ull, 1ull)));
+  EXPECT_TRUE(num_equal(read("4611686018427387903"), make_big(ctx, 4611686018427387903ull)));
+  EXPECT_TRUE(num_equal(read("38616195397574606111029898159411003755739963811995564291018845157317291934032285276296721365296300445450322552142080"),
+                        make_big(ctx,
+                                 262276201643358464ull,
+                                 43373824340229465ull,
+                                 7844025956150470852ull,
+                                 470401255560051253ull,
+                                 11431680516999648673ull,
+                                 18078852890099872823ull)));
 }

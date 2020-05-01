@@ -130,52 +130,6 @@ digit_value(char c) {
   return c - '0';
 }
 
-generic_ptr
-read_number(context& ctx, ptr<port> const& stream, bool negative) {
-  integer::storage_type result = 0;
-  std::optional<char> c = stream->peek_char();
-
-  assert(c);
-  if (c == '-' || c == '+') {
-    negative = c == '-';
-    stream->read_char();
-    c = stream->peek_char();
-  }
-
-  constexpr integer::storage_type overflow_divisor = integer::max / 10;
-  constexpr integer::storage_type overflow_remainder = integer::max % 10;
-
-  while (c && digit(*c)) {
-    if (result > overflow_divisor
-        || (result == overflow_divisor && digit_value(*c) > overflow_remainder))
-      throw parse_error{"Integer literal overflow"};
-
-    result *= 10;
-    result += digit_value(*c);
-
-    stream->read_char();
-    c = stream->peek_char();
-  }
-
-  if (result > integer::max + (negative ? 1 : 0))
-    throw parse_error{"Integer literal overflow"};
-
-  if (negative)
-    result = ~result + 1;
-
-  return make<integer>(ctx, result);
-}
-
-void
-write_number(ptr<integer> const& value, ptr<port> const& out) {
-  std::array<char, std::numeric_limits<integer::value_type>::digits10 + 1> buffer;
-  std::to_chars_result res = std::to_chars(buffer.data(), buffer.data() + buffer.size(),
-                                           value->value());
-
-  assert(res.ec == std::errc{});
-  out->write_string(std::string(buffer.data(), res.ptr));
-}
-
 static ptr<big_integer>
 extend_big(context& ctx, ptr<big_integer> const& i, limb_type new_limb) {
   auto result = make<big_integer>(ctx, i->length() + 1, big_integer::dont_initialize);
@@ -236,14 +190,58 @@ normalize(context& ctx, ptr<big_integer> const& i) {
 }
 
 static ptr<big_integer>
-add_magnitude(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
+add_big_magnitude_to_limb_destructive(context& ctx, ptr<big_integer> result,
+                                      ptr<big_integer> const& lhs, limb_type rhs) {
+  assert(!lhs->zero());
+
+  if (!result || result->length() < lhs->length())
+    result = make<big_integer>(ctx, lhs->length());
+
+  // result and lhs may point to the same object.
+
+  limb_type* x = lhs->data();
+  limb_type* out = result->data();
+  limb_type x_0 = x[0];
+  out[0] = x_0 + rhs;
+  limb_type carry = x_0 > max_limb_value - rhs;
+
+  for (std::size_t i = 1; i < lhs->length(); ++i) {
+    limb_type x_i = x[i];
+    out[i] = x_i + carry;
+    carry = x_i > max_limb_value - carry;
+  }
+
+  if (carry)
+    return extend_big(ctx, result, limb_type{1});
+  else
+    return result;
+}
+
+static generic_ptr
+add_magnitude_to_limb_destructive(context& ctx, generic_ptr lhs, limb_type rhs) {
+  if (auto b = match<big_integer>(lhs))
+    return add_big_magnitude_to_limb_destructive(ctx, b, b, rhs);
+
+  auto lhs_int = assume<integer>(lhs);
+  double_limb_type sum = lhs_int->value() + rhs;
+  if (sum <= integer::max) {
+    lhs_int->set_value(static_cast<integer::value_type>(sum));
+    return lhs_int;
+  }
+
+  return add_big_magnitude_to_limb_destructive(ctx, {}, make<big_integer>(ctx, lhs_int), rhs);
+}
+
+static ptr<big_integer>
+add_big_magnitude_destructive(context& ctx, ptr<big_integer> result, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   // lhs is always going to be the bigger of the two to simplify things in the
   // implementation.
 
   if (lhs->length() < rhs->length())
     std::swap(lhs, rhs);
 
-  auto result = make<big_integer>(ctx, lhs->length());
+  if (!result || result->length() < lhs->length())
+    result = make<big_integer>(ctx, lhs->length());
   limb_type* x = lhs->data();
   limb_type* y = rhs->data();
   limb_type* out = result->data();
@@ -264,6 +262,11 @@ add_magnitude(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
     return extend_big(ctx, result, limb_type{1});
   else
     return result;
+}
+
+static ptr<big_integer>
+add_big_magnitude(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
+  return add_big_magnitude_destructive(ctx, {}, lhs, rhs);
 }
 
 namespace {
@@ -350,6 +353,16 @@ flip_sign(ptr<big_integer> const& i) {
   return i;
 }
 
+static generic_ptr
+flip_sign(generic_ptr const& i) {
+  if (auto b = match<big_integer>(i))
+    return flip_sign(b);
+
+  auto small = assume<integer>(i);
+  small->set_value(-small->value());
+  return small;
+}
+
 static ptr<big_integer>
 set_sign_copy(context& ctx, ptr<big_integer> const& value, bool sign) {
   if (value->positive() == sign)
@@ -378,7 +391,7 @@ add_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
       return sub_magnitude(ctx, rhs, lhs);
   }
 
-  auto result = add_magnitude(ctx, lhs, rhs);
+  auto result = add_big_magnitude(ctx, lhs, rhs);
   if (lhs->positive())
     return result;
   else
@@ -404,9 +417,9 @@ sub_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
 
   if (lhs->positive() != rhs->positive()) {
     if (lhs->positive())
-      return add_magnitude(ctx, lhs, rhs);
+      return add_big_magnitude(ctx, lhs, rhs);
     else
-      return flip_sign(add_magnitude(ctx, lhs, rhs));
+      return flip_sign(add_big_magnitude(ctx, lhs, rhs));
   }
 
   auto result = sub_magnitude(ctx, lhs, rhs);
@@ -432,13 +445,16 @@ mul_limb_by_limb(limb_type lhs, limb_type rhs) {
 }
 
 static ptr<big_integer>
-mul_big_magnitude_by_limb(context& ctx, ptr<big_integer> const& lhs, limb_type rhs) {
+mul_big_magnitude_by_limb_destructive(context& ctx, ptr<big_integer> result,
+                                      ptr<big_integer> const& lhs, limb_type rhs) {
   if (rhs == 0)
     return make<big_integer>(ctx, 0);
   if (rhs == 1)
     return lhs;
 
-  auto result = make<big_integer>(ctx, lhs->length(), big_integer::dont_initialize);
+  if (!result || result->length() < lhs->length())
+    result = make<big_integer>(ctx, lhs->length(), big_integer::dont_initialize);
+
   limb_type carry = 0;
   limb_type* x = lhs->data();
   limb_type* out = result->data();
@@ -459,6 +475,27 @@ mul_big_magnitude_by_limb(context& ctx, ptr<big_integer> const& lhs, limb_type r
     return extend_big(ctx, result, carry);
   else
     return result;
+}
+
+static ptr<big_integer>
+mul_big_magnitude_by_limb(context& ctx, ptr<big_integer> const& lhs, limb_type rhs) {
+  return mul_big_magnitude_by_limb_destructive(ctx, {}, lhs, rhs);
+}
+
+static generic_ptr
+mul_magnitude_by_limb_destructive(context& ctx, generic_ptr lhs, limb_type rhs) {
+  if (auto b = match<big_integer>(lhs))
+    return mul_big_magnitude_by_limb_destructive(ctx, b, b, rhs);
+
+  auto lhs_int = assume<integer>(lhs);
+  assert(lhs_int->value() >= 0);
+  double_limb_type product = static_cast<double_limb_type>(lhs_int->value()) * double_limb_type{rhs};
+  if (product <= integer::max) {
+    lhs_int->set_value(static_cast<integer::value_type>(product));
+    return lhs_int;
+  }
+
+  return mul_big_magnitude_by_limb_destructive(ctx, {}, make<big_integer>(ctx, lhs_int), rhs);
 }
 
 static bool
@@ -497,7 +534,7 @@ mul_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   for (std::size_t i = 1; i < rhs->length(); ++i) {
     auto term = mul_big_magnitude_by_limb(ctx, lhs, y[i]);
     if (!term->zero())
-      result = add_magnitude(ctx, result, shift(ctx, term, i));
+      result = add_big_magnitude(ctx, result, shift(ctx, term, i));
   }
 
   if (lhs->positive() != rhs->positive())
@@ -894,6 +931,46 @@ export_native(context& ctx, module& m, std::string const& name,
   ctx.tag_top_level(index, tag);
   m.add(name, index);
   m.export_(name);
+}
+
+generic_ptr
+read_number(context& ctx, ptr<port> const& stream, bool negative) {
+  std::optional<char> c = stream->peek_char();
+
+  assert(c);
+  if (c == '-' || c == '+') {
+    negative = c == '-';
+    stream->read_char();
+    c = stream->peek_char();
+  }
+
+  generic_ptr result = make<integer>(ctx, 0);
+
+  while (c && digit(*c)) {
+    result = mul_magnitude_by_limb_destructive(ctx, result, 10);
+    result = add_magnitude_to_limb_destructive(ctx, result, digit_value(*c));
+
+    stream->read_char();
+    c = stream->peek_char();
+  }
+
+  if (negative)
+    result = flip_sign(result);
+
+  if (auto b = match<big_integer>(result))
+    result = normalize(ctx, b);
+
+  return result;
+}
+
+void
+write_number(ptr<integer> const& value, ptr<port> const& out) {
+  std::array<char, std::numeric_limits<integer::value_type>::digits10 + 1> buffer;
+  std::to_chars_result res = std::to_chars(buffer.data(), buffer.data() + buffer.size(),
+                                           value->value());
+
+  assert(res.ec == std::errc{});
+  out->write_string(std::string(buffer.data(), res.ptr));
 }
 
 void
