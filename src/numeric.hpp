@@ -198,7 +198,7 @@ generic_ptr
 read_number(context&, ptr<port> const&, bool negate = false);
 
 void
-write_number(ptr<integer> const& value, ptr<port> const& out);
+write_number(context&, generic_ptr const& value, ptr<port> const& out);
 
 void
 export_numeric(context&, module&);

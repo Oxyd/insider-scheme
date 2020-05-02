@@ -5,7 +5,6 @@
 #include "scheme.hpp"
 
 #include <algorithm>
-#include <charconv>
 #include <cstdlib>
 
 namespace scm {
@@ -963,14 +962,66 @@ read_number(context& ctx, ptr<port> const& stream, bool negative) {
   return result;
 }
 
-void
-write_number(ptr<integer> const& value, ptr<port> const& out) {
-  std::array<char, std::numeric_limits<integer::value_type>::digits10 + 1> buffer;
-  std::to_chars_result res = std::to_chars(buffer.data(), buffer.data() + buffer.size(),
-                                           value->value());
+template <typename T>
+static void
+write_small_magnitude(std::string& buffer, T n) {
+  while (n > 0) {
+    T quot = n / 10;
+    T rem = n % 10;
+    buffer.push_back('0' + rem);
+    n = quot;
+  }
+}
 
-  assert(res.ec == std::errc{});
-  out->write_string(std::string(buffer.data(), res.ptr));
+static void
+write_small(ptr<integer> const& value, ptr<port> const& out) {
+  if (value->value() == 0) {
+    out->write_char('0');
+    return;
+  }
+
+  if (value->value() < 0)
+    out->write_char('-');
+
+  std::string buffer;
+  integer::storage_type n = value->value() >= 0 ? value->value() : -value->value();
+  write_small_magnitude(buffer, n);
+
+  std::reverse(buffer.begin(), buffer.end());
+  out->write_string(buffer);
+}
+
+static void
+write_big(context& ctx, ptr<big_integer> value, ptr<port> const& out) {
+  if (value->zero()) {
+    out->write_char('0');
+    return;
+  }
+
+  if (!value->positive())
+    out->write_char('-');
+
+  std::string buffer;
+  limb_type remainder;
+  while (normal_length(value) > 1) {
+    std::tie(value, remainder) = div_rem_by_limb_magnitude(ctx, value, 10);
+    buffer.push_back('0' + remainder);
+  }
+
+  write_small_magnitude(buffer, value->front());
+
+  std::reverse(buffer.begin(), buffer.end());
+  out->write_string(buffer);
+}
+
+void
+write_number(context& ctx, generic_ptr const& value, ptr<port> const& out) {
+  if (auto s = match<integer>(value))
+    write_small(s, out);
+  else if (auto b = match<big_integer>(value))
+    write_big(ctx, b, out);
+  else
+    assert(false);
 }
 
 void
