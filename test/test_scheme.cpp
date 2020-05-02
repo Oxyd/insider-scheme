@@ -1546,7 +1546,7 @@ template <typename... Limbs>
 ptr<big_integer>
 make_big_negative(context& ctx, Limbs... limbs) {
   limb_vector ls;
-  convert_limbs(ls, limbs...);
+  convert_limbs(ls, static_cast<std::uint64_t>(limbs)...);
   return make<big_integer>(ctx, ls, false);
 }
 

@@ -481,6 +481,11 @@ mul_big_magnitude_by_limb(context& ctx, ptr<big_integer> const& lhs, limb_type r
   return mul_big_magnitude_by_limb_destructive(ctx, {}, lhs, rhs);
 }
 
+static bool
+small_mul_overflow(integer::storage_type x, integer::storage_type y) {
+  return x > static_cast<integer::storage_type>(integer::max) / y;
+}
+
 static generic_ptr
 mul_magnitude_by_limb_destructive(context& ctx, generic_ptr lhs, limb_type rhs) {
   if (auto b = match<big_integer>(lhs))
@@ -488,13 +493,12 @@ mul_magnitude_by_limb_destructive(context& ctx, generic_ptr lhs, limb_type rhs) 
 
   auto lhs_int = assume<integer>(lhs);
   assert(lhs_int->value() >= 0);
-  double_limb_type product = static_cast<double_limb_type>(lhs_int->value()) * double_limb_type{rhs};
-  if (product <= integer::max) {
-    lhs_int->set_value(static_cast<integer::value_type>(product));
-    return lhs_int;
-  }
 
-  return mul_big_magnitude_by_limb_destructive(ctx, {}, make<big_integer>(ctx, lhs_int), rhs);
+  if (small_mul_overflow(lhs_int->value(), rhs))
+    return mul_big_magnitude_by_limb_destructive(ctx, {}, make<big_integer>(ctx, lhs_int), rhs);
+
+  lhs_int->set_value(lhs_int->value() * rhs);
+  return lhs_int;
 }
 
 static bool
@@ -548,12 +552,11 @@ mul_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
   integer::storage_type y = rhs->value() > 0 ? rhs->value() : -rhs->value();
   bool result_positive = (lhs->value() > 0) == (rhs->value() > 0);
 
-  double_limb_type product = double_limb_type{x} * double_limb_type{y};
-  if ((result_positive && product > integer::max)
-      || (!result_positive && product > -integer::min))
+  if (small_mul_overflow(x, y))
     return mul_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
-  else
-    return make<integer>(ctx, result_positive ? integer::value_type(product) : -integer::value_type(product));
+
+  integer::value_type product = x * y;
+  return make<integer>(ctx, result_positive ? product : -product);
 }
 
 static ptr<big_integer>
