@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <numeric>
 
 namespace scm {
 
@@ -151,9 +152,6 @@ static generic_ptr
 normalize(context& ctx, ptr<big_integer> const& i) {
   std::size_t new_length = normal_length(i);
 
-  if (new_length == i->length())
-    return i;
-
   if (new_length == 0)
     return make<integer>(ctx, 0);
 
@@ -181,6 +179,9 @@ normalize(context& ctx, ptr<big_integer> const& i) {
       }
     }
   }
+
+  if (new_length == i->length())
+    return i;
 
   auto result = make<big_integer>(ctx, new_length, big_integer::dont_initialize);
   std::copy(i->begin(), i->begin() + new_length, result->begin());
@@ -560,12 +561,12 @@ mul_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
 }
 
 static ptr<big_integer>
-bitshift_left(context& ctx, ptr<big_integer> i, unsigned k) {
-  i = make<big_integer>(ctx, i);
-  if (k == 0)
+bitshift_left_destructive(context& ctx, ptr<big_integer> i, std::size_t shift) {
+  if (shift == 0)
     return i;
 
-  assert(k < limb_width);
+  std::size_t k = shift % limb_width;
+  std::size_t extra_limbs = shift / limb_width;
 
   limb_type const top_k_bits = ~limb_type{0} << (limb_width - k);
   if ((i->back() & top_k_bits) != 0)
@@ -581,12 +582,23 @@ bitshift_left(context& ctx, ptr<big_integer> i, unsigned k) {
     }
   }
 
+  if (extra_limbs > 0) {
+    auto result = make<big_integer>(ctx, i->length() + extra_limbs, big_integer::dont_initialize);
+    std::copy(i->begin(), i->end(), result->begin());
+    std::fill_n(result->begin() + i->length(), result->length() - i->length(), 0);
+    return result;
+  }
+
   return i;
 }
 
 static ptr<big_integer>
-bitshift_right(context& ctx, ptr<big_integer> i, unsigned k) {
-  i = make<big_integer>(ctx, i);
+bitshift_left(context& ctx, ptr<big_integer> i, unsigned k) {
+  return bitshift_left_destructive(ctx, make<big_integer>(ctx, i), k);
+}
+
+static ptr<big_integer>
+bitshift_right_destructive(context& ctx, ptr<big_integer> i, std::size_t k) {
   if (k == 0)
     return i;
 
@@ -606,6 +618,11 @@ bitshift_right(context& ctx, ptr<big_integer> i, unsigned k) {
   }
 
   return i;
+}
+
+static ptr<big_integer>
+bitshift_right(context& ctx, ptr<big_integer> i, std::size_t k) {
+  return bitshift_right_destructive(ctx, make<big_integer>(ctx, i), k);
 }
 
 static unsigned
@@ -775,6 +792,19 @@ make_big(context& ctx, generic_ptr const& x) {
   }
 }
 
+static ptr<big_integer>
+make_big_copy(context& ctx, generic_ptr const& x) {
+  if (auto b = match<big_integer>(x))
+    return make<big_integer>(ctx, b);
+  else if (auto s = match<integer>(x)) {
+    return make<big_integer>(ctx, s);
+  }
+  else {
+    assert(!"Can't happen");
+    return {};
+  }
+}
+
 template <auto F>
 generic_ptr
 arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, integer::value_type neutral) {
@@ -926,6 +956,65 @@ greater(context& ctx, std::vector<generic_ptr> const& xs) {
   return relational<greater>(ctx, xs, ">");
 }
 
+static bool
+odd(ptr<big_integer> const& i) {
+  if (i->zero())
+    return false;
+  return i->front() & 1;
+}
+
+static bool
+even(ptr<big_integer> const& i) {
+  return !odd(i);
+}
+
+static generic_ptr
+gcd_big(context& ctx, ptr<big_integer> x, ptr<big_integer> y) {
+  if (x->zero())
+    return y;
+  if (y->zero())
+    return x;
+
+  x->set_positive(true);
+  y->set_positive(true);
+
+  std::size_t shift = 0;
+  while (even(x) && even(y)) {
+    assert(shift < std::numeric_limits<std::size_t>::max());
+    ++shift;
+    x = bitshift_right_destructive(ctx, x, 1);
+    y = bitshift_right_destructive(ctx, y, 1);
+  }
+
+  while (even(x))
+    x = bitshift_right_destructive(ctx, x, 1);
+
+  while (!y->zero()) {
+    while (even(y))
+      y = bitshift_right_destructive(ctx, y, 1);
+
+    if (compare_magnitude(x, y, normal_length(x), normal_length(y)) == compare::greater)
+      std::swap(x, y);
+
+    y = sub_magnitude(ctx, y, x);
+  }
+
+  return normalize(ctx, bitshift_left_destructive(ctx, x, shift));
+}
+
+generic_ptr
+gcd(context& ctx, generic_ptr const& x, generic_ptr const& y) {
+  switch (find_common_type(x, y)) {
+  case common_type::small:
+    return make<integer>(ctx, std::gcd(assume<integer>(x)->value(), assume<integer>(y)->value()));
+  case common_type::big:
+    return gcd_big(ctx, make_big_copy(ctx, x), make_big_copy(ctx, y));
+  }
+
+  assert(false);
+  return {};
+}
+
 static void
 export_native(context& ctx, module& m, std::string const& name,
               generic_ptr (*f)(context&, std::vector<generic_ptr> const&), special_top_level_tag tag) {
@@ -1036,6 +1125,7 @@ export_numeric(context& ctx, module& result) {
   export_native(ctx, result, "=", arith_equal, special_top_level_tag::arith_equal);
   export_native(ctx, result, "<", less, special_top_level_tag::less_than);
   export_native(ctx, result, ">", greater, special_top_level_tag::greater_than);
+  define_lambda<gcd>(ctx, result, "gcd", true);
 }
 
 } // namespace scm

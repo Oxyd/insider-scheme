@@ -185,6 +185,12 @@ define_lambda(context& ctx, module& m, std::string const& name, bool export_, F 
   detail::lambda_definer<T>::define(ctx, m, name, std::move(f), export_);
 }
 
+template <auto F>
+void
+define_lambda(context& ctx, module& m, std::string const& name, bool export_) {
+  detail::lambda_definer<std::remove_pointer_t<decltype(F)>>::define(ctx, m, name, F, export_);
+}
+
 // Wrapper around a Scheme procedure. Acts as a C++ function of type T. When
 // called, converts its arguments from C++ types to Scheem values, then converts
 // the Scheme value back to a C++ one.

@@ -195,6 +195,9 @@ generic_ptr
 greater(context&, std::vector<generic_ptr> const&);
 
 generic_ptr
+gcd(context&, generic_ptr const&, generic_ptr const&);
+
+generic_ptr
 read_number(context&, ptr<port> const&, bool negate = false);
 
 void
