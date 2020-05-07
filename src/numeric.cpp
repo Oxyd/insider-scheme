@@ -445,6 +445,19 @@ add_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
     return make<integer>(ctx, sum);
 }
 
+static ptr<fraction>
+add_fraction(context& ctx, ptr<fraction> const& lhs, ptr<fraction> const& rhs) {
+  //  a     c    ad + bc
+  // --- + --- = -------
+  //  b     d      bd
+
+  return make<fraction>(ctx,
+                        add(ctx,
+                            multiply(ctx, fraction_numerator(lhs), fraction_denominator(rhs)),
+                            multiply(ctx, fraction_denominator(lhs), fraction_numerator(rhs))),
+                        multiply(ctx, fraction_denominator(lhs), fraction_denominator(rhs)));
+}
+
 static ptr<big_integer>
 sub_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   if (rhs->zero())
@@ -474,6 +487,15 @@ sub_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
     return sub_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
   else
     return make<integer>(ctx, dif);
+}
+
+static ptr<fraction>
+sub_fraction(context& ctx, ptr<fraction> const& lhs, ptr<fraction> const& rhs) {
+  return make<fraction>(ctx,
+                        subtract(ctx,
+                                 multiply(ctx, fraction_numerator(lhs), fraction_denominator(rhs)),
+                                 multiply(ctx, fraction_denominator(lhs), fraction_numerator(rhs))),
+                        multiply(ctx, fraction_denominator(lhs), fraction_denominator(rhs)));
 }
 
 static std::tuple<limb_type, limb_type>
@@ -596,6 +618,13 @@ mul_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
 
   integer::value_type product = x * y;
   return make<integer>(ctx, result_positive ? product : -product);
+}
+
+static ptr<fraction>
+mul_fraction(context& ctx, ptr<fraction> const& lhs, ptr<fraction> const& rhs) {
+  return make<fraction>(ctx,
+                        multiply(ctx, fraction_numerator(lhs), fraction_numerator(rhs)),
+                        multiply(ctx, fraction_denominator(lhs), fraction_denominator(rhs)));
 }
 
 static ptr<big_integer>
@@ -880,7 +909,7 @@ arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, i
 
 using primitive_arithmetic_type = generic_ptr(context& ctx, generic_ptr const&, generic_ptr const&);
 
-template <auto Small, auto Big>
+template <auto Small, auto Big, auto Fraction>
 generic_ptr
 arithmetic_two(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
   switch (find_common_type(lhs, rhs)) {
@@ -888,6 +917,8 @@ arithmetic_two(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
     return Small(ctx, assume<integer>(lhs), assume<integer>(rhs));
   case common_type::big_integer:
     return normalize(ctx, Big(ctx, make_big(ctx, lhs), make_big(ctx, rhs)));
+  case common_type::fraction:
+    return normalize_fraction(ctx, Fraction(ctx, make_fraction(ctx, lhs), make_fraction(ctx, rhs)));
   }
 
   assert(false);
@@ -906,7 +937,7 @@ is_number(generic_ptr const& x) {
 
 generic_ptr
 add(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return arithmetic_two<add_small, add_big>(ctx, lhs, rhs);
+  return arithmetic_two<add_small, add_big, add_fraction>(ctx, lhs, rhs);
 }
 
 generic_ptr
@@ -916,7 +947,7 @@ add(context& ctx, std::vector<generic_ptr> const& xs) {
 
 generic_ptr
 subtract(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return arithmetic_two<sub_small, sub_big>(ctx, lhs, rhs);
+  return arithmetic_two<sub_small, sub_big, sub_fraction>(ctx, lhs, rhs);
 }
 
 generic_ptr
@@ -926,7 +957,7 @@ subtract(context& ctx, std::vector<generic_ptr> const& xs) {
 
 generic_ptr
 multiply(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return arithmetic_two<mul_small, mul_big>(ctx, lhs, rhs);
+  return arithmetic_two<mul_small, mul_big, mul_fraction>(ctx, lhs, rhs);
 }
 
 generic_ptr
@@ -951,10 +982,24 @@ quotient_remainder(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs)
     return div_rem_small(ctx, assume<integer>(lhs), assume<integer>(rhs));
   case common_type::big_integer:
     return div_rem_big(ctx, make_big(ctx, lhs), make_big(ctx, rhs));
+  default:
+    throw std::runtime_error{"Expected integer"};
   }
 
   assert(false);
   return {};
+}
+
+generic_ptr
+divide(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  ptr<fraction> x = make_fraction(ctx, lhs);
+  ptr<fraction> y = make_fraction(ctx, rhs);
+  return normalize_fraction(
+    ctx,
+    make<fraction>(ctx,
+                   multiply(ctx, fraction_numerator(x), fraction_denominator(y)),
+                   multiply(ctx, fraction_denominator(x), fraction_numerator(y)))
+  );
 }
 
 using primitive_relational_type = ptr<boolean>(context&, generic_ptr const&, generic_ptr const&);

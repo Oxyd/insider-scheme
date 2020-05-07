@@ -41,6 +41,11 @@ struct scheme : testing::Test {
   num_equal(generic_ptr const& lhs, generic_ptr const& rhs) {
     return arith_equal(ctx, lhs, rhs) == ctx.constants->t;
   }
+
+  ptr<fraction>
+  make_fraction(int n, int d) {
+    return make<fraction>(ctx, make<integer>(ctx, n), make<integer>(ctx, d));
+  };
 };
 
 struct aaa : object {
@@ -2045,10 +2050,6 @@ TEST_F(scheme, gcd) {
 }
 
 TEST_F(scheme, read_write_fraction) {
-  auto make_fraction = [&] (int n, int d) { return make<fraction>(ctx,
-                                                                  make<integer>(ctx, n),
-                                                                  make<integer>(ctx, d)); };
-
   EXPECT_TRUE(num_equal(read("1/2"), make_fraction(1, 2)));
   EXPECT_TRUE(num_equal(read("2/4"), make_fraction(1, 2)));
   EXPECT_TRUE(num_equal(read("-1/2"), make_fraction(-1, 2)));
@@ -2057,4 +2058,19 @@ TEST_F(scheme, read_write_fraction) {
 
   EXPECT_EQ(to_string(ctx, make_fraction(1, 2)), "1/2");
   EXPECT_EQ(to_string(ctx, make_fraction(-1, 2)), "-1/2");
+}
+
+TEST_F(scheme, fraction_arithmetic) {
+  EXPECT_TRUE(num_equal(add(ctx, make_fraction(1, 2), make_fraction(1, 3)), make_fraction(5, 6)));
+  EXPECT_TRUE(num_equal(add(ctx, make_fraction(7, 12), make_fraction(5, 12)), make<integer>(ctx, 1)));
+  EXPECT_TRUE(num_equal(add(ctx, make_fraction(1, 6), make_fraction(2, 3)), make_fraction(5, 6)));
+  EXPECT_TRUE(num_equal(add(ctx, make_fraction(3, 4), make_fraction(1, 6)), make_fraction(11, 12)));
+  EXPECT_TRUE(num_equal(subtract(ctx, make<integer>(ctx, 1), make_fraction(1, 3)), make_fraction(2, 3)));
+  EXPECT_TRUE(num_equal(subtract(ctx, make_fraction(7, 2), make<integer>(ctx, 4)), make_fraction(-1, 2)));
+  EXPECT_TRUE(num_equal(multiply(ctx, make_fraction(1, 3), make_fraction(2, 3)), make_fraction(2, 9)));
+  EXPECT_TRUE(num_equal(multiply(ctx, make_fraction(7, 2), make_fraction(2, 7)), make<integer>(ctx, 1)));
+  EXPECT_TRUE(num_equal(divide(ctx, make<integer>(ctx, 1), make<integer>(ctx, 2)), make_fraction(1, 2)));
+  EXPECT_TRUE(num_equal(divide(ctx, make<integer>(ctx, 8), make<integer>(ctx, 2)), make<integer>(ctx, 4)));
+  EXPECT_TRUE(num_equal(divide(ctx, make_fraction(3, 4), make_fraction(2, 3)), make_fraction(9, 8)));
+  EXPECT_TRUE(num_equal(divide(ctx, make_fraction(1, 3), make_fraction(2, 3)), make_fraction(1, 2)));
 }
