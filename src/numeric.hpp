@@ -156,6 +156,42 @@ private:
   bool positive_ = true;
 };
 
+class fraction : public object {
+public:
+  fraction(generic_ptr const& numerator, generic_ptr const& denominator);
+
+  generic_ptr
+  numerator(free_store& store) const { return {store, numerator_}; };
+
+  generic_ptr
+  denominator(free_store& store) const { return {store, denominator_}; }
+
+  void
+  set_numerator(generic_ptr const& n) { numerator_ = n.get(); }
+
+  void
+  set_denominator(generic_ptr const& d) { denominator_ = d.get(); }
+
+  void
+  for_each_subobject(std::function<void(object*)> const&) override;
+
+private:
+  object* numerator_;
+  object* denominator_;
+};
+
+inline generic_ptr
+fraction_numerator(ptr<fraction> const& f) { return f->numerator(f.store()); }
+
+inline generic_ptr
+fraction_denominator(ptr<fraction> const& f) { return f->denominator(f.store()); }
+
+bool
+is_integer(generic_ptr const&);
+
+bool
+is_number(generic_ptr const&);
+
 generic_ptr
 add(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
@@ -172,9 +208,9 @@ generic_ptr
 multiply(context&, std::vector<generic_ptr> const&);
 
 generic_ptr
-divide(context&, generic_ptr const&, generic_ptr const&);
+truncate_quotient(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
-divide(context&, std::vector<generic_ptr> const&);
+truncate_quotient(context&, std::vector<generic_ptr> const&);
 
 std::tuple<generic_ptr, generic_ptr>
 quotient_remainder(context&, generic_ptr const&, generic_ptr const&);

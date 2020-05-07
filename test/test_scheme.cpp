@@ -2043,3 +2043,18 @@ TEST_F(scheme, gcd) {
                             read("7143737363507851466671560831127318663187019217037069553424396890442458422936353440819622600793958827154371382539989874611891068389366589075003540538150224")),
                         read("3482687899064411289424507725617653109781215164227824305838")));
 }
+
+TEST_F(scheme, read_write_fraction) {
+  auto make_fraction = [&] (int n, int d) { return make<fraction>(ctx,
+                                                                  make<integer>(ctx, n),
+                                                                  make<integer>(ctx, d)); };
+
+  EXPECT_TRUE(num_equal(read("1/2"), make_fraction(1, 2)));
+  EXPECT_TRUE(num_equal(read("2/4"), make_fraction(1, 2)));
+  EXPECT_TRUE(num_equal(read("-1/2"), make_fraction(-1, 2)));
+  EXPECT_TRUE(num_equal(read("0/5"), make<integer>(ctx, 0)));
+  EXPECT_TRUE(num_equal(read("6/3"), make<integer>(ctx, 2)));
+
+  EXPECT_EQ(to_string(ctx, make_fraction(1, 2)), "1/2");
+  EXPECT_EQ(to_string(ctx, make_fraction(-1, 2)), "-1/2");
+}

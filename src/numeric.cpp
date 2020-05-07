@@ -119,6 +119,20 @@ big_integer::rend() -> reverse_iterator {
   return reverse_iterator{begin()};
 }
 
+fraction::fraction(generic_ptr const& num, generic_ptr const& den)
+  : numerator_{num.get()}
+  , denominator_{den.get()}
+{
+  assert(is_integer(num));
+  assert(is_integer(den));
+}
+
+void
+fraction::for_each_subobject(std::function<void(object*)> const& f) {
+  f(numerator_);
+  f(denominator_);
+}
+
 static bool
 digit(char c) {
   return c >= '0' && c <= '9';
@@ -187,6 +201,30 @@ normalize(context& ctx, ptr<big_integer> const& i) {
   std::copy(i->begin(), i->begin() + new_length, result->begin());
   result->set_positive(i->positive());
   return result;
+}
+
+static generic_ptr
+normalize_fraction(context& ctx, ptr<fraction> const& q) {
+  generic_ptr num = fraction_numerator(q);
+  generic_ptr den = fraction_denominator(q);
+
+  if (auto d = match<integer>(den)) {
+    if (d->value() == 0)
+      throw std::runtime_error{"0 in fraction denominator"};
+  }
+
+  if (auto n = match<integer>(num)) {
+    if (n->value() == 0)
+      return n;
+  }
+
+  generic_ptr com_den = gcd(ctx, num, den);
+  if (auto c = match<integer>(com_den)) {
+    if (c->value() == 1)
+      return q;
+  }
+
+  return make<fraction>(ctx, truncate_quotient(ctx, num, com_den), truncate_quotient(ctx, den, com_den));
 }
 
 static ptr<big_integer>
@@ -766,17 +804,23 @@ compare_big(ptr<big_integer> const& lhs, ptr<big_integer> const& rhs) {
 
 namespace {
   enum class common_type {
-    small,
-    big
+    small_integer,
+    big_integer,
+    fraction
   };
 }
 
 static common_type
 find_common_type(generic_ptr const& lhs, generic_ptr const& rhs) {
-  if (is<integer>(lhs) && is<integer>(rhs))
-    return common_type::small;
-  else
-    return common_type::big;
+  if (is<fraction>(lhs) || is<fraction>(rhs))
+    return common_type::fraction;
+  else if (is<big_integer>(lhs) || is<big_integer>(rhs))
+    return common_type::big_integer;
+  else {
+    assert(is<integer>(lhs));
+    assert(is<integer>(rhs));
+    return common_type::small_integer;
+  }
 }
 
 static ptr<big_integer>
@@ -805,6 +849,15 @@ make_big_copy(context& ctx, generic_ptr const& x) {
   }
 }
 
+static ptr<fraction>
+make_fraction(context& ctx, generic_ptr const& x) {
+  if (is<integer>(x) || is<big_integer>(x))
+    return make<fraction>(ctx, x, make<integer>(ctx, 1));
+
+  assert(is<fraction>(x));
+  return assume<fraction>(x);
+}
+
 template <auto F>
 generic_ptr
 arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, integer::value_type neutral) {
@@ -831,14 +884,24 @@ template <auto Small, auto Big>
 generic_ptr
 arithmetic_two(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
   switch (find_common_type(lhs, rhs)) {
-  case common_type::small:
+  case common_type::small_integer:
     return Small(ctx, assume<integer>(lhs), assume<integer>(rhs));
-  case common_type::big:
+  case common_type::big_integer:
     return normalize(ctx, Big(ctx, make_big(ctx, lhs), make_big(ctx, rhs)));
   }
 
   assert(false);
   return {};
+}
+
+bool
+is_integer(generic_ptr const& x) {
+  return is<integer>(x) || is<big_integer>(x);
+}
+
+bool
+is_number(generic_ptr const& x) {
+  return is_integer(x) || is<fraction>(x);
 }
 
 generic_ptr
@@ -872,24 +935,21 @@ multiply(context& ctx, std::vector<generic_ptr> const& xs) {
 }
 
 generic_ptr
-divide(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  if (expect<integer>(rhs)->value() == 0)
-    throw std::runtime_error{"Divide by zero"};
-  else
-    return make<integer>(ctx, expect<integer>(lhs)->value() / expect<integer>(rhs)->value());
+truncate_quotient(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  return std::get<0>(quotient_remainder(ctx, lhs, rhs));
 }
 
 generic_ptr
-divide(context& ctx, std::vector<generic_ptr> const& xs) {
-  return arithmetic<static_cast<primitive_arithmetic_type*>(&divide)>(ctx, xs, false, 1);
+truncate_quotient(context& ctx, std::vector<generic_ptr> const& xs) {
+  return arithmetic<static_cast<primitive_arithmetic_type*>(&truncate_quotient)>(ctx, xs, false, 1);
 }
 
 std::tuple<generic_ptr, generic_ptr>
 quotient_remainder(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
   switch (find_common_type(lhs, rhs)) {
-  case common_type::small:
+  case common_type::small_integer:
     return div_rem_small(ctx, assume<integer>(lhs), assume<integer>(rhs));
-  case common_type::big:
+  case common_type::big_integer:
     return div_rem_big(ctx, make_big(ctx, lhs), make_big(ctx, rhs));
   }
 
@@ -920,11 +980,20 @@ relational(context& ctx, std::vector<generic_ptr> const& xs, std::string const& 
 ptr<boolean>
 arith_equal(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
   switch (find_common_type(lhs, rhs)) {
-  case common_type::small:
+  case common_type::small_integer:
     return assume<integer>(lhs)->value() == assume<integer>(rhs)->value() ? ctx.constants->t : ctx.constants->f;
-  case common_type::big:
+  case common_type::big_integer:
     return compare_big(make_big(ctx, lhs), make_big(ctx, rhs)) == compare::equal
            ? ctx.constants->t : ctx.constants->f;
+  case common_type::fraction: {
+    auto l = make_fraction(ctx, lhs);
+    auto r = make_fraction(ctx, rhs);
+    if (arith_equal(ctx, fraction_numerator(l), fraction_numerator(r)) == ctx.constants->f)
+      return ctx.constants->f;
+    if (arith_equal(ctx, fraction_denominator(l), fraction_denominator(r)) == ctx.constants->f)
+      return ctx.constants->f;
+    return ctx.constants->t;
+  }
   }
 
   assert(false);
@@ -1005,9 +1074,9 @@ gcd_big(context& ctx, ptr<big_integer> x, ptr<big_integer> y) {
 generic_ptr
 gcd(context& ctx, generic_ptr const& x, generic_ptr const& y) {
   switch (find_common_type(x, y)) {
-  case common_type::small:
+  case common_type::small_integer:
     return make<integer>(ctx, std::gcd(assume<integer>(x)->value(), assume<integer>(y)->value()));
-  case common_type::big:
+  case common_type::big_integer:
     return gcd_big(ctx, make_big_copy(ctx, x), make_big_copy(ctx, y));
   }
 
@@ -1024,17 +1093,9 @@ export_native(context& ctx, module& m, std::string const& name,
   m.export_(name);
 }
 
-generic_ptr
-read_number(context& ctx, ptr<port> const& stream, bool negative) {
+static generic_ptr
+read_integer(context& ctx, ptr<port> const& stream) {
   std::optional<char> c = stream->peek_char();
-
-  assert(c);
-  if (c == '-' || c == '+') {
-    negative = c == '-';
-    stream->read_char();
-    c = stream->peek_char();
-  }
-
   generic_ptr result = make<integer>(ctx, 0);
 
   while (c && digit(*c)) {
@@ -1045,13 +1106,33 @@ read_number(context& ctx, ptr<port> const& stream, bool negative) {
     c = stream->peek_char();
   }
 
-  if (negative)
-    result = flip_sign(result);
-
   if (auto b = match<big_integer>(result))
     result = normalize(ctx, b);
 
   return result;
+}
+
+generic_ptr
+read_number(context& ctx, ptr<port> const& stream, bool negative) {
+  std::optional<char> c = stream->peek_char();
+
+  assert(c);
+  if (c == '-' || c == '+') {
+    negative = c == '-';
+    stream->read_char();
+  }
+
+  generic_ptr first = read_integer(ctx, stream);
+  if (negative)
+    first = flip_sign(first);
+
+  if (stream->peek_char() == '/') {
+    stream->read_char();
+    generic_ptr second = read_integer(ctx, stream);
+    return normalize_fraction(ctx, make<fraction>(ctx, first, second));
+  }
+  else
+    return first;
 }
 
 template <typename T>
@@ -1106,12 +1187,21 @@ write_big(context& ctx, ptr<big_integer> value, ptr<port> const& out) {
   out->write_string(buffer);
 }
 
+static void
+write_fraction(context& ctx, ptr<fraction> const& value, ptr<port> const& out) {
+  write_number(ctx, fraction_numerator(value), out);
+  out->write_char('/');
+  write_number(ctx, fraction_denominator(value), out);
+}
+
 void
 write_number(context& ctx, generic_ptr const& value, ptr<port> const& out) {
   if (auto s = match<integer>(value))
     write_small(s, out);
   else if (auto b = match<big_integer>(value))
     write_big(ctx, b, out);
+  else if (auto q = match<fraction>(value))
+    write_fraction(ctx, q, out);
   else
     assert(false);
 }
@@ -1121,7 +1211,7 @@ export_numeric(context& ctx, module& result) {
   export_native(ctx, result, "+", add, special_top_level_tag::plus);
   export_native(ctx, result, "-", subtract, special_top_level_tag::minus);
   export_native(ctx, result, "*", multiply, special_top_level_tag::times);
-  export_native(ctx, result, "/", divide, special_top_level_tag::divide);
+  export_native(ctx, result, "/", truncate_quotient, special_top_level_tag::divide);
   export_native(ctx, result, "=", arith_equal, special_top_level_tag::arith_equal);
   export_native(ctx, result, "<", less, special_top_level_tag::less_than);
   export_native(ctx, result, ">", greater, special_top_level_tag::greater_than);

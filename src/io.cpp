@@ -429,10 +429,8 @@ write_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
     write_string(str, out);
   else if (auto c = match<character>(datum))
     write_char(c, out);
-  else if (auto i = match<integer>(datum))
-    write_number(ctx, i, out);
-  else if (auto b = match<big_integer>(datum))
-    write_number(ctx, b, out);
+  else if (is_number(datum))
+    write_number(ctx, datum, out);
   else
     out->write_string(typeid(*datum).name());
 }

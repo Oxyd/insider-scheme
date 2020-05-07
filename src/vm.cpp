@@ -162,10 +162,10 @@ execute_one(execution_state& state) {
     generic_ptr rhs = get_register(state, instr.y);
 
     switch (instr.opcode) {
-    case opcode::add:      set_register(state, instr.dest, add(state.ctx, lhs, rhs));      break;
-    case opcode::subtract: set_register(state, instr.dest, subtract(state.ctx, lhs, rhs)); break;
-    case opcode::multiply: set_register(state, instr.dest, multiply(state.ctx, lhs, rhs)); break;
-    case opcode::divide:   set_register(state, instr.dest, divide(state.ctx, lhs, rhs));   break;
+    case opcode::add:      set_register(state, instr.dest, add(state.ctx, lhs, rhs));               break;
+    case opcode::subtract: set_register(state, instr.dest, subtract(state.ctx, lhs, rhs));          break;
+    case opcode::multiply: set_register(state, instr.dest, multiply(state.ctx, lhs, rhs));          break;
+    case opcode::divide:   set_register(state, instr.dest, truncate_quotient(state.ctx, lhs, rhs)); break;
     default:
       assert(!"Cannot get here");
     }
