@@ -370,6 +370,9 @@ public:
   std::optional<char>
   read_char();
 
+  void
+  put_back(char);
+
   std::string
   get_string() const;
 
@@ -383,6 +386,7 @@ private:
   };
 
   std::variant<FILE*, string_buffer> buffer_;
+  std::vector<char> put_back_buffer_;
   bool input_ = false;
   bool output_ = false;
   bool should_close_ = false;

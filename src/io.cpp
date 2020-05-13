@@ -133,8 +133,8 @@ read_special_literal(ptr<port> const& stream) {
 }
 
 static identifier
-read_identifier(ptr<port> const& stream, std::string prefix = "") {
-  std::string value = std::move(prefix);
+read_identifier(ptr<port> const& stream) {
+  std::string value;
   while (stream->peek_char() && !delimiter(*stream->peek_char()))
     value += *stream->read_char();
 
@@ -182,27 +182,22 @@ static token
 read_token(context& ctx, ptr<port> const& stream) {
   skip_whitespace(stream);
 
-  std::optional<char> c = stream->peek_char();
+  std::optional<char> c = stream->read_char();
   if (!c)
     return end{};
 
   if (*c == '(') {
-    stream->read_char();
     return left_paren{};
   } else if (*c == ')') {
-    stream->read_char();
     return right_paren{};
   }
   else if (*c == '\'') {
-    stream->read_char();
     return quote{};
   }
   else if (*c == '`') {
-    stream->read_char();
     return backquote{};
   }
   else if (*c == ',') {
-    stream->read_char();
     c = stream->peek_char();
     if (c && *c == '@') {
       stream->read_char();
@@ -212,22 +207,22 @@ read_token(context& ctx, ptr<port> const& stream) {
       return comma{};
   }
   else if (*c == '.') {
-    stream->read_char();
     c = stream->peek_char();
     if (!c)
       throw parse_error{"Unexpected end of input"};
 
     if (delimiter(*c))
       return dot{};
-    else
-      return read_identifier(stream, ".");
+    else {
+      stream->put_back('.');
+      return read_identifier(stream);
+    }
   }
   else if (*c == '+' || *c == '-') {
     // This can begin either a number (like -2) or a symbol (like + -- the
     // addition function).
 
     char initial = *c;
-    stream->read_char();
     bool negative = false;
     if (initial == '-')
       negative = true;
@@ -240,28 +235,34 @@ read_token(context& ctx, ptr<port> const& stream) {
 
     if (digit(*c))
       return read_integer_literal(ctx, stream, negative);
-    else
-      return read_identifier(stream, std::string(1, initial));
+    else {
+      stream->put_back(initial);
+      return read_identifier(stream);
+    }
   }
-  else if (digit(*c))
+  else if (digit(*c)) {
+    stream->put_back(*c);
     return read_integer_literal(ctx, stream);
+  }
   else if (*c == '#') {
-    stream->read_char();
     c = stream->peek_char();
     if (!c)
       throw parse_error{"Unexpected end of input"};
-    else if (*c == '$')
-      return read_identifier(stream, "#");
+    else if (*c == '$') {
+      stream->put_back('#');
+      return read_identifier(stream);
+    }
     else if (*c == '(')
       return hash_left_paren{};
     else
       return read_special_literal(stream);
   }
-  else if (*c == '"') {
-    stream->read_char();
+  else if (*c == '"')
     return read_string_literal(ctx, stream);
-  } else
+  else {
+    stream->put_back(*c);
     return read_identifier(stream);
+  }
 }
 
 static generic_ptr

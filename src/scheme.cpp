@@ -572,6 +572,9 @@ port::write_char(char c) {
 
 std::optional<char>
 port::peek_char() {
+  if (!put_back_buffer_.empty())
+    return put_back_buffer_.back();
+
   if (FILE** f = std::get_if<FILE*>(&buffer_)) {
     int c = std::getc(*f);
     if (c == EOF)
@@ -591,6 +594,12 @@ port::peek_char() {
 
 std::optional<char>
 port::read_char() {
+  if (!put_back_buffer_.empty()) {
+    char result = put_back_buffer_.back();
+    put_back_buffer_.pop_back();
+    return result;
+  }
+
   if (FILE** f = std::get_if<FILE*>(&buffer_)) {
     int c = std::getc(*f);
     if (c == EOF)
@@ -605,6 +614,14 @@ port::read_char() {
     else
       return buf.data[buf.read_index++];
   }
+}
+
+void
+port::put_back(char c) {
+  if (!input_)
+    throw std::runtime_error{"Not an input port"};
+
+  put_back_buffer_.push_back(c);
 }
 
 std::string
