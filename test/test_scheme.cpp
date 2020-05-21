@@ -7,6 +7,8 @@
 #include "scheme.hpp"
 #include "vm.hpp"
 
+#include <cmath>
+
 using namespace scm;
 
 struct scheme : testing::Test {
@@ -45,7 +47,12 @@ struct scheme : testing::Test {
   ptr<fraction>
   make_fraction(int n, int d) {
     return make<fraction>(ctx, make<integer>(ctx, n), make<integer>(ctx, d));
-  };
+  }
+
+  ptr<floating_point>
+  make_float(double value) {
+    return make<floating_point>(ctx, value);
+  }
 };
 
 struct aaa : object {
@@ -2073,4 +2080,47 @@ TEST_F(scheme, fraction_arithmetic) {
   EXPECT_TRUE(num_equal(divide(ctx, make<integer>(ctx, 8), make<integer>(ctx, 2)), make<integer>(ctx, 4)));
   EXPECT_TRUE(num_equal(divide(ctx, make_fraction(3, 4), make_fraction(2, 3)), make_fraction(9, 8)));
   EXPECT_TRUE(num_equal(divide(ctx, make_fraction(1, 3), make_fraction(2, 3)), make_fraction(1, 2)));
+}
+
+TEST_F(scheme, read_write_float) {
+  EXPECT_TRUE(num_equal(read("0.0"), make_float(0.0)));
+  EXPECT_TRUE(num_equal(read("0.1"), make_float(0.1)));
+  EXPECT_TRUE(num_equal(read("-0.1"), make_float(-0.1)));
+  EXPECT_TRUE(num_equal(read("1.0"), make_float(1.0)));
+  EXPECT_TRUE(num_equal(read("3.14"), make_float(3.14)));
+  EXPECT_TRUE(num_equal(read(".5"), make_float(0.5)));
+  EXPECT_TRUE(num_equal(read("-.5"), make_float(-0.5)));
+  EXPECT_TRUE(num_equal(read("5."), make_float(5.0)));
+  EXPECT_TRUE(num_equal(read("-5."), make_float(-5.0)));
+  EXPECT_TRUE(num_equal(read("+inf.0"), make_float(floating_point::positive_infinity)));
+  EXPECT_TRUE(num_equal(read("+INF.0"), make_float(floating_point::positive_infinity)));
+  EXPECT_TRUE(num_equal(read("-inf.0"), make_float(floating_point::negative_infinity)));
+  EXPECT_TRUE(std::isnan(expect<floating_point>(read("+nan.0"))->value));
+  EXPECT_TRUE(std::isnan(expect<floating_point>(read("+NaN.0"))->value));
+  EXPECT_TRUE(std::isnan(expect<floating_point>(read("-nan.0"))->value));
+
+  EXPECT_EQ(to_string(ctx, make_float(0.0)), "0.0");
+  EXPECT_EQ(to_string(ctx, make_float(0.1)), "0.1");
+  EXPECT_EQ(to_string(ctx, make_float(-0.1)), "-0.1");
+  EXPECT_EQ(to_string(ctx, make_float(1.0)), "1.0");
+  EXPECT_EQ(to_string(ctx, make_float(3.14)), "3.14");
+  EXPECT_EQ(to_string(ctx, make_float(123456789.0)), "123456789.0");
+  EXPECT_EQ(to_string(ctx, make_float(floating_point::positive_infinity)), "+inf.0");
+  EXPECT_EQ(to_string(ctx, make_float(floating_point::negative_infinity)), "-inf.0");
+  EXPECT_EQ(to_string(ctx, make_float(floating_point::positive_nan)), "+nan.0");
+  EXPECT_EQ(to_string(ctx, make_float(floating_point::negative_nan)), "-nan.0");
+}
+
+TEST_F(scheme, float_arithmetic) {
+#define ASSERT_FP_EQ(lhs, rhs) ASSERT_DOUBLE_EQ(expect<floating_point>(lhs)->value, rhs)
+  ASSERT_FP_EQ(add(ctx, make<floating_point>(ctx, 0.5), make<floating_point>(ctx, 0.4)), 0.9);
+  ASSERT_FP_EQ(add(ctx, make<floating_point>(ctx, 0.7), make<integer>(ctx, 2)), 2.7);
+  ASSERT_FP_EQ(add(ctx, make<floating_point>(ctx, 1.0), make_fraction(1, 2)), 1.5);
+  ASSERT_FP_EQ(multiply(ctx, make<floating_point>(ctx, 3.0), make<floating_point>(ctx, 0.5)), 1.5);
+  ASSERT_FP_EQ(divide(ctx, make<floating_point>(ctx, 3.0), make<floating_point>(ctx, 2.0)), 1.5);
+  ASSERT_FP_EQ(divide(ctx, make<floating_point>(ctx, 1.0), make<floating_point>(ctx, 0.0)),
+               floating_point::positive_infinity);
+  ASSERT_TRUE(std::isnan(expect<floating_point>(divide(ctx, make<floating_point>(ctx, 0.0),
+                                                       make<floating_point>(ctx, 0.0)))->value));
+#undef ASSERT_FP_EQ
 }

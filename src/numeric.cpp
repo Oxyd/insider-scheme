@@ -5,8 +5,12 @@
 #include "scheme.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
+#include <ios>
+#include <locale>
 #include <numeric>
+#include <sstream>
 
 namespace scm {
 
@@ -458,6 +462,11 @@ add_fraction(context& ctx, ptr<fraction> const& lhs, ptr<fraction> const& rhs) {
                         multiply(ctx, fraction_denominator(lhs), fraction_denominator(rhs)));
 }
 
+static ptr<floating_point>
+add_float(context& ctx, ptr<floating_point> const& lhs, ptr<floating_point> const& rhs) {
+  return make<floating_point>(ctx, lhs->value + rhs->value);
+}
+
 static ptr<big_integer>
 sub_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   if (rhs->zero())
@@ -496,6 +505,11 @@ sub_fraction(context& ctx, ptr<fraction> const& lhs, ptr<fraction> const& rhs) {
                                  multiply(ctx, fraction_numerator(lhs), fraction_denominator(rhs)),
                                  multiply(ctx, fraction_denominator(lhs), fraction_numerator(rhs))),
                         multiply(ctx, fraction_denominator(lhs), fraction_denominator(rhs)));
+}
+
+static ptr<floating_point>
+sub_float(context& ctx, ptr<floating_point> const& lhs, ptr<floating_point> const& rhs) {
+  return make<floating_point>(ctx, lhs->value - rhs->value);
 }
 
 static std::tuple<limb_type, limb_type>
@@ -625,6 +639,11 @@ mul_fraction(context& ctx, ptr<fraction> const& lhs, ptr<fraction> const& rhs) {
   return make<fraction>(ctx,
                         multiply(ctx, fraction_numerator(lhs), fraction_numerator(rhs)),
                         multiply(ctx, fraction_denominator(lhs), fraction_denominator(rhs)));
+}
+
+static ptr<floating_point>
+mul_float(context& ctx, ptr<floating_point> const& lhs, ptr<floating_point> const& rhs) {
+  return make<floating_point>(ctx, lhs->value * rhs->value);
 }
 
 static ptr<big_integer>
@@ -835,13 +854,19 @@ namespace {
   enum class common_type {
     small_integer,
     big_integer,
-    fraction
+    fraction,
+    floating_point
   };
 }
 
 static common_type
 find_common_type(generic_ptr const& lhs, generic_ptr const& rhs) {
-  if (is<fraction>(lhs) || is<fraction>(rhs))
+  if (!is_number(lhs) || !is_number(rhs))
+    throw std::runtime_error{"Expected number"};
+
+  if (is<floating_point>(lhs) || is<floating_point>(rhs))
+    return common_type::floating_point;
+  else if (is<fraction>(lhs) || is<fraction>(rhs))
     return common_type::fraction;
   else if (is<big_integer>(lhs) || is<big_integer>(rhs))
     return common_type::big_integer;
@@ -887,6 +912,46 @@ make_fraction(context& ctx, generic_ptr const& x) {
   return assume<fraction>(x);
 }
 
+static floating_point::value_type
+big_to_float_value(ptr<big_integer> const& n) {
+  floating_point::value_type result = 0;
+
+  for (std::size_t i = n->length(); i > 0; --i)
+    result = result * (static_cast<double>(max_limb_value) + 1.0) + n->data()[i - 1];
+
+  if (n->positive())
+    return result;
+  else
+    return -result;
+}
+
+static floating_point::value_type
+integer_to_float_value(generic_ptr const& n) {
+  if (auto s = match<integer>(n))
+    return s->value();
+  else
+    return big_to_float_value(assume<big_integer>(n));
+}
+
+static ptr<floating_point>
+make_float(context& ctx, generic_ptr const& x) {
+  if (auto f = match<floating_point>(x))
+    return f;
+  else if (auto n = match<integer>(x))
+    return make<floating_point>(ctx, n->value());
+  else if (auto n = match<big_integer>(x))
+    return make<floating_point>(ctx, big_to_float_value(n));
+  else if (auto q = match<fraction>(x))
+    return make<floating_point>(
+      ctx,
+      integer_to_float_value(fraction_numerator(q))
+      / integer_to_float_value(fraction_denominator(q))
+    );
+
+  assert(false);
+  return {};
+}
+
 template <auto F>
 generic_ptr
 arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, integer::value_type neutral) {
@@ -909,7 +974,7 @@ arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, i
 
 using primitive_arithmetic_type = generic_ptr(context& ctx, generic_ptr const&, generic_ptr const&);
 
-template <auto Small, auto Big, auto Fraction>
+template <auto Small, auto Big, auto Fraction, auto Float>
 generic_ptr
 arithmetic_two(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
   switch (find_common_type(lhs, rhs)) {
@@ -919,6 +984,8 @@ arithmetic_two(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
     return normalize(ctx, Big(ctx, make_big(ctx, lhs), make_big(ctx, rhs)));
   case common_type::fraction:
     return normalize_fraction(ctx, Fraction(ctx, make_fraction(ctx, lhs), make_fraction(ctx, rhs)));
+  case common_type::floating_point:
+    return Float(ctx, make_float(ctx, lhs), make_float(ctx, rhs));
   }
 
   assert(false);
@@ -932,12 +999,12 @@ is_integer(generic_ptr const& x) {
 
 bool
 is_number(generic_ptr const& x) {
-  return is_integer(x) || is<fraction>(x);
+  return is_integer(x) || is<fraction>(x) || is<floating_point>(x);
 }
 
 generic_ptr
 add(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return arithmetic_two<add_small, add_big, add_fraction>(ctx, lhs, rhs);
+  return arithmetic_two<add_small, add_big, add_fraction, add_float>(ctx, lhs, rhs);
 }
 
 generic_ptr
@@ -947,7 +1014,7 @@ add(context& ctx, std::vector<generic_ptr> const& xs) {
 
 generic_ptr
 subtract(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return arithmetic_two<sub_small, sub_big, sub_fraction>(ctx, lhs, rhs);
+  return arithmetic_two<sub_small, sub_big, sub_fraction, sub_float>(ctx, lhs, rhs);
 }
 
 generic_ptr
@@ -957,7 +1024,7 @@ subtract(context& ctx, std::vector<generic_ptr> const& xs) {
 
 generic_ptr
 multiply(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return arithmetic_two<mul_small, mul_big, mul_fraction>(ctx, lhs, rhs);
+  return arithmetic_two<mul_small, mul_big, mul_fraction, mul_float>(ctx, lhs, rhs);
 }
 
 generic_ptr
@@ -990,16 +1057,35 @@ quotient_remainder(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs)
   return {};
 }
 
-generic_ptr
-divide(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  ptr<fraction> x = make_fraction(ctx, lhs);
-  ptr<fraction> y = make_fraction(ctx, rhs);
+static generic_ptr
+div_fraction(context& ctx, ptr<fraction> const& x, ptr<fraction> const& y) {
   return normalize_fraction(
     ctx,
     make<fraction>(ctx,
                    multiply(ctx, fraction_numerator(x), fraction_denominator(y)),
                    multiply(ctx, fraction_denominator(x), fraction_numerator(y)))
   );
+}
+
+static ptr<floating_point>
+div_float(context& ctx, ptr<floating_point> const& x, ptr<floating_point> const& y) {
+  return make<floating_point>(ctx, x->value / y->value);
+}
+
+generic_ptr
+divide(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  switch (find_common_type(lhs, rhs)) {
+  case common_type::small_integer:
+  case common_type::big_integer:
+  case common_type::fraction:
+    return div_fraction(ctx, make_fraction(ctx, lhs), make_fraction(ctx, rhs));
+
+  case common_type::floating_point:
+    return div_float(ctx, make_float(ctx, lhs), make_float(ctx, rhs));
+  }
+
+  assert(false);
+  return {};
 }
 
 using primitive_relational_type = ptr<boolean>(context&, generic_ptr const&, generic_ptr const&);
@@ -1039,6 +1125,12 @@ arith_equal(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
       return ctx.constants->f;
     return ctx.constants->t;
   }
+
+  case common_type::floating_point:
+    if (make_float(ctx, lhs)->value == make_float(ctx, rhs)->value)
+      return ctx.constants->t;
+    else
+      return ctx.constants->f;
   }
 
   assert(false);
@@ -1139,16 +1231,12 @@ export_native(context& ctx, module& m, std::string const& name,
 }
 
 static generic_ptr
-read_integer(context& ctx, ptr<port> const& stream) {
-  std::optional<char> c = stream->peek_char();
+read_integer(context& ctx, std::string const& digits) {
   generic_ptr result = make<integer>(ctx, 0);
 
-  while (c && digit(*c)) {
+  for (char c : digits) {
     result = mul_magnitude_by_limb_destructive(ctx, result, 10);
-    result = add_magnitude_to_limb_destructive(ctx, result, digit_value(*c));
-
-    stream->read_char();
-    c = stream->peek_char();
+    result = add_magnitude_to_limb_destructive(ctx, result, digit_value(c));
   }
 
   if (auto b = match<big_integer>(result))
@@ -1157,27 +1245,89 @@ read_integer(context& ctx, ptr<port> const& stream) {
   return result;
 }
 
-generic_ptr
-read_number(context& ctx, ptr<port> const& stream, bool negative) {
+static std::optional<char>
+peek_next(ptr<port> const& stream) {
+  stream->read_char();
+  return stream->peek_char();
+}
+
+static std::string
+read_digits(ptr<port> const& stream) {
   std::optional<char> c = stream->peek_char();
 
+  std::string result;
+  while (c && digit(*c)) {
+    result += *c;
+    c = peek_next(stream);
+  }
+
+  return result;
+}
+
+static double
+string_to_double(std::string const& s) {
+  // XXX: This would ideally use std::from_chars. But, as of 2020, GCC does not implement that, violating C++17.
+  // Alternatives include std::stod and std::atof, but those parse the string according to the currently installed
+  // global locale. Many things could be said about std::istringstream, but at least it can be imbued with a locale
+  // without messing with the global locale. Thus, that's what we're going with.
+
+  std::istringstream is{s};
+  is.imbue(std::locale{"C"});
+
+  double result;
+  is >> result;
+
+  if (!is || is.peek() != std::istringstream::traits_type::eof())
+    throw std::runtime_error{fmt::format("Invalid floating point literal: {}", s)};
+
+  return result;
+}
+
+generic_ptr
+read_number(context& ctx, ptr<port> const& stream) {
+  std::optional<char> c = stream->peek_char();
+  bool negative = false;
   assert(c);
   if (c == '-' || c == '+') {
     negative = c == '-';
     stream->read_char();
   }
 
-  generic_ptr first = read_integer(ctx, stream);
-  if (negative)
-    first = flip_sign(first);
-
-  if (stream->peek_char() == '/') {
+  std::string literal = read_digits(stream);
+  c = stream->peek_char();
+  if (c == '/') {
     stream->read_char();
-    generic_ptr second = read_integer(ctx, stream);
-    return normalize_fraction(ctx, make<fraction>(ctx, first, second));
+
+    generic_ptr num = read_integer(ctx, literal);
+    if (negative)
+      num = flip_sign(num);
+
+    return normalize_fraction(ctx, make<fraction>(ctx,
+                                                  num,
+                                                  read_integer(ctx, read_digits(stream))));
   }
-  else
-    return first;
+  else if (c == '.' || c == 'e' || c == 'E') {
+    literal += *c;
+    stream->read_char();
+    literal += read_digits(stream);
+
+    c = stream->peek_char();
+    if (c == 'e' || c == 'E') {
+      literal += *c;
+      stream->read_char();
+      literal += read_digits(stream);
+    }
+
+    double value = string_to_double(literal);
+    if (negative)
+      value = -value;
+
+    return make<floating_point>(ctx, value);
+  }
+  else {
+    generic_ptr value = read_integer(ctx, literal);
+    return negative ? flip_sign(value) : value;
+  }
 }
 
 template <typename T>
@@ -1239,6 +1389,41 @@ write_fraction(context& ctx, ptr<fraction> const& value, ptr<port> const& out) {
   write_number(ctx, fraction_denominator(value), out);
 }
 
+static void
+write_float(context& ctx, ptr<floating_point> const& value, ptr<port> const& out) {
+  // Same as with string_to_double: std::to_chars would be the ideal way to implement this, but we'll go with an
+  // std::ostringstream in its absence.
+
+  if (value->value == floating_point::positive_infinity) {
+    out->write_string("+inf.0");
+    return;
+  } else if (value->value == floating_point::negative_infinity) {
+    out->write_string("-inf.0");
+    return;
+  } else if (std::isnan(value->value)) {
+    if (std::signbit(value->value))
+      out->write_char('-');
+    else
+      out->write_char('+');
+
+    out->write_string("nan.0");
+    return;
+  }
+
+  std::ostringstream os;
+  os.imbue(std::locale("C"));
+
+  os << std::showpoint
+     << std::setprecision(std::numeric_limits<floating_point::value_type>::max_digits10 - 1)
+     << value->value;
+
+  std::string result = os.str();
+  std::string::size_type dot = result.find('.');
+  std::string::size_type last_nonzero = result.find_last_not_of('0');
+  std::string::size_type end = std::max(dot + 1, last_nonzero);
+  out->write_string(result.substr(0, end + 1));
+}
+
 void
 write_number(context& ctx, generic_ptr const& value, ptr<port> const& out) {
   if (auto s = match<integer>(value))
@@ -1247,6 +1432,8 @@ write_number(context& ctx, generic_ptr const& value, ptr<port> const& out) {
     write_big(ctx, b, out);
   else if (auto q = match<fraction>(value))
     write_fraction(ctx, q, out);
+  else if (auto f = match<floating_point>(value))
+    write_float(ctx, f, out);
   else
     assert(false);
 }

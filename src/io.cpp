@@ -4,7 +4,9 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <limits>
+#include <locale>
 #include <sstream>
 #include <variant>
 #include <vector>
@@ -94,8 +96,8 @@ digit(char c) {
 }
 
 static generic_literal
-read_integer_literal(context& ctx, ptr<port> const& stream, bool negative = false) {
-  return generic_literal{read_number(ctx, stream, negative)};
+read_numeric_literal(context& ctx, ptr<port> const& stream) {
+  return generic_literal{read_number(ctx, stream)};
 }
 
 static token
@@ -215,7 +217,11 @@ read_token(context& ctx, ptr<port> const& stream) {
       return dot{};
     else {
       stream->put_back('.');
-      return read_identifier(stream);
+
+      if (digit(*c))
+        return read_numeric_literal(ctx, stream);
+      else
+        return read_identifier(stream);
     }
   }
   else if (*c == '+' || *c == '-') {
@@ -223,26 +229,39 @@ read_token(context& ctx, ptr<port> const& stream) {
     // addition function).
 
     char initial = *c;
-    bool negative = false;
-    if (initial == '-')
-      negative = true;
-    else
-      assert(initial == '+');
 
     c = stream->peek_char();
     if (!c)
       return identifier{std::string(1, initial)};
 
-    if (digit(*c))
-      return read_integer_literal(ctx, stream, negative);
+    stream->put_back(initial);
+    if (digit(*c) || *c == '.')
+      return read_numeric_literal(ctx, stream);
     else {
-      stream->put_back(initial);
-      return read_identifier(stream);
+      identifier id = read_identifier(stream);
+
+      // Infinities and NaNs look like identifiers, but they're numbers.
+
+      std::string value;
+      std::locale c_locale{"C"};
+      std::transform(id.value.begin(), id.value.end(), std::back_inserter(value),
+                     [&] (char c) { return std::tolower(c, c_locale); });
+
+      if (value == "+inf.0")
+        return generic_literal{make<floating_point>(ctx, floating_point::positive_infinity)};
+      else if (value == "-inf.0")
+        return generic_literal{make<floating_point>(ctx, floating_point::negative_infinity)};
+      else if (value == "+nan.0")
+        return generic_literal{make<floating_point>(ctx, floating_point::positive_nan)};
+      else if (value == "-nan.0")
+        return generic_literal{make<floating_point>(ctx, floating_point::negative_nan)};
+
+      return id;
     }
   }
   else if (digit(*c)) {
     stream->put_back(*c);
-    return read_integer_literal(ctx, stream);
+    return read_numeric_literal(ctx, stream);
   }
   else if (*c == '#') {
     c = stream->peek_char();

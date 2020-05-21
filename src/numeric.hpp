@@ -186,6 +186,21 @@ fraction_numerator(ptr<fraction> const& f) { return f->numerator(f.store()); }
 inline generic_ptr
 fraction_denominator(ptr<fraction> const& f) { return f->denominator(f.store()); }
 
+class floating_point : public object {
+public:
+  using value_type = double;
+
+  value_type value;
+
+  static constexpr value_type positive_infinity = std::numeric_limits<value_type>::infinity();
+  static constexpr value_type negative_infinity = -std::numeric_limits<value_type>::infinity();
+  static constexpr value_type positive_nan      = std::numeric_limits<value_type>::quiet_NaN();
+  static constexpr value_type negative_nan      = -std::numeric_limits<value_type>::quiet_NaN();
+
+  explicit
+  floating_point(double v) : value{v} { }
+};
+
 bool
 is_integer(generic_ptr const&);
 
@@ -237,7 +252,7 @@ generic_ptr
 gcd(context&, generic_ptr const&, generic_ptr const&);
 
 generic_ptr
-read_number(context&, ptr<port> const&, bool negate = false);
+read_number(context&, ptr<port> const&);
 
 void
 write_number(context&, generic_ptr const& value, ptr<port> const& out);
