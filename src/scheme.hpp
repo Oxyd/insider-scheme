@@ -235,6 +235,7 @@ public:
   statics_list               statics;
   ptr<port>                  output_port;
   module                     internal_module; // (insider internal)
+  std::unordered_map<std::string, std::string> type_names;
 
   context();
   ~context();

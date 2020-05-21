@@ -11,6 +11,11 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
+#include <typeinfo>
+
+#ifdef __GNUC__
+#include <cxxabi.h>
+#endif
 
 namespace insider {
 
@@ -263,6 +268,68 @@ filesystem_module_provider::find_module(context& ctx, module_name const& name) {
   return std::nullopt;
 }
 
+static std::string
+demangle(char const* name) {
+#ifdef __GNUC__
+  struct free_deallocator {
+    void
+    operator () (char* p) { std::free(p); }
+  };
+
+  int status;
+  std::unique_ptr<char, free_deallocator> result{abi::__cxa_demangle(name, nullptr, nullptr, &status)};
+
+  if (status == 0)
+    return std::string(result.get());
+  else
+    return std::string(name);
+
+#else
+  return std::string(name);
+#endif
+}
+
+static ptr<symbol>
+type(context& ctx, generic_ptr const& x) {
+  char const* mangled_name = typeid(*x).name();
+  if (auto it = ctx.type_names.find(mangled_name); it != ctx.type_names.end())
+    return ctx.intern(it->second);
+  else
+    return ctx.intern(demangle(mangled_name));
+}
+
+template <typename T>
+void
+define_type_name(context& ctx, module& result, std::string const& name) {
+  std::string prefixed_name = "insider::" + name;
+  ctx.type_names.emplace(typeid(T).name(), prefixed_name);
+  define_top_level(ctx, result, prefixed_name, ctx.intern(demangle(typeid(T).name())));
+}
+
+static void
+define_type_names(context& ctx, module& result) {
+  define_type_name<null_type>(ctx, result, "null");
+  define_type_name<void_type>(ctx, result, "void");
+  define_type_name<environment>(ctx, result, "environment");
+  define_type_name<boolean>(ctx, result, "boolean");
+  define_type_name<character>(ctx, result, "character");
+  define_type_name<port>(ctx, result, "port");
+  define_type_name<symbol>(ctx, result, "symbol");
+  define_type_name<procedure>(ctx, result, "procedure");
+  define_type_name<native_procedure>(ctx, result, "native-procedure");
+  define_type_name<transformer>(ctx, result, "transformer");
+  define_type_name<pair>(ctx, result, "pair");
+  define_type_name<box>(ctx, result, "box");
+  define_type_name<string>(ctx, result, "string");
+  define_type_name<vector>(ctx, result, "vector");
+  define_type_name<closure>(ctx, result, "closure");
+  define_type_name<syntactic_closure>(ctx, result, "syntactic-closure");
+  define_type_name<integer>(ctx, result, "integer");
+  define_type_name<big_integer>(ctx, result, "big-integer");
+  define_type_name<fraction>(ctx, result, "fraction");
+  define_type_name<floating_point>(ctx, result, "floating-point");
+}
+
 static module
 make_internal_module(context& ctx) {
   module result{ctx};
@@ -302,6 +369,9 @@ make_internal_module(context& ctx) {
       return make<syntactic_closure>(ctx, env, form, free);
     }
   );
+
+  define_lambda<type>(ctx, result, "type", true);
+  define_type_names(ctx, result);
 
   return result;
 }
