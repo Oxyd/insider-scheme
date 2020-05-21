@@ -701,9 +701,7 @@ static std::unique_ptr<syntax>
 parse(parsing_context& pc, ptr<environment> const& env, generic_ptr const& d) {
   generic_ptr datum = expand(pc.ctx, env, d);
 
-  if (is<integer>(datum) || is<boolean>(datum) || is<void_type>(datum) || is<string>(datum))
-    return make_syntax<literal_syntax>(datum);
-  else if (auto s = match<symbol>(datum))
+  if (auto s = match<symbol>(datum))
     return parse_reference(env, s);
   else if (auto sc = match<syntactic_closure>(datum))
     return parse_syntactic_closure(pc, env, sc);
@@ -738,7 +736,7 @@ parse(parsing_context& pc, ptr<environment> const& env, generic_ptr const& d) {
     return parse_application(pc, env, p);
   }
   else
-    throw std::runtime_error{"Unimplemented"};
+    return make_syntax<literal_syntax>(datum);
 }
 
 template <auto F, typename... Args>
