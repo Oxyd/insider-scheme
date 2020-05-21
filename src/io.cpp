@@ -11,7 +11,7 @@
 #include <variant>
 #include <vector>
 
-namespace scm {
+namespace insider {
 
 struct end { };
 struct left_paren { };
@@ -395,7 +395,7 @@ read(context& ctx, ptr<port> const& stream) {
 
 generic_ptr
 read(context& ctx, std::string s) {
-  auto port = make<scm::port>(ctx, std::move(s), true, false);
+  auto port = make<insider::port>(ctx, std::move(s), true, false);
   return read(ctx, port);
 }
 
@@ -410,7 +410,7 @@ read_multiple(context& ctx, ptr<port> const& in) {
 
 std::vector<generic_ptr>
 read_multiple(context& ctx, std::string s) {
-  auto port = make<scm::port>(ctx, std::move(s), true, false);
+  auto port = make<insider::port>(ctx, std::move(s), true, false);
   return read_multiple(ctx, port);
 }
 
@@ -467,7 +467,7 @@ write_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
   while (!stack.empty()) {
     record& top = stack.back();
 
-    if (auto pair = match<scm::pair>(top.datum)) {
+    if (auto pair = match<insider::pair>(top.datum)) {
       switch (top.written) {
       case 0:
         if (!top.omit_parens)
@@ -479,7 +479,7 @@ write_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
       case 1:
         ++top.written;
 
-        if (is<scm::pair>(cdr(pair))) {
+        if (is<insider::pair>(cdr(pair))) {
           out->write_char(' ');
           stack.push_back({cdr(pair), 0, true});
         } else if (cdr(pair) == ctx.constants->null) {
@@ -519,4 +519,4 @@ write_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
   }
 }
 
-} // namespace scm
+} // namespace insider

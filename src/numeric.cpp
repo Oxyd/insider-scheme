@@ -12,7 +12,7 @@
 #include <numeric>
 #include <sstream>
 
-namespace scm {
+namespace insider {
 
 using limb_type = detail::limb_type;
 using double_limb_type = detail::double_limb_type;
@@ -1450,4 +1450,4 @@ export_numeric(context& ctx, module& result) {
   define_lambda<gcd>(ctx, result, "gcd", true);
 }
 
-} // namespace scm
+} // namespace insider

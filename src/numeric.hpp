@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace scm {
+namespace insider {
 
 class boolean;
 class context;
@@ -260,6 +260,6 @@ write_number(context&, generic_ptr const& value, ptr<port> const& out);
 void
 export_numeric(context&, module&);
 
-} // namespace scm
+} // namespace insider
 
 #endif

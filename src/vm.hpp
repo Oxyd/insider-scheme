@@ -3,7 +3,7 @@
 
 #include "scheme.hpp"
 
-namespace scm {
+namespace insider {
 
 // The virtual machine. The global environment is represented as a procedure
 // whose call frame is at the top of the call stack. Global variables and
@@ -15,22 +15,22 @@ namespace scm {
 class call_frame : public dynamic_size_object<call_frame, object*> {
 public:
   static std::size_t
-  extra_storage_size(ptr<scm::procedure> const& procedure,
-                     ptr<scm::closure> const& closure,
+  extra_storage_size(ptr<insider::procedure> const& procedure,
+                     ptr<insider::closure> const& closure,
                      ptr<call_frame> const& parent,
                      std::vector<generic_ptr> const& arguments);
 
   std::uint32_t pc = 0;
 
-  call_frame(ptr<scm::procedure> const& procedure,
-             ptr<scm::closure> const& closure,
+  call_frame(ptr<insider::procedure> const& procedure,
+             ptr<insider::closure> const& closure,
              ptr<call_frame> const& parent,
              std::vector<generic_ptr> const& arguments);
 
   void
   for_each_subobject(std::function<void(object*)> const& f) override;
 
-  ptr<scm::procedure>
+  ptr<insider::procedure>
   procedure(free_store& store) const { return {store, procedure_}; }
 
   generic_ptr
@@ -45,10 +45,10 @@ public:
   parent(free_store& store) const { return {store, parent_frame_}; }
 
 private:
-  scm::procedure* procedure_;
-  scm::closure*   closure_;
-  call_frame*     parent_frame_;
-  std::size_t     locals_size_;
+  insider::procedure* procedure_;
+  insider::closure*   closure_;
+  call_frame*         parent_frame_;
+  std::size_t         locals_size_;
 };
 
 inline ptr<procedure>
@@ -87,6 +87,6 @@ run(execution_state&);
 generic_ptr
 call(context&, ptr<procedure> const&, std::vector<generic_ptr> const& arguments);
 
-} // namespace scm
+} // namespace insider
 
 #endif

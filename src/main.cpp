@@ -21,7 +21,7 @@ main(int argc, char** argv) {
   using namespace std::literals;
 
   std::string program_path;
-  scm::context ctx;
+  insider::context ctx;
 
   for (std::size_t i = 1; i < argc; ++i) {
     if (argv[i][0] == '-') {
@@ -47,7 +47,7 @@ main(int argc, char** argv) {
       }
 
       if (flag == "-I")
-        ctx.append_module_provider(std::make_unique<scm::filesystem_module_provider>(argument));
+        ctx.append_module_provider(std::make_unique<insider::filesystem_module_provider>(argument));
       else {
         print_usage(argv[0]);
         return 1;
@@ -75,9 +75,9 @@ main(int argc, char** argv) {
       return 1;
     }
 
-    auto in = scm::make<scm::port>(ctx, f, true, false);
-    auto mod = scm::compile_main_module(ctx, scm::read_multiple(ctx, in));
-    scm::execute(ctx, mod);
+    auto in = insider::make<insider::port>(ctx, f, true, false);
+    auto mod = insider::compile_main_module(ctx, insider::read_multiple(ctx, in));
+    insider::execute(ctx, mod);
     return 0;
   }
   catch (std::runtime_error const& e) {

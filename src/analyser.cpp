@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace scm {
+namespace insider {
 
 static std::shared_ptr<variable>
 lookup(ptr<environment> env, std::string const& name) {
@@ -97,8 +97,8 @@ syntactic_closure_to_environment(context& ctx, ptr<syntactic_closure> const& sc,
 
 namespace {
   struct parsing_context {
-    context&     ctx;
-    scm::module& module;
+    context&         ctx;
+    insider::module& module;
   };
 }
 
@@ -217,7 +217,7 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
 
           auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
           auto transformer_proc = eval_transformer(pc.ctx, pc.module, caddr(p));
-          auto transformer = make<scm::transformer>(pc.ctx, result.env, transformer_proc);
+          auto transformer = make<insider::transformer>(pc.ctx, result.env, transformer_proc);
           result.env->add_transformer(name->value(), transformer);
 
           continue;
@@ -549,7 +549,7 @@ parse_qq_template(context& ctx, ptr<environment> const& env,
         all_literal = false;
     }
 
-    if (auto pair = match<scm::pair>(elem)) {
+    if (auto pair = match<insider::pair>(elem)) {
       result.last = cons_pattern{parse_qq_template(ctx, env, car(pair), nested_level),
                                  parse_qq_template(ctx, env, cdr(pair), nested_level)};
       all_literal = all_literal
@@ -900,7 +900,7 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
         if (form == ctx.constants->define_syntax) {
           auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
           auto transformer_proc = expect<procedure>(eval_transformer(ctx, m, caddr(p)));
-          auto transformer = make<scm::transformer>(ctx, m.environment(), transformer_proc);
+          auto transformer = make<insider::transformer>(ctx, m.environment(), transformer_proc);
           m.environment()->add_transformer(name->value(), transformer);
 
           continue;
@@ -1080,4 +1080,4 @@ analyse_module(context& ctx, module& m, std::vector<generic_ptr> const& data) {
   return result;
 }
 
-} // namespace scm
+} // namespace insider

@@ -21,7 +21,7 @@
 #include <variant>
 #include <vector>
 
-namespace scm {
+namespace insider {
 
 struct generic_ptr_hash {
   std::size_t
@@ -133,7 +133,7 @@ public:
   void
   set_top_level_procedure(ptr<procedure> const& p) { proc_ = p; }
 
-  ptr<scm::environment>
+  ptr<insider::environment>
   environment() const { return env_; }
 
   bool
@@ -143,7 +143,7 @@ public:
   mark_active() { active_ = true; }
 
 private:
-  ptr<scm::environment>           env_;
+  ptr<insider::environment>       env_;
   std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
   ptr<procedure>                  proc_;
   bool                            active_ = false;
@@ -213,8 +213,8 @@ enum class special_top_level_tag {
 class context {
 public:
   struct constants {
-    ptr<scm::null_type> null;
-    ptr<scm::void_type> void_;
+    ptr<insider::null_type> null;
+    ptr<insider::void_type> void_;
     ptr<boolean>        t, f;     // #t and #f.
     ptr<core_form_type> let, set, lambda, if_, box, unbox, box_set, define, define_syntax, begin,
                         quote, quasiquote, unquote, unquote_splicing;
@@ -546,24 +546,24 @@ unbox(ptr<box> const& b) { return b->get(b.store()); }
 // a call frame inside the VM.
 class procedure : public object {
 public:
-  scm::bytecode bytecode;
-  unsigned      locals_size;
-  unsigned      num_args;
+  insider::bytecode bytecode;
+  unsigned          locals_size;
+  unsigned          num_args;
 
-  procedure(scm::bytecode bc, unsigned locals_size, unsigned num_args);
+  procedure(insider::bytecode bc, unsigned locals_size, unsigned num_args);
 };
 
 // A procedure plus a list of captured objects.
 class closure : public dynamic_size_object<closure, object*> {
 public:
   static std::size_t
-  extra_storage_size(ptr<scm::procedure> const&, std::vector<generic_ptr> const& captures) {
+  extra_storage_size(ptr<insider::procedure> const&, std::vector<generic_ptr> const& captures) {
     return captures.size() * sizeof(object*);
   }
 
-  closure(ptr<scm::procedure> const&, std::vector<generic_ptr> const&);
+  closure(ptr<insider::procedure> const&, std::vector<generic_ptr> const&);
 
-  ptr<scm::procedure>
+  ptr<insider::procedure>
   procedure(free_store& store) const { return {store, procedure_}; }
 
   generic_ptr
@@ -573,7 +573,7 @@ public:
   for_each_subobject(std::function<void(object*)> const&) override;
 
 private:
-  scm::procedure* procedure_;
+  insider::procedure* procedure_;
   std::size_t size_;
 };
 
@@ -613,16 +613,16 @@ public:
 class syntactic_closure : public dynamic_size_object<syntactic_closure, object*> {
 public:
   static std::size_t
-  extra_storage_size(ptr<scm::environment>,
+  extra_storage_size(ptr<insider::environment>,
                      generic_ptr const& expr, generic_ptr const& free);
 
-  syntactic_closure(ptr<scm::environment>,
+  syntactic_closure(ptr<insider::environment>,
                     generic_ptr const& expr, generic_ptr const& free);
 
   generic_ptr
   expression(free_store& store) const { return {store, expression_}; }
 
-  ptr<scm::environment>
+  ptr<insider::environment>
   environment(free_store& store) const { return {store, env_}; }
 
   std::vector<ptr<symbol>>
@@ -632,9 +632,9 @@ public:
   for_each_subobject(std::function<void(object*)> const& f) override;
 
 private:
-  object*           expression_;
-  scm::environment* env_;
-  std::size_t       free_size_;
+  object*               expression_;
+  insider::environment* env_;
+  std::size_t           free_size_;
 };
 
 inline generic_ptr
@@ -649,20 +649,20 @@ syntactic_closure_free(ptr<syntactic_closure> const& sc) { return sc->free(sc.st
 // A procedure together with the environment it was defined in.
 class transformer : public object {
 public:
-  transformer(ptr<scm::environment> env, ptr<procedure> const& proc)
+  transformer(ptr<insider::environment> env, ptr<procedure> const& proc)
     : env_{env.get()}
     , proc_{proc.get()}
   { }
 
-  ptr<scm::environment>
+  ptr<insider::environment>
   environment(free_store& store) const { return {store, env_}; }
 
-  ptr<scm::procedure>
+  ptr<insider::procedure>
   procedure(free_store& store) const { return {store, proc_}; }
 
 private:
-  scm::environment* env_;
-  scm::procedure*   proc_;
+  insider::environment* env_;
+  insider::procedure*   proc_;
 };
 
 inline ptr<environment>
@@ -795,6 +795,6 @@ private:
   generic_ptr head_;
 };
 
-} // namespace scm
+} // namespace insider
 
 #endif

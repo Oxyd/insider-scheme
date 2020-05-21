@@ -2,7 +2,7 @@
 
 #include <cassert>
 
-namespace scm {
+namespace insider {
 
 bool
 object::eqv(generic_ptr const& other) const {
@@ -202,4 +202,4 @@ free_store::collect_garbage() {
   sweep(objects_, weak_ptrs_, current_mark_);
 }
 
-} // namespace scm
+} // namespace insider

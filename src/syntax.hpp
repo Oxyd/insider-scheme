@@ -8,7 +8,7 @@
 #include <variant>
 #include <vector>
 
-namespace scm {
+namespace insider {
 
 class transformer;
 
@@ -38,7 +38,7 @@ struct literal_syntax {
 };
 
 struct local_reference_syntax {
-  std::shared_ptr<scm::variable> variable;
+  std::shared_ptr<insider::variable> variable;
 };
 
 struct top_level_reference_syntax {
@@ -70,7 +70,7 @@ struct sequence_syntax {
 };
 
 struct definition_pair_syntax {
-  std::shared_ptr<scm::variable> variable;
+  std::shared_ptr<insider::variable> variable;
   std::unique_ptr<syntax> expression;
 };
 
@@ -196,6 +196,6 @@ struct protomodule {
   std::vector<generic_ptr>      body;
 };
 
-}; // namespace scm
+}; // namespace insider
 
 #endif

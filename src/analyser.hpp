@@ -10,7 +10,7 @@
 #include <variant>
 #include <vector>
 
-namespace scm {
+namespace insider {
 
 // The analyser expects a Scheme datum (or a list of data) that represents a
 // program, and turns it into an internal representation, defined in syntax.hpp.
@@ -36,6 +36,6 @@ read_library_name(context&, ptr<port> const&);
 sequence_syntax
 analyse_module(context&, module&, std::vector<generic_ptr> const& data);
 
-} // namespace scm
+} // namespace insider
 
 #endif

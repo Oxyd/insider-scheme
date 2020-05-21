@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <unordered_map>
 
-namespace scm {
+namespace insider {
 
 namespace {
   class shared_register;
@@ -75,8 +75,8 @@ namespace {
   class variable_bindings {
   public:
     struct binding {
-      std::shared_ptr<scm::variable> variable;
-      shared_register                destination;
+      std::shared_ptr<insider::variable> variable;
+      shared_register                    destination;
     };
     using scope = std::vector<binding>;
     using free_variables_map = std::unordered_map<std::shared_ptr<variable>, shared_register>;
@@ -118,10 +118,10 @@ namespace {
     procedure_context* parent = nullptr;
     register_allocator registers;
     variable_bindings  bindings;
-    scm::bytecode      bytecode;
-    scm::module&       module;
+    insider::bytecode  bytecode;
+    insider::module&   module;
 
-    procedure_context(procedure_context* parent, scm::module& m)
+    procedure_context(procedure_context* parent, insider::module& m)
       : parent{parent}
       , module{m} { }
   };
@@ -679,4 +679,4 @@ compile_module_body(context& ctx, module& m, std::vector<generic_ptr> const& dat
                                             0));
 }
 
-} // namespace scm
+} // namespace insider

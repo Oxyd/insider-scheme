@@ -4,7 +4,7 @@
 #include "bytecode.hpp"
 #include "scheme.hpp"
 
-namespace scm {
+namespace insider {
 
 // Translate a single expression into bytecode. The resulting procedure will
 // take no arguments and will return the value of the expression. The module is
@@ -22,6 +22,6 @@ compile_main_module(context&, std::vector<generic_ptr> const& data);
 void
 compile_module_body(context&, module&, std::vector<generic_ptr> const& data);
 
-} // namespace scm
+} // namespace insider
 
 #endif

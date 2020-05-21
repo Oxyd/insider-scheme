@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-namespace scm {
+namespace insider {
 
 class operand {
 public:
@@ -106,7 +106,7 @@ enum class opcode : std::uint8_t {
 // Metainformation about an opcode. Used for decoding instructions.
 struct instruction_info {
   std::string_view mnemonic;
-  scm::opcode      opcode{};
+  insider::opcode  opcode{};
   bool             has_x{};
   bool             has_y{};
   bool             has_dest{};
@@ -115,7 +115,7 @@ struct instruction_info {
   instruction_info() = default;
 
   constexpr
-  instruction_info(std::string_view mnemonic, scm::opcode opcode, bool has_x, bool has_y, bool has_dest)
+  instruction_info(std::string_view mnemonic, insider::opcode opcode, bool has_x, bool has_y, bool has_dest)
     : mnemonic{mnemonic}
     , opcode{opcode}
     , has_x{has_x}
@@ -183,11 +183,11 @@ instruction_info
 mnemonic_to_info(std::string_view);
 
 struct instruction {
-  scm::opcode opcode;
+  insider::opcode opcode;
   operand     x, y, dest;
 
   instruction() = default;
-  instruction(scm::opcode oc, operand x, operand y, operand dest)
+  instruction(insider::opcode oc, operand x, operand y, operand dest)
     : opcode{oc}
     , x{x}
     , y{y}
@@ -198,6 +198,6 @@ struct instruction {
 
 using bytecode = std::vector<instruction>;
 
-} // namespace scm
+} // namespace insider
 
 #endif

@@ -9,14 +9,14 @@
 
 #include <cmath>
 
-using namespace scm;
+using namespace insider;
 
 struct scheme : testing::Test {
   context ctx;
 
   generic_ptr
   read(std::string const& expr) {
-    return scm::read(ctx, expr);
+    return insider::read(ctx, expr);
   }
 
   generic_ptr

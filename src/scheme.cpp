@@ -12,7 +12,7 @@
 #include <cassert>
 #include <cstdio>
 
-namespace scm {
+namespace insider {
 
 bool
 equal(generic_ptr const& x, generic_ptr const& y) {
@@ -97,7 +97,7 @@ environment::for_each_subobject(std::function<void(object*)> const& f) {
 }
 
 module::module(context& ctx)
-  : env_{make<scm::environment>(ctx, ptr<scm::environment>{})}
+  : env_{make<insider::environment>(ctx, ptr<insider::environment>{})}
 { }
 
 auto
@@ -841,13 +841,13 @@ box::set(generic_ptr const& value) {
   subobjects_[0] = value.get();
 }
 
-procedure::procedure(scm::bytecode bc, unsigned locals_size, unsigned num_args)
+procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned num_args)
   : bytecode(std::move(bc))
   , locals_size{locals_size}
   , num_args{num_args}
 { }
 
-closure::closure(ptr<scm::procedure> const& p, std::vector<generic_ptr> const& captures)
+closure::closure(ptr<insider::procedure> const& p, std::vector<generic_ptr> const& captures)
   : procedure_{p.get()}
   , size_{captures.size()}
 {
@@ -869,12 +869,12 @@ closure::for_each_subobject(std::function<void(object*)> const& f) {
 }
 
 std::size_t
-syntactic_closure::extra_storage_size(ptr<scm::environment>,
+syntactic_closure::extra_storage_size(ptr<insider::environment>,
                                       generic_ptr const& expr, generic_ptr const& free) {
   return list_length(free) * sizeof(object*);
 }
 
-syntactic_closure::syntactic_closure(ptr<scm::environment> env,
+syntactic_closure::syntactic_closure(ptr<insider::environment> env,
                                      generic_ptr const& expr, generic_ptr const& free)
   : expression_{expr.get()}
   , env_{env.get()}
@@ -905,4 +905,4 @@ syntactic_closure::for_each_subobject(std::function<void(object*)> const& f) {
     f(dynamic_storage()[i]);
 }
 
-} // namespace scm
+} // namespace insider

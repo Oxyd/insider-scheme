@@ -9,7 +9,7 @@
 
 #include <type_traits>
 
-namespace scm {
+namespace insider {
 
 template <typename T, typename Enable = void>
 struct to_scheme_converter;

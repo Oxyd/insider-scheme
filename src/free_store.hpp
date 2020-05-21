@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-namespace scm {
+namespace insider {
 
 class generic_ptr;
 
@@ -268,6 +268,6 @@ private:
   }
 };
 
-} // namespace scm
+} // namespace insider
 
 #endif

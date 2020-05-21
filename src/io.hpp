@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace scm {
+namespace insider {
 
 struct parse_error : std::runtime_error {
   parse_error(std::string const& message);

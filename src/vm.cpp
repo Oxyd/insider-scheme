@@ -7,18 +7,18 @@
 #include <stdexcept>
 #include <vector>
 
-namespace scm {
+namespace insider {
 
 std::size_t
-call_frame::extra_storage_size(ptr<scm::procedure> const& proc,
-                               ptr<scm::closure> const&,
+call_frame::extra_storage_size(ptr<insider::procedure> const& proc,
+                               ptr<insider::closure> const&,
                                ptr<call_frame> const&,
                                std::vector<generic_ptr> const&) {
   return proc->locals_size * sizeof(object*);
 }
 
-call_frame::call_frame(ptr<scm::procedure> const& proc,
-                       ptr<scm::closure> const& closure,
+call_frame::call_frame(ptr<insider::procedure> const& proc,
+                       ptr<insider::closure> const& closure,
                        ptr<call_frame> const& parent,
                        std::vector<generic_ptr> const& arguments)
   : procedure_{proc.get()}
@@ -199,9 +199,9 @@ execute_one(execution_state& state) {
 
     std::vector<generic_ptr> args = collect_data(state, num_args);
     generic_ptr call_target = callee;
-    ptr<scm::closure> closure;
+    ptr<insider::closure> closure;
 
-    if (auto cls = match<scm::closure>(call_target)) {
+    if (auto cls = match<insider::closure>(call_target)) {
       closure = cls;
       call_target = cls->procedure(state.ctx.store);
     }
@@ -360,4 +360,4 @@ call(context& ctx, ptr<procedure> const& p, std::vector<generic_ptr> const& argu
   return run(state);
 }
 
-} // namespace scm
+} // namespace insider
