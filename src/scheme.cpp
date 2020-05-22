@@ -373,6 +373,13 @@ make_internal_module(context& ctx) {
   define_lambda<type>(ctx, result, "type", true);
   define_type_names(ctx, result);
 
+  define_lambda<ptr<boolean>(context&, generic_ptr const&, generic_ptr const&)>(
+    ctx, result, "eq?", true,
+    [] (context& ctx, generic_ptr const& x, generic_ptr const& y) {
+      return x == y ? ctx.constants->t : ctx.constants->f;
+    }
+  );
+
   return result;
 }
 
