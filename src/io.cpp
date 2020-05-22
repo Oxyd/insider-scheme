@@ -462,8 +462,12 @@ write_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
     write_number(ctx, datum, out);
   else if (auto sc = match<syntactic_closure>(datum)) {
     out->write_string("#syntactic-closure(");
+    write_simple(ctx, syntactic_closure_environment(sc), out);
+    out->write_char(' ');
     write_simple(ctx, syntactic_closure_expression(sc), out);
     out->write_char(')');
+  } else if (auto env = match<environment>(datum)) {
+    out->write_string(fmt::format("#env@{}", static_cast<void*>(env.get())));
   } else
     out->write_string(typeid(*datum).name());
 }
