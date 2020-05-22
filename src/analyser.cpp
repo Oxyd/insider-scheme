@@ -731,6 +731,8 @@ parse(parsing_context& pc, ptr<environment> const& env, generic_ptr const& d) {
         return make_syntax<literal_syntax>(cadr(p));
       else if (form == pc.ctx.constants->quasiquote)
         return parse_quasiquote(pc, env, p);
+      else if (form == pc.ctx.constants->expand_quote)
+        return make_syntax<literal_syntax>(expand(pc.ctx, env, cadr(p)));
     }
 
     return parse_application(pc, env, p);

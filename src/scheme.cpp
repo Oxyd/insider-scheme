@@ -411,7 +411,8 @@ context::context()
     {constants->quote,            "quote"},
     {constants->quasiquote,       "quasiquote"},
     {constants->unquote,          "unquote"},
-    {constants->unquote_splicing, "unquote-splicing"}
+    {constants->unquote_splicing, "unquote-splicing"},
+    {constants->expand_quote,     "expand-quote"}
   };
   for (auto const& form : core_forms) {
     form.object = store.make<core_form_type>();
