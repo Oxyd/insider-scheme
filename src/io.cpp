@@ -75,8 +75,17 @@ delimiter(char c) {
 static void
 skip_whitespace(ptr<port> const& stream) {
   std::optional<char> c = stream->peek_char();
-  while (c && whitespace(*c)) {
-    stream->read_char();
+
+  while (c && (whitespace(*c) || *c == ';')) {
+    while (c && whitespace(*c)) {
+      stream->read_char();
+      c = stream->peek_char();
+    }
+
+    if (c == ';')
+      while (stream->read_char() != '\n')
+        ;
+
     c = stream->peek_char();
   }
 }

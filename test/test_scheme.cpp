@@ -397,6 +397,14 @@ TEST_F(scheme, read_multiple) {
   EXPECT_EQ(list_length(result2[1]), 2);
 }
 
+TEST_F(scheme, read_comments) {
+  EXPECT_EQ(expect<integer>(read(R"(;; Comment
+                                    2)"))->value(),
+            2);
+  EXPECT_EQ(expect<integer>(read("7 ;; A prime number"))->value(), 7);
+  EXPECT_EQ(expect<string>(read(R"("foo;bar;baz" ; string)"))->value(), "foo;bar;baz");
+}
+
 TEST(bytecode, instruction_info_consistency) {
   EXPECT_EQ(opcode_to_info(opcode::add).opcode, opcode::add);
   EXPECT_EQ(opcode_to_info(opcode::add).mnemonic, "add");
