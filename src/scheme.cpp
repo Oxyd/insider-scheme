@@ -96,6 +96,8 @@ environment::lookup_transformer(free_store& fs, std::string const& name) const {
 
 void
 environment::for_each_subobject(std::function<void(object*)> const& f) {
+  f(parent_);
+
   for (auto& [name, binding] : bindings_)
     if (transformer** tr = std::get_if<transformer*>(&binding))
       f(*tr);

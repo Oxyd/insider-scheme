@@ -55,31 +55,6 @@ make_syntax(Args&&... args) {
   return std::make_unique<syntax>(syntax{T{std::forward<Args>(args)...}});
 }
 
-// If the head of the given list is bound to a transformer, run the transformer
-// on the datum, and repeat.
-static generic_ptr
-expand(context& ctx, ptr<environment> const& env, generic_ptr datum) {
-  while (auto lst = match<pair>(datum)) {
-    if (auto head = match<symbol>(car(lst))) {
-      if (ptr<transformer> t = lookup_transformer(ctx, env, head->value())) {
-        datum = call(ctx, transformer_procedure(t), {datum, transformer_environment(t), env});
-        continue;
-      }
-    }
-
-    break;
-  }
-
-  return datum;
-}
-
-static ptr<procedure>
-eval_transformer(context& ctx, module& m, generic_ptr const& datum) {
-  auto proc = compile_expression(ctx, datum, m);
-  auto state = make_state(ctx, proc);
-  return expect<procedure>(run(state));
-}
-
 static ptr<environment>
 syntactic_closure_to_environment(context& ctx, ptr<syntactic_closure> const& sc, ptr<environment> const& env) {
   auto result = make<environment>(ctx, syntactic_closure_environment(sc));
@@ -93,6 +68,42 @@ syntactic_closure_to_environment(context& ctx, ptr<syntactic_closure> const& sc,
   }
 
   return result;
+}
+
+// If the head of the given list is bound to a transformer, run the transformer
+// on the datum, and repeat.
+static generic_ptr
+expand(context& ctx, ptr<environment> const& outer_env, generic_ptr datum) {
+  ptr<environment> env = outer_env;
+
+  while (true) {
+    if (auto lst = match<pair>(datum)) {
+      if (auto head = match<symbol>(car(lst))) {
+        if (ptr<transformer> t = lookup_transformer(ctx, env, head->value())) {
+          datum = call(ctx, transformer_procedure(t), {datum, transformer_environment(t), env});
+          continue;
+        }
+      }
+    } else if (auto sc = match<syntactic_closure>(datum)) {
+      env = syntactic_closure_to_environment(ctx, sc, env);
+      datum = syntactic_closure_expression(sc);
+      continue;
+    }
+
+    break;
+  }
+
+  if (env == outer_env)
+    return datum;
+  else
+    return make<syntactic_closure>(ctx, env, datum, ctx.constants->null);
+}
+
+static ptr<procedure>
+eval_transformer(context& ctx, module& m, generic_ptr const& datum) {
+  auto proc = compile_expression(ctx, datum, m);
+  auto state = make_state(ctx, proc);
+  return expect<procedure>(run(state));
 }
 
 namespace {
@@ -129,6 +140,27 @@ namespace {
   };
 }
 
+static ptr<core_form_type>
+match_core_form(context& ctx, ptr<environment> const& env, generic_ptr const& datum) {
+  if (auto cf = match<core_form_type>(datum))
+    return cf;
+  else if (auto sym = match<symbol>(datum))
+    return lookup_core(ctx, env, sym->value());
+  return {};
+}
+
+static std::tuple<ptr<syntactic_closure>, ptr<environment>>
+collapse_syntactic_closures(context& ctx, ptr<syntactic_closure> sc, ptr<environment> env) {
+  env = syntactic_closure_to_environment(ctx, sc, env);
+
+  while (auto inner_sc = match<syntactic_closure>(syntactic_closure_expression(sc))) {
+    env = syntactic_closure_to_environment(ctx, inner_sc, env);
+    sc = inner_sc;
+  }
+
+  return {sc, env};
+}
+
 // Given
 //   (syntactic-closure
 //    (syntactic-closure
@@ -152,26 +184,22 @@ namespace {
 // closure has no free variables even if the input ones did.
 static generic_ptr
 transpose_syntactic_closure(context& ctx, ptr<syntactic_closure> sc, ptr<environment> env) {
-  while (auto inner_sc = match<syntactic_closure>(syntactic_closure_expression(sc))) {
-    env = syntactic_closure_to_environment(ctx, inner_sc, env);
-    sc = inner_sc;
-  }
+  std::tie(sc, env) = collapse_syntactic_closures(ctx, sc, env);
 
   generic_ptr expr = syntactic_closure_expression(sc);
   if (auto p = match<pair>(expr))
-    if (auto head = match<symbol>(car(p))) {
-      auto form = lookup_core(ctx, env, head->value());
+    if (auto form = match_core_form(ctx, env, car(p))) {
       if (form == ctx.constants->define || form == ctx.constants->define_syntax) {
         auto name = cadr(p);
         auto expr = caddr(p);
-        return make_list(ctx, head, name, make<syntactic_closure>(ctx, env, expr, ctx.constants->null));
+        return make_list(ctx, form, name, make<syntactic_closure>(ctx, env, expr, ctx.constants->null));
       }
       else if (form == ctx.constants->begin) {
         std::vector<generic_ptr> exprs;
         for (generic_ptr e : in_list{cdr(p)})
           exprs.push_back(make<syntactic_closure>(ctx, env, e, ctx.constants->null));
 
-        return cons(ctx, head, make_list_from_vector(ctx, exprs));
+        return cons(ctx, form, make_list_from_vector(ctx, exprs));
       }
     }
 
@@ -208,40 +236,38 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
     stack.pop_back();
 
     if (auto p = match<pair>(expr)) {
-      if (auto head = match<symbol>(car(p))) {
-        auto form = lookup_core(pc.ctx, result.env, head->value());
+      ptr<core_form_type> form = match_core_form(pc.ctx, result.env, car(p));
 
-        if (form == pc.ctx.constants->define_syntax) {
-          if (seen_expression)
-            throw std::runtime_error{"define-syntax after a nondefinition"};
+      if (form == pc.ctx.constants->define_syntax) {
+        if (seen_expression)
+          throw std::runtime_error{"define-syntax after a nondefinition"};
 
-          auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
-          auto transformer_proc = eval_transformer(pc.ctx, pc.module, caddr(p));
-          auto transformer = make<insider::transformer>(pc.ctx, result.env, transformer_proc);
-          result.env->add_transformer(name->value(), transformer);
+        auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
+        auto transformer_proc = eval_transformer(pc.ctx, pc.module, caddr(p));
+        auto transformer = make<insider::transformer>(pc.ctx, result.env, transformer_proc);
+        result.env->add_transformer(name->value(), transformer);
 
-          continue;
-        }
-        else if (form == pc.ctx.constants->define) {
-          if (seen_expression)
-            throw std::runtime_error{"define after a nondefinition"};
+        continue;
+      }
+      else if (form == pc.ctx.constants->define) {
+        if (seen_expression)
+          throw std::runtime_error{"define after a nondefinition"};
 
-          auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
-          result.env->add(name->value(), std::make_shared<variable>(name->value()));
+        auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
+        result.env->add(name->value(), std::make_shared<variable>(name->value()));
 
-          result.forms.push_back(expr);
-          result.internal_variable_names.push_back(name->value());
+        result.forms.push_back(expr);
+        result.internal_variable_names.push_back(name->value());
 
-          continue;
-        }
-        else if (form == pc.ctx.constants->begin) {
-          std::vector<generic_ptr> subforms;
-          for (generic_ptr e : in_list{cdr(p)})
-            subforms.push_back(e);
+        continue;
+      }
+      else if (form == pc.ctx.constants->begin) {
+        std::vector<generic_ptr> subforms;
+        for (generic_ptr e : in_list{cdr(p)})
+          subforms.push_back(e);
 
-          std::copy(subforms.rbegin(), subforms.rend(), std::back_inserter(stack));
-          continue;
-        }
+        std::copy(subforms.rbegin(), subforms.rend(), std::back_inserter(stack));
+        continue;
       }
     }
     else if (auto sc = match<syntactic_closure>(expr)) {
@@ -332,7 +358,7 @@ parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& 
   if (!is_list(cdr(datum)) || cdr(datum) == pc.ctx.constants->null)
     throw std::runtime_error{"Invalid lambda syntax"};
 
-  generic_ptr param_names = cadr(datum);
+  generic_ptr param_names = strip_syntactic_closures(cadr(datum));
   if (!is_list(param_names))
     throw std::runtime_error{"Unimplemented"};
 
@@ -515,8 +541,7 @@ parse_qq_template(context& ctx, ptr<environment> const& env,
   if (auto p = match<pair>(datum)) {
     unsigned nested_level = quote_level;
 
-    if (auto s = match<symbol>(car(p))) {
-      auto form = lookup_core(ctx, env, s->value());
+    if (auto form = match_core_form(ctx, env, car(p))) {
       if (form == ctx.constants->unquote) {
         if (quote_level == 0)
           return std::make_unique<qq_template>(unquote{cadr(p), false});
@@ -707,8 +732,7 @@ parse(parsing_context& pc, ptr<environment> const& env, generic_ptr const& d) {
     return parse_syntactic_closure(pc, env, sc);
   else if (auto p = match<pair>(datum)) {
     auto head = car(p);
-    if (auto head_symbol = match<symbol>(head)) {
-      auto form = lookup_core(pc.ctx, env, head_symbol->value());
+    if (auto form = match_core_form(pc.ctx, env, head)) {
       if (form == pc.ctx.constants->let)
         return parse_let(pc, env, p);
       else if (form == pc.ctx.constants->set)
@@ -894,9 +918,7 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
     stack.pop_back();
 
     if (auto p = match<pair>(datum)) {
-      if (auto head = match<symbol>(car(p))) {
-        auto form = lookup_core(ctx, m.environment(), head->value());
-
+      if (auto form = match_core_form(ctx, m.environment(), car(p))) {
         if (form == ctx.constants->define_syntax) {
           auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
           auto transformer_proc = expect<procedure>(eval_transformer(ctx, m, caddr(p)));

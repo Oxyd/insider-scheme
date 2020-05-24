@@ -464,6 +464,19 @@ write_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
     out->write_string("#syntactic-closure(");
     write_simple(ctx, syntactic_closure_environment(sc), out);
     out->write_char(' ');
+
+    std::vector<ptr<symbol>> free = syntactic_closure_free(sc);
+    out->write_char('(');
+
+    for (auto it = free.begin(); it != free.end(); ++it) {
+      if (it != free.begin())
+        out->write_char(' ');
+
+      out->write_string((**it).value());
+    }
+
+    out->write_string(") ");
+
     write_simple(ctx, syntactic_closure_expression(sc), out);
     out->write_char(')');
   } else if (auto env = match<environment>(datum)) {
