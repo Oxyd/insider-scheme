@@ -5,6 +5,7 @@
 #include "free_store.hpp"
 
 #include <memory>
+#include <string>
 #include <variant>
 #include <vector>
 
