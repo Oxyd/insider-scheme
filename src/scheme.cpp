@@ -117,7 +117,8 @@ module::find(std::string const& name) const -> std::optional<index_type> {
 
 void
 module::add(std::string name, index_type i) {
-  assert(!env_->lookup(name));
+  if (env_->lookup(name))
+    throw std::runtime_error{fmt::format("Redefinition of {}", name)};
   env_->add(name, std::make_shared<variable>(name, i));
 }
 
