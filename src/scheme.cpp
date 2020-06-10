@@ -949,6 +949,19 @@ closure::for_each_subobject(std::function<void(object*)> const& f) {
     f(dynamic_storage()[i]);
 }
 
+bool
+is_callable(generic_ptr const& x) {
+  return is<procedure>(x) || is<native_procedure>(x) || is<closure>(x);
+}
+
+generic_ptr
+expect_callable(generic_ptr const& x) {
+  if (!is_callable(x))
+    throw std::runtime_error{"Expected a callable"};
+  else
+    return x;
+}
+
 std::size_t
 syntactic_closure::extra_storage_size(ptr<insider::environment>,
                                       generic_ptr const& expr, generic_ptr const& free) {
@@ -984,6 +997,12 @@ syntactic_closure::for_each_subobject(std::function<void(object*)> const& f) {
   f(env_);
   for (std::size_t i = 0; i < free_size_; ++i)
     f(dynamic_storage()[i]);
+}
+
+void
+transformer::for_each_subobject(std::function<void(object*)> const& f) {
+  f(env_);
+  f(callable_);
 }
 
 } // namespace insider

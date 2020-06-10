@@ -218,6 +218,7 @@ execute_one(execution_state& state) {
         scheme_proc, closure, state.current_frame, args
       );
     } else if (auto native_proc = match<native_procedure>(call_target)) {
+      assert(!closure);
       generic_ptr result = native_proc->target(state.ctx, args);
 
       if (instr.opcode == opcode::call)
@@ -351,13 +352,25 @@ run(execution_state& state) {
 }
 
 generic_ptr
-call(context& ctx, ptr<procedure> const& p, std::vector<generic_ptr> const& arguments) {
-  if (p->num_args != arguments.size())
-    throw std::runtime_error{"Wrong number of arguments in function call"};
+call(context& ctx, generic_ptr callable, std::vector<generic_ptr> const& arguments) {
+  ptr<closure> closure;
+  if (auto cls = match<insider::closure>(callable)) {
+    closure = cls;
+    callable = closure_procedure(cls);
+  }
 
-  auto frame = make<call_frame>(ctx, p, ptr<closure>{}, ptr<call_frame>{}, arguments);
-  execution_state state{ctx, frame, frame, {}};
-  return run(state);
+  if (auto scheme_proc = match<procedure>(callable)) {
+    if (scheme_proc->num_args != arguments.size())
+      throw std::runtime_error{"Wrong number of arguments in function call"};
+
+    auto frame = make<call_frame>(ctx, scheme_proc, closure, ptr<call_frame>{}, arguments);
+    execution_state state{ctx, frame, frame, {}};
+    return run(state);
+  } else if (auto native_proc = match<native_procedure>(callable)) {
+    assert(!closure);
+    return native_proc->target(ctx, arguments);
+  } else
+    throw std::runtime_error{"Expected a callable"};
 }
 
 } // namespace insider

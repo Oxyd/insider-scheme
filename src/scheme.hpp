@@ -594,6 +594,12 @@ public:
   native_procedure(target_type f) : target{std::move(f)} { }
 };
 
+bool
+is_callable(generic_ptr const& x);
+
+generic_ptr
+expect_callable(generic_ptr const& x);
+
 // Wrapper for C++ values that don't contain references to any Scheme objects.
 template <typename T>
 class opaque_value : public object {
@@ -650,27 +656,30 @@ syntactic_closure_free(ptr<syntactic_closure> const& sc) { return sc->free(sc.st
 // A procedure together with the environment it was defined in.
 class transformer : public object {
 public:
-  transformer(ptr<insider::environment> env, ptr<procedure> const& proc)
+  transformer(ptr<insider::environment> env, generic_ptr const& callable)
     : env_{env.get()}
-    , proc_{proc.get()}
+    , callable_{callable.get()}
   { }
 
   ptr<insider::environment>
   environment(free_store& store) const { return {store, env_}; }
 
-  ptr<insider::procedure>
-  procedure(free_store& store) const { return {store, proc_}; }
+  generic_ptr
+  callable(free_store& store) const { return {store, callable_}; }
+
+  void
+  for_each_subobject(std::function<void(object*)> const& f) override;
 
 private:
   insider::environment* env_;
-  insider::procedure*   proc_;
+  insider::object*      callable_;
 };
 
 inline ptr<environment>
 transformer_environment(ptr<transformer> const& t) { return t->environment(t.store()); }
 
-inline ptr<procedure>
-transformer_procedure(ptr<transformer> const& t) { return t->procedure(t.store()); }
+inline generic_ptr
+transformer_callable(ptr<transformer> const& t) { return expect_callable(t->callable(t.store())); }
 
 // Is a given object an instance of the given Scheme type?
 template <typename T>

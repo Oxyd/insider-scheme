@@ -85,7 +85,7 @@ run(execution_state&);
 // Create a new execution state with the given procedure as the root frame,
 // execute it, and return the procedure's return value.
 generic_ptr
-call(context&, ptr<procedure> const&, std::vector<generic_ptr> const& arguments);
+call(context&, generic_ptr callable, std::vector<generic_ptr> const& arguments);
 
 } // namespace insider
 

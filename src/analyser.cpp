@@ -80,7 +80,7 @@ expand(context& ctx, ptr<environment> const& outer_env, generic_ptr datum) {
     if (auto lst = match<pair>(datum)) {
       if (auto head = match<symbol>(car(lst))) {
         if (ptr<transformer> t = lookup_transformer(ctx, env, head->value())) {
-          datum = call(ctx, transformer_procedure(t), {datum, transformer_environment(t), env});
+          datum = call(ctx, transformer_callable(t), {datum, transformer_environment(t), env});
           continue;
         }
       }
@@ -99,11 +99,11 @@ expand(context& ctx, ptr<environment> const& outer_env, generic_ptr datum) {
     return make<syntactic_closure>(ctx, env, datum, ctx.constants->null);
 }
 
-static ptr<procedure>
+static generic_ptr
 eval_transformer(context& ctx, module& m, generic_ptr const& datum) {
   auto proc = compile_expression(ctx, datum, m);
   auto state = make_state(ctx, proc);
-  return expect<procedure>(run(state));
+  return expect_callable(run(state));
 }
 
 namespace {
@@ -921,7 +921,7 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
       if (auto form = match_core_form(ctx, m.environment(), car(p))) {
         if (form == ctx.constants->define_syntax) {
           auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
-          auto transformer_proc = expect<procedure>(eval_transformer(ctx, m, caddr(p)));
+          auto transformer_proc = eval_transformer(ctx, m, caddr(p));
           auto transformer = make<insider::transformer>(ctx, m.environment(), transformer_proc);
           m.environment()->add_transformer(name->value(), transformer);
 
