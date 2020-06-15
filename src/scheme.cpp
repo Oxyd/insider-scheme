@@ -364,6 +364,11 @@ make_internal_module(context& ctx) {
   );
   define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "car", true, car);
   define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cdr", true, cdr);
+  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cadr", true, cadr);
+  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "caddr", true, caddr);
+  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cadddr", true, cadddr);
+  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cddr", true, cddr);
+  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cdddr", true, cdddr);
 
   define_lambda<ptr<syntactic_closure>(context&, ptr<environment> const&,
                                        generic_ptr const&, generic_ptr const&)>(
