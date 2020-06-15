@@ -78,8 +78,16 @@ expand(context& ctx, ptr<environment> const& outer_env, generic_ptr datum) {
 
   while (true) {
     if (auto lst = match<pair>(datum)) {
-      if (auto head = match<symbol>(car(lst))) {
-        if (ptr<transformer> t = lookup_transformer(ctx, env, head->value())) {
+      ptr<environment> subenv = env;
+      generic_ptr head = car(lst);
+
+      while (auto sc = match<syntactic_closure>(head)) {
+        subenv = syntactic_closure_to_environment(ctx, sc, subenv);
+        head = syntactic_closure_expression(sc);
+      }
+
+      if (auto head_sym = match<symbol>(head)) {
+        if (ptr<transformer> t = lookup_transformer(ctx, subenv, head_sym->value())) {
           datum = call(ctx, transformer_callable(t), {datum, transformer_environment(t), env});
           continue;
         }
@@ -141,7 +149,12 @@ namespace {
 }
 
 static ptr<core_form_type>
-match_core_form(context& ctx, ptr<environment> const& env, generic_ptr const& datum) {
+match_core_form(context& ctx, ptr<environment> env, generic_ptr datum) {
+  while (auto sc = match<syntactic_closure>(datum)) {
+    env = syntactic_closure_to_environment(ctx, sc, env);
+    datum = syntactic_closure_expression(sc);
+  }
+
   if (auto cf = match<core_form_type>(datum))
     return cf;
   else if (auto sym = match<symbol>(datum))
