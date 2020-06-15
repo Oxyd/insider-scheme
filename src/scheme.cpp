@@ -306,7 +306,6 @@ void
 define_type_name(context& ctx, module& result, std::string const& name) {
   std::string prefixed_name = "insider::" + name;
   ctx.type_names.emplace(typeid(T).name(), prefixed_name);
-  define_top_level(ctx, result, prefixed_name, ctx.intern(demangle(typeid(T).name())));
 }
 
 static void
