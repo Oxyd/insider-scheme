@@ -360,6 +360,7 @@ class port : public object {
 public:
   port(FILE*, bool input, bool output, bool should_close = true);
   port(std::string, bool input, bool output);
+  ~port() override;
 
   void
   write_string(std::string const&);

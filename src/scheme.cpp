@@ -634,6 +634,12 @@ port::port(std::string buffer, bool input, bool output)
   , output_{output}
 { }
 
+port::~port() {
+  if (should_close_)
+    if (FILE** f = std::get_if<FILE*>(&buffer_))
+      std::fclose(*f);
+}
+
 void
 port::write_string(std::string const& s) {
   if (!output_)
