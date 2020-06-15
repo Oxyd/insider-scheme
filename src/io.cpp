@@ -393,6 +393,8 @@ read(context& ctx, token first_token, ptr<port> const& stream) {
     return ctx.constants->void_;
   else if (std::holds_alternative<dot>(first_token))
     throw parse_error{"Unexpected . token"};
+  else if (std::holds_alternative<right_paren>(first_token))
+    throw parse_error{"Unexpected ) token"};
 
   throw parse_error{"Probably unimplemented"};
 }
