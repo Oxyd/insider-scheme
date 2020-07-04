@@ -26,12 +26,6 @@ public:
   virtual void
   for_each_subobject(std::function<void(object*)> const&) { }
 
-  virtual std::size_t
-  hash() const { return std::hash<std::uintptr_t>{}(reinterpret_cast<std::uintptr_t>(this)); }
-
-  virtual bool
-  eqv(generic_ptr const& other) const;
-
   bool mark;
 };
 

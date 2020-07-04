@@ -4,11 +4,6 @@
 
 namespace insider {
 
-bool
-object::eqv(generic_ptr const& other) const {
-  return this == other.get();
-}
-
 generic_ptr::generic_ptr(free_store& store, object* value)
   : generic_ptr_base{store, value}
 {

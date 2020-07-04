@@ -19,6 +19,32 @@
 
 namespace insider {
 
+std::size_t
+hash(generic_ptr const& x) {
+  if (auto i = match<integer>(x))
+    return integer_hash(i);
+  if (auto b = match<boolean>(x))
+    return boolean_hash(b);
+  else if (auto p = match<pair>(x))
+    return pair_hash(p);
+  else if (auto v = match<vector>(x))
+    return vector_hash(v);
+  else
+    return reinterpret_cast<std::size_t>(x.get());
+}
+
+bool
+eqv(generic_ptr const& x, generic_ptr const& y) {
+  if (typeid(*x) != typeid(*y))
+    return false;
+  else if (auto lhs = match<integer>(x)) {
+    auto rhs = assume<integer>(y);
+    return lhs->value() == rhs->value();
+  }
+  else
+    return x.get() == y.get();
+}
+
 bool
 equal(generic_ptr const& x, generic_ptr const& y) {
   // XXX: This will break on infinite data structures.
@@ -585,14 +611,6 @@ context::append_module_provider(std::unique_ptr<module_provider> provider) {
   module_providers_.push_back(std::move(provider));
 }
 
-bool
-integer::eqv(generic_ptr const& other) const {
-  if (auto y = match<integer>(other))
-    return value() == y->value();
-  else
-    return false;
-}
-
 void
 string::set(std::size_t i, char c) {
   assert(i < size_);
@@ -732,8 +750,8 @@ port::rewind() {
 }
 
 std::size_t
-pair::hash() const {
-  return 3 * subobjects_[0]->hash() ^ subobjects_[1]->hash();
+pair_hash(ptr<pair> const& p) {
+  return 3 * hash(car(p)) ^ hash(cdr(p));
 }
 
 bool
@@ -868,10 +886,10 @@ vector::set(std::size_t i, generic_ptr value) {
 }
 
 std::size_t
-vector::hash() const {
+vector_hash(ptr<vector> const& v) {
   std::size_t result = 0;
-  for (std::size_t i = 0; i < size_; ++i)
-    result = 3 * result ^ dynamic_storage()[i]->hash();
+  for (std::size_t i = 0; i < v->size(); ++i)
+    result = 3 * result ^ hash(vector_ref(v, i));
 
   return result;
 }

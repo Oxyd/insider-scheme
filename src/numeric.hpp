@@ -70,15 +70,12 @@ public:
   storage_type
   data() const { return value_; }
 
-  std::size_t
-  hash() const override { return static_cast<std::size_t>(value_); }
-
-  bool
-  eqv(generic_ptr const& other) const override;
-
 private:
   storage_type value_ = 0;
 };
+
+inline std::size_t
+integer_hash(ptr<integer> const& x) { return static_cast<std::size_t>(x->data()); }
 
 // An arbitray-length signed magnitude integer. It is made up of 64-bit unsigned
 // limbs. The least-significant limb is stored first.

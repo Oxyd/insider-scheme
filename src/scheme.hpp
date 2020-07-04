@@ -23,20 +23,23 @@
 
 namespace insider {
 
+std::size_t
+hash(generic_ptr const& x);
+
 struct generic_ptr_hash {
   std::size_t
-  operator () (generic_ptr const& p) const { return p->hash(); }
+  operator () (generic_ptr const& p) const { return hash(p); }
 };
 
-inline bool
-eqv(generic_ptr const& x, generic_ptr const& y) { return x->eqv(y); }
+bool
+eqv(generic_ptr const& x, generic_ptr const& y);
 
 bool
 equal(generic_ptr const&, generic_ptr const&);
 
 struct eqv_compare {
   bool
-  operator () (generic_ptr const& x, generic_ptr const& y) const { return x->eqv(y); }
+  operator () (generic_ptr const& x, generic_ptr const& y) const { return eqv(x, y); }
 };
 
 template <typename Value>
@@ -310,12 +313,12 @@ public:
   bool
   value() const { return value_; }
 
-  std::size_t
-  hash() const override { return value_; }
-
 private:
   bool value_;
 };
+
+inline std::size_t
+boolean_hash(ptr<boolean> const& b) { return b->value(); }
 
 // Character. TODO: Support Unicode.
 class character : public object {
@@ -410,10 +413,10 @@ public:
   set_car(generic_ptr const& p) { subobjects_[0] = p.get(); }
   void
   set_cdr(generic_ptr const& p) { subobjects_[1] = p.get(); }
-
-  std::size_t
-  hash() const override;
 };
+
+std::size_t
+pair_hash(ptr<pair> const&);
 
 inline ptr<pair>
 cons(context& ctx, generic_ptr const& car, generic_ptr const& cdr) {
@@ -496,12 +499,12 @@ public:
   std::size_t
   size() const { return size_; }
 
-  std::size_t
-  hash() const override;
-
 private:
   std::size_t size_;
 };
+
+std::size_t
+vector_hash(ptr<vector> const&);
 
 inline generic_ptr
 vector_ref(ptr<vector> const& v, std::size_t i) { return v->ref(v.store(), i); }
