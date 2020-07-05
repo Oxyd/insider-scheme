@@ -40,6 +40,7 @@ endif()
 
 add_library(scheme ${scheme_sources})
 target_compile_features(scheme PUBLIC cxx_std_17)
+target_compile_options(scheme PRIVATE -Wsuggest-override)
 set_property(TARGET scheme PROPERTY CXX_EXTENSIONS OFF)
 
 target_link_libraries(scheme PUBLIC fmt::fmt-header-only)
@@ -58,6 +59,7 @@ set_property(TARGET tests PROPERTY
 
 add_executable(insider ${program_sources})
 target_compile_features(insider PUBLIC cxx_std_17)
+target_compile_options(insider PRIVATE -Wsuggest-override)
 set_property(TARGET insider PROPERTY CXX_EXTENSIONS OFF)
 target_link_libraries(insider
   PUBLIC scheme)
