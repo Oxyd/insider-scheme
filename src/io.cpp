@@ -389,7 +389,7 @@ read(context& ctx, token first_token, ptr<port> const& stream) {
     return ctx.intern(i->value);
   else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token))
     return b->value ? ctx.constants->t : ctx.constants->f;
-  else if (void_literal* v = std::get_if<void_literal>(&first_token))
+  else if (std::holds_alternative<void_literal>(first_token))
     return ctx.constants->void_;
   else if (std::holds_alternative<dot>(first_token))
     throw parse_error{"Unexpected . token"};

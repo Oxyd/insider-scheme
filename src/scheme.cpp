@@ -237,7 +237,7 @@ perform_imports(context& ctx, module& m, import_set const& set) {
 
 void
 import_all(context& ctx, module& to, module& from) {
-  import_set is{&from};
+  import_set is{&from, {}};
 
   for (std::string const& name : from.exports())
     is.names.push_back(std::tuple{name, name});
@@ -329,33 +329,33 @@ type(context& ctx, generic_ptr const& x) {
 
 template <typename T>
 void
-define_type_name(context& ctx, module& result, std::string const& name) {
+define_type_name(context& ctx, std::string const& name) {
   std::string prefixed_name = "insider::" + name;
   ctx.type_names.emplace(typeid(T).name(), prefixed_name);
 }
 
 static void
-define_type_names(context& ctx, module& result) {
-  define_type_name<null_type>(ctx, result, "null");
-  define_type_name<void_type>(ctx, result, "void");
-  define_type_name<environment>(ctx, result, "environment");
-  define_type_name<boolean>(ctx, result, "boolean");
-  define_type_name<character>(ctx, result, "character");
-  define_type_name<port>(ctx, result, "port");
-  define_type_name<symbol>(ctx, result, "symbol");
-  define_type_name<procedure>(ctx, result, "procedure");
-  define_type_name<native_procedure>(ctx, result, "native-procedure");
-  define_type_name<transformer>(ctx, result, "transformer");
-  define_type_name<pair>(ctx, result, "pair");
-  define_type_name<box>(ctx, result, "box");
-  define_type_name<string>(ctx, result, "string");
-  define_type_name<vector>(ctx, result, "vector");
-  define_type_name<closure>(ctx, result, "closure");
-  define_type_name<syntactic_closure>(ctx, result, "syntactic-closure");
-  define_type_name<integer>(ctx, result, "integer");
-  define_type_name<big_integer>(ctx, result, "big-integer");
-  define_type_name<fraction>(ctx, result, "fraction");
-  define_type_name<floating_point>(ctx, result, "floating-point");
+define_type_names(context& ctx) {
+  define_type_name<null_type>(ctx, "null");
+  define_type_name<void_type>(ctx, "void");
+  define_type_name<environment>(ctx, "environment");
+  define_type_name<boolean>(ctx, "boolean");
+  define_type_name<character>(ctx, "character");
+  define_type_name<port>(ctx, "port");
+  define_type_name<symbol>(ctx, "symbol");
+  define_type_name<procedure>(ctx, "procedure");
+  define_type_name<native_procedure>(ctx, "native-procedure");
+  define_type_name<transformer>(ctx, "transformer");
+  define_type_name<pair>(ctx, "pair");
+  define_type_name<box>(ctx, "box");
+  define_type_name<string>(ctx, "string");
+  define_type_name<vector>(ctx, "vector");
+  define_type_name<closure>(ctx, "closure");
+  define_type_name<syntactic_closure>(ctx, "syntactic-closure");
+  define_type_name<integer>(ctx, "integer");
+  define_type_name<big_integer>(ctx,  "big-integer");
+  define_type_name<fraction>(ctx, "fraction");
+  define_type_name<floating_point>(ctx, "floating-point");
 }
 
 static module
@@ -404,7 +404,7 @@ make_internal_module(context& ctx) {
   );
 
   define_lambda<type>(ctx, result, "type", true);
-  define_type_names(ctx, result);
+  define_type_names(ctx);
 
   define_lambda<ptr<boolean>(context&, generic_ptr const&, generic_ptr const&)>(
     ctx, result, "eq?", true,
@@ -992,7 +992,7 @@ expect_callable(generic_ptr const& x) {
 
 std::size_t
 syntactic_closure::extra_storage_size(ptr<insider::environment>,
-                                      generic_ptr const& expr, generic_ptr const& free) {
+                                      generic_ptr const&, generic_ptr const& free) {
   return list_length(free) * sizeof(object*);
 }
 

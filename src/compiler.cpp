@@ -541,7 +541,7 @@ compile_local_reference(procedure_context& proc, local_reference_syntax const& s
 }
 
 static shared_register
-compile_top_level_reference(procedure_context& proc, top_level_reference_syntax const& stx) {
+compile_top_level_reference(top_level_reference_syntax const& stx) {
   return shared_register{stx.location};
 }
 
@@ -600,7 +600,7 @@ compile_expression(context& ctx, procedure_context& proc, syntax const& stx, boo
   else if (auto* local_ref = std::get_if<local_reference_syntax>(&stx.value))
     return compile_local_reference(proc, *local_ref);
   else if (auto* top_level_ref = std::get_if<top_level_reference_syntax>(&stx.value))
-    return compile_top_level_reference(proc, *top_level_ref);
+    return compile_top_level_reference(*top_level_ref);
   else if (auto* app = std::get_if<application_syntax>(&stx.value))
     return compile_application(ctx, proc, *app, tail);
   else if (auto* let = std::get_if<let_syntax>(&stx.value))

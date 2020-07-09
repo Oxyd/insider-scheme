@@ -875,7 +875,7 @@ box_set_variables(syntax* s) {
       if (param->is_set) {
         box_variable_references(s, param);
 
-        auto set = std::make_unique<syntax>(local_set_syntax{param});
+        auto set = std::make_unique<syntax>(local_set_syntax{param, {}});
         auto box = std::make_unique<syntax>(box_syntax{});
         auto ref = std::make_unique<syntax>(local_reference_syntax{param});
         std::get<box_syntax>(box->value).expression = std::move(ref);
