@@ -35,10 +35,16 @@ static std::size_t
 number_of_limbs_for_small_integer(integer::value_type i) {
   if (i == 0)
     return 0;
-  else if (i <= max_limb_value && -i <= max_limb_value)
+
+  if constexpr (sizeof(limb_type) >= sizeof(integer::value_type))
     return 1;
-  else
-    return 2;
+  else {
+    if (i <= static_cast<integer::value_type>(max_limb_value)
+        && -i <= static_cast<integer::value_type>(max_limb_value))
+      return 1;
+    else
+      return 2;
+  }
 }
 
 std::size_t
@@ -65,7 +71,7 @@ big_integer::big_integer(std::vector<limb_type> const& limbs, bool positive)
   : length_{limbs.size()}
   , positive_{positive}
 {
-  assert(end() - begin() == limbs.size());
+  assert(static_cast<std::vector<limb_type>::size_type>(end() - begin()) == limbs.size());
   std::copy(limbs.begin(), limbs.end(), begin());
 }
 
@@ -684,7 +690,7 @@ bitshift_left(context& ctx, ptr<big_integer> i, unsigned k) {
 }
 
 static ptr<big_integer>
-bitshift_right_destructive(context& ctx, ptr<big_integer> i, std::size_t k) {
+bitshift_right_destructive(ptr<big_integer> i, std::size_t k) {
   if (k == 0)
     return i;
 
@@ -708,7 +714,7 @@ bitshift_right_destructive(context& ctx, ptr<big_integer> i, std::size_t k) {
 
 static ptr<big_integer>
 bitshift_right(context& ctx, ptr<big_integer> i, std::size_t k) {
-  return bitshift_right_destructive(ctx, make<big_integer>(ctx, i), k);
+  return bitshift_right_destructive(make<big_integer>(ctx, i), k);
 }
 
 static unsigned
@@ -1188,16 +1194,16 @@ gcd_big(context& ctx, ptr<big_integer> x, ptr<big_integer> y) {
   while (even(x) && even(y)) {
     assert(shift < std::numeric_limits<std::size_t>::max());
     ++shift;
-    x = bitshift_right_destructive(ctx, x, 1);
-    y = bitshift_right_destructive(ctx, y, 1);
+    x = bitshift_right_destructive(x, 1);
+    y = bitshift_right_destructive(y, 1);
   }
 
   while (even(x))
-    x = bitshift_right_destructive(ctx, x, 1);
+    x = bitshift_right_destructive(x, 1);
 
   while (!y->zero()) {
     while (even(y))
-      y = bitshift_right_destructive(ctx, y, 1);
+      y = bitshift_right_destructive(y, 1);
 
     if (compare_magnitude(x, y, normal_length(x), normal_length(y)) == compare::greater)
       std::swap(x, y);
@@ -1215,6 +1221,8 @@ gcd(context& ctx, generic_ptr const& x, generic_ptr const& y) {
     return make<integer>(ctx, std::gcd(assume<integer>(x)->value(), assume<integer>(y)->value()));
   case common_type::big_integer:
     return gcd_big(ctx, make_big_copy(ctx, x), make_big_copy(ctx, y));
+  default:
+    throw std::runtime_error{"gcd: Invalid type, expected integer"};
   }
 
   assert(false);
@@ -1390,7 +1398,7 @@ write_fraction(context& ctx, ptr<fraction> const& value, ptr<port> const& out) {
 }
 
 static void
-write_float(context& ctx, ptr<floating_point> const& value, ptr<port> const& out) {
+write_float(ptr<floating_point> const& value, ptr<port> const& out) {
   // Same as with string_to_double: std::to_chars would be the ideal way to implement this, but we'll go with an
   // std::ostringstream in its absence.
 
@@ -1433,7 +1441,7 @@ write_number(context& ctx, generic_ptr const& value, ptr<port> const& out) {
   else if (auto q = match<fraction>(value))
     write_fraction(ctx, q, out);
   else if (auto f = match<floating_point>(value))
-    write_float(ctx, f, out);
+    write_float(f, out);
   else
     assert(false);
 }

@@ -197,6 +197,6 @@ struct protomodule {
   std::vector<generic_ptr>      body;
 };
 
-}; // namespace insider
+} // namespace insider
 
 #endif

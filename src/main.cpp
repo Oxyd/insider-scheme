@@ -23,7 +23,7 @@ main(int argc, char** argv) {
   std::string program_path;
   insider::context ctx;
 
-  for (std::size_t i = 1; i < argc; ++i) {
+  for (int i = 1; i < argc; ++i) {
     if (argv[i][0] == '-') {
       std::string flag = argv[i];
 

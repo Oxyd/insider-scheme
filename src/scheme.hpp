@@ -91,7 +91,7 @@ public:
   has(std::string const& name) const { return bindings_.count(name); }
 
   void
-  for_each_subobject(std::function<void(object*)> const&);
+  for_each_subobject(std::function<void(object*)> const&) override;
 
 private:
   using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
