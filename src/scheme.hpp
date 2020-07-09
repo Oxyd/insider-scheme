@@ -47,15 +47,15 @@ using eqv_unordered_map = std::unordered_map<generic_ptr, Value, generic_ptr_has
 
 // The empty list. There should only be exactly one instance of this type per
 // evaluation context.
-struct null_type : object { };
+struct null_type : leaf_object<null_type> { };
 
 // The empty value. Like null_type, there should only be exactly one instance
 // per evaluation context. This is used when no other meaningful value can be
 // had -- such as the result of evaluating (if #f anything).
-struct void_type : object { };
+struct void_type : leaf_object<void_type> { };
 
 // Dummy value used to represent core forms.
-struct core_form_type : object { };
+struct core_form_type : leaf_object<core_form_type> { };
 
 class boolean;
 class context;
@@ -65,7 +65,7 @@ class procedure;
 class symbol;
 class transformer;
 
-class environment : public object {
+class environment : public composite_object<environment> {
 public:
   explicit
   environment(ptr<environment> const& parent)
@@ -91,7 +91,7 @@ public:
   has(std::string const& name) const { return bindings_.count(name); }
 
   void
-  for_each_subobject(std::function<void(object*)> const&) override;
+  trace(tracing_context& tc);
 
 private:
   using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
@@ -305,7 +305,7 @@ make(context& ctx, Args&&... args) {
 }
 
 // A boolean value.
-class boolean : public object {
+class boolean : public leaf_object<boolean> {
 public:
   explicit
   boolean(bool value) : value_{value} { }
@@ -321,7 +321,7 @@ inline std::size_t
 boolean_hash(ptr<boolean> const& b) { return b->value(); }
 
 // Character. TODO: Support Unicode.
-class character : public object {
+class character : public leaf_object<character> {
 public:
   explicit
   character(char c) : value_{c} { }
@@ -337,7 +337,7 @@ private:
 class string : public dynamic_size_object<string, char> {
 public:
   static std::size_t
-  extra_storage_size(std::size_t size) { return size; }
+  extra_elements(std::size_t size) { return size; }
 
   explicit
   string(std::size_t size) : size_{size} { }
@@ -351,6 +351,9 @@ public:
   std::size_t
   size() const { return size_; }
 
+  void
+  trace(tracing_context&) { }
+
 private:
   std::size_t size_;
 };
@@ -359,11 +362,17 @@ ptr<string>
 make_string(context&, std::string const& value);
 
 // I/O port or a string port. Can be read or write, binary or text.
-class port : public object {
+class port : public leaf_object<port> {
 public:
   port(FILE*, bool input, bool output, bool should_close = true);
   port(std::string, bool input, bool output);
-  ~port() override;
+  port(port&&);
+  ~port();
+
+  port&
+  operator = (port const&) = delete;
+  port&
+  operator = (port&&) = delete;
 
   void
   write_string(std::string const&);
@@ -395,24 +404,35 @@ private:
   bool input_ = false;
   bool output_ = false;
   bool should_close_ = false;
+
+  void
+  destroy();
 };
 
 // A cons pair containing two other Scheme values, car and cdr.
-class pair : public compound_object<2> {
+class pair : public composite_object<pair> {
 public:
   pair(generic_ptr const& car, generic_ptr const& cdr)
-    : compound_object{{car.get(), cdr.get()}}
+    : car_{car.get()}
+    , cdr_{cdr.get()}
   { }
 
   generic_ptr
-  car(free_store& store) const { return {store, subobjects_[0]}; }
+  car(free_store& store) const { return {store, car_}; }
   generic_ptr
-  cdr(free_store& store) const { return {store, subobjects_[1]}; }
+  cdr(free_store& store) const { return {store, cdr_}; }
 
   void
-  set_car(generic_ptr const& p) { subobjects_[0] = p.get(); }
+  set_car(generic_ptr const& p) { car_ = p.get(); }
   void
-  set_cdr(generic_ptr const& p) { subobjects_[1] = p.get(); }
+  set_cdr(generic_ptr const& p) { cdr_ = p.get(); }
+
+  void
+  trace(tracing_context& tc) { tc.trace(car_); tc.trace(cdr_); }
+
+private:
+  object* car_;
+  object* cdr_;
 };
 
 std::size_t
@@ -482,13 +502,13 @@ append(context&, std::vector<generic_ptr> const&);
 class vector : public dynamic_size_object<vector, object*> {
 public:
   static std::size_t
-  extra_storage_size(std::size_t size) { return size * sizeof(object*); }
+  extra_elements(std::size_t size) { return size; }
 
   explicit
   vector(std::size_t);
 
   void
-  for_each_subobject(std::function<void(object*)> const& f) override;
+  trace(tracing_context& tc);
 
   generic_ptr
   ref(free_store& store, std::size_t) const;
@@ -519,7 +539,7 @@ ptr<vector>
 vector_append(context&, std::vector<generic_ptr> const& vs);
 
 // An immutable string, used for identifying Scheme objects.
-class symbol : public object {
+class symbol : public leaf_object<symbol> {
 public:
   explicit
   symbol(std::string value) : value_{std::move(value)} { }
@@ -532,7 +552,7 @@ private:
 };
 
 // Mutable container for a single element. Essentially a pointer.
-class box : public compound_object<1> {
+class box : public composite_object<box> {
 public:
   explicit
   box(generic_ptr const&);
@@ -542,6 +562,12 @@ public:
 
   void
   set(generic_ptr const&);
+
+  void
+  trace(tracing_context& tc) { tc.trace(value_); }
+
+private:
+  object* value_;
 };
 
 inline generic_ptr
@@ -549,7 +575,7 @@ unbox(ptr<box> const& b) { return b->get(b.store()); }
 
 // Callable bytecode container. Contains all the information necessary to create
 // a call frame inside the VM.
-class procedure : public object {
+class procedure : public leaf_object<procedure> {
 public:
   insider::bytecode bytecode;
   unsigned          locals_size;
@@ -562,8 +588,8 @@ public:
 class closure : public dynamic_size_object<closure, object*> {
 public:
   static std::size_t
-  extra_storage_size(ptr<insider::procedure> const&, std::vector<generic_ptr> const& captures) {
-    return captures.size() * sizeof(object*);
+  extra_elements(ptr<insider::procedure> const&, std::vector<generic_ptr> const& captures) {
+    return captures.size();
   }
 
   closure(ptr<insider::procedure> const&, std::vector<generic_ptr> const&);
@@ -574,8 +600,11 @@ public:
   generic_ptr
   ref(free_store& store, std::size_t) const;
 
+  std::size_t
+  size() const { return size_; }
+
   void
-  for_each_subobject(std::function<void(object*)> const&) override;
+  trace(tracing_context&);
 
 private:
   insider::procedure* procedure_;
@@ -589,7 +618,7 @@ inline generic_ptr
 closure_ref(ptr<closure> const& c, std::size_t i) { return c->ref(c.store(), i); }
 
 // Like procedure, but when invoked, it calls a C++ function.
-class native_procedure : public object {
+class native_procedure : public leaf_object<native_procedure> {
 public:
   using target_type = std::function<generic_ptr(context&, std::vector<generic_ptr> const&)>;
   target_type target;
@@ -606,7 +635,7 @@ expect_callable(generic_ptr const& x);
 
 // Wrapper for C++ values that don't contain references to any Scheme objects.
 template <typename T>
-class opaque_value : public object {
+class opaque_value : public leaf_object<opaque_value<T>> {
 public:
   T value;
 
@@ -624,8 +653,8 @@ public:
 class syntactic_closure : public dynamic_size_object<syntactic_closure, object*> {
 public:
   static std::size_t
-  extra_storage_size(ptr<insider::environment>,
-                     generic_ptr const& expr, generic_ptr const& free);
+  extra_elements(ptr<insider::environment>,
+                 generic_ptr const& expr, generic_ptr const& free);
 
   syntactic_closure(ptr<insider::environment>,
                     generic_ptr const& expr, generic_ptr const& free);
@@ -639,8 +668,11 @@ public:
   std::vector<ptr<symbol>>
   free(free_store&) const;
 
+  std::size_t
+  size() const { return free_size_; }
+
   void
-  for_each_subobject(std::function<void(object*)> const& f) override;
+  trace(tracing_context&);
 
 private:
   object*               expression_;
@@ -658,7 +690,7 @@ inline auto
 syntactic_closure_free(ptr<syntactic_closure> const& sc) { return sc->free(sc.store()); }
 
 // A procedure together with the environment it was defined in.
-class transformer : public object {
+class transformer : public composite_object<transformer> {
 public:
   transformer(ptr<insider::environment> env, generic_ptr const& callable)
     : env_{env.get()}
@@ -672,7 +704,7 @@ public:
   callable(free_store& store) const { return {store, callable_}; }
 
   void
-  for_each_subobject(std::function<void(object*)> const& f) override;
+  trace(tracing_context&);
 
 private:
   insider::environment* env_;
@@ -690,7 +722,7 @@ template <typename T>
 bool
 is(generic_ptr const& x) {
   assert(x);
-  return typeid(*x) == typeid(T);
+  return object_type_index(x.get()) == T::type_index;
 }
 
 struct type_error : std::runtime_error {

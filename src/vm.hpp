@@ -15,10 +15,10 @@ namespace insider {
 class call_frame : public dynamic_size_object<call_frame, object*> {
 public:
   static std::size_t
-  extra_storage_size(ptr<insider::procedure> const& procedure,
-                     ptr<insider::closure> const& closure,
-                     ptr<call_frame> const& parent,
-                     std::vector<generic_ptr> const& arguments);
+  extra_elements(ptr<insider::procedure> const& procedure,
+                 ptr<insider::closure> const& closure,
+                 ptr<call_frame> const& parent,
+                 std::vector<generic_ptr> const& arguments);
 
   std::uint32_t pc = 0;
 
@@ -27,8 +27,11 @@ public:
              ptr<call_frame> const& parent,
              std::vector<generic_ptr> const& arguments);
 
+  std::size_t
+  size() const { return locals_size_; }
+
   void
-  for_each_subobject(std::function<void(object*)> const& f) override;
+  trace(tracing_context&);
 
   ptr<insider::procedure>
   procedure(free_store& store) const { return {store, procedure_}; }

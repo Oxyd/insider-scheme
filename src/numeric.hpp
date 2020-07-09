@@ -48,7 +48,7 @@ namespace detail {
 }
 
 // A signed, fixed size integer.
-class integer : public object {
+class integer : public leaf_object<integer> {
 public:
   using storage_type = detail::integer_storage_type;
   using value_type = detail::integer_value_type;
@@ -87,19 +87,19 @@ public:
   using limb_type = detail::limb_type;
 
   static std::size_t
-  extra_storage_size(std::size_t length);
+  extra_elements(std::size_t length);
 
   static std::size_t
-  extra_storage_size(std::size_t length, dont_initialize_t) { return big_integer::extra_storage_size(length); }
+  extra_elements(std::size_t length, dont_initialize_t) { return big_integer::extra_elements(length); }
 
   static std::size_t
-  extra_storage_size(std::vector<limb_type> const&, bool = true);
+  extra_elements(std::vector<limb_type> const&, bool = true);
 
   static std::size_t
-  extra_storage_size(ptr<integer> const&);
+  extra_elements(ptr<integer> const&);
 
   static std::size_t
-  extra_storage_size(ptr<big_integer> const&);
+  extra_elements(ptr<big_integer> const&);
 
   explicit
   big_integer(std::size_t length);
@@ -139,6 +139,9 @@ public:
   std::size_t
   length() const { return length_; }
 
+  std::size_t
+  size() const { return length(); }
+
   bool
   zero() const { return length_ == 0; }
 
@@ -148,12 +151,15 @@ public:
   void
   set_positive(bool p) { positive_ = p; }
 
+  void
+  trace(tracing_context&) { }
+
 private:
   std::size_t length_;
   bool positive_ = true;
 };
 
-class fraction : public object {
+class fraction : public composite_object<fraction> {
 public:
   fraction(generic_ptr const& numerator, generic_ptr const& denominator);
 
@@ -170,7 +176,7 @@ public:
   set_denominator(generic_ptr const& d) { denominator_ = d.get(); }
 
   void
-  for_each_subobject(std::function<void(object*)> const&) override;
+  trace(tracing_context& tc) { tc.trace(numerator_); tc.trace(denominator_); }
 
 private:
   object* numerator_;
@@ -183,7 +189,7 @@ fraction_numerator(ptr<fraction> const& f) { return f->numerator(f.store()); }
 inline generic_ptr
 fraction_denominator(ptr<fraction> const& f) { return f->denominator(f.store()); }
 
-class floating_point : public object {
+class floating_point : public leaf_object<floating_point> {
 public:
   using value_type = double;
 

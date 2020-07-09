@@ -38,8 +38,10 @@ eqv(generic_ptr const& x, generic_ptr const& y) {
   if (typeid(*x) != typeid(*y))
     return false;
   else if (auto lhs = match<integer>(x)) {
-    auto rhs = assume<integer>(y);
-    return lhs->value() == rhs->value();
+    if (auto rhs = match<integer>(y))
+      return lhs->value() == rhs->value();
+    else
+      return false;
   }
   else
     return x.get() == y.get();
@@ -121,12 +123,12 @@ environment::lookup_transformer(free_store& fs, std::string const& name) const {
 }
 
 void
-environment::for_each_subobject(std::function<void(object*)> const& f) {
-  f(parent_);
+environment::trace(tracing_context& tc) {
+  tc.trace(parent_);
 
   for (auto& [name, binding] : bindings_)
     if (transformer** tr = std::get_if<transformer*>(&binding))
-      f(*tr);
+      tc.trace(*tr);
 }
 
 module::module(context& ctx)
@@ -614,7 +616,7 @@ context::append_module_provider(std::unique_ptr<module_provider> provider) {
 void
 string::set(std::size_t i, char c) {
   assert(i < size_);
-  dynamic_storage()[i] = c;
+  storage_element(i) = c;
 }
 
 std::string
@@ -623,7 +625,7 @@ string::value() const {
   result.reserve(size_);
 
   for (std::size_t i = 0; i < size_; ++i)
-    result += dynamic_storage()[i];
+    result += storage_element(i);
 
   return result;
 }
@@ -651,10 +653,18 @@ port::port(std::string buffer, bool input, bool output)
   , output_{output}
 { }
 
+port::port(port&& other)
+  : buffer_(std::move(other.buffer_))
+  , put_back_buffer_(std::move(other.put_back_buffer_))
+  , input_{other.input_}
+  , output_{other.output_}
+  , should_close_{other.should_close_}
+{
+  other.should_close_ = false;
+}
+
 port::~port() {
-  if (should_close_)
-    if (FILE** f = std::get_if<FILE*>(&buffer_))
-      std::fclose(*f);
+  destroy();
 }
 
 void
@@ -747,6 +757,13 @@ port::rewind() {
     sb->read_index = 0;
   else
     std::rewind(std::get<FILE*>(buffer_));
+}
+
+void
+port::destroy() {
+  if (should_close_)
+    if (FILE** f = std::get_if<FILE*>(&buffer_))
+      std::fclose(*f);
 }
 
 std::size_t
@@ -860,13 +877,13 @@ vector::vector(std::size_t size)
   : size_{size}
 {
   for (std::size_t i = 0; i < size_; ++i)
-    dynamic_storage()[i] = nullptr;
+    storage_element(i) = nullptr;
 }
 
 void
-vector::for_each_subobject(std::function<void(object*)> const& f) {
+vector::trace(tracing_context& tc) {
   for (std::size_t i = 0; i < size_; ++i)
-    f(dynamic_storage()[i]);
+    tc.trace(storage_element(i));
 }
 
 generic_ptr
@@ -874,7 +891,7 @@ vector::ref(free_store& store, std::size_t i) const {
   if (i >= size_)
     throw std::runtime_error{fmt::format("Vector access out of bounds: index = {}, size = {}", i, size_)};
 
-  return {store, dynamic_storage()[i]};
+  return {store, storage_element(i)};
 }
 
 void
@@ -882,7 +899,7 @@ vector::set(std::size_t i, generic_ptr value) {
   if (i >= size_)
     throw std::runtime_error{fmt::format("Vector access out of bounds: index = {}, size = {}", i, size_)};
 
-  dynamic_storage()[i] = value.get();
+  storage_element(i) = value.get();
 }
 
 std::size_t
@@ -937,17 +954,17 @@ vector_append(context& ctx, std::vector<generic_ptr> const& vs) {
 }
 
 box::box(generic_ptr const& value)
-  : compound_object{{value.get()}}
+  : value_{value.get()}
 { }
 
 generic_ptr
 box::get(free_store& store) const {
-  return {store, subobjects_[0]};
+  return {store, value_};
 }
 
 void
 box::set(generic_ptr const& value) {
-  subobjects_[0] = value.get();
+  value_ = value.get();
 }
 
 procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned num_args)
@@ -961,20 +978,20 @@ closure::closure(ptr<insider::procedure> const& p, std::vector<generic_ptr> cons
   , size_{captures.size()}
 {
   for (std::size_t i = 0; i < size_; ++i)
-    dynamic_storage()[i] = captures[i].get();
+    storage_element(i) = captures[i].get();
 }
 
 generic_ptr
 closure::ref(free_store& store, std::size_t i) const {
   assert(i < size_);
-  return {store, dynamic_storage()[i]};
+  return {store, storage_element(i)};
 }
 
 void
-closure::for_each_subobject(std::function<void(object*)> const& f) {
-  f(procedure_);
+closure::trace(tracing_context& tc) {
+  tc.trace(procedure_);
   for (std::size_t i = 0; i < size_; ++i)
-    f(dynamic_storage()[i]);
+    tc.trace(storage_element(i));
 }
 
 bool
@@ -991,9 +1008,9 @@ expect_callable(generic_ptr const& x) {
 }
 
 std::size_t
-syntactic_closure::extra_storage_size(ptr<insider::environment>,
-                                      generic_ptr const&, generic_ptr const& free) {
-  return list_length(free) * sizeof(object*);
+syntactic_closure::extra_elements(ptr<insider::environment>,
+                                  generic_ptr const&, generic_ptr const& free) {
+  return list_length(free);
 }
 
 syntactic_closure::syntactic_closure(ptr<insider::environment> env,
@@ -1004,7 +1021,7 @@ syntactic_closure::syntactic_closure(ptr<insider::environment> env,
 {
   for (generic_ptr name : in_list{free}) {
     expect<symbol>(name);
-    dynamic_storage()[free_size_++] = name.get();
+    storage_element(free_size_++) = name.get();
   }
 }
 
@@ -1014,23 +1031,23 @@ syntactic_closure::free(free_store& store) const {
   result.reserve(free_size_);
 
   for (std::size_t i = 0; i < free_size_; ++i)
-    result.push_back(ptr<symbol>{store, dynamic_storage()[i]});
+    result.push_back(ptr<symbol>{store, storage_element(i)});
 
   return result;
 }
 
 void
-syntactic_closure::for_each_subobject(std::function<void(object*)> const& f) {
-  f(expression_);
-  f(env_);
+syntactic_closure::trace(tracing_context& tc) {
+  tc.trace(expression_);
+  tc.trace(env_);
   for (std::size_t i = 0; i < free_size_; ++i)
-    f(dynamic_storage()[i]);
+    tc.trace(storage_element(i));
 }
 
 void
-transformer::for_each_subobject(std::function<void(object*)> const& f) {
-  f(env_);
-  f(callable_);
+transformer::trace(tracing_context& tc) {
+  tc.trace(env_);
+  tc.trace(callable_);
 }
 
 } // namespace insider

@@ -4,6 +4,55 @@
 
 namespace insider {
 
+static std::vector<type_descriptor>&
+types() {
+  static std::vector<type_descriptor> value;
+  return value;
+}
+
+// Object header word:
+//
+// Bits:   63 ..  1        0
+// Fields: | type | colour |
+
+static word_type color_bit = 1 << 0;
+
+static word_type&
+header_word(object* o) {
+  return *reinterpret_cast<word_type*>(reinterpret_cast<std::byte*>(o) - sizeof(word_type));
+}
+
+void
+init_object_header(std::byte* storage, word_type type) {
+  new (storage) word_type(type << 1);
+}
+
+word_type
+object_type_index(object* o) { return header_word(o) >> 1; }
+
+static type_descriptor const&
+object_type(object* o) { return types()[object_type_index(o)]; }
+
+static detail::color
+object_color(object* o) { return static_cast<detail::color>(header_word(o) & 1); }
+
+static void
+set_object_color(object* o, detail::color c) {
+  header_word(o) = (header_word(o) & ~color_bit) | static_cast<word_type>(c);
+}
+
+void
+tracing_context::trace(object* o) {
+  if (o && object_color(o) != current_color_)
+    stack_.push_back(o);
+}
+
+word_type
+new_type(type_descriptor d) {
+  types().push_back(d);
+  return types().size() - 1;
+}
+
 generic_ptr::generic_ptr(free_store& store, object* value)
   : generic_ptr_base{store, value}
 {
@@ -93,8 +142,8 @@ generic_weak_ptr::lock() const {
 
 static void
 destroy(object* o) {
-  o->~object();
-  delete [] reinterpret_cast<std::byte*>(o);
+  object_type(o).destroy(o);
+  delete [] (reinterpret_cast<std::byte*>(o) - sizeof(word_type));
 }
 
 free_store::~free_store() {
@@ -140,8 +189,10 @@ free_store::unregister_weak(generic_weak_ptr* ptr, object* pointee) {
 }
 
 static void
-mark(std::unordered_set<generic_ptr*> const& roots, bool current_mark) {
+mark(std::unordered_set<generic_ptr*> const& roots, detail::color current_color) {
   std::vector<object*> stack;
+  tracing_context tc{stack, current_color};
+
   for (generic_ptr const* root : roots)
     if (*root)
       stack.push_back(root->get());
@@ -150,12 +201,9 @@ mark(std::unordered_set<generic_ptr*> const& roots, bool current_mark) {
     object* top = stack.back();
     stack.pop_back();
 
-    if (top->mark != current_mark) {
-      top->mark = current_mark;
-      top->for_each_subobject([&] (object* subobject) {
-        if (subobject && subobject->mark != current_mark)
-          stack.push_back(subobject);
-      });
+    if (object_color(top) != current_color) {
+      set_object_color(top, current_color);
+      object_type(top).trace(top, tc);
     }
   }
 }
@@ -163,10 +211,10 @@ mark(std::unordered_set<generic_ptr*> const& roots, bool current_mark) {
 static void
 sweep(std::vector<object*>& objects,
       std::unordered_multimap<object*, generic_weak_ptr*>& weak_ptrs,
-      bool current_mark) {
+      detail::color current_color) {
   auto live_end = std::partition(objects.begin(), objects.end(),
                                  [&] (auto const& object) {
-                                   return object->mark == current_mark;
+                                   return object_color(object) == current_color;
                                  });
   for (auto dead = live_end; dead != objects.end(); ++dead) {
     auto [weak_begin, weak_end] = weak_ptrs.equal_range(*dead);
@@ -192,9 +240,27 @@ free_store::collect_garbage() {
   } guard{this};
 #endif
 
-  current_mark_ = !current_mark_;
-  mark(roots_, current_mark_);
-  sweep(objects_, weak_ptrs_, current_mark_);
+  if (current_color_ == detail::color::white)
+    current_color_ = detail::color::black;
+  else
+    current_color_ = detail::color::white;
+
+  mark(roots_, current_color_);
+  sweep(objects_, weak_ptrs_, current_color_);
+}
+
+object*
+free_store::add(std::unique_ptr<std::byte[]> storage, object* result) {
+  try {
+    set_object_color(result, current_color_);
+    objects_.push_back(result);
+  } catch (...) {
+    object_type(result).destroy(result);
+    throw;
+  }
+
+  storage.release();
+  return result;
 }
 
 } // namespace insider

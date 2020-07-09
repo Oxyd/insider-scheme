@@ -22,13 +22,13 @@ static constexpr unsigned  limb_width = std::numeric_limits<limb_type>::digits;
 static constexpr double_limb_type limb_mask = (double_limb_type{1} << limb_width) - 1;
 
 std::size_t
-big_integer::extra_storage_size(std::size_t length) {
-  return sizeof(limb_type) * length;
+big_integer::extra_elements(std::size_t length) {
+  return length;
 }
 
 std::size_t
-big_integer::extra_storage_size(std::vector<limb_type> const& limbs, bool) {
-  return sizeof(limb_type) * limbs.size();
+big_integer::extra_elements(std::vector<limb_type> const& limbs, bool) {
+  return limbs.size();
 }
 
 static std::size_t
@@ -48,13 +48,13 @@ number_of_limbs_for_small_integer(integer::value_type i) {
 }
 
 std::size_t
-big_integer::extra_storage_size(ptr<integer> const& i) {
-  return sizeof(limb_type) * number_of_limbs_for_small_integer(i->value());
+big_integer::extra_elements(ptr<integer> const& i) {
+  return number_of_limbs_for_small_integer(i->value());
 }
 
 std::size_t
-big_integer::extra_storage_size(ptr<big_integer> const& i) {
-  return sizeof(limb_type) * i->length();
+big_integer::extra_elements(ptr<big_integer> const& i) {
+  return i->length();
 }
 
 big_integer::big_integer(std::size_t length)
@@ -111,12 +111,12 @@ big_integer::big_integer(ptr<integer> const& i)
 
 auto
 big_integer::begin() -> iterator {
-  return dynamic_storage();
+  return &storage_element(0);
 }
 
 auto
 big_integer::end() -> iterator{
-  return dynamic_storage() + length_;
+  return &storage_element(0) + length_;
 }
 
 auto
@@ -135,12 +135,6 @@ fraction::fraction(generic_ptr const& num, generic_ptr const& den)
 {
   assert(is_integer(num));
   assert(is_integer(den));
-}
-
-void
-fraction::for_each_subobject(std::function<void(object*)> const& f) {
-  f(numerator_);
-  f(denominator_);
 }
 
 static bool

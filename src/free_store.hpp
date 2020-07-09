@@ -14,53 +14,126 @@
 namespace insider {
 
 class generic_ptr;
+struct object;
+
+using word_type = std::uint64_t;
+
+namespace detail {
+  enum class color : word_type {
+    black = 0,
+    white = 1
+  };
+}
+
+class tracing_context {
+public:
+  tracing_context(std::vector<object*>& stack, detail::color current_color)
+    : stack_{stack}
+    , current_color_{current_color}
+  { }
+
+  void
+  trace(object* o);
+
+private:
+  std::vector<object*>& stack_;
+  detail::color         current_color_;
+};
+
+struct type_descriptor {
+  void (*destroy)(object*);
+  void (*trace)(object*, tracing_context&);
+
+  bool constant_size;
+  std::size_t size = 0;
+  std::size_t (*get_size)(object*) = nullptr;
+};
 
 // Base for any garbage-collectable Scheme object.
-class object {
-public:
+struct alignas(sizeof(word_type)) object {
   static constexpr bool is_dynamic_size = false;
-
-  virtual
-  ~object() = default;
-
-  virtual void
-  for_each_subobject(std::function<void(object*)> const&) { }
-
-  bool mark;
 };
 
-// Object that has a fixed number of Scheme subobjects.
-template <std::size_t N>
-class compound_object : public object {
-public:
-  void
-  for_each_subobject(std::function<void(object*)> const& f) override {
-    for (object* o : subobjects_)
-      f(o);
+word_type
+new_type(type_descriptor);
+
+void
+init_object_header(std::byte* storage, word_type type);
+
+word_type
+object_type_index(object*);
+
+namespace detail {
+  constexpr std::size_t
+  round_to_words(std::size_t s) {
+    return (s + sizeof(word_type) - 1) & -sizeof(word_type);
   }
 
-protected:
-  std::array<object*, N> subobjects_{};
+  template <typename T>
+  void
+  destroy(object* o) { static_cast<T*>(o)->~T(); }
+}
 
-  compound_object() = default;
-  compound_object(std::array<object*, N> subobjects)
-    : subobjects_(subobjects)
-  { }
+// Object with no Scheme subobjects.
+template <typename Derived>
+struct leaf_object : object {
+  static constexpr type_descriptor descriptor{
+    detail::destroy<Derived>,
+    [] (object*, tracing_context&) { },
+    true,
+    detail::round_to_words(sizeof(Derived)),
+    nullptr
+  };
+  static word_type const type_index;
 };
 
-// Helper for Scheme objects with extra dynamic-sized storage allocated after them.
+template <typename Derived>
+word_type const leaf_object<Derived>::type_index = new_type(leaf_object::descriptor);
+
+// Object with a constant number of Scheme subobjects.
+template <typename Derived>
+struct composite_object : object {
+  static constexpr type_descriptor descriptor{
+    detail::destroy<Derived>,
+    [] (object* self, tracing_context& tc) { static_cast<Derived*>(self)->trace(tc); },
+    true,
+    detail::round_to_words(sizeof(Derived)),
+    nullptr
+  };
+  static word_type const type_index;
+};
+
+template <typename Derived>
+word_type const composite_object<Derived>::type_index = new_type(composite_object::descriptor);
+
+// Object whose size is determined at instantiation time.
 template <typename Derived, typename T>
-class alignas(T) alignas(object) dynamic_size_object : public object {
-public:
+struct alignas(T) alignas(object) dynamic_size_object : object {
+  using element_type = T;
   static constexpr bool is_dynamic_size = true;
+  static constexpr type_descriptor descriptor{
+    detail::destroy<Derived>,
+    [] (object* self, tracing_context& tc) { static_cast<Derived*>(self)->trace(tc); },
+    false,
+    0,
+    [] (object* o) { return sizeof(Derived) + detail::round_to_words(static_cast<Derived*>(o)->size() * sizeof(T)); }
+  };
+  static word_type const type_index;
 
 protected:
-  T*
-  dynamic_storage() { return reinterpret_cast<T*>(static_cast<Derived*>(this) + 1); }
+  T&
+  storage_element(std::size_t i) {
+    return reinterpret_cast<T*>(reinterpret_cast<std::byte*>(this) + sizeof(Derived))[i];
+  }
 
-  T const*
-  dynamic_storage() const { return reinterpret_cast<T const*>(static_cast<Derived const*>(this) + 1); }
+  T const&
+  storage_element(std::size_t i) const {
+    return reinterpret_cast<T const*>(reinterpret_cast<std::byte const*>(this) + sizeof(Derived))[i];
+  }
 };
+
+template <typename Derived, typename T>
+word_type const dynamic_size_object<Derived, T>::type_index = new_type(dynamic_size_object::descriptor);
 
 class free_store;
 
@@ -192,8 +265,11 @@ public:
     collect_garbage();
 #endif
 
-    auto storage = std::make_unique<std::byte[]>(sizeof(T));
-    object* result = new (storage.get()) T(std::forward<Args>(args)...);
+    static_assert(sizeof(T) % sizeof(word_type) == 0);
+
+    auto storage = std::make_unique<std::byte[]>(sizeof(word_type) + sizeof(T));
+    init_object_header(storage.get(), T::type_index);
+    object* result = new (storage.get() + sizeof(word_type)) T(std::forward<Args>(args)...);
     return {*this, add(std::move(storage), result)};
   }
 
@@ -204,8 +280,14 @@ public:
     collect_garbage();
 #endif
 
-    auto storage = std::make_unique<std::byte[]>(sizeof(T) + T::extra_storage_size(args...));
-    object* result = new (storage.get()) T(std::forward<Args>(args)...);
+    std::size_t elements = T::extra_elements(args...);
+    std::size_t size = detail::round_to_words(sizeof(word_type)
+                                              + sizeof(T)
+                                              + elements * sizeof(typename T::element_type));
+
+    auto storage = std::make_unique<std::byte[]>(size);
+    init_object_header(storage.get(), T::type_index);
+    object* result = new (storage.get() + sizeof(word_type)) T(std::forward<Args>(args)...);
     return {*this, add(std::move(storage), result)};
   }
 
@@ -241,25 +323,14 @@ private:
   std::vector<object*> objects_;
   std::unordered_set<generic_ptr*> roots_;
   std::unordered_multimap<object*, generic_weak_ptr*> weak_ptrs_;
-  bool current_mark_ = false;
+  detail::color current_color_ = detail::color::black;
 
 #ifndef NDEBUG
   bool collecting_ = false;
 #endif
 
   object*
-  add(std::unique_ptr<std::byte[]> storage, object* result) {
-    try {
-      result->mark = current_mark_;
-      objects_.push_back(result);
-    } catch (...) {
-      result->~object();
-      throw;
-    }
-
-    storage.release();
-    return result;
-  }
+  add(std::unique_ptr<std::byte[]> storage, object* result);
 };
 
 } // namespace insider

@@ -10,11 +10,11 @@
 namespace insider {
 
 std::size_t
-call_frame::extra_storage_size(ptr<insider::procedure> const& proc,
-                               ptr<insider::closure> const&,
-                               ptr<call_frame> const&,
-                               std::vector<generic_ptr> const&) {
-  return proc->locals_size * sizeof(object*);
+call_frame::extra_elements(ptr<insider::procedure> const& proc,
+                           ptr<insider::closure> const&,
+                           ptr<call_frame> const&,
+                           std::vector<generic_ptr> const&) {
+  return proc->locals_size;
 }
 
 call_frame::call_frame(ptr<insider::procedure> const& proc,
@@ -29,28 +29,28 @@ call_frame::call_frame(ptr<insider::procedure> const& proc,
   assert(arguments.size() <= locals_size_);
 
   for (std::size_t i = 0; i < arguments.size(); ++i)
-    dynamic_storage()[i] = arguments[i].get();
+    storage_element(i) = arguments[i].get();
 }
 
 void
-call_frame::for_each_subobject(std::function<void(object*)> const& f) {
-  f(procedure_);
-  f(closure_);
-  f(parent_frame_);
+call_frame::trace(tracing_context& tc) {
+  tc.trace(procedure_);
+  tc.trace(closure_);
+  tc.trace(parent_frame_);
   for (std::size_t i = 0; i < locals_size_; ++i)
-    f(dynamic_storage()[i]);
+    tc.trace(storage_element(i));
 }
 
 generic_ptr
 call_frame::local(free_store& store, std::size_t i) const {
   assert(i < locals_size_);
-  return {store, dynamic_storage()[i]};
+  return {store, storage_element(i)};
 }
 
 void
 call_frame::set_local(std::size_t i, generic_ptr const& value) {
   assert(i < locals_size_);
-  dynamic_storage()[i] = value.get();
+  storage_element(i) = value.get();
 }
 
 generic_ptr

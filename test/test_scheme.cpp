@@ -55,13 +55,13 @@ struct scheme : testing::Test {
   }
 };
 
-struct aaa : object {
+struct aaa : leaf_object<aaa> {
   bool* alive;
 
   explicit
   aaa(bool* alive) : alive{alive} { *alive = true; }
 
-  ~aaa() override { *alive = false; }
+  ~aaa() { *alive = false; }
 };
 
 TEST_F(scheme, collect_direct_garbage) {
@@ -92,18 +92,18 @@ TEST_F(scheme, collect_direct_garbage) {
   EXPECT_FALSE(three);
 }
 
-struct bbb : object {
+struct bbb : composite_object<bbb> {
   bool* alive;
   object* child = nullptr;
 
   explicit
   bbb(bool* alive) : alive{alive} { *alive = true; }
 
-  ~bbb() override { *alive = false; }
+  ~bbb() { *alive = false; }
 
   void
-  for_each_subobject(std::function<void(object*)> const& f) override {
-    f(child);
+  trace(tracing_context& tc) {
+    tc.trace(child);
   }
 };
 
