@@ -27,11 +27,16 @@ public:
              ptr<call_frame> const& parent,
              std::vector<generic_ptr> const& arguments);
 
+  call_frame(call_frame&&);
+
   std::size_t
   size() const { return locals_size_; }
 
   void
   trace(tracing_context&);
+
+  void
+  update_references();
 
   ptr<insider::procedure>
   procedure(free_store& store) const { return {store, procedure_}; }

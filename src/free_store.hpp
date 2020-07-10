@@ -18,18 +18,11 @@ struct object;
 
 using word_type = std::uint64_t;
 
-namespace detail {
-  enum class color : word_type {
-    black = 0,
-    white = 1
-  };
-}
-
 class tracing_context {
 public:
-  tracing_context(std::vector<object*>& stack, detail::color current_color)
+  explicit
+  tracing_context(std::vector<object*>& stack)
     : stack_{stack}
-    , current_color_{current_color}
   { }
 
   void
@@ -37,12 +30,13 @@ public:
 
 private:
   std::vector<object*>& stack_;
-  detail::color         current_color_;
 };
 
 struct type_descriptor {
   void (*destroy)(object*);
+  object* (*move)(object*, std::byte*);
   void (*trace)(object*, tracing_context&);
+  void (*update_references)(object*);
 
   bool constant_size;
   std::size_t size = 0;
@@ -63,6 +57,28 @@ init_object_header(std::byte* storage, word_type type);
 word_type
 object_type_index(object*);
 
+bool
+is_alive(object*);
+
+object*
+forwarding_address(object*);
+
+template <typename T>
+void
+update_reference(T*& ref) {
+  if (ref && !is_alive(ref))
+    ref = static_cast<T*>(forwarding_address(ref));
+}
+
+template <typename T>
+T*
+update_reference_copy(T* ref) {
+  if (ref && !is_alive(ref))
+    return static_cast<T*>(forwarding_address(ref));
+  else
+    return ref;
+}
+
 namespace detail {
   constexpr std::size_t
   round_to_words(std::size_t s) {
@@ -72,6 +88,24 @@ namespace detail {
   template <typename T>
   void
   destroy(object* o) { static_cast<T*>(o)->~T(); }
+
+  template <typename T>
+  object*
+  move(object* o, std::byte* storage) {
+    return new (storage) T(std::move(*static_cast<T*>(o)));
+  }
+
+  template <typename T>
+  void
+  trace(object* o, tracing_context& tc) {
+    static_cast<T*>(o)->trace(tc);
+  }
+
+  template <typename T>
+  void
+  update_references(object* o) {
+    static_cast<T*>(o)->update_references();
+  }
 }
 
 // Object with no Scheme subobjects.
@@ -79,7 +113,9 @@ template <typename Derived>
 struct leaf_object : object {
   static constexpr type_descriptor descriptor{
     detail::destroy<Derived>,
+    detail::move<Derived>,
     [] (object*, tracing_context&) { },
+    [] (object*) { },
     true,
     detail::round_to_words(sizeof(Derived)),
     nullptr
@@ -95,7 +131,9 @@ template <typename Derived>
 struct composite_object : object {
   static constexpr type_descriptor descriptor{
     detail::destroy<Derived>,
-    [] (object* self, tracing_context& tc) { static_cast<Derived*>(self)->trace(tc); },
+    detail::move<Derived>,
+    detail::trace<Derived>,
+    detail::update_references<Derived>,
     true,
     detail::round_to_words(sizeof(Derived)),
     nullptr
@@ -113,7 +151,9 @@ struct alignas(T) alignas(object) dynamic_size_object : object {
   static constexpr bool is_dynamic_size = true;
   static constexpr type_descriptor descriptor{
     detail::destroy<Derived>,
-    [] (object* self, tracing_context& tc) { static_cast<Derived*>(self)->trace(tc); },
+    detail::move<Derived>,
+    detail::trace<Derived>,
+    detail::update_references<Derived>,
     false,
     0,
     [] (object* o) { return sizeof(Derived) + detail::round_to_words(static_cast<Derived*>(o)->size() * sizeof(T)); }
@@ -166,6 +206,8 @@ namespace detail {
     operator bool () const { return value_ != nullptr; }
 
   protected:
+    friend class insider::free_store;
+
     object* value_     = nullptr;
     free_store* store_ = nullptr;
   };
@@ -250,10 +292,20 @@ public:
   lock() const { return {store(), get()}; }
 };
 
+struct page {
+  std::unique_ptr<std::byte[]> storage;
+  std::size_t used = 0;
+};
+
+struct space {
+  std::vector<page> pages;
+  std::size_t       current = 0;
+};
+
 // Garbage-collected storage for Scheme objects.
 class free_store {
 public:
-  free_store() = default;
+  free_store();
   free_store(free_store const&) = delete;
   void operator = (free_store const&) = delete;
   ~free_store();
@@ -261,34 +313,29 @@ public:
   template <typename T, typename... Args>
   std::enable_if_t<!T::is_dynamic_size, ptr<T>>
   make(Args&&... args) {
-#ifndef NDEBUG
+#ifdef GC_DEBUG
     collect_garbage();
 #endif
 
     static_assert(sizeof(T) % sizeof(word_type) == 0);
 
-    auto storage = std::make_unique<std::byte[]>(sizeof(word_type) + sizeof(T));
-    init_object_header(storage.get(), T::type_index);
-    object* result = new (storage.get() + sizeof(word_type)) T(std::forward<Args>(args)...);
-    return {*this, add(std::move(storage), result)};
+    std::byte* storage = allocate_object(sizeof(T), T::type_index);
+    object* result = new (storage) T(std::forward<Args>(args)...);
+    return {*this, result};
   }
 
   template <typename T, typename... Args>
   std::enable_if_t<T::is_dynamic_size, ptr<T>>
   make(Args&&... args) {
-#ifndef NDEBUG
+#ifdef GC_DEBUG
     collect_garbage();
 #endif
 
     std::size_t elements = T::extra_elements(args...);
-    std::size_t size = detail::round_to_words(sizeof(word_type)
-                                              + sizeof(T)
-                                              + elements * sizeof(typename T::element_type));
-
-    auto storage = std::make_unique<std::byte[]>(size);
-    init_object_header(storage.get(), T::type_index);
-    object* result = new (storage.get() + sizeof(word_type)) T(std::forward<Args>(args)...);
-    return {*this, add(std::move(storage), result)};
+    std::size_t size = detail::round_to_words(sizeof(T) + elements * sizeof(typename T::element_type));
+    std::byte* storage = allocate_object(size, T::type_index);
+    object* result = new (storage) T(std::forward<Args>(args)...);
+    return {*this, result};
   }
 
   void
@@ -297,40 +344,32 @@ public:
   unregister_root(generic_ptr*);
 
   void
-  register_weak(generic_weak_ptr*, object*);
+  register_weak(generic_weak_ptr*);
   void
-  unregister_weak(generic_weak_ptr*, object*);
+  unregister_weak(generic_weak_ptr*);
+
+  void
+  register_callback(std::function<void()> cb) { post_gc_callbacks_.emplace_back(std::move(cb)); }
 
   void
   collect_garbage();
 
 private:
-  // We need to support dynamically-sized objects, which are objects like Scheme
-  // vector that have an additional storage allocated right after the C++ object
-  // (so that the storage essentially is a part of the object itself). To that
-  // end, we allocate all memory as new std::byte[size] and construct the object
-  // manually inside that storage. For dynamic-sized objects we require that the
-  // dynamic storage be an array of trivial objects so that we don't have to
-  // construct or destruct objects within that storage.
-  //
-  // Non-dynamically-sized objects could be constructed directly as new T, but
-  // that would require storing dynamically-sized and non-dynamically sized
-  // objects in different containers, so that we know whether to deallocate them
-  // with delete or with explicit destructor call + delete[].
-  //
-  // TODO: We should use smarter allocation strategy.
+  space nursery_fromspace_;
+  space nursery_tospace_;
 
-  std::vector<object*> objects_;
   std::unordered_set<generic_ptr*> roots_;
-  std::unordered_multimap<object*, generic_weak_ptr*> weak_ptrs_;
-  detail::color current_color_ = detail::color::black;
+  std::unordered_set<generic_weak_ptr*> weak_roots_;
+  std::vector<std::function<void()>> post_gc_callbacks_;
 
-#ifndef NDEBUG
-  bool collecting_ = false;
-#endif
+  // Allocate storage of the given payload size for an object of the given
+  // type. size does not include the size of the header. The object is not
+  // constructed in the storage.
+  std::byte*
+  allocate_object(std::size_t size, word_type type);
 
-  object*
-  add(std::unique_ptr<std::byte[]> storage, object* result);
+  void
+  update_roots();
 };
 
 } // namespace insider

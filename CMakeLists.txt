@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(insider-scheme)
 
 option(ASAN "Enable address sanitizer" OFF)
+option(GC_DEBUG "Run GC before every allocation" OFF)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_C_FLAGS "-Wall -Wextra -pedantic")
@@ -43,6 +44,9 @@ endif()
 add_library(scheme ${scheme_sources})
 target_compile_features(scheme PUBLIC cxx_std_17)
 target_compile_options(scheme PRIVATE -Wsuggest-override)
+if (GC_DEBUG)
+  target_compile_definitions(scheme PUBLIC GC_DEBUG)
+endif()
 set_property(TARGET scheme PROPERTY CXX_EXTENSIONS OFF)
 
 target_link_libraries(scheme PUBLIC fmt::fmt-header-only)

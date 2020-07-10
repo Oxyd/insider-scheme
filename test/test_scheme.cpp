@@ -61,7 +61,12 @@ struct aaa : leaf_object<aaa> {
   explicit
   aaa(bool* alive) : alive{alive} { *alive = true; }
 
-  ~aaa() { *alive = false; }
+  aaa(aaa&& other) : alive{other.alive} { other.alive = nullptr; }
+
+  ~aaa() {
+    if (alive)
+      *alive = false;
+  }
 };
 
 TEST_F(scheme, collect_direct_garbage) {
@@ -99,11 +104,26 @@ struct bbb : composite_object<bbb> {
   explicit
   bbb(bool* alive) : alive{alive} { *alive = true; }
 
-  ~bbb() { *alive = false; }
+  bbb(bbb&& other)
+    : alive{other.alive}
+    , child{other.child}
+  {
+    other.alive = nullptr;
+  }
+
+  ~bbb() {
+    if (alive)
+      *alive = false;
+  }
 
   void
   trace(tracing_context& tc) {
     tc.trace(child);
+  }
+
+  void
+  update_references() {
+    update_reference(child);
   }
 };
 
@@ -252,9 +272,9 @@ TEST_F(scheme, intern) {
 
 TEST_F(scheme, vector) {
   ptr<vector> v1 = make<vector>(ctx, 3);
-  v1->set(0, make<integer>(ctx, 1));
-  v1->set(1, make<integer>(ctx, 2));
-  v1->set(2, make<integer>(ctx, 3));
+  vector_set(v1, 0, make<integer>(ctx, 1));
+  vector_set(v1, 1, make<integer>(ctx, 2));
+  vector_set(v1, 2, make<integer>(ctx, 3));
 
   EXPECT_EQ(v1->size(), 3u);
 
@@ -263,12 +283,12 @@ TEST_F(scheme, vector) {
   EXPECT_EQ(expect<integer>(vector_ref(v1, 2))->value(), 3);
 
   EXPECT_THROW(vector_ref(v1, 3), std::runtime_error);
-  EXPECT_THROW(v1->set(4, make<integer>(ctx, 4)), std::runtime_error);
+  EXPECT_THROW(vector_set(v1, 4, make<integer>(ctx, 4)), std::runtime_error);
 
   ptr<vector> v2 = make<vector>(ctx, 2);
   bool one{}, two{};
-  v2->set(0, make<aaa>(ctx, &one));
-  v2->set(1, make<aaa>(ctx, &two));
+  vector_set(v2, 0, make<aaa>(ctx, &one));
+  vector_set(v2, 1, make<aaa>(ctx, &two));
 
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
@@ -1042,9 +1062,9 @@ TEST_F(scheme, test_write) {
   EXPECT_EQ(to_string(ctx, p2), "(0 1 . 2)");
 
   auto v = make<vector>(ctx, 3);
-  v->set(0, make<character>(ctx, 'r'));
-  v->set(1, p2);
-  v->set(2, make_string(ctx, "foobar"));
+  vector_set(v, 0, make<character>(ctx, 'r'));
+  vector_set(v, 1, p2);
+  vector_set(v, 2, make_string(ctx, "foobar"));
   EXPECT_EQ(to_string(ctx, v), R"(#(#\r (0 1 . 2) "foobar"))");
 
   auto s = make_string(ctx, R"(one "two" three \ four)");

@@ -93,6 +93,9 @@ public:
   void
   trace(tracing_context& tc);
 
+  void
+  update_references();
+
 private:
   using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
 
@@ -295,6 +298,9 @@ private:
   std::map<module_name, protomodule> protomodules_;
   std::map<module_name, std::unique_ptr<module>> modules_;
   std::vector<std::unique_ptr<module_provider>> module_providers_;
+
+  void
+  gc_callback();
 };
 
 // Create an instance of an object using the context's free store.
@@ -342,6 +348,8 @@ public:
   explicit
   string(std::size_t size) : size_{size} { }
 
+  string(string&& other);
+
   void
   set(std::size_t i, char c);
 
@@ -353,6 +361,9 @@ public:
 
   void
   trace(tracing_context&) { }
+
+  void
+  update_references() { }
 
 private:
   std::size_t size_;
@@ -423,12 +434,15 @@ public:
   cdr(free_store& store) const { return {store, cdr_}; }
 
   void
-  set_car(generic_ptr const& p) { car_ = p.get(); }
+  set_car(object* p) { car_ = p; }
   void
-  set_cdr(generic_ptr const& p) { cdr_ = p.get(); }
+  set_cdr(object* p) { cdr_ = p; }
 
   void
   trace(tracing_context& tc) { tc.trace(car_); tc.trace(cdr_); }
+
+  void
+  update_references() { update_reference(car_); update_reference(cdr_); }
 
 private:
   object* car_;
@@ -456,6 +470,12 @@ car(ptr<pair> const& x) { return x->car(x.store()); }
 
 inline generic_ptr
 cdr(ptr<pair> const& x) { return x->cdr(x.store()); }
+
+inline void
+set_car(ptr<pair> const& p, generic_ptr const& x) { p->set_car(x.get()); }
+
+inline void
+set_cdr(ptr<pair> const& p, generic_ptr const& x) { p->set_cdr(x.get()); }
 
 generic_ptr
 cadr(ptr<pair> const&);
@@ -507,14 +527,19 @@ public:
   explicit
   vector(std::size_t);
 
+  vector(vector&&);
+
   void
   trace(tracing_context& tc);
+
+  void
+  update_references();
 
   generic_ptr
   ref(free_store& store, std::size_t) const;
 
   void
-  set(std::size_t, generic_ptr);
+  set(std::size_t, object*);
 
   std::size_t
   size() const { return size_; }
@@ -528,6 +553,9 @@ vector_hash(ptr<vector> const&);
 
 inline generic_ptr
 vector_ref(ptr<vector> const& v, std::size_t i) { return v->ref(v.store(), i); }
+
+inline void
+vector_set(ptr<vector> const& v, std::size_t i, generic_ptr const& value) { v->set(i, value.get()); }
 
 ptr<vector>
 make_vector(context&, std::vector<generic_ptr> const&);
@@ -544,7 +572,7 @@ public:
   explicit
   symbol(std::string value) : value_{std::move(value)} { }
 
-  std::string const&
+  std::string
   value() const { return value_; }
 
 private:
@@ -558,13 +586,16 @@ public:
   box(generic_ptr const&);
 
   generic_ptr
-  get(free_store& store) const;
+  get(free_store& store) const { return {store, value_}; }
 
   void
-  set(generic_ptr const&);
+  set(object* value) { value_ = value; }
 
   void
   trace(tracing_context& tc) { tc.trace(value_); }
+
+  void
+  update_references() { update_reference(value_); }
 
 private:
   object* value_;
@@ -572,6 +603,9 @@ private:
 
 inline generic_ptr
 unbox(ptr<box> const& b) { return b->get(b.store()); }
+
+inline void
+box_set(ptr<box> const& b, generic_ptr const& value) { b->set(value.get()); }
 
 // Callable bytecode container. Contains all the information necessary to create
 // a call frame inside the VM.
@@ -594,6 +628,8 @@ public:
 
   closure(ptr<insider::procedure> const&, std::vector<generic_ptr> const&);
 
+  closure(closure&&);
+
   ptr<insider::procedure>
   procedure(free_store& store) const { return {store, procedure_}; }
 
@@ -605,6 +641,9 @@ public:
 
   void
   trace(tracing_context&);
+
+  void
+  update_references();
 
 private:
   insider::procedure* procedure_;
@@ -659,6 +698,8 @@ public:
   syntactic_closure(ptr<insider::environment>,
                     generic_ptr const& expr, generic_ptr const& free);
 
+  syntactic_closure(syntactic_closure&&);
+
   generic_ptr
   expression(free_store& store) const { return {store, expression_}; }
 
@@ -673,6 +714,9 @@ public:
 
   void
   trace(tracing_context&);
+
+  void
+  update_references();
 
 private:
   object*               expression_;
@@ -705,6 +749,9 @@ public:
 
   void
   trace(tracing_context&);
+
+  void
+  update_references();
 
 private:
   insider::environment* env_;

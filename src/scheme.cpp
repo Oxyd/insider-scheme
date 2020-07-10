@@ -131,6 +131,15 @@ environment::trace(tracing_context& tc) {
       tc.trace(*tr);
 }
 
+void
+environment::update_references() {
+  update_reference(parent_);
+
+  for (auto& [name, binding] : bindings_)
+    if (transformer** tr = std::get_if<transformer*>(&binding))
+      update_reference(*tr);
+}
+
 module::module(context& ctx)
   : env_{make<insider::environment>(ctx, ptr<insider::environment>{})}
 { }
@@ -421,6 +430,8 @@ make_internal_module(context& ctx) {
 context::context()
   : internal_module{*this}
 {
+  store.register_callback([&] { gc_callback(); });
+
   constants = std::make_unique<struct constants>();
   constants->null = store.make<null_type>();
   constants->void_ = store.make<void_type>();
@@ -611,6 +622,29 @@ context::prepend_module_provider(std::unique_ptr<module_provider> provider) {
 void
 context::append_module_provider(std::unique_ptr<module_provider> provider) {
   module_providers_.push_back(std::move(provider));
+}
+
+void
+context::gc_callback() {
+  std::vector<std::tuple<object*, std::size_t>> to_reinsert;
+  for (auto it = statics_cache_.begin(); it != statics_cache_.end();) {
+    object* updated = update_reference_copy(it->first.get());
+    if (it->first.get() != updated) {
+      to_reinsert.emplace_back(updated, it->second);
+      it = statics_cache_.erase(it);
+    } else
+      ++it;
+  }
+
+  for (auto [object, index] : to_reinsert)
+    statics_cache_.emplace(generic_ptr{store, object}, index);
+}
+
+string::string(string&& other)
+  : size_{other.size_}
+{
+  for (std::size_t i = 0; i < size_; ++i)
+    storage_element(i) = other.storage_element(i);
 }
 
 void
@@ -855,7 +889,7 @@ append(context& ctx, std::vector<generic_ptr> const& xs) {
       ptr<pair> new_c = make<pair>(ctx, car(c), ctx.constants->null);
 
       if (new_tail)
-        new_tail->set_cdr(new_c);
+        set_cdr(new_tail, new_c);
       else
         new_head = new_c;
 
@@ -866,7 +900,7 @@ append(context& ctx, std::vector<generic_ptr> const& xs) {
 
   assert(x == xs.end() - 1);
   if (new_tail)
-    new_tail->set_cdr(*x);
+    set_cdr(new_tail, *x);
   else
     new_head = *x;
 
@@ -880,10 +914,23 @@ vector::vector(std::size_t size)
     storage_element(i) = nullptr;
 }
 
+vector::vector(vector&& other)
+  : size_{other.size_}
+{
+  for (std::size_t i = 0; i < size_; ++i)
+    storage_element(i) = other.storage_element(i);
+}
+
 void
 vector::trace(tracing_context& tc) {
   for (std::size_t i = 0; i < size_; ++i)
     tc.trace(storage_element(i));
+}
+
+void
+vector::update_references() {
+  for (std::size_t i = 0; i < size_; ++i)
+    update_reference(storage_element(i));
 }
 
 generic_ptr
@@ -895,11 +942,11 @@ vector::ref(free_store& store, std::size_t i) const {
 }
 
 void
-vector::set(std::size_t i, generic_ptr value) {
+vector::set(std::size_t i, object* value) {
   if (i >= size_)
     throw std::runtime_error{fmt::format("Vector access out of bounds: index = {}, size = {}", i, size_)};
 
-  storage_element(i) = value.get();
+  storage_element(i) = value;
 }
 
 std::size_t
@@ -915,7 +962,7 @@ ptr<vector>
 make_vector(context& ctx, std::vector<generic_ptr> const& elems) {
   auto result = make<vector>(ctx, elems.size());
   for (std::size_t i = 0; i < elems.size(); ++i)
-    result->set(i, elems[i]);
+    vector_set(result, i, elems[i]);
 
   return result;
 }
@@ -929,7 +976,7 @@ list_to_vector(context& ctx, generic_ptr const& lst) {
   auto result = make<vector>(ctx, size);
   std::size_t i = 0;
   for (generic_ptr e = lst; e != ctx.constants->null; e = cdr(assume<pair>(e)))
-    result->set(i++, car(assume<pair>(e)));
+    vector_set(result, i++, car(assume<pair>(e)));
 
   return result;
 }
@@ -947,7 +994,7 @@ vector_append(context& ctx, std::vector<generic_ptr> const& vs) {
   for (generic_ptr const& e : vs) {
     ptr<vector> v = assume<vector>(e);
     for (std::size_t j = 0; j < v->size(); ++j)
-      result->set(i++, vector_ref(v, j));
+      vector_set(result, i++, vector_ref(v, j));
   }
 
   return result;
@@ -956,16 +1003,6 @@ vector_append(context& ctx, std::vector<generic_ptr> const& vs) {
 box::box(generic_ptr const& value)
   : value_{value.get()}
 { }
-
-generic_ptr
-box::get(free_store& store) const {
-  return {store, value_};
-}
-
-void
-box::set(generic_ptr const& value) {
-  value_ = value.get();
-}
 
 procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned num_args)
   : bytecode(std::move(bc))
@@ -981,6 +1018,14 @@ closure::closure(ptr<insider::procedure> const& p, std::vector<generic_ptr> cons
     storage_element(i) = captures[i].get();
 }
 
+closure::closure(closure&& other)
+  : procedure_{other.procedure_}
+  , size_{other.size_}
+{
+  for (std::size_t i = 0; i < size_; ++i)
+    storage_element(i) = other.storage_element(i);
+}
+
 generic_ptr
 closure::ref(free_store& store, std::size_t i) const {
   assert(i < size_);
@@ -992,6 +1037,13 @@ closure::trace(tracing_context& tc) {
   tc.trace(procedure_);
   for (std::size_t i = 0; i < size_; ++i)
     tc.trace(storage_element(i));
+}
+
+void
+closure::update_references() {
+  update_reference(procedure_);
+  for (std::size_t i = 0; i < size_; ++i)
+    update_reference(storage_element(i));
 }
 
 bool
@@ -1025,6 +1077,15 @@ syntactic_closure::syntactic_closure(ptr<insider::environment> env,
   }
 }
 
+syntactic_closure::syntactic_closure(syntactic_closure&& other)
+  : expression_{other.expression_}
+  , env_{other.env_}
+  , free_size_{other.free_size_}
+{
+  for (std::size_t i = 0; i < free_size_; ++i)
+    storage_element(i) = other.storage_element(i);
+}
+
 std::vector<ptr<symbol>>
 syntactic_closure::free(free_store& store) const {
   std::vector<ptr<symbol>> result;
@@ -1045,9 +1106,23 @@ syntactic_closure::trace(tracing_context& tc) {
 }
 
 void
+syntactic_closure::update_references() {
+  update_reference(expression_);
+  update_reference(env_);
+  for (std::size_t i = 0; i < free_size_; ++i)
+    update_reference(storage_element(i));
+}
+
+void
 transformer::trace(tracing_context& tc) {
   tc.trace(env_);
   tc.trace(callable_);
+}
+
+void
+transformer::update_references() {
+  update_reference(env_);
+  update_reference(callable_);
 }
 
 } // namespace insider

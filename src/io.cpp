@@ -314,7 +314,7 @@ read_list(context& ctx, ptr<port> const& stream) {
          && !std::holds_alternative<right_paren>(t)
          && !std::holds_alternative<dot>(t)) {
     ptr<pair> new_tail = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null);
-    tail->set_cdr(new_tail);
+    set_cdr(tail, new_tail);
     tail = new_tail;
 
     t = read_token(ctx, stream);
@@ -324,7 +324,7 @@ read_list(context& ctx, ptr<port> const& stream) {
     throw parse_error{"Unterminated list"};
   else if (std::holds_alternative<dot>(t)) {
     generic_ptr cdr = read(ctx, read_token(ctx, stream), stream);
-    tail->set_cdr(cdr);
+    set_cdr(tail, cdr);
 
     t = read_token(ctx, stream);
     if (!std::holds_alternative<right_paren>(t))
@@ -352,7 +352,7 @@ read_vector(context& ctx, ptr<port> const& stream) {
 
   ptr<vector> result = make<vector>(ctx, elements.size());
   for (std::size_t i = 0; i < elements.size(); ++i)
-    result->set(i, elements[i]);
+    vector_set(result, i, elements[i]);
 
   return result;
 }

@@ -109,6 +109,13 @@ big_integer::big_integer(ptr<integer> const& i)
   }
 }
 
+big_integer::big_integer(big_integer&& other)
+  : length_{other.length_}
+  , positive_{other.positive_}
+{
+  std::copy(other.begin(), other.end(), begin());
+}
+
 auto
 big_integer::begin() -> iterator {
   return &storage_element(0);
@@ -607,10 +614,9 @@ mul_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   if (lhs->length() < rhs->length())
     std::swap(lhs, rhs);
 
-  limb_type* y = rhs->data();
   auto result = mul_big_magnitude_by_limb(ctx, lhs, rhs->front());
   for (std::size_t i = 1; i < rhs->length(); ++i) {
-    auto term = mul_big_magnitude_by_limb(ctx, lhs, y[i]);
+    auto term = mul_big_magnitude_by_limb(ctx, lhs, rhs->data()[i]);
     if (!term->zero())
       result = add_big_magnitude(ctx, result, shift(ctx, term, i));
   }

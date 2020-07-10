@@ -115,6 +115,8 @@ public:
   explicit
   big_integer(ptr<big_integer> const&);
 
+  big_integer(big_integer&&);
+
   iterator
   begin();
 
@@ -154,6 +156,9 @@ public:
   void
   trace(tracing_context&) { }
 
+  void
+  update_references() { }
+
 private:
   std::size_t length_;
   bool positive_ = true;
@@ -177,6 +182,9 @@ public:
 
   void
   trace(tracing_context& tc) { tc.trace(numerator_); tc.trace(denominator_); }
+
+  void
+  update_references() { update_reference(numerator_); update_reference(denominator_); }
 
 private:
   object* numerator_;

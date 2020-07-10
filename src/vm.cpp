@@ -32,6 +32,17 @@ call_frame::call_frame(ptr<insider::procedure> const& proc,
     storage_element(i) = arguments[i].get();
 }
 
+call_frame::call_frame(call_frame&& other)
+  : pc{other.pc}
+  , procedure_{other.procedure_}
+  , closure_{other.closure_}
+  , parent_frame_{other.parent_frame_}
+  , locals_size_{other.locals_size_}
+{
+  for (std::size_t i = 0; i < locals_size_; ++i)
+    storage_element(i) = other.storage_element(i);
+}
+
 void
 call_frame::trace(tracing_context& tc) {
   tc.trace(procedure_);
@@ -39,6 +50,15 @@ call_frame::trace(tracing_context& tc) {
   tc.trace(parent_frame_);
   for (std::size_t i = 0; i < locals_size_; ++i)
     tc.trace(storage_element(i));
+}
+
+void
+call_frame::update_references() {
+  update_reference(procedure_);
+  update_reference(closure_);
+  update_reference(parent_frame_);
+  for (std::size_t i = 0; i < locals_size_; ++i)
+    update_reference(storage_element(i));
 }
 
 generic_ptr
@@ -148,7 +168,8 @@ collect_data(execution_state& state, std::size_t num) {
 static void
 execute_one(execution_state& state) {
   ptr<call_frame>& frame = state.current_frame;
-  instruction instr = frame->procedure(state.ctx.store)->bytecode[frame->pc++];
+  instruction instr = frame->procedure(state.ctx.store)->bytecode[frame->pc];
+  ++frame->pc;
 
   switch (instr.opcode) {
   case opcode::no_operation:
@@ -310,7 +331,8 @@ execute_one(execution_state& state) {
     break;
 
   case opcode::box_set:
-    expect<box>(get_register(state, instr.x))->set(get_register(state, instr.y));
+    box_set(expect<box>(get_register(state, instr.x)),
+            get_register(state, instr.y));
     break;
 
   case opcode::cons:
