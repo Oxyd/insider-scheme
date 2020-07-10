@@ -36,7 +36,7 @@
   (rsc-macro-transformer
    (lambda (form env)
      (let ((name-form (cadr form))
-           (body-form (caddr form))
+           (body-forms (cddr form))
            ($define (close-syntax 'define env))
            ($%define (close-syntax '%define env))
            ($lambda (close-syntax 'lambda env)))
@@ -45,5 +45,5 @@
                  (params (cdr name-form)))
              `(,$define ,name
                 (,$lambda ,params
-                  ,body-form)))
-           `(,$%define ,name-form ,body-form))))))
+                  ,@body-forms)))
+           `(,$%define ,name-form ,@body-forms))))))
