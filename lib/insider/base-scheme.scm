@@ -2,7 +2,12 @@
 (import
  (rename (insider internal)
          (define %define)))
-(export sc-macro-transformer rsc-macro-transformer capture-syntactic-environment define)
+(export sc-macro-transformer rsc-macro-transformer capture-syntactic-environment define
+        let set! lambda if box unbox box-set! define-syntax begin
+        quote quasiquote unquote unquote-splicing expand-quote
+        + - * / = < > gcd
+        write-simple newline append list->vector vector-append cons car cdr cadr caddr cadddr cddr cdddr
+        make-syntactic-closure type eq?)
 
 (%define pair?
   (lambda (x)
