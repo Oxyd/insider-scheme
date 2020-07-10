@@ -2,6 +2,10 @@
 
 #include <cassert>
 
+#ifdef __GNUC__
+#include <cxxabi.h>
+#endif
+
 namespace insider {
 
 static constexpr std::size_t page_size = 4096;
@@ -35,7 +39,7 @@ header_word(object* o) {
   return *reinterpret_cast<word_type*>(reinterpret_cast<std::byte*>(o) - sizeof(word_type));
 }
 
-void
+static void
 init_object_header(std::byte* storage, word_type type) {
   new (storage) word_type(type << type_shift | alive_bit);
 }
@@ -49,7 +53,7 @@ object_type_index(object* o) { return type_index(header_word(o)); }
 static type_descriptor const&
 object_type(word_type header) { return types()[type_index(header)]; }
 
-static type_descriptor const&
+type_descriptor const&
 object_type(object* o) { return object_type(header_word(o)); }
 
 static std::size_t
@@ -87,6 +91,27 @@ static void
 set_forwarding_address(object* from, object* target) {
   header_word(from) = reinterpret_cast<word_type>(target);
   assert((header_word(from) & alive_bit) == 0);
+}
+
+std::string
+detail::demangle(char const* name) {
+#ifdef __GNUC__
+  struct free_deallocator {
+    void
+    operator () (char* p) { std::free(p); }
+  };
+
+  int status;
+  std::unique_ptr<char, free_deallocator> result{abi::__cxa_demangle(name, nullptr, nullptr, &status)};
+
+  if (status == 0)
+    return std::string(result.get());
+  else
+    return std::string(name);
+
+#else
+  return std::string(name);
+#endif
 }
 
 void

@@ -13,10 +13,6 @@
 #include <cstdio>
 #include <typeinfo>
 
-#ifdef __GNUC__
-#include <cxxabi.h>
-#endif
-
 namespace insider {
 
 std::size_t
@@ -308,65 +304,9 @@ filesystem_module_provider::find_module(context& ctx, module_name const& name) {
   return std::nullopt;
 }
 
-static std::string
-demangle(char const* name) {
-#ifdef __GNUC__
-  struct free_deallocator {
-    void
-    operator () (char* p) { std::free(p); }
-  };
-
-  int status;
-  std::unique_ptr<char, free_deallocator> result{abi::__cxa_demangle(name, nullptr, nullptr, &status)};
-
-  if (status == 0)
-    return std::string(result.get());
-  else
-    return std::string(name);
-
-#else
-  return std::string(name);
-#endif
-}
-
 static ptr<symbol>
 type(context& ctx, generic_ptr const& x) {
-  char const* mangled_name = typeid(*x).name();
-  if (auto it = ctx.type_names.find(mangled_name); it != ctx.type_names.end())
-    return ctx.intern(it->second);
-  else
-    return ctx.intern(demangle(mangled_name));
-}
-
-template <typename T>
-void
-define_type_name(context& ctx, std::string const& name) {
-  std::string prefixed_name = "insider::" + name;
-  ctx.type_names.emplace(typeid(T).name(), prefixed_name);
-}
-
-static void
-define_type_names(context& ctx) {
-  define_type_name<null_type>(ctx, "null");
-  define_type_name<void_type>(ctx, "void");
-  define_type_name<environment>(ctx, "environment");
-  define_type_name<boolean>(ctx, "boolean");
-  define_type_name<character>(ctx, "character");
-  define_type_name<port>(ctx, "port");
-  define_type_name<symbol>(ctx, "symbol");
-  define_type_name<procedure>(ctx, "procedure");
-  define_type_name<native_procedure>(ctx, "native-procedure");
-  define_type_name<transformer>(ctx, "transformer");
-  define_type_name<pair>(ctx, "pair");
-  define_type_name<box>(ctx, "box");
-  define_type_name<string>(ctx, "string");
-  define_type_name<vector>(ctx, "vector");
-  define_type_name<closure>(ctx, "closure");
-  define_type_name<syntactic_closure>(ctx, "syntactic-closure");
-  define_type_name<integer>(ctx, "integer");
-  define_type_name<big_integer>(ctx,  "big-integer");
-  define_type_name<fraction>(ctx, "fraction");
-  define_type_name<floating_point>(ctx, "floating-point");
+  return ctx.intern(object_type(x.get()).name);
 }
 
 static module
@@ -415,7 +355,6 @@ make_internal_module(context& ctx) {
   );
 
   define_lambda<type>(ctx, result, "type", true);
-  define_type_names(ctx);
 
   define_lambda<ptr<boolean>(context&, generic_ptr const&, generic_ptr const&)>(
     ctx, result, "eq?", true,

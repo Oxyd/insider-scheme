@@ -1,12 +1,10 @@
 #ifndef SCHEME_FREE_STORE_HPP
 #define SCHEME_FREE_STORE_HPP
 
-#include <array>
 #include <cstddef>
 #include <functional>
 #include <memory>
-#include <type_traits>
-#include <unordered_map>
+#include <string>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -33,6 +31,7 @@ private:
 };
 
 struct type_descriptor {
+  std::string name;
   void (*destroy)(object*);
   object* (*move)(object*, std::byte*);
   void (*trace)(object*, tracing_context&);
@@ -51,8 +50,8 @@ struct alignas(sizeof(word_type)) object {
 word_type
 new_type(type_descriptor);
 
-void
-init_object_header(std::byte* storage, word_type type);
+type_descriptor const&
+object_type(object*);
 
 word_type
 object_type_index(object*);
@@ -106,58 +105,52 @@ namespace detail {
   update_references(object* o) {
     static_cast<T*>(o)->update_references();
   }
+
+  std::string
+  demangle(char const* name);
 }
 
 // Object with no Scheme subobjects.
 template <typename Derived>
 struct leaf_object : object {
-  static constexpr type_descriptor descriptor{
-    detail::destroy<Derived>,
-    detail::move<Derived>,
-    [] (object*, tracing_context&) { },
-    [] (object*) { },
-    true,
-    detail::round_to_words(sizeof(Derived)),
-    nullptr
-  };
   static word_type const type_index;
 };
 
 template <typename Derived>
-word_type const leaf_object<Derived>::type_index = new_type(leaf_object::descriptor);
+word_type const leaf_object<Derived>::type_index = new_type(type_descriptor{
+  detail::demangle(typeid(Derived).name()),
+  detail::destroy<Derived>,
+  detail::move<Derived>,
+  [] (object*, tracing_context&) { },
+  [] (object*) { },
+  true,
+  detail::round_to_words(sizeof(Derived)),
+  nullptr
+});
 
 // Object with a constant number of Scheme subobjects.
 template <typename Derived>
 struct composite_object : object {
-  static constexpr type_descriptor descriptor{
-    detail::destroy<Derived>,
-    detail::move<Derived>,
-    detail::trace<Derived>,
-    detail::update_references<Derived>,
-    true,
-    detail::round_to_words(sizeof(Derived)),
-    nullptr
-  };
   static word_type const type_index;
 };
 
 template <typename Derived>
-word_type const composite_object<Derived>::type_index = new_type(composite_object::descriptor);
+word_type const composite_object<Derived>::type_index = new_type(type_descriptor{
+  detail::demangle(typeid(Derived).name()),
+  detail::destroy<Derived>,
+  detail::move<Derived>,
+  detail::trace<Derived>,
+  detail::update_references<Derived>,
+  true,
+  detail::round_to_words(sizeof(Derived)),
+  nullptr
+});
 
 // Object whose size is determined at instantiation time.
 template <typename Derived, typename T>
 struct alignas(T) alignas(object) dynamic_size_object : object {
   using element_type = T;
   static constexpr bool is_dynamic_size = true;
-  static constexpr type_descriptor descriptor{
-    detail::destroy<Derived>,
-    detail::move<Derived>,
-    detail::trace<Derived>,
-    detail::update_references<Derived>,
-    false,
-    0,
-    [] (object* o) { return sizeof(Derived) + detail::round_to_words(static_cast<Derived*>(o)->size() * sizeof(T)); }
-  };
   static word_type const type_index;
 
 protected:
@@ -173,7 +166,16 @@ protected:
 };
 
 template <typename Derived, typename T>
-word_type const dynamic_size_object<Derived, T>::type_index = new_type(dynamic_size_object::descriptor);
+word_type const dynamic_size_object<Derived, T>::type_index = new_type(type_descriptor{
+  detail::demangle(typeid(Derived).name()),
+  detail::destroy<Derived>,
+  detail::move<Derived>,
+  detail::trace<Derived>,
+  detail::update_references<Derived>,
+  false,
+  0,
+  [] (object* o) { return sizeof(Derived) + detail::round_to_words(static_cast<Derived*>(o)->size() * sizeof(T)); }
+});
 
 class free_store;
 
