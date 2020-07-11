@@ -261,7 +261,7 @@ perform_imports(context& ctx, module& m, protomodule const& pm) {
 void
 define_top_level(context& ctx, module& m, std::string const& name, generic_ptr const& object,
                  bool export_) {
-  auto index = ctx.add_top_level(object);
+  auto index = ctx.add_top_level(object, name);
   m.add(name, index);
   if (export_)
     m.export_(name);
@@ -401,7 +401,7 @@ context::context()
   };
   for (auto const& form : core_forms) {
     form.object = store.make<core_form_type>();
-    auto index = add_top_level(form.object);
+    auto index = add_top_level(form.object, form.name);
     internal_module.add(form.name, index);
     internal_module.export_(form.name);
   }
@@ -463,8 +463,9 @@ context::set_top_level(operand::representation_type i, generic_ptr const& value)
 }
 
 operand::representation_type
-context::add_top_level(generic_ptr const& x) {
+context::add_top_level(generic_ptr const& x, std::string name) {
   top_level_objects_.push_back(x);
+  top_level_binding_names_.emplace_back(std::move(name));
   return top_level_objects_.size() - 1;
 }
 

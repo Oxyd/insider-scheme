@@ -946,7 +946,7 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
 
           auto name = expect<symbol>(strip_syntactic_closures(cadr(p)),
                                      "Invalid define syntax");
-          auto index = ctx.add_top_level(ctx.constants->void_);
+          auto index = ctx.add_top_level(ctx.constants->void_, name->value());
           m.add(name->value(), index);
         }
         else if (form == ctx.constants->begin) {

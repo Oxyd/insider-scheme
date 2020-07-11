@@ -269,7 +269,7 @@ public:
   set_top_level(operand::representation_type i, generic_ptr const&);
 
   operand::representation_type
-  add_top_level(generic_ptr const&);
+  add_top_level(generic_ptr const&, std::string name);
 
   void
   tag_top_level(operand::representation_type, special_top_level_tag);
@@ -294,6 +294,7 @@ private:
   std::vector<generic_ptr> statics_;
   eqv_unordered_map<std::size_t> statics_cache_;
   std::vector<generic_ptr> top_level_objects_;
+  std::vector<std::string> top_level_binding_names_;
   std::unordered_map<operand::representation_type, special_top_level_tag> top_level_tags_;
   std::map<module_name, protomodule> protomodules_;
   std::map<module_name, std::unique_ptr<module>> modules_;
