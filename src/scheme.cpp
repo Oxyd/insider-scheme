@@ -497,7 +497,7 @@ module_name_to_string(module_name const& name) {
 
 void
 context::load_library_module(std::vector<generic_ptr> const& data) {
-  protomodule pm = read_library(data);
+  protomodule pm = read_library(*this, data);
   assert(pm.name);
 
   module_name name = *pm.name;
@@ -509,6 +509,7 @@ context::load_library_module(std::vector<generic_ptr> const& data) {
 
 static std::unique_ptr<module>
 instantiate(context& ctx, protomodule const& pm) {
+  action a(ctx, "analysing module ", pm.name ? module_name_to_string(*pm.name) : "<unknown>");
   auto result = std::make_unique<module>(ctx);
 
   perform_imports(ctx, *result, pm);
@@ -578,6 +579,16 @@ context::gc_callback() {
 
   for (auto [object, index] : to_reinsert)
     statics_cache_.emplace(generic_ptr{store, object}, index);
+}
+
+action::action(context& ctx, generic_ptr const& irritant, std::string message)
+  : ctx_{ctx}
+{
+  ctx.actions.emplace_back(action_record{std::move(message), irritant});
+}
+
+action::~action() {
+  ctx_.actions.pop_back();
 }
 
 string::string(string&& other)

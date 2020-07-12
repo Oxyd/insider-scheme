@@ -657,7 +657,8 @@ compile_expression(context& ctx, generic_ptr const& datum, module& mod) {
 
 module
 compile_main_module(context& ctx, std::vector<generic_ptr> const& data) {
-  protomodule pm = read_main_module(data);
+  action a(ctx, "analysing main module");
+  protomodule pm = read_main_module(ctx, data);
   module result{ctx};
   perform_imports(ctx, result, pm);
   compile_module_body(ctx, result, pm.body);

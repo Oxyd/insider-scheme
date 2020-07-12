@@ -23,11 +23,11 @@ analyse(context&, generic_ptr const& datum, module&);
 
 // Interpret the given list of data as a main (program) module.
 protomodule
-read_main_module(std::vector<generic_ptr> const& data);
+read_main_module(context&, std::vector<generic_ptr> const& data);
 
 // Interpret the given list of data as a library.
 protomodule
-read_library(std::vector<generic_ptr> const& data);
+read_library(context&, std::vector<generic_ptr> const& data);
 
 std::optional<module_name>
 read_library_name(context&, ptr<port> const&);

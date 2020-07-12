@@ -5,6 +5,8 @@
 #include "free_store.hpp"
 #include "syntax.hpp"
 
+#include <fmt/format.h>
+
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -215,6 +217,11 @@ enum class special_top_level_tag {
   greater_than
 };
 
+struct action_record {
+  std::string message;
+  generic_ptr irritant;
+};
+
 // Evaluation context.
 class context {
 public:
@@ -242,6 +249,7 @@ public:
   ptr<port>                  output_port;
   module                     internal_module; // (insider internal)
   std::unordered_map<std::string, std::string> type_names;
+  std::vector<action_record> actions;
 
   context();
   ~context();
@@ -310,6 +318,26 @@ ptr<T>
 make(context& ctx, Args&&... args) {
   return ctx.store.make<T>(std::forward<Args>(args)...);
 }
+
+// An action of the interpreter, used in error messages.
+class action {
+public:
+  template <typename... Args>
+  action(context& ctx, std::string format, Args&&... args)
+    : action(ctx, {}, fmt::format(format, std::forward<Args>(args)...))
+  { }
+  template <typename... Args>
+  action(context& ctx, generic_ptr const& irritant, std::string format, Args&&... args)
+    : action(ctx, irritant, fmt::format(format, std::forward<Args>(args)...))
+  { }
+  action(context&, generic_ptr const& irritant, std::string message);
+  action(action const&) = delete;
+  void operator = (action const&) = delete;
+  ~action();
+
+private:
+  context& ctx_;
+};
 
 // A boolean value.
 class boolean : public leaf_object<boolean> {

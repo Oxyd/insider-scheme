@@ -551,4 +551,11 @@ write_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
   }
 }
 
+std::string
+datum_to_string(context& ctx, generic_ptr const& datum) {
+  auto p = make<port>(ctx, "", false, true);
+  write_simple(ctx, datum, p);
+  return p->get_string();
+}
+
 } // namespace insider

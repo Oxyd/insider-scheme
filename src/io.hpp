@@ -34,6 +34,9 @@ read_multiple(context&, std::string);
 void
 write_simple(context& ctx, generic_ptr const&, ptr<port> const&);
 
+std::string
+datum_to_string(context& ctx, generic_ptr const&);
+
 } // namespace game::csm
 
 #endif
