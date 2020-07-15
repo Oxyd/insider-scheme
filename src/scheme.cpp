@@ -509,7 +509,7 @@ context::load_library_module(std::vector<generic_ptr> const& data) {
 
 static std::unique_ptr<module>
 instantiate(context& ctx, protomodule const& pm) {
-  simple_action a(ctx, "analysing module ", pm.name ? module_name_to_string(*pm.name) : "<unknown>");
+  simple_action a(ctx, "Analysing module ", pm.name ? module_name_to_string(*pm.name) : "<unknown>");
   auto result = std::make_unique<module>(ctx);
 
   perform_imports(ctx, *result, pm);

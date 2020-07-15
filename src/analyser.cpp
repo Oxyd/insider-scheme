@@ -74,7 +74,7 @@ syntactic_closure_to_environment(context& ctx, ptr<syntactic_closure> const& sc,
 // on the datum, and repeat.
 static generic_ptr
 expand(context& ctx, ptr<environment> const& outer_env, generic_ptr datum) {
-  simple_action a(ctx, datum, "expanding macro use");
+  simple_action a(ctx, datum, "Expanding macro use");
   ptr<environment> env = outer_env;
 
   while (true) {
@@ -110,7 +110,7 @@ expand(context& ctx, ptr<environment> const& outer_env, generic_ptr datum) {
 
 static generic_ptr
 eval_transformer(context& ctx, module& m, generic_ptr const& datum) {
-  simple_action a(ctx, datum, "evaluating transformer");
+  simple_action a(ctx, datum, "Evaluating transformer");
   auto proc = compile_expression(ctx, datum, m);
   auto state = make_state(ctx, proc);
   return expect_callable(run(state));
@@ -128,7 +128,7 @@ parse(parsing_context& pc, ptr<environment> const&, generic_ptr const& datum);
 
 static definition_pair_syntax
 parse_definition_pair(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
-  simple_action a(pc.ctx, datum, "parsing let definition pair");
+  simple_action a(pc.ctx, datum, "Parsing let definition pair");
 
   if (!is<symbol>(car(datum)))
     throw error("Invalid let syntax: Binding not a symbol");
@@ -345,7 +345,7 @@ parse_body(parsing_context& pc, ptr<environment> const& env, generic_ptr const& 
 
 static std::unique_ptr<syntax>
 parse_let(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
-  simple_action a(pc.ctx, datum, "parsing let");
+  simple_action a(pc.ctx, datum, "Parsing let");
 
   if (!is_list(datum) || list_length(datum) < 3)
     throw error("Invalid let syntax");
@@ -373,7 +373,7 @@ parse_let(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& dat
 
 static std::unique_ptr<syntax>
 parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
-  simple_action a(pc.ctx, datum, "parsing lambda");
+  simple_action a(pc.ctx, datum, "Parsing lambda");
 
   if (!is_list(cdr(datum)) || cdr(datum) == pc.ctx.constants->null)
     throw error("Invalid lambda syntax");
@@ -400,7 +400,7 @@ parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& 
 
 static std::unique_ptr<syntax>
 parse_if(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
-  simple_action a(pc.ctx, datum, "parsing if");
+  simple_action a(pc.ctx, datum, "Parsing if");
 
   if (!is_list(cdr(datum)) || (list_length(datum) != 3 && list_length(datum) != 4))
     throw error("Invalid if syntax");
@@ -418,7 +418,7 @@ parse_if(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datu
 
 static std::unique_ptr<syntax>
 parse_application(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
-  simple_action a(pc.ctx, datum, "parsing procedure application");
+  simple_action a(pc.ctx, datum, "Parsing procedure application");
 
   if (!is_list(cdr(datum)))
     throw error("Invalid function call syntax");
@@ -936,7 +936,7 @@ parse_module_name(generic_ptr const& datum) {
 // a list of the expanded top-level commands.
 static std::vector<generic_ptr>
 expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) {
-  simple_action a(ctx, "expanding module top-level");
+  simple_action a(ctx, "Expanding module top-level");
 
   std::vector<generic_ptr> stack;
   stack.reserve(data.size());
