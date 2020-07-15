@@ -56,6 +56,18 @@ object_type(object*);
 word_type
 object_type_index(object*);
 
+std::string
+type_name(word_type);
+
+template <typename T>
+std::string
+type_name() {
+  return type_name(T::type_index);
+}
+
+inline std::string
+object_type_name(object* o) { return type_name(object_type_index(o)); }
+
 bool
 is_alive(object*);
 

@@ -50,6 +50,9 @@ type_index(word_type header) { return header >> type_shift; }
 word_type
 object_type_index(object* o) { return type_index(header_word(o)); }
 
+std::string
+type_name(word_type index) { return types()[index].name; }
+
 static type_descriptor const&
 object_type(word_type header) { return types()[type_index(header)]; }
 

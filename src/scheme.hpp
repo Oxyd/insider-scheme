@@ -841,10 +841,11 @@ is(generic_ptr const& x) {
   return object_type_index(x.get()) == T::type_index;
 }
 
-struct type_error : error {
-  // TODO: Show the actual and expected types in the error message.
-  type_error() : error{"Invalid type"} { }
-};
+template <typename Expected>
+error
+make_type_error(generic_ptr const& actual) {
+  throw error{"Invalid type: expected {}, got {}", type_name<Expected>(), object_type_name(actual.get())};
+}
 
 // Expect an object to be of given type and return the apropriate typed pointer
 // to the object. Throws type_error if the object isn't of the required type.
@@ -854,7 +855,7 @@ expect(generic_ptr const& x) {
   if (is<T>(x))
     return {x.store(), static_cast<T*>(x.get())};
   else
-    throw type_error{};
+    throw make_type_error<T>(x);
 }
 
 // Same as expect, but throws a runtime_error with the given message if the

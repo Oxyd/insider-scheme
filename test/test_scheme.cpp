@@ -197,7 +197,7 @@ TEST_F(scheme, type_predicates) {
   EXPECT_TRUE(is<pair>(x));
   EXPECT_FALSE(is<pair>(null));
   EXPECT_TRUE(expect<pair>(x) == p);
-  EXPECT_THROW(expect<pair>(null), type_error);
+  EXPECT_THROW(expect<pair>(null), error);
 
   if (ptr<pair> q = match<pair>(x))
     SUCCEED();
