@@ -371,6 +371,7 @@ public:
 private:
   space nursery_fromspace_;
   space nursery_tospace_;
+  std::vector<std::unique_ptr<std::byte[]>> nursery_large_objects_;
 
   std::unordered_set<generic_ptr*> roots_;
   std::unordered_set<generic_weak_ptr*> weak_roots_;

@@ -10,6 +10,7 @@ namespace insider {
 
 static constexpr std::size_t page_size = 4096;
 static constexpr std::size_t nursery_min_pages = 1;
+static constexpr std::size_t large_threshold = 256;
 
 static std::vector<type_descriptor>&
 types() {
@@ -237,6 +238,7 @@ free_store::free_store() {
 }
 
 free_store::~free_store() {
+  assert(roots_.empty());
   collect_garbage();
 }
 
@@ -367,10 +369,36 @@ clear_space(space& s) {
   s.current = 0;
 }
 
+static std::vector<std::unique_ptr<std::byte[]>>
+sweep_large(std::vector<std::unique_ptr<std::byte[]>>& space) {
+  std::size_t survivors = 0;
+  for (auto& storage : space) {
+    object* o = reinterpret_cast<object*>(storage.get() + sizeof(word_type));
+    if (object_color(o) == color::white) {
+      object_type(o).destroy(o);
+      set_forwarding_address(o, nullptr);
+    } else {
+      set_object_color(o, color::white);
+      ++survivors;
+    }
+  }
+
+  std::vector<std::unique_ptr<std::byte[]>> new_space;
+  new_space.reserve(survivors);
+
+  for (auto& storage : space)
+    if (is_alive(*reinterpret_cast<word_type*>(storage.get())))
+      new_space.emplace_back(std::move(storage));
+
+  return new_space;
+}
+
 void
 free_store::collect_garbage() {
   trace(roots_);
   migrate_objects(nursery_fromspace_, nursery_tospace_);
+  auto new_large = sweep_large(nursery_large_objects_);
+
   update_references(nursery_tospace_);
   update_roots();
 
@@ -381,6 +409,8 @@ free_store::collect_garbage() {
 
   std::swap(nursery_fromspace_, nursery_tospace_);
 
+  nursery_large_objects_ = std::move(new_large);
+
   assert(nursery_fromspace_.pages.size() >= nursery_min_pages);
   assert(nursery_tospace_.pages.size() >= nursery_min_pages);
 }
@@ -388,14 +418,18 @@ free_store::collect_garbage() {
 std::byte*
 free_store::allocate_object(std::size_t size, word_type type) {
   std::size_t total_size = size + sizeof(word_type);
-  assert(total_size < page_size); // TODO: Implement large object storage.
 
-  if (page_free(nursery_fromspace_.pages[nursery_fromspace_.current]) < total_size)
-    collect_garbage();
+  std::byte* storage = nullptr;
+  if (total_size >= large_threshold)
+    storage = nursery_large_objects_.emplace_back(std::make_unique<std::byte[]>(total_size)).get();
+  else {
+    if (page_free(nursery_fromspace_.pages[nursery_fromspace_.current]) < total_size)
+      collect_garbage();
 
-  std::byte* storage = allocate(nursery_fromspace_, total_size);
+    storage = allocate(nursery_fromspace_, total_size);
+  }
+
   init_object_header(storage, type);
-
   std::byte* object_storage = storage + sizeof(word_type);
   return object_storage;
 }
