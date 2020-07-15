@@ -118,6 +118,17 @@ environment::lookup_transformer(free_store& fs, std::string const& name) const {
   return {};
 }
 
+std::vector<std::string>
+environment::bound_names() const {
+  std::vector<std::string> result;
+  result.reserve(bindings_.size());
+
+  for (auto const& [name, binding] : bindings_)
+    result.push_back(name);
+
+  return result;
+}
+
 void
 environment::trace(tracing_context& tc) {
   tc.trace(parent_);
@@ -150,9 +161,24 @@ module::find(std::string const& name) const -> std::optional<index_type> {
 
 void
 module::add(std::string name, index_type i) {
-  if (env_->lookup(name))
-    throw std::runtime_error{fmt::format("Redefinition of {}", name)};
+  if (auto v = env_->lookup(name)) {
+    if (v->global && *v->global == i)
+      return; // Re-importing the same variable under the same name is OK.
+    else
+      throw std::runtime_error{fmt::format("Redefinition of {}", name)};
+  }
   env_->add(name, std::make_shared<variable>(name, i));
+}
+
+void
+module::add_transformer(std::string name, ptr<transformer> const& tr) {
+  if (auto old_tr = environment_lookup_transformer(env_, name)) {
+    if (old_tr == tr)
+      return; // Re-importing the same variable under the same name is OK.
+    else
+      throw std::runtime_error{fmt::format("Redefinition of {}", name)};
+  }
+  env_->add_transformer(name, tr);
 }
 
 void
@@ -233,7 +259,7 @@ perform_imports(context& ctx, module& m, import_set const& set) {
     if (std::optional<module::index_type> var = set.source->find(from_name))
       m.add(to_name, *var);
     else if (ptr<transformer> tr = set.source->environment()->lookup_transformer(ctx.store, from_name))
-      m.environment()->add_transformer(to_name, tr);
+      m.add_transformer(to_name, tr);
     else
       assert(!"Trying to import a nonexistent symbol");
   }
@@ -242,11 +268,47 @@ perform_imports(context& ctx, module& m, import_set const& set) {
     execute(ctx, *set.source);
 }
 
+static std::string
+module_name_to_string(module_name const& name) {
+  std::string result = "(";
+  for (auto it = name.begin(); it != name.end(); ++it) {
+    if (it != name.begin())
+      result += " ";
+    result += *it;
+  }
+  result += ")";
+
+  return result;
+}
+
+std::unique_ptr<module>
+instantiate(context& ctx, protomodule const& pm) {
+  auto result = std::make_unique<module>(ctx);
+
+  perform_imports(ctx, *result, pm);
+  compile_module_body(ctx, *result, pm);
+
+  for (std::string const& name : pm.exports)
+    result->export_(name);
+
+  return result;
+}
+
 void
-import_all(context& ctx, module& to, module& from) {
+import_all_exported(context& ctx, module& to, module& from) {
   import_set is{&from, {}};
 
   for (std::string const& name : from.exports())
+    is.names.push_back(std::tuple{name, name});
+
+  perform_imports(ctx, to, is);
+}
+
+void
+import_all_top_level(context& ctx, module& to, module& from) {
+  import_set is{&from, {}};
+
+  for (std::string const& name : from.top_level_names())
     is.names.push_back(std::tuple{name, name});
 
   perform_imports(ctx, to, is);
@@ -393,6 +455,7 @@ context::context()
     {constants->define,           "define"},
     {constants->define_syntax,    "define-syntax"},
     {constants->begin,            "begin"},
+    {constants->begin_for_syntax, "begin-for-syntax"},
     {constants->quote,            "quote"},
     {constants->quasiquote,       "quasiquote"},
     {constants->unquote,          "unquote"},
@@ -482,19 +545,6 @@ context::find_tag(operand::representation_type i) const {
     return {};
 }
 
-static std::string
-module_name_to_string(module_name const& name) {
-  std::string result = "(";
-  for (auto it = name.begin(); it != name.end(); ++it) {
-    if (it != name.begin())
-      result += " ";
-    result += *it;
-  }
-  result += ")";
-
-  return result;
-}
-
 void
 context::load_library_module(std::vector<generic_ptr> const& data) {
   protomodule pm = read_library(*this, data);
@@ -505,20 +555,6 @@ context::load_library_module(std::vector<generic_ptr> const& data) {
 
   if (!inserted)
     throw std::runtime_error{fmt::format("Module {} already loaded", module_name_to_string(*pm.name))};
-}
-
-static std::unique_ptr<module>
-instantiate(context& ctx, protomodule const& pm) {
-  simple_action a(ctx, "Analysing module ", pm.name ? module_name_to_string(*pm.name) : "<unknown>");
-  auto result = std::make_unique<module>(ctx);
-
-  perform_imports(ctx, *result, pm);
-  compile_module_body(ctx, *result, pm.body);
-
-  for (std::string const& name : pm.exports)
-    result->export_(name);
-
-  return result;
 }
 
 module*
@@ -548,6 +584,7 @@ context::find_module(module_name const& name) {
       throw std::runtime_error{fmt::format("Unknown module {}", module_name_to_string(name))};
   }
 
+  simple_action a(*this, "Analysing module {}", pm->second.name ? module_name_to_string(*pm->second.name) : "<unknown>");
   std::unique_ptr<module> m = instantiate(*this, pm->second);
   protomodules_.erase(pm);
 
@@ -932,6 +969,15 @@ list_to_vector(context& ctx, generic_ptr const& lst) {
   std::size_t i = 0;
   for (generic_ptr e = lst; e != ctx.constants->null; e = cdr(assume<pair>(e)))
     vector_set(result, i++, car(assume<pair>(e)));
+
+  return result;
+}
+
+std::vector<generic_ptr>
+list_to_std_vector(generic_ptr const& lst) {
+  std::vector<generic_ptr> result;
+  for (generic_ptr e : in_list{lst})
+    result.push_back(e);
 
   return result;
 }

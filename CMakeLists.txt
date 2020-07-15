@@ -20,6 +20,7 @@ set(scheme_sources
   src/numeric.cpp
   src/scheme.cpp
   src/vm.cpp
+  src/syntax.cpp
   )
 
 set(test_sources

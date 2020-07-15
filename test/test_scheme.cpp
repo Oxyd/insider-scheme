@@ -22,7 +22,7 @@ struct scheme : testing::Test {
   generic_ptr
   eval(std::string const& expr) {
     module m{ctx};
-    import_all(ctx, m, ctx.internal_module);
+    import_all_exported(ctx, m, ctx.internal_module);
     auto f = compile_expression(ctx, read(expr), m);
     auto state = make_state(ctx, f);
     return run(state);
@@ -1543,6 +1543,34 @@ TEST_F(scheme, import_specifiers) {
     (+ foo:a foo:b)
   )");
   EXPECT_EQ(expect<integer>(result5)->value(), 1 + 2);
+}
+
+TEST_F(scheme, begin_for_syntax) {
+  auto result1 = eval_module(R"(
+    (import (insider internal))
+    (begin-for-syntax
+      (define x 21))
+    (* x 2)
+  )");
+  EXPECT_EQ(expect<integer>(result1)->value(), 42);
+
+  auto result2 = eval_module(R"(
+    (import (insider internal))
+
+    (begin-for-syntax
+      (define big?
+        (lambda (x)
+          (> x 10))))
+
+    (define-syntax is-big?
+      (lambda (form transformer-env usage-env)
+        (if (big? (cadr form))
+            ''yes
+            ''no)))
+
+    (is-big? 12)
+  )");
+  EXPECT_EQ(expect<symbol>(result2)->value(), "yes");
 }
 
 using limb_type = big_integer::limb_type;

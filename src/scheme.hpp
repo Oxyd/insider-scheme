@@ -92,6 +92,9 @@ public:
   bool
   has(std::string const& name) const { return bindings_.count(name); }
 
+  std::vector<std::string>
+  bound_names() const;
+
   void
   trace(tracing_context& tc);
 
@@ -130,6 +133,9 @@ public:
   add(std::string, index_type);
 
   void
+  add_transformer(std::string, ptr<transformer> const&);
+
+  void
   export_(std::string);
 
   std::unordered_set<std::string> const&
@@ -144,6 +150,9 @@ public:
   ptr<insider::environment>
   environment() const { return env_; }
 
+  std::vector<std::string>
+  top_level_names() const { return env_->bound_names(); }
+
   bool
   active() const { return active_; }
 
@@ -157,8 +166,18 @@ private:
   bool                            active_ = false;
 };
 
+// Turn a protomodule into a module. First instantiate all uninstantiated
+// dependencies of the protomodule, then compile its body.
+std::unique_ptr<module>
+instantiate(context&, protomodule const&);
+
+// Import all exports from one module to another.
 void
-import_all(context&, module& to, module& from);
+import_all_exported(context&, module& to, module& from);
+
+// Import all top-level bindings (whether exported or not) from one module to another.
+void
+import_all_top_level(context&, module& to, module& from);
 
 // Given a protomodule, go through all of its import declarations and perform
 // them in the given module.
@@ -224,8 +243,8 @@ public:
     ptr<insider::null_type> null;
     ptr<insider::void_type> void_;
     ptr<boolean>        t, f;     // #t and #f.
-    ptr<core_form_type> let, set, lambda, if_, box, unbox, box_set, define, define_syntax, begin,
-                        quote, quasiquote, unquote, unquote_splicing, expand_quote;
+    ptr<core_form_type> let, set, lambda, if_, box, unbox, box_set, define, define_syntax,
+                        begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing, expand_quote;
   };
 
   struct statics_list {
@@ -625,6 +644,9 @@ make_vector(context&, std::vector<generic_ptr> const&);
 
 ptr<vector>
 list_to_vector(context&, generic_ptr const& lst);
+
+std::vector<generic_ptr>
+list_to_std_vector(generic_ptr const&);
 
 ptr<vector>
 vector_append(context&, std::vector<generic_ptr> const& vs);

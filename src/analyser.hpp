@@ -32,9 +32,9 @@ read_library(context&, std::vector<generic_ptr> const& data);
 std::optional<module_name>
 read_library_name(context&, ptr<port> const&);
 
-// Analyse a list of data that forms a module body.
+// Analyse a protomodule's body in the given module.
 sequence_syntax
-analyse_module(context&, module&, std::vector<generic_ptr> const& data);
+analyse_module(context&, module&, protomodule const&);
 
 } // namespace insider
 

@@ -186,6 +186,15 @@ struct import_specifier {
   template <typename T>
   explicit
   import_specifier(T value) : value{std::move(value)} { }
+
+  import_specifier(import_specifier const&);
+  import_specifier(import_specifier&&) = default;
+
+  import_specifier&
+  operator = (import_specifier const&);
+
+  import_specifier&
+  operator = (import_specifier&&) = default;
 };
 
 // Metainformation about a module -- its name, list of imports and exports, plus

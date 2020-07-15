@@ -18,9 +18,9 @@ compile_expression(context&, generic_ptr const& datum, module&);
 module
 compile_main_module(context&, std::vector<generic_ptr> const& data);
 
-// Translate a list of expressions as a module body.
+// Translate a protomodule's body.
 void
-compile_module_body(context&, module&, std::vector<generic_ptr> const& data);
+compile_module_body(context&, module&, protomodule const&);
 
 } // namespace insider
 

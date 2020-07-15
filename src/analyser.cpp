@@ -785,6 +785,8 @@ parse(parsing_context& pc, ptr<environment> const& env, generic_ptr const& d) {
         return parse_quasiquote(pc, env, p);
       else if (form == pc.ctx.constants->expand_quote)
         return make_syntax<literal_syntax>(expand(pc.ctx, env, cadr(p)));
+      else if (form == pc.ctx.constants->begin_for_syntax)
+        throw error{"begin-for-syntax not at top level"};
     }
 
     return parse_application(pc, env, p);
@@ -931,16 +933,25 @@ parse_module_name(generic_ptr const& datum) {
   return result;
 }
 
+static void
+perform_begin_for_syntax(context& ctx, module& m, protomodule const& parent_pm, generic_ptr const& body) {
+  simple_action a(ctx, "Analysing begin-for-syntax");
+  protomodule pm{parent_pm.name, parent_pm.imports, {}, list_to_std_vector(body)};
+  auto submodule = instantiate(ctx, pm);
+  execute(ctx, *submodule);
+  import_all_top_level(ctx, m, *submodule);
+}
+
 // Gather syntax and top-level variable definitions, expand top-level macro
 // uses. Adds the found top-level syntaxes and variables to the module. Returns
 // a list of the expanded top-level commands.
 static std::vector<generic_ptr>
-expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) {
+expand_top_level(context& ctx, module& m, protomodule const& pm) {
   simple_action a(ctx, "Expanding module top-level");
 
   std::vector<generic_ptr> stack;
-  stack.reserve(data.size());
-  std::copy(data.rbegin(), data.rend(), std::back_inserter(stack));
+  stack.reserve(pm.body.size());
+  std::copy(pm.body.rbegin(), pm.body.rend(), std::back_inserter(stack));
 
   std::vector<generic_ptr> result;
   while (!stack.empty()) {
@@ -972,6 +983,10 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
             subforms.push_back(e);
 
           std::copy(subforms.rbegin(), subforms.rend(), std::back_inserter(stack));
+          continue;
+        }
+        else if (form == ctx.constants->begin_for_syntax) {
+          perform_begin_for_syntax(ctx, m, pm, cdr(p));
           continue;
         }
       }
@@ -1122,8 +1137,8 @@ read_library_name(context& ctx, ptr<port> const& in) {
 }
 
 sequence_syntax
-analyse_module(context& ctx, module& m, std::vector<generic_ptr> const& data) {
-  std::vector<generic_ptr> body = expand_top_level(ctx, m, data);
+analyse_module(context& ctx, module& m, protomodule const& pm) {
+  std::vector<generic_ptr> body = expand_top_level(ctx, m, pm);
 
   sequence_syntax result;
   for (generic_ptr const& datum : body)

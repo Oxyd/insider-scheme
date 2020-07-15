@@ -662,13 +662,13 @@ compile_main_module(context& ctx, std::vector<generic_ptr> const& data) {
   protomodule pm = read_main_module(ctx, data);
   module result{ctx};
   perform_imports(ctx, result, pm);
-  compile_module_body(ctx, result, pm.body);
+  compile_module_body(ctx, result, pm);
   return result;
 }
 
 void
-compile_module_body(context& ctx, module& m, std::vector<generic_ptr> const& data) {
-  sequence_syntax body = analyse_module(ctx, m, data);
+compile_module_body(context& ctx, module& m, protomodule const& pm) {
+  sequence_syntax body = analyse_module(ctx, m, pm);
 
   procedure_context proc{nullptr, m};
   shared_register result = compile_sequence(ctx, proc, body, true);
