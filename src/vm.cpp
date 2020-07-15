@@ -1,5 +1,6 @@
 #include "vm.hpp"
 
+#include "io.hpp"
 #include "numeric.hpp"
 
 #include <cassert>
@@ -263,7 +264,7 @@ execute_one(execution_state& state) {
         set_register(state, find_call(frame).dest, result);
       }
     } else
-      throw std::runtime_error{"Error in application: Not a procedure"};
+      throw error{"Application: Not a procedure: {}", datum_to_string(state.ctx, call_target)};
     break;
   }
 
