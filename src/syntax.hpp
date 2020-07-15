@@ -14,10 +14,9 @@ namespace insider {
 class transformer;
 
 // The binding between a name and its value. For top-level values, this directly
-// contains the index of the value. For non-top-level syntax transformers, it
-// directly contains the transformer. Otherwise, it's just an object
-// representing the binding itself and the compiler will use these to translate
-// them to local registers.
+// contains the index of the value. Otherwise, it's just an object representing
+// the binding itself and the compiler will use these to translate them to local
+// registers.
 struct variable {
   std::string                                 name;
   bool                                        is_set = false;
