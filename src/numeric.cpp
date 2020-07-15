@@ -151,8 +151,12 @@ digit(char c) {
 
 static unsigned
 digit_value(char c) {
-  assert(digit(c));
-  return c - '0';
+  if (c >= '0' && c <= '9')
+    return c - '0';
+  else if (c >= 'a' && c <= 'f')
+    return c - 'a' + 10;
+  else
+    return c - 'A' + 10;
 }
 
 static ptr<big_integer>
@@ -1238,12 +1242,12 @@ export_native(context& ctx, module& m, std::string const& name,
   m.export_(name);
 }
 
-static generic_ptr
-read_integer(context& ctx, std::string const& digits) {
+generic_ptr
+read_integer(context& ctx, std::string const& digits, unsigned base) {
   generic_ptr result = make<integer>(ctx, 0);
 
   for (char c : digits) {
-    result = mul_magnitude_by_limb_destructive(ctx, result, 10);
+    result = mul_magnitude_by_limb_destructive(ctx, result, base);
     result = add_magnitude_to_limb_destructive(ctx, result, digit_value(c));
   }
 

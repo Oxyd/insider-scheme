@@ -104,13 +104,58 @@ digit(char c) {
   return c >= '0' && c <= '9';
 }
 
+static bool
+hexdigit(char c) {
+  return digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
 static generic_literal
 read_numeric_literal(context& ctx, ptr<port> const& stream) {
   return generic_literal{read_number(ctx, stream)};
 }
 
 static token
-read_special_literal(ptr<port> const& stream) {
+read_character(context& ctx, ptr<port> const& stream) {
+  static std::unordered_map<std::string, char> const character_names{
+    {"alarm",     '\x07'},
+    {"backspace", '\x08'},
+    {"delete",    '\x7F'},
+    {"escape",    '\x1B'},
+    {"newline",   '\x0A'},
+    {"null",      '\x00'},
+    {"return",    '\x0D'},
+    {"space",     ' '},
+    {"tab",       '\x09'}
+  };
+
+  if (stream->peek_char() != 'x') {
+    if (!std::isalpha(*stream->peek_char(), std::locale{"C"}))
+      return generic_literal{make<character>(ctx, *stream->read_char())};
+
+    std::string literal = read_until_delimiter(stream);
+    if (literal.size() == 1)
+      return generic_literal{make<character>(ctx, literal[0])};
+    else if (auto it = character_names.find(literal); it != character_names.end())
+      return generic_literal{make<character>(ctx, it->second)};
+    else
+      throw parse_error{fmt::format("Unknown character literal #\\{}", literal)};
+  }
+  else {
+    stream->read_char();
+
+    std::string literal;
+    while (stream->peek_char() && hexdigit(*stream->peek_char()))
+      literal += *stream->read_char();
+
+    return generic_literal{
+      make<character>(ctx,
+                      static_cast<char>(expect<integer>(read_integer(ctx, literal, 16))->value()))
+    };
+  }
+}
+
+static token
+read_special_literal(context& ctx, ptr<port> const& stream) {
   std::optional<char> c = stream->peek_char();
   if (!c)
     throw parse_error{"Unexpected end of input"};
@@ -136,6 +181,11 @@ read_special_literal(ptr<port> const& stream) {
       throw parse_error{fmt::format("Invalid literal: {}", literal)};
 
     return void_literal{};
+  }
+
+  case '\\': {
+    stream->read_char();
+    return read_character(ctx, stream);
   }
 
   default:
@@ -283,7 +333,7 @@ read_token(context& ctx, ptr<port> const& stream) {
     else if (*c == '(')
       return hash_left_paren{};
     else
-      return read_special_literal(stream);
+      return read_special_literal(ctx, stream);
   }
   else if (*c == '"')
     return read_string_literal(ctx, stream);

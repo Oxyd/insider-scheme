@@ -384,6 +384,20 @@ TEST_F(scheme, read_symbol) {
   EXPECT_EQ(expect<symbol>(car(expect<pair>(cdr(expect<pair>(cdr(expect<pair>(l)))))))->value(), "three");
 }
 
+TEST_F(scheme, read_char) {
+  EXPECT_EQ(expect<character>(read(R"(#\a)"))->value(), 'a');
+  EXPECT_EQ(expect<character>(read(R"(#\A)"))->value(), 'A');
+  EXPECT_EQ(expect<character>(read(R"(#\4)"))->value(), '4');
+  EXPECT_EQ(expect<character>(read(R"(#\\)"))->value(), '\\');
+  EXPECT_EQ(expect<character>(read(R"(#\()"))->value(), '(');
+  EXPECT_EQ(expect<character>(read(R"(#\ )"))->value(), ' ');
+  EXPECT_EQ(expect<character>(read(R"(#\space)"))->value(), ' ');
+  EXPECT_EQ(expect<character>(read(R"(#\x63)"))->value(), 'c');
+  EXPECT_EQ(expect<character>(read(R"(#\x6d)"))->value(), 'm');
+  EXPECT_EQ(expect<character>(read(R"(#\x6D)"))->value(), 'm');
+  EXPECT_EQ(expect<character>(read(R"(#\x4d)"))->value(), 'M');
+}
+
 TEST_F(scheme, read_string) {
   EXPECT_EQ(expect<string>(read(R"("foo")"))->value(), "foo");
   EXPECT_EQ(expect<string>(read(R"("one\ntwo")"))->value(), "one\ntwo");

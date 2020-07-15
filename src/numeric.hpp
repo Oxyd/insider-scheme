@@ -264,6 +264,9 @@ generic_ptr
 gcd(context&, generic_ptr const&, generic_ptr const&);
 
 generic_ptr
+read_integer(context& ctx, std::string const& digits, unsigned base = 10);
+
+generic_ptr
 read_number(context&, ptr<port> const&);
 
 void
