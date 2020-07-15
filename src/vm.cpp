@@ -239,6 +239,8 @@ execute_one(execution_state& state) {
         scheme_proc, closure, state.current_frame, args
       );
     } else if (auto native_proc = match<native_procedure>(call_target)) {
+      simple_action a{state.ctx, "in {}", native_proc->name ? *native_proc->name : "<native procedure>"};
+
       assert(!closure);
       generic_ptr result = native_proc->target(state.ctx, args);
 
@@ -362,8 +364,42 @@ make_state(context& ctx, ptr<procedure> const& global) {
   return execution_state{ctx, root_frame, root_frame, {}};
 }
 
+namespace {
+  class execution_action : public action<execution_action> {
+  public:
+    execution_action(execution_state& state)
+      : action{state.ctx}
+      , state_{state}
+    { }
+
+    ~execution_action() { check(); }
+
+    std::string
+    format() const {
+      std::string result;
+      ptr<call_frame> frame = state_.current_frame;
+      while (frame) {
+        std::optional<std::string> name = call_frame_procedure(frame)->name;
+
+        if (frame != state_.current_frame)
+          result += '\n';
+        result += fmt::format("in {}", name ? *name : "<lambda>");
+
+        frame = call_frame_parent(frame);
+      }
+
+      return result;
+    }
+
+  private:
+    execution_state& state_;
+  };
+}
+
 generic_ptr
 run(execution_state& state) {
+  execution_action a(state);
+
   while (state.current_frame->pc < state.current_frame->procedure(state.ctx.store)->bytecode.size())
     execute_one(state);
 

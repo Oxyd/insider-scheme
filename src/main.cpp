@@ -23,52 +23,52 @@ main(int argc, char** argv) {
   std::string program_path;
   insider::context ctx;
 
-  for (int i = 1; i < argc; ++i) {
-    if (argv[i][0] == '-') {
-      std::string flag = argv[i];
+  try {
+    for (int i = 1; i < argc; ++i) {
+      if (argv[i][0] == '-') {
+        std::string flag = argv[i];
 
-      if (flag == "-") {
-        print_usage(argv[0]);
-        return 1;
-      }
-
-      std::string argument;
-      if (flag.size() > 2) {
-        argument = flag.substr(2);
-        flag = flag.substr(0, 2);
-      } else {
-        if (i + 1 == argc) {
+        if (flag == "-") {
           print_usage(argv[0]);
           return 1;
         }
 
-        argument = argv[i + 1];
-        ++i;
-      }
+        std::string argument;
+        if (flag.size() > 2) {
+          argument = flag.substr(2);
+          flag = flag.substr(0, 2);
+        } else {
+          if (i + 1 == argc) {
+            print_usage(argv[0]);
+            return 1;
+          }
 
-      if (flag == "-I")
-        ctx.append_module_provider(std::make_unique<insider::filesystem_module_provider>(argument));
+          argument = argv[i + 1];
+          ++i;
+        }
+
+        if (flag == "-I")
+          ctx.append_module_provider(std::make_unique<insider::filesystem_module_provider>(argument));
+        else {
+          print_usage(argv[0]);
+          return 1;
+        }
+      }
       else {
-        print_usage(argv[0]);
-        return 1;
+        if (!program_path.empty()) {
+          print_usage(argv[0]);
+          return 1;
+        }
+
+        program_path = argv[i];
       }
     }
-    else {
-      if (!program_path.empty()) {
-        print_usage(argv[0]);
-        return 1;
-      }
 
-      program_path = argv[i];
+    if (program_path.empty()) {
+      print_usage(argv[0]);
+      return 1;
     }
-  }
 
-  if (program_path.empty()) {
-    print_usage(argv[0]);
-    return 1;
-  }
-
-  try {
     FILE* f = std::fopen(program_path.c_str(), "r");
     if (!f) {
       fmt::print(stderr, "Can't open input file {}: {}\n", program_path, strerror(errno));
@@ -81,6 +81,6 @@ main(int argc, char** argv) {
     return 0;
   }
   catch (std::runtime_error const& e) {
-    fmt::print(stderr, "Error: {}\n", e.what());
+    fmt::print(stderr, "Error: {}\n{}\n", e.what(), ctx.error_backtrace);
   }
 }

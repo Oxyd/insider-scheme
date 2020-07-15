@@ -395,7 +395,8 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx
 
   ptr<procedure> p = ctx.store.make<procedure>(std::move(proc.bytecode),
                                                proc.registers.locals_used(),
-                                               stx.parameters.size());
+                                               stx.parameters.size(),
+                                               stx.name);
   operand p_reg = operand::static_(ctx.intern_static(p));
 
   if (!proc.bindings.free().empty()) {
@@ -657,7 +658,7 @@ compile_expression(context& ctx, generic_ptr const& datum, module& mod) {
 
 module
 compile_main_module(context& ctx, std::vector<generic_ptr> const& data) {
-  action a(ctx, "analysing main module");
+  simple_action a(ctx, "analysing main module");
   protomodule pm = read_main_module(ctx, data);
   module result{ctx};
   perform_imports(ctx, result, pm);

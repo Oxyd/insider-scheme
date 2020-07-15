@@ -1,7 +1,6 @@
 #include "analyser.hpp"
 
 #include "compiler.hpp"
-#include "error.hpp"
 #include "io.hpp"
 #include "numeric.hpp"
 #include "vm.hpp"
@@ -75,7 +74,7 @@ syntactic_closure_to_environment(context& ctx, ptr<syntactic_closure> const& sc,
 // on the datum, and repeat.
 static generic_ptr
 expand(context& ctx, ptr<environment> const& outer_env, generic_ptr datum) {
-  action a(ctx, datum, "expanding macro use");
+  simple_action a(ctx, datum, "expanding macro use");
   ptr<environment> env = outer_env;
 
   while (true) {
@@ -111,7 +110,7 @@ expand(context& ctx, ptr<environment> const& outer_env, generic_ptr datum) {
 
 static generic_ptr
 eval_transformer(context& ctx, module& m, generic_ptr const& datum) {
-  action a(ctx, datum, "evaluating transformer");
+  simple_action a(ctx, datum, "evaluating transformer");
   auto proc = compile_expression(ctx, datum, m);
   auto state = make_state(ctx, proc);
   return expect_callable(run(state));
@@ -129,17 +128,17 @@ parse(parsing_context& pc, ptr<environment> const&, generic_ptr const& datum);
 
 static definition_pair_syntax
 parse_definition_pair(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
-  action a(pc.ctx, datum, "parsing let definition pair");
+  simple_action a(pc.ctx, datum, "parsing let definition pair");
 
   if (!is<symbol>(car(datum)))
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid let syntax: Binding not a symbol");
+    throw error("Invalid let syntax: Binding not a symbol");
 
   auto name = assume<symbol>(car(datum));
 
   if (cdr(datum) == pc.ctx.constants->null)
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid let syntax: No expression for {}", name->value());
+    throw error("Invalid let syntax: No expression for {}", name->value());
   if (!is<pair>(cdr(datum)))
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid let syntax in binding definition");
+    throw error("Invalid let syntax in binding definition");
 
   return {std::make_shared<variable>(name->value()), parse(pc, env, cadr(datum))};
 }
@@ -257,7 +256,7 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
 
       if (form == pc.ctx.constants->define_syntax) {
         if (seen_expression)
-          throw make_error<std::runtime_error>(pc.ctx, "define-syntax after a nondefinition");
+          throw error("define-syntax after a nondefinition");
 
         auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
         auto transformer_proc = eval_transformer(pc.ctx, pc.module, caddr(p));
@@ -268,7 +267,7 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
       }
       else if (form == pc.ctx.constants->define) {
         if (seen_expression)
-          throw make_error<std::runtime_error>(pc.ctx, "define after a nondefinition");
+          throw error("define after a nondefinition");
 
         auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
         result.env->add(name->value(), std::make_shared<variable>(name->value()));
@@ -300,9 +299,9 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
 
   if (!seen_expression) {
     if (!result.forms.empty())
-      throw make_error<std::runtime_error>(pc.ctx, "No expression after a sequence of internal definitions");
+      throw error("No expression after a sequence of internal definitions");
     else
-      throw make_error<std::runtime_error>(pc.ctx, "Empty body");
+      throw error("Empty body");
   }
 
   return result;
@@ -323,7 +322,7 @@ parse_expression_list(parsing_context& pc, ptr<environment> const& env,
 static sequence_syntax
 parse_body(parsing_context& pc, ptr<environment> const& env, generic_ptr const& datum) {
   if (!is_list(datum) || datum == pc.ctx.constants->null)
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid syntax: Expected a list of expressions");
+    throw error("Invalid syntax: Expected a list of expressions");
 
   body_content content = process_internal_defines(pc, env, datum);
   if (!content.internal_variable_names.empty()) {
@@ -346,20 +345,20 @@ parse_body(parsing_context& pc, ptr<environment> const& env, generic_ptr const& 
 
 static std::unique_ptr<syntax>
 parse_let(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
-  action a(pc.ctx, datum, "parsing let");
+  simple_action a(pc.ctx, datum, "parsing let");
 
   if (!is_list(datum) || list_length(datum) < 3)
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid let syntax");
+    throw error("Invalid let syntax");
 
   auto bindings = cadr(datum);
   if (!is_list(bindings))
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid let syntax in binding definitions");
+    throw error("Invalid let syntax in binding definitions");
 
   std::vector<definition_pair_syntax> definitions;
   while (bindings != pc.ctx.constants->null) {
     auto binding = car(assume<pair>(bindings));
     if (!is<pair>(binding))
-      throw make_error<std::runtime_error>(pc.ctx, "Invalid let syntax in binding definitions");
+      throw error("Invalid let syntax in binding definitions");
 
     definitions.push_back(parse_definition_pair(pc, env, assume<pair>(binding)));
     bindings = cdr(assume<pair>(bindings));
@@ -374,14 +373,14 @@ parse_let(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& dat
 
 static std::unique_ptr<syntax>
 parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
-  action a(pc.ctx, datum, "parsing lambda");
+  simple_action a(pc.ctx, datum, "parsing lambda");
 
   if (!is_list(cdr(datum)) || cdr(datum) == pc.ctx.constants->null)
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid lambda syntax");
+    throw error("Invalid lambda syntax");
 
   generic_ptr param_names = strip_syntactic_closures(cadr(datum));
   if (!is_list(param_names))
-    throw make_error<std::runtime_error>(pc.ctx, "Unimplemented");
+    throw error("Unimplemented");
 
   std::vector<std::shared_ptr<variable>> parameters;
   auto subenv = make<environment>(pc.ctx, env);
@@ -396,15 +395,15 @@ parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& 
     param_names = cdr(param);
   }
 
-  return make_syntax<lambda_syntax>(std::move(parameters), parse_body(pc, subenv, cddr(datum)));
+  return make_syntax<lambda_syntax>(std::move(parameters), parse_body(pc, subenv, cddr(datum)), std::nullopt);
 }
 
 static std::unique_ptr<syntax>
 parse_if(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
-  action a(pc.ctx, datum, "parsing if");
+  simple_action a(pc.ctx, datum, "parsing if");
 
   if (!is_list(cdr(datum)) || (list_length(datum) != 3 && list_length(datum) != 4))
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid if syntax");
+    throw error("Invalid if syntax");
 
   generic_ptr test_expr = cadr(datum);
   generic_ptr then_expr = caddr(datum);
@@ -419,10 +418,10 @@ parse_if(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datu
 
 static std::unique_ptr<syntax>
 parse_application(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
-  action a(pc.ctx, datum, "parsing procedure application");
+  simple_action a(pc.ctx, datum, "parsing procedure application");
 
   if (!is_list(cdr(datum)))
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid function call syntax");
+    throw error("Invalid function call syntax");
 
   std::vector<std::unique_ptr<syntax>> arguments;
   auto arg_expr = cdr(datum);
@@ -437,7 +436,7 @@ parse_application(parsing_context& pc, ptr<environment> const& env, ptr<pair> co
 static std::unique_ptr<syntax>
 parse_box(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(datum) || list_length(datum) != 2)
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid box syntax");
+    throw error("Invalid box syntax");
 
   return make_syntax<box_syntax>(parse(pc, env, cadr(datum)));
 }
@@ -445,7 +444,7 @@ parse_box(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& dat
 static std::unique_ptr<syntax>
 parse_unbox(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(datum) || list_length(datum) != 2)
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid unbox syntax");
+    throw error("Invalid unbox syntax");
 
   return make_syntax<unbox_syntax>(parse(pc, env, cadr(datum)));
 }
@@ -453,7 +452,7 @@ parse_unbox(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& d
 static std::unique_ptr<syntax>
 parse_box_set(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
   if (!is_list(datum) || list_length(datum) != 3)
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid box-set! syntax");
+    throw error("Invalid box-set! syntax");
 
   return make_syntax<box_set_syntax>(parse(pc, env, cadr(datum)),
                                      parse(pc, env, caddr(datum)));
@@ -469,11 +468,11 @@ parse_sequence(parsing_context& pc, ptr<environment> const& env, ptr<pair> const
 }
 
 static std::unique_ptr<syntax>
-parse_reference(context& ctx, ptr<environment> const& env, ptr<symbol> const& datum) {
+parse_reference(ptr<environment> const& env, ptr<symbol> const& datum) {
   auto var = lookup(env, datum->value());
 
   if (!var)
-    throw make_error<std::runtime_error>(ctx, "Unbound symbol {}", datum->value());
+    throw error("Unbound symbol {}", datum->value());
 
   if (!var->global)
     return make_syntax<local_reference_syntax>(std::move(var));
@@ -492,7 +491,7 @@ parse_define_or_set(parsing_context& pc, ptr<environment> const& env, ptr<pair> 
   // either case, we emit a set! syntax.
 
   if (!is_list(datum) || list_length(datum) != 3)
-    throw make_error<std::runtime_error>(pc.ctx, "Invalid {} syntax", form_name);
+    throw error("Invalid {} syntax", form_name);
 
   ptr<symbol> name = expect<symbol>(strip_syntactic_closures(cadr(datum)),
                                     fmt::format("Invalid {} syntax", form_name));
@@ -500,14 +499,18 @@ parse_define_or_set(parsing_context& pc, ptr<environment> const& env, ptr<pair> 
 
   auto var = lookup(env, name->value());
   if (!var)
-    throw make_error<std::runtime_error>(pc.ctx, "Unbound symbol {}", name->value());
+    throw error("Unbound symbol {}", name->value());
+
+  auto initialiser = parse(pc, env, expr);
+  if (auto l = std::get_if<lambda_syntax>(&initialiser->value))
+    l->name = name->value();
 
   if (!var->global) {
     var->is_set = true;
-    return make_syntax<local_set_syntax>(std::move(var), parse(pc, env, expr));
+    return make_syntax<local_set_syntax>(std::move(var), std::move(initialiser));
   }
   else
-    return make_syntax<top_level_set_syntax>(operand::global(*var->global), parse(pc, env, expr));
+    return make_syntax<top_level_set_syntax>(operand::global(*var->global), std::move(initialiser));
 }
 
 static std::unique_ptr<syntax>
@@ -654,7 +657,7 @@ process_qq_template(parsing_context& pc, ptr<environment> const& env,
     std::unique_ptr<syntax> tail;
     if (cp->last) {
       if (is_splice(cp->last->cdr))
-        throw make_error<std::runtime_error>(pc.ctx, "Invalid use of unquote-splicing");
+        throw error("Invalid use of unquote-splicing");
 
       if (is_splice(cp->last->car))
         tail = make_syntax<application_syntax>(make_internal_reference(pc.ctx, "append"),
@@ -752,7 +755,7 @@ parse(parsing_context& pc, ptr<environment> const& env, generic_ptr const& d) {
   generic_ptr datum = expand(pc.ctx, env, d);
 
   if (auto s = match<symbol>(datum))
-    return parse_reference(pc.ctx, env, s);
+    return parse_reference(env, s);
   else if (auto sc = match<syntactic_closure>(datum))
     return parse_syntactic_closure(pc, env, sc);
   else if (auto p = match<pair>(datum)) {
@@ -914,7 +917,7 @@ is_directive(generic_ptr const& datum, std::string const& directive) {
 }
 
 static module_name
-parse_module_name(context& ctx, generic_ptr const& datum) {
+parse_module_name(generic_ptr const& datum) {
   module_name result;
 
   for (generic_ptr elem : in_list{datum})
@@ -923,7 +926,7 @@ parse_module_name(context& ctx, generic_ptr const& datum) {
     else if (auto i = match<integer>(elem))
       result.push_back(std::to_string(i->value()));
     else
-      throw make_error<std::runtime_error>(ctx, "Invalid module name");;
+      throw error("Invalid module name");;
 
   return result;
 }
@@ -933,7 +936,7 @@ parse_module_name(context& ctx, generic_ptr const& datum) {
 // a list of the expanded top-level commands.
 static std::vector<generic_ptr>
 expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) {
-  action a(ctx, "expanding module top-level");
+  simple_action a(ctx, "expanding module top-level");
 
   std::vector<generic_ptr> stack;
   stack.reserve(data.size());
@@ -956,7 +959,7 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
         }
         else if (form == ctx.constants->define) {
           if (!is_list(p) || list_length(p) != 3)
-            throw make_error<std::runtime_error>(ctx, "Invalid define syntax");
+            throw error("Invalid define syntax");
 
           auto name = expect<symbol>(strip_syntactic_closures(cadr(p)),
                                      "Invalid define syntax");
@@ -989,7 +992,7 @@ expand_top_level(context& ctx, module& m, std::vector<generic_ptr> const& data) 
 static import_specifier
 parse_import_set(context& ctx, generic_ptr const& spec) {
   if (is<null_type>(spec) || !is_list(spec))
-    throw make_error<std::runtime_error>(ctx, "import: Expected a non-empty list");
+    throw error("import: Expected a non-empty list");
 
   auto p = assume<pair>(spec);
 
@@ -1025,7 +1028,7 @@ parse_import_set(context& ctx, generic_ptr const& spec) {
 
       for (generic_ptr name_pair : in_list{cddr(p)}) {
         if (list_length(name_pair) != 2)
-          throw make_error<std::runtime_error>(ctx, "import: rename: Expected a list of length 2");
+          throw error("import: rename: Expected a list of length 2");
 
         auto np = assume<pair>(name_pair);
 
@@ -1036,10 +1039,10 @@ parse_import_set(context& ctx, generic_ptr const& spec) {
       return import_specifier{std::move(result)};
     }
     else
-      return import_specifier{parse_module_name(ctx, p)};
+      return import_specifier{parse_module_name(p)};
   }
   else
-    return import_specifier{parse_module_name(ctx, p)};
+    return import_specifier{parse_module_name(p)};
 
   assert(!"Unreachable");
   throw std::logic_error{"Unreachable"};
@@ -1070,14 +1073,14 @@ read_main_module(context& ctx, std::vector<generic_ptr> const& data) {
 protomodule
 read_library(context& ctx, std::vector<generic_ptr> const& data) {
   if (data.empty())
-    throw make_error<std::runtime_error>(ctx, "Empty library body");
+    throw error("Empty library body");
 
   protomodule result;
   auto current = data.begin();
   if (is_directive(*current++, "library"))
-    result.name = parse_module_name(ctx, cadr(expect<pair>(data.front())));
+    result.name = parse_module_name(cadr(expect<pair>(data.front())));
   else
-    throw make_error<std::runtime_error>(ctx, "Missing library declaration");
+    throw error("Missing library declaration");
 
   while (true) {
     if (is_directive(*current, "import")) {
@@ -1108,7 +1111,7 @@ read_library_name(context& ctx, ptr<port> const& in) {
   try {
     generic_ptr first_datum = read(ctx, in);
     if (is_directive(first_datum, "library"))
-      return parse_module_name(ctx, cadr(assume<pair>(first_datum)));
+      return parse_module_name(cadr(assume<pair>(first_datum)));
 
     return {};
   }

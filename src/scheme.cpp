@@ -328,9 +328,9 @@ make_internal_module(context& ctx) {
     [] (context& ctx) { ctx.output_port->write_char('\n'); }
   );
 
-  define_top_level(ctx, result, "append", make<native_procedure>(ctx, append), true);
+  define_top_level(ctx, result, "append", make<native_procedure>(ctx, append, "append"), true);
   define_lambda<ptr<vector>(context&, generic_ptr const&)>(ctx, result, "list->vector", true, list_to_vector);
-  define_top_level(ctx, result, "vector-append", make<native_procedure>(ctx, vector_append), true);
+  define_top_level(ctx, result, "vector-append", make<native_procedure>(ctx, vector_append, "vector-append"), true);
 
   define_lambda<ptr<pair>(context&, generic_ptr const&, generic_ptr const&)>(
     ctx, result, "cons", true,
@@ -509,7 +509,7 @@ context::load_library_module(std::vector<generic_ptr> const& data) {
 
 static std::unique_ptr<module>
 instantiate(context& ctx, protomodule const& pm) {
-  action a(ctx, "analysing module ", pm.name ? module_name_to_string(*pm.name) : "<unknown>");
+  simple_action a(ctx, "analysing module ", pm.name ? module_name_to_string(*pm.name) : "<unknown>");
   auto result = std::make_unique<module>(ctx);
 
   perform_imports(ctx, *result, pm);
@@ -581,14 +581,18 @@ context::gc_callback() {
     statics_cache_.emplace(generic_ptr{store, object}, index);
 }
 
-action::action(context& ctx, generic_ptr const& irritant, std::string message)
-  : ctx_{ctx}
-{
-  ctx.actions.emplace_back(action_record{std::move(message), irritant});
-}
+simple_action::simple_action(context& ctx, generic_ptr const& irritant, std::string message)
+  : action{ctx}
+  , message_{std::move(message)}
+  , irritant_{irritant}
+{ }
 
-action::~action() {
-  ctx_.actions.pop_back();
+std::string
+simple_action::format() const {
+  if (irritant_)
+    return message_ + ": " + datum_to_string(ctx_, irritant_);
+  else
+    return message_;
 }
 
 string::string(string&& other)
@@ -955,10 +959,12 @@ box::box(generic_ptr const& value)
   : value_{value.get()}
 { }
 
-procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned num_args)
+procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned num_args,
+                     std::optional<std::string> name)
   : bytecode(std::move(bc))
   , locals_size{locals_size}
   , num_args{num_args}
+  , name{std::move(name)}
 { }
 
 closure::closure(ptr<insider::procedure> const& p, std::vector<generic_ptr> const& captures)

@@ -217,11 +217,6 @@ enum class special_top_level_tag {
   greater_than
 };
 
-struct action_record {
-  std::string message;
-  generic_ptr irritant;
-};
-
 // Evaluation context.
 class context {
 public:
@@ -249,7 +244,7 @@ public:
   ptr<port>                  output_port;
   module                     internal_module; // (insider internal)
   std::unordered_map<std::string, std::string> type_names;
-  std::vector<action_record> actions;
+  std::string                error_backtrace; // Built from actions during stack unwinding.
 
   context();
   ~context();
@@ -320,24 +315,63 @@ make(context& ctx, Args&&... args) {
 }
 
 // An action of the interpreter, used in error messages.
+template <typename Derived>
 class action {
 public:
-  template <typename... Args>
-  action(context& ctx, std::string format, Args&&... args)
-    : action(ctx, {}, fmt::format(format, std::forward<Args>(args)...))
-  { }
-  template <typename... Args>
-  action(context& ctx, generic_ptr const& irritant, std::string format, Args&&... args)
-    : action(ctx, irritant, fmt::format(format, std::forward<Args>(args)...))
-  { }
-  action(context&, generic_ptr const& irritant, std::string message);
+  explicit
+  action(context& ctx) : ctx_{ctx} { }
+
   action(action const&) = delete;
   void operator = (action const&) = delete;
-  ~action();
+
+protected:
+  context& ctx_;
+
+  void
+  check() {
+    if (std::uncaught_exceptions()) {
+      if (!ctx_.error_backtrace.empty())
+        ctx_.error_backtrace += '\n';
+      ctx_.error_backtrace += static_cast<Derived*>(this)->format();
+    }
+  }
+};
+
+// Action described by a string, possibly accompanied with a datum.
+class simple_action : public action<simple_action> {
+public:
+  template <typename... Args>
+  simple_action(context& ctx, std::string format, Args&&... args)
+    : simple_action(ctx, {}, fmt::format(format, std::forward<Args>(args)...))
+  { }
+
+  template <typename... Args>
+  simple_action(context& ctx, generic_ptr const& irritant, std::string format, Args&&... args)
+    : simple_action(ctx, irritant, fmt::format(format, std::forward<Args>(args)...))
+  { }
+
+  simple_action(context& ctx, generic_ptr const& irritant, std::string message);
+  ~simple_action() { check(); }
+
+  std::string
+  format() const;
 
 private:
-  context& ctx_;
+  std::string message_;
+  generic_ptr irritant_;
 };
+
+class error : public std::runtime_error {
+public:
+  // Format an error message using fmtlib and append the action stack to it.
+  template <typename... Args>
+  error(std::string const& fmt, Args&&... args)
+    : std::runtime_error{fmt::format(fmt, std::forward<Args>(args)...)}
+  { }
+};
+
+std::string
+format_error(context& ctx, std::runtime_error const&);
 
 // A boolean value.
 class boolean : public leaf_object<boolean> {
@@ -643,8 +677,10 @@ public:
   insider::bytecode bytecode;
   unsigned          locals_size;
   unsigned          num_args;
+  std::optional<std::string> name;
 
-  procedure(insider::bytecode bc, unsigned locals_size, unsigned num_args);
+  procedure(insider::bytecode bc, unsigned locals_size, unsigned num_args,
+            std::optional<std::string> name = {});
 };
 
 // A procedure plus a list of captured objects.
@@ -690,9 +726,13 @@ class native_procedure : public leaf_object<native_procedure> {
 public:
   using target_type = std::function<generic_ptr(context&, std::vector<generic_ptr> const&)>;
   target_type target;
+  std::optional<std::string> name;
 
   explicit
-  native_procedure(target_type f) : target{std::move(f)} { }
+  native_procedure(target_type f, std::optional<std::string> name = {})
+    : target{std::move(f)}
+    , name{std::move(name)}
+  { }
 };
 
 bool
@@ -801,9 +841,9 @@ is(generic_ptr const& x) {
   return object_type_index(x.get()) == T::type_index;
 }
 
-struct type_error : std::runtime_error {
+struct type_error : error {
   // TODO: Show the actual and expected types in the error message.
-  type_error() : std::runtime_error{"Invalid type"} { }
+  type_error() : error{"Invalid type"} { }
 };
 
 // Expect an object to be of given type and return the apropriate typed pointer

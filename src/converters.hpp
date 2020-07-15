@@ -133,7 +133,8 @@ namespace detail {
             return ctx.constants->void_;
           } else
             return to_scheme(ctx, f(ctx, from_scheme<Args>(ctx, args[Is])...));
-        }
+        },
+        name
       );
 
       define_top_level(ctx, m, name, proc, export_);
@@ -166,7 +167,8 @@ namespace detail {
             return ctx.constants->void_;
           } else
             return to_scheme(ctx, f(from_scheme<Args>(ctx, args[Is])...));
-        }
+        },
+        name
       );
 
       define_top_level(ctx, m, name, proc, export_);
