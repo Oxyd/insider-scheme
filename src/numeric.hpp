@@ -43,6 +43,7 @@ namespace detail {
 
   inline void
   assert_normal(integer_storage_type x) {
+    (void) x;
     assert(highest_storage_bit(x) == highest_value_bit(x));
   }
 }

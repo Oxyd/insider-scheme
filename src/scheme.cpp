@@ -156,7 +156,7 @@ module::find(std::string const& name) const -> std::optional<index_type> {
   if (std::shared_ptr<variable> var = env_->lookup(name))
     return var->global;
 
-  return {};
+  return std::nullopt;
 }
 
 void
