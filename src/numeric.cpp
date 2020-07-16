@@ -1098,6 +1098,70 @@ divide(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
   return {};
 }
 
+template <auto Small>
+generic_ptr
+bitwise_two(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  switch (find_common_type(lhs, rhs)) {
+  case common_type::small_integer: {
+    auto x = assume<integer>(lhs);
+    auto y = assume<integer>(rhs);
+    integer::storage_type value = Small(x, y);
+
+    if (detail::highest_storage_bit(value) != detail::highest_value_bit(value))
+      throw error{"Overflow in arithmetic-shift"};
+
+    return make<integer>(ctx, value);
+  }
+
+  default:
+    throw error{"Only fixnums are supported"};
+  }
+
+  assert(false);
+  return {};
+}
+
+static integer::storage_type
+arithmetic_shift_small(ptr<integer> const& x, ptr<integer> const& y) {
+  if (y->value() > 0)
+    return x->data() << y->value();
+  else
+    return x->data() >> -y->value();
+}
+
+static integer::storage_type
+bitwise_and_small(ptr<integer> const& x, ptr<integer> const& y) {
+  return x->data() & y->data();
+}
+
+static integer::storage_type
+bitwise_or_small(ptr<integer> const& x, ptr<integer> const& y) {
+  return x->data() | y->data();
+}
+
+generic_ptr
+arithmetic_shift(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  return bitwise_two<arithmetic_shift_small>(ctx, lhs, rhs);
+}
+
+generic_ptr
+bitwise_and(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  return bitwise_two<bitwise_and_small>(ctx, lhs, rhs);
+}
+
+generic_ptr
+bitwise_or(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+  return bitwise_two<bitwise_or_small>(ctx, lhs, rhs);
+}
+
+generic_ptr
+bitwise_not(context& ctx, generic_ptr const& x) {
+  if (auto value = match<integer>(x))
+    return make<integer>(ctx, ~value->data());
+  else
+    throw error{"Only fixnums are supported"};
+}
+
 using primitive_relational_type = ptr<boolean>(context&, generic_ptr const&, generic_ptr const&);
 
 template <primitive_relational_type* F>
@@ -1460,6 +1524,10 @@ export_numeric(context& ctx, module& result) {
   export_native(ctx, result, "<", less, special_top_level_tag::less_than);
   export_native(ctx, result, ">", greater, special_top_level_tag::greater_than);
   define_lambda<gcd>(ctx, result, "gcd", true);
+  define_lambda<arithmetic_shift>(ctx, result, "arithmetic-shift", true);
+  define_lambda<bitwise_and>(ctx, result, "bitwise-and", true);
+  define_lambda<bitwise_or>(ctx, result, "bitwise-or", true);
+  define_lambda<bitwise_not>(ctx, result, "bitwise-not", true);
 }
 
 } // namespace insider

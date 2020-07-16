@@ -245,6 +245,18 @@ quotient_remainder(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr
 divide(context&, generic_ptr const&, generic_ptr const&);
 
+generic_ptr
+arithmetic_shift(context&, generic_ptr const&, generic_ptr const&);
+
+generic_ptr
+bitwise_and(context&, generic_ptr const&, generic_ptr const&);
+
+generic_ptr
+bitwise_or(context&, generic_ptr const&, generic_ptr const&);
+
+generic_ptr
+bitwise_not(context&, generic_ptr const&);
+
 ptr<boolean>
 arith_equal(context&, generic_ptr const&, generic_ptr const&);
 generic_ptr

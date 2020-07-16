@@ -7,7 +7,7 @@
 (export sc-macro-transformer rsc-macro-transformer capture-syntactic-environment define
         let set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
         quote quasiquote unquote unquote-splicing expand-quote
-        + - * / = < > gcd
+        + - * / = < > gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         write-simple display newline append list->vector vector-append cons
         car cdr cadr caddr cadddr cddr cdddr
         make-syntactic-closure type eq? pair? symbol? null? not when unless)
