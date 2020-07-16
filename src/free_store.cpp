@@ -395,6 +395,11 @@ sweep_large(std::vector<std::unique_ptr<std::byte[]>>& space) {
 
 void
 free_store::collect_garbage() {
+  if (disable_level_ > 0) {
+    collection_requested_ = true;
+    return;
+  }
+
   trace(roots_);
   migrate_objects(nursery_fromspace_, nursery_tospace_);
   auto new_large = sweep_large(nursery_large_objects_);
@@ -413,6 +418,21 @@ free_store::collect_garbage() {
 
   assert(nursery_fromspace_.pages.size() >= nursery_min_pages);
   assert(nursery_tospace_.pages.size() >= nursery_min_pages);
+
+  collection_requested_ = false;
+}
+
+void
+free_store::disable_collection() {
+  ++disable_level_;
+}
+
+void
+free_store::enable_collection() {
+  --disable_level_;
+
+  if (disable_level_ == 0 && collection_requested_)
+    collect_garbage();
 }
 
 std::byte*

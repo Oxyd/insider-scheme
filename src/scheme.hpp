@@ -452,7 +452,7 @@ private:
 };
 
 ptr<string>
-make_string(context&, std::string const& value);
+make_string(context&, std::string_view value);
 
 // I/O port or a string port. Can be read or write, binary or text.
 class port : public leaf_object<port> {

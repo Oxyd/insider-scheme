@@ -368,6 +368,12 @@ public:
   void
   collect_garbage();
 
+  void
+  disable_collection();
+
+  void
+  enable_collection();
+
 private:
   space nursery_fromspace_;
   space nursery_tospace_;
@@ -377,6 +383,9 @@ private:
   std::unordered_set<generic_weak_ptr*> weak_roots_;
   std::vector<std::function<void()>> post_gc_callbacks_;
 
+  unsigned disable_level_ = 0;
+  bool collection_requested_ = false;
+
   // Allocate storage of the given payload size for an object of the given
   // type. size does not include the size of the header. The object is not
   // constructed in the storage.
@@ -385,6 +394,26 @@ private:
 
   void
   update_roots();
+};
+
+class disable_collection {
+public:
+  explicit
+  disable_collection(free_store& fs)
+    : fs_{fs}
+  {
+    fs_.disable_collection();
+  }
+
+  ~disable_collection() {
+    fs_.enable_collection();
+  }
+
+  disable_collection(disable_collection const&) = delete;
+  void operator = (disable_collection const&) = delete;
+
+private:
+  free_store& fs_;
 };
 
 } // namespace insider

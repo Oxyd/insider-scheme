@@ -442,7 +442,8 @@ make_internal_module(context& ctx) {
   define_lambda<ptr<vector>(context&, ptr<procedure> const&)>(
     ctx, result, "procedure-bytecode", true,
     [] (context& ctx, ptr<procedure> const& f) {
-      return make_list_from_vector(ctx, std::vector(f->bytecode),
+      disable_collection dc{ctx.store};
+      return make_list_from_vector(ctx, f->bytecode,
                                    [&] (instruction i) {
                                      return make<opaque_value<instruction>>(ctx, i);
                                    });
@@ -452,9 +453,10 @@ make_internal_module(context& ctx) {
   define_lambda<generic_ptr(context&, ptr<procedure> const&)>(
     ctx, result, "procedure-name", true,
     [] (context& ctx, ptr<procedure> const& f) -> generic_ptr {
+      disable_collection dc{ctx.store};
+
       if (f->name)
-        // make_string can cause collection, which would invalidate *f->name, so we have to make a copy here first.
-        return make_string(ctx, std::string(*f->name));
+        return make_string(ctx, *f->name);
       else
         return ctx.constants->f;
     }
@@ -524,6 +526,7 @@ make_internal_module(context& ctx) {
           }
         };
 
+        disable_collection dc{ctx.store};
         auto const& info = opcode_value_to_info[opcode->value()];
         return make_list(ctx,
                          make_string(ctx, info.mnemonic),
@@ -772,7 +775,7 @@ string::value() const {
 }
 
 ptr<string>
-make_string(context& ctx, std::string const& value) {
+make_string(context& ctx, std::string_view value) {
   auto result = make<string>(ctx, value.size());
 
   for (std::size_t i = 0; i < value.size(); ++i)
