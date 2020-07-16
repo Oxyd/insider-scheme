@@ -400,6 +400,14 @@ make_internal_module(context& ctx) {
   define_top_level(ctx, result, "append", make<native_procedure>(ctx, append, "append"), true);
   define_lambda<ptr<vector>(context&, generic_ptr const&)>(ctx, result, "list->vector", true, list_to_vector);
   define_top_level(ctx, result, "vector-append", make<native_procedure>(ctx, vector_append, "vector-append"), true);
+  define_lambda<ptr<integer>(context&, ptr<vector> const&)>(
+    ctx, result, "vector-length", true,
+    [] (context& ctx, ptr<vector> const& v) {
+      return make<integer>(ctx, v->size());
+    }
+  );
+  define_lambda<vector_ref>(ctx, result, "vector-ref", true);
+  define_lambda<vector_set>(ctx, result, "vector-set!", true);
 
   define_lambda<ptr<pair>(context&, generic_ptr const&, generic_ptr const&)>(
     ctx, result, "cons", true,
@@ -514,36 +522,23 @@ make_internal_module(context& ctx) {
     }
   );
 
-  define_lambda<generic_ptr(context&, ptr<integer> const& opcode)>(
-    ctx, result, "opcode-info", true,
-    [] (context& ctx, ptr<integer> const& opcode) -> generic_ptr {
-      if (opcode->value() < static_cast<integer::value_type>(opcode_value_to_info.size())) {
-        auto category_to_symbol = [&] (opcode_category cat) {
-          switch (cat) {
-          case opcode_category::none: return ctx.intern("none");
-          case opcode_category::register_: return ctx.intern("register");
-          case opcode_category::absolute: return ctx.intern("absolute");
-          case opcode_category::offset: return ctx.intern("offset");
-          default: assert(!"Unreachable"); return ctx.intern("invalid");
-          }
-        };
-
-        disable_collection dc{ctx.store};
-        auto const& info = opcode_value_to_info[opcode->value()];
-        return make_list(ctx,
-                         make_string(ctx, info.mnemonic),
-                         category_to_symbol(info.x),
-                         category_to_symbol(info.y),
-                         category_to_symbol(info.dest));
-      }
-      else
-        return ctx.constants->f;
+  std::vector<generic_ptr> opcodes;
+  auto category_to_symbol = [&] (opcode_category cat) {
+    switch (cat) {
+    case opcode_category::none: return ctx.intern("none");
+    case opcode_category::register_: return ctx.intern("register");
+    case opcode_category::absolute: return ctx.intern("absolute");
+    case opcode_category::offset: return ctx.intern("offset");
+    default: assert(!"Unreachable"); return ctx.intern("invalid");
     }
-  );
-
-  define_top_level(ctx, result, "number-of-opcodes",
-                   make<integer>(ctx, static_cast<integer::value_type>(opcode_value_to_info.size())),
-                   true);
+  };
+  for (auto const& info : opcode_value_to_info)
+    opcodes.emplace_back(make_list(ctx,
+                                   make_string(ctx, info.mnemonic),
+                                   category_to_symbol(info.x),
+                                   category_to_symbol(info.y),
+                                   category_to_symbol(info.dest)));
+  define_top_level(ctx, result, "opcodes", make_vector(ctx, opcodes), true);
 
   return result;
 }

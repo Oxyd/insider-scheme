@@ -8,13 +8,12 @@
         let set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
         quote quasiquote unquote unquote-splicing expand-quote
         + - * / = < > gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
-        write-simple display newline append list->vector vector-append cons
-        car cdr cadr caddr cadddr cddr cdddr
+        write-simple display newline append list->vector vector-append
+        vector-length vector-ref vector-set!
+        cons car cdr cadr caddr cadddr cddr cdddr
         string-length reverse
         make-syntactic-closure type eq? eqv? pair? symbol? null? not when unless cond case
-        or and
-        procedure-bytecode instruction-opcode instruction-operands operand-scope
-        operand-immediate-value operand-value)
+        or and)
 
 (begin-for-syntax
  (%define pair?

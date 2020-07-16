@@ -2,7 +2,7 @@
 (import (insider base-scheme)
         (only (insider internal)
               procedure-bytecode procedure-name instruction-opcode instruction-operands operand-scope
-              operand-value operand-immediate-value operand-offset opcode-info number-of-opcodes))
+              operand-value operand-immediate-value operand-offset opcodes))
 (export disassemble)
 
 (define indent "   ")
@@ -10,14 +10,17 @@
 (define longest-mnemonic
   (let loop ((i 0)
              (result 0))
-    (if (< i number-of-opcodes)
-        (let ((info (opcode-info i)))
+    (if (< i (vector-length opcodes))
+        (let ((info (vector-ref opcodes i)))
           (let ((length (string-length (car info))))
             (loop (+ i 1)
                   (if (> length result)
                       length
                       result))))
         result)))
+
+(define (opcode-info opcode)
+  (vector-ref opcodes opcode))
 
 (define (display-operand op category)
   (case category
