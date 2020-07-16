@@ -8,8 +8,9 @@
         let set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
         quote quasiquote unquote unquote-splicing expand-quote
         + - * / = < > gcd
-        write-simple newline append list->vector vector-append cons car cdr cadr caddr cadddr cddr cdddr
-        make-syntactic-closure type eq? pair? symbol? when)
+        write-simple display newline append list->vector vector-append cons
+        car cdr cadr caddr cadddr cddr cdddr
+        make-syntactic-closure type eq? pair? symbol? null? not when unless)
 
 (begin-for-syntax
  (%define pair?
@@ -87,6 +88,12 @@
            (%let ((body (cddr form)))
              `(,$let ,variable-or-bindings ,@body)))))))
 
+(define-syntax not
+  (sc-macro-transformer
+   (lambda (form env)
+     (let ((expr (close-syntax (cadr form) env)))
+       `(if ,expr #f #t)))))
+
 (define-syntax when
   (sc-macro-transformer
    (lambda (form env)
@@ -95,3 +102,16 @@
        `(if ,test
             (begin ,@body)
             #void)))))
+
+(define-syntax unless
+  (sc-macro-transformer
+   (lambda (form env)
+     (let ((test (close-syntax (cadr form) env))
+           (body (map (lambda (x) (close-syntax x env)) (cddr form))))
+       `(if ,test
+            #void
+            (begin ,@body))))))
+
+(define null?
+  (lambda (x)
+    (eq? x '())))
