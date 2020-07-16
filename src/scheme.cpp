@@ -385,6 +385,13 @@ make_internal_module(context& ctx) {
     }
   );
 
+  define_lambda<void(context&, generic_ptr const&)>(
+    ctx, result, "display", true,
+    [] (context& ctx, generic_ptr const& datum) {
+      display(ctx, datum, ctx.output_port);
+    }
+  );
+
   define_lambda<void(context&)>(
     ctx, result, "newline", true,
     [] (context& ctx) { ctx.output_port->write_char('\n'); }

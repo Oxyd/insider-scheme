@@ -495,7 +495,7 @@ write_char(ptr<character> const& c, ptr<port> const& out) {
 }
 
 static void
-write_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
+output_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out, bool display) {
   if (datum == ctx.constants->null)
     out->write_string("()");
   else if (datum == ctx.constants->void_)
@@ -506,11 +506,17 @@ write_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
     out->write_string("#f");
   else if (auto sym = match<symbol>(datum))
     out->write_string(sym->value());
-  else if (auto str = match<string>(datum))
-    write_string(str, out);
-  else if (auto c = match<character>(datum))
-    write_char(c, out);
-  else if (is_number(datum))
+  else if (auto str = match<string>(datum)) {
+    if (display)
+      out->write_string(str->value());
+    else
+      write_string(str, out);
+  } else if (auto c = match<character>(datum)) {
+    if (display)
+      out->write_char(c->value());
+    else
+      write_char(c, out);
+  } else if (is_number(datum))
     write_number(ctx, datum, out);
   else if (auto sc = match<syntactic_closure>(datum)) {
     out->write_string("#syntactic-closure(");
@@ -537,8 +543,8 @@ write_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
     out->write_string(typeid(*datum).name());
 }
 
-void
-write_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
+static void
+output_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out, bool display) {
   struct record {
     generic_ptr datum;
     std::size_t written = 0;
@@ -595,10 +601,20 @@ write_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
       stack.push_back({vector_ref(vec, index)});
     }
     else {
-      write_primitive(ctx, top.datum, out);
+      output_primitive(ctx, top.datum, out, display);
       stack.pop_back();
     }
   }
+}
+
+void
+write_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
+  output_simple(ctx, datum, out, false);
+}
+
+void
+display(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
+  output_simple(ctx, datum, out, true);
 }
 
 std::string
