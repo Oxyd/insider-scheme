@@ -334,7 +334,7 @@ migrate_objects(space const& from, space& to) {
         set_forwarding_address(o, nullptr);
 
       t.destroy(o);
-      std::uninitialized_fill_n(storage + sizeof(word_type), size, std::byte{0xA});
+      std::uninitialized_fill_n(storage + sizeof(word_type), size, std::byte{0xAA});
       i += size + sizeof(word_type);
     }
   }

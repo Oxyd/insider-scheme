@@ -3,7 +3,7 @@
 
 #include <array>
 #include <cstdint>
-#include <string_view>
+#include <string>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
@@ -103,24 +103,30 @@ enum class opcode : std::uint8_t {
   make_vector      // make-vector <number of elements> <> <destination>
 };
 
+enum class opcode_category {
+  none,
+  register_,
+  absolute,
+  offset
+};
+
 // Metainformation about an opcode. Used for decoding instructions.
 struct instruction_info {
-  std::string_view mnemonic;
+  std::string      mnemonic;
   insider::opcode  opcode{};
-  bool             has_x{};
-  bool             has_y{};
-  bool             has_dest{};
+  opcode_category  x = opcode_category::none;
+  opcode_category  y = opcode_category::none;
+  opcode_category  dest = opcode_category::none;
 
-  constexpr
   instruction_info() = default;
 
-  constexpr
-  instruction_info(std::string_view mnemonic, insider::opcode opcode, bool has_x, bool has_y, bool has_dest)
+  instruction_info(std::string_view mnemonic, insider::opcode opcode,
+                   opcode_category x, opcode_category y, opcode_category dest)
     : mnemonic{mnemonic}
     , opcode{opcode}
-    , has_x{has_x}
-    , has_y{has_y}
-    , has_dest{has_dest}
+    , x{x}
+    , y{y}
+    , dest{dest}
   { }
 };
 
@@ -129,9 +135,11 @@ struct instruction_info {
 // (for reading binary bytecode).
 
 namespace detail {
+  using info_tuple = std::tuple<char const*, opcode, opcode_category, opcode_category, opcode_category>;
+
   template <std::size_t N, std::size_t... Is>
   constexpr auto
-  make_opcodes(std::array<std::tuple<char const*, opcode, bool, bool, bool>, N> const& instructions,
+  make_opcodes(std::array<info_tuple, N> const& instructions,
                std::index_sequence<Is...>) {
     std::array<instruction_info, N> result{};
     ((result[static_cast<std::size_t>(std::get<1>(instructions[Is]))]
@@ -145,7 +153,7 @@ namespace detail {
 
   template <std::size_t N>
   constexpr auto
-  make_opcodes(std::array<std::tuple<char const*, opcode, bool, bool, bool>, N> const& instructions) {
+  make_opcodes(std::array<info_tuple, N> const& instructions) {
     return make_opcodes(instructions, std::make_index_sequence<N>{});
   }
 }
@@ -154,29 +162,34 @@ namespace detail {
 // the opcode enum. Opcode values are still given by the enum.
 constexpr std::array
 instructions{
-  //         mnemonic           opcode                   has_x  has_y  has_dest
-  std::tuple{"no-operation",    opcode::no_operation,    false, false, false},
-  std::tuple{"add",             opcode::add,             true,  true,  true},
-  std::tuple{"subtract",        opcode::subtract,        true,  true,  true},
-  std::tuple{"multiply",        opcode::multiply,        true,  true,  true},
-  std::tuple{"divide",          opcode::divide,          true,  true,  true},
-  std::tuple{"arith-equal",     opcode::arith_equal,     true,  true,  true},
-  std::tuple{"less-than",       opcode::less_than,       true,  true,  true},
-  std::tuple{"greater-than",    opcode::greater_than,    true,  true,  true},
-  std::tuple{"set",             opcode::set,             true,  false, true},
-  std::tuple{"call",            opcode::call,            true,  true,  true},
-  std::tuple{"tail-call",       opcode::tail_call,       true,  true,  false},
-  std::tuple{"ret",             opcode::ret,             true,  false, false},
-  std::tuple{"jump",            opcode::jump,            true,  false, false},
-  std::tuple{"jump-unless",     opcode::jump_unless,     true,  true,  false},
-  std::tuple{"data",            opcode::data,            true,  true,  true},
-  std::tuple{"make-closure",    opcode::make_closure,    true,  true,  true}
+  //         mnemonic           opcode                   x      y      dest
+  std::tuple{"no-operation",    opcode::no_operation,    opcode_category::none, opcode_category::none, opcode_category::none},
+  std::tuple{"add",             opcode::add,             opcode_category::register_, opcode_category::register_, opcode_category::register_},
+  std::tuple{"subtract",        opcode::subtract,        opcode_category::register_, opcode_category::register_, opcode_category::register_},
+  std::tuple{"multiply",        opcode::multiply,        opcode_category::register_, opcode_category::register_, opcode_category::register_},
+  std::tuple{"divide",          opcode::divide,          opcode_category::register_, opcode_category::register_, opcode_category::register_},
+  std::tuple{"arith-equal",     opcode::arith_equal,     opcode_category::register_, opcode_category::register_, opcode_category::register_},
+  std::tuple{"less-than",       opcode::less_than,       opcode_category::register_, opcode_category::register_, opcode_category::register_},
+  std::tuple{"greater-than",    opcode::greater_than,    opcode_category::register_, opcode_category::register_, opcode_category::register_},
+  std::tuple{"set!",            opcode::set,             opcode_category::register_, opcode_category::none, opcode_category::register_},
+  std::tuple{"call",            opcode::call,            opcode_category::register_, opcode_category::absolute, opcode_category::register_},
+  std::tuple{"tail-call",       opcode::tail_call,       opcode_category::register_, opcode_category::absolute, opcode_category::none},
+  std::tuple{"ret",             opcode::ret,             opcode_category::register_, opcode_category::none, opcode_category::none},
+  std::tuple{"jump",            opcode::jump,            opcode_category::offset, opcode_category::none, opcode_category::none},
+  std::tuple{"jump-unless",     opcode::jump_unless,     opcode_category::register_, opcode_category::offset, opcode_category::none},
+  std::tuple{"data",            opcode::data,            opcode_category::register_, opcode_category::register_, opcode_category::register_},
+  std::tuple{"make-closure",    opcode::make_closure,    opcode_category::register_, opcode_category::absolute, opcode_category::register_},
+  std::tuple{"box",             opcode::box,             opcode_category::register_, opcode_category::none, opcode_category::register_},
+  std::tuple{"unbox",           opcode::unbox,           opcode_category::register_, opcode_category::none, opcode_category::register_},
+  std::tuple{"box-set!",        opcode::box_set,         opcode_category::register_, opcode_category::register_, opcode_category::none},
+  std::tuple{"cons",            opcode::cons,            opcode_category::register_, opcode_category::register_, opcode_category::register_},
+  std::tuple{"make-vector",     opcode::make_vector,     opcode_category::absolute, opcode_category::none, opcode_category::register_},
 };
 
-constexpr auto // std::array<instruction_info, N>
+inline auto // std::array<instruction_info, N>
 opcode_value_to_info = detail::make_opcodes(instructions);
 
-constexpr auto
+inline auto
 opcode_to_info(opcode oc) { return opcode_value_to_info[static_cast<std::size_t>(oc)]; }
 
 instruction_info

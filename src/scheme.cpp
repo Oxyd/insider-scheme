@@ -415,6 +415,13 @@ make_internal_module(context& ctx) {
   define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cddr", true, cddr);
   define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cdddr", true, cdddr);
 
+  define_lambda<ptr<integer>(context&, ptr<string> const&)>(
+    ctx, result, "string-length", true,
+    [] (context& ctx, ptr<string> const& s) {
+      return make<integer>(ctx, s->size());
+    }
+  );
+
   define_lambda<ptr<syntactic_closure>(context&, ptr<environment> const&,
                                        generic_ptr const&, generic_ptr const&)>(
     ctx, result, "make-syntactic-closure", true,
@@ -431,6 +438,107 @@ make_internal_module(context& ctx) {
       return x == y ? ctx.constants->t : ctx.constants->f;
     }
   );
+
+  define_lambda<ptr<vector>(context&, ptr<procedure> const&)>(
+    ctx, result, "procedure-bytecode", true,
+    [] (context& ctx, ptr<procedure> const& f) {
+      return make_list_from_vector(ctx, std::vector(f->bytecode),
+                                   [&] (instruction i) {
+                                     return make<opaque_value<instruction>>(ctx, i);
+                                   });
+    }
+  );
+
+  define_lambda<generic_ptr(context&, ptr<procedure> const&)>(
+    ctx, result, "procedure-name", true,
+    [] (context& ctx, ptr<procedure> const& f) -> generic_ptr {
+      if (f->name)
+        // make_string can cause collection, which would invalidate *f->name, so we have to make a copy here first.
+        return make_string(ctx, std::string(*f->name));
+      else
+        return ctx.constants->f;
+    }
+  );
+
+  define_lambda<ptr<integer>(ptr<opaque_value<instruction>> const&)>(
+    ctx, result, "instruction-opcode", true,
+    [] (ptr<opaque_value<instruction>> const& i) { return static_cast<integer::storage_type>(i->value.opcode); }
+  );
+
+  define_lambda<generic_ptr(context&, ptr<opaque_value<instruction>> const&)>(
+    ctx, result, "instruction-operands", true,
+    [] (context& ctx, ptr<opaque_value<instruction>> const& i) {
+      instruction instr = i->value;
+      return make_list(ctx,
+                       make<opaque_value<operand>>(ctx, instr.x),
+                       make<opaque_value<operand>>(ctx, instr.y),
+                       make<opaque_value<operand>>(ctx, instr.dest));
+    }
+  );
+
+  define_lambda<ptr<symbol>(context&, ptr<opaque_value<operand>> const&)>(
+    ctx, result, "operand-scope", true,
+    [] (context& ctx, ptr<opaque_value<operand>> const& o) {
+      switch (o->value.scope()) {
+      case operand::scope_type::local: return ctx.intern("local");
+      case operand::scope_type::global: return ctx.intern("global");
+      case operand::scope_type::static_: return ctx.intern("static");
+      case operand::scope_type::closure: return ctx.intern("closure");
+      default: assert(!"Unreachable"); return ctx.intern("invalid");
+      }
+    }
+  );
+
+  define_lambda<generic_ptr(context&, ptr<opaque_value<operand>> const&)>(
+    ctx, result, "operand-value", true,
+    [] (context& ctx, ptr<opaque_value<operand>> const& o) {
+      return make<integer>(ctx, static_cast<integer::storage_type>(o->value.value()));
+    }
+  );
+
+  define_lambda<generic_ptr(context&, ptr<opaque_value<operand>> const&)>(
+    ctx, result, "operand-immediate-value", true,
+    [] (context& ctx, ptr<opaque_value<operand>> const& o) {
+      return make<integer>(ctx, static_cast<integer::storage_type>(o->value.immediate_value()));
+    }
+  );
+
+  define_lambda<generic_ptr(context&, ptr<opaque_value<operand>> const&)>(
+    ctx, result, "operand-offset", true,
+    [] (context& ctx, ptr<opaque_value<operand>> const& o) {
+      return make<integer>(ctx, static_cast<integer::storage_type>(o->value.offset()));
+    }
+  );
+
+  define_lambda<generic_ptr(context&, ptr<integer> const& opcode)>(
+    ctx, result, "opcode-info", true,
+    [] (context& ctx, ptr<integer> const& opcode) -> generic_ptr {
+      if (opcode->value() < static_cast<integer::value_type>(opcode_value_to_info.size())) {
+        auto category_to_symbol = [&] (opcode_category cat) {
+          switch (cat) {
+          case opcode_category::none: return ctx.intern("none");
+          case opcode_category::register_: return ctx.intern("register");
+          case opcode_category::absolute: return ctx.intern("absolute");
+          case opcode_category::offset: return ctx.intern("offset");
+          default: assert(!"Unreachable"); return ctx.intern("invalid");
+          }
+        };
+
+        auto const& info = opcode_value_to_info[opcode->value()];
+        return make_list(ctx,
+                         make_string(ctx, info.mnemonic),
+                         category_to_symbol(info.x),
+                         category_to_symbol(info.y),
+                         category_to_symbol(info.dest));
+      }
+      else
+        return ctx.constants->f;
+    }
+  );
+
+  define_top_level(ctx, result, "number-of-opcodes",
+                   make<integer>(ctx, static_cast<integer::value_type>(opcode_value_to_info.size())),
+                   true);
 
   return result;
 }
@@ -848,16 +956,6 @@ cddr(ptr<pair> const& x) {
 generic_ptr
 cdddr(ptr<pair> const& x) {
   return cdr(expect<pair>(cddr(x)));
-}
-
-generic_ptr
-make_list_from_vector(context& ctx, std::vector<generic_ptr> const& values) {
-  generic_ptr head = ctx.constants->null;
-
-  for (auto elem = values.rbegin(); elem != values.rend(); ++elem)
-    head = cons(ctx, *elem, head);
-
-  return head;
 }
 
 generic_ptr

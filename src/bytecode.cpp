@@ -14,7 +14,7 @@ instruction::instruction(std::string_view mnemonic, operand x, operand y, operan
 namespace {
   template <std::size_t N, std::size_t... Is>
   std::unordered_map<std::string_view, instruction_info>
-  make_mnemonics(std::array<std::tuple<char const*, opcode, bool, bool, bool>, N> const& instructions,
+  make_mnemonics(std::array<detail::info_tuple, N> const& instructions,
                  std::index_sequence<Is...>) {
     return {
       {std::get<0>(instructions[Is]),
@@ -28,7 +28,7 @@ namespace {
 
   template <std::size_t N>
   std::unordered_map<std::string_view, instruction_info>
-  make_mnemonics(std::array<std::tuple<char const*, opcode, bool, bool, bool>, N> const& instructions) {
+  make_mnemonics(std::array<detail::info_tuple, N> const& instructions) {
     return make_mnemonics(instructions, std::make_index_sequence<N>{});
   }
 }

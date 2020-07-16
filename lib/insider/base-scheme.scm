@@ -10,7 +10,10 @@
         + - * / = < > gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         write-simple display newline append list->vector vector-append cons
         car cdr cadr caddr cadddr cddr cdddr
-        make-syntactic-closure type eq? pair? symbol? null? not when unless)
+        string-length
+        make-syntactic-closure type eq? pair? symbol? null? not when unless cond
+        procedure-bytecode instruction-opcode instruction-operands operand-scope
+        operand-immediate-value operand-value)
 
 (begin-for-syntax
  (%define pair?
@@ -25,6 +28,10 @@
    (lambda (form env)
      (make-syntactic-closure env '() form)))
 
+ (%define close-list
+   (lambda (lst env)
+     (map (lambda (x) (close-syntax x env)) lst)))
+
  (%define map
    (lambda (f list)
      (%define go
@@ -32,7 +39,15 @@
          (if (eq? p '())
              '()
              (cons (f (car p)) (go (cdr p))))))
-     (go list))))
+     (go list)))
+
+ (%define not
+   (lambda (x)
+     (eq? x #f)))
+
+ (%define null?
+  (lambda (x)
+    (eq? x '()))))
 
 (define-syntax sc-macro-transformer
   (lambda (form transformer-env usage-env)
@@ -88,17 +103,11 @@
            (%let ((body (cddr form)))
              `(,$let ,variable-or-bindings ,@body)))))))
 
-(define-syntax not
-  (sc-macro-transformer
-   (lambda (form env)
-     (let ((expr (close-syntax (cadr form) env)))
-       `(if ,expr #f #t)))))
-
 (define-syntax when
   (sc-macro-transformer
    (lambda (form env)
      (let ((test (close-syntax (cadr form) env))
-           (body (map (lambda (x) (close-syntax x env)) (cddr form))))
+           (body (close-list (cddr form) env)))
        `(if ,test
             (begin ,@body)
             #void)))))
@@ -107,11 +116,23 @@
   (sc-macro-transformer
    (lambda (form env)
      (let ((test (close-syntax (cadr form) env))
-           (body (map (lambda (x) (close-syntax x env)) (cddr form))))
+           (body (close-list (cddr form) env)))
        `(if ,test
             #void
             (begin ,@body))))))
 
-(define null?
-  (lambda (x)
-    (eq? x '())))
+(define-syntax cond
+  (rsc-macro-transformer
+   (lambda (form env)
+     (if (not (null? (cdr form)))
+         (let ((first-clause (cadr form))
+               (rest (cddr form)))
+           (let ((check (car first-clause))
+                 (body (cdr first-clause) env)
+                 ($if (close-syntax 'if env))
+                 ($begin (close-syntax 'begin env))
+                 ($cond (close-syntax 'cond env)))
+             `(,$if ,check
+                  (,$begin ,@body)
+                  (,$cond ,@rest))))
+         #void))))

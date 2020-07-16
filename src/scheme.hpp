@@ -588,8 +588,21 @@ make_list(context& ctx, Ts... ts) {
   return result;
 }
 
+template <typename T, typename Converter>
 generic_ptr
-make_list_from_vector(context&, std::vector<generic_ptr> const& values);
+make_list_from_vector(context& ctx, std::vector<T> const& values, Converter const& convert) {
+  generic_ptr head = ctx.constants->null;
+
+  for (auto elem = values.rbegin(); elem != values.rend(); ++elem)
+    head = cons(ctx, convert(*elem), head);
+
+  return head;
+}
+
+inline generic_ptr
+make_list_from_vector(context& ctx, std::vector<generic_ptr> const& values) {
+  return make_list_from_vector(ctx, values, [] (generic_ptr const& x) { return x; });
+}
 
 // Concatenate a number of lists. If there are 0 lists, return the empty
 // list. If there is 1 list, return it. Otherwise, return a new list whose
