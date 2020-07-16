@@ -430,6 +430,33 @@ make_internal_module(context& ctx) {
     }
   );
 
+  define_top_level(ctx, result, "string-append",
+                   make<native_procedure>(ctx,
+                                          [] (context& ctx, std::vector<generic_ptr> const& args) {
+                                            std::string result;
+                                            for (generic_ptr const& s : args)
+                                              result += expect<string>(s)->value();
+                                            return make_string(ctx, result);
+                                          },
+                                          "string-append"),
+                   true);
+
+  define_lambda<ptr<string>(context&, generic_ptr const&)>(
+    ctx, result, "number->string", true,
+    [] (context& ctx, generic_ptr const& num) {
+      if (!is_number(num))
+        throw error{"Not a number: {}", datum_to_string(ctx, num)};
+      return datum_to_string(ctx, num);
+    }
+  );
+
+  define_lambda<ptr<string>(context&, generic_ptr const&)>(
+    ctx, result, "datum->string", true,
+    [] (context& ctx, generic_ptr const& datum) {
+      return datum_to_string(ctx, datum);
+    }
+  );
+
   define_lambda<ptr<syntactic_closure>(context&, ptr<environment> const&,
                                        generic_ptr const&, generic_ptr const&)>(
     ctx, result, "make-syntactic-closure", true,
@@ -540,6 +567,24 @@ make_internal_module(context& ctx) {
                                    category_to_symbol(info.dest)));
   define_top_level(ctx, result, "opcodes", make_vector(ctx, opcodes), true);
 
+  define_lambda<ptr<string>(context&, ptr<opaque_value<operand>> const&)>(
+    ctx, result, "top-level-name", true,
+    [] (context& ctx, ptr<opaque_value<operand>> const& op) {
+      if (op->value.scope() != operand::scope_type::global)
+        throw error{"Operand scope is not global"};
+      return make_string(ctx, ctx.get_top_level_name(op->value.value()));
+    }
+  );
+
+  define_lambda<generic_ptr(context&, ptr<opaque_value<operand>> const&)>(
+    ctx, result, "static-value", true,
+    [] (context& ctx, ptr<opaque_value<operand>> const& op) {
+      if (op->value.scope() != operand::scope_type::static_)
+        throw error{"Operand scope is not static"};
+      return ctx.get_static(op->value.value());
+    }
+  );
+
   return result;
 }
 
@@ -645,6 +690,14 @@ context::add_top_level(generic_ptr const& x, std::string name) {
   top_level_objects_.push_back(x);
   top_level_binding_names_.emplace_back(std::move(name));
   return top_level_objects_.size() - 1;
+}
+
+std::string
+context::get_top_level_name(operand::representation_type i) const {
+  if (i < top_level_binding_names_.size())
+    return top_level_binding_names_[i];
+  else
+    throw error{"Invalid global operand {}", i};
 }
 
 void

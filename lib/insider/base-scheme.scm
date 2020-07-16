@@ -11,7 +11,8 @@
         write-simple display newline append list->vector vector-append
         vector-length vector-ref vector-set!
         cons car cdr cadr caddr cadddr cddr cdddr
-        string-length reverse
+        string-length string-append number->string datum->string
+        reverse map filter identity
         make-syntactic-closure type eq? eqv? pair? symbol? null? not when unless cond case
         or and)
 
@@ -187,3 +188,17 @@
                                                 cases))
                                      ,@(close-list exprs env))
                                    accum))))))))))))
+
+(define (filter pred list)
+  (reverse
+   (let loop ((l list)
+              (accum '()))
+     (if (null? l)
+         accum
+         (loop (cdr l)
+               (if (pred (car l))
+                   (cons (car l) accum)
+                   accum))))))
+
+(define (identity x)
+  x)

@@ -2,7 +2,7 @@
 (import (insider base-scheme)
         (only (insider internal)
               procedure-bytecode procedure-name instruction-opcode instruction-operands operand-scope
-              operand-value operand-immediate-value operand-offset opcodes))
+              operand-value operand-immediate-value operand-offset opcodes top-level-name static-value))
 (export disassemble)
 
 (define indent "   ")
@@ -45,6 +45,26 @@
          (display "+"))
        (display (operand-offset op))))))
 
+(define (register-comment op)
+  (case (operand-scope op)
+    ((global) (string-append "G" (number->string (operand-value op)) "=" (top-level-name op)))
+    ((static) (string-append "S" (number->string (operand-value op)) "=" (datum->string (static-value op))))
+    ((closure local) #f)))
+
+(define (register-comments instr info)
+  (let loop ((operands (instruction-operands instr))
+             (categories (cdr info))
+             (accum '()))
+    (if (null? operands)
+        (reverse accum)
+        (loop
+         (cdr operands)
+         (cdr categories)
+         (if (eq? (car categories) 'register)
+             (let ((comment (register-comment (car operands))))
+               (if comment (cons comment accum) accum))
+             accum)))))
+
 (define (display-mnemonic mnemonic)
   (let ((len (string-length mnemonic)))
     (display mnemonic)
@@ -58,12 +78,22 @@
     (display indent)
     (display-mnemonic (car info))
     (display #\space)
+
     (let loop ((op (instruction-operands instr))
                (category (cdr info)))
       (display-operand (car op) (car category))
       (unless (null? (cdr op))
         (display ", ")
-        (loop (cdr op) (cdr category))))))
+        (loop (cdr op) (cdr category))))
+
+    (let ((comments (register-comments instr info)))
+      (unless (null? comments)
+        (display "  ; ")
+        (let loop ((comments comments))
+          (display (car comments))
+          (unless (null? (cdr comments))
+            (display ", ")
+            (loop (cdr comments))))))))
 
 (define (disassemble f)
   (display (let ((name (procedure-name f)))
@@ -76,3 +106,4 @@
       (newline)
       (loop (cdr instr)))))
 
+(disassemble display-operand)

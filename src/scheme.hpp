@@ -293,6 +293,9 @@ public:
   operand::representation_type
   add_top_level(generic_ptr const&, std::string name);
 
+  std::string
+  get_top_level_name(operand::representation_type) const;
+
   void
   tag_top_level(operand::representation_type, special_top_level_tag);
 
