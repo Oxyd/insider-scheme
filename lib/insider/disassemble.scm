@@ -105,5 +105,3 @@
       (display-instruction (car instr))
       (newline)
       (loop (cdr instr)))))
-
-(disassemble display-operand)
