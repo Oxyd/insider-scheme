@@ -10,8 +10,9 @@
         + - * / = < > gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         write-simple display newline append list->vector vector-append cons
         car cdr cadr caddr cadddr cddr cdddr
-        string-length
-        make-syntactic-closure type eq? pair? symbol? null? not when unless cond
+        string-length reverse
+        make-syntactic-closure type eq? eqv? pair? symbol? null? not when unless cond case
+        or and
         procedure-bytecode instruction-opcode instruction-operands operand-scope
         operand-immediate-value operand-value)
 
@@ -32,11 +33,15 @@
    (lambda (lst env)
      (map (lambda (x) (close-syntax x env)) lst)))
 
+ (%define null?
+          (lambda (x)
+            (eq? x '())))
+
  (%define map
    (lambda (f list)
      (%define go
        (lambda (p)
-         (if (eq? p '())
+         (if (null? p)
              '()
              (cons (f (car p)) (go (cdr p))))))
      (go list)))
@@ -45,9 +50,14 @@
    (lambda (x)
      (eq? x #f)))
 
- (%define null?
-  (lambda (x)
-    (eq? x '()))))
+ (%define reverse
+   (lambda (lst)
+     (%define loop
+       (lambda (lst accum)
+         (if (null? lst)
+             accum
+             (loop (cdr lst) (cons (car lst) accum)))))
+     (loop lst '()))))
 
 (define-syntax sc-macro-transformer
   (lambda (form transformer-env usage-env)
@@ -136,3 +146,45 @@
                   (,$begin ,@body)
                   (,$cond ,@rest))))
          #void))))
+
+(define-syntax or
+  (sc-macro-transformer
+   (lambda (form env)
+     (let ((first (cadr form))
+           (rest (cddr form)))
+       (if (null? rest)
+           (close-syntax first env)
+           `(let ((e ,(close-syntax first env)))
+              (if e e ,(close-syntax `(or ,@rest) env))))))))
+
+(define-syntax and
+  (sc-macro-transformer
+   (lambda (form env)
+     (let ((first (cadr form))
+           (rest (cddr form)))
+       (if (null? rest)
+           (close-syntax first env)
+           `(if ,(close-syntax first env)
+                ,(close-syntax `(and ,@rest) env)
+                #f))))))
+
+(define-syntax case
+  (sc-macro-transformer
+   (lambda (form env)
+     (let ((test-expr (close-syntax (cadr form) env))
+           (clauses (cddr form)))
+       `(let ((test-value ,test-expr))
+          (cond
+           ,@(let loop ((clauses clauses)
+                        (accum '()))
+               (if (null? clauses)
+                   (reverse accum)
+                   (let ((clause (car clauses))
+                         (rest (cdr clauses)))
+                     (let ((cases (car clause))
+                           (exprs (cdr clause)))
+                       (loop rest
+                             (cons `((or ,@(map (lambda (c) `(eqv? test-value ',c))
+                                                cases))
+                                     ,@(close-list exprs env))
+                                   accum))))))))))))

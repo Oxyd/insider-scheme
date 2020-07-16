@@ -33,9 +33,15 @@ struct to_scheme_converter<ptr<T>> {
 };
 
 template <typename T>
-struct to_scheme_converter<T, std::enable_if_t<std::is_integral_v<T>>> {
+struct to_scheme_converter<T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>> {
   static generic_ptr
   convert(context& ctx, T t) { return make<integer>(ctx, t); }
+};
+
+template <>
+struct to_scheme_converter<bool> {
+  static generic_ptr
+  convert(context& ctx, bool b) { return b ? ctx.constants->t : ctx.constants->f; }
 };
 
 template <>

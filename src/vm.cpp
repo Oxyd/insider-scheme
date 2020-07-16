@@ -231,7 +231,9 @@ execute_one(execution_state& state) {
     if (auto scheme_proc = match<procedure>(call_target)) {
       if (num_args != scheme_proc->num_args)
         // TODO: Print the function name
-        throw std::runtime_error{"Wrong number of arguments in function call"};
+        throw error{"{}: Wrong number of arguments, expected {}, got {}",
+                    scheme_proc->name ? *scheme_proc->name : "<lambda>",
+                    scheme_proc->num_args, num_args};
 
       if (instr.opcode == opcode::tail_call)
         state.current_frame = frame->parent(state.ctx.store);
