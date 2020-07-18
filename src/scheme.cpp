@@ -441,6 +441,12 @@ make_internal_module(context& ctx) {
       return make<integer>(ctx, v->size());
     }
   );
+  define_lambda<ptr<vector>(context&, std::size_t)>(
+    ctx, result, "make-vector", true,
+    [] (context& ctx, std::size_t len) {
+      return make<vector>(ctx, len);
+    }
+  );
   define_lambda<vector_ref>(ctx, result, "vector-ref", true);
   define_lambda<vector_set>(ctx, result, "vector-set!", true);
 
