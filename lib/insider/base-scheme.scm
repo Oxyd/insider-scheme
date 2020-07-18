@@ -7,7 +7,7 @@
 (export sc-macro-transformer rsc-macro-transformer capture-syntactic-environment define
         let set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
         quote quasiquote unquote unquote-splicing expand-quote syntax-trap
-        + - * / = < > gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
+        + - * / = < > >= <= gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         write-simple display newline append list->vector vector-append
         make-vector vector-length vector-ref vector-set!
         cons car cdr cadr caddr cadddr cddr cdddr
@@ -242,3 +242,9 @@
 
 (define (identity x)
   x)
+
+(define (>= x y)
+  (or (> x y) (= x y)))
+
+(define (<= x y)
+  (or (< x y) (= x y)))
