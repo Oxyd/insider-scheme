@@ -9,7 +9,7 @@
         quote quasiquote unquote unquote-splicing expand-quote syntax-trap
         + - * / = < > gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         write-simple display newline append list->vector vector-append
-        vector-length vector-ref vector-set!
+        make-vector vector-length vector-ref vector-set!
         cons car cdr cadr caddr cadddr cddr cdddr
         string-length string-append number->string datum->string
         reverse map filter identity
@@ -223,7 +223,11 @@
                   (,$begin ,@result-exprs)
                   (,$begin
                    ,@body
-                   (,loop ,@(map caddr bindings))))))))))
+                   (,loop ,@(map (lambda (binding)
+                                   (if (null? (cddr binding))
+                                       (car binding)
+                                       (caddr binding)))
+                                 bindings))))))))))
 
 (define (filter pred list)
   (reverse
