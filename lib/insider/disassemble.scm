@@ -68,10 +68,9 @@
 (define (display-mnemonic mnemonic)
   (let ((len (string-length mnemonic)))
     (display mnemonic)
-    (let loop ((i (- longest-mnemonic len)))
-      (when (> i 0)
-        (display " ")
-        (loop (- i 1))))))
+    (do ((i 0 (+ i 1)))
+        ((= i (- longest-mnemonic len)))
+      (display " "))))
 
 (define (display-instruction instr)
   (let ((info (opcode-info (instruction-opcode instr))))
