@@ -121,8 +121,8 @@ detail::demangle(char const* name) {
 void
 tracing_context::trace(object* o) {
   if (o && object_color(o) == color::white) {
-    assert(object_type_index(o) < types().size());
     assert(is_alive(o));
+    assert(object_type_index(o) < types().size());
 
     set_object_color(o, color::black);
     stack_.push_back(o);
@@ -354,6 +354,14 @@ update_references(space const& s) {
 }
 
 static void
+update_references(large_space const& space) {
+  for (auto const& storage : space) {
+    object* o = reinterpret_cast<object*>(storage.get() + sizeof(word_type));
+    object_type(o).update_references(o);
+  }
+}
+
+static void
 trim_space(space& s) {
   std::size_t new_size = std::max(nursery_min_pages,
                                   s.pages.size() - std::count_if(s.pages.begin(), s.pages.end(),
@@ -369,8 +377,8 @@ clear_space(space& s) {
   s.current = 0;
 }
 
-static std::vector<std::unique_ptr<std::byte[]>>
-sweep_large(std::vector<std::unique_ptr<std::byte[]>>& space) {
+static large_space
+sweep_large(large_space& space) {
   std::size_t survivors = 0;
   for (auto& storage : space) {
     object* o = reinterpret_cast<object*>(storage.get() + sizeof(word_type));
@@ -405,6 +413,7 @@ free_store::collect_garbage() {
   auto new_large = sweep_large(nursery_large_objects_);
 
   update_references(nursery_tospace_);
+  update_references(new_large);
   update_roots();
 
   clear_space(nursery_fromspace_);

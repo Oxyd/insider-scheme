@@ -316,6 +316,8 @@ struct space {
   std::size_t       current = 0;
 };
 
+using large_space = std::vector<std::unique_ptr<std::byte[]>>;
+
 // Garbage-collected storage for Scheme objects.
 class free_store {
 public:
@@ -377,7 +379,7 @@ public:
 private:
   space nursery_fromspace_;
   space nursery_tospace_;
-  std::vector<std::unique_ptr<std::byte[]>> nursery_large_objects_;
+  large_space nursery_large_objects_;
 
   std::unordered_set<generic_ptr*> roots_;
   std::unordered_set<generic_weak_ptr*> weak_roots_;
