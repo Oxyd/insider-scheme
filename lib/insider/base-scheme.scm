@@ -14,8 +14,8 @@
         string-length string-append number->string datum->string
         reverse map filter identity
         make-syntactic-closure syntactic-closure-expression syntactic-closure-environment
-        type eq? eqv? pair? symbol? null? not when unless cond case
-        or and)
+        type eq? eqv? pair? symbol? syntactic-closure? identifier? null? not when unless cond case
+        do or and)
 
 (begin-for-syntax
  (%define pair?
@@ -47,8 +47,8 @@
      (map (lambda (x) (close-syntax x env)) lst)))
 
  (%define null?
-          (lambda (x)
-            (eq? x '())))
+   (lambda (x)
+     (eq? x '())))
 
  (%define map
    (lambda (f list)
@@ -201,6 +201,29 @@
                                                 cases))
                                      ,@(close-list exprs env))
                                    accum))))))))))))
+
+(define-syntax do
+  (rsc-macro-transformer
+   (lambda (form env)
+     (let ((bindings (cadr form))
+           (test (car (caddr form)))
+           (result-exprs (cdr (caddr form)))
+           (body (cdddr form))
+           ($let (close-syntax 'let env))
+           ($if (close-syntax 'if env))
+           ($begin (close-syntax 'begin env))
+           ($set! (close-syntax 'set env))
+           ($lambda (close-syntax 'lambda env))
+           (loop (close-syntax 'loop env)))
+       (let ((bound-names (map car bindings)))
+         `(,$let ,loop ,(map (lambda (binding)
+                              `(,(car binding) ,(cadr binding)))
+                             bindings)
+            (,$if ,test
+                  (,$begin ,@result-exprs)
+                  (,$begin
+                   ,@body
+                   (,loop ,@(map caddr bindings))))))))))
 
 (define (filter pred list)
   (reverse

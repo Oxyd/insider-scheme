@@ -77,6 +77,8 @@ main(int argc, char** argv) {
 
     auto in = insider::make<insider::port>(ctx, f, true, false);
     auto mod = insider::compile_main_module(ctx, insider::read_multiple(ctx, in));
+
+    insider::simple_action a{ctx, "Executing program"};
     insider::execute(ctx, mod);
     return 0;
   }

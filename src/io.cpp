@@ -540,7 +540,7 @@ output_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out, b
   } else if (auto env = match<environment>(datum)) {
     out->write_string(fmt::format("#env@{}", static_cast<void*>(env.get())));
   } else
-    out->write_string(object_type_name(datum.get()));
+    out->write_string(fmt::format("<{}>", object_type_name(datum.get())));
 }
 
 static void
