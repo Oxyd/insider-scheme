@@ -67,33 +67,41 @@ class procedure;
 class symbol;
 class transformer;
 
+bool
+is_identifier(generic_ptr const&);
+
+std::string
+identifier_name(generic_ptr const& x);
+
 class environment : public composite_object<environment> {
 public:
+  using value_type = std::variant<std::shared_ptr<variable>, ptr<transformer>>;
+
   explicit
   environment(ptr<environment> const& parent)
     : parent_{parent.get()}
   { }
 
   void
-  add(std::string const& name, std::shared_ptr<variable>);
+  add(generic_ptr const& identifier, std::shared_ptr<variable>);
 
   void
-  add_transformer(std::string const& name, ptr<transformer> const&);
+  add(generic_ptr const& identifier, ptr<transformer> const&);
+
+  void
+  add(generic_ptr const& identifier, value_type const&);
 
   ptr<environment>
   parent(free_store& fs) const { return {fs, parent_}; }
 
-  std::shared_ptr<variable>
-  lookup(std::string const&) const;
-
-  ptr<transformer>
-  lookup_transformer(free_store&, std::string const& name) const;
+  std::optional<value_type>
+  lookup(free_store&, generic_ptr const& identifier) const;
 
   bool
-  has(std::string const& name) const { return bindings_.count(name); }
+  has(generic_ptr const& identifier) const { return bindings_.count(identifier.get()); }
 
   std::vector<std::string>
-  bound_names() const;
+  bound_names(free_store& fs) const;
 
   void
   trace(tracing_context& tc);
@@ -102,18 +110,23 @@ public:
   update_references();
 
 private:
-  using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
+  using representation_type = std::variant<std::shared_ptr<variable>, transformer*>;
 
   environment* parent_;
-  std::unordered_map<std::string, value_type> bindings_;
+  std::unordered_map<object*, representation_type> bindings_;
 };
 
 inline ptr<environment>
 environment_parent(ptr<environment> const& e) { return e->parent(e.store()); }
 
-inline ptr<transformer>
-environment_lookup_transformer(ptr<environment> const& e, std::string const& name) {
-  return e->lookup_transformer(e.store(), name);
+inline std::optional<environment::value_type>
+environment_lookup(ptr<environment> const& e, generic_ptr const& identifier) {
+  return e->lookup(e.store(), identifier);
+}
+
+inline std::vector<std::string>
+environment_bound_names(ptr<environment> const& e) {
+  return e->bound_names(e.store());
 }
 
 // A module is a map from symbols to top-level variable indices. It also
@@ -122,21 +135,19 @@ environment_lookup_transformer(ptr<environment> const& e, std::string const& nam
 class module {
 public:
   using index_type = operand::representation_type;
+  using binding_type = std::variant<index_type, ptr<transformer>>;
 
   explicit
   module(context&);
 
-  std::optional<index_type>
-  find(std::string const&) const;
+  std::optional<binding_type>
+  find(generic_ptr const&) const;
 
   void
-  add(std::string, index_type);
+  add(generic_ptr const&, binding_type);
 
   void
-  add_transformer(std::string, ptr<transformer> const&);
-
-  void
-  export_(std::string);
+  export_(ptr<symbol> const&);
 
   std::unordered_set<std::string> const&
   exports() const { return exports_; }
@@ -151,7 +162,7 @@ public:
   environment() const { return env_; }
 
   std::vector<std::string>
-  top_level_names() const { return env_->bound_names(); }
+  top_level_names() const { return environment_bound_names(env_); }
 
   bool
   active() const { return active_; }

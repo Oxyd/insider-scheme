@@ -16,38 +16,47 @@
 
 namespace insider {
 
-static std::shared_ptr<variable>
-lookup(ptr<environment> env, std::string const& name) {
+static std::optional<environment::value_type>
+lookup(ptr<environment> env, generic_ptr const& id) {
   while (env) {
-    if (auto var = env->lookup(name))
-      return var;
+    if (auto binding = environment_lookup(env, id))
+      return binding;
 
     env = environment_parent(env);
   }
 
-  return {};
+  return std::nullopt;
 }
 
-static ptr<transformer>
-lookup_transformer(context& ctx, ptr<environment> env, std::string const& name) {
-  while (env) {
-    if (auto tr = env->lookup_transformer(ctx.store, name))
-      return tr;
 
-    env = environment_parent(env);
+static std::shared_ptr<variable>
+lookup_variable(ptr<environment> env, generic_ptr const& id) {
+  if (auto binding = lookup(env, id)) {
+    if (auto var = std::get_if<std::shared_ptr<variable>>(&*binding))
+      return *var;
+    else
+      return {};
   }
 
   return {};
 }
 
 static ptr<core_form_type>
-lookup_core(context& ctx, ptr<environment> const& env, std::string const& name) {
-  auto var = lookup(env, name);
+lookup_core(context& ctx, ptr<environment> const& env, generic_ptr const& id) {
+  auto var = lookup_variable(env, id);
   if (!var || !var->global)
     return {};  // Core forms are never defined in a local environment.
 
   generic_ptr form = ctx.get_top_level(*var->global);
   return match<core_form_type>(form);
+}
+
+static generic_ptr
+expect_id(context& ctx, generic_ptr const& x) {
+  if (!is_identifier(x))
+    throw error{"Expected identifier, got {}", datum_to_string(ctx, x)};
+
+  return x;
 }
 
 template <typename T, typename... Args>
@@ -61,52 +70,52 @@ syntactic_closure_to_environment(context& ctx, ptr<syntactic_closure> const& sc,
   auto result = make<environment>(ctx, syntactic_closure_environment(sc));
 
   for (ptr<symbol> const& free : syntactic_closure_free(sc)) {
-    if (auto var = lookup(env, free->value()))
-      result->add(free->value(), var);
-
-    if (auto tr = lookup_transformer(ctx, env, free->value()))
-      result->add_transformer(free->value(), tr);
+    if (auto binding = lookup(env, free))
+      result->add(free, *binding);
   }
 
   return result;
 }
 
+static ptr<transformer>
+lookup_transformer(context& ctx, ptr<environment> const& env, generic_ptr const& id) {
+  if (auto binding = lookup(env, id)) {
+    if (auto tr = std::get_if<ptr<transformer>>(&*binding))
+      return *tr;
+    else
+      return {};
+  }
+
+  if (auto sc = match<syntactic_closure>(id)) {
+    ptr<environment> env = syntactic_closure_to_environment(ctx, sc, env);
+    return lookup_transformer(ctx, env, syntactic_closure_expression(sc));
+  }
+
+  return {};
+}
+
 // If the head of the given list is bound to a transformer, run the transformer
 // on the datum, and repeat.
 static generic_ptr
-expand(context& ctx, ptr<environment> const& outer_env, generic_ptr datum) {
+expand(context& ctx, ptr<environment> const& env, generic_ptr datum) {
   simple_action a(ctx, datum, "Expanding macro use");
-  ptr<environment> env = outer_env;
 
-  while (true) {
+  bool expanded;
+  do {
+    expanded = false;
+
     if (auto lst = match<pair>(datum)) {
-      ptr<environment> subenv = env;
       generic_ptr head = car(lst);
-
-      while (auto sc = match<syntactic_closure>(head)) {
-        subenv = syntactic_closure_to_environment(ctx, sc, subenv);
-        head = syntactic_closure_expression(sc);
-      }
-
-      if (auto head_sym = match<symbol>(head)) {
-        if (ptr<transformer> t = lookup_transformer(ctx, subenv, head_sym->value())) {
+      if (is_identifier(head)) {
+        if (ptr<transformer> t = lookup_transformer(ctx, env, head)) {
           datum = call(ctx, transformer_callable(t), {datum, transformer_environment(t), env});
-          continue;
+          expanded = true;
         }
       }
-    } else if (auto sc = match<syntactic_closure>(datum)) {
-      env = syntactic_closure_to_environment(ctx, sc, env);
-      datum = syntactic_closure_expression(sc);
-      continue;
     }
+  } while (expanded);
 
-    break;
-  }
-
-  if (env == outer_env)
-    return datum;
-  else
-    return make<syntactic_closure>(ctx, env, datum, ctx.constants->null);
+  return datum;
 }
 
 static generic_ptr
@@ -131,24 +140,21 @@ static definition_pair_syntax
 parse_definition_pair(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
   simple_action a(pc.ctx, datum, "Parsing let definition pair");
 
-  if (!is<symbol>(car(datum)))
-    throw error("Invalid let syntax: Binding not a symbol");
-
-  auto name = assume<symbol>(car(datum));
+  auto id = expect_id(pc.ctx, car(datum));
 
   if (cdr(datum) == pc.ctx.constants->null)
-    throw error("Invalid let syntax: No expression for {}", name->value());
+    throw error("Invalid let syntax: No expression for {}", identifier_name(id));
   if (!is<pair>(cdr(datum)))
     throw error("Invalid let syntax in binding definition");
 
-  return {std::make_shared<variable>(name->value()), parse(pc, env, cadr(datum))};
+  return {id, std::make_shared<variable>(identifier_name(id)), parse(pc, env, cadr(datum))};
 }
 
 namespace {
   struct body_content {
-    ptr<environment> env;
-    std::vector<generic_ptr>     forms;
-    std::vector<std::string>     internal_variable_names;
+    ptr<environment>         env;
+    std::vector<generic_ptr> forms;
+    std::vector<generic_ptr> internal_variable_ids;
   };
 }
 
@@ -162,7 +168,7 @@ match_core_form(context& ctx, ptr<environment> env, generic_ptr datum) {
   if (auto cf = match<core_form_type>(datum))
     return cf;
   else if (auto sym = match<symbol>(datum))
-    return lookup_core(ctx, env, sym->value());
+    return lookup_core(ctx, env, sym);
   return {};
 }
 
@@ -223,14 +229,6 @@ transpose_syntactic_closure(context& ctx, ptr<syntactic_closure> sc, ptr<environ
   return {};
 }
 
-static generic_ptr
-strip_syntactic_closures(generic_ptr expr) {
-  while (auto sc = match<syntactic_closure>(expr))
-    expr = syntactic_closure_expression(sc);
-
-  return expr;
-}
-
 // Process the beginning of a body by adding new transformer and variable
 // definitions to the environment and expanding the heads of each form in the
 // list. Also checks that the list is followed by at least one expression and
@@ -259,10 +257,10 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
         if (seen_expression)
           throw error("define-syntax after a nondefinition");
 
-        auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
+        auto name = expect_id(pc.ctx, cadr(p));
         auto transformer_proc = eval_transformer(pc.ctx, pc.module, caddr(p));
         auto transformer = make<insider::transformer>(pc.ctx, result.env, transformer_proc);
-        result.env->add_transformer(name->value(), transformer);
+        result.env->add(name, transformer);
 
         continue;
       }
@@ -270,11 +268,11 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
         if (seen_expression)
           throw error("define after a nondefinition");
 
-        auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
-        result.env->add(name->value(), std::make_shared<variable>(name->value()));
+        auto id = expect_id(pc.ctx, cadr(p));
+        result.env->add(id, std::make_shared<variable>(identifier_name(id)));
 
         result.forms.push_back(expr);
-        result.internal_variable_names.push_back(name->value());
+        result.internal_variable_ids.push_back(id);
 
         continue;
       }
@@ -326,13 +324,13 @@ parse_body(parsing_context& pc, ptr<environment> const& env, generic_ptr const& 
     throw error("Invalid syntax: Expected a list of expressions");
 
   body_content content = process_internal_defines(pc, env, datum);
-  if (!content.internal_variable_names.empty()) {
+  if (!content.internal_variable_ids.empty()) {
     std::vector<definition_pair_syntax> definitions;
-    for (std::string const& name : content.internal_variable_names) {
+    for (generic_ptr const& id : content.internal_variable_ids) {
       auto void_expr = make_syntax<literal_syntax>(pc.ctx.constants->void_);
-      auto var = content.env->lookup(name);
+      auto var = lookup_variable(content.env, id);
       assert(var);
-      definitions.push_back({var, std::move(void_expr)});
+      definitions.push_back({id, var, std::move(void_expr)});
     }
 
     sequence_syntax result;
@@ -367,7 +365,7 @@ parse_let(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& dat
 
   auto subenv = make<environment>(pc.ctx, env);
   for (definition_pair_syntax const& dp : definitions)
-    subenv->add(dp.variable->name, dp.variable);
+    subenv->add(dp.id, dp.variable);
 
   return make_syntax<let_syntax>(std::move(definitions), parse_body(pc, subenv, cddr(datum)));
 }
@@ -379,7 +377,7 @@ parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& 
   if (!is_list(cdr(datum)) || cdr(datum) == pc.ctx.constants->null)
     throw error("Invalid lambda syntax");
 
-  generic_ptr param_names = strip_syntactic_closures(cadr(datum));
+  generic_ptr param_names = cadr(datum);
   if (!is_list(param_names))
     throw error("Unimplemented");
 
@@ -387,11 +385,10 @@ parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& 
   auto subenv = make<environment>(pc.ctx, env);
   while (param_names != pc.ctx.constants->null) {
     auto param = assume<pair>(param_names);
-    auto var = std::make_shared<variable>(
-      expect<symbol>(car(param), "Invalid lambda syntax: Expected symbol in parameter list")->value()
-    );
+    auto id = expect_id(pc.ctx, car(param));
+    auto var = std::make_shared<variable>(identifier_name(id));
     parameters.push_back(var);
-    subenv->add(var->name, var);
+    subenv->add(id, std::move(var));
 
     param_names = cdr(param);
   }
@@ -469,16 +466,16 @@ parse_sequence(parsing_context& pc, ptr<environment> const& env, ptr<pair> const
 }
 
 static std::unique_ptr<syntax>
-parse_reference(ptr<environment> const& env, ptr<symbol> const& datum) {
-  auto var = lookup(env, datum->value());
+parse_reference(ptr<environment> const& env, ptr<symbol> const& id) {
+  auto var = lookup_variable(env, id);
 
   if (!var)
-    throw error("Unbound symbol {}", datum->value());
+    throw error("Identifier {} not bound to a variable", identifier_name(id));
 
   if (!var->global)
     return make_syntax<local_reference_syntax>(std::move(var));
   else
-    return make_syntax<top_level_reference_syntax>(operand::global(*var->global), datum->value());
+    return make_syntax<top_level_reference_syntax>(operand::global(*var->global), identifier_name(id));
 }
 
 static std::unique_ptr<syntax>
@@ -494,17 +491,16 @@ parse_define_or_set(parsing_context& pc, ptr<environment> const& env, ptr<pair> 
   if (!is_list(datum) || list_length(datum) != 3)
     throw error("Invalid {} syntax", form_name);
 
-  ptr<symbol> name = expect<symbol>(strip_syntactic_closures(cadr(datum)),
-                                    fmt::format("Invalid {} syntax", form_name));
+  generic_ptr name = expect_id(pc.ctx, cadr(datum));
   generic_ptr expr = caddr(datum);
 
-  auto var = lookup(env, name->value());
+  auto var = lookup_variable(env, name);
   if (!var)
-    throw error("Unbound symbol {}", name->value());
+    throw error("Identifier {} not bound to a variable", identifier_name(name));
 
   auto initialiser = parse(pc, env, expr);
   if (auto l = std::get_if<lambda_syntax>(&initialiser->value))
-    l->name = name->value();
+    l->name = identifier_name(name);
 
   if (!var->global) {
     var->is_set = true;
@@ -517,6 +513,15 @@ parse_define_or_set(parsing_context& pc, ptr<environment> const& env, ptr<pair> 
 static std::unique_ptr<syntax>
 parse_syntactic_closure(parsing_context& pc, ptr<environment> const& env,
                         ptr<syntactic_closure> const& sc) {
+  if (is<symbol>(syntactic_closure_expression(sc))) {
+    if (auto var = lookup_variable(env, sc)) {
+      if (!var->global)
+        return make_syntax<local_reference_syntax>(std::move(var));
+      else
+        return make_syntax<top_level_reference_syntax>(operand::global(*var->global), identifier_name(sc));
+    }
+  }
+
   auto new_env = syntactic_closure_to_environment(pc.ctx, sc, env);
   return parse(pc, new_env, syntactic_closure_expression(sc));
 }
@@ -644,9 +649,11 @@ parse_qq_template(context& ctx, ptr<environment> const& env,
 
 static std::unique_ptr<syntax>
 make_internal_reference(context& ctx, std::string name) {
-  std::optional<module::index_type> index = ctx.internal_module.find(name);
-  assert(index);
-  return make_syntax<top_level_reference_syntax>(operand::global(*index), std::move(name));
+  std::optional<module::binding_type> binding = ctx.internal_module.find(ctx.intern(name));
+  assert(binding);
+  assert(std::holds_alternative<module::index_type>(*binding));
+  return make_syntax<top_level_reference_syntax>(operand::global(std::get<module::index_type>(*binding)),
+                                                 std::move(name));
 }
 
 static bool
@@ -970,10 +977,10 @@ expand_top_level(context& ctx, module& m, protomodule const& pm) {
     if (auto p = match<pair>(datum)) {
       if (auto form = match_core_form(ctx, m.environment(), car(p))) {
         if (form == ctx.constants->define_syntax) {
-          auto name = expect<symbol>(strip_syntactic_closures(cadr(p)));
+          auto name = expect_id(ctx, cadr(p));
           auto transformer_proc = eval_transformer(ctx, m, caddr(p));
           auto transformer = make<insider::transformer>(ctx, m.environment(), transformer_proc);
-          m.environment()->add_transformer(name->value(), transformer);
+          m.environment()->add(name, transformer);
 
           continue;
         }
@@ -981,10 +988,9 @@ expand_top_level(context& ctx, module& m, protomodule const& pm) {
           if (!is_list(p) || list_length(p) != 3)
             throw error("Invalid define syntax");
 
-          auto name = expect<symbol>(strip_syntactic_closures(cadr(p)),
-                                     "Invalid define syntax");
-          auto index = ctx.add_top_level(ctx.constants->void_, name->value());
-          m.add(name->value(), index);
+          auto name = expect_id(ctx, cadr(p));
+          auto index = ctx.add_top_level(ctx.constants->void_, identifier_name(name));
+          m.add(name, index);
         }
         else if (form == ctx.constants->begin) {
           std::vector<generic_ptr> subforms;

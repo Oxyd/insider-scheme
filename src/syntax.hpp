@@ -70,8 +70,9 @@ struct sequence_syntax {
 };
 
 struct definition_pair_syntax {
+  generic_ptr                        id;
   std::shared_ptr<insider::variable> variable;
-  std::unique_ptr<syntax> expression;
+  std::unique_ptr<syntax>            expression;
 };
 
 struct let_syntax {

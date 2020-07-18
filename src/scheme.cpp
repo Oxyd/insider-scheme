@@ -86,45 +86,69 @@ equal(generic_ptr const& x, generic_ptr const& y) {
   return true;
 }
 
-void
-environment::add(std::string const& name, std::shared_ptr<variable> var) {
-  bool inserted = bindings_.emplace(name, std::move(var)).second;
-  if (!inserted)
-    throw std::runtime_error{fmt::format("Redefinition of {}", name)};
+bool
+is_identifier(generic_ptr const& x) {
+  if (is<symbol>(x))
+    return true;
+  else if (auto sc = match<syntactic_closure>(x))
+    return is<symbol>(syntactic_closure_expression(sc));
+  else
+    return false;
+}
+
+std::string
+identifier_name(generic_ptr const& x) {
+  if (auto s = match<symbol>(x))
+    return s->value();
+  else
+    return expect<symbol>(syntactic_closure_expression(expect<syntactic_closure>(x)))->value();
 }
 
 void
-environment::add_transformer(std::string const& name, ptr<transformer> const& tr) {
-  bool inserted = bindings_.emplace(name, tr.get()).second;
+environment::add(generic_ptr const& identifier, std::shared_ptr<variable> var) {
+  assert(is_identifier(identifier));
+
+  bool inserted = bindings_.emplace(identifier.get(), std::move(var)).second;
   if (!inserted)
-    throw std::runtime_error{fmt::format("Redefinition of {}", name)};
+    throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
 }
 
-std::shared_ptr<variable>
-environment::lookup(std::string const& name) const {
-  if (auto it = bindings_.find(name); it != bindings_.end())
+void
+environment::add(generic_ptr const& identifier, ptr<transformer> const& tr) {
+  assert(is_identifier(identifier));
+
+  bool inserted = bindings_.emplace(identifier.get(), tr.get()).second;
+  if (!inserted)
+    throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
+}
+
+void
+environment::add(generic_ptr const& identifier, value_type const& value) {
+  if (auto var = std::get_if<std::shared_ptr<variable>>(&value))
+    add(identifier, *var);
+  else
+    add(identifier, std::get<ptr<transformer>>(value));
+}
+
+auto
+environment::lookup(free_store& fs, generic_ptr const& identifier) const -> std::optional<value_type> {
+  if (auto it = bindings_.find(identifier.get()); it != bindings_.end()) {
     if (auto var = std::get_if<std::shared_ptr<variable>>(&it->second))
       return *var;
+    else
+      return ptr<transformer>{fs, std::get<transformer*>(it->second)};
+  }
 
-  return {};
-}
-
-ptr<transformer>
-environment::lookup_transformer(free_store& fs, std::string const& name) const {
-  if (auto it = bindings_.find(name); it != bindings_.end())
-    if (auto tr = std::get_if<transformer*>(&it->second))
-      return {fs, *tr};
-
-  return {};
+  return std::nullopt;
 }
 
 std::vector<std::string>
-environment::bound_names() const {
+environment::bound_names(free_store& fs) const {
   std::vector<std::string> result;
   result.reserve(bindings_.size());
 
-  for (auto const& [name, binding] : bindings_)
-    result.push_back(name);
+  for (auto const& [identifier, binding] : bindings_)
+    result.push_back(identifier_name({fs, identifier}));
 
   return result;
 }
@@ -133,18 +157,32 @@ void
 environment::trace(tracing_context& tc) {
   tc.trace(parent_);
 
-  for (auto& [name, binding] : bindings_)
+  for (auto& [identifier, binding] : bindings_) {
+    tc.trace(identifier);
     if (transformer** tr = std::get_if<transformer*>(&binding))
       tc.trace(*tr);
+  }
 }
 
 void
 environment::update_references() {
   update_reference(parent_);
 
-  for (auto& [name, binding] : bindings_)
-    if (transformer** tr = std::get_if<transformer*>(&binding))
+  std::vector<std::tuple<object*, representation_type>> to_reinsert;
+  for (auto it = bindings_.begin(); it != bindings_.end();) {
+    if (transformer** tr = std::get_if<transformer*>(&it->second))
       update_reference(*tr);
+
+    object* new_id = update_reference_copy(it->first);
+    if (new_id != it->first) {
+      to_reinsert.emplace_back(new_id, std::move(it->second));
+      it = bindings_.erase(it);
+    } else
+      ++it;
+  }
+
+  for (auto& [id, value] : to_reinsert)
+    bindings_.emplace(id, std::move(value));
 }
 
 module::module(context& ctx)
@@ -152,41 +190,40 @@ module::module(context& ctx)
 { }
 
 auto
-module::find(std::string const& name) const -> std::optional<index_type> {
-  if (std::shared_ptr<variable> var = env_->lookup(name))
-    return var->global;
+module::find(generic_ptr const& identifier) const -> std::optional<binding_type> {
+  if (auto binding = environment_lookup(env_, identifier)) {
+    if (std::shared_ptr<variable>* var = std::get_if<std::shared_ptr<variable>>(&*binding))
+      return (**var).global;
+    else
+      return std::get<ptr<transformer>>(*binding);
+  }
 
   return std::nullopt;
 }
 
 void
-module::add(std::string name, index_type i) {
-  if (auto v = env_->lookup(name)) {
-    if (v->global && *v->global == i)
+module::add(generic_ptr const& identifier, binding_type b) {
+  assert(is_identifier(identifier));
+
+  if (auto v = find(identifier)) {
+    if (*v == b)
       return; // Re-importing the same variable under the same name is OK.
     else
-      throw std::runtime_error{fmt::format("Redefinition of {}", name)};
+      throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
   }
-  env_->add(name, std::make_shared<variable>(name, i));
+
+  if (auto* index = std::get_if<index_type>(&b))
+    env_->add(identifier, std::make_shared<variable>(identifier_name(identifier), *index));
+  else
+    env_->add(identifier, std::get<ptr<transformer>>(b));
 }
 
 void
-module::add_transformer(std::string name, ptr<transformer> const& tr) {
-  if (auto old_tr = environment_lookup_transformer(env_, name)) {
-    if (old_tr == tr)
-      return; // Re-importing the same variable under the same name is OK.
-    else
-      throw std::runtime_error{fmt::format("Redefinition of {}", name)};
-  }
-  env_->add_transformer(name, tr);
-}
-
-void
-module::export_(std::string name) {
+module::export_(ptr<symbol> const& name) {
   if (!env_->has(name))
-    throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name)};
+    throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name->value())};
 
-  exports_.emplace(std::move(name));
+  exports_.emplace(name->value());
 }
 
 namespace {
@@ -256,10 +293,8 @@ parse_import_set(context& ctx, import_specifier const& spec) {
 static void
 perform_imports(context& ctx, module& m, import_set const& set) {
   for (auto const& [to_name, from_name] : set.names) {
-    if (std::optional<module::index_type> var = set.source->find(from_name))
-      m.add(to_name, *var);
-    else if (ptr<transformer> tr = set.source->environment()->lookup_transformer(ctx.store, from_name))
-      m.add_transformer(to_name, tr);
+    if (auto b = set.source->find(ctx.intern(from_name)))
+      m.add(ctx.intern(to_name), *b);
     else
       assert(!"Trying to import a nonexistent symbol");
   }
@@ -289,7 +324,7 @@ instantiate(context& ctx, protomodule const& pm) {
   compile_module_body(ctx, *result, pm);
 
   for (std::string const& name : pm.exports)
-    result->export_(name);
+    result->export_(ctx.intern(name));
 
   return result;
 }
@@ -324,9 +359,9 @@ void
 define_top_level(context& ctx, module& m, std::string const& name, generic_ptr const& object,
                  bool export_) {
   auto index = ctx.add_top_level(object, name);
-  m.add(name, index);
+  m.add(ctx.intern(name), index);
   if (export_)
-    m.export_(name);
+    m.export_(ctx.intern(name));
 }
 
 static generic_ptr
@@ -626,8 +661,9 @@ context::context()
   for (auto const& form : core_forms) {
     form.object = store.make<core_form_type>();
     auto index = add_top_level(form.object, form.name);
-    internal_module.add(form.name, index);
-    internal_module.export_(form.name);
+    auto id = intern(form.name);
+    internal_module.add(id, index);
+    internal_module.export_(id);
   }
 
   statics.null = operand::static_(intern_static(constants->null));
