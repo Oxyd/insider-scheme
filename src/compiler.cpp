@@ -634,6 +634,9 @@ compile_expression(context& ctx, procedure_context& proc, syntax const& stx, boo
 
 static shared_register
 compile_sequence(context& ctx, procedure_context& proc, sequence_syntax const& stx, bool tail) {
+  if (stx.expressions.empty())
+    return shared_register{ctx.statics.void_};
+
   shared_register result;
   for (auto expr = stx.expressions.begin(); expr != stx.expressions.end(); ++expr) {
     bool last = std::next(expr) == stx.expressions.end();
