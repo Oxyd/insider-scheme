@@ -13,7 +13,8 @@
         cons car cdr cadr caddr cadddr cddr cdddr
         string-length string-append number->string datum->string
         reverse map filter identity
-        make-syntactic-closure type eq? eqv? pair? symbol? null? not when unless cond case
+        make-syntactic-closure syntactic-closure-expression syntactic-closure-environment
+        type eq? eqv? pair? symbol? null? not when unless cond case
         or and)
 
 (begin-for-syntax
@@ -24,6 +25,18 @@
  (%define symbol?
    (lambda (x)
      (eq? (type x) 'insider::symbol)))
+
+ (%define syntactic-closure?
+   (lambda (x)
+     (eq? (type x) 'insider::syntactic_closure)))
+
+ (%define identifier?
+   (lambda (x)
+     (if (symbol? x)
+         #t
+         (if (syntactic-closure? x)
+             (symbol? (syntactic-closure-expression x))
+             #f))))
 
  (%define close-syntax
    (lambda (form env)
@@ -102,7 +115,7 @@
             ($let (close-syntax '%let env))
             ($set! (close-syntax 'set! env))
             ($lambda (close-syntax 'lambda env)))
-       (if (symbol? variable-or-bindings)
+       (if (identifier? variable-or-bindings)
            (%let ((bindings (caddr form))
                   (body (cdddr form)))
              (%let ((names (map car bindings))

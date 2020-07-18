@@ -500,6 +500,9 @@ make_internal_module(context& ctx) {
     }
   );
 
+  define_lambda<syntactic_closure_expression>(ctx, result, "syntactic-closure-expression", true);
+  define_lambda<syntactic_closure_environment>(ctx, result, "syntactic-closure-environment", true);
+
   define_lambda<type>(ctx, result, "type", true);
 
   define_lambda<ptr<boolean>(context&, generic_ptr const&, generic_ptr const&)>(
