@@ -8,6 +8,7 @@
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <csignal>
 #include <optional>
 #include <set>
 #include <unordered_map>
@@ -520,6 +521,12 @@ parse_syntactic_closure(parsing_context& pc, ptr<environment> const& env,
   return parse(pc, new_env, syntactic_closure_expression(sc));
 }
 
+static std::unique_ptr<syntax>
+parse_syntax_trap(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& datum) {
+  raise(SIGTRAP);
+  return parse(pc, env, cadr(datum));
+}
+
 namespace {
   struct qq_template;
 
@@ -787,6 +794,8 @@ parse(parsing_context& pc, ptr<environment> const& env, generic_ptr const& d) {
         return make_syntax<literal_syntax>(expand(pc.ctx, env, cadr(p)));
       else if (form == pc.ctx.constants->begin_for_syntax)
         throw error{"begin-for-syntax not at top level"};
+      else if (form == pc.ctx.constants->syntax_trap)
+        return parse_syntax_trap(pc, env, p);
     }
 
     return parse_application(pc, env, p);

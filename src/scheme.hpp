@@ -244,7 +244,8 @@ public:
     ptr<insider::void_type> void_;
     ptr<boolean>        t, f;     // #t and #f.
     ptr<core_form_type> let, set, lambda, if_, box, unbox, box_set, define, define_syntax,
-                        begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing, expand_quote;
+                        begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing, expand_quote,
+                        syntax_trap;
   };
 
   struct statics_list {

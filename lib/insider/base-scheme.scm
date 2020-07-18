@@ -6,7 +6,7 @@
 
 (export sc-macro-transformer rsc-macro-transformer capture-syntactic-environment define
         let set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
-        quote quasiquote unquote unquote-splicing expand-quote
+        quote quasiquote unquote unquote-splicing expand-quote syntax-trap
         + - * / = < > gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         write-simple display newline append list->vector vector-append
         vector-length vector-ref vector-set!
