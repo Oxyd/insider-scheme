@@ -632,10 +632,9 @@ append(context&, std::vector<generic_ptr> const&);
 class vector : public dynamic_size_object<vector, object*> {
 public:
   static std::size_t
-  extra_elements(std::size_t size) { return size; }
+  extra_elements(context&, std::size_t size) { return size; }
 
-  explicit
-  vector(std::size_t);
+  vector(context&, std::size_t);
 
   vector(vector&&);
 

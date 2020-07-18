@@ -271,7 +271,7 @@ TEST_F(scheme, intern) {
 }
 
 TEST_F(scheme, vector) {
-  ptr<vector> v1 = make<vector>(ctx, 3);
+  ptr<vector> v1 = make<vector>(ctx, ctx, 3);
   vector_set(v1, 0, make<integer>(ctx, 1));
   vector_set(v1, 1, make<integer>(ctx, 2));
   vector_set(v1, 2, make<integer>(ctx, 3));
@@ -285,7 +285,7 @@ TEST_F(scheme, vector) {
   EXPECT_THROW(vector_ref(v1, 3), std::runtime_error);
   EXPECT_THROW(vector_set(v1, 4, make<integer>(ctx, 4)), std::runtime_error);
 
-  ptr<vector> v2 = make<vector>(ctx, 2);
+  ptr<vector> v2 = make<vector>(ctx, ctx, 2);
   bool one{}, two{};
   vector_set(v2, 0, make<aaa>(ctx, &one));
   vector_set(v2, 1, make<aaa>(ctx, &two));
@@ -1075,7 +1075,7 @@ TEST_F(scheme, test_write) {
   auto p2 = make<pair>(ctx, make<integer>(ctx, 0), p1);
   EXPECT_EQ(to_string(ctx, p2), "(0 1 . 2)");
 
-  auto v = make<vector>(ctx, 3);
+  auto v = make<vector>(ctx, ctx, 3);
   vector_set(v, 0, make<character>(ctx, 'r'));
   vector_set(v, 1, p2);
   vector_set(v, 2, make_string(ctx, "foobar"));

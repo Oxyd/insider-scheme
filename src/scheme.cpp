@@ -444,7 +444,7 @@ make_internal_module(context& ctx) {
   define_lambda<ptr<vector>(context&, std::size_t)>(
     ctx, result, "make-vector", true,
     [] (context& ctx, std::size_t len) {
-      return make<vector>(ctx, len);
+      return make<vector>(ctx, ctx, len);
     }
   );
   define_lambda<vector_ref>(ctx, result, "vector-ref", true);
@@ -1103,11 +1103,11 @@ append(context& ctx, std::vector<generic_ptr> const& xs) {
   return new_head;
 }
 
-vector::vector(std::size_t size)
+vector::vector(context& ctx, std::size_t size)
   : size_{size}
 {
   for (std::size_t i = 0; i < size_; ++i)
-    storage_element(i) = nullptr;
+    storage_element(i) = ctx.constants->void_.get();
 }
 
 vector::vector(vector&& other)
@@ -1156,7 +1156,7 @@ vector_hash(ptr<vector> const& v) {
 
 ptr<vector>
 make_vector(context& ctx, std::vector<generic_ptr> const& elems) {
-  auto result = make<vector>(ctx, elems.size());
+  auto result = make<vector>(ctx, ctx, elems.size());
   for (std::size_t i = 0; i < elems.size(); ++i)
     vector_set(result, i, elems[i]);
 
@@ -1169,7 +1169,7 @@ list_to_vector(context& ctx, generic_ptr const& lst) {
   for (generic_ptr e = lst; e != ctx.constants->null; e = cdr(expect<pair>(e)))
     ++size;
 
-  auto result = make<vector>(ctx, size);
+  auto result = make<vector>(ctx, ctx, size);
   std::size_t i = 0;
   for (generic_ptr e = lst; e != ctx.constants->null; e = cdr(assume<pair>(e)))
     vector_set(result, i++, car(assume<pair>(e)));
@@ -1194,7 +1194,7 @@ vector_append(context& ctx, std::vector<generic_ptr> const& vs) {
     size += v->size();
   }
 
-  auto result = make<vector>(ctx, size);
+  auto result = make<vector>(ctx, ctx, size);
   std::size_t i = 0;
   for (generic_ptr const& e : vs) {
     ptr<vector> v = assume<vector>(e);

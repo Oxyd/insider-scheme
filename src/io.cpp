@@ -400,7 +400,7 @@ read_vector(context& ctx, ptr<port> const& stream) {
   if (std::holds_alternative<end>(t))
     throw parse_error{"Unterminated vector"};
 
-  ptr<vector> result = make<vector>(ctx, elements.size());
+  ptr<vector> result = make<vector>(ctx, ctx, elements.size());
   for (std::size_t i = 0; i < elements.size(); ++i)
     vector_set(result, i, elements[i]);
 
