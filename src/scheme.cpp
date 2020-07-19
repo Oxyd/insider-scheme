@@ -519,6 +519,7 @@ make_internal_module(context& ctx) {
   );
 
   define_lambda<eqv>(ctx, result, "eqv?", true);
+  define_lambda<equal>(ctx, result, "equal?", true);
 
   define_lambda<ptr<vector>(context&, ptr<procedure> const&)>(
     ctx, result, "procedure-bytecode", true,

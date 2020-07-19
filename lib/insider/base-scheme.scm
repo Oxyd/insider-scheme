@@ -14,7 +14,7 @@
         string-length string-append number->string datum->string
         reverse map filter identity
         make-syntactic-closure syntactic-closure-expression syntactic-closure-environment
-        type eq? eqv? pair? symbol? syntactic-closure? identifier? null? not when unless cond case
+        type eq? eqv? equal? pair? symbol? syntactic-closure? identifier? null? not when unless cond case
         do or and)
 
 (begin-for-syntax
