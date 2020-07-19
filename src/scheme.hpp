@@ -723,12 +723,13 @@ box_set(ptr<box> const& b, generic_ptr const& value) { b->set(value.get()); }
 // a call frame inside the VM.
 class procedure : public leaf_object<procedure> {
 public:
-  insider::bytecode bytecode;
-  unsigned          locals_size;
-  unsigned          num_args;
+  insider::bytecode          bytecode;
+  unsigned                   locals_size;
+  unsigned                   min_args;
+  bool                       has_rest;
   std::optional<std::string> name;
 
-  procedure(insider::bytecode bc, unsigned locals_size, unsigned num_args,
+  procedure(insider::bytecode bc, unsigned locals_size, unsigned min_args, bool has_rest = false,
             std::optional<std::string> name = {});
 };
 

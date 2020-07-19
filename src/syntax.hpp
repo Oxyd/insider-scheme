@@ -92,6 +92,7 @@ struct top_level_set_syntax {
 
 struct lambda_syntax {
   std::vector<std::shared_ptr<variable>> parameters;
+  bool has_rest;
   sequence_syntax body;
   std::optional<std::string> name;
 };

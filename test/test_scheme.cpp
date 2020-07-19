@@ -760,6 +760,25 @@ TEST_F(scheme, compile_lambda) {
     )"
   );
   EXPECT_EQ(expect<integer>(result3)->value(), 2 * (3 + 4));
+
+  generic_ptr result4 = eval(
+    R"(
+      (let ((list (lambda args args)))
+        (list 1 2 3))
+   )"
+  );
+  EXPECT_TRUE(equal(result4, make_list(ctx, make<integer>(ctx, 1), make<integer>(ctx, 2), make<integer>(ctx, 3))));
+
+  generic_ptr result5 = eval(
+    R"(
+      (let ((increment (lambda (value . rest)
+                         (let ((addend (if (eq? rest '()) 1 (car rest))))
+                           (+ value addend)))))
+        (cons (increment 2) (increment 7 3)))
+   )"
+  );
+  EXPECT_EQ(expect<integer>(car(expect<pair>(result5)))->value(), 3);
+  EXPECT_EQ(expect<integer>(cdr(expect<pair>(result5)))->value(), 10);
 }
 
 TEST_F(scheme, compile_if) {

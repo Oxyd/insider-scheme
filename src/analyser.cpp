@@ -378,22 +378,33 @@ parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& 
     throw error("Invalid lambda syntax");
 
   generic_ptr param_names = cadr(datum);
-  if (!is_list(param_names))
-    throw error("Unimplemented");
-
   std::vector<std::shared_ptr<variable>> parameters;
+  bool has_rest = false;
   auto subenv = make<environment>(pc.ctx, env);
   while (param_names != pc.ctx.constants->null) {
-    auto param = assume<pair>(param_names);
-    auto id = expect_id(pc.ctx, car(param));
-    auto var = std::make_shared<variable>(identifier_name(id));
-    parameters.push_back(var);
-    subenv->add(id, std::move(var));
+    if (auto param = match<pair>(param_names)) {
+      auto id = expect_id(pc.ctx, car(param));
+      auto var = std::make_shared<variable>(identifier_name(id));
+      parameters.push_back(var);
+      subenv->add(id, std::move(var));
 
-    param_names = cdr(param);
+      param_names = cdr(param);
+    }
+    else if (is_identifier(param_names)) {
+      has_rest = true;
+      auto id = param_names;
+      auto var = std::make_shared<variable>(identifier_name(id));
+      parameters.push_back(var);
+      subenv->add(id, std::move(var));
+      break;
+    }
+    else
+      throw error{"Unexpected value in lambda parameters: {}", datum_to_string(pc.ctx, param_names)};
   }
 
-  return make_syntax<lambda_syntax>(std::move(parameters), parse_body(pc, subenv, cddr(datum)), std::nullopt);
+  return make_syntax<lambda_syntax>(std::move(parameters), has_rest,
+                                    parse_body(pc, subenv, cddr(datum)),
+                                    std::nullopt);
 }
 
 static std::unique_ptr<syntax>

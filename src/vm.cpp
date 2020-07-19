@@ -229,11 +229,26 @@ execute_one(execution_state& state) {
     }
 
     if (auto scheme_proc = match<procedure>(call_target)) {
-      if (num_args != scheme_proc->num_args)
-        // TODO: Print the function name
-        throw error{"{}: Wrong number of arguments, expected {}, got {}",
+      if (num_args < scheme_proc->min_args)
+        throw error{"{}: Wrong number of arguments, expected {}{}, got {}",
                     scheme_proc->name ? *scheme_proc->name : "<lambda>",
-                    scheme_proc->num_args, num_args};
+                    scheme_proc->has_rest ? "at least " : "",
+                    scheme_proc->min_args, num_args};
+
+      if (scheme_proc->has_rest) {
+        // We have to pass exactly min_args + 1 arguments. The last one is a
+        // list with all the arguments after the min_args'th.
+
+        std::size_t num_rest = args.size() - scheme_proc->min_args;
+        std::vector<generic_ptr> rest_args(args.begin() + args.size() - num_rest, args.end());
+        args.erase(args.begin() + args.size() - num_rest, args.end());
+
+        assert(rest_args.size() == num_rest);
+        assert(args.size() == scheme_proc->min_args);
+
+        generic_ptr rest_list = make_list_from_vector(state.ctx, rest_args);
+        args.push_back(rest_list);
+      }
 
       if (instr.opcode == opcode::tail_call)
         state.current_frame = frame->parent(state.ctx.store);
@@ -421,7 +436,7 @@ call(context& ctx, generic_ptr callable, std::vector<generic_ptr> const& argumen
   }
 
   if (auto scheme_proc = match<procedure>(callable)) {
-    if (scheme_proc->num_args != arguments.size())
+    if (scheme_proc->min_args != arguments.size())
       throw std::runtime_error{"Wrong number of arguments in function call"};
 
     auto frame = make<call_frame>(ctx, scheme_proc, closure, ptr<call_frame>{}, arguments);

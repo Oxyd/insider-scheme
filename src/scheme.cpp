@@ -1210,11 +1210,12 @@ box::box(generic_ptr const& value)
   : value_{value.get()}
 { }
 
-procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned num_args,
+procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned min_args, bool has_rest,
                      std::optional<std::string> name)
   : bytecode(std::move(bc))
   , locals_size{locals_size}
-  , num_args{num_args}
+  , min_args{min_args}
+  , has_rest{has_rest}
   , name{std::move(name)}
 { }
 

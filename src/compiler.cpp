@@ -395,7 +395,8 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx
 
   ptr<procedure> p = ctx.store.make<procedure>(std::move(proc.bytecode),
                                                proc.registers.locals_used(),
-                                               stx.parameters.size(),
+                                               stx.parameters.size() - (stx.has_rest ? 1 : 0),
+                                               stx.has_rest,
                                                stx.name);
   operand p_reg = operand::static_(ctx.intern_static(p));
 
