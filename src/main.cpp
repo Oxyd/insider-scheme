@@ -83,6 +83,7 @@ main(int argc, char** argv) {
     return 0;
   }
   catch (std::runtime_error const& e) {
+    std::fflush(stdout);
     fmt::print(stderr, "Error: {}\n{}\n", e.what(), ctx.error_backtrace);
   }
 }
