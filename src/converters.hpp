@@ -199,6 +199,12 @@ define_lambda(context& ctx, module& m, std::string const& name, bool export_) {
   detail::lambda_definer<std::remove_pointer_t<decltype(F)>>::define(ctx, m, name, F, export_);
 }
 
+template <typename F>
+void
+define_raw_lambda(context& ctx, module& m, std::string const& name, bool export_, F f) {
+  define_top_level(ctx, m, name, make<native_procedure>(ctx, std::move(f), name), export_);
+}
+
 // Wrapper around a Scheme procedure. Acts as a C++ function of type T. When
 // called, converts its arguments from C++ types to Scheem values, then converts
 // the Scheme value back to a C++ one.

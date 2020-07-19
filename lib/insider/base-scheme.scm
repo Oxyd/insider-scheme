@@ -9,10 +9,10 @@
         quote quasiquote unquote unquote-splicing expand-quote syntax-trap
         + - * / = < > >= <= gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         write-simple display newline append list->vector vector-append
-        make-vector vector-length vector-ref vector-set!
+        vector make-vector vector-length vector-ref vector-set!
         cons car cdr cadr caddr cadddr cddr cdddr
         string-length string-append number->string datum->string
-        reverse map filter identity
+        list reverse map filter identity
         make-syntactic-closure syntactic-closure-expression syntactic-closure-environment
         type eq? eqv? equal? pair? symbol? syntactic-closure? identifier? null? not when unless cond case
         do or and)
@@ -261,3 +261,6 @@
 
 (define (<= x y)
   (or (< x y) (= x y)))
+
+(define (list . xs)
+  xs)
