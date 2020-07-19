@@ -5,7 +5,7 @@
          (let %let)))
 
 (export sc-macro-transformer rsc-macro-transformer capture-syntactic-environment define
-        let set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
+        let let* set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
         quote quasiquote unquote unquote-splicing expand-quote syntax-trap
         + - * / = < > >= <= gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         write-simple display newline append list->vector vector-append
@@ -124,7 +124,20 @@
                   (,$set! ,variable-or-bindings (,$lambda ,names ,@body))
                   (,variable-or-bindings ,@initial-values))))
            (%let ((body (cddr form)))
-             `(,$let ,variable-or-bindings ,@body)))))))
+                 `(,$let ,variable-or-bindings ,@body)))))))
+
+(define-syntax let*
+  (rsc-macro-transformer
+   (lambda (form env)
+     (let ((bindings (cadr form))
+           (body (cddr form))
+           ($let (close-syntax 'let env))
+           ($let* (close-syntax 'let* env)))
+       (if (null? bindings)
+           `(,$let () ,@body)
+           `(,$let (,(car bindings))
+              (,$let* ,(cdr bindings)
+                ,@body)))))))
 
 (define-syntax when
   (sc-macro-transformer
