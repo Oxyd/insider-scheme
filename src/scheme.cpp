@@ -18,7 +18,7 @@ namespace insider {
 std::size_t
 hash(generic_ptr const& x) {
   if (auto i = match<integer>(x))
-    return integer_hash(i);
+    return integer_hash(*i);
   if (auto b = match<boolean>(x))
     return boolean_hash(b);
   else if (auto p = match<pair>(x))
@@ -435,10 +435,10 @@ make_internal_module(context& ctx) {
   define_top_level(ctx, result, "append", make<native_procedure>(ctx, append, "append"), true);
   define_lambda<ptr<vector>(context&, generic_ptr const&)>(ctx, result, "list->vector", true, list_to_vector);
   define_top_level(ctx, result, "vector-append", make<native_procedure>(ctx, vector_append, "vector-append"), true);
-  define_lambda<ptr<integer>(context&, ptr<vector> const&)>(
+  define_lambda<integer(ptr<vector> const&)>(
     ctx, result, "vector-length", true,
-    [] (context& ctx, ptr<vector> const& v) {
-      return make<integer>(ctx, v->size());
+    [] (ptr<vector> const& v) {
+      return integer{v->size()};
     }
   );
   define_raw_lambda(ctx, result, "vector", true, make_vector);
@@ -465,10 +465,10 @@ make_internal_module(context& ctx) {
   define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cddr", true, cddr);
   define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cdddr", true, cdddr);
 
-  define_lambda<ptr<integer>(context&, ptr<string> const&)>(
+  define_lambda<integer(ptr<string> const&)>(
     ctx, result, "string-length", true,
-    [] (context& ctx, ptr<string> const& s) {
-      return make<integer>(ctx, s->size());
+    [] (ptr<string> const& s) {
+      return integer{s->size()};
     }
   );
 
@@ -545,9 +545,9 @@ make_internal_module(context& ctx) {
     }
   );
 
-  define_lambda<ptr<integer>(ptr<opaque_value<instruction>> const&)>(
+  define_lambda<integer(ptr<opaque_value<instruction>> const&)>(
     ctx, result, "instruction-opcode", true,
-    [] (ptr<opaque_value<instruction>> const& i) { return static_cast<integer::storage_type>(i->value.opcode); }
+    [] (ptr<opaque_value<instruction>> const& i) { return integer{static_cast<integer::storage_type>(i->value.opcode)}; }
   );
 
   define_lambda<generic_ptr(context&, ptr<opaque_value<instruction>> const&)>(
@@ -574,24 +574,24 @@ make_internal_module(context& ctx) {
     }
   );
 
-  define_lambda<generic_ptr(context&, ptr<opaque_value<operand>> const&)>(
+  define_lambda<integer(ptr<opaque_value<operand>> const&)>(
     ctx, result, "operand-value", true,
-    [] (context& ctx, ptr<opaque_value<operand>> const& o) {
-      return make<integer>(ctx, static_cast<integer::storage_type>(o->value.value()));
+    [] (ptr<opaque_value<operand>> const& o) {
+      return integer{static_cast<integer::storage_type>(o->value.value())};
     }
   );
 
-  define_lambda<generic_ptr(context&, ptr<opaque_value<operand>> const&)>(
+  define_lambda<integer(ptr<opaque_value<operand>> const&)>(
     ctx, result, "operand-immediate-value", true,
-    [] (context& ctx, ptr<opaque_value<operand>> const& o) {
-      return make<integer>(ctx, static_cast<integer::storage_type>(o->value.immediate_value()));
+    [] (ptr<opaque_value<operand>> const& o) {
+      return integer{static_cast<integer::storage_type>(o->value.immediate_value())};
     }
   );
 
-  define_lambda<generic_ptr(context&, ptr<opaque_value<operand>> const&)>(
+  define_lambda<integer(ptr<opaque_value<operand>> const&)>(
     ctx, result, "operand-offset", true,
-    [] (context& ctx, ptr<opaque_value<operand>> const& o) {
-      return make<integer>(ctx, static_cast<integer::storage_type>(o->value.offset()));
+    [] (ptr<opaque_value<operand>> const& o) {
+      return integer{static_cast<integer::storage_type>(o->value.offset())};
     }
   );
 
@@ -681,8 +681,8 @@ context::context()
   statics.void_ = operand::static_(intern_static(constants->void_));
   statics.t = operand::static_(intern_static(constants->t));
   statics.f = operand::static_(intern_static(constants->f));
-  statics.zero = operand::static_(intern_static(store.make<integer>(0)));
-  statics.one = operand::static_(intern_static(store.make<integer>(1)));
+  statics.zero = operand::static_(intern_static(integer_to_ptr(integer{0})));
+  statics.one = operand::static_(intern_static(integer_to_ptr(integer{1})));
 
   output_port = make<port>(*this, stdout, false, true, false);
 }

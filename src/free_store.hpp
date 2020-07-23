@@ -12,6 +12,7 @@
 namespace insider {
 
 class generic_ptr;
+class integer;
 struct object;
 
 using word_type = std::uint64_t;
@@ -65,8 +66,13 @@ type_name() {
   return type_name(T::type_index);
 }
 
+constexpr char const* integer_type_name = "fixnum";
+
+template <>
 inline std::string
-object_type_name(object* o) { return type_name(object_type_index(o)); }
+type_name<integer>() {
+  return integer_type_name;
+}
 
 bool
 is_alive(object*);
@@ -74,17 +80,34 @@ is_alive(object*);
 object*
 forwarding_address(object*);
 
+bool
+is_object_ptr(object*);
+
+inline bool
+is_fixnum(object* o) { return !is_object_ptr(o); }
+
+word_type
+fixnum_payload(object*);
+
+object*
+fixnum_to_ptr(word_type);
+
+inline std::string
+object_type_name(object* o) {
+  return is_object_ptr(o) ? type_name(object_type_index(o)) : integer_type_name;
+}
+
 template <typename T>
 void
 update_reference(T*& ref) {
-  if (ref && !is_alive(ref))
+  if (ref && is_object_ptr(ref) && !is_alive(ref))
     ref = static_cast<T*>(forwarding_address(ref));
 }
 
 template <typename T>
 T*
 update_reference_copy(T* ref) {
-  if (ref && !is_alive(ref))
+  if (ref && is_object_ptr(ref) && !is_alive(ref))
     return static_cast<T*>(forwarding_address(ref));
   else
     return ref;
@@ -233,11 +256,12 @@ public:
   generic_ptr() = default;
   generic_ptr(free_store&, object* value);
   generic_ptr(generic_ptr const& other);
+  explicit
+  generic_ptr(word_type payload);
   ~generic_ptr();
   generic_ptr&
   operator = (generic_ptr const&);
 };
-
 
 // Like generic_ptr, but does not keep an object alive.
 class generic_weak_ptr : public detail::generic_ptr_base {

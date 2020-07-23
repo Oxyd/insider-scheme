@@ -198,8 +198,9 @@ execute_one(execution_state& state) {
   case opcode::arith_equal:
   case opcode::less_than:
   case opcode::greater_than: {
-    ptr<integer> lhs = expect<integer>(get_register(state, instr.x));
-    ptr<integer> rhs = expect<integer>(get_register(state, instr.y));
+    generic_ptr lhs = get_register(state, instr.x);
+    generic_ptr rhs = get_register(state, instr.y);
+
     switch (instr.opcode) {
     case opcode::arith_equal: set_register(state, instr.dest, arith_equal(state.ctx, lhs, rhs)); break;
     case opcode::less_than: set_register(state, instr.dest, less(state.ctx, lhs, rhs)); break;

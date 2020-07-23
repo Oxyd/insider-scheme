@@ -37,6 +37,7 @@ static constexpr word_type color_bit = 1 << color_shift;
 
 static word_type&
 header_word(object* o) {
+  assert(is_object_ptr(o));
   return *reinterpret_cast<word_type*>(reinterpret_cast<std::byte*>(o) - sizeof(word_type));
 }
 
@@ -91,6 +92,22 @@ forwarding_address(object* o) {
   return reinterpret_cast<object*>(header_word(o));
 }
 
+bool
+is_object_ptr(object* o) {
+  return !(reinterpret_cast<word_type>(o) & 1);
+}
+
+word_type
+fixnum_payload(object* o) {
+  assert(!is_object_ptr(o));
+  return reinterpret_cast<word_type>(o) >> 1;
+}
+
+object*
+fixnum_to_ptr(word_type w) {
+  return reinterpret_cast<object*>((w << 1) | 1);
+}
+
 static void
 set_forwarding_address(object* from, object* target) {
   header_word(from) = reinterpret_cast<word_type>(target);
@@ -120,7 +137,7 @@ detail::demangle(char const* name) {
 
 void
 tracing_context::trace(object* o) {
-  if (o && object_color(o) == color::white) {
+  if (o && is_object_ptr(o) && object_color(o) == color::white) {
     assert(is_alive(o));
     assert(object_type_index(o) < types().size());
 
@@ -138,18 +155,22 @@ new_type(type_descriptor d) {
 generic_ptr::generic_ptr(free_store& store, object* value)
   : generic_ptr_base{store, value}
 {
-  assert(!value_ || is_alive(value_));
+  assert(!value_ || !is_object_ptr(value_) || is_alive(value_));
   store.register_root(this);
 }
 
 generic_ptr::generic_ptr(generic_ptr const& other)
   : generic_ptr_base(other)
 {
-  assert(store_ || !value_);
-  assert(!value_ || is_alive(value_));
+  assert(store_ || !value_ || !is_object_ptr(value_));
+  assert(!value_ || !is_object_ptr(value_) || is_alive(value_));
 
   if (store_)
     store_->register_root(this);
+}
+
+generic_ptr::generic_ptr(word_type payload) {
+  value_ = fixnum_to_ptr(payload);
 }
 
 generic_ptr::~generic_ptr() {
@@ -172,8 +193,8 @@ generic_ptr::operator = (generic_ptr const& other) {
   }
 
   value_ = other.value_;
-  assert(store_ || !value_);
-  assert(!value_ || is_alive(value_));
+  assert(store_ || !value_ || !is_object_ptr(value_));
+  assert(!value_ || !is_object_ptr(value_) || is_alive(value_));
 
   return *this;
 }
@@ -268,7 +289,7 @@ trace(std::unordered_set<generic_ptr*> const& roots) {
   tracing_context tc{stack};
 
   for (generic_ptr const* root : roots)
-    if (*root && object_color(root->get()) == color::white) {
+    if (*root && is_object_ptr(root->get()) && object_color(root->get()) == color::white) {
       assert(is_alive(root->get()));
       set_object_color(root->get(), color::black);
       stack.push_back(root->get());
@@ -466,17 +487,17 @@ free_store::allocate_object(std::size_t size, word_type type) {
 void
 free_store::update_roots() {
   for (generic_ptr* p : roots_) {
-    if (p->get() && !is_alive(p->get())) {
+    if (p->get() && is_object_ptr(p->get()) && !is_alive(p->get())) {
       p->value_ = forwarding_address(p->get());
       assert(p->value_ != nullptr);
     }
 
-    assert(!p->get() || is_alive(p->get()));
-    assert(!p->get() || object_color(p->get()) == color::white);
+    assert(!p->get() || !is_object_ptr(p->get()) || is_alive(p->get()));
+    assert(!p->get() || !is_object_ptr(p->get()) || object_color(p->get()) == color::white);
   }
 
   for (generic_weak_ptr* wp : weak_roots_) {
-    if (wp->get() && !is_alive(wp->get()))
+    if (wp->get() && is_object_ptr(wp->get()) && !is_alive(wp->get()))
       wp->value_ = forwarding_address(wp->get());
   }
 }

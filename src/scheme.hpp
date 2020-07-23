@@ -3,6 +3,7 @@
 
 #include "bytecode.hpp"
 #include "free_store.hpp"
+#include "numeric.hpp"
 #include "syntax.hpp"
 
 #include <fmt/format.h>
@@ -61,6 +62,7 @@ struct core_form_type : leaf_object<core_form_type> { };
 
 class boolean;
 class context;
+class integer;
 class module;
 class port;
 class procedure;
@@ -888,7 +890,13 @@ template <typename T>
 bool
 is(generic_ptr const& x) {
   assert(x);
-  return object_type_index(x.get()) == T::type_index;
+  return is_object_ptr(x.get()) && object_type_index(x.get()) == T::type_index;
+}
+
+template <>
+inline bool
+is<integer>(generic_ptr const& x) {
+  return is_fixnum(x.get());
 }
 
 template <typename Expected>
@@ -897,47 +905,105 @@ make_type_error(generic_ptr const& actual) {
   throw error{"Invalid type: expected {}, got {}", type_name<Expected>(), object_type_name(actual.get())};
 }
 
+namespace detail {
+  template <typename T>
+  struct expect_helper {
+    static ptr<T>
+    expect(generic_ptr const& x, std::optional<std::string> const& message) {
+      if (is<T>(x))
+        return {x.store(), static_cast<T*>(x.get())};
+      else
+        throw message ? error{*message} : make_type_error<T>(x);
+    }
+  };
+
+  template <>
+  struct expect_helper<integer> {
+    static integer
+    expect(generic_ptr const& x, std::optional<std::string> const& message) {
+      if (is<integer>(x))
+        return ptr_to_integer(x);
+      else
+        throw message ? error{*message} : make_type_error<integer>(x);
+    }
+  };
+}
+
 // Expect an object to be of given type and return the apropriate typed pointer
 // to the object. Throws type_error if the object isn't of the required type.
 template <typename T>
-ptr<T>
+auto
 expect(generic_ptr const& x) {
-  if (is<T>(x))
-    return {x.store(), static_cast<T*>(x.get())};
-  else
-    throw make_type_error<T>(x);
+  return detail::expect_helper<T>::expect(x, std::nullopt);
 }
 
 // Same as expect, but throws a runtime_error with the given message if the
 // actual type isn't the expected one.
 template <typename T>
-ptr<T>
+auto
 expect(generic_ptr const& x, std::string const& message) {
-  if (is<T>(x))
-    return {x.store(), static_cast<T*>(x.get())};
-  else
-    throw std::runtime_error{message};
+  return detail::expect_helper<T>::expect(x, message);
+}
+
+namespace detail {
+  template <typename T>
+  struct assume_helper {
+    static ptr<T>
+    assume(generic_ptr const& x) {
+      assert(is<T>(x));
+      return {x.store(), static_cast<T*>(x.get())};
+    }
+  };
+
+  template <>
+  struct assume_helper<integer> {
+    static integer
+    assume(generic_ptr const& x) {
+      assert(is<integer>(x));
+      return ptr_to_integer(x);
+    }
+  };
 }
 
 // Assert that an object is of a given type and return the appropriate typed
 // pointer. It is undefined behaviour if the actual type doesn't match the
 // specified type.
 template <typename T>
-ptr<T>
+auto
 assume(generic_ptr const& x) {
-  assert(is<T>(x));
-  return {x.store(), static_cast<T*>(x.get())};
+  return detail::assume_helper<T>::assume(x);
+}
+
+namespace detail {
+  template <typename T>
+  struct match_helper {
+    static ptr<T>
+    match(generic_ptr const& x) {
+      if (is<T>(x))
+        return {x.store(), static_cast<T*>(x.get())};
+      else
+        return {};
+    }
+  };
+
+  template <>
+  struct match_helper<integer> {
+    static std::optional<integer>
+    match(generic_ptr const& x) {
+      if (is<integer>(x))
+        return ptr_to_integer(x);
+      else
+        return std::nullopt;
+    }
+  };
 }
 
 // If an object is of the given type, return the typed pointer to it; otherwise,
 // return null.
 template <typename T>
-ptr<T>
+auto
 match(generic_ptr const& x) {
-  if (is<T>(x))
-    return {x.store(), static_cast<T*>(x.get())};
-  else
-    return {};
+  return detail::match_helper<T>::match(x);
 }
 
 // Iterator over Scheme lists. Will throw an exception if the list turns out to

@@ -48,8 +48,8 @@ number_of_limbs_for_small_integer(integer::value_type i) {
 }
 
 std::size_t
-big_integer::extra_elements(ptr<integer> const& i) {
-  return number_of_limbs_for_small_integer(i->value());
+big_integer::extra_elements(integer i) {
+  return number_of_limbs_for_small_integer(i.value());
 }
 
 std::size_t
@@ -92,17 +92,17 @@ short_integer_to_sign_magnitude(integer::value_type i) {
     return {false, ~*reinterpret_cast<integer::storage_type*>(&i) + 1};
 }
 
-big_integer::big_integer(ptr<integer> const& i)
-  : length_{number_of_limbs_for_small_integer(i->value())}
+big_integer::big_integer(integer i)
+  : length_{number_of_limbs_for_small_integer(i.value())}
 {
-  auto [sign, magnitude] = short_integer_to_sign_magnitude(i->value());
+  auto [sign, magnitude] = short_integer_to_sign_magnitude(i.value());
   positive_ = sign;
 
   if constexpr (sizeof(integer::storage_type) <= sizeof(limb_type)) {
     front() = magnitude;
   } else {
     auto it = begin();
-    for (std::size_t k = 0; k < number_of_limbs_for_small_integer(i->value()); ++k) {
+    for (std::size_t k = 0; k < number_of_limbs_for_small_integer(i.value()); ++k) {
       *it++ = magnitude & limb_mask;
       magnitude >>= limb_width;
     }
@@ -182,15 +182,15 @@ normalize(context& ctx, ptr<big_integer> const& i) {
   std::size_t new_length = normal_length(i);
 
   if (new_length == 0)
-    return make<integer>(ctx, 0);
+    return integer_to_ptr(integer{0});
 
   if constexpr (max_limb_value >= integer::max) {
     if (new_length == 1) {
       limb_type l = i->front();
       if (i->positive() && l <= integer::max)
-        return make<integer>(ctx, l);
+        return integer_to_ptr(integer{l});
       else if (!i->positive() && l <= -integer::min) {
-        return make<integer>(ctx, ~l + 1);
+        return integer_to_ptr(integer{~l + 1});
       }
     }
   }
@@ -201,10 +201,10 @@ normalize(context& ctx, ptr<big_integer> const& i) {
         small = (small << limb_width) | i->data()[k - 1];
 
       if (i->positive() && small <= integer::max)
-        return make<integer>(ctx, small);
+        return integer_to_ptr(integer{small});
       else if (!i->positive() && small <= integer::storage_type(-integer::min)) {
         assert(small <= std::numeric_limits<integer::value_type>::max());
-        return make<integer>(ctx, -static_cast<integer::value_type>(small));
+        return integer_to_ptr(integer{-static_cast<integer::value_type>(small)});
       }
     }
   }
@@ -230,7 +230,7 @@ normalize_fraction(context& ctx, ptr<fraction> const& q) {
 
   if (auto n = match<integer>(num)) {
     if (n->value() == 0)
-      return n;
+      return integer_to_ptr(*n);
   }
 
   generic_ptr com_den = gcd(ctx, num, den);
@@ -276,10 +276,10 @@ add_magnitude_to_limb_destructive(context& ctx, generic_ptr lhs, limb_type rhs) 
     return add_big_magnitude_to_limb_destructive(ctx, b, b, rhs);
 
   auto lhs_int = assume<integer>(lhs);
-  double_limb_type sum = lhs_int->value() + rhs;
+  double_limb_type sum = lhs_int.value() + rhs;
   if (sum <= integer::max) {
-    lhs_int->set_value(static_cast<integer::value_type>(sum));
-    return lhs_int;
+    lhs_int.set_value(static_cast<integer::value_type>(sum));
+    return integer_to_ptr(lhs_int);
   }
 
   return add_big_magnitude_to_limb_destructive(ctx, {}, make<big_integer>(ctx, lhs_int), rhs);
@@ -412,8 +412,8 @@ flip_sign(generic_ptr const& i) {
     return flip_sign(b);
 
   auto small = assume<integer>(i);
-  small->set_value(-small->value());
-  return small;
+  small.set_value(-small.value());
+  return integer_to_ptr(small);
 }
 
 static ptr<big_integer>
@@ -452,12 +452,12 @@ add_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
 }
 
 static generic_ptr
-add_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  integer::storage_type sum = lhs->data() + rhs->data();
+add_small(context& ctx, integer lhs, integer rhs) {
+  integer::storage_type sum = lhs.data() + rhs.data();
   if (overflow(sum))
     return add_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
   else
-    return make<integer>(ctx, sum);
+    return integer_to_ptr(integer{sum});
 }
 
 static ptr<fraction>
@@ -501,12 +501,12 @@ sub_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
 }
 
 static generic_ptr
-sub_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  integer::storage_type dif = lhs->data() + ~rhs->data() + 1;
+sub_small(context& ctx, integer lhs, integer rhs) {
+  integer::storage_type dif = lhs.data() + ~rhs.data() + 1;
   if (overflow(dif))
     return sub_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
   else
-    return make<integer>(ctx, dif);
+    return integer_to_ptr(integer{dif});
 }
 
 static ptr<fraction>
@@ -578,13 +578,13 @@ mul_magnitude_by_limb_destructive(context& ctx, generic_ptr lhs, limb_type rhs) 
     return mul_big_magnitude_by_limb_destructive(ctx, b, b, rhs);
 
   auto lhs_int = assume<integer>(lhs);
-  assert(lhs_int->value() >= 0);
+  assert(lhs_int.value() >= 0);
 
-  if (small_mul_overflow(lhs_int->value(), rhs))
+  if (small_mul_overflow(lhs_int.value(), rhs))
     return mul_big_magnitude_by_limb_destructive(ctx, {}, make<big_integer>(ctx, lhs_int), rhs);
 
-  lhs_int->set_value(lhs_int->value() * rhs);
-  return lhs_int;
+  lhs_int.set_value(lhs_int.value() * rhs);
+  return integer_to_ptr(lhs_int);
 }
 
 static bool
@@ -632,16 +632,16 @@ mul_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
 }
 
 static generic_ptr
-mul_small(context& ctx, ptr<integer> const& lhs, ptr<integer> const& rhs) {
-  integer::storage_type x = lhs->value() > 0 ? lhs->value() : -lhs->value();
-  integer::storage_type y = rhs->value() > 0 ? rhs->value() : -rhs->value();
-  bool result_positive = (lhs->value() > 0) == (rhs->value() > 0);
+mul_small(context& ctx, integer lhs, integer rhs) {
+  integer::storage_type x = lhs.value() > 0 ? lhs.value() : -lhs.value();
+  integer::storage_type y = rhs.value() > 0 ? rhs.value() : -rhs.value();
+  bool result_positive = (lhs.value() > 0) == (rhs.value() > 0);
 
   if (small_mul_overflow(x, y))
     return mul_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
 
   integer::value_type product = x * y;
-  return make<integer>(ctx, result_positive ? product : -product);
+  return integer_to_ptr(integer{result_positive ? product : -product});
 }
 
 static ptr<fraction>
@@ -830,10 +830,10 @@ div_rem_big(context& ctx, ptr<big_integer> const& dividend, ptr<big_integer> con
             normalize(ctx, rem)};
 }
 
-static std::tuple<ptr<integer>, ptr<integer>>
-div_rem_small(context& ctx, ptr<integer> const& dividend, ptr<integer> const& divisor) {
-  auto [quot, rem] = std::div(dividend->value(), divisor->value());
-  return {make<integer>(ctx, quot), make<integer>(ctx, rem)};
+static std::tuple<generic_ptr, generic_ptr>
+div_rem_small(integer dividend, integer divisor) {
+  auto [quot, rem] = std::div(dividend.value(), divisor.value());
+  return {integer_to_ptr(integer{quot}), integer_to_ptr(integer{rem})};
 }
 
 static compare
@@ -892,7 +892,7 @@ make_big(context& ctx, generic_ptr const& x) {
   if (auto b = match<big_integer>(x))
     return b;
   else if (auto s = match<integer>(x)) {
-    return make<big_integer>(ctx, s);
+    return make<big_integer>(ctx, *s);
   }
   else {
     assert(!"Can't happen");
@@ -905,7 +905,7 @@ make_big_copy(context& ctx, generic_ptr const& x) {
   if (auto b = match<big_integer>(x))
     return make<big_integer>(ctx, b);
   else if (auto s = match<integer>(x)) {
-    return make<big_integer>(ctx, s);
+    return make<big_integer>(ctx, *s);
   }
   else {
     assert(!"Can't happen");
@@ -916,7 +916,7 @@ make_big_copy(context& ctx, generic_ptr const& x) {
 static ptr<fraction>
 make_fraction(context& ctx, generic_ptr const& x) {
   if (is<integer>(x) || is<big_integer>(x))
-    return make<fraction>(ctx, x, make<integer>(ctx, 1));
+    return make<fraction>(ctx, x, integer_to_ptr(integer{1}));
 
   assert(is<fraction>(x));
   return assume<fraction>(x);
@@ -967,16 +967,16 @@ generic_ptr
 arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, integer::value_type neutral) {
   if (xs.empty()) {
     if (allow_empty)
-      return make<integer>(ctx, neutral);
+      return integer_to_ptr(integer{neutral});
     else
       throw std::runtime_error{"Not enough arguments"};
   }
   else if (xs.size() == 1)
-    return F(ctx, make<integer>(ctx, neutral), expect<integer>(xs.front()));
+    return F(ctx, integer_to_ptr(integer{neutral}), xs.front());
   else {
     generic_ptr result = xs.front();
     for (auto rhs = xs.begin() + 1; rhs != xs.end(); ++rhs)
-      result = F(ctx, result, expect<integer>(*rhs));
+      result = F(ctx, result, *rhs);
 
     return result;
   }
@@ -1056,7 +1056,7 @@ std::tuple<generic_ptr, generic_ptr>
 quotient_remainder(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
   switch (find_common_type(lhs, rhs)) {
   case common_type::small_integer:
-    return div_rem_small(ctx, assume<integer>(lhs), assume<integer>(rhs));
+    return div_rem_small(assume<integer>(lhs), assume<integer>(rhs));
   case common_type::big_integer:
     return div_rem_big(ctx, make_big(ctx, lhs), make_big(ctx, rhs));
   default:
@@ -1100,7 +1100,7 @@ divide(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
 
 template <auto Small>
 generic_ptr
-bitwise_two(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+bitwise_two(generic_ptr const& lhs, generic_ptr const& rhs) {
   switch (find_common_type(lhs, rhs)) {
   case common_type::small_integer: {
     auto x = assume<integer>(lhs);
@@ -1110,7 +1110,7 @@ bitwise_two(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
     if (detail::highest_storage_bit(value) != detail::highest_value_bit(value))
       throw error{"Overflow in arithmetic-shift"};
 
-    return make<integer>(ctx, value);
+    return integer_to_ptr(integer{value});
   }
 
   default:
@@ -1122,42 +1122,42 @@ bitwise_two(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
 }
 
 static integer::storage_type
-arithmetic_shift_small(ptr<integer> const& x, ptr<integer> const& y) {
-  if (y->value() > 0)
-    return x->data() << y->value();
+arithmetic_shift_small(integer x, integer y) {
+  if (y.value() > 0)
+    return x.data() << y.value();
   else
-    return x->data() >> -y->value();
+    return x.data() >> -y.value();
 }
 
 static integer::storage_type
-bitwise_and_small(ptr<integer> const& x, ptr<integer> const& y) {
-  return x->data() & y->data();
+bitwise_and_small(integer x, integer y) {
+  return x.data() & y.data();
 }
 
 static integer::storage_type
-bitwise_or_small(ptr<integer> const& x, ptr<integer> const& y) {
-  return x->data() | y->data();
+bitwise_or_small(integer x, integer y) {
+  return x.data() | y.data();
 }
 
 generic_ptr
-arithmetic_shift(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return bitwise_two<arithmetic_shift_small>(ctx, lhs, rhs);
+arithmetic_shift(context&, generic_ptr const& lhs, generic_ptr const& rhs) {
+  return bitwise_two<arithmetic_shift_small>(lhs, rhs);
 }
 
 generic_ptr
-bitwise_and(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return bitwise_two<bitwise_and_small>(ctx, lhs, rhs);
+bitwise_and(context&, generic_ptr const& lhs, generic_ptr const& rhs) {
+  return bitwise_two<bitwise_and_small>(lhs, rhs);
 }
 
 generic_ptr
-bitwise_or(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return bitwise_two<bitwise_or_small>(ctx, lhs, rhs);
+bitwise_or(context&, generic_ptr const& lhs, generic_ptr const& rhs) {
+  return bitwise_two<bitwise_or_small>(lhs, rhs);
 }
 
 generic_ptr
-bitwise_not(context& ctx, generic_ptr const& x) {
+bitwise_not(context&, generic_ptr const& x) {
   if (auto value = match<integer>(x))
-    return make<integer>(ctx, ~value->data());
+    return integer_to_ptr(integer{~value->data()});
   else
     throw error{"Only fixnums are supported"};
 }
@@ -1170,9 +1170,9 @@ relational(context& ctx, std::vector<generic_ptr> const& xs, std::string const& 
   if (xs.size() < 2)
     throw std::runtime_error{fmt::format("Not enough arguments to {}", name)};
 
-  ptr<integer> lhs = expect<integer>(xs[0]);
+  generic_ptr lhs = xs[0];
   for (std::size_t i = 1; i < xs.size(); ++i) {
-    ptr<integer> rhs = expect<integer>(xs[i]);
+    generic_ptr rhs = xs[i];
     if (F(ctx, lhs, rhs) == ctx.constants->f)
       return ctx.constants->f;
 
@@ -1186,7 +1186,7 @@ ptr<boolean>
 arith_equal(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
   switch (find_common_type(lhs, rhs)) {
   case common_type::small_integer:
-    return assume<integer>(lhs)->value() == assume<integer>(rhs)->value() ? ctx.constants->t : ctx.constants->f;
+    return assume<integer>(lhs).value() == assume<integer>(rhs).value() ? ctx.constants->t : ctx.constants->f;
   case common_type::big_integer:
     return compare_big(make_big(ctx, lhs), make_big(ctx, rhs)) == compare::equal
            ? ctx.constants->t : ctx.constants->f;
@@ -1218,7 +1218,7 @@ arith_equal(context& ctx, std::vector<generic_ptr> const& xs) {
 
 ptr<boolean>
 less(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return expect<integer>(lhs)->value() < expect<integer>(rhs)->value() ? ctx.constants->t : ctx.constants->f;
+  return expect<integer>(lhs).value() < expect<integer>(rhs).value() ? ctx.constants->t : ctx.constants->f;
 }
 
 generic_ptr
@@ -1228,7 +1228,7 @@ less(context& ctx, std::vector<generic_ptr> const& xs) {
 
 ptr<boolean>
 greater(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return expect<integer>(lhs)->value() > expect<integer>(rhs)->value() ? ctx.constants->t : ctx.constants->f;
+  return expect<integer>(lhs).value() > expect<integer>(rhs).value() ? ctx.constants->t : ctx.constants->f;
 }
 
 generic_ptr
@@ -1286,7 +1286,7 @@ generic_ptr
 gcd(context& ctx, generic_ptr const& x, generic_ptr const& y) {
   switch (find_common_type(x, y)) {
   case common_type::small_integer:
-    return make<integer>(ctx, std::gcd(assume<integer>(x)->value(), assume<integer>(y)->value()));
+    return integer_to_ptr(integer{std::gcd(assume<integer>(x).value(), assume<integer>(y).value())});
   case common_type::big_integer:
     return gcd_big(ctx, make_big_copy(ctx, x), make_big_copy(ctx, y));
   default:
@@ -1309,7 +1309,7 @@ export_native(context& ctx, module& m, std::string const& name,
 
 generic_ptr
 read_integer(context& ctx, std::string const& digits, unsigned base) {
-  generic_ptr result = make<integer>(ctx, 0);
+  generic_ptr result = integer_to_ptr(integer{0});
 
   for (char c : digits) {
     result = mul_magnitude_by_limb_destructive(ctx, result, base);
@@ -1419,17 +1419,17 @@ write_small_magnitude(std::string& buffer, T n) {
 }
 
 static void
-write_small(ptr<integer> const& value, ptr<port> const& out) {
-  if (value->value() == 0) {
+write_small(integer value, ptr<port> const& out) {
+  if (value.value() == 0) {
     out->write_char('0');
     return;
   }
 
-  if (value->value() < 0)
+  if (value.value() < 0)
     out->write_char('-');
 
   std::string buffer;
-  integer::storage_type n = value->value() >= 0 ? value->value() : -value->value();
+  integer::storage_type n = value.value() >= 0 ? value.value() : -value.value();
   write_small_magnitude(buffer, n);
 
   std::reverse(buffer.begin(), buffer.end());
@@ -1504,7 +1504,7 @@ write_float(ptr<floating_point> const& value, ptr<port> const& out) {
 void
 write_number(context& ctx, generic_ptr const& value, ptr<port> const& out) {
   if (auto s = match<integer>(value))
-    write_small(s, out);
+    write_small(*s, out);
   else if (auto b = match<big_integer>(value))
     write_big(ctx, b, out);
   else if (auto q = match<fraction>(value))

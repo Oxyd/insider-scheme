@@ -32,10 +32,16 @@ struct to_scheme_converter<ptr<T>> {
   convert(context&, ptr<T> const& p) { return p; }
 };
 
+template <>
+struct to_scheme_converter<integer> {
+  static generic_ptr
+  convert(context&, integer i) { return integer_to_ptr(i); }
+};
+
 template <typename T>
 struct to_scheme_converter<T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>> {
   static generic_ptr
-  convert(context& ctx, T t) { return make<integer>(ctx, t); }
+  convert(context&, T t) { return integer_to_ptr(integer{t}); }
 };
 
 template <>
@@ -74,7 +80,7 @@ struct from_scheme_converter<ptr<T>> {
 template <typename T>
 struct from_scheme_converter<T, std::enable_if_t<std::is_integral_v<T>>> {
   static T
-  convert(context&, generic_ptr const& x) { return expect<integer>(x)->value(); }
+  convert(context&, generic_ptr const& x) { return expect<integer>(x).value(); }
 };
 
 template <>

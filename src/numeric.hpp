@@ -46,10 +46,16 @@ namespace detail {
     (void) x;
     assert(highest_storage_bit(x) == highest_value_bit(x));
   }
+
+  inline integer_storage_type
+  make_normal(integer_storage_type x) {
+    assert(highest_storage_bit(x) == 0);
+    return x | (integer_storage_type{highest_value_bit(x)} << (short_integer_storage_width - 1));
+  }
 }
 
 // A signed, fixed size integer.
-class integer : public leaf_object<integer> {
+class integer {
 public:
   using storage_type = detail::integer_storage_type;
   using value_type = detail::integer_value_type;
@@ -75,8 +81,19 @@ private:
   storage_type value_ = 0;
 };
 
+inline integer
+ptr_to_integer(generic_ptr const& x) {
+  assert(!is_object_ptr(x.get()));
+  return integer{detail::make_normal(fixnum_payload(x.get()))};
+}
+
+inline generic_ptr
+integer_to_ptr(integer i) {
+  return generic_ptr{i.data()};
+}
+
 inline std::size_t
-integer_hash(ptr<integer> const& x) { return static_cast<std::size_t>(x->data()); }
+integer_hash(integer i) { return static_cast<std::size_t>(i.data()); }
 
 // An arbitray-length signed magnitude integer. It is made up of 64-bit unsigned
 // limbs. The least-significant limb is stored first.
@@ -97,7 +114,7 @@ public:
   extra_elements(std::vector<limb_type> const&, bool = true);
 
   static std::size_t
-  extra_elements(ptr<integer> const&);
+  extra_elements(integer);
 
   static std::size_t
   extra_elements(ptr<big_integer> const&);
@@ -111,7 +128,7 @@ public:
   big_integer(std::vector<limb_type> const&, bool positive = true);
 
   explicit
-  big_integer(ptr<integer> const&);
+  big_integer(integer);
 
   explicit
   big_integer(ptr<big_integer> const&);

@@ -46,7 +46,7 @@ struct scheme : testing::Test {
 
   ptr<fraction>
   make_fraction(int n, int d) {
-    return make<fraction>(ctx, make<integer>(ctx, n), make<integer>(ctx, d));
+    return make<fraction>(ctx, integer_to_ptr(integer{n}), integer_to_ptr(integer{d}));
   }
 
   ptr<floating_point>
@@ -212,19 +212,19 @@ TEST_F(scheme, type_predicates) {
 
 TEST_F(scheme, is_list) {
   // (1 . 2)
-  ptr<pair> l1 = make<pair>(ctx, make<integer>(ctx, 1), make<integer>(ctx, 2));
+  ptr<pair> l1 = make<pair>(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}));
   EXPECT_FALSE(is_list(l1));
 
   // (1 2)
   ptr<pair> l2 = make<pair>(ctx,
-                            make<integer>(ctx, 1),
+                            integer_to_ptr(integer{1}),
                             make<pair>(ctx,
-                                       make<integer>(ctx, 2),
+                                       integer_to_ptr(integer{2}),
                                        ctx.constants->null));
   EXPECT_TRUE(is_list(l2));
 
   // (0 1 2)
-  ptr<pair> l3 = make<pair>(ctx, make<integer>(ctx, 0), l2);
+  ptr<pair> l3 = make<pair>(ctx, integer_to_ptr(integer{0}), l2);
   EXPECT_TRUE(is_list(l3));
 }
 
@@ -233,17 +233,17 @@ TEST_F(scheme, make_list) {
   EXPECT_TRUE(empty == ctx.constants->null);
 
   generic_ptr l = make_list(ctx,
-                            make<integer>(ctx, 1),
-                            make<integer>(ctx, 2),
-                            make<integer>(ctx, 3));
+                            integer_to_ptr(integer{1}),
+                            integer_to_ptr(integer{2}),
+                            integer_to_ptr(integer{3}));
   auto first = expect<pair>(l);
-  EXPECT_EQ(expect<integer>(car(first))->value(), 1);
+  EXPECT_EQ(expect<integer>(car(first)).value(), 1);
 
   auto second = expect<pair>(cdr(first));
-  EXPECT_EQ(expect<integer>(car(second))->value(), 2);
+  EXPECT_EQ(expect<integer>(car(second)).value(), 2);
 
   auto third = expect<pair>(cdr(second));
-  EXPECT_EQ(expect<integer>(car(third))->value(), 3);
+  EXPECT_EQ(expect<integer>(car(third)).value(), 3);
 
   EXPECT_EQ(cdr(third), ctx.constants->null);
 }
@@ -272,18 +272,18 @@ TEST_F(scheme, intern) {
 
 TEST_F(scheme, vector) {
   ptr<vector> v1 = make<vector>(ctx, ctx, 3);
-  vector_set(v1, 0, make<integer>(ctx, 1));
-  vector_set(v1, 1, make<integer>(ctx, 2));
-  vector_set(v1, 2, make<integer>(ctx, 3));
+  vector_set(v1, 0, integer_to_ptr(integer{1}));
+  vector_set(v1, 1, integer_to_ptr(integer{2}));
+  vector_set(v1, 2, integer_to_ptr(integer{3}));
 
   EXPECT_EQ(v1->size(), 3u);
 
-  EXPECT_EQ(expect<integer>(vector_ref(v1, 0))->value(), 1);
-  EXPECT_EQ(expect<integer>(vector_ref(v1, 1))->value(), 2);
-  EXPECT_EQ(expect<integer>(vector_ref(v1, 2))->value(), 3);
+  EXPECT_EQ(expect<integer>(vector_ref(v1, 0)).value(), 1);
+  EXPECT_EQ(expect<integer>(vector_ref(v1, 1)).value(), 2);
+  EXPECT_EQ(expect<integer>(vector_ref(v1, 2)).value(), 3);
 
   EXPECT_THROW(vector_ref(v1, 3), std::runtime_error);
-  EXPECT_THROW(vector_set(v1, 4, make<integer>(ctx, 4)), std::runtime_error);
+  EXPECT_THROW(vector_set(v1, 4, integer_to_ptr(integer{4})), std::runtime_error);
 
   ptr<vector> v2 = make<vector>(ctx, ctx, 2);
   bool one{}, two{};
@@ -301,15 +301,15 @@ TEST_F(scheme, vector) {
 }
 
 TEST_F(scheme, read_small_integer) {
-  EXPECT_EQ(expect<integer>(read("0"))->value(), 0);
-  EXPECT_EQ(expect<integer>(read("2"))->value(), 2);
-  EXPECT_EQ(expect<integer>(read("-2"))->value(), -2);
-  EXPECT_EQ(expect<integer>(read("+215"))->value(), +215);
-  EXPECT_EQ(expect<integer>(read("-3812"))->value(), -3812);
-  EXPECT_EQ(expect<integer>(read("4611686018427387903"))->value(), 4611686018427387903);
-  EXPECT_EQ(expect<integer>(read("4611686018427387902"))->value(), 4611686018427387902);
-  EXPECT_EQ(expect<integer>(read("-4611686018427387903"))->value(), -4611686018427387903);
-  EXPECT_EQ(expect<integer>(read("-4611686018427387902"))->value(), -4611686018427387902);
+  EXPECT_EQ(expect<integer>(read("0")).value(), 0);
+  EXPECT_EQ(expect<integer>(read("2")).value(), 2);
+  EXPECT_EQ(expect<integer>(read("-2")).value(), -2);
+  EXPECT_EQ(expect<integer>(read("+215")).value(), +215);
+  EXPECT_EQ(expect<integer>(read("-3812")).value(), -3812);
+  EXPECT_EQ(expect<integer>(read("4611686018427387903")).value(), 4611686018427387903);
+  EXPECT_EQ(expect<integer>(read("4611686018427387902")).value(), 4611686018427387902);
+  EXPECT_EQ(expect<integer>(read("-4611686018427387903")).value(), -4611686018427387903);
+  EXPECT_EQ(expect<integer>(read("-4611686018427387902")).value(), -4611686018427387902);
 }
 
 TEST_F(scheme, read_list) {
@@ -321,13 +321,13 @@ TEST_F(scheme, read_list) {
 
   generic_ptr single_element = read("(1)");
   EXPECT_TRUE(is_list(single_element));
-  EXPECT_EQ(expect<integer>(car(expect<pair>(single_element)))->value(), 1);
+  EXPECT_EQ(expect<integer>(car(expect<pair>(single_element))).value(), 1);
   EXPECT_EQ(cdr(expect<pair>(single_element)), ctx.constants->null);
 
   generic_ptr two_elements = read("(1 2)");
   EXPECT_TRUE(is_list(two_elements));
-  EXPECT_EQ(expect<integer>(car(expect<pair>(two_elements)))->value(), 1);
-  EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(expect<pair>(two_elements)))))->value(), 2);
+  EXPECT_EQ(expect<integer>(car(expect<pair>(two_elements))).value(), 1);
+  EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(expect<pair>(two_elements))))).value(), 2);
   EXPECT_EQ(cdr(expect<pair>(cdr(expect<pair>(two_elements)))), ctx.constants->null);
 
   generic_ptr no_elements = read("()");
@@ -335,11 +335,11 @@ TEST_F(scheme, read_list) {
 
   generic_ptr nested = read("(1 (2 3))");
   EXPECT_TRUE(is_list(nested));
-  EXPECT_EQ(expect<integer>(car(expect<pair>(nested)))->value(), 1);
+  EXPECT_EQ(expect<integer>(car(expect<pair>(nested))).value(), 1);
   EXPECT_TRUE(is_list(car(expect<pair>(cdr(expect<pair>(nested))))));
   ptr<pair> sublist_1 = expect<pair>(car(expect<pair>(cdr(expect<pair>(nested)))));
-  EXPECT_EQ(expect<integer>(car(sublist_1))->value(), 2);
-  EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(sublist_1))))->value(), 3);
+  EXPECT_EQ(expect<integer>(car(sublist_1)).value(), 2);
+  EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(sublist_1)))).value(), 3);
 
   EXPECT_THROW(read("("), parse_error);
   EXPECT_THROW(read("(1 2"), parse_error);
@@ -352,9 +352,9 @@ TEST_F(scheme, read_vector) {
 
   auto v2 = expect<vector>(read("#(1 2 3)"));
   EXPECT_EQ(v2->size(), 3);
-  EXPECT_EQ(expect<integer>(vector_ref(v2, 0))->value(), 1);
-  EXPECT_EQ(expect<integer>(vector_ref(v2, 1))->value(), 2);
-  EXPECT_EQ(expect<integer>(vector_ref(v2, 2))->value(), 3);
+  EXPECT_EQ(expect<integer>(vector_ref(v2, 0)).value(), 1);
+  EXPECT_EQ(expect<integer>(vector_ref(v2, 1)).value(), 2);
+  EXPECT_EQ(expect<integer>(vector_ref(v2, 2)).value(), 3);
 
   auto v3 = expect<vector>(read("#(#(a b) c #(d e) f)"));
   EXPECT_EQ(v3->size(), 4);
@@ -433,9 +433,9 @@ TEST_F(scheme, read_multiple) {
 
 TEST_F(scheme, read_comments) {
   EXPECT_EQ(expect<integer>(read(R"(;; Comment
-                                    2)"))->value(),
+                                    2)")).value(),
             2);
-  EXPECT_EQ(expect<integer>(read("7 ;; A prime number"))->value(), 7);
+  EXPECT_EQ(expect<integer>(read("7 ;; A prime number")).value(), 7);
   EXPECT_EQ(expect<string>(read(R"("foo;bar;baz" ; string)"))->value(), "foo;bar;baz");
 }
 
@@ -450,7 +450,10 @@ TEST(bytecode, instruction_info_consistency) {
 template <typename T, typename... Args>
 operand
 make_static(context& ctx, Args&&... args) {
-  return operand::static_(ctx.intern_static(make<T>(ctx, std::forward<Args>(args)...)));
+  if constexpr (std::is_same_v<T, integer>)
+    return operand::static_(ctx.intern_static(integer_to_ptr(integer{args...})));
+  else
+    return operand::static_(ctx.intern_static(make<T>(ctx, std::forward<Args>(args)...)));
 }
 
 TEST_F(scheme, exec_arithmetic) {
@@ -470,7 +473,7 @@ TEST_F(scheme, exec_arithmetic) {
   auto state = make_state(ctx, proc);
   run(state);
 
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 18);
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(), 18);
 }
 
 TEST_F(scheme, exec_calls) {
@@ -510,7 +513,7 @@ TEST_F(scheme, exec_calls) {
   run(state);
 
   auto native_f = [] (int x, int y) { return 2 * x + y; };
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(),
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(),
             3 * native_f(5, 7) + native_f(2, native_f(3, 4)));
 }
 
@@ -546,7 +549,7 @@ TEST_F(scheme, three_argument_calls) {
   run(state);
 
   auto native_f = [] (int x, int y, int z) { return 2 * x + 3 * y + 4 * z; };
-  EXPECT_EQ(expect<integer>(call_frame_local(state.current_frame, 0))->value(),
+  EXPECT_EQ(expect<integer>(call_frame_local(state.current_frame, 0)).value(),
             2 * native_f(1, 2, 3));
 }
 
@@ -579,7 +582,7 @@ TEST_F(scheme, exec_tail_calls) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 12);
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(), 12);
 }
 
 TEST_F(scheme, exec_loop) {
@@ -608,15 +611,14 @@ TEST_F(scheme, exec_loop) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 45);
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(), 45);
 }
 
 TEST_F(scheme, exec_native_call) {
-  auto native = [] (context& ctx, std::vector<generic_ptr> const& args) {
-    return make<integer>(ctx,
-                         2 * expect<integer>(args[0])->value()
-                         + 3 * expect<integer>(args[1])->value()
-                         + 5 * expect<integer>(args[2])->value());
+  auto native = [] (context&, std::vector<generic_ptr> const& args) {
+    return integer_to_ptr(integer{2 * expect<integer>(args[0]).value()
+                                  + 3 * expect<integer>(args[1]).value()
+                                  + 5 * expect<integer>(args[2]).value()});
   };
   auto native_static = make_static<native_procedure>(ctx, native);
   auto ten = make_static<integer>(ctx, 10);
@@ -632,7 +634,7 @@ TEST_F(scheme, exec_native_call) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(),
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(),
             2 * 10 + 3 * 20 + 5 * 30);
 }
 
@@ -656,7 +658,7 @@ TEST_F(scheme, exec_closure_ref) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0))->value(), 5 + 3);
+  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(), 5 + 3);
 }
 
 TEST_F(scheme, exec_cons) {
@@ -697,7 +699,7 @@ TEST_F(scheme, compile_arithmetic) {
   generic_ptr result = eval(
     "(+ 2 3 (* 5 9) (- 9 8) (/ 8 2))"
   );
-  EXPECT_EQ(expect<integer>(result)->value(),
+  EXPECT_EQ(expect<integer>(result).value(),
             2 + 3 + (5 * 9) + (9 - 8) + (8 / 2));
 }
 
@@ -716,7 +718,7 @@ TEST_F(scheme, compile_let) {
   int b = 5;
   int sum = a + b;
   int product = a * b;
-  EXPECT_EQ(expect<integer>(result)->value(), sum - product);
+  EXPECT_EQ(expect<integer>(result).value(), sum - product);
 
   EXPECT_THROW(compile_expression(ctx, read("(let ((a 2)))"), ctx.internal_module),
                std::runtime_error);
@@ -732,7 +734,7 @@ TEST_F(scheme, let_shadowing) {
           a))
     )"
   );
-  EXPECT_EQ(expect<integer>(result)->value(), 5);
+  EXPECT_EQ(expect<integer>(result).value(), 5);
 }
 
 TEST_F(scheme, compile_lambda) {
@@ -742,7 +744,7 @@ TEST_F(scheme, compile_lambda) {
         (twice 4))
     )"
   );
-  EXPECT_EQ(expect<integer>(result1)->value(), 8);
+  EXPECT_EQ(expect<integer>(result1).value(), 8);
 
   generic_ptr result2 = eval(
     R"(
@@ -750,7 +752,7 @@ TEST_F(scheme, compile_lambda) {
         (sum 1 2 3 4))
     )"
   );
-  EXPECT_EQ(expect<integer>(result2)->value(), 1 + 2 + 3 + 4);
+  EXPECT_EQ(expect<integer>(result2).value(), 1 + 2 + 3 + 4);
 
   generic_ptr result3 = eval(
     R"(
@@ -759,7 +761,7 @@ TEST_F(scheme, compile_lambda) {
         (call-with-sum f 3 4))
     )"
   );
-  EXPECT_EQ(expect<integer>(result3)->value(), 2 * (3 + 4));
+  EXPECT_EQ(expect<integer>(result3).value(), 2 * (3 + 4));
 
   generic_ptr result4 = eval(
     R"(
@@ -767,7 +769,7 @@ TEST_F(scheme, compile_lambda) {
         (list 1 2 3))
    )"
   );
-  EXPECT_TRUE(equal(result4, make_list(ctx, make<integer>(ctx, 1), make<integer>(ctx, 2), make<integer>(ctx, 3))));
+  EXPECT_TRUE(equal(result4, make_list(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}), integer_to_ptr(integer{3}))));
 
   generic_ptr result5 = eval(
     R"(
@@ -777,19 +779,19 @@ TEST_F(scheme, compile_lambda) {
         (cons (increment 2) (increment 7 3)))
    )"
   );
-  EXPECT_EQ(expect<integer>(car(expect<pair>(result5)))->value(), 3);
-  EXPECT_EQ(expect<integer>(cdr(expect<pair>(result5)))->value(), 10);
+  EXPECT_EQ(expect<integer>(car(expect<pair>(result5))).value(), 3);
+  EXPECT_EQ(expect<integer>(cdr(expect<pair>(result5))).value(), 10);
 }
 
 TEST_F(scheme, compile_if) {
   generic_ptr result1 = eval("(if #t 2 3)");
-  EXPECT_EQ(expect<integer>(result1)->value(), 2);
+  EXPECT_EQ(expect<integer>(result1).value(), 2);
 
   generic_ptr result2 = eval("(if #f 2 3)");
-  EXPECT_EQ(expect<integer>(result2)->value(), 3);
+  EXPECT_EQ(expect<integer>(result2).value(), 3);
 
   generic_ptr result3 = eval("(if #t 2)");
-  EXPECT_EQ(expect<integer>(result3)->value(), 2);
+  EXPECT_EQ(expect<integer>(result3).value(), 2);
 
   generic_ptr result4 = eval("(if #f 2)");
   EXPECT_EQ(result4, ctx.constants->void_);
@@ -803,7 +805,7 @@ TEST_F(scheme, compile_if) {
               0))
     )"
   );
-  EXPECT_EQ(expect<integer>(result5)->value(), 8);
+  EXPECT_EQ(expect<integer>(result5).value(), 8);
 
   generic_ptr result6 = eval(
     R"(
@@ -814,7 +816,7 @@ TEST_F(scheme, compile_if) {
               0))
     )"
   );
-  EXPECT_EQ(expect<integer>(result6)->value(), 0);;
+  EXPECT_EQ(expect<integer>(result6).value(), 0);;
 
   generic_ptr result7 = eval(
     R"(
@@ -825,7 +827,7 @@ TEST_F(scheme, compile_if) {
               (f x)))
     )"
   );
-  EXPECT_EQ(expect<integer>(result7)->value(), 0);
+  EXPECT_EQ(expect<integer>(result7).value(), 0);
 
   generic_ptr result8 = eval(
     R"(
@@ -836,7 +838,7 @@ TEST_F(scheme, compile_if) {
               (f x)))
     )"
   );
-  EXPECT_EQ(expect<integer>(result8)->value(), 12);
+  EXPECT_EQ(expect<integer>(result8).value(), 12);
 
   generic_ptr result9 = eval(
     R"(
@@ -848,7 +850,7 @@ TEST_F(scheme, compile_if) {
               (g x)))
     )"
   );
-  EXPECT_EQ(expect<integer>(result9)->value(), 8);
+  EXPECT_EQ(expect<integer>(result9).value(), 8);
 
   generic_ptr result10 = eval(
     R"(
@@ -860,7 +862,7 @@ TEST_F(scheme, compile_if) {
               (g x)))
     )"
   );
-  EXPECT_EQ(expect<integer>(result10)->value(), 16);
+  EXPECT_EQ(expect<integer>(result10).value(), 16);
 }
 
 TEST_F(scheme, compile_closure) {
@@ -871,7 +873,7 @@ TEST_F(scheme, compile_closure) {
           (add-2 5)))
     )"
   );
-  EXPECT_EQ(expect<integer>(result1)->value(), 7);
+  EXPECT_EQ(expect<integer>(result1).value(), 7);
 
   generic_ptr result2 = eval(
     R"(
@@ -880,7 +882,7 @@ TEST_F(scheme, compile_closure) {
           (f 3)))
     )"
   );
-  EXPECT_EQ(expect<integer>(result2)->value(), 10);
+  EXPECT_EQ(expect<integer>(result2).value(), 10);
 }
 
 TEST_F(scheme, compile_set) {
@@ -891,7 +893,7 @@ TEST_F(scheme, compile_set) {
         x)
     )"
   );
-  EXPECT_EQ(expect<integer>(result1)->value(), 5);
+  EXPECT_EQ(expect<integer>(result1).value(), 5);
 
   generic_ptr result2 = eval(
     R"(
@@ -903,7 +905,7 @@ TEST_F(scheme, compile_set) {
         (fact 5))
     )"
   );
-  EXPECT_EQ(expect<integer>(result2)->value(), 120);
+  EXPECT_EQ(expect<integer>(result2).value(), 120);
 
   generic_ptr result3 = eval(
     R"(
@@ -914,7 +916,7 @@ TEST_F(scheme, compile_set) {
         ((f 5) 3))
     )"
   );
-  EXPECT_EQ(expect<integer>(result3)->value(), 13);
+  EXPECT_EQ(expect<integer>(result3).value(), 13);
 }
 
 TEST_F(scheme, compile_box) {
@@ -926,7 +928,7 @@ TEST_F(scheme, compile_box) {
         (unbox b1))
     )"
   );
-  EXPECT_EQ(expect<integer>(result)->value(), 12);
+  EXPECT_EQ(expect<integer>(result).value(), 12);
 }
 
 TEST_F(scheme, compile_sequence) {
@@ -940,7 +942,7 @@ TEST_F(scheme, compile_sequence) {
           'unpossible)
       (+ a b))
   )");
-  EXPECT_EQ(expect<integer>(result)->value(), 3);
+  EXPECT_EQ(expect<integer>(result).value(), 3);
 }
 
 TEST_F(scheme, compile_higher_order_arithmetic) {
@@ -950,7 +952,7 @@ TEST_F(scheme, compile_higher_order_arithmetic) {
         (f + 2 3))
     )"
   );
-  EXPECT_EQ(expect<integer>(result)->value(), 5);
+  EXPECT_EQ(expect<integer>(result).value(), 5);
 }
 
 TEST_F(scheme, compile_module) {
@@ -959,7 +961,7 @@ TEST_F(scheme, compile_module) {
     ctx, ctx.internal_module, "f",
     make<native_procedure>(ctx,
                            [&] (context& ctx, std::vector<generic_ptr> const& args) {
-                             sum += expect<integer>(args[0])->value();
+                             sum += expect<integer>(args[0]).value();
                              return ctx.constants->void_;
                            }),
     true
@@ -988,7 +990,7 @@ TEST_F(scheme, compile_top_level_define) {
       (f var)
     )"
   );
-  EXPECT_EQ(expect<integer>(result1)->value(), 9);
+  EXPECT_EQ(expect<integer>(result1).value(), 9);
 
   auto result2 = eval_module(
     R"(
@@ -999,7 +1001,7 @@ TEST_F(scheme, compile_top_level_define) {
       x
     )"
   );
-  EXPECT_EQ(expect<integer>(result2)->value(), 9);
+  EXPECT_EQ(expect<integer>(result2).value(), 9);
 
   auto result3 = eval_module(R"(
     (import (insider internal))
@@ -1015,7 +1017,7 @@ TEST_F(scheme, compile_top_level_define) {
     (define g 7)
     (+ a b c d e f g)
   )");
-  EXPECT_EQ(expect<integer>(result3)->value(), 1 + 2 + 3 + 4 + 5 + 6 + 7);
+  EXPECT_EQ(expect<integer>(result3).value(), 1 + 2 + 3 + 4 + 5 + 6 + 7);
 }
 
 TEST_F(scheme, compile_internal_define) {
@@ -1034,7 +1036,7 @@ TEST_F(scheme, compile_internal_define) {
       (f 5)
     )"
   );
-  EXPECT_EQ(expect<integer>(result1)->value(), 5 + 4 + 3 + 2 + 1);
+  EXPECT_EQ(expect<integer>(result1).value(), 5 + 4 + 3 + 2 + 1);
 
   auto result2 = eval_module(R"(
     (import (insider internal))
@@ -1048,7 +1050,7 @@ TEST_F(scheme, compile_internal_define) {
         (+ sum product sum-of-squares)))
     (f 4 5)
   )");
-  EXPECT_EQ(expect<integer>(result2)->value(), 4 + 5 + 4 * 5 + 4 * 4 + 5 * 5);
+  EXPECT_EQ(expect<integer>(result2).value(), 4 + 5 + 4 * 5 + 4 * 4 + 5 * 5);
 }
 
 TEST_F(scheme, define_lambda) {
@@ -1069,7 +1071,7 @@ TEST_F(scheme, define_lambda) {
   );
 
   auto result1 = eval("(f 5 7)");
-  EXPECT_EQ(expect<integer>(result1)->value(), 2 * 5 + 7);
+  EXPECT_EQ(expect<integer>(result1).value(), 2 * 5 + 7);
 
   auto result2 = eval("(g 9)");
   EXPECT_EQ(x, 9);
@@ -1088,10 +1090,10 @@ to_string(context& ctx, generic_ptr const& datum) {
 TEST_F(scheme, test_write) {
   EXPECT_EQ(to_string(ctx, read("(1 2 3)")), "(1 2 3)");
 
-  auto p1 = make<pair>(ctx, make<integer>(ctx, 1), make<integer>(ctx, 2));
+  auto p1 = make<pair>(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}));
   EXPECT_EQ(to_string(ctx, p1), "(1 . 2)");
 
-  auto p2 = make<pair>(ctx, make<integer>(ctx, 0), p1);
+  auto p2 = make<pair>(ctx, integer_to_ptr(integer{0}), p1);
   EXPECT_EQ(to_string(ctx, p2), "(0 1 . 2)");
 
   auto v = make<vector>(ctx, ctx, 3);
@@ -1113,7 +1115,7 @@ TEST_F(scheme, test_write) {
     ctx.intern("symbol"),
     make_string(ctx, "string"),
     make<character>(ctx, 'c'),
-    make<integer>(ctx, -13)
+    integer_to_ptr(integer{-13})
   );
   EXPECT_EQ(to_string(ctx, l), R"((() #void #t #f symbol "string" #\c -13))");
 }
@@ -1124,10 +1126,10 @@ TEST_F(scheme, quote) {
   EXPECT_EQ(list_length(result1), 3);
 
   auto result2 = eval("(quote 2)");
-  EXPECT_EQ(expect<integer>(result2)->value(), 2);
+  EXPECT_EQ(expect<integer>(result2).value(), 2);
 
   auto result3 = eval("'3");
-  EXPECT_EQ(expect<integer>(result3)->value(), 3);
+  EXPECT_EQ(expect<integer>(result3).value(), 3);
 
   auto result4 = eval("'(a b)");
   EXPECT_TRUE(is_list(result4));
@@ -1241,8 +1243,8 @@ TEST_F(scheme, append) {
 
 TEST_F(scheme, call_from_native) {
   auto f = expect<procedure>(eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"));
-  generic_ptr result = call(ctx, f, {make<integer>(ctx, 5), make<integer>(ctx, 4)});
-  EXPECT_EQ(expect<integer>(result)->value(), 2 * 5 + 3 * 4);
+  generic_ptr result = call(ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})});
+  EXPECT_EQ(expect<integer>(result).value(), 2 * 5 + 3 * 4);
 
   scheme_procedure<int(int, int)> g{eval("(lambda (x y) (+ (* 2 x) (* 3 y)))")};
   EXPECT_EQ(g(ctx, 5, 4), 2 * 5 + 3 * 4);
@@ -1254,7 +1256,7 @@ TEST_F(scheme, top_level_transformers) {
     (define-syntax num (lambda (x transformer-env usage-env) 4))
     (* (num) 2)
   )");
-  EXPECT_EQ(expect<integer>(result1)->value(), 8);
+  EXPECT_EQ(expect<integer>(result1).value(), 8);
 
   auto result2 = eval_module(R"(
     (import (insider internal))
@@ -1269,7 +1271,7 @@ TEST_F(scheme, top_level_transformers) {
           (when (> value 5) (* value 20)))
   )");
   auto result2p = expect<pair>(result2);
-  EXPECT_EQ(expect<integer>(car(result2p))->value(), 40);
+  EXPECT_EQ(expect<integer>(car(result2p)).value(), 40);
   EXPECT_EQ(cdr(result2p), ctx.constants->f);
 }
 
@@ -1285,7 +1287,7 @@ TEST_F(scheme, internal_transformers) {
         (+ x (double x))))
     (foo 5)
   )");
-  EXPECT_EQ(expect<integer>(result1)->value(), 5 + 2 * 5);
+  EXPECT_EQ(expect<integer>(result1).value(), 5 + 2 * 5);
 }
 
 TEST_F(scheme, core_shadowing) {
@@ -1320,7 +1322,7 @@ TEST_F(scheme, sc_transformer) {
       (run
         value))
   )");
-  EXPECT_EQ(expect<integer>(result1)->value(), 10);
+  EXPECT_EQ(expect<integer>(result1).value(), 10);
 
   auto result2 = eval_module(R"(
     (import (insider internal))
@@ -1336,7 +1338,7 @@ TEST_F(scheme, sc_transformer) {
       (run
         value))
   )");
-  EXPECT_EQ(expect<integer>(result2)->value(), 4);
+  EXPECT_EQ(expect<integer>(result2).value(), 4);
 }
 
 TEST_F(scheme, transformers_producing_definitions) {
@@ -1357,7 +1359,7 @@ TEST_F(scheme, transformers_producing_definitions) {
         result))
     (f 4 5)
   )");
-  EXPECT_EQ(expect<integer>(result1)->value(), 2 * 3 * (4 + 5));
+  EXPECT_EQ(expect<integer>(result1).value(), 2 * 3 * (4 + 5));
 
   auto result2 = eval_module(R"(
     (import (insider internal))
@@ -1381,7 +1383,7 @@ TEST_F(scheme, transformers_producing_definitions) {
 
     (f 4 5)
   )");
-  EXPECT_EQ(expect<integer>(result2)->value(), 2 * 4 + 2 * 5);
+  EXPECT_EQ(expect<integer>(result2).value(), 2 * 4 + 2 * 5);
 
   auto result3 = eval_module(R"(
     (import (insider internal))
@@ -1402,7 +1404,7 @@ TEST_F(scheme, transformers_producing_definitions) {
                 b 12)
     (+ a b)
   )");
-  EXPECT_EQ(expect<integer>(result3)->value(), 7 + 12);
+  EXPECT_EQ(expect<integer>(result3).value(), 7 + 12);
 }
 
 TEST_F(scheme, aliases) {
@@ -1419,7 +1421,7 @@ TEST_F(scheme, aliases) {
     (let ((a 2))
       (foo))
   )");
-  EXPECT_EQ(expect<integer>(result1)->value(), 27);
+  EXPECT_EQ(expect<integer>(result1).value(), 27);
 
   auto result2 = eval_module(R"(
     (import (insider internal))
@@ -1436,7 +1438,7 @@ TEST_F(scheme, aliases) {
       (define add-arg (make-adder arg))
       (add-arg 3))
   )");
-  EXPECT_EQ(expect<integer>(result2)->value(), 10);
+  EXPECT_EQ(expect<integer>(result2).value(), 10);
 }
 
 TEST_F(scheme, module_activation) {
@@ -1491,9 +1493,9 @@ TEST_F(scheme, module_variable_export) {
     (import (foo))
     (foo 3)
   )");
-  EXPECT_EQ(expect<integer>(result)->value(), 6);
+  EXPECT_EQ(expect<integer>(result).value(), 6);
 
-  EXPECT_EQ(expect<integer>(eval_module("(import (foo)) exported"))->value(), 2);
+  EXPECT_EQ(expect<integer>(eval_module("(import (foo)) exported")).value(), 2);
   EXPECT_THROW(eval_module("(import (foo)) not-exported"), std::runtime_error);
 }
 
@@ -1515,7 +1517,7 @@ TEST_F(scheme, module_syntax_export) {
 
     (double 3)
   )");
-  EXPECT_EQ(expect<integer>(result1)->value(), 6);
+  EXPECT_EQ(expect<integer>(result1).value(), 6);
 
   add_library(R"(
     (library (bar))
@@ -1534,7 +1536,7 @@ TEST_F(scheme, module_syntax_export) {
     (define var 3)
     (get-var)
   )");
-  EXPECT_EQ(expect<integer>(result2)->value(), 7);
+  EXPECT_EQ(expect<integer>(result2).value(), 7);
 
   add_library(R"(
     (library (baz))
@@ -1550,7 +1552,7 @@ TEST_F(scheme, module_syntax_export) {
     (import (baz))
     (get-value)
   )");
-  EXPECT_EQ(expect<integer>(result3)->value(), 14);
+  EXPECT_EQ(expect<integer>(result3).value(), 14);
 }
 
 TEST_F(scheme, import_specifiers) {
@@ -1570,7 +1572,7 @@ TEST_F(scheme, import_specifiers) {
             (only (foo) a b))
     (+ a b)
   )");
-  EXPECT_EQ(expect<integer>(result1)->value(), 1 + 2);
+  EXPECT_EQ(expect<integer>(result1).value(), 1 + 2);
 
   EXPECT_THROW(eval_module("(import (insider internal) (only (foo) a b)) (+ a b c)"),
                std::runtime_error);
@@ -1580,7 +1582,7 @@ TEST_F(scheme, import_specifiers) {
             (except (foo) a b))
     (+ c d e)
   )");
-  EXPECT_EQ(expect<integer>(result2)->value(), 3 + 4 + 5);
+  EXPECT_EQ(expect<integer>(result2).value(), 3 + 4 + 5);
 
   EXPECT_THROW(eval_module("(import (insider internal) (except (foo) a b)) (+ a b c d e)"),
                std::runtime_error);
@@ -1590,7 +1592,7 @@ TEST_F(scheme, import_specifiers) {
             (prefix (foo) foo:))
     (+ foo:a foo:b foo:c foo:d foo:e)
   )");
-  EXPECT_EQ(expect<integer>(result3)->value(), 1 + 2 + 3 + 4 + 5);
+  EXPECT_EQ(expect<integer>(result3).value(), 1 + 2 + 3 + 4 + 5);
 
   auto result4 = eval_module(R"(
     (import (insider internal)
@@ -1602,14 +1604,14 @@ TEST_F(scheme, import_specifiers) {
                     (e fifth)))
     (+ first second third fourth fifth)
   )");
-  EXPECT_EQ(expect<integer>(result4)->value(), 1 + 2 + 3 + 4 + 5);
+  EXPECT_EQ(expect<integer>(result4).value(), 1 + 2 + 3 + 4 + 5);
 
   auto result5 = eval_module(R"(
     (import (insider internal)
             (prefix (only (foo) a b) foo:))
     (+ foo:a foo:b)
   )");
-  EXPECT_EQ(expect<integer>(result5)->value(), 1 + 2);
+  EXPECT_EQ(expect<integer>(result5).value(), 1 + 2);
 }
 
 TEST_F(scheme, begin_for_syntax) {
@@ -1619,7 +1621,7 @@ TEST_F(scheme, begin_for_syntax) {
       (define x 21))
     (* x 2)
   )");
-  EXPECT_EQ(expect<integer>(result1)->value(), 42);
+  EXPECT_EQ(expect<integer>(result1).value(), 42);
 
   auto result2 = eval_module(R"(
     (import (insider internal))
@@ -1692,7 +1694,7 @@ make_big_negative_literal(context& ctx, limb_vector limbs) {
 
 TEST_F(scheme, bignum_add_subtract) {
   auto make_small = [&] (integer::value_type v) {
-    return make<integer>(ctx, v);
+    return integer_to_ptr(integer{v});
   };
 
 #define TEST_ADD1(lhs, rhs, result) EXPECT_TRUE(num_equal(add(ctx, lhs, rhs), result))
@@ -1737,7 +1739,7 @@ TEST_F(scheme, bignum_add_subtract) {
 
 TEST_F(scheme, bignum_multiply) {
   auto make_small = [&] (integer::value_type v) {
-    return make<integer>(ctx, v);
+    return integer_to_ptr(integer{v});
   };
 
 #define TEST_MUL(lhs, rhs, result) EXPECT_TRUE(num_equal(multiply(ctx, lhs, rhs), result))
@@ -1868,7 +1870,7 @@ TEST_F(scheme, bignum_multiply) {
 
 TEST_F(scheme, bignum_divide) {
   auto make_small = [&] (integer::value_type v) {
-    return make<integer>(ctx, v);
+    return integer_to_ptr(integer{v});
   };
 
   auto test_div = [&] (generic_ptr const& x, generic_ptr const& y,
@@ -2163,15 +2165,15 @@ TEST_F(scheme, write_bignum) {
 }
 
 TEST_F(scheme, gcd) {
-  EXPECT_EQ(expect<integer>(gcd(ctx, make<integer>(ctx, 32), make<integer>(ctx, 36)))->value(), 4);
-  EXPECT_EQ(expect<integer>(gcd(ctx, make<integer>(ctx, 32), make<integer>(ctx, -36)))->value(), 4);
+  EXPECT_EQ(expect<integer>(gcd(ctx, integer_to_ptr(integer{32}), integer_to_ptr(integer{36}))).value(), 4);
+  EXPECT_EQ(expect<integer>(gcd(ctx, integer_to_ptr(integer{32}), integer_to_ptr(integer{-36}))).value(), 4);
   EXPECT_EQ(expect<integer>(gcd(ctx,
                                 read("15637276472805114870656615051104685548619384683912883036250789338440357844169168108881159530367194070722099976990439"),
-                                read("28310636747421372819581491222259960704337320575997318939278431382334585462782549354990068622867945599916809865521754")))->value(),
+                                read("28310636747421372819581491222259960704337320575997318939278431382334585462782549354990068622867945599916809865521754"))).value(),
             3);
   EXPECT_EQ(expect<integer>(gcd(ctx,
                                 read("32900744989775849384444111067279827681464964267754061354276182079922022805047611540836777891564097053008952910818635"),
-                                read("16871863743058363314072331379289859763122718194749875170705775524655845186234765954680571628747994726760230873387371")))->value(),
+                                read("16871863743058363314072331379289859763122718194749875170705775524655845186234765954680571628747994726760230873387371"))).value(),
             1);
   EXPECT_TRUE(num_equal(gcd(ctx,
                             read("326842357047048580094685541896229290526226710742342560706866927058691036387550824695609726546021742995306480127227041503526172382597364126586477735162986"),
@@ -2183,8 +2185,8 @@ TEST_F(scheme, read_write_fraction) {
   EXPECT_TRUE(num_equal(read("1/2"), make_fraction(1, 2)));
   EXPECT_TRUE(num_equal(read("2/4"), make_fraction(1, 2)));
   EXPECT_TRUE(num_equal(read("-1/2"), make_fraction(-1, 2)));
-  EXPECT_TRUE(num_equal(read("0/5"), make<integer>(ctx, 0)));
-  EXPECT_TRUE(num_equal(read("6/3"), make<integer>(ctx, 2)));
+  EXPECT_TRUE(num_equal(read("0/5"), integer_to_ptr(integer{0})));
+  EXPECT_TRUE(num_equal(read("6/3"), integer_to_ptr(integer{2})));
 
   EXPECT_EQ(to_string(ctx, make_fraction(1, 2)), "1/2");
   EXPECT_EQ(to_string(ctx, make_fraction(-1, 2)), "-1/2");
@@ -2192,15 +2194,15 @@ TEST_F(scheme, read_write_fraction) {
 
 TEST_F(scheme, fraction_arithmetic) {
   EXPECT_TRUE(num_equal(add(ctx, make_fraction(1, 2), make_fraction(1, 3)), make_fraction(5, 6)));
-  EXPECT_TRUE(num_equal(add(ctx, make_fraction(7, 12), make_fraction(5, 12)), make<integer>(ctx, 1)));
+  EXPECT_TRUE(num_equal(add(ctx, make_fraction(7, 12), make_fraction(5, 12)), integer_to_ptr(integer{1})));
   EXPECT_TRUE(num_equal(add(ctx, make_fraction(1, 6), make_fraction(2, 3)), make_fraction(5, 6)));
   EXPECT_TRUE(num_equal(add(ctx, make_fraction(3, 4), make_fraction(1, 6)), make_fraction(11, 12)));
-  EXPECT_TRUE(num_equal(subtract(ctx, make<integer>(ctx, 1), make_fraction(1, 3)), make_fraction(2, 3)));
-  EXPECT_TRUE(num_equal(subtract(ctx, make_fraction(7, 2), make<integer>(ctx, 4)), make_fraction(-1, 2)));
+  EXPECT_TRUE(num_equal(subtract(ctx, integer_to_ptr(integer{1}), make_fraction(1, 3)), make_fraction(2, 3)));
+  EXPECT_TRUE(num_equal(subtract(ctx, make_fraction(7, 2), integer_to_ptr(integer{4})), make_fraction(-1, 2)));
   EXPECT_TRUE(num_equal(multiply(ctx, make_fraction(1, 3), make_fraction(2, 3)), make_fraction(2, 9)));
-  EXPECT_TRUE(num_equal(multiply(ctx, make_fraction(7, 2), make_fraction(2, 7)), make<integer>(ctx, 1)));
-  EXPECT_TRUE(num_equal(divide(ctx, make<integer>(ctx, 1), make<integer>(ctx, 2)), make_fraction(1, 2)));
-  EXPECT_TRUE(num_equal(divide(ctx, make<integer>(ctx, 8), make<integer>(ctx, 2)), make<integer>(ctx, 4)));
+  EXPECT_TRUE(num_equal(multiply(ctx, make_fraction(7, 2), make_fraction(2, 7)), integer_to_ptr(integer{1})));
+  EXPECT_TRUE(num_equal(divide(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2})), make_fraction(1, 2)));
+  EXPECT_TRUE(num_equal(divide(ctx, integer_to_ptr(integer{8}), integer_to_ptr(integer{2})), integer_to_ptr(integer{4})));
   EXPECT_TRUE(num_equal(divide(ctx, make_fraction(3, 4), make_fraction(2, 3)), make_fraction(9, 8)));
   EXPECT_TRUE(num_equal(divide(ctx, make_fraction(1, 3), make_fraction(2, 3)), make_fraction(1, 2)));
 }
@@ -2237,7 +2239,7 @@ TEST_F(scheme, read_write_float) {
 TEST_F(scheme, float_arithmetic) {
 #define ASSERT_FP_EQ(lhs, rhs) ASSERT_DOUBLE_EQ(expect<floating_point>(lhs)->value, rhs)
   ASSERT_FP_EQ(add(ctx, make<floating_point>(ctx, 0.5), make<floating_point>(ctx, 0.4)), 0.9);
-  ASSERT_FP_EQ(add(ctx, make<floating_point>(ctx, 0.7), make<integer>(ctx, 2)), 2.7);
+  ASSERT_FP_EQ(add(ctx, make<floating_point>(ctx, 0.7), integer_to_ptr(integer{2})), 2.7);
   ASSERT_FP_EQ(add(ctx, make<floating_point>(ctx, 1.0), make_fraction(1, 2)), 1.5);
   ASSERT_FP_EQ(multiply(ctx, make<floating_point>(ctx, 3.0), make<floating_point>(ctx, 0.5)), 1.5);
   ASSERT_FP_EQ(divide(ctx, make<floating_point>(ctx, 3.0), make<floating_point>(ctx, 2.0)), 1.5);

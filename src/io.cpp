@@ -149,7 +149,7 @@ read_character(context& ctx, ptr<port> const& stream) {
 
     return generic_literal{
       make<character>(ctx,
-                      static_cast<char>(expect<integer>(read_integer(ctx, literal, 16))->value()))
+                      static_cast<char>(expect<integer>(read_integer(ctx, literal, 16)).value()))
     };
   }
 }
