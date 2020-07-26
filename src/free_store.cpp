@@ -152,100 +152,6 @@ new_type(type_descriptor d) {
   return types().size() - 1;
 }
 
-generic_ptr::generic_ptr(free_store& store, object* value)
-  : generic_ptr_base{store, value}
-{
-  assert(!value_ || !is_object_ptr(value_) || is_alive(value_));
-  store.register_root(this);
-}
-
-generic_ptr::generic_ptr(generic_ptr const& other)
-  : generic_ptr_base(other)
-{
-  assert(store_ || !value_ || !is_object_ptr(value_));
-  assert(!value_ || !is_object_ptr(value_) || is_alive(value_));
-
-  if (store_)
-    store_->register_root(this);
-}
-
-generic_ptr::generic_ptr(word_type payload) {
-  value_ = fixnum_to_ptr(payload);
-}
-
-generic_ptr::~generic_ptr() {
-  if (store_)
-    store_->unregister_root(this);
-}
-
-generic_ptr&
-generic_ptr::operator = (generic_ptr const& other) {
-  if (this == &other)
-    return *this;
-
-  if (store_ != other.store_) {
-    if (store_)
-      store_->unregister_root(this);
-
-    store_ = other.store_;
-    if (store_)
-      store_->register_root(this);
-  }
-
-  value_ = other.value_;
-  assert(store_ || !value_ || !is_object_ptr(value_));
-  assert(!value_ || !is_object_ptr(value_) || is_alive(value_));
-
-  return *this;
-}
-
-generic_weak_ptr::generic_weak_ptr(free_store& store, object* value)
-  : generic_ptr_base{store, value}
-{
-  if (value)
-    store.register_weak(this);
-}
-
-generic_weak_ptr::generic_weak_ptr(generic_weak_ptr const& other)
-  : generic_weak_ptr{other.store(), other.value_}
-{
-  assert(store_ || !value_);
-
-  if (store_ && value_)
-    store_->register_weak(this);
-}
-
-generic_weak_ptr::~generic_weak_ptr() {
-  if (store_)
-    store_->unregister_weak(this);
-}
-
-generic_weak_ptr&
-generic_weak_ptr::operator = (generic_weak_ptr const& other) {
-  if (this == &other)
-    return *this;
-  else
-    return operator = (other.value_);
-}
-
-generic_weak_ptr&
-generic_weak_ptr::operator = (object* value) {
-  if (value_)
-    store_->unregister_weak(this);
-
-  value_ = value;
-
-  if (value_)
-    store_->register_weak(this);
-
-  return *this;
-}
-
-generic_ptr
-generic_weak_ptr::lock() const {
-  return {*store_, value_};
-}
-
 static page
 allocate_page() {
   return {std::make_unique<std::byte[]>(page_size), 0};
@@ -259,37 +165,18 @@ free_store::free_store() {
 }
 
 free_store::~free_store() {
-  assert(roots_.empty());
+  assert(!roots_->next());
+  assert(!roots_->prev());
   collect_garbage();
 }
 
-void
-free_store::register_root(generic_ptr* root) {
-  roots_.emplace(root);
-}
-
-void
-free_store::unregister_root(generic_ptr* root) {
-  roots_.erase(root);
-}
-
-void
-free_store::register_weak(generic_weak_ptr* ptr) {
-  weak_roots_.emplace(ptr);
-}
-
-void
-free_store::unregister_weak(generic_weak_ptr* ptr) {
-  weak_roots_.erase(ptr);
-}
-
 static void
-trace(std::unordered_set<generic_ptr*> const& roots) {
+trace(generic_ptr* roots) {
   std::vector<object*> stack;
   tracing_context tc{stack};
 
-  for (generic_ptr const* root : roots)
-    if (*root && is_object_ptr(root->get()) && object_color(root->get()) == color::white) {
+  for (generic_ptr* root = roots; root; root = root->next())
+    if (root->get() && is_object_ptr(root->get()) && object_color(root->get()) == color::white) {
       assert(is_alive(root->get()));
       set_object_color(root->get(), color::black);
       stack.push_back(root->get());
@@ -486,7 +373,7 @@ free_store::allocate_object(std::size_t size, word_type type) {
 
 void
 free_store::update_roots() {
-  for (generic_ptr* p : roots_) {
+  for (generic_ptr* p = roots_; p; p = p->next()) {
     if (p->get() && is_object_ptr(p->get()) && !is_alive(p->get())) {
       p->value_ = forwarding_address(p->get());
       assert(p->value_ != nullptr);
@@ -496,7 +383,7 @@ free_store::update_roots() {
     assert(!p->get() || !is_object_ptr(p->get()) || object_color(p->get()) == color::white);
   }
 
-  for (generic_weak_ptr* wp : weak_roots_) {
+  for (generic_weak_ptr* wp = weak_roots_; wp; wp = wp->next()) {
     if (wp->get() && is_object_ptr(wp->get()) && !is_alive(wp->get()))
       wp->value_ = forwarding_address(wp->get());
   }

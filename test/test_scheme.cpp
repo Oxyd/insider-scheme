@@ -1073,7 +1073,7 @@ TEST_F(scheme, define_lambda) {
   auto result1 = eval("(f 5 7)");
   EXPECT_EQ(expect<integer>(result1).value(), 2 * 5 + 7);
 
-  auto result2 = eval("(g 9)");
+  eval("(g 9)");
   EXPECT_EQ(x, 9);
 
   auto result3 = eval("(to-string 3)");

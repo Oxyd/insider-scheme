@@ -1,6 +1,7 @@
 #ifndef SCHEME_FREE_STORE_HPP
 #define SCHEME_FREE_STORE_HPP
 
+#include <cassert>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -215,14 +216,47 @@ word_type const dynamic_size_object<Derived, T>::type_index = new_type(type_desc
 class free_store;
 
 namespace detail {
+  template <typename Derived>
   class generic_ptr_base {
   public:
     generic_ptr_base() = default;
 
-    generic_ptr_base(free_store& store, object* value)
+    generic_ptr_base(free_store& fs, object* value)
       : value_{value}
-      , store_{&store}
-    { }
+      , store_{&fs}
+    {
+      link();
+    }
+
+    generic_ptr_base(generic_ptr_base const& other)
+      : value_{other.value_}
+      , store_{other.store_}
+    {
+      if (store_)
+        link();
+    }
+
+    ~generic_ptr_base() {
+      if (store_)
+        unlink();
+    }
+
+    generic_ptr_base&
+    operator = (generic_ptr_base const& other) {
+      if (this == &other)
+        return *this;
+
+      if (store_ && store_ != other.store_)
+        unlink();
+
+      value_ = other.value_;
+      store_ = other.store_;
+
+      if (store_ && !prev_)
+        link();
+
+      return *this;
+    }
 
     void
     reset() { value_ = nullptr; }
@@ -236,58 +270,108 @@ namespace detail {
     object*
     get() const { return value_; }
 
-    free_store&
-    store() const { return *store_; }
-
     explicit
     operator bool () const { return value_ != nullptr; }
+
+    Derived*
+    next() const { return next_; }
+
+    Derived*
+    prev() const { return prev_; }
+
+    free_store&
+    store() const { assert(store_); return *store_; }
 
   protected:
     friend class insider::free_store;
 
-    object* value_     = nullptr;
+    object*     value_ = nullptr;
     free_store* store_ = nullptr;
+    Derived*    prev_  = nullptr;
+    Derived*    next_  = nullptr;
+
+    void
+    link() {
+      assert(!prev_);
+      assert(!next_);
+      assert(store_);
+
+      Derived* root = Derived::root_list(*store_);
+      Derived* root_next = root->next_;
+
+      prev_ = root;
+      root->next_ = static_cast<Derived*>(this);
+      next_ = root_next;
+
+      if (next_)
+        next_->prev_ = static_cast<Derived*>(this);
+
+      assert(prev_);
+    }
+
+    void
+    unlink() {
+      assert(prev_);
+
+      prev_->next_ = next_;
+      if (next_)
+        next_->prev_ = prev_;
+
+      prev_ = nullptr;
+      next_ = nullptr;
+    }
   };
 } // namespace detail
 
 // Untyped pointer to a Scheme object, registered with the garbage collector as a GC root.
-class generic_ptr : public detail::generic_ptr_base {
+class generic_ptr : public detail::generic_ptr_base<generic_ptr> {
 public:
-  generic_ptr() = default;
-  generic_ptr(free_store&, object* value);
-  generic_ptr(generic_ptr const& other);
+  using generic_ptr_base::generic_ptr_base;
+
   explicit
-  generic_ptr(word_type payload);
-  ~generic_ptr();
+  generic_ptr(word_type payload) {
+    value_ = fixnum_to_ptr(payload);
+  }
+
   generic_ptr&
-  operator = (generic_ptr const&);
+  operator = (generic_ptr const& other) = default;
+
+private:
+  friend class generic_ptr_base;
+
+  static generic_ptr*
+  root_list(free_store& fs);
 };
 
 // Like generic_ptr, but does not keep an object alive.
-class generic_weak_ptr : public detail::generic_ptr_base {
+class generic_weak_ptr : public detail::generic_ptr_base<generic_weak_ptr> {
 public:
-  generic_weak_ptr() = default;
-  generic_weak_ptr(free_store&, object* value);
-  generic_weak_ptr(generic_weak_ptr const& other);
-  ~generic_weak_ptr();
+  using generic_ptr_base::generic_ptr_base;
+
+  generic_weak_ptr(generic_weak_ptr const& other) : generic_ptr_base{other} { }
 
   generic_weak_ptr&
-  operator = (generic_weak_ptr const& other);
-
-  generic_weak_ptr&
-  operator = (object* value);
+  operator = (generic_weak_ptr const& other) = default;
 
   generic_ptr
-  lock() const;
+  lock(free_store& fs) const { return {fs, value_}; }
+
+private:
+  friend class generic_ptr_base;
+
+  static generic_weak_ptr*
+  root_list(free_store& fs);
 };
 
-inline bool
-operator == (detail::generic_ptr_base const& lhs, detail::generic_ptr_base const& rhs) {
+template <typename Derived>
+bool
+operator == (detail::generic_ptr_base<Derived> const& lhs, detail::generic_ptr_base<Derived> const& rhs) {
   return lhs.get() == rhs.get();
 }
 
-inline bool
-operator != (detail::generic_ptr_base const& lhs, detail::generic_ptr_base const& rhs) {
+template <typename Derived>
+bool
+operator != (detail::generic_ptr_base<Derived> const& lhs, detail::generic_ptr_base<Derived> const& rhs) {
   return !operator == (lhs, rhs);
 }
 
@@ -296,6 +380,9 @@ template <typename T>
 class ptr : public generic_ptr {
 public:
   using generic_ptr::generic_ptr;
+
+  ptr&
+  operator = (ptr const& other) = default;
 
   T&
   operator * () const { return *get(); }
@@ -317,6 +404,9 @@ public:
     : weak_ptr{other.store(), other.get()}
   { }
 
+  weak_ptr&
+  operator = (weak_ptr const& other) = default;
+
   T&
   operator * () const { return *get(); }
 
@@ -327,7 +417,7 @@ public:
   get() const { return static_cast<T*>(generic_weak_ptr::get()); }
 
   ptr<T>
-  lock() const { return {store(), get()}; }
+  lock() const { return {*store_, get()}; }
 };
 
 struct page {
@@ -378,15 +468,11 @@ public:
     return {*this, result};
   }
 
-  void
-  register_root(generic_ptr*);
-  void
-  unregister_root(generic_ptr*);
+  generic_ptr*
+  root_list() { return roots_; }
 
-  void
-  register_weak(generic_weak_ptr*);
-  void
-  unregister_weak(generic_weak_ptr*);
+  generic_weak_ptr*
+  weak_root_list() { return weak_roots_; }
 
   void
   register_callback(std::function<void()> cb) { post_gc_callbacks_.emplace_back(std::move(cb)); }
@@ -405,8 +491,12 @@ private:
   space nursery_tospace_;
   large_space nursery_large_objects_;
 
-  std::unordered_set<generic_ptr*> roots_;
-  std::unordered_set<generic_weak_ptr*> weak_roots_;
+  // Two doubly-linked lists with head.
+  generic_ptr*      roots_ = &root_head_;
+  generic_ptr       root_head_;
+  generic_weak_ptr* weak_roots_ = &weak_head_;
+  generic_weak_ptr  weak_head_;
+
   std::vector<std::function<void()>> post_gc_callbacks_;
 
   unsigned disable_level_ = 0;
@@ -421,6 +511,16 @@ private:
   void
   update_roots();
 };
+
+inline generic_ptr*
+generic_ptr::root_list(free_store& fs) {
+  return fs.root_list();
+}
+
+inline generic_weak_ptr*
+generic_weak_ptr::root_list(free_store& fs) {
+  return fs.weak_root_list();
+}
 
 class disable_collection {
 public:
