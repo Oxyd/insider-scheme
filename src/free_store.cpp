@@ -201,8 +201,11 @@ allocate(space& s, std::size_t size) {
   assert(size < page_size);
 
   if (page_free(s.pages[s.current]) < size) {
-    s.pages.emplace_back(allocate_page());
-    s.current = s.pages.size() - 1;
+    if (s.current == s.pages.size() - 1) {
+      s.pages.emplace_back(allocate_page());
+      s.current = s.pages.size() - 1;
+    } else
+      ++s.current;
   }
 
   std::byte* result = s.pages[s.current].storage.get() + s.pages[s.current].used;
@@ -376,8 +379,12 @@ free_store::allocate_object(std::size_t size, word_type type) {
   if (total_size >= large_threshold)
     storage = nursery_large_objects_.emplace_back(std::make_unique<std::byte[]>(total_size)).get();
   else {
-    if (page_free(nursery_fromspace_.pages[nursery_fromspace_.current]) < total_size)
-      collect_garbage();
+    if (page_free(nursery_fromspace_.pages[nursery_fromspace_.current]) < total_size) {
+      if (nursery_fromspace_.current == nursery_fromspace_.pages.size() - 1)
+        collect_garbage();
+      else
+        ++nursery_fromspace_.current;
+    }
 
     storage = allocate(nursery_fromspace_, total_size);
   }
