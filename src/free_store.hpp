@@ -435,6 +435,8 @@ using large_space = std::vector<std::unique_ptr<std::byte[]>>;
 // Garbage-collected storage for Scheme objects.
 class free_store {
 public:
+  bool verbose_collection = false;
+
   free_store();
   free_store(free_store const&) = delete;
   void operator = (free_store const&) = delete;

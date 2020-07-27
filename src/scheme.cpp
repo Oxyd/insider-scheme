@@ -631,6 +631,13 @@ make_internal_module(context& ctx) {
     }
   );
 
+  define_lambda<void(context&, ptr<boolean> const&)>(
+    ctx, result, "set-verbose-collection!", true,
+    [] (context& ctx, ptr<boolean> const& value) {
+      ctx.store.verbose_collection = value->value();
+    }
+  );
+
   return result;
 }
 

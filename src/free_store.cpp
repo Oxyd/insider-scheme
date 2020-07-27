@@ -6,6 +6,8 @@
 #include <cxxabi.h>
 #endif
 
+#include <fmt/format.h>
+
 namespace insider {
 
 static constexpr std::size_t page_size = 4096;
@@ -309,6 +311,15 @@ sweep_large(large_space& space) {
   return new_space;
 }
 
+static std::size_t
+space_occupied_size(space const& s) {
+  std::size_t result = 0;
+  for (page const& p : s.pages)
+    result += p.used;
+
+  return result;
+}
+
 void
 free_store::collect_garbage() {
   if (disable_level_ > 0) {
@@ -323,6 +334,11 @@ free_store::collect_garbage() {
   update_references(nursery_tospace_);
   update_references(new_large);
   update_roots();
+
+  if (verbose_collection)
+    fmt::print("GC: Old nursery: {} pages, {} bytes; new nursery: {} pages, {} bytes\n",
+               nursery_fromspace_.pages.size(), space_occupied_size(nursery_fromspace_),
+               nursery_tospace_.pages.size(), space_occupied_size(nursery_tospace_));
 
   clear_space(nursery_fromspace_);
   trim_space(nursery_fromspace_);
