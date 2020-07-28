@@ -44,7 +44,7 @@ public:
   generic_ptr
   local(free_store& store, std::size_t i) const;
   void
-  set_local(std::size_t i, generic_ptr const& value);
+  set_local(free_store& store, std::size_t i, generic_ptr const& value);
 
   generic_ptr
   closure(free_store& store, std::size_t i) const;

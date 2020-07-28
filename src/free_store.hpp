@@ -470,6 +470,9 @@ public:
     return {*this, result};
   }
 
+  void
+  notify_arc(object* from, object* to) { (void) from; (void) to; }
+
   generic_ptr*
   root_list() { return roots_; }
 

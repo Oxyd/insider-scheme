@@ -85,13 +85,13 @@ public:
   { }
 
   void
-  add(generic_ptr const& identifier, std::shared_ptr<variable>);
+  add(free_store& store, generic_ptr const& identifier, std::shared_ptr<variable>);
 
   void
-  add(generic_ptr const& identifier, ptr<transformer> const&);
+  add(free_store& store, generic_ptr const& identifier, ptr<transformer> const&);
 
   void
-  add(generic_ptr const& identifier, value_type const&);
+  add(free_store& store, generic_ptr const& identifier, value_type const&);
 
   ptr<environment>
   parent(free_store& fs) const { return {fs, parent_}; }
@@ -533,9 +533,9 @@ public:
   cdr(free_store& store) const { return {store, cdr_}; }
 
   void
-  set_car(object* p) { car_ = p; }
+  set_car(free_store& store, object* p) { car_ = p; store.notify_arc(this, p); }
   void
-  set_cdr(object* p) { cdr_ = p; }
+  set_cdr(free_store& store, object* p) { cdr_ = p; store.notify_arc(this, p); }
 
   void
   trace(tracing_context& tc) { tc.trace(car_); tc.trace(cdr_); }
@@ -571,10 +571,10 @@ inline generic_ptr
 cdr(ptr<pair> const& x) { return x->cdr(x.store()); }
 
 inline void
-set_car(ptr<pair> const& p, generic_ptr const& x) { p->set_car(x.get()); }
+set_car(ptr<pair> const& p, generic_ptr const& x) { p->set_car(p.store(), x.get()); }
 
 inline void
-set_cdr(ptr<pair> const& p, generic_ptr const& x) { p->set_cdr(x.get()); }
+set_cdr(ptr<pair> const& p, generic_ptr const& x) { p->set_cdr(p.store(), x.get()); }
 
 generic_ptr
 cadr(ptr<pair> const&);
@@ -650,7 +650,7 @@ public:
   ref(free_store& store, std::size_t) const;
 
   void
-  set(std::size_t, object*);
+  set(free_store&, std::size_t, object*);
 
   std::size_t
   size() const { return size_; }
@@ -666,7 +666,7 @@ inline generic_ptr
 vector_ref(ptr<vector> const& v, std::size_t i) { return v->ref(v.store(), i); }
 
 inline void
-vector_set(ptr<vector> const& v, std::size_t i, generic_ptr const& value) { v->set(i, value.get()); }
+vector_set(ptr<vector> const& v, std::size_t i, generic_ptr const& value) { v->set(v.store(), i, value.get()); }
 
 ptr<vector>
 make_vector(context&, std::vector<generic_ptr> const&);
@@ -703,7 +703,7 @@ public:
   get(free_store& store) const { return {store, value_}; }
 
   void
-  set(object* value) { value_ = value; }
+  set(free_store& store, object* value) { value_ = value; store.notify_arc(this, value); }
 
   void
   trace(tracing_context& tc) { tc.trace(value_); }
@@ -719,7 +719,7 @@ inline generic_ptr
 unbox(ptr<box> const& b) { return b->get(b.store()); }
 
 inline void
-box_set(ptr<box> const& b, generic_ptr const& value) { b->set(value.get()); }
+box_set(ptr<box> const& b, generic_ptr const& value) { b->set(b.store(), value.get()); }
 
 // Callable bytecode container. Contains all the information necessary to create
 // a call frame inside the VM.

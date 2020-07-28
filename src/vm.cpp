@@ -69,9 +69,10 @@ call_frame::local(free_store& store, std::size_t i) const {
 }
 
 void
-call_frame::set_local(std::size_t i, generic_ptr const& value) {
+call_frame::set_local(free_store& store, std::size_t i, generic_ptr const& value) {
   assert(i < locals_size_);
   storage_element(i) = value.get();
+  store.notify_arc(this, value.get());
 }
 
 generic_ptr
@@ -102,7 +103,7 @@ static void
 set_register(execution_state& state, operand op, generic_ptr const& value) {
   switch (op.scope()) {
   case operand::scope_type::local:
-    state.current_frame->set_local(op.value(), value);
+    state.current_frame->set_local(state.ctx.store, op.value(), value);
     return;
   case operand::scope_type::closure:
     // Does writing to closures make sense? Not implementing until I'm convinced

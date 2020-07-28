@@ -71,7 +71,7 @@ syntactic_closure_to_environment(context& ctx, ptr<syntactic_closure> const& sc,
 
   for (ptr<symbol> const& free : syntactic_closure_free(sc)) {
     if (auto binding = lookup(env, free))
-      result->add(free, *binding);
+      result->add(ctx.store, free, *binding);
   }
 
   return result;
@@ -260,7 +260,7 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
         auto name = expect_id(pc.ctx, cadr(p));
         auto transformer_proc = eval_transformer(pc.ctx, pc.module, caddr(p));
         auto transformer = make<insider::transformer>(pc.ctx, result.env, transformer_proc);
-        result.env->add(name, transformer);
+        result.env->add(pc.ctx.store, name, transformer);
 
         continue;
       }
@@ -269,7 +269,7 @@ process_internal_defines(parsing_context& pc, ptr<environment> const& env, gener
           throw error("define after a nondefinition");
 
         auto id = expect_id(pc.ctx, cadr(p));
-        result.env->add(id, std::make_shared<variable>(identifier_name(id)));
+        result.env->add(pc.ctx.store, id, std::make_shared<variable>(identifier_name(id)));
 
         result.forms.push_back(expr);
         result.internal_variable_ids.push_back(id);
@@ -365,7 +365,7 @@ parse_let(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& dat
 
   auto subenv = make<environment>(pc.ctx, env);
   for (definition_pair_syntax const& dp : definitions)
-    subenv->add(dp.id, dp.variable);
+    subenv->add(pc.ctx.store, dp.id, dp.variable);
 
   return make_syntax<let_syntax>(std::move(definitions), parse_body(pc, subenv, cddr(datum)));
 }
@@ -386,7 +386,7 @@ parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& 
       auto id = expect_id(pc.ctx, car(param));
       auto var = std::make_shared<variable>(identifier_name(id));
       parameters.push_back(var);
-      subenv->add(id, std::move(var));
+      subenv->add(pc.ctx.store, id, std::move(var));
 
       param_names = cdr(param);
     }
@@ -395,7 +395,7 @@ parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& 
       auto id = param_names;
       auto var = std::make_shared<variable>(identifier_name(id));
       parameters.push_back(var);
-      subenv->add(id, std::move(var));
+      subenv->add(pc.ctx.store, id, std::move(var));
       break;
     }
     else
@@ -991,7 +991,7 @@ expand_top_level(context& ctx, module& m, protomodule const& pm) {
           auto name = expect_id(ctx, cadr(p));
           auto transformer_proc = eval_transformer(ctx, m, caddr(p));
           auto transformer = make<insider::transformer>(ctx, m.environment(), transformer_proc);
-          m.environment()->add(name, transformer);
+          m.environment()->add(ctx.store, name, transformer);
 
           continue;
         }

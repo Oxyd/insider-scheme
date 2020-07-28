@@ -105,29 +105,34 @@ identifier_name(generic_ptr const& x) {
 }
 
 void
-environment::add(generic_ptr const& identifier, std::shared_ptr<variable> var) {
+environment::add(free_store& store, generic_ptr const& identifier, std::shared_ptr<variable> var) {
   assert(is_identifier(identifier));
 
   bool inserted = bindings_.emplace(identifier.get(), std::move(var)).second;
   if (!inserted)
     throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
+
+  store.notify_arc(this, identifier.get());
 }
 
 void
-environment::add(generic_ptr const& identifier, ptr<transformer> const& tr) {
+environment::add(free_store& store, generic_ptr const& identifier, ptr<transformer> const& tr) {
   assert(is_identifier(identifier));
 
   bool inserted = bindings_.emplace(identifier.get(), tr.get()).second;
   if (!inserted)
     throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
+
+  store.notify_arc(this, identifier.get());
+  store.notify_arc(this, tr.get());
 }
 
 void
-environment::add(generic_ptr const& identifier, value_type const& value) {
+environment::add(free_store& store, generic_ptr const& identifier, value_type const& value) {
   if (auto var = std::get_if<std::shared_ptr<variable>>(&value))
-    add(identifier, *var);
+    add(store, identifier, *var);
   else
-    add(identifier, std::get<ptr<transformer>>(value));
+    add(store, identifier, std::get<ptr<transformer>>(value));
 }
 
 auto
@@ -213,9 +218,9 @@ module::add(generic_ptr const& identifier, binding_type b) {
   }
 
   if (auto* index = std::get_if<index_type>(&b))
-    env_->add(identifier, std::make_shared<variable>(identifier_name(identifier), *index));
+    env_->add(env_.store(), identifier, std::make_shared<variable>(identifier_name(identifier), *index));
   else
-    env_->add(identifier, std::get<ptr<transformer>>(b));
+    env_->add(env_.store(), identifier, std::get<ptr<transformer>>(b));
 }
 
 void
@@ -1147,11 +1152,12 @@ vector::ref(free_store& store, std::size_t i) const {
 }
 
 void
-vector::set(std::size_t i, object* value) {
+vector::set(free_store& store, std::size_t i, object* value) {
   if (i >= size_)
     throw std::runtime_error{fmt::format("Vector access out of bounds: index = {}, size = {}", i, size_)};
 
   storage_element(i) = value;
+  store.notify_arc(this, value);
 }
 
 std::size_t

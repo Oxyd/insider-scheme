@@ -193,10 +193,10 @@ public:
   denominator(free_store& store) const { return {store, denominator_}; }
 
   void
-  set_numerator(generic_ptr const& n) { numerator_ = n.get(); }
+  set_numerator(free_store& store, generic_ptr const& n) { numerator_ = n.get(); store.notify_arc(this, n.get()); }
 
   void
-  set_denominator(generic_ptr const& d) { denominator_ = d.get(); }
+  set_denominator(free_store& store, generic_ptr const& d) { denominator_ = d.get(); store.notify_arc(this, d.get()); }
 
   void
   trace(tracing_context& tc) { tc.trace(numerator_); tc.trace(denominator_); }
