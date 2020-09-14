@@ -565,10 +565,6 @@ public:
   template <typename T, typename... Args>
   std::enable_if_t<!T::is_dynamic_size, ptr<T>>
   make(Args&&... args) {
-#ifdef GC_DEBUG
-    collect_garbage();
-#endif
-
     static_assert(sizeof(T) % sizeof(word_type) == 0);
 
     std::byte* storage = allocate_object(sizeof(T), T::type_index);
@@ -579,10 +575,6 @@ public:
   template <typename T, typename... Args>
   std::enable_if_t<T::is_dynamic_size, ptr<T>>
   make(Args&&... args) {
-#ifdef GC_DEBUG
-    collect_garbage();
-#endif
-
     std::size_t elements = T::extra_elements(args...);
     std::size_t size = detail::round_to_words(sizeof(T) + elements * sizeof(typename T::element_type));
     std::byte* storage = allocate_object(size, T::type_index);
