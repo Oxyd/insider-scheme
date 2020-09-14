@@ -462,12 +462,16 @@ format_stats(generation const& nursery_1, generation const& nursery_2, generatio
 
 static void
 verify(generation const& g) {
+  static_cast<void>(g);
+
+#ifndef NDEBUG
   g.small.for_all([&] (object* o) {
     assert(!is_object_ptr(o) || object_generation(o) == g.generation_number);
   });
 
   for (auto const& storage : g.large)
     assert(object_generation(reinterpret_cast<object*>(storage.get() + sizeof(word_type))) == g.generation_number);
+#endif
 }
 
 void
