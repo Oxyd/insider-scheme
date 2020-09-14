@@ -13,6 +13,10 @@ namespace insider {
 
 static constexpr std::size_t page_size = 4096;
 static constexpr std::size_t large_threshold = 256;
+static constexpr std::size_t min_nursery_pages = 10;
+static constexpr std::size_t nursery_reserve_pages = 2;
+static constexpr std::size_t mature_reserve_pages = 2;
+static constexpr std::size_t major_collection_frequency = 8;
 
 static std::vector<type_descriptor>&
 types() {
@@ -279,6 +283,10 @@ move_object(object* o, dense_space& to) {
   return t.move(o, storage + sizeof(word_type));
 }
 
+free_store::free_store()
+  : target_nursery_pages_{min_nursery_pages}
+{ }
+
 free_store::~free_store() {
   assert(!roots_->next());
   assert(!roots_->prev());
@@ -511,19 +519,15 @@ free_store::collect_garbage(bool major) {
     fmt::print("GC: New: {}\n", format_stats(nursery_1, nursery_2, mature));
 
   requested_collection_level_ = std::nullopt;
+
+  target_nursery_pages_ = std::max(min_nursery_pages, nursery_1.small.pages_used() + nursery_reserve_pages);
+  allocator_.keep_at_most(2 * nursery_reserve_pages + mature_reserve_pages);
 }
 
 void
-free_store::disable_collection() {
-  ++disable_level_;
-}
-
-void
-free_store::enable_collection() {
-  --disable_level_;
-
-  if (disable_level_ == 0 && requested_collection_level_)
-    collect_garbage();
+free_store::update() {
+  if (requested_collection_level_)
+    collect_garbage(*requested_collection_level_ == generation::mature);
 }
 
 std::byte*
@@ -535,10 +539,10 @@ free_store::allocate_object(std::size_t size, word_type type) {
     storage = generations_[generation::nursery_1].large.emplace_back(std::make_unique<std::byte[]>(total_size)).get();
   else {
     dense_space& space = generations_[generation::nursery_1].small;
-    if (!space.has_preallocated_storage(total_size))
-      collect_garbage();
-
     storage = space.allocate(total_size);
+
+    if (space.pages_used() >= target_nursery_pages_)
+      request_collection();
   }
 
   init_object_header(storage, type);
@@ -562,6 +566,15 @@ free_store::update_roots() {
     if (wp->get() && is_object_ptr(wp->get()) && !is_alive(wp->get()))
       wp->value_ = forwarding_address(wp->get());
   }
+}
+
+void
+free_store::request_collection() {
+  collection_number_ = (collection_number_ + 1) % major_collection_frequency;
+  if (collection_number_ == 0)
+    requested_collection_level_ = generation::mature;
+  else
+    requested_collection_level_ = generation::nursery_2;
 }
 
 } // namespace insider

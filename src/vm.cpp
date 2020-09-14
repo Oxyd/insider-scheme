@@ -420,8 +420,10 @@ generic_ptr
 run(execution_state& state) {
   execution_action a(state);
 
-  while (state.current_frame->pc < state.current_frame->procedure(state.ctx.store)->bytecode.size())
+  while (state.current_frame->pc < state.current_frame->procedure(state.ctx.store)->bytecode.size()) {
     execute_one(state);
+    state.ctx.store.update();
+  }
 
   assert(!state.current_frame->parent(state.ctx.store)); // Non-global procedures must finish by
                                                          // executing ret.

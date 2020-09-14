@@ -557,7 +557,7 @@ class free_store {
 public:
   bool verbose_collection = false;
 
-  free_store() = default;
+  free_store();
   free_store(free_store const&) = delete;
   void operator = (free_store const&) = delete;
   ~free_store();
@@ -610,17 +610,18 @@ public:
   void
   collect_garbage(bool major = false);
 
+  // Check whether a collection should be performed and, if so, do a collection.
   void
-  disable_collection();
-
-  void
-  enable_collection();
+  update();
 
 private:
   page_allocator allocator_;
   generation_list generations_{generation{allocator_, generation::nursery_1},
                                generation{allocator_, generation::nursery_2},
                                generation{allocator_, generation::mature}};
+
+  std::size_t target_nursery_pages_ = 0;
+  std::size_t collection_number_ = 0;
 
   // Two doubly-linked lists with head.
   generic_ptr*      roots_ = &root_head_;
@@ -641,6 +642,9 @@ private:
 
   void
   update_roots();
+
+  void
+  request_collection();
 };
 
 inline generic_ptr*
@@ -652,26 +656,6 @@ inline generic_weak_ptr*
 generic_weak_ptr::root_list(free_store& fs) {
   return fs.weak_root_list();
 }
-
-class disable_collection {
-public:
-  explicit
-  disable_collection(free_store& fs)
-    : fs_{fs}
-  {
-    fs_.disable_collection();
-  }
-
-  ~disable_collection() {
-    fs_.enable_collection();
-  }
-
-  disable_collection(disable_collection const&) = delete;
-  void operator = (disable_collection const&) = delete;
-
-private:
-  free_store& fs_;
-};
 
 } // namespace insider
 

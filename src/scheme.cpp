@@ -530,7 +530,6 @@ make_internal_module(context& ctx) {
   define_lambda<ptr<vector>(context&, ptr<procedure> const&)>(
     ctx, result, "procedure-bytecode", true,
     [] (context& ctx, ptr<procedure> const& f) {
-      disable_collection dc{ctx.store};
       return make_list_from_vector(ctx, f->bytecode,
                                    [&] (instruction i) {
                                      return make<opaque_value<instruction>>(ctx, i);
@@ -541,8 +540,6 @@ make_internal_module(context& ctx) {
   define_lambda<generic_ptr(context&, ptr<procedure> const&)>(
     ctx, result, "procedure-name", true,
     [] (context& ctx, ptr<procedure> const& f) -> generic_ptr {
-      disable_collection dc{ctx.store};
-
       if (f->name)
         return make_string(ctx, *f->name);
       else
