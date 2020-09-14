@@ -1,6 +1,7 @@
 #ifndef SCHEME_FREE_STORE_HPP
 #define SCHEME_FREE_STORE_HPP
 
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <functional>
@@ -20,9 +21,9 @@ using word_type = std::uint64_t;
 
 class tracing_context {
 public:
-  explicit
-  tracing_context(std::vector<object*>& stack)
+  tracing_context(std::vector<object*>& stack, word_type max_generation)
     : stack_{stack}
+    , max_generation_{max_generation}
   { }
 
   void
@@ -30,6 +31,7 @@ public:
 
 private:
   std::vector<object*>& stack_;
+  word_type             max_generation_;
 };
 
 struct type_descriptor {
@@ -61,6 +63,9 @@ object_type_index(object*);
 std::string
 type_name(word_type);
 
+std::size_t
+object_size(object*);
+
 template <typename T>
 std::string
 type_name() {
@@ -77,6 +82,9 @@ type_name<integer>() {
 
 bool
 is_alive(object*);
+
+word_type
+object_generation(object*);
 
 object*
 forwarding_address(object*);
@@ -430,14 +438,126 @@ struct space {
   std::size_t       current = 0;
 };
 
+class page_allocator {
+public:
+  page
+  allocate();
+
+  void
+  deallocate(page);
+
+  void
+  keep_at_most(std::size_t);
+
+private:
+  std::vector<page> reserve_;
+};
+
+class dense_space {
+public:
+  dense_space() = default;
+
+  explicit
+  dense_space(page_allocator&);
+
+  ~dense_space();
+
+  dense_space(dense_space const&) = delete;
+  dense_space(dense_space&&) noexcept;
+
+  void operator = (dense_space const&) = delete;
+  dense_space& operator = (dense_space&&) noexcept;
+
+  std::byte*
+  allocate(std::size_t);
+
+  void
+  clear();
+
+  bool
+  has_preallocated_storage(std::size_t) const;
+
+  bool
+  empty() const { return total_used_ == 0; }
+
+  template <typename F>
+  void
+  for_all(F const& f) {
+    for (page const& p : pages_) {
+      std::size_t i = 0;
+      while (i < p.used) {
+        std::byte* storage = p.storage.get() + i;
+        object* o = reinterpret_cast<object*>(storage + sizeof(word_type));
+        std::size_t size = object_size(o);
+
+        f(o);
+
+        i += size + sizeof(word_type);
+      }
+    }
+  }
+
+  template <typename F>
+  void
+  for_all(F const& f) const {
+    for (page const& p : pages_) {
+      std::size_t i = 0;
+      while (i < p.used) {
+        std::byte* storage = p.storage.get() + i;
+        object* o = reinterpret_cast<object*>(storage + sizeof(word_type));
+        std::size_t size = object_size(o);
+
+        f(o);
+
+        i += size + sizeof(word_type);
+      }
+    }
+  }
+
+  page_allocator&
+  allocator() { return *allocator_; }
+
+  std::size_t
+  pages_used() const { return pages_.size(); }
+
+  std::size_t
+  bytes_used() const { return total_used_; }
+
+private:
+  page_allocator* allocator_ = nullptr;
+  std::vector<page> pages_;
+  std::size_t total_used_ = 0;
+};
+
 using large_space = std::vector<std::unique_ptr<std::byte[]>>;
+
+struct generation {
+  static constexpr word_type nursery_1 = 0;
+  static constexpr word_type nursery_2 = 1;
+  static constexpr word_type mature    = 2;
+
+  static constexpr std::size_t num_generations = 3;
+
+  word_type   generation_number;
+  dense_space small;
+  large_space large;
+  std::unordered_set<object*> incoming_arcs;
+
+  explicit
+  generation(page_allocator& allocator, word_type generation_number)
+    : generation_number{generation_number}
+    , small{allocator}
+  { }
+};
+
+using generation_list = std::array<generation, generation::num_generations>;
 
 // Garbage-collected storage for Scheme objects.
 class free_store {
 public:
   bool verbose_collection = false;
 
-  free_store();
+  free_store() = default;
   free_store(free_store const&) = delete;
   void operator = (free_store const&) = delete;
   ~free_store();
@@ -471,7 +591,12 @@ public:
   }
 
   void
-  notify_arc(object* from, object* to) { (void) from; (void) to; }
+  notify_arc(object* from, object* to) {
+    if (is_object_ptr(to)
+        && object_generation(from) == generation::mature
+        && object_generation(to) < generation::mature)
+      generations_[object_generation(to)].incoming_arcs.emplace(from);
+  }
 
   generic_ptr*
   root_list() { return roots_; }
@@ -483,7 +608,7 @@ public:
   register_callback(std::function<void()> cb) { post_gc_callbacks_.emplace_back(std::move(cb)); }
 
   void
-  collect_garbage();
+  collect_garbage(bool major = false);
 
   void
   disable_collection();
@@ -492,9 +617,10 @@ public:
   enable_collection();
 
 private:
-  space nursery_fromspace_;
-  space nursery_tospace_;
-  large_space nursery_large_objects_;
+  page_allocator allocator_;
+  generation_list generations_{generation{allocator_, generation::nursery_1},
+                               generation{allocator_, generation::nursery_2},
+                               generation{allocator_, generation::mature}};
 
   // Two doubly-linked lists with head.
   generic_ptr*      roots_ = &root_head_;
@@ -505,7 +631,7 @@ private:
   std::vector<std::function<void()>> post_gc_callbacks_;
 
   unsigned disable_level_ = 0;
-  bool collection_requested_ = false;
+  std::optional<word_type> requested_collection_level_;
 
   // Allocate storage of the given payload size for an object of the given
   // type. size does not include the size of the header. The object is not

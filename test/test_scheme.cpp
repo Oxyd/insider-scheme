@@ -75,14 +75,14 @@ TEST_F(scheme, collect_direct_garbage) {
   ptr<aaa> b = ctx.store.make<aaa>(&two);
   ptr<aaa> c = ctx.store.make<aaa>(&three);
 
-  ctx.store.collect_garbage();
+  ctx.store.collect_garbage(true);
 
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
   EXPECT_TRUE(three);
 
   a.reset();
-  ctx.store.collect_garbage();
+  ctx.store.collect_garbage(true);
 
   EXPECT_FALSE(one);
   EXPECT_TRUE(two);
@@ -90,7 +90,7 @@ TEST_F(scheme, collect_direct_garbage) {
 
   b.reset();
   c.reset();
-  ctx.store.collect_garbage();
+  ctx.store.collect_garbage(true);
 
   EXPECT_FALSE(one);
   EXPECT_FALSE(two);
@@ -99,14 +99,13 @@ TEST_F(scheme, collect_direct_garbage) {
 
 struct bbb : composite_object<bbb> {
   bool* alive;
-  object* child = nullptr;
 
   explicit
   bbb(bool* alive) : alive{alive} { *alive = true; }
 
   bbb(bbb&& other)
     : alive{other.alive}
-    , child{other.child}
+    , child_{other.child_}
   {
     other.alive = nullptr;
   }
@@ -118,37 +117,49 @@ struct bbb : composite_object<bbb> {
 
   void
   trace(tracing_context& tc) {
-    tc.trace(child);
+    tc.trace(child_);
   }
 
   void
   update_references() {
-    update_reference(child);
+    update_reference(child_);
   }
+
+  ptr<bbb>
+  child(free_store& store) const { return {store, child_}; }
+
+  void
+  set_child(free_store& fs, bbb* new_child) {
+    child_ = new_child;
+    fs.notify_arc(this, new_child);
+  }
+
+private:
+  bbb* child_ = nullptr;
 };
 
 TEST_F(scheme, collect_indirect_garbage) {
   bool one{}, two{}, three{}, four{};
   ptr<bbb> root = ctx.store.make<bbb>(&one);
-  root->child = ctx.store.make<bbb>(&two).get();
-  static_cast<bbb*>(root->child)->child = ctx.store.make<bbb>(&three).get();
-  static_cast<bbb*>(static_cast<bbb*>(root->child)->child)->child = ctx.store.make<bbb>(&four).get();
+  root->set_child(ctx.store, ctx.store.make<bbb>(&two).get());
+  root->child(ctx.store)->set_child(ctx.store, ctx.store.make<bbb>(&three).get());
+  root->child(ctx.store)->child(ctx.store)->set_child(ctx.store, ctx.store.make<bbb>(&four).get());
 
-  ctx.store.collect_garbage();
+  ctx.store.collect_garbage(true);
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
   EXPECT_TRUE(three);
   EXPECT_TRUE(four);
 
-  static_cast<bbb*>(root->child)->child = nullptr;
-  ctx.store.collect_garbage();
+  root->child(ctx.store)->set_child(ctx.store, nullptr);
+  ctx.store.collect_garbage(true);
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
   EXPECT_FALSE(three);
   EXPECT_FALSE(four);
 
   root.reset();
-  ctx.store.collect_garbage();
+  ctx.store.collect_garbage(true);
   EXPECT_FALSE(one);
   EXPECT_FALSE(two);
   EXPECT_FALSE(three);
@@ -158,15 +169,15 @@ TEST_F(scheme, collect_indirect_garbage) {
 TEST_F(scheme, collect_circles) {
   bool one{}, two{};
   ptr<bbb> a = ctx.store.make<bbb>(&one);
-  a->child = ctx.store.make<bbb>(&two).get();
-  static_cast<bbb*>(a->child)->child = a.get();
+  a->set_child(ctx.store, ctx.store.make<bbb>(&two).get());
+  a->child(ctx.store)->set_child(ctx.store, a.get());
 
-  ctx.store.collect_garbage();
+  ctx.store.collect_garbage(true);
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
 
   a.reset();
-  ctx.store.collect_garbage();
+  ctx.store.collect_garbage(true);
   EXPECT_FALSE(one);
   EXPECT_FALSE(two);
 }
@@ -176,12 +187,12 @@ TEST_F(scheme, weak_ptr) {
   ptr<aaa> a = make<aaa>(ctx, &one);
   weak_ptr<aaa> w = a;
 
-  ctx.store.collect_garbage();
+  ctx.store.collect_garbage(true);
   EXPECT_TRUE(one);
   EXPECT_TRUE(w);
 
   a.reset();
-  ctx.store.collect_garbage();
+  ctx.store.collect_garbage(true);
   EXPECT_FALSE(one);
   EXPECT_FALSE(w);
 
@@ -261,7 +272,7 @@ TEST_F(scheme, intern) {
   EXPECT_NE(a_1, b_1);
 
   b_1.reset();
-  ctx.store.collect_garbage();
+  ctx.store.collect_garbage(true);
 
   ptr<symbol> b_2 = ctx.intern("b");
   ptr<symbol> b_3 = ctx.intern("b");
@@ -294,7 +305,7 @@ TEST_F(scheme, vector) {
   EXPECT_TRUE(two);
 
   v2.reset();
-  ctx.store.collect_garbage();
+  ctx.store.collect_garbage(true);
 
   EXPECT_FALSE(one);
   EXPECT_FALSE(two);
