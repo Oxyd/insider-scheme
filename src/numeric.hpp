@@ -1,5 +1,5 @@
-#ifndef SCHEME_NUMERIC_HPP
-#define SCHEME_NUMERIC_HPP
+#ifndef INSIDER_NUMERIC_HPP
+#define INSIDER_NUMERIC_HPP
 
 #include "free_store.hpp"
 

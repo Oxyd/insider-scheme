@@ -1,5 +1,5 @@
-#ifndef SCHEME_FREE_STORE_HPP
-#define SCHEME_FREE_STORE_HPP
+#ifndef INSIDER_FREE_STORE_HPP
+#define INSIDER_FREE_STORE_HPP
 
 #include <array>
 #include <cassert>

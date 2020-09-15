@@ -1,5 +1,5 @@
-#ifndef SCHEME_SCHEME_HPP
-#define SCHEME_SCHEME_HPP
+#ifndef INSIDER_SCHEME_HPP
+#define INSIDER_SCHEME_HPP
 
 #include "bytecode.hpp"
 #include "free_store.hpp"

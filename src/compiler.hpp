@@ -1,5 +1,5 @@
-#ifndef SCHEME_COMPILER_HPP
-#define SCHEME_COMPILER_HPP
+#ifndef INSIDER_COMPILER_HPP
+#define INSIDER_COMPILER_HPP
 
 #include "bytecode.hpp"
 #include "scheme.hpp"

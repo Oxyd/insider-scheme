@@ -1,5 +1,5 @@
-#ifndef SCHEME_BYTECODE_HPP
-#define SCHEME_BYTECODE_HPP
+#ifndef INSIDER_BYTECODE_HPP
+#define INSIDER_BYTECODE_HPP
 
 #include <array>
 #include <cstdint>

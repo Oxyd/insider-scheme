@@ -1,5 +1,5 @@
-#ifndef SCHEME_SYNTAX_HPP
-#define SCHEME_SYNTAX_HPP
+#ifndef INSIDER_SYNTAX_HPP
+#define INSIDER_SYNTAX_HPP
 
 #include "bytecode.hpp"
 #include "free_store.hpp"

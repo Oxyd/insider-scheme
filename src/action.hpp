@@ -1,5 +1,5 @@
-#ifndef SCHEME_ACTION_HPP
-#define SCHEME_ACTION_HPP
+#ifndef INSIDER_ACTION_HPP
+#define INSIDER_ACTION_HPP
 
 #include "io.hpp"
 

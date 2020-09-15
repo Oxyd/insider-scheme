@@ -1,5 +1,5 @@
-#ifndef SCHEME_VM_HPP
-#define SCHEME_VM_HPP
+#ifndef INSIDER_VM_HPP
+#define INSIDER_VM_HPP
 
 #include "scheme.hpp"
 

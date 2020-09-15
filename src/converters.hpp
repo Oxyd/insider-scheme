@@ -1,5 +1,5 @@
-#ifndef SCHEME_CONVERTERS_HPP
-#define SCHEME_CONVERTERS_HPP
+#ifndef INSIDER_CONVERTERS_HPP
+#define INSIDER_CONVERTERS_HPP
 
 #include "numeric.hpp"
 #include "scheme.hpp"

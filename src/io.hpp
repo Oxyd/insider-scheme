@@ -1,5 +1,5 @@
-#ifndef SCHEME_IO_HPP
-#define SCHEME_IO_HPP
+#ifndef INSIDER_IO_HPP
+#define INSIDER_IO_HPP
 
 #include "scheme.hpp"
 

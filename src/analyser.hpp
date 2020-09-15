@@ -1,5 +1,5 @@
-#ifndef SCHEME_ANALYSER_HPP
-#define SCHEME_ANALYSER_HPP
+#ifndef INSIDER_ANALYSER_HPP
+#define INSIDER_ANALYSER_HPP
 
 #include "scheme.hpp"
 #include "syntax.hpp"
