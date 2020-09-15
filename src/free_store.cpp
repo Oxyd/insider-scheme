@@ -13,10 +13,10 @@ namespace insider {
 
 static constexpr std::size_t page_size = 4096;
 static constexpr std::size_t large_threshold = 256;
-static constexpr std::size_t min_nursery_pages = 10;
-static constexpr std::size_t nursery_reserve_pages = 2;
-static constexpr std::size_t mature_reserve_pages = 2;
-static constexpr std::size_t major_collection_frequency = 8;
+static constexpr std::size_t min_nursery_pages = 1024;
+static constexpr std::size_t nursery_reserve_pages = 10;
+static constexpr std::size_t mature_reserve_pages = 10;
+static constexpr std::size_t major_collection_frequency = 32;
 
 static std::vector<type_descriptor>&
 types() {
@@ -190,6 +190,7 @@ page_allocator::allocate() {
     return result;
   }
 
+  ++allocated_pages_;
   return allocate_page();
 }
 
@@ -200,8 +201,10 @@ page_allocator::deallocate(page p) {
 
 void
 page_allocator::keep_at_most(std::size_t n) {
-  if (reserve_.size() > n)
+  if (reserve_.size() > n) {
+    deallocated_pages_ += reserve_.size() - n;
     reserve_.resize(n);
+  }
 }
 
 dense_space::dense_space(page_allocator& pa)
@@ -449,9 +452,10 @@ space_occupied_size(large_space const& s) {
 
 static std::string
 format_stats(generation const& nursery_1, generation const& nursery_2, generation const& mature) {
-  return fmt::format("Nursery 1: {} pages, {} bytes, {} large objects, {} large bytes;"
-                     " nursery 2: {} pages, {} bytes, {} large objects, {} large bytes;"
-                     " mature: {} pages, {} bytes, {} large objects, {} large bytes",
+  return fmt::format("\n"
+                     "  -- Nursery 1: {} pages, {} bytes, {} large objects, {} large bytes\n"
+                     "  -- Nursery 2: {} pages, {} bytes, {} large objects, {} large bytes\n"
+                     "  -- Mature: {} pages, {} bytes, {} large objects, {} large bytes",
                      nursery_1.small.pages_used(), nursery_1.small.bytes_used(),
                      nursery_1.large.size(), space_occupied_size(nursery_1.large),
                      nursery_2.small.pages_used(), nursery_2.small.bytes_used(),
@@ -519,13 +523,22 @@ free_store::collect_garbage(bool major) {
 
   update_roots();
 
-  if (verbose_collection)
-    fmt::print("GC: New: {}\n", format_stats(nursery_1, nursery_2, mature));
-
   requested_collection_level_ = std::nullopt;
 
   target_nursery_pages_ = std::max(min_nursery_pages, nursery_1.small.pages_used() + nursery_reserve_pages);
-  allocator_.keep_at_most(2 * nursery_reserve_pages + mature_reserve_pages);
+  allocator_.keep_at_most(2 * target_nursery_pages_ + mature_reserve_pages);
+
+  if (verbose_collection) {
+    fmt::print("GC: New: {}\n", format_stats(nursery_1, nursery_2, mature));
+    fmt::print("  -- target nursery pages: {}\n"
+               "  -- allocator reserve: {} pages\n"
+               "  -- allocated pages: {}\n"
+               "  -- deallocated pages: {}\n" ,
+               target_nursery_pages_, allocator_.reserve_pages(),
+               allocator_.allocated_pages(), allocator_.deallocated_pages());
+  }
+
+  allocator_.reset_stats();
 }
 
 void

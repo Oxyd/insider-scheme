@@ -449,8 +449,25 @@ public:
   void
   keep_at_most(std::size_t);
 
+  std::size_t
+  reserve_pages() const { return reserve_.size(); }
+
+  std::size_t
+  allocated_pages() const { return allocated_pages_; }
+
+  std::size_t
+  deallocated_pages() const { return deallocated_pages_; }
+
+  void
+  reset_stats() {
+    allocated_pages_ = 0;
+    deallocated_pages_ = 0;
+  }
+
 private:
   std::vector<page> reserve_;
+  std::size_t allocated_pages_ = 0;
+  std::size_t deallocated_pages_ = 0;
 };
 
 class dense_space {
