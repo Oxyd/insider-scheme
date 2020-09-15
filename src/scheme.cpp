@@ -1,5 +1,6 @@
 #include "scheme.hpp"
 
+#include "action.hpp"
 #include "analyser.hpp"
 #include "compiler.hpp"
 #include "converters.hpp"
@@ -841,20 +842,6 @@ context::gc_callback() {
 
   for (auto [object, index] : to_reinsert)
     statics_cache_.emplace(generic_ptr{store, object}, index);
-}
-
-simple_action::simple_action(context& ctx, generic_ptr const& irritant, std::string message)
-  : action{ctx}
-  , message_{std::move(message)}
-  , irritant_{irritant}
-{ }
-
-std::string
-simple_action::format() const {
-  if (irritant_)
-    return message_ + ": " + datum_to_string(ctx_, irritant_);
-  else
-    return message_;
 }
 
 string::string(string&& other)

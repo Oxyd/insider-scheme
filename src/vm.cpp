@@ -1,5 +1,6 @@
 #include "vm.hpp"
 
+#include "action.hpp"
 #include "io.hpp"
 #include "numeric.hpp"
 

@@ -1,5 +1,6 @@
 #include "compiler.hpp"
 
+#include "action.hpp"
 #include "analyser.hpp"
 
 #include <fmt/format.h>

@@ -1,5 +1,6 @@
 #include "analyser.hpp"
 
+#include "action.hpp"
 #include "compiler.hpp"
 #include "io.hpp"
 #include "numeric.hpp"

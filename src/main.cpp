@@ -1,3 +1,4 @@
+#include "action.hpp"
 #include "compiler.hpp"
 #include "io.hpp"
 #include "scheme.hpp"

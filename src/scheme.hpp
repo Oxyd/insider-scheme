@@ -350,53 +350,6 @@ make(context& ctx, Args&&... args) {
   return ctx.store.make<T>(std::forward<Args>(args)...);
 }
 
-// An action of the interpreter, used in error messages.
-template <typename Derived>
-class action {
-public:
-  explicit
-  action(context& ctx) : ctx_{ctx} { }
-
-  action(action const&) = delete;
-  void operator = (action const&) = delete;
-
-protected:
-  context& ctx_;
-
-  void
-  check() {
-    if (std::uncaught_exceptions()) {
-      if (!ctx_.error_backtrace.empty())
-        ctx_.error_backtrace += '\n';
-      ctx_.error_backtrace += static_cast<Derived*>(this)->format();
-    }
-  }
-};
-
-// Action described by a string, possibly accompanied with a datum.
-class simple_action : public action<simple_action> {
-public:
-  template <typename... Args>
-  simple_action(context& ctx, std::string format, Args&&... args)
-    : simple_action(ctx, {}, fmt::format(format, std::forward<Args>(args)...))
-  { }
-
-  template <typename... Args>
-  simple_action(context& ctx, generic_ptr const& irritant, std::string format, Args&&... args)
-    : simple_action(ctx, irritant, fmt::format(format, std::forward<Args>(args)...))
-  { }
-
-  simple_action(context& ctx, generic_ptr const& irritant, std::string message);
-  ~simple_action() { check(); }
-
-  std::string
-  format() const;
-
-private:
-  std::string message_;
-  generic_ptr irritant_;
-};
-
 class error : public std::runtime_error {
 public:
   // Format an error message using fmtlib and append the action stack to it.
