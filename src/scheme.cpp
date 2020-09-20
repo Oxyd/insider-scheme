@@ -731,12 +731,6 @@ context::intern_static(generic_ptr const& x) {
   return it->second;
 }
 
-generic_ptr
-context::get_static(operand::representation_type i) const {
-  assert(i < statics_.size());
-  return statics_[i];
-}
-
 void
 context::set_top_level(operand::representation_type i, generic_ptr const& value) {
   assert(i < top_level_objects_.size());

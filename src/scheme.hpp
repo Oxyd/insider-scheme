@@ -296,7 +296,10 @@ public:
   intern_static(generic_ptr const&);
 
   generic_ptr
-  get_static(operand::representation_type) const;
+  get_static(operand::representation_type i) const {
+    assert(i < statics_.size());
+    return statics_[i];
+  }
 
   generic_ptr
   get_top_level(operand::representation_type i) const { return top_level_objects_[i]; }

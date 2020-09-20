@@ -63,23 +63,11 @@ call_frame::update_references() {
     update_reference(storage_element(i));
 }
 
-generic_ptr
-call_frame::local(free_store& store, std::size_t i) const {
-  assert(i < locals_size_);
-  return {store, storage_element(i)};
-}
-
 void
 call_frame::set_local(free_store& store, std::size_t i, generic_ptr const& value) {
   assert(i < locals_size_);
   storage_element(i) = value.get();
   store.notify_arc(this, value.get());
-}
-
-generic_ptr
-call_frame::closure(free_store& store, std::size_t i) const {
-  assert(closure_);
-  return closure_->ref(store, i);
 }
 
 static generic_ptr

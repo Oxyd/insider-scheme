@@ -42,12 +42,19 @@ public:
   procedure(free_store& store) const { return {store, procedure_}; }
 
   generic_ptr
-  local(free_store& store, std::size_t i) const;
+  local(free_store& store, std::size_t i) const {
+    assert(i < locals_size_);
+    return {store, storage_element(i)};
+  }
+
   void
   set_local(free_store& store, std::size_t i, generic_ptr const& value);
 
   generic_ptr
-  closure(free_store& store, std::size_t i) const;
+  closure(free_store& store, std::size_t i) const {
+    assert(closure_);
+    return closure_->ref(store, i);
+  }
 
   ptr<call_frame>
   parent(free_store& store) const { return {store, parent_frame_}; }
