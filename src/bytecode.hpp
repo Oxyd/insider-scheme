@@ -89,12 +89,12 @@ enum class opcode : std::uint8_t {
   set,             // set <source> <> <destination>
   call,            // call <procedure> <number of arguments> <return value destination>
   tail_call,       // tail-call <procedure> <number of arguments>
-                   // call and tail-call are then followed by a number of data pseudo-instructions giving
-                   // the actual arguments to the procedure.
   ret,             // ret <return value>
+  push1,           // push1 <value>
+  push2,           // push2 <value> <value>
+  push3,           // push3 <value> <value> <value>
   jump,            // jump <offset>
   jump_unless,     // jump-unless <register> <offset>
-  data,            // data <x> <y> <z> -- a way to embed extra operands in the instruction stream
   make_closure,    // make-closure <procedure> <number of free variables> <destination>
   box,             // box <what> <> <destination> -- make a box containing what
   unbox,           // unbox <what> <> <destination> -- extract contained value from a box
@@ -175,9 +175,11 @@ instructions{
   std::tuple{"call",            opcode::call,            opcode_category::register_, opcode_category::absolute, opcode_category::register_},
   std::tuple{"tail-call",       opcode::tail_call,       opcode_category::register_, opcode_category::absolute, opcode_category::none},
   std::tuple{"ret",             opcode::ret,             opcode_category::register_, opcode_category::none, opcode_category::none},
+  std::tuple{"push1",           opcode::push1,           opcode_category::register_, opcode_category::none, opcode_category::none},
+  std::tuple{"push2",           opcode::push2,           opcode_category::register_, opcode_category::register_, opcode_category::none},
+  std::tuple{"push3",           opcode::push3,           opcode_category::register_, opcode_category::register_, opcode_category::register_},
   std::tuple{"jump",            opcode::jump,            opcode_category::offset, opcode_category::none, opcode_category::none},
   std::tuple{"jump-unless",     opcode::jump_unless,     opcode_category::register_, opcode_category::offset, opcode_category::none},
-  std::tuple{"data",            opcode::data,            opcode_category::register_, opcode_category::register_, opcode_category::register_},
   std::tuple{"make-closure",    opcode::make_closure,    opcode_category::register_, opcode_category::absolute, opcode_category::register_},
   std::tuple{"box",             opcode::box,             opcode_category::register_, opcode_category::none, opcode_category::register_},
   std::tuple{"unbox",           opcode::unbox,           opcode_category::register_, opcode_category::none, opcode_category::register_},

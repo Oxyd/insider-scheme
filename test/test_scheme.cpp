@@ -509,13 +509,13 @@ TEST_F(scheme, exec_calls) {
 
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::call,     f,                 operand::immediate(2), operand::local(0)},
-             {opcode::data,     five,              seven,                 {}},
+    bytecode{{opcode::push2,    five,              seven,                 {}},
+             {opcode::call,     f,                 operand::immediate(2), operand::local(0)},
              {opcode::multiply, three,             operand::local(0),     operand::local(0)},
+             {opcode::push2,    three,             four,                  {}},
              {opcode::call,     f,                 operand::immediate(2), operand::local(2)},
-             {opcode::data,     three,             four,                  {}},
+             {opcode::push2,    two,               operand::local(2),     {}},
              {opcode::call,     f,                 operand::immediate(2), operand::local(1)},
-             {opcode::data,     two,               operand::local(2),     {}},
              {opcode::add,      operand::local(0), operand::local(1),     operand::local(0)}},
     3,
     0
@@ -550,8 +550,8 @@ TEST_F(scheme, three_argument_calls) {
   );
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::call,     f,   operand::immediate(3), operand::local(0)},
-             {opcode::data,     one, two,                   three},
+    bytecode{{opcode::push3,    one, two,                   three},
+             {opcode::call,     f,   operand::immediate(3), operand::local(0)},
              {opcode::multiply, two, operand::local(0),     operand::local(0)}},
     1,
     0
@@ -577,16 +577,16 @@ TEST_F(scheme, exec_tail_calls) {
   );
   auto f = make_static<procedure>(
     ctx,
-    bytecode{{opcode::tail_call, g,                 operand::immediate(1), {}},
-             {opcode::data,      operand::local(0), {},                    {}}},
+    bytecode{{opcode::push3,     operand::local(0), {},                    {}},
+             {opcode::tail_call, g,                 operand::immediate(1), {}}},
     1,
     1
   );
   auto six = make_static<integer>(ctx, 6);
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::call, f,   operand::immediate(1), operand::local(0)},
-             {opcode::data, six, {},                    {}}},
+    bytecode{{opcode::push1, six, {},                    {}},
+             {opcode::call,  f,   operand::immediate(1), operand::local(0)}},
     1,
     0
   );
@@ -637,8 +637,8 @@ TEST_F(scheme, exec_native_call) {
   auto thirty = make_static<integer>(ctx, 30);
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::call, native_static, operand::immediate(3), operand::local(0)},
-             {opcode::data, ten,           twenty,                thirty}},
+    bytecode{{opcode::push3, ten,           twenty,                thirty},
+             {opcode::call,  native_static, operand::immediate(3), operand::local(0)}},
     1,
     0
   );
@@ -660,10 +660,10 @@ TEST_F(scheme, exec_closure_ref) {
   auto five = make_static<integer>(ctx, 5);
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::make_closure, add,               operand::immediate(1), operand::local(1)},
-             {opcode::data,         three,             {},                    {}},
-             {opcode::call,         operand::local(1), operand::immediate(1), operand::local(0)},
-             {opcode::data,         five,              {},                    {}}},
+    bytecode{{opcode::push1,         three,             {},                    {}},
+             {opcode::make_closure, add,               operand::immediate(1), operand::local(1)},
+             {opcode::push1,         five,              {},                    {}},
+             {opcode::call,         operand::local(1), operand::immediate(1), operand::local(0)}},
     2, 0
   );
   auto state = make_state(ctx, global);
@@ -695,8 +695,8 @@ TEST_F(scheme, exec_make_vector) {
   auto three = make_static<integer>(ctx, 3);
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::make_vector, operand::immediate(3), {},  operand::local(0)},
-             {opcode::data,        one,                   two, three}},
+    bytecode{{opcode::push3,        one,                   two, three},
+             {opcode::make_vector, operand::immediate(3), {},  operand::local(0)}},
     1, 0
   );
 

@@ -30,8 +30,10 @@ call_frame::call_frame(ptr<insider::procedure> const& proc,
 {
   assert(arguments.size() <= locals_size_);
 
-  for (std::size_t i = 0; i < arguments.size(); ++i)
+  for (std::size_t i = 0; i < arguments.size(); ++i) {
+    assert(arguments[i]);
     storage_element(i) = arguments[i].get();
+  }
 }
 
 call_frame::call_frame(call_frame&& other)
@@ -90,6 +92,8 @@ get_register(execution_state& state, operand op) {
 
 static void
 set_register(execution_state& state, operand op, generic_ptr const& value) {
+  assert(value);
+
   switch (op.scope()) {
   case operand::scope_type::local:
     state.current_frame->set_local(state.ctx.store, op.value(), value);
@@ -112,45 +116,17 @@ set_register(execution_state& state, operand op, generic_ptr const& value) {
 static instruction const&
 find_call(ptr<call_frame> const& frame) {
   free_store& store = frame.store();
-  std::uint32_t i = frame->pc - 1;
-  while (frame->procedure(store)->bytecode[i].opcode == opcode::data)
-    --i;
-
-  instruction const& call_instr = frame->procedure(store)->bytecode[i];
-  assert(call_instr.opcode == opcode::call);
-
-  return call_instr;
+  instruction const& call = frame->procedure(store)->bytecode[frame->pc - 1];
+  assert(call.opcode == opcode::call);
+  return call;
 }
 
 static std::vector<generic_ptr>
-collect_data(execution_state& state, std::size_t num) {
-  std::vector<generic_ptr> result(num);
-  ptr<call_frame>& frame = state.current_frame;
-  for (operand::representation_type i = 0; i < num; ++i) {
-    instruction const& d = frame->procedure(state.ctx.store)->bytecode[frame->pc];
-    assert(d.opcode == opcode::data);
+collect_arguments(execution_state& state, std::size_t num) {
+  assert(state.argument_stack.size() >= num);
 
-    switch (i % 3) {
-    case 0:
-      result[i] = get_register(state, d.x);
-      break;
-    case 1:
-      result[i] = get_register(state, d.y);
-      break;
-    case 2:
-      result[i] = get_register(state, d.dest);
-      break;
-
-    default:
-      assert(!"Can't get here");
-    }
-
-    if (i % 3 == 2)
-      ++frame->pc;
-  }
-
-  if (num % 3 != 0)
-    ++frame->pc;
+  std::vector<generic_ptr> result(state.argument_stack.end() - num, state.argument_stack.end());
+  state.argument_stack.resize(state.argument_stack.size() - num);
 
   return result;
 }
@@ -210,7 +186,7 @@ execute_one(execution_state& state) {
     generic_ptr callee = get_register(state, instr.x);
     operand::representation_type num_args = instr.y.immediate_value();
 
-    std::vector<generic_ptr> args = collect_data(state, num_args);
+    std::vector<generic_ptr> args = collect_arguments(state, num_args);
     generic_ptr call_target = callee;
     ptr<insider::closure> closure;
 
@@ -298,6 +274,30 @@ execute_one(execution_state& state) {
     break;
   }
 
+  case opcode::push1:
+    assert(get_register(state, instr.x));
+
+    state.argument_stack.push_back(get_register(state, instr.x));
+    break;
+
+  case opcode::push2:
+    assert(get_register(state, instr.x));
+    assert(get_register(state, instr.y));
+
+    state.argument_stack.push_back(get_register(state, instr.x));
+    state.argument_stack.push_back(get_register(state, instr.y));
+    break;
+
+  case opcode::push3:
+    assert(get_register(state, instr.x));
+    assert(get_register(state, instr.y));
+    assert(get_register(state, instr.dest));
+
+    state.argument_stack.push_back(get_register(state, instr.x));
+    state.argument_stack.push_back(get_register(state, instr.y));
+    state.argument_stack.push_back(get_register(state, instr.dest));
+    break;
+
   case opcode::jump:
   case opcode::jump_unless: {
     operand::offset_type offset = instr.opcode == opcode::jump ? instr.x.offset() : instr.y.offset();
@@ -319,15 +319,11 @@ execute_one(execution_state& state) {
     break;
   }
 
-  case opcode::data:
-    assert(!"Attempting to execute data");
-    break;
-
   case opcode::make_closure: {
     ptr<procedure> proc = assume<procedure>(get_register(state, instr.x));
     operand::representation_type num_captures = instr.y.immediate_value();
     operand dest = instr.dest;
-    std::vector<generic_ptr> captures = collect_data(state, num_captures);
+    std::vector<generic_ptr> captures = collect_arguments(state, num_captures);
 
     set_register(state, dest, state.ctx.store.make<closure>(proc, captures));
     break;
@@ -354,7 +350,7 @@ execute_one(execution_state& state) {
 
   case opcode::make_vector: {
     operand::representation_type num_elems = instr.x.immediate_value();
-    std::vector<generic_ptr> elems = collect_data(state, num_elems);
+    std::vector<generic_ptr> elems = collect_arguments(state, num_elems);
     set_register(state, instr.dest, make_vector(state.ctx, elems));
     break;
   }
@@ -370,7 +366,7 @@ make_state(context& ctx, ptr<procedure> const& global) {
     std::vector<generic_ptr>{}
   );
 
-  return execution_state{ctx, root_frame, root_frame, {}};
+  return execution_state{ctx, root_frame, root_frame, {}, {}};
 }
 
 namespace {
@@ -433,7 +429,7 @@ call(context& ctx, generic_ptr callable, std::vector<generic_ptr> const& argumen
       throw std::runtime_error{"Wrong number of arguments in function call"};
 
     auto frame = make<call_frame>(ctx, scheme_proc, closure, ptr<call_frame>{}, arguments);
-    execution_state state{ctx, frame, frame, {}};
+    execution_state state{ctx, frame, frame, {}, {}};
     return run(state);
   } else if (auto native_proc = match<native_procedure>(callable)) {
     assert(!closure);

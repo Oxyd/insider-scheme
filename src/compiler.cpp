@@ -360,24 +360,27 @@ compile_top_level_set(context& ctx, procedure_context& proc, top_level_set_synta
 }
 
 static void
-emit_data(bytecode& bc, std::vector<shared_register> const& values) {
-  instruction data{opcode::data, {}, {}, {}};
-  for (std::size_t i = 0; i < values.size(); ++i) {
-    switch (i % 3) {
-    case 0: data.x = *values[i]; break;
-    case 1: data.y = *values[i]; break;
-    case 2: data.dest = *values[i]; break;
-    default: assert(!"Can't get here");
-    }
+emit_data_pushes(bytecode& bc, std::vector<shared_register> const& values) {
+  for (std::size_t i = 0; i < values.size(); i += 3) {
+    std::size_t to_push = std::min(values.size() - i, static_cast<std::size_t>(3));
 
-    if (i % 3 == 2) {
-      bc.push_back(data);
-      data.x = data.y = data.dest = {};
+    switch (to_push) {
+    case 1:
+      bc.push_back(instruction{opcode::push1, *values[i], {}, {}});
+      break;
+
+    case 2:
+      bc.push_back(instruction{opcode::push2, *values[i], *values[i + 1], {}});
+      break;
+
+    case 3:
+      bc.push_back(instruction{opcode::push3, *values[i], *values[i + 1], *values[i + 2]});
+      break;
+
+    default:
+      assert(!"Can't get here");
     }
   }
-
-  if (values.size() % 3 != 0)
-    bc.push_back(data);
 }
 
 static shared_register
@@ -402,12 +405,6 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx
   operand p_reg = operand::static_(ctx.intern_static(p));
 
   if (!proc.bindings.free().empty()) {
-    shared_register result = parent.registers.allocate_local();
-    parent.bytecode.push_back(instruction{opcode::make_closure,
-                                          p_reg,
-                                          operand::immediate(proc.bindings.free().size()),
-                                          *result});
-
     std::vector<std::shared_ptr<variable>> free_vars;
     free_vars.resize(proc.bindings.free().size());
     for (auto const& [var, reg] : proc.bindings.free()) {
@@ -420,7 +417,13 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx
     for (std::shared_ptr<variable> const& var : free_vars)
       closure.push_back(compile_local_reference(parent, local_reference_syntax{var}));
 
-    emit_data(parent.bytecode, closure);
+    emit_data_pushes(parent.bytecode, closure);
+
+    shared_register result = parent.registers.allocate_local();
+    parent.bytecode.push_back(instruction{opcode::make_closure,
+                                          p_reg,
+                                          operand::immediate(proc.bindings.free().size()),
+                                          *result});
 
     return result;
   }
@@ -518,6 +521,8 @@ compile_application(context& ctx, procedure_context& proc, application_syntax co
   for (auto const& arg : stx.arguments)
     arg_registers.push_back(compile_expression(ctx, proc, *arg, false));
 
+  emit_data_pushes(proc.bytecode, arg_registers);
+
   shared_register f = compile_expression(ctx, proc, *stx.target, false);
   shared_register result;
   if (!tail) {
@@ -526,7 +531,6 @@ compile_application(context& ctx, procedure_context& proc, application_syntax co
   } else
     proc.bytecode.push_back({opcode::tail_call, *f, operand::immediate(arg_registers.size()), {}});
 
-  emit_data(proc.bytecode, arg_registers);
   return result;
 }
 
@@ -589,8 +593,8 @@ compile_make_vector(context& ctx, procedure_context& proc, make_vector_syntax co
     exprs.push_back(compile_expression(ctx, proc, *e, false));
 
   shared_register result = proc.registers.allocate_local();
+  emit_data_pushes(proc.bytecode, exprs);
   proc.bytecode.push_back({opcode::make_vector, operand::immediate(exprs.size()), {}, *result});
-  emit_data(proc.bytecode, exprs);
 
   return result;
 }

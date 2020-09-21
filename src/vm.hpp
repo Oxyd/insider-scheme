@@ -83,10 +83,11 @@ inline ptr<call_frame>
 call_frame_parent(ptr<call_frame> const& cf) { return cf->parent(cf.store()); }
 
 struct execution_state {
-  context&        ctx;
-  ptr<call_frame> root_frame;
-  ptr<call_frame> current_frame;
-  generic_ptr     global_return;
+  context&                 ctx;
+  ptr<call_frame>          root_frame;
+  ptr<call_frame>          current_frame;
+  generic_ptr              global_return;
+  std::vector<generic_ptr> argument_stack;
 };
 
 // Make execution state using the given procedure as the global call frame.
