@@ -342,7 +342,7 @@ make_state(context& ctx, ptr<procedure> const& global,
 
   instruction preallocated{};
   preallocated.operands.reserve(32);
-  return execution_state{ctx, root_frame, root_frame, {}, {}, preallocated};
+  return execution_state{ctx, root_frame, root_frame, {}, preallocated};
 }
 
 namespace {
