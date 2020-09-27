@@ -28,7 +28,11 @@ enum class opcode : std::uint8_t {
   greater_than, // 10
   set,              // set <source> <destination>
   call,             // call <procedure> <return value destination> <arguments ...>
+  call_global,      // same as call, but <procedure> is the index of a global
+  call_static,      //                   -- "" --                      static
   tail_call,        // tail-call <procedure> <arguments ...>
+  tail_call_global,
+  tail_call_static,
   ret,              // ret <return value>
   jump,             // jump <offset>
   jump_back,        // jump-back <offset>
@@ -104,7 +108,11 @@ instructions{
   std::tuple{"greater-than",     opcode::greater_than,     std::size_t{3}, false},
   std::tuple{"set!",             opcode::set,              std::size_t{2}, false},
   std::tuple{"call",             opcode::call,             std::size_t{2}, true},
+  std::tuple{"call-global",      opcode::call_global,      std::size_t{2}, true},
+  std::tuple{"call-static",      opcode::call_static,      std::size_t{2}, true},
   std::tuple{"tail-call",        opcode::tail_call,        std::size_t{1}, true},
+  std::tuple{"tail-call-global", opcode::tail_call_global, std::size_t{1}, true},
+  std::tuple{"tail-call-static", opcode::tail_call_static, std::size_t{1}, true},
   std::tuple{"ret",              opcode::ret,              std::size_t{1}, false},
   std::tuple{"jump",             opcode::jump,             std::size_t{1}, false},
   std::tuple{"jump-back",        opcode::jump_back,        std::size_t{1}, false},

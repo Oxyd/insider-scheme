@@ -445,26 +445,37 @@ compile_application(context& ctx, procedure_context& proc, application_syntax co
         return compile_relational(ctx, proc, stx, *tag);
     }
 
+  opcode oc = tail ? opcode::tail_call : opcode::call;
+  operand f;
+  shared_register f_reg;
+
+  if (auto* global = std::get_if<top_level_reference_syntax>(&stx.target->value)) {
+    f = global->location;
+    oc = tail ? opcode::tail_call_global : opcode::call_global;
+  } else if (auto* lit = std::get_if<literal_syntax>(&stx.target->value)) {
+    f = ctx.intern_static(lit->value);
+    oc = tail ? opcode::tail_call_static : opcode::call_static;
+  } else {
+    f_reg = compile_expression(ctx, proc, *stx.target, false);
+    f = *f_reg;
+  }
+
   std::vector<shared_register> arg_registers;
   for (auto const& arg : stx.arguments)
     arg_registers.push_back(compile_expression(ctx, proc, *arg, false));
 
-  shared_register f = compile_expression(ctx, proc, *stx.target, false);
+  instruction instr{oc, f};
   shared_register result;
+
   if (!tail) {
     result = proc.registers.allocate_local();
-    instruction call{opcode::call, *f, *result};
-    for (shared_register const& arg : arg_registers)
-      call.operands.push_back(*arg);
-
-    encode_instruction(proc.bytecode.back(), call);
-  } else {
-    instruction call{opcode::tail_call, *f};
-    for (shared_register const& arg : arg_registers)
-      call.operands.push_back(*arg);
-
-    encode_instruction(proc.bytecode.back(), call);
+    instr.operands.push_back(*result);
   }
+
+  for (shared_register const& arg : arg_registers)
+    instr.operands.push_back(*arg);
+
+  encode_instruction(proc.bytecode.back(), instr);
 
   return result;
 }

@@ -174,14 +174,42 @@ execute_one(execution_state& state) {
     break;
 
   case opcode::call:
-  case opcode::tail_call: {
-    generic_ptr callee = call_frame_local(frame, instr.operands[0]);
-    operand num_args = instr.operands.size() - (instr.opcode == opcode::call ? 2 : 1);
+  case opcode::call_global:
+  case opcode::call_static:
+  case opcode::tail_call:
+  case opcode::tail_call_global:
+  case opcode::tail_call_static: {
+    bool is_tail = instr.opcode == opcode::tail_call
+                   || instr.opcode == opcode::tail_call_global
+                   || instr.opcode == opcode::tail_call_static;
 
-    if (instr.opcode == opcode::call)
+    generic_ptr callee;
+    switch (instr.opcode) {
+    case opcode::call:
+    case opcode::tail_call:
+      callee = call_frame_local(frame, instr.operands[0]);
+      break;
+
+    case opcode::call_global:
+    case opcode::tail_call_global:
+      callee = state.ctx.get_top_level(instr.operands[0]);
+      break;
+
+    case opcode::call_static:
+    case opcode::tail_call_static:
+      callee = state.ctx.get_static(instr.operands[0]);
+      break;
+
+    default:
+      assert(false);
+    }
+
+    operand num_args = instr.operands.size() - (is_tail ? 1 : 2);
+
+    if (!is_tail)
       frame->set_dest_register(instr.operands[1]);
 
-    std::vector<generic_ptr> args = collect_arguments(frame, instr, instr.opcode == opcode::call ? 2 : 1);
+    std::vector<generic_ptr> args = collect_arguments(frame, instr, is_tail ? 1 : 2);
     generic_ptr call_target = callee;
     std::vector<generic_ptr> closure;
 
@@ -212,7 +240,7 @@ execute_one(execution_state& state) {
         args.push_back(rest_list);
       }
 
-      if (instr.opcode == opcode::tail_call)
+      if (is_tail)
         state.current_frame = frame->parent(state.ctx.store);
 
       state.current_frame = state.ctx.store.make<call_frame>(
@@ -224,7 +252,7 @@ execute_one(execution_state& state) {
       assert(closure.empty());
       generic_ptr result = native_proc->target(state.ctx, args);
 
-      if (instr.opcode == opcode::call)
+      if (!is_tail)
         call_frame_set_local(frame, frame->dest_register(), result);
       else {
         // tail_call. For Scheme procedures, the callee would perform a ret and
