@@ -156,13 +156,10 @@ using bytecode = std::vector<std::byte>;
 void
 encode_instruction(bytecode&, instruction const&);
 
-struct decode_result {
-  insider::instruction instruction;
-  std::size_t          next_pc;
-};
-
-decode_result
-decode_instruction(bytecode const&, std::size_t pc);
+// Decode instruction into out_instruction. Returns the value of PC pointing to
+// the next instruction.
+std::size_t
+decode_instruction(bytecode const&, std::size_t pc, instruction& out_instruction);
 
 } // namespace insider
 

@@ -101,8 +101,8 @@ collect_closure(ptr<closure> const& cls) {
 static void
 execute_one(execution_state& state) {
   ptr<call_frame>& frame = state.current_frame;
-  auto [instr, next_pc] = decode_instruction(frame->procedure(state.ctx.store)->bytecode, frame->pc);
-  frame->pc = next_pc;
+  frame->pc = decode_instruction(frame->procedure(state.ctx.store)->bytecode, frame->pc, state.current_instruction);
+  instruction const& instr = state.current_instruction;
 
   switch (instr.opcode) {
   case opcode::no_operation:
@@ -331,15 +331,18 @@ execute_one(execution_state& state) {
 }
 
 execution_state
-make_state(context& ctx, ptr<procedure> const& global) {
+make_state(context& ctx, ptr<procedure> const& global,
+           std::vector<generic_ptr> const& closure, std::vector<generic_ptr> const& arguments) {
   ptr<call_frame> root_frame = ctx.store.make<call_frame>(
     global,
     ptr<call_frame>{},
-    std::vector<generic_ptr>{},
-    std::vector<generic_ptr>{}
+    closure,
+    arguments
   );
 
-  return execution_state{ctx, root_frame, root_frame, {}, {}};
+  instruction preallocated{};
+  preallocated.operands.reserve(32);
+  return execution_state{ctx, root_frame, root_frame, {}, {}, preallocated};
 }
 
 namespace {
@@ -401,8 +404,7 @@ call(context& ctx, generic_ptr callable, std::vector<generic_ptr> const& argumen
     if (scheme_proc->min_args != arguments.size())
       throw std::runtime_error{"Wrong number of arguments in function call"};
 
-    auto frame = make<call_frame>(ctx, scheme_proc, ptr<call_frame>{}, closure, arguments);
-    execution_state state{ctx, frame, frame, {}, {}};
+    execution_state state = make_state(ctx, scheme_proc, closure, arguments);
     return run(state);
   } else if (auto native_proc = match<native_procedure>(callable)) {
     assert(closure.empty());

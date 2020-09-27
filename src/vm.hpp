@@ -90,11 +90,13 @@ struct execution_state {
   ptr<call_frame>          current_frame;
   generic_ptr              global_return;
   std::vector<generic_ptr> argument_stack;
+  instruction              current_instruction;
 };
 
 // Make execution state using the given procedure as the global call frame.
 execution_state
-make_state(context&, ptr<procedure> const&);
+make_state(context&, ptr<procedure> const&,
+           std::vector<generic_ptr> const& closure = {}, std::vector<generic_ptr> const& arguments = {});
 
 // Run the bytecode in the execution context's global call frame.
 generic_ptr

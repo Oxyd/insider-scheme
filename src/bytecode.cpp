@@ -106,27 +106,28 @@ decode_operand(bytecode const& bc, std::size_t& pc) {
   return result;
 }
 
-decode_result
-decode_instruction(bytecode const& bc, std::size_t pc) {
-  opcode op = decode_opcode(bc[pc]);
+std::size_t
+decode_instruction(bytecode const& bc, std::size_t pc, instruction& out_instruction) {
+  out_instruction.opcode = decode_opcode(bc[pc]);
   ++pc;
 
-  instruction result{op};
-  instruction_info info = opcode_to_info(op);
-  result.operands.reserve(info.num_operands);
+  instruction_info info = opcode_to_info(out_instruction.opcode);
+
+  out_instruction.operands.clear();
+  out_instruction.operands.reserve(info.num_operands);
 
   for (std::size_t i = 0; i < info.num_operands; ++i)
-    result.operands.push_back(decode_operand(bc, pc)); // Increments pc
+    out_instruction.operands.push_back(decode_operand(bc, pc)); // Increments pc
 
   if (info.extra_operands) {
     operand num_extra = decode_operand(bc, pc); // Increments pc
-    result.operands.reserve(result.operands.size() + num_extra);
+    out_instruction.operands.reserve(out_instruction.operands.size() + num_extra);
 
     for (std::size_t i = 0; i < num_extra; ++i)
-      result.operands.push_back(decode_operand(bc, pc)); // Increments pc
+      out_instruction.operands.push_back(decode_operand(bc, pc)); // Increments pc
   }
 
-  return {std::move(result), pc};
+  return pc;
 }
 
 } // namespace insider
