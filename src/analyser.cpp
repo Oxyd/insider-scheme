@@ -405,7 +405,7 @@ parse_lambda(parsing_context& pc, ptr<environment> const& env, ptr<pair> const& 
 
   return make_syntax<lambda_syntax>(std::move(parameters), has_rest,
                                     parse_body(pc, subenv, cddr(datum)),
-                                    std::nullopt);
+                                    std::nullopt, std::vector<std::shared_ptr<insider::variable>>{});
 }
 
 static std::unique_ptr<syntax>
@@ -487,7 +487,7 @@ parse_reference(ptr<environment> const& env, ptr<symbol> const& id) {
   if (!var->global)
     return make_syntax<local_reference_syntax>(std::move(var));
   else
-    return make_syntax<top_level_reference_syntax>(operand::global(*var->global), identifier_name(id));
+    return make_syntax<top_level_reference_syntax>(*var->global, identifier_name(id));
 }
 
 static std::unique_ptr<syntax>
@@ -519,7 +519,7 @@ parse_define_or_set(parsing_context& pc, ptr<environment> const& env, ptr<pair> 
     return make_syntax<local_set_syntax>(std::move(var), std::move(initialiser));
   }
   else
-    return make_syntax<top_level_set_syntax>(operand::global(*var->global), std::move(initialiser));
+    return make_syntax<top_level_set_syntax>(*var->global, std::move(initialiser));
 }
 
 static std::unique_ptr<syntax>
@@ -530,7 +530,7 @@ parse_syntactic_closure(parsing_context& pc, ptr<environment> const& env,
       if (!var->global)
         return make_syntax<local_reference_syntax>(std::move(var));
       else
-        return make_syntax<top_level_reference_syntax>(operand::global(*var->global), identifier_name(sc));
+        return make_syntax<top_level_reference_syntax>(*var->global, identifier_name(sc));
     }
   }
 
@@ -664,7 +664,7 @@ make_internal_reference(context& ctx, std::string name) {
   std::optional<module::binding_type> binding = ctx.internal_module.find(ctx.intern(name));
   assert(binding);
   assert(std::holds_alternative<module::index_type>(*binding));
-  return make_syntax<top_level_reference_syntax>(operand::global(std::get<module::index_type>(*binding)),
+  return make_syntax<top_level_reference_syntax>(std::get<module::index_type>(*binding),
                                                  std::move(name));
 }
 
@@ -931,11 +931,67 @@ box_set_variables(syntax* s) {
   }
 }
 
+using variable_set = std::unordered_set<std::shared_ptr<variable>>;
+
+// For each lambda find the list the free variables it uses.
+static void
+analyse_free_variables(syntax* s, variable_set& bound_vars, variable_set& free_vars) {
+  if (auto* lambda = std::get_if<lambda_syntax>(&s->value)) {
+    variable_set inner_bound;
+    for (auto const& param : lambda->parameters)
+      inner_bound.emplace(param);
+
+    variable_set inner_free;
+    recurse<analyse_free_variables>(s, inner_bound, inner_free);
+
+    for (auto const& v : inner_free) {
+      lambda->free_variables.push_back(v);
+
+      // Lambda expression's free variables count as variable references in the
+      // enclosing procedure.
+
+      if (!bound_vars.count(v))
+        free_vars.emplace(v);
+    }
+  }
+  else if (auto* let = std::get_if<let_syntax>(&s->value)) {
+    for (definition_pair_syntax const& dp : let->definitions)
+      bound_vars.emplace(dp.variable);
+
+    recurse<analyse_free_variables>(s, bound_vars, free_vars);
+
+    for (definition_pair_syntax const& dp : let->definitions)
+      bound_vars.erase(dp.variable);
+  }
+  else if (auto* ref = std::get_if<local_reference_syntax>(&s->value)) {
+    if (!bound_vars.count(ref->variable))
+      free_vars.emplace(ref->variable);
+  }
+  else if (auto* set = std::get_if<local_set_syntax>(&s->value)) {
+    assert(bound_vars.count(set->target)); // Local set!s are boxed, so this shouldn't happen.
+    (void) set;
+    recurse<analyse_free_variables>(s, bound_vars, free_vars);
+  }
+  else
+    recurse<analyse_free_variables>(s, bound_vars, free_vars);
+}
+
+static void
+analyse_free_variables(syntax* s) {
+  variable_set bound;
+  variable_set free;
+
+  analyse_free_variables(s, bound, free);
+
+  assert(free.empty()); // Top-level can't have any free variables.
+}
+
 std::unique_ptr<syntax>
 analyse(context& ctx, generic_ptr const& datum, module& m) {
   parsing_context pc{ctx, m};
   std::unique_ptr<syntax> result = parse(pc, m.environment(), datum);
   box_set_variables(result.get());
+  analyse_free_variables(result.get());
   return result;
 }
 

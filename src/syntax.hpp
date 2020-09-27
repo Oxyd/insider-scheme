@@ -18,14 +18,14 @@ class transformer;
 // the binding itself and the compiler will use these to translate them to local
 // registers.
 struct variable {
-  std::string                                 name;
-  bool                                        is_set = false;
-  std::optional<operand::representation_type> global;
+  std::string            name;
+  bool                   is_set = false;
+  std::optional<operand> global;
 
   explicit
   variable(std::string n) : name{std::move(n)} { }
 
-  variable(std::string n, operand::representation_type index)
+  variable(std::string n, operand index)
     : name{std::move(n)}
     , global{index}
   { }
@@ -95,6 +95,7 @@ struct lambda_syntax {
   bool has_rest;
   sequence_syntax body;
   std::optional<std::string> name;
+  std::vector<std::shared_ptr<variable>> free_variables;
 };
 
 struct if_syntax {

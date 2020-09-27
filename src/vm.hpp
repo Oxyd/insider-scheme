@@ -3,6 +3,8 @@
 
 #include "scheme.hpp"
 
+#include <limits>
+
 namespace insider {
 
 // The virtual machine. The global environment is represented as a procedure
@@ -16,15 +18,15 @@ class call_frame : public dynamic_size_object<call_frame, object*> {
 public:
   static std::size_t
   extra_elements(ptr<insider::procedure> const& procedure,
-                 ptr<insider::closure> const& closure,
                  ptr<call_frame> const& parent,
+                 std::vector<generic_ptr> const& closure,
                  std::vector<generic_ptr> const& arguments);
 
   std::uint32_t pc = 0;
 
   call_frame(ptr<insider::procedure> const& procedure,
-             ptr<insider::closure> const& closure,
              ptr<call_frame> const& parent,
+             std::vector<generic_ptr> const& closure,
              std::vector<generic_ptr> const& arguments);
 
   call_frame(call_frame&&);
@@ -50,20 +52,20 @@ public:
   void
   set_local(free_store& store, std::size_t i, generic_ptr const& value);
 
-  generic_ptr
-  closure(free_store& store, std::size_t i) const {
-    assert(closure_);
-    return closure_->ref(store, i);
-  }
-
   ptr<call_frame>
   parent(free_store& store) const { return {store, parent_frame_}; }
 
+  operand
+  dest_register() const { return dest_register_; }
+
+  void
+  set_dest_register(operand d) { dest_register_ = d; }
+
 private:
   insider::procedure* procedure_;
-  insider::closure*   closure_;
   call_frame*         parent_frame_;
   std::size_t         locals_size_;
+  operand             dest_register_ = std::numeric_limits<operand>::max();
 };
 
 inline ptr<procedure>
@@ -74,9 +76,9 @@ call_frame_local(ptr<call_frame> const& cf, std::size_t i) {
   return cf->local(cf.store(), i);
 }
 
-inline generic_ptr
-call_frame_closure(ptr<call_frame> const& cf, std::size_t i) {
-  return cf->closure(cf.store(), i);
+inline void
+call_frame_set_local(ptr<call_frame> const& cf, std::size_t i, generic_ptr const& value) {
+  cf->set_local(cf.store(), i, value);
 }
 
 inline ptr<call_frame>

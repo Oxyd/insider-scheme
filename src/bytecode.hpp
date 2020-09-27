@@ -11,122 +11,52 @@
 
 namespace insider {
 
-class operand {
-public:
-  using representation_type = std::uint32_t;
-  using offset_type = std::int32_t;
-
-  enum class scope_type : representation_type {
-    local,
-    global,
-    static_,
-    closure
-  };
-
-  operand() = default;
-
-  operand(scope_type scope, representation_type value)
-    : value_{(value << scope_bits) | static_cast<representation_type>(scope)}
-  { }
-
-  static operand
-  raw(representation_type v) { return operand{v}; }
-
-  static operand
-  immediate(representation_type value) { return operand{value}; }
-
-  static operand
-  offset(offset_type value) { return operand{static_cast<representation_type>(value)}; }
-
-  static operand
-  local(representation_type value) { return operand{scope_type::local, value}; }
-
-  static operand
-  global(representation_type value) { return operand{scope_type::global, value}; }
-
-  static operand
-  static_(representation_type value) { return operand{scope_type::static_, value}; }
-
-  static operand
-  closure(representation_type value) { return operand{scope_type::closure, value}; }
-
-  scope_type
-  scope() const { return scope_type{value_ & scope_mask}; }
-
-  representation_type
-  value() const { return value_ >> scope_bits; }
-
-  representation_type
-  immediate_value() const { return value_; }
-
-  offset_type
-  offset() const { return static_cast<offset_type>(value_); }
-
-  representation_type
-  representation() const { return value_; }
-
-private:
-  // Bottom two bits give the scope. Remaining bits give the value of the operand.
-  static constexpr std::size_t scope_bits = 2;
-  static constexpr representation_type scope_mask = (1u << scope_bits) - 1;
-
-  representation_type value_ = static_cast<representation_type>(scope_type::local);
-
-  explicit
-  operand(representation_type v) : value_{v} { }
-};
+using operand = std::uint64_t;
 
 // This enum defines the numeric opcode values.
 enum class opcode : std::uint8_t {
   no_operation,
+  load_static,      // load-static <static number> <destination>
+  load_global,      // load-global <global number> <destination>
+  store_global,     // store-global <value> <global-number>
   add,
   subtract,
   multiply,
   divide,
   arith_equal,
   less_than,
-  greater_than,
-  set,             // set <source> <> <destination>
-  call,            // call <procedure> <number of arguments> <return value destination>
-  tail_call,       // tail-call <procedure> <number of arguments>
-  ret,             // ret <return value>
-  push1,           // push1 <value>
-  push2,           // push2 <value> <value>
-  push3,           // push3 <value> <value> <value>
-  jump,            // jump <offset>
-  jump_unless,     // jump-unless <register> <offset>
-  make_closure,    // make-closure <procedure> <number of free variables> <destination>
-  box,             // box <what> <> <destination> -- make a box containing what
-  unbox,           // unbox <what> <> <destination> -- extract contained value from a box
-  box_set,         // box-set <box> <value> -- replace box's contained value with a new one
-  cons,            // cons <a> <b> <destination> -- make a cons pair (a . b)
-  make_vector      // make-vector <number of elements> <> <destination>
-};
-
-enum class opcode_category {
-  none,
-  register_,
-  absolute,
-  offset
+  greater_than, // 10
+  set,              // set <source> <destination>
+  call,             // call <procedure> <return value destination> <arguments ...>
+  tail_call,        // tail-call <procedure> <arguments ...>
+  ret,              // ret <return value>
+  jump,             // jump <offset>
+  jump_back,        // jump-back <offset>
+  jump_unless,      // jump-unless <register> <offset>
+  jump_back_unless, // jump-back-unless <register> <offset>
+  make_closure,     // make-closure <procedure> <destination> <free variables ...>
+  box,              // box <what> <destination> -- make a box containing what -- 20
+  unbox,            // unbox <what> <destination> -- extract contained value from a box
+  box_set,          // box-set <box> <value> -- replace box's contained value with a new one
+  cons,             // cons <a> <b> <destination> -- make a cons pair (a . b)
+  make_vector       // make-vector <destination> <elements ...>
 };
 
 // Metainformation about an opcode. Used for decoding instructions.
 struct instruction_info {
-  std::string      mnemonic;
-  insider::opcode  opcode{};
-  opcode_category  x = opcode_category::none;
-  opcode_category  y = opcode_category::none;
-  opcode_category  dest = opcode_category::none;
+  std::string     mnemonic;
+  insider::opcode opcode{};
+  std::size_t     num_operands;
+  bool            extra_operands;
 
   instruction_info() = default;
 
   instruction_info(std::string_view mnemonic, insider::opcode opcode,
-                   opcode_category x, opcode_category y, opcode_category dest)
+                   std::size_t num_operands, bool extra_operands = false)
     : mnemonic{mnemonic}
     , opcode{opcode}
-    , x{x}
-    , y{y}
-    , dest{dest}
+    , num_operands{num_operands}
+    , extra_operands{extra_operands}
   { }
 };
 
@@ -135,7 +65,7 @@ struct instruction_info {
 // (for reading binary bytecode).
 
 namespace detail {
-  using info_tuple = std::tuple<char const*, opcode, opcode_category, opcode_category, opcode_category>;
+  using info_tuple = std::tuple<char const*, opcode, std::size_t, bool>;
 
   template <std::size_t N, std::size_t... Is>
   constexpr auto
@@ -146,8 +76,7 @@ namespace detail {
       = instruction_info{std::get<0>(instructions[Is]),
                          std::get<1>(instructions[Is]),
                          std::get<2>(instructions[Is]),
-                         std::get<3>(instructions[Is]),
-                         std::get<4>(instructions[Is])}), ...);
+                         std::get<3>(instructions[Is])}), ...);
     return result;
   }
 
@@ -162,30 +91,31 @@ namespace detail {
 // the opcode enum. Opcode values are still given by the enum.
 constexpr std::array
 instructions{
-  //         mnemonic           opcode                   x      y      dest
-  std::tuple{"no-operation",    opcode::no_operation,    opcode_category::none, opcode_category::none, opcode_category::none},
-  std::tuple{"add",             opcode::add,             opcode_category::register_, opcode_category::register_, opcode_category::register_},
-  std::tuple{"subtract",        opcode::subtract,        opcode_category::register_, opcode_category::register_, opcode_category::register_},
-  std::tuple{"multiply",        opcode::multiply,        opcode_category::register_, opcode_category::register_, opcode_category::register_},
-  std::tuple{"divide",          opcode::divide,          opcode_category::register_, opcode_category::register_, opcode_category::register_},
-  std::tuple{"arith-equal",     opcode::arith_equal,     opcode_category::register_, opcode_category::register_, opcode_category::register_},
-  std::tuple{"less-than",       opcode::less_than,       opcode_category::register_, opcode_category::register_, opcode_category::register_},
-  std::tuple{"greater-than",    opcode::greater_than,    opcode_category::register_, opcode_category::register_, opcode_category::register_},
-  std::tuple{"set!",            opcode::set,             opcode_category::register_, opcode_category::none, opcode_category::register_},
-  std::tuple{"call",            opcode::call,            opcode_category::register_, opcode_category::absolute, opcode_category::register_},
-  std::tuple{"tail-call",       opcode::tail_call,       opcode_category::register_, opcode_category::absolute, opcode_category::none},
-  std::tuple{"ret",             opcode::ret,             opcode_category::register_, opcode_category::none, opcode_category::none},
-  std::tuple{"push1",           opcode::push1,           opcode_category::register_, opcode_category::none, opcode_category::none},
-  std::tuple{"push2",           opcode::push2,           opcode_category::register_, opcode_category::register_, opcode_category::none},
-  std::tuple{"push3",           opcode::push3,           opcode_category::register_, opcode_category::register_, opcode_category::register_},
-  std::tuple{"jump",            opcode::jump,            opcode_category::offset, opcode_category::none, opcode_category::none},
-  std::tuple{"jump-unless",     opcode::jump_unless,     opcode_category::register_, opcode_category::offset, opcode_category::none},
-  std::tuple{"make-closure",    opcode::make_closure,    opcode_category::register_, opcode_category::absolute, opcode_category::register_},
-  std::tuple{"box",             opcode::box,             opcode_category::register_, opcode_category::none, opcode_category::register_},
-  std::tuple{"unbox",           opcode::unbox,           opcode_category::register_, opcode_category::none, opcode_category::register_},
-  std::tuple{"box-set!",        opcode::box_set,         opcode_category::register_, opcode_category::register_, opcode_category::none},
-  std::tuple{"cons",            opcode::cons,            opcode_category::register_, opcode_category::register_, opcode_category::register_},
-  std::tuple{"make-vector",     opcode::make_vector,     opcode_category::absolute, opcode_category::none, opcode_category::register_},
+  std::tuple{"no-operation",     opcode::no_operation,     std::size_t{0}, false},
+  std::tuple{"load-static",      opcode::load_static,      std::size_t{2}, false},
+  std::tuple{"load-global",      opcode::load_global,      std::size_t{2}, false},
+  std::tuple{"store-global",     opcode::store_global,     std::size_t{2}, false},
+  std::tuple{"add",              opcode::add,              std::size_t{3}, false},
+  std::tuple{"subtract",         opcode::subtract,         std::size_t{3}, false},
+  std::tuple{"multiply",         opcode::multiply,         std::size_t{3}, false},
+  std::tuple{"divide",           opcode::divide,           std::size_t{3}, false},
+  std::tuple{"arith-equal",      opcode::arith_equal,      std::size_t{3}, false},
+  std::tuple{"less-than",        opcode::less_than,        std::size_t{3}, false},
+  std::tuple{"greater-than",     opcode::greater_than,     std::size_t{3}, false},
+  std::tuple{"set!",             opcode::set,              std::size_t{2}, false},
+  std::tuple{"call",             opcode::call,             std::size_t{2}, true},
+  std::tuple{"tail-call",        opcode::tail_call,        std::size_t{1}, true},
+  std::tuple{"ret",              opcode::ret,              std::size_t{1}, false},
+  std::tuple{"jump",             opcode::jump,             std::size_t{1}, false},
+  std::tuple{"jump-back",        opcode::jump_back,        std::size_t{1}, false},
+  std::tuple{"jump-unless",      opcode::jump_unless,      std::size_t{2}, false},
+  std::tuple{"jump-back-unless", opcode::jump_back_unless, std::size_t{2}, false},
+  std::tuple{"make-closure",     opcode::make_closure,     std::size_t{2}, true},
+  std::tuple{"box",              opcode::box,              std::size_t{2}, false},
+  std::tuple{"unbox",            opcode::unbox,            std::size_t{2}, false},
+  std::tuple{"box-set!",         opcode::box_set,          std::size_t{2}, false},
+  std::tuple{"cons",             opcode::cons,             std::size_t{3}, false},
+  std::tuple{"make-vector",      opcode::make_vector,      std::size_t{1}, true}
 };
 
 inline auto // std::array<instruction_info, N>
@@ -199,19 +129,40 @@ mnemonic_to_info(std::string_view);
 
 struct instruction {
   insider::opcode opcode;
-  operand     x, y, dest;
+  std::vector<operand> operands;
 
   instruction() = default;
-  instruction(insider::opcode oc, operand x, operand y, operand dest)
+  explicit
+  instruction(insider::opcode oc)
     : opcode{oc}
-    , x{x}
-    , y{y}
-    , dest{dest}
   { }
-  instruction(std::string_view mnemonic, operand, operand, operand);
+  instruction(insider::opcode oc, std::vector<operand> operands)
+    : opcode{oc}
+    , operands{std::move(operands)}
+  { }
+
+  template <typename... Op>
+  explicit
+  instruction(insider::opcode oc, Op... operands)
+    : opcode{oc}
+    , operands{operands...}
+  { }
+
+  instruction(std::string_view mnemonic, std::vector<operand> operands);
 };
 
-using bytecode = std::vector<instruction>;
+using bytecode = std::vector<std::byte>;
+
+void
+encode_instruction(bytecode&, instruction const&);
+
+struct decode_result {
+  insider::instruction instruction;
+  std::size_t          next_pc;
+};
+
+decode_result
+decode_instruction(bytecode const&, std::size_t pc);
 
 } // namespace insider
 

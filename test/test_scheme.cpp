@@ -462,9 +462,18 @@ template <typename T, typename... Args>
 operand
 make_static(context& ctx, Args&&... args) {
   if constexpr (std::is_same_v<T, integer>)
-    return operand::static_(ctx.intern_static(integer_to_ptr(integer{args...})));
+    return ctx.intern_static(integer_to_ptr(integer{args...}));
   else
-    return operand::static_(ctx.intern_static(make<T>(ctx, std::forward<Args>(args)...)));
+    return ctx.intern_static(make<T>(ctx, std::forward<Args>(args)...));
+}
+
+static bytecode
+make_bytecode(std::vector<instruction> const& instr) {
+  bytecode bc;
+  for (instruction const& i : instr)
+    encode_instruction(bc, i);
+
+  return bc;
 }
 
 TEST_F(scheme, exec_arithmetic) {
@@ -476,9 +485,12 @@ TEST_F(scheme, exec_arithmetic) {
 
   auto proc = make<procedure>(
     ctx,
-    bytecode{{opcode::add,      three, six,               operand::local(1)},
-             {opcode::multiply, two,   operand::local(1), operand::local(0)}},
-    2,
+    make_bytecode({instruction{opcode::load_static, two,   operand{2}},
+                   instruction{opcode::load_static, three, operand{3}},
+                   instruction{opcode::load_static, six,   operand{4}},
+                   instruction{opcode::add,         operand{3}, operand{4}, operand{1}},
+                   instruction{opcode::multiply,    operand{2}, operand{1}, operand{0}}}),
+    5,
     0
   );
   auto state = make_state(ctx, proc);
@@ -495,10 +507,11 @@ TEST_F(scheme, exec_calls) {
 
   auto f = make_static<procedure>(
     ctx,
-    bytecode{{opcode::multiply, two,               operand::local(0), operand::local(2)},
-             {opcode::add,      operand::local(2), operand::local(1), operand::local(2)},
-             {opcode::ret,      operand::local(2), {},                {}}},
-    3,
+    make_bytecode({instruction{opcode::load_static, two,        operand{3}},
+                   instruction{opcode::multiply,    operand{3}, operand{0}, operand{2}},
+                   instruction{opcode::add,         operand{2}, operand{1}, operand{2}},
+                   instruction{opcode::ret,         operand{2}}}),
+    4,
     2
   );
 
@@ -509,15 +522,18 @@ TEST_F(scheme, exec_calls) {
 
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::push2,    five,              seven,                 {}},
-             {opcode::call,     f,                 operand::immediate(2), operand::local(0)},
-             {opcode::multiply, three,             operand::local(0),     operand::local(0)},
-             {opcode::push2,    three,             four,                  {}},
-             {opcode::call,     f,                 operand::immediate(2), operand::local(2)},
-             {opcode::push2,    two,               operand::local(2),     {}},
-             {opcode::call,     f,                 operand::immediate(2), operand::local(1)},
-             {opcode::add,      operand::local(0), operand::local(1),     operand::local(0)}},
-    3,
+    make_bytecode({instruction{opcode::load_static, five,  operand{3}},
+                   instruction{opcode::load_static, seven, operand{4}},
+                   instruction{opcode::load_static, f,     operand{5}},
+                   instruction{opcode::call,        operand{5}, operand{0}, operand{3}, operand{4}},
+                   instruction{opcode::load_static, three, operand{6}},
+                   instruction{opcode::multiply,    operand{6}, operand{0}, operand{0}},
+                   instruction{opcode::load_static, four,  operand{7}},
+                   instruction{opcode::call,        operand{5}, operand{2}, operand{6}, operand{7}},
+                   instruction{opcode::load_static, two,   operand{8}},
+                   instruction{opcode::call,        operand{5}, operand{1}, operand{8}, operand{2}},
+                   instruction{opcode::add,         operand{0}, operand{1}, operand{0}}}),
+    9,
     0
   );
   auto state = make_state(ctx, global);
@@ -528,66 +544,32 @@ TEST_F(scheme, exec_calls) {
             3 * native_f(5, 7) + native_f(2, native_f(3, 4)));
 }
 
-TEST_F(scheme, three_argument_calls) {
-  // f(x, y, z) = 2 * x + 3 * y + 4 * z
-  // Evaluate 2 * f(1, 2, 3)
-
-  auto one = make_static<integer>(ctx, 1);
-  auto two = make_static<integer>(ctx, 2);
-  auto three = make_static<integer>(ctx, 3);
-  auto four = make_static<integer>(ctx, 4);
-
-  auto f = make_static<procedure>(
-    ctx,
-    bytecode{{opcode::multiply, two,               operand::local(0), operand::local(3)},
-             {opcode::multiply, three,             operand::local(1), operand::local(4)},
-             {opcode::multiply, four,              operand::local(2), operand::local(5)},
-             {opcode::add,      operand::local(3), operand::local(4), operand::local(3)},
-             {opcode::add,      operand::local(3), operand::local(5), operand::local(3)},
-             {opcode::ret,      operand::local(3), {},                {}}},
-    6,
-    3
-  );
-  auto global = make<procedure>(
-    ctx,
-    bytecode{{opcode::push3,    one, two,                   three},
-             {opcode::call,     f,   operand::immediate(3), operand::local(0)},
-             {opcode::multiply, two, operand::local(0),     operand::local(0)}},
-    1,
-    0
-  );
-  auto state = make_state(ctx, global);
-  run(state);
-
-  auto native_f = [] (int x, int y, int z) { return 2 * x + 3 * y + 4 * z; };
-  EXPECT_EQ(expect<integer>(call_frame_local(state.current_frame, 0)).value(),
-            2 * native_f(1, 2, 3));
-}
-
 TEST_F(scheme, exec_tail_calls) {
   // f(x) = g(x)
   // g(x) = 2 * x
   auto two = make_static<integer>(ctx, 2);
   auto g = make_static<procedure>(
     ctx,
-    bytecode{{opcode::multiply, two,               operand::local(0), operand::local(1)},
-             {opcode::ret,      operand::local(1), {},                {}}},
-    2,
+    make_bytecode({instruction{opcode::load_static, two, operand{2}},
+                   instruction{opcode::multiply,    operand{2}, operand{0}, operand{1}},
+                   instruction{opcode::ret,         operand{1}}}),
+    3,
     1
   );
   auto f = make_static<procedure>(
     ctx,
-    bytecode{{opcode::push3,     operand::local(0), {},                    {}},
-             {opcode::tail_call, g,                 operand::immediate(1), {}}},
-    1,
+    make_bytecode({instruction{opcode::load_static, g, operand{1}},
+                  {instruction{opcode::tail_call,   operand{1}, operand{0}}}}),
+    2,
     1
   );
   auto six = make_static<integer>(ctx, 6);
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::push1, six, {},                    {}},
-             {opcode::call,  f,   operand::immediate(1), operand::local(0)}},
-    1,
+    make_bytecode({instruction{opcode::load_static, f,   operand{1}},
+                   instruction{opcode::load_static, six, operand{2}},
+                   instruction{opcode::call,        operand{1}, operand{0}, operand{2}}}),
+    3,
     0
   );
   auto state = make_state(ctx, global);
@@ -608,15 +590,18 @@ TEST_F(scheme, exec_loop) {
   auto one = make_static<integer>(ctx, 1);
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::set,          zero,                {},                 operand::local(0)},
-             {opcode::set,          zero,                {},                 operand::local(1)},
-             {opcode::less_than,    operand::local(1),   ten,                operand::local(2)},
-             {opcode::jump_unless,  operand::local(2),   operand::offset(3), {}},
-             {opcode::add,          operand::local(0),   operand::local(1),  operand::local(0)},
-             {opcode::add,          operand::local(1),   one,                operand::local(1)},
-             {opcode::jump,         operand::offset(-5), {},                 {}},
-             {opcode::no_operation, {},                  {},                 {}}},
-    3,
+    make_bytecode({instruction{opcode::load_static, zero,       operand{3}},
+                   instruction{opcode::load_static, ten,        operand{4}},
+                   instruction{opcode::load_static, one,        operand{5}},
+                   instruction{opcode::set,         operand{3}, operand{0}},
+                   instruction{opcode::set,         operand{3}, operand{1}},
+                   instruction{opcode::less_than,   operand{1}, operand{4}, operand{2}}, // 4
+                   instruction{opcode::jump_unless, operand{2}, operand{10}},            // 3
+                   instruction{opcode::add,         operand{0}, operand{1}, operand{0}}, // 4
+                   instruction{opcode::add,         operand{1}, operand{5}, operand{1}}, // 3
+                   instruction{opcode::jump_back,   operand{17}},                        // 2
+                   instruction{opcode::no_operation}}),                                  // 1
+    6,
     0
   );
   auto state = make_state(ctx, global);
@@ -637,9 +622,12 @@ TEST_F(scheme, exec_native_call) {
   auto thirty = make_static<integer>(ctx, 30);
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::push3, ten,           twenty,                thirty},
-             {opcode::call,  native_static, operand::immediate(3), operand::local(0)}},
-    1,
+    make_bytecode({instruction{opcode::load_static, ten,           operand{1}},
+                   instruction{opcode::load_static, twenty,        operand{2}},
+                   instruction{opcode::load_static, thirty,        operand{3}},
+                   instruction{opcode::load_static, native_static, operand{4}},
+                   instruction{opcode::call,        operand{4},    operand{0}, operand{1}, operand{2}, operand{3}}}),
+    5,
     0
   );
   auto state = make_state(ctx, global);
@@ -652,19 +640,21 @@ TEST_F(scheme, exec_native_call) {
 TEST_F(scheme, exec_closure_ref) {
   auto add = make_static<procedure>(
     ctx,
-    bytecode{{opcode::add, operand::local(0), operand::closure(0), operand::local(0)},
-             {opcode::ret, operand::local(0), {},                  {}}},
-    1, 1
+    make_bytecode({instruction{opcode::add, operand{1}, operand{0}, operand{0}},
+                   instruction{opcode::ret, operand{0}}}),
+    2,
+    1
   );
   auto three = make_static<integer>(ctx, 3);
   auto five = make_static<integer>(ctx, 5);
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::push1,         three,             {},                    {}},
-             {opcode::make_closure, add,               operand::immediate(1), operand::local(1)},
-             {opcode::push1,         five,              {},                    {}},
-             {opcode::call,         operand::local(1), operand::immediate(1), operand::local(0)}},
-    2, 0
+    make_bytecode({instruction{opcode::load_static, add,   operand{2}},
+                   instruction{opcode::load_static, three, operand{3}},
+                   instruction{opcode::load_static, five,  operand{4}},
+                   instruction{opcode::make_closure, operand{2}, operand{1}, operand{3}},
+                   instruction{opcode::call,         operand{1}, operand{0}, operand{4}}}),
+    5, 0
   );
   auto state = make_state(ctx, global);
   run(state);
@@ -678,10 +668,14 @@ TEST_F(scheme, exec_cons) {
   auto three = make_static<integer>(ctx, 3);
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::cons, three, ctx.statics.null,  operand::local(0)},
-             {opcode::cons, two,   operand::local(0), operand::local(0)},
-             {opcode::cons, one,   operand::local(0), operand::local(0)}},
-    1, 0
+    make_bytecode({instruction{opcode::load_static, ctx.statics.null, operand{1}},
+                   instruction{opcode::load_static, one,              operand{2}},
+                   instruction{opcode::load_static, two,              operand{3}},
+                   instruction{opcode::load_static, three,            operand{4}},
+                   instruction{opcode::cons,        operand{4},       operand{1}, operand{0}},
+                   instruction{opcode::cons,        operand{3},       operand{0}, operand{0}},
+                   instruction{opcode::cons,        operand{2},       operand{0}, operand{0}}}),
+    5, 0
   );
   auto state = make_state(ctx, global);
   run(state);
@@ -695,9 +689,11 @@ TEST_F(scheme, exec_make_vector) {
   auto three = make_static<integer>(ctx, 3);
   auto global = make<procedure>(
     ctx,
-    bytecode{{opcode::push3,        one,                   two, three},
-             {opcode::make_vector, operand::immediate(3), {},  operand::local(0)}},
-    1, 0
+    make_bytecode({instruction{opcode::load_static, one,   operand{1}},
+                   instruction{opcode::load_static, two,   operand{2}},
+                   instruction{opcode::load_static, three, operand{3}},
+                   instruction{opcode::make_vector, operand{0}, operand{1}, operand{2}, operand{3}}}),
+    4, 0
   );
 
   auto state = make_state(ctx, global);
@@ -792,6 +788,14 @@ TEST_F(scheme, compile_lambda) {
   );
   EXPECT_EQ(expect<integer>(car(expect<pair>(result5))).value(), 3);
   EXPECT_EQ(expect<integer>(cdr(expect<pair>(result5))).value(), 10);
+
+  generic_ptr result6 = eval(
+    R"(
+      (let ((const (lambda () 2)))
+        (const))
+   )"
+  );
+  EXPECT_EQ(expect<integer>(result6).value(), 2);
 }
 
 TEST_F(scheme, compile_if) {

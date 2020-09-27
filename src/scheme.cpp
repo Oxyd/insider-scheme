@@ -528,15 +528,15 @@ make_internal_module(context& ctx) {
   define_lambda<eqv>(ctx, result, "eqv?", true);
   define_lambda<equal>(ctx, result, "equal?", true);
 
-  define_lambda<ptr<vector>(context&, ptr<procedure> const&)>(
-    ctx, result, "procedure-bytecode", true,
-    [] (context& ctx, ptr<procedure> const& f) {
-      return make_list_from_vector(ctx, f->bytecode,
-                                   [&] (instruction i) {
-                                     return make<opaque_value<instruction>>(ctx, i);
-                                   });
-    }
-  );
+  // define_lambda<ptr<vector>(context&, ptr<procedure> const&)>(
+  //   ctx, result, "procedure-bytecode", true,
+  //   [] (context& ctx, ptr<procedure> const& f) {
+  //     return make_list_from_vector(ctx, f->bytecode,
+  //                                  [&] (instruction i) {
+  //                                    return make<opaque_value<instruction>>(ctx, i);
+  //                                  });
+  //   }
+  // );
 
   define_lambda<generic_ptr(context&, ptr<procedure> const&)>(
     ctx, result, "procedure-name", true,
@@ -548,91 +548,91 @@ make_internal_module(context& ctx) {
     }
   );
 
-  define_lambda<integer(ptr<opaque_value<instruction>> const&)>(
-    ctx, result, "instruction-opcode", true,
-    [] (ptr<opaque_value<instruction>> const& i) { return integer{static_cast<integer::storage_type>(i->value.opcode)}; }
-  );
+  // define_lambda<integer(ptr<opaque_value<instruction>> const&)>(
+  //   ctx, result, "instruction-opcode", true,
+  //   [] (ptr<opaque_value<instruction>> const& i) { return integer{static_cast<integer::storage_type>(i->value.opcode)}; }
+  // );
 
-  define_lambda<generic_ptr(context&, ptr<opaque_value<instruction>> const&)>(
-    ctx, result, "instruction-operands", true,
-    [] (context& ctx, ptr<opaque_value<instruction>> const& i) {
-      instruction instr = i->value;
-      return make_list(ctx,
-                       make<opaque_value<operand>>(ctx, instr.x),
-                       make<opaque_value<operand>>(ctx, instr.y),
-                       make<opaque_value<operand>>(ctx, instr.dest));
-    }
-  );
+  // define_lambda<generic_ptr(context&, ptr<opaque_value<instruction>> const&)>(
+  //   ctx, result, "instruction-operands", true,
+  //   [] (context& ctx, ptr<opaque_value<instruction>> const& i) {
+  //     instruction instr = i->value;
+  //     return make_list(ctx,
+  //                      make<opaque_value<operand>>(ctx, instr.x),
+  //                      make<opaque_value<operand>>(ctx, instr.y),
+  //                      make<opaque_value<operand>>(ctx, instr.dest));
+  //   }
+  // );
 
-  define_lambda<ptr<symbol>(context&, ptr<opaque_value<operand>> const&)>(
-    ctx, result, "operand-scope", true,
-    [] (context& ctx, ptr<opaque_value<operand>> const& o) {
-      switch (o->value.scope()) {
-      case operand::scope_type::local: return ctx.intern("local");
-      case operand::scope_type::global: return ctx.intern("global");
-      case operand::scope_type::static_: return ctx.intern("static");
-      case operand::scope_type::closure: return ctx.intern("closure");
-      default: assert(!"Unreachable"); return ctx.intern("invalid");
-      }
-    }
-  );
+  // define_lambda<ptr<symbol>(context&, ptr<opaque_value<operand>> const&)>(
+  //   ctx, result, "operand-scope", true,
+  //   [] (context& ctx, ptr<opaque_value<operand>> const& o) {
+  //     switch (o->value.scope()) {
+  //     case operand::scope_type::local: return ctx.intern("local");
+  //     case operand::scope_type::global: return ctx.intern("global");
+  //     case operand::scope_type::static_: return ctx.intern("static");
+  //     case operand::scope_type::closure: return ctx.intern("closure");
+  //     default: assert(!"Unreachable"); return ctx.intern("invalid");
+  //     }
+  //   }
+  // );
 
-  define_lambda<integer(ptr<opaque_value<operand>> const&)>(
-    ctx, result, "operand-value", true,
-    [] (ptr<opaque_value<operand>> const& o) {
-      return integer{static_cast<integer::storage_type>(o->value.value())};
-    }
-  );
+  // define_lambda<integer(ptr<opaque_value<operand>> const&)>(
+  //   ctx, result, "operand-value", true,
+  //   [] (ptr<opaque_value<operand>> const& o) {
+  //     return integer{static_cast<integer::storage_type>(o->value.value())};
+  //   }
+  // );
 
-  define_lambda<integer(ptr<opaque_value<operand>> const&)>(
-    ctx, result, "operand-immediate-value", true,
-    [] (ptr<opaque_value<operand>> const& o) {
-      return integer{static_cast<integer::storage_type>(o->value.immediate_value())};
-    }
-  );
+  // define_lambda<integer(ptr<opaque_value<operand>> const&)>(
+  //   ctx, result, "operand-immediate-value", true,
+  //   [] (ptr<opaque_value<operand>> const& o) {
+  //     return integer{static_cast<integer::storage_type>(o->value.immediate_value())};
+  //   }
+  // );
 
-  define_lambda<integer(ptr<opaque_value<operand>> const&)>(
-    ctx, result, "operand-offset", true,
-    [] (ptr<opaque_value<operand>> const& o) {
-      return integer{static_cast<integer::storage_type>(o->value.offset())};
-    }
-  );
+  // define_lambda<integer(ptr<opaque_value<operand>> const&)>(
+  //   ctx, result, "operand-offset", true,
+  //   [] (ptr<opaque_value<operand>> const& o) {
+  //     return integer{static_cast<integer::storage_type>(o->value.offset())};
+  //   }
+  // );
 
-  std::vector<generic_ptr> opcodes;
-  auto category_to_symbol = [&] (opcode_category cat) {
-    switch (cat) {
-    case opcode_category::none: return ctx.intern("none");
-    case opcode_category::register_: return ctx.intern("register");
-    case opcode_category::absolute: return ctx.intern("absolute");
-    case opcode_category::offset: return ctx.intern("offset");
-    default: assert(!"Unreachable"); return ctx.intern("invalid");
-    }
-  };
-  for (auto const& info : opcode_value_to_info)
-    opcodes.emplace_back(make_list(ctx,
-                                   make_string(ctx, info.mnemonic),
-                                   category_to_symbol(info.x),
-                                   category_to_symbol(info.y),
-                                   category_to_symbol(info.dest)));
-  define_top_level(ctx, result, "opcodes", make_vector(ctx, opcodes), true);
+  // std::vector<generic_ptr> opcodes;
+  // auto category_to_symbol = [&] (opcode_category cat) {
+  //   switch (cat) {
+  //   case opcode_category::none: return ctx.intern("none");
+  //   case opcode_category::register_: return ctx.intern("register");
+  //   case opcode_category::absolute: return ctx.intern("absolute");
+  //   case opcode_category::offset: return ctx.intern("offset");
+  //   default: assert(!"Unreachable"); return ctx.intern("invalid");
+  //   }
+  // };
+  // for (auto const& info : opcode_value_to_info)
+  //   opcodes.emplace_back(make_list(ctx,
+  //                                  make_string(ctx, info.mnemonic),
+  //                                  category_to_symbol(info.x),
+  //                                  category_to_symbol(info.y),
+  //                                  category_to_symbol(info.dest)));
+  // define_top_level(ctx, result, "opcodes", make_vector(ctx, opcodes), true);
 
-  define_lambda<ptr<string>(context&, ptr<opaque_value<operand>> const&)>(
-    ctx, result, "top-level-name", true,
-    [] (context& ctx, ptr<opaque_value<operand>> const& op) {
-      if (op->value.scope() != operand::scope_type::global)
-        throw error{"Operand scope is not global"};
-      return make_string(ctx, ctx.get_top_level_name(op->value.value()));
-    }
-  );
+  // define_lambda<ptr<string>(context&, ptr<opaque_value<operand>> const&)>(
+  //   ctx, result, "top-level-name", true,
+  //   [] (context& ctx, ptr<opaque_value<operand>> const& op) {
+  //     if (op->value.scope() != operand::scope_type::global)
+  //       throw error{"Operand scope is not global"};
+  //     return make_string(ctx, ctx.get_top_level_name(op->value.value()));
+  //   }
+  // );
 
-  define_lambda<generic_ptr(context&, ptr<opaque_value<operand>> const&)>(
-    ctx, result, "static-value", true,
-    [] (context& ctx, ptr<opaque_value<operand>> const& op) {
-      if (op->value.scope() != operand::scope_type::static_)
-        throw error{"Operand scope is not static"};
-      return ctx.get_static(op->value.value());
-    }
-  );
+  // define_lambda<generic_ptr(context&, ptr<opaque_value<operand>> const&)>(
+  //   ctx, result, "static-value", true,
+  //   [] (context& ctx, ptr<opaque_value<operand>> const& op) {
+  //     if (op->value.scope() != operand::scope_type::static_)
+  //       throw error{"Operand scope is not static"};
+  //     return ctx.get_static(op->value.value());
+  //   }
+  // );
 
   define_lambda<void(context&, ptr<boolean> const&)>(
     ctx, result, "set-verbose-collection!", true,
@@ -687,12 +687,12 @@ context::context()
     internal_module.export_(id);
   }
 
-  statics.null = operand::static_(intern_static(constants->null));
-  statics.void_ = operand::static_(intern_static(constants->void_));
-  statics.t = operand::static_(intern_static(constants->t));
-  statics.f = operand::static_(intern_static(constants->f));
-  statics.zero = operand::static_(intern_static(integer_to_ptr(integer{0})));
-  statics.one = operand::static_(intern_static(integer_to_ptr(integer{1})));
+  statics.null = intern_static(constants->null);
+  statics.void_ = intern_static(constants->void_);
+  statics.t = intern_static(constants->t);
+  statics.f = intern_static(constants->f);
+  statics.zero = intern_static(integer_to_ptr(integer{0}));
+  statics.one = intern_static(integer_to_ptr(integer{1}));
 
   output_port = make<port>(*this, stdout, false, true, false);
 }
@@ -720,7 +720,7 @@ context::intern(std::string const& s) {
   return result;
 }
 
-operand::representation_type
+operand
 context::intern_static(generic_ptr const& x) {
   auto it = statics_cache_.find(x);
   if (it == statics_cache_.end()) {
@@ -732,12 +732,12 @@ context::intern_static(generic_ptr const& x) {
 }
 
 void
-context::set_top_level(operand::representation_type i, generic_ptr const& value) {
+context::set_top_level(operand i, generic_ptr const& value) {
   assert(i < top_level_objects_.size());
   top_level_objects_[i] = value;
 }
 
-operand::representation_type
+operand
 context::add_top_level(generic_ptr const& x, std::string name) {
   top_level_objects_.push_back(x);
   top_level_binding_names_.emplace_back(std::move(name));
@@ -745,7 +745,7 @@ context::add_top_level(generic_ptr const& x, std::string name) {
 }
 
 std::string
-context::get_top_level_name(operand::representation_type i) const {
+context::get_top_level_name(operand i) const {
   if (i < top_level_binding_names_.size())
     return top_level_binding_names_[i];
   else
@@ -753,12 +753,12 @@ context::get_top_level_name(operand::representation_type i) const {
 }
 
 void
-context::tag_top_level(operand::representation_type i, special_top_level_tag tag) {
+context::tag_top_level(operand i, special_top_level_tag tag) {
   top_level_tags_.emplace(i, tag);
 }
 
 std::optional<special_top_level_tag>
-context::find_tag(operand::representation_type i) const {
+context::find_tag(operand i) const {
   if (auto it = top_level_tags_.find(i); it != top_level_tags_.end())
     return it->second;
   else

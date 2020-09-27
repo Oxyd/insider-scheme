@@ -1,14 +1,17 @@
 #include "bytecode.hpp"
 
+#include <fmt/format.h>
+
 #include <cassert>
+#include <climits>
+#include <cstddef>
+#include <stdexcept>
 
 namespace insider {
 
-instruction::instruction(std::string_view mnemonic, operand x, operand y, operand dest)
+instruction::instruction(std::string_view mnemonic, std::vector<operand> operands)
   : opcode{mnemonic_to_info(mnemonic).opcode}
-  , x{x}
-  , y{y}
-  , dest{dest}
+  , operands{std::move(operands)}
 { }
 
 namespace {
@@ -21,8 +24,7 @@ namespace {
        instruction_info{std::get<0>(instructions[Is]),
                         std::get<1>(instructions[Is]),
                         std::get<2>(instructions[Is]),
-                        std::get<3>(instructions[Is]),
-                        std::get<4>(instructions[Is])}}...
+                        std::get<3>(instructions[Is])}}...
     };
   }
 
@@ -41,6 +43,90 @@ mnemonic_to_info(std::string_view mnemonic) {
   auto it = mnemonic_map.find(mnemonic);
   assert(it != mnemonic_map.end());
   return it->second;
+}
+
+static void
+encode_opcode(bytecode& bc, opcode op) {
+  bc.push_back(std::byte{op});
+}
+
+static void
+encode_operand(bytecode& bc, operand op) {
+  if (op < 0xFF)
+    bc.push_back(static_cast<std::byte>(op));
+  else {
+    bc.push_back(std::byte{0xFF});
+
+    for (std::size_t i = 0; i < sizeof(operand); ++i) {
+      bc.push_back(static_cast<std::byte>(op & 0xFF));
+      op >>= CHAR_BIT;
+    }
+  }
+}
+
+void
+encode_instruction(bytecode& bc, instruction const& instr) {
+  instruction_info info = opcode_to_info(instr.opcode);
+  assert(info.extra_operands || instr.operands.size() == info.num_operands);
+  assert(!info.extra_operands || instr.operands.size() >= info.num_operands);
+
+  encode_opcode(bc, instr.opcode);
+
+  for (std::size_t i = 0; i < info.num_operands; ++i)
+    encode_operand(bc, instr.operands[i]);
+
+  if (info.extra_operands) {
+    operand num_extra = instr.operands.size() - info.num_operands;
+    encode_operand(bc, num_extra);
+
+    for (std::size_t i = 0; i < num_extra; ++i)
+      encode_operand(bc, instr.operands[i + info.num_operands]);
+  }
+}
+
+static opcode
+decode_opcode(std::byte b) {
+  auto opcode_num = std::to_integer<std::uint8_t>(b);
+  if (opcode_num > instructions.size())
+    throw std::runtime_error{fmt::format("Invalid opcode number: {}", +opcode_num)};
+  return opcode{opcode_num};
+}
+
+static operand
+decode_operand(bytecode const& bc, std::size_t& pc) {
+  operand result = std::to_integer<std::uint8_t>(bc[pc++]);
+
+  if (result < 0xFF)
+    return result;
+
+  result = 0;
+  for (std::size_t i = 0; i < sizeof(operand); ++i)
+    result |= std::to_integer<std::uint8_t>(bc[pc++]) << (i * CHAR_BIT);
+
+  return result;
+}
+
+decode_result
+decode_instruction(bytecode const& bc, std::size_t pc) {
+  opcode op = decode_opcode(bc[pc]);
+  ++pc;
+
+  instruction result{op};
+  instruction_info info = opcode_to_info(op);
+  result.operands.reserve(info.num_operands);
+
+  for (std::size_t i = 0; i < info.num_operands; ++i)
+    result.operands.push_back(decode_operand(bc, pc)); // Increments pc
+
+  if (info.extra_operands) {
+    operand num_extra = decode_operand(bc, pc); // Increments pc
+    result.operands.reserve(result.operands.size() + num_extra);
+
+    for (std::size_t i = 0; i < num_extra; ++i)
+      result.operands.push_back(decode_operand(bc, pc)); // Increments pc
+  }
+
+  return {std::move(result), pc};
 }
 
 } // namespace insider

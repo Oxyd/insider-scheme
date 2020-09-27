@@ -136,7 +136,7 @@ environment_bound_names(ptr<environment> const& e) {
 // module is loaded.
 class module {
 public:
-  using index_type = operand::representation_type;
+  using index_type = operand;
   using binding_type = std::variant<index_type, ptr<transformer>>;
 
   explicit
@@ -292,32 +292,32 @@ public:
   ptr<symbol>
   intern(std::string const&);
 
-  operand::representation_type
+  operand
   intern_static(generic_ptr const&);
 
   generic_ptr
-  get_static(operand::representation_type i) const {
+  get_static(operand i) const {
     assert(i < statics_.size());
     return statics_[i];
   }
 
   generic_ptr
-  get_top_level(operand::representation_type i) const { return top_level_objects_[i]; }
+  get_top_level(operand i) const { return top_level_objects_[i]; }
 
   void
-  set_top_level(operand::representation_type i, generic_ptr const&);
+  set_top_level(operand i, generic_ptr const&);
 
-  operand::representation_type
+  operand
   add_top_level(generic_ptr const&, std::string name);
 
   std::string
-  get_top_level_name(operand::representation_type) const;
+  get_top_level_name(operand) const;
 
   void
-  tag_top_level(operand::representation_type, special_top_level_tag);
+  tag_top_level(operand, special_top_level_tag);
 
   std::optional<special_top_level_tag>
-  find_tag(operand::representation_type) const;
+  find_tag(operand) const;
 
   void
   load_library_module(std::vector<generic_ptr> const&);
@@ -337,7 +337,7 @@ private:
   eqv_unordered_map<std::size_t> statics_cache_;
   std::vector<generic_ptr> top_level_objects_;
   std::vector<std::string> top_level_binding_names_;
-  std::unordered_map<operand::representation_type, special_top_level_tag> top_level_tags_;
+  std::unordered_map<operand, special_top_level_tag> top_level_tags_;
   std::map<module_name, protomodule> protomodules_;
   std::map<module_name, std::unique_ptr<module>> modules_;
   std::vector<std::unique_ptr<module_provider>> module_providers_;
