@@ -10,24 +10,14 @@ namespace insider {
 // The virtual machine. The global environment is represented as a procedure
 // whose call frame is at the top of the call stack. Global variables and
 // procedures are stored as the top-level call frame's statics and locals.
-//
-// TODO: This entire thing should cooperate with the free store directly,
-// instead of using the smart pointer types.
-
 class call_frame : public dynamic_size_object<call_frame, object*> {
 public:
   bytecode_decoder bytecode;
 
   static std::size_t
-  extra_elements(ptr<insider::procedure> const& procedure,
-                 ptr<call_frame> const& parent,
-                 std::vector<generic_ptr> const& closure,
-                 std::vector<generic_ptr> const& arguments);
+  extra_elements(ptr<insider::procedure> const& procedure, ptr<call_frame> const& parent);
 
-  call_frame(ptr<insider::procedure> const& procedure,
-             ptr<call_frame> const& parent,
-             std::vector<generic_ptr> const& closure,
-             std::vector<generic_ptr> const& arguments);
+  call_frame(ptr<insider::procedure> const& procedure, ptr<call_frame> const& parent);
 
   call_frame(call_frame&&);
 

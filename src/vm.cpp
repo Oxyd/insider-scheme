@@ -12,34 +12,16 @@
 namespace insider {
 
 std::size_t
-call_frame::extra_elements(ptr<insider::procedure> const& proc,
-                           ptr<call_frame> const&,
-                           std::vector<generic_ptr> const&,
-                           std::vector<generic_ptr> const&) {
+call_frame::extra_elements(ptr<insider::procedure> const& proc, ptr<call_frame> const&) {
   return proc->locals_size;
 }
 
-call_frame::call_frame(ptr<insider::procedure> const& proc,
-                       ptr<call_frame> const& parent,
-                       std::vector<generic_ptr> const& closure,
-                       std::vector<generic_ptr> const& arguments)
+call_frame::call_frame(ptr<insider::procedure> const& proc, ptr<call_frame> const& parent)
   : bytecode{proc->bytecode}
   , procedure_{proc.get()}
   , parent_frame_{parent.get()}
   , locals_size_{proc->locals_size}
 {
-  assert(closure.size() + arguments.size() <= locals_size_);
-
-  for (std::size_t i = 0; i < closure.size(); ++i) {
-    assert(closure[i]);
-    storage_element(i) = closure[i].get();
-  }
-
-  for (std::size_t i = 0; i < arguments.size(); ++i) {
-    assert(arguments[i]);
-    storage_element(closure.size() + i) = arguments[i].get();
-  }
-
   if (parent)
     assert(parent->dest_register_ != std::numeric_limits<operand>::max());
 }
@@ -94,6 +76,28 @@ collect_closure(ptr<closure> const& cls) {
   result.reserve(cls->size());
   for (std::size_t i = 0; i < cls->size(); ++i)
     result.push_back(closure_ref(cls, i));
+
+  return result;
+}
+
+// Make a call frame and copy closure and call arguments into it.
+static ptr<call_frame>
+make_call_frame(execution_state& state, ptr<procedure> const& proc,
+                ptr<call_frame> const& parent, ptr<call_frame> const& caller,
+                ptr<closure> const& cls, bytecode_decoder& bc, std::size_t num_args) {
+  auto result = state.ctx.store.make<call_frame>(proc, parent);
+
+  std::size_t closure_size = 0;
+  if (cls) {
+    closure_size = cls->size();
+    for (std::size_t i = 0; i < closure_size; ++i)
+      call_frame_set_local(result, i, closure_ref(cls, i));
+  }
+
+  for (std::size_t i = 0; i < num_args; ++i) {
+    assert(caller);
+    call_frame_set_local(result, closure_size + i, call_frame_local(caller, bc.read_operand()));
+  }
 
   return result;
 }
@@ -223,13 +227,12 @@ execute_one(execution_state& state) {
       frame->set_dest_register(bc.read_operand());
 
     operand num_args = bc.read_operand();
-    std::vector<generic_ptr> args = collect_arguments(frame, num_args);
     generic_ptr call_target = callee;
-    std::vector<generic_ptr> closure;
+    ptr<insider::closure> closure;
 
     if (auto cls = match<insider::closure>(call_target)) {
       call_target = cls->procedure(state.ctx.store);
-      closure = collect_closure(cls);
+      closure = cls;
     }
 
     if (auto scheme_proc = match<procedure>(call_target)) {
@@ -239,31 +242,36 @@ execute_one(execution_state& state) {
                     scheme_proc->has_rest ? "at least " : "",
                     scheme_proc->min_args, num_args};
 
+      ptr<call_frame> parent_frame = is_tail ? call_frame_parent(frame) : frame;
+      ptr<call_frame> child_frame = make_call_frame(state, scheme_proc, parent_frame, frame,
+                                                    closure, bc, scheme_proc->min_args);
+
       if (scheme_proc->has_rest) {
         // We have to pass exactly min_args + 1 arguments. The last one is a
         // list with all the arguments after the min_args'th.
 
-        std::size_t num_rest = args.size() - scheme_proc->min_args;
-        std::vector<generic_ptr> rest_args(args.begin() + args.size() - num_rest, args.end());
-        args.erase(args.begin() + args.size() - num_rest, args.end());
+        std::size_t num_rest = num_args - scheme_proc->min_args;
+        std::vector<generic_ptr> rest_args;
+        rest_args.reserve(num_rest);
 
-        assert(rest_args.size() == num_rest);
-        assert(args.size() == scheme_proc->min_args);
+        for (std::size_t i = 0; i < num_rest; ++i)
+          rest_args.push_back(call_frame_local(frame, bc.read_operand()));
 
         generic_ptr rest_list = make_list_from_vector(state.ctx, rest_args);
-        args.push_back(rest_list);
+        call_frame_set_local(child_frame, (closure ? closure->size() : 0) + scheme_proc->min_args, rest_list);
       }
 
-      if (is_tail)
-        state.current_frame = frame->parent(state.ctx.store);
-
-      state.current_frame = state.ctx.store.make<call_frame>(
-        scheme_proc, state.current_frame, closure, args
-      );
+      state.current_frame = child_frame;
     } else if (auto native_proc = match<native_procedure>(call_target)) {
       simple_action a{state.ctx, "in {}", native_proc->name ? *native_proc->name : "<native procedure>"};
 
-      assert(closure.empty());
+      assert(!closure);
+
+      std::vector<generic_ptr> args;
+      args.reserve(num_args);
+      for (std::size_t i = 0; i < num_args; ++i)
+        args.push_back(call_frame_local(frame, bc.read_operand()));
+
       generic_ptr result = native_proc->target(state.ctx, args);
 
       if (!is_tail)
@@ -388,10 +396,14 @@ make_state(context& ctx, ptr<procedure> const& global,
            std::vector<generic_ptr> const& closure, std::vector<generic_ptr> const& arguments) {
   ptr<call_frame> root_frame = ctx.store.make<call_frame>(
     global,
-    ptr<call_frame>{},
-    closure,
-    arguments
+    ptr<call_frame>{}
   );
+
+  for (std::size_t i = 0; i < closure.size(); ++i)
+    call_frame_set_local(root_frame, i, closure[i]);
+
+  for (std::size_t i = 0; i < arguments.size(); ++i)
+    call_frame_set_local(root_frame, closure.size() + i, arguments[i]);
 
   return execution_state{ctx, root_frame, root_frame, {}};
 }
