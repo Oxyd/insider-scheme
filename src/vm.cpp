@@ -23,7 +23,8 @@ call_frame::call_frame(ptr<insider::procedure> const& proc,
                        ptr<call_frame> const& parent,
                        std::vector<generic_ptr> const& closure,
                        std::vector<generic_ptr> const& arguments)
-  : procedure_{proc.get()}
+  : bytecode{proc->bytecode}
+  , procedure_{proc.get()}
   , parent_frame_{parent.get()}
   , locals_size_{proc->locals_size}
 {
@@ -44,7 +45,7 @@ call_frame::call_frame(ptr<insider::procedure> const& proc,
 }
 
 call_frame::call_frame(call_frame&& other)
-  : pc{other.pc}
+  : bytecode{other.bytecode}
   , procedure_{other.procedure_}
   , parent_frame_{other.parent_frame_}
   , locals_size_{other.locals_size_}
@@ -78,11 +79,11 @@ call_frame::set_local(free_store& store, std::size_t i, generic_ptr const& value
 }
 
 static std::vector<generic_ptr>
-collect_arguments(ptr<call_frame> const& frame, instruction instr, std::size_t first) {
+collect_arguments(ptr<call_frame> const& frame, std::size_t num) {
   std::vector<generic_ptr> result;
-  result.reserve(instr.operands.size() - first);
-  for (std::size_t i = 0; i < instr.operands.size() - first; ++i)
-    result.emplace_back(call_frame_local(frame, instr.operands[i + first]));
+  result.reserve(num);
+  for (std::size_t i = 0; i < num; ++i)
+    result.emplace_back(call_frame_local(frame, frame->bytecode.read_operand()));
 
   return result;
 }
@@ -101,44 +102,54 @@ collect_closure(ptr<closure> const& cls) {
 static void
 execute_one(execution_state& state) {
   ptr<call_frame>& frame = state.current_frame;
-  frame->pc = decode_instruction(frame->procedure(state.ctx.store)->bytecode, frame->pc, state.current_instruction);
-  instruction const& instr = state.current_instruction;
+  bytecode_decoder& bc = frame->bytecode;
 
-  switch (instr.opcode) {
+  opcode op = bc.read_opcode();
+  switch (op) {
   case opcode::no_operation:
     break;
 
-  case opcode::load_static:
-    call_frame_set_local(frame, instr.operands[1], state.ctx.get_static(instr.operands[0]));
+  case opcode::load_static: {
+    operand static_num = bc.read_operand();
+    operand dest = bc.read_operand();
+    call_frame_set_local(frame, dest, state.ctx.get_static(static_num));
     break;
+  }
 
-  case opcode::load_global:
-    call_frame_set_local(frame, instr.operands[1], state.ctx.get_top_level(instr.operands[0]));
+  case opcode::load_global: {
+    operand global_num = bc.read_operand();
+    operand dest = bc.read_operand();
+    call_frame_set_local(frame, dest, state.ctx.get_top_level(global_num));
     break;
+  }
 
-  case opcode::store_global:
-    state.ctx.set_top_level(instr.operands[1], call_frame_local(frame, instr.operands[0]));
+  case opcode::store_global: {
+    operand reg = bc.read_operand();
+    operand global_num = bc.read_operand();
+    state.ctx.set_top_level(global_num, call_frame_local(frame, reg));
     break;
+  }
 
   case opcode::add:
   case opcode::subtract:
   case opcode::multiply:
   case opcode::divide: {
-    generic_ptr lhs = call_frame_local(frame, instr.operands[0]);
-    generic_ptr rhs = call_frame_local(frame, instr.operands[1]);
+    generic_ptr lhs = call_frame_local(frame, bc.read_operand());
+    generic_ptr rhs = call_frame_local(frame, bc.read_operand());
+    operand dest = bc.read_operand();
 
-    switch (instr.opcode) {
+    switch (op) {
     case opcode::add:
-      call_frame_set_local(frame, instr.operands[2], add(state.ctx, lhs, rhs));
+      call_frame_set_local(frame, dest, add(state.ctx, lhs, rhs));
       break;
     case opcode::subtract:
-      call_frame_set_local(frame, instr.operands[2], subtract(state.ctx, lhs, rhs));
+      call_frame_set_local(frame, dest, subtract(state.ctx, lhs, rhs));
       break;
     case opcode::multiply:
-      call_frame_set_local(frame, instr.operands[2], multiply(state.ctx, lhs, rhs));
+      call_frame_set_local(frame, dest, multiply(state.ctx, lhs, rhs));
       break;
     case opcode::divide:
-      call_frame_set_local(frame, instr.operands[2], truncate_quotient(state.ctx, lhs, rhs));
+      call_frame_set_local(frame, dest, truncate_quotient(state.ctx, lhs, rhs));
       break;
     default:
       assert(!"Cannot get here");
@@ -150,18 +161,19 @@ execute_one(execution_state& state) {
   case opcode::arith_equal:
   case opcode::less_than:
   case opcode::greater_than: {
-    generic_ptr lhs = call_frame_local(frame, instr.operands[0]);
-    generic_ptr rhs = call_frame_local(frame, instr.operands[1]);
+    generic_ptr lhs = call_frame_local(frame, bc.read_operand());
+    generic_ptr rhs = call_frame_local(frame, bc.read_operand());
+    operand dest = bc.read_operand();
 
-    switch (instr.opcode) {
+    switch (op) {
     case opcode::arith_equal:
-      call_frame_set_local(frame, instr.operands[2], arith_equal(state.ctx, lhs, rhs));
+      call_frame_set_local(frame, dest, arith_equal(state.ctx, lhs, rhs));
       break;
     case opcode::less_than:
-      call_frame_set_local(frame, instr.operands[2], less(state.ctx, lhs, rhs));
+      call_frame_set_local(frame, dest, less(state.ctx, lhs, rhs));
       break;
     case opcode::greater_than:
-      call_frame_set_local(frame, instr.operands[2], greater(state.ctx, lhs, rhs));
+      call_frame_set_local(frame, dest, greater(state.ctx, lhs, rhs));
       break;
     default:
       assert(!"Cannot get here");
@@ -169,9 +181,12 @@ execute_one(execution_state& state) {
     break;
   }
 
-  case opcode::set:
-    call_frame_set_local(frame, instr.operands[1], call_frame_local(frame, instr.operands[0]));
+  case opcode::set: {
+    operand src = bc.read_operand();
+    operand dst = bc.read_operand();
+    call_frame_set_local(frame, dst, call_frame_local(frame, src));
     break;
+  }
 
   case opcode::call:
   case opcode::call_global:
@@ -179,37 +194,36 @@ execute_one(execution_state& state) {
   case opcode::tail_call:
   case opcode::tail_call_global:
   case opcode::tail_call_static: {
-    bool is_tail = instr.opcode == opcode::tail_call
-                   || instr.opcode == opcode::tail_call_global
-                   || instr.opcode == opcode::tail_call_static;
+    bool is_tail = op == opcode::tail_call
+                   || op == opcode::tail_call_global
+                   || op == opcode::tail_call_static;
 
     generic_ptr callee;
-    switch (instr.opcode) {
+    switch (op) {
     case opcode::call:
     case opcode::tail_call:
-      callee = call_frame_local(frame, instr.operands[0]);
+      callee = call_frame_local(frame, bc.read_operand());
       break;
 
     case opcode::call_global:
     case opcode::tail_call_global:
-      callee = state.ctx.get_top_level(instr.operands[0]);
+      callee = state.ctx.get_top_level(bc.read_operand());
       break;
 
     case opcode::call_static:
     case opcode::tail_call_static:
-      callee = state.ctx.get_static(instr.operands[0]);
+      callee = state.ctx.get_static(bc.read_operand());
       break;
 
     default:
       assert(false);
     }
 
-    operand num_args = instr.operands.size() - (is_tail ? 1 : 2);
-
     if (!is_tail)
-      frame->set_dest_register(instr.operands[1]);
+      frame->set_dest_register(bc.read_operand());
 
-    std::vector<generic_ptr> args = collect_arguments(frame, instr, is_tail ? 1 : 2);
+    operand num_args = bc.read_operand();
+    std::vector<generic_ptr> args = collect_arguments(frame, num_args);
     generic_ptr call_target = callee;
     std::vector<generic_ptr> closure;
 
@@ -263,7 +277,7 @@ execute_one(execution_state& state) {
           // Same as in ret below: We're returning from the global procedure.
 
           state.global_return = result;
-          frame->pc = frame->procedure(state.ctx.store)->bytecode.size();
+          frame->bytecode.jump_to_end();
           return;
         }
 
@@ -276,17 +290,19 @@ execute_one(execution_state& state) {
   }
 
   case opcode::ret: {
+    operand return_reg = bc.read_operand();
+
     if (!frame->parent(state.ctx.store)) {
       // We are returning from the global procedure, so we have nowhere to
       // return to. We will set the global_return value and *not* pop the
       // stack. We'll then set pc past all the bytecode so we finish execution.
 
-      state.global_return = call_frame_local(frame, instr.operands[0]);
-      frame->pc = frame->procedure(state.ctx.store)->bytecode.size();
+      state.global_return = call_frame_local(frame, return_reg);
+      frame->bytecode.jump_to_end();
       return;
     }
 
-    generic_ptr return_value = call_frame_local(frame, instr.operands[0]);
+    generic_ptr return_value = call_frame_local(frame, return_reg);
     assert(return_value);
 
     state.current_frame = frame->parent(state.ctx.store);
@@ -298,15 +314,19 @@ execute_one(execution_state& state) {
   case opcode::jump_back:
   case opcode::jump_unless:
   case opcode::jump_back_unless: {
-    operand off = (instr.opcode == opcode::jump || instr.opcode == opcode::jump_back)
-                  ? instr.operands[0] : instr.operands[1];
-    int offset = (instr.opcode == opcode::jump_back || instr.opcode == opcode::jump_back_unless) ? -off : off;
-    assert(offset >= 0 || static_cast<std::uint32_t>(-offset) <= frame->pc);
-    assert(offset < 0 || offset + frame->pc < frame->procedure(state.ctx.store)->bytecode.size());
-    std::uint32_t destination = frame->pc + offset;
+    operand off;
+    operand condition_reg{};
 
-    if (instr.opcode == opcode::jump_unless || instr.opcode == opcode::jump_back_unless) {
-      generic_ptr test_value = call_frame_local(frame, instr.operands[0]);
+    if (op == opcode::jump || op == opcode::jump_back)
+      off = bc.read_operand();
+    else {
+      condition_reg = bc.read_operand();
+      off = bc.read_operand();
+    }
+
+    int offset = (op == opcode::jump_back || op == opcode::jump_back_unless) ? -off : off;
+    if (op == opcode::jump_unless || op == opcode::jump_back_unless) {
+      generic_ptr test_value = call_frame_local(frame, condition_reg);
 
       // The only false value in Scheme is #f. So we only jump if the test_value
       // is exactly #f.
@@ -315,44 +335,49 @@ execute_one(execution_state& state) {
         break;
     }
 
-    frame->pc = destination;
+    frame->bytecode.jump(offset);
     break;
   }
 
   case opcode::make_closure: {
-    ptr<procedure> proc = assume<procedure>(call_frame_local(frame, instr.operands[0]));
-    operand dest = instr.operands[1];
-
-    std::vector<generic_ptr> captures = collect_arguments(frame, instr, 2);
+    ptr<procedure> proc = assume<procedure>(call_frame_local(frame, bc.read_operand()));
+    operand dest = bc.read_operand();
+    operand num_captures = bc.read_operand();
+    std::vector<generic_ptr> captures = collect_arguments(frame, num_captures);
     call_frame_set_local(frame, dest, state.ctx.store.make<closure>(proc, captures));
     break;
   }
 
-  case opcode::box:
-    call_frame_set_local(frame, instr.operands[1],
-                         state.ctx.store.make<box>(call_frame_local(frame, instr.operands[0])));
+  case opcode::box: {
+    generic_ptr value = call_frame_local(frame, bc.read_operand());
+    call_frame_set_local(frame, bc.read_operand(), state.ctx.store.make<box>(value));
     break;
+  }
 
-  case opcode::unbox:
-    call_frame_set_local(frame, instr.operands[1],
-                         unbox(expect<box>(call_frame_local(frame, instr.operands[0]))));
+  case opcode::unbox: {
+    auto box = expect<insider::box>(call_frame_local(frame, bc.read_operand()));
+    call_frame_set_local(frame, bc.read_operand(), unbox(box));
     break;
+  }
 
-  case opcode::box_set:
-    box_set(expect<box>(call_frame_local(frame, instr.operands[0])),
-            call_frame_local(frame, instr.operands[1]));
+  case opcode::box_set: {
+    auto box = expect<insider::box>(call_frame_local(frame, bc.read_operand()));
+    box_set(box, call_frame_local(frame, bc.read_operand()));
     break;
+  }
 
-  case opcode::cons:
-    call_frame_set_local(frame, instr.operands[2],
-                         make<pair>(state.ctx,
-                                    call_frame_local(frame, instr.operands[0]),
-                                    call_frame_local(frame, instr.operands[1])));
+  case opcode::cons: {
+    generic_ptr car = call_frame_local(frame, bc.read_operand());
+    generic_ptr cdr = call_frame_local(frame, bc.read_operand());
+    call_frame_set_local(frame, bc.read_operand(), make<pair>(state.ctx, car, cdr));
     break;
+  }
 
   case opcode::make_vector: {
-    std::vector<generic_ptr> elems = collect_arguments(frame, instr, 1);
-    call_frame_set_local(frame, instr.operands[0], make_vector(state.ctx, elems));
+    operand dest = bc.read_operand();
+    operand num_elems = bc.read_operand();
+    std::vector<generic_ptr> elems = collect_arguments(frame, num_elems);
+    call_frame_set_local(frame, dest, make_vector(state.ctx, elems));
     break;
   }
   } // end switch
@@ -368,9 +393,7 @@ make_state(context& ctx, ptr<procedure> const& global,
     arguments
   );
 
-  instruction preallocated{};
-  preallocated.operands.reserve(32);
-  return execution_state{ctx, root_frame, root_frame, {}, preallocated};
+  return execution_state{ctx, root_frame, root_frame, {}};
 }
 
 namespace {
@@ -409,7 +432,7 @@ generic_ptr
 run(execution_state& state) {
   execution_action a(state);
 
-  while (state.current_frame->pc < state.current_frame->procedure(state.ctx.store)->bytecode.size()) {
+  while (!state.current_frame->bytecode.done()) {
     execute_one(state);
     state.ctx.store.update();
   }

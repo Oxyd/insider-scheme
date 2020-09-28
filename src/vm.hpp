@@ -16,13 +16,13 @@ namespace insider {
 
 class call_frame : public dynamic_size_object<call_frame, object*> {
 public:
+  bytecode_decoder bytecode;
+
   static std::size_t
   extra_elements(ptr<insider::procedure> const& procedure,
                  ptr<call_frame> const& parent,
                  std::vector<generic_ptr> const& closure,
                  std::vector<generic_ptr> const& arguments);
-
-  std::uint32_t pc = 0;
 
   call_frame(ptr<insider::procedure> const& procedure,
              ptr<call_frame> const& parent,
@@ -89,7 +89,6 @@ struct execution_state {
   ptr<call_frame> root_frame;
   ptr<call_frame> current_frame;
   generic_ptr     global_return;
-  instruction     current_instruction;
 };
 
 // Make execution state using the given procedure as the global call frame.

@@ -92,42 +92,28 @@ decode_opcode(std::byte b) {
   return opcode{opcode_num};
 }
 
-static operand
-decode_operand(bytecode const& bc, std::size_t& pc) {
-  operand result = std::to_integer<std::uint8_t>(bc[pc++]);
+bytecode_decoder::bytecode_decoder(bytecode const& bc)
+  : code_{bc.data()}
+  , pc_{0}
+  , size_{bc.size()}
+{ }
 
+opcode
+bytecode_decoder::read_opcode() {
+  return decode_opcode(code_[pc_++]);
+}
+
+operand
+bytecode_decoder::read_operand() {
+  operand result = std::to_integer<std::uint8_t>(code_[pc_++]);
   if (result < 0xFF)
     return result;
 
   result = 0;
   for (std::size_t i = 0; i < sizeof(operand); ++i)
-    result |= std::to_integer<std::uint8_t>(bc[pc++]) << (i * CHAR_BIT);
+    result |= std::to_integer<std::uint8_t>(code_[pc_++]) << (i * CHAR_BIT);
 
   return result;
-}
-
-std::size_t
-decode_instruction(bytecode const& bc, std::size_t pc, instruction& out_instruction) {
-  out_instruction.opcode = decode_opcode(bc[pc]);
-  ++pc;
-
-  instruction_info info = opcode_to_info(out_instruction.opcode);
-
-  out_instruction.operands.clear();
-  out_instruction.operands.reserve(info.num_operands);
-
-  for (std::size_t i = 0; i < info.num_operands; ++i)
-    out_instruction.operands.push_back(decode_operand(bc, pc)); // Increments pc
-
-  if (info.extra_operands) {
-    operand num_extra = decode_operand(bc, pc); // Increments pc
-    out_instruction.operands.reserve(out_instruction.operands.size() + num_extra);
-
-    for (std::size_t i = 0; i < num_extra; ++i)
-      out_instruction.operands.push_back(decode_operand(bc, pc)); // Increments pc
-  }
-
-  return pc;
 }
 
 } // namespace insider

@@ -164,10 +164,32 @@ using bytecode = std::vector<std::byte>;
 void
 encode_instruction(bytecode&, instruction const&);
 
-// Decode instruction into out_instruction. Returns the value of PC pointing to
-// the next instruction.
-std::size_t
-decode_instruction(bytecode const&, std::size_t pc, instruction& out_instruction);
+// An iterator of sorts for decoding bytecode.
+class bytecode_decoder {
+public:
+  explicit
+  bytecode_decoder(bytecode const&);
+
+  opcode
+  read_opcode();
+
+  operand
+  read_operand();
+
+  void
+  jump(int offset) { pc_ += offset; }
+
+  void
+  jump_to_end() { pc_ = size_; }
+
+  bool
+  done() const { return pc_ >= size_; }
+
+private:
+  std::byte const* code_;
+  std::size_t      pc_;
+  std::size_t      size_;
+};
 
 } // namespace insider
 
