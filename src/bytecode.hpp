@@ -2,12 +2,17 @@
 #define INSIDER_BYTECODE_HPP
 
 #include <array>
+#include <climits>
+#include <cstddef>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+#include <fmt/format.h>
 
 namespace insider {
 
@@ -168,13 +173,32 @@ encode_instruction(bytecode&, instruction const&);
 class bytecode_decoder {
 public:
   explicit
-  bytecode_decoder(bytecode const&);
+  bytecode_decoder(bytecode const& bc)
+    : code_{bc.data()}
+    , pc_{0}
+    , size_{bc.size()}
+  { }
 
   opcode
-  read_opcode();
+  read_opcode() {
+    auto opcode_num = std::to_integer<std::uint8_t>(code_[pc_++]);
+    if (opcode_num > instructions.size())
+      throw std::runtime_error{fmt::format("Invalid opcode number: {}", +opcode_num)};
+    return opcode{opcode_num};
+  }
 
   operand
-  read_operand();
+  read_operand() {
+    operand result = std::to_integer<std::uint8_t>(code_[pc_++]);
+    if (result < 0xFF)
+      return result;
+
+    result = 0;
+    for (std::size_t i = 0; i < sizeof(operand); ++i)
+      result |= std::to_integer<std::uint8_t>(code_[pc_++]) << (i * CHAR_BIT);
+
+    return result;
+  }
 
   void
   jump(int offset) { pc_ += offset; }

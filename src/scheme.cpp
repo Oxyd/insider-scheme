@@ -1211,13 +1211,10 @@ procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned min_ar
   , name{std::move(name)}
 { }
 
-closure::closure(ptr<insider::procedure> const& p, std::vector<generic_ptr> const& captures)
+closure::closure(ptr<insider::procedure> const& p, std::size_t num_captures)
   : procedure_{p.get()}
-  , size_{captures.size()}
-{
-  for (std::size_t i = 0; i < size_; ++i)
-    storage_element(i) = captures[i].get();
-}
+  , size_{num_captures}
+{ }
 
 closure::closure(closure&& other)
   : procedure_{other.procedure_}
@@ -1231,6 +1228,13 @@ generic_ptr
 closure::ref(free_store& store, std::size_t i) const {
   assert(i < size_);
   return {store, storage_element(i)};
+}
+
+void
+closure::set(free_store& store, std::size_t i, generic_ptr const& value) {
+  assert(i < size_);
+  storage_element(i) = value.get();
+  store.notify_arc(this, value.get());
 }
 
 void

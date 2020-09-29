@@ -61,16 +61,6 @@ call_frame::set_local(free_store& store, std::size_t i, generic_ptr const& value
 }
 
 static std::vector<generic_ptr>
-collect_arguments(ptr<call_frame> const& frame, std::size_t num) {
-  std::vector<generic_ptr> result;
-  result.reserve(num);
-  for (std::size_t i = 0; i < num; ++i)
-    result.emplace_back(call_frame_local(frame, frame->bytecode.read_operand()));
-
-  return result;
-}
-
-static std::vector<generic_ptr>
 collect_closure(ptr<closure> const& cls) {
   std::vector<generic_ptr> result;
   result.reserve(cls->size());
@@ -351,8 +341,12 @@ execute_one(execution_state& state) {
     ptr<procedure> proc = assume<procedure>(call_frame_local(frame, bc.read_operand()));
     operand dest = bc.read_operand();
     operand num_captures = bc.read_operand();
-    std::vector<generic_ptr> captures = collect_arguments(frame, num_captures);
-    call_frame_set_local(frame, dest, state.ctx.store.make<closure>(proc, captures));
+
+    auto result = make<closure>(state.ctx, proc, num_captures);
+    for (std::size_t i = 0; i < num_captures; ++i)
+      closure_set(result, i, call_frame_local(frame, bc.read_operand()));
+
+    call_frame_set_local(frame, dest, result);
     break;
   }
 
@@ -384,8 +378,12 @@ execute_one(execution_state& state) {
   case opcode::make_vector: {
     operand dest = bc.read_operand();
     operand num_elems = bc.read_operand();
-    std::vector<generic_ptr> elems = collect_arguments(frame, num_elems);
-    call_frame_set_local(frame, dest, make_vector(state.ctx, elems));
+
+    auto result = make<vector>(state.ctx, state.ctx, num_elems);
+    for (std::size_t i = 0; i < num_elems; ++i)
+      vector_set(result, i, call_frame_local(frame, bc.read_operand()));
+
+    call_frame_set_local(frame, dest, result);
     break;
   }
   } // end switch

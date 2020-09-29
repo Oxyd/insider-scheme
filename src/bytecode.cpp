@@ -3,9 +3,7 @@
 #include <fmt/format.h>
 
 #include <cassert>
-#include <climits>
 #include <cstddef>
-#include <stdexcept>
 
 namespace insider {
 
@@ -82,38 +80,6 @@ encode_instruction(bytecode& bc, instruction const& instr) {
     for (std::size_t i = 0; i < num_extra; ++i)
       encode_operand(bc, instr.operands[i + info.num_operands]);
   }
-}
-
-static opcode
-decode_opcode(std::byte b) {
-  auto opcode_num = std::to_integer<std::uint8_t>(b);
-  if (opcode_num > instructions.size())
-    throw std::runtime_error{fmt::format("Invalid opcode number: {}", +opcode_num)};
-  return opcode{opcode_num};
-}
-
-bytecode_decoder::bytecode_decoder(bytecode const& bc)
-  : code_{bc.data()}
-  , pc_{0}
-  , size_{bc.size()}
-{ }
-
-opcode
-bytecode_decoder::read_opcode() {
-  return decode_opcode(code_[pc_++]);
-}
-
-operand
-bytecode_decoder::read_operand() {
-  operand result = std::to_integer<std::uint8_t>(code_[pc_++]);
-  if (result < 0xFF)
-    return result;
-
-  result = 0;
-  for (std::size_t i = 0; i < sizeof(operand); ++i)
-    result |= std::to_integer<std::uint8_t>(code_[pc_++]) << (i * CHAR_BIT);
-
-  return result;
 }
 
 } // namespace insider

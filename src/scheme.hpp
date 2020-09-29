@@ -695,11 +695,11 @@ public:
 class closure : public dynamic_size_object<closure, object*> {
 public:
   static std::size_t
-  extra_elements(ptr<insider::procedure> const&, std::vector<generic_ptr> const& captures) {
-    return captures.size();
+  extra_elements(ptr<insider::procedure> const&, std::size_t num_captures) {
+    return num_captures;
   }
 
-  closure(ptr<insider::procedure> const&, std::vector<generic_ptr> const&);
+  closure(ptr<insider::procedure> const&, std::size_t num_captures);
 
   closure(closure&&);
 
@@ -708,6 +708,9 @@ public:
 
   generic_ptr
   ref(free_store& store, std::size_t) const;
+
+  void
+  set(free_store& store, std::size_t, generic_ptr const&);
 
   std::size_t
   size() const { return size_; }
@@ -728,6 +731,9 @@ closure_procedure(ptr<closure> const& c) { return c->procedure(c.store()); }
 
 inline generic_ptr
 closure_ref(ptr<closure> const& c, std::size_t i) { return c->ref(c.store(), i); }
+
+inline void
+closure_set(ptr<closure> const& c, std::size_t i, generic_ptr const& v) { c->set(c.store(), i, v); }
 
 // Like procedure, but when invoked, it calls a C++ function.
 class native_procedure : public leaf_object<native_procedure> {
