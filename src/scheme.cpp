@@ -239,6 +239,16 @@ namespace {
   };
 }
 
+static void
+check_all_names_exist(std::vector<std::string> const& names, import_set const& set) {
+  for (auto const& name : names)
+    if (std::none_of(set.names.begin(), set.names.end(),
+                     [&] (auto const& set_name) {
+                       return std::get<0>(set_name) == name;
+                     }))
+      throw std::runtime_error{fmt::format("Identifier {} is not exported", name)};
+}
+
 static import_set
 parse_import_set(context& ctx, import_specifier const& spec) {
   if (auto* mn = std::get_if<module_name>(&spec.value)) {
@@ -252,6 +262,7 @@ parse_import_set(context& ctx, import_specifier const& spec) {
   }
   else if (auto* o = std::get_if<import_specifier::only>(&spec.value)) {
     import_set result = parse_import_set(ctx, *o->from);
+    check_all_names_exist(o->identifiers, result);
     result.names.erase(std::remove_if(result.names.begin(), result.names.end(),
                                       [&] (auto const& name) {
                                         return std::find(o->identifiers.begin(), o->identifiers.end(),
@@ -262,6 +273,7 @@ parse_import_set(context& ctx, import_specifier const& spec) {
   }
   else if (auto* e = std::get_if<import_specifier::except>(&spec.value)) {
     import_set result = parse_import_set(ctx, *e->from);
+    check_all_names_exist(e->identifiers, result);
     result.names.erase(std::remove_if(result.names.begin(), result.names.end(),
                                       [&] (auto const& name) {
                                         return std::find(e->identifiers.begin(), e->identifiers.end(),

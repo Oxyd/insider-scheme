@@ -1512,6 +1512,8 @@ TEST_F(scheme, module_variable_export) {
 
   EXPECT_EQ(expect<integer>(eval_module("(import (foo)) exported")).value(), 2);
   EXPECT_THROW(eval_module("(import (foo)) not-exported"), std::runtime_error);
+  EXPECT_THROW(eval_module("(import (only (foo) not-exported)) 0"), std::runtime_error);
+  EXPECT_THROW(eval_module("(import (except (foo) not-exported)) 0"), std::runtime_error);
 }
 
 TEST_F(scheme, module_syntax_export) {
