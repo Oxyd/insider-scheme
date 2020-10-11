@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(insider-scheme)
 
 option(ASAN "Enable address sanitizer" OFF)
+option(UBSAN "Enable UB sanitizer" OFF)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_C_FLAGS "-Wall -Wextra -pedantic -fno-omit-frame-pointer")
@@ -39,6 +40,10 @@ set_property(TARGET gtest_main PROPERTY
 
 if (ASAN AND UNIX)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+endif()
+
+if (UBSAN AND UNIX)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
 endif()
 
 add_library(scheme ${scheme_sources})
