@@ -99,7 +99,7 @@ word_type
 fixnum_payload(object*);
 
 object*
-fixnum_to_ptr(word_type);
+fixnum_to_ptr(word_type) noexcept;
 
 inline std::string
 object_type_name(object* o) {
@@ -227,16 +227,16 @@ namespace detail {
   template <typename Derived>
   class generic_ptr_base {
   public:
-    generic_ptr_base() = default;
+    generic_ptr_base() noexcept = default;
 
-    generic_ptr_base(free_store& fs, object* value)
+    generic_ptr_base(free_store& fs, object* value) noexcept
       : value_{value}
       , store_{&fs}
     {
       link();
     }
 
-    generic_ptr_base(generic_ptr_base const& other)
+    generic_ptr_base(generic_ptr_base const& other) noexcept
       : value_{other.value_}
       , store_{other.store_}
     {
@@ -250,7 +250,7 @@ namespace detail {
     }
 
     generic_ptr_base&
-    operator = (generic_ptr_base const& other) {
+    operator = (generic_ptr_base const& other) noexcept {
       if (this == &other)
         return *this;
 
@@ -267,28 +267,28 @@ namespace detail {
     }
 
     void
-    reset() { value_ = nullptr; }
+    reset() noexcept { value_ = nullptr; }
 
     object&
-    operator * () const { return *get(); }
+    operator * () const noexcept { return *get(); }
 
     object*
-    operator -> () const { return get(); }
+    operator -> () const noexcept { return get(); }
 
     object*
-    get() const { return value_; }
+    get() const noexcept { return value_; }
 
     explicit
     operator bool () const { return value_ != nullptr; }
 
     Derived*
-    next() const { return next_; }
+    next() const noexcept { return next_; }
 
     Derived*
-    prev() const { return prev_; }
+    prev() const noexcept { return prev_; }
 
     free_store&
-    store() const { assert(store_); return *store_; }
+    store() const noexcept { assert(store_); return *store_; }
 
   protected:
     friend class insider::free_store;
@@ -299,7 +299,7 @@ namespace detail {
     Derived*    next_  = nullptr;
 
     void
-    link() {
+    link() noexcept {
       assert(!prev_);
       assert(!next_);
       assert(store_);
@@ -318,7 +318,7 @@ namespace detail {
     }
 
     void
-    unlink() {
+    unlink() noexcept {
       assert(prev_);
 
       prev_->next_ = next_;
@@ -337,18 +337,18 @@ public:
   using generic_ptr_base::generic_ptr_base;
 
   explicit
-  generic_ptr(word_type payload) {
+  generic_ptr(word_type payload) noexcept {
     value_ = fixnum_to_ptr(payload);
   }
 
   generic_ptr&
-  operator = (generic_ptr const& other) = default;
+  operator = (generic_ptr const& other) noexcept = default;
 
 private:
   friend class generic_ptr_base;
 
   static generic_ptr*
-  root_list(free_store& fs);
+  root_list(free_store& fs) noexcept;
 };
 
 // Like generic_ptr, but does not keep an object alive.
@@ -356,30 +356,30 @@ class generic_weak_ptr : public detail::generic_ptr_base<generic_weak_ptr> {
 public:
   using generic_ptr_base::generic_ptr_base;
 
-  generic_weak_ptr(generic_weak_ptr const& other) : generic_ptr_base{other} { }
+  generic_weak_ptr(generic_weak_ptr const& other) noexcept : generic_ptr_base{other} { }
 
   generic_weak_ptr&
-  operator = (generic_weak_ptr const& other) = default;
+  operator = (generic_weak_ptr const& other) noexcept = default;
 
   generic_ptr
-  lock(free_store& fs) const { return {fs, value_}; }
+  lock(free_store& fs) const noexcept { return {fs, value_}; }
 
 private:
   friend class generic_ptr_base;
 
   static generic_weak_ptr*
-  root_list(free_store& fs);
+  root_list(free_store& fs) noexcept;
 };
 
 template <typename Derived>
 bool
-operator == (detail::generic_ptr_base<Derived> const& lhs, detail::generic_ptr_base<Derived> const& rhs) {
+operator == (detail::generic_ptr_base<Derived> const& lhs, detail::generic_ptr_base<Derived> const& rhs) noexcept {
   return lhs.get() == rhs.get();
 }
 
 template <typename Derived>
 bool
-operator != (detail::generic_ptr_base<Derived> const& lhs, detail::generic_ptr_base<Derived> const& rhs) {
+operator != (detail::generic_ptr_base<Derived> const& lhs, detail::generic_ptr_base<Derived> const& rhs) noexcept {
   return !operator == (lhs, rhs);
 }
 
@@ -390,16 +390,16 @@ public:
   using generic_ptr::generic_ptr;
 
   ptr&
-  operator = (ptr const& other) = default;
+  operator = (ptr const& other) noexcept = default;
 
   T&
-  operator * () const { return *get(); }
+  operator * () const noexcept { return *get(); }
 
   T*
-  operator -> () const { return get(); }
+  operator -> () const noexcept { return get(); }
 
   T*
-  get() const { return static_cast<T*>(generic_ptr::get()); }
+  get() const noexcept { return static_cast<T*>(generic_ptr::get()); }
 };
 
 // Typed weak pointer to a garbage-collectable object.
@@ -408,24 +408,24 @@ class weak_ptr : public generic_weak_ptr {
 public:
   using generic_weak_ptr::generic_weak_ptr;
 
-  weak_ptr(ptr<T> const& other)
+  weak_ptr(ptr<T> const& other) noexcept
     : weak_ptr{other.store(), other.get()}
   { }
 
   weak_ptr&
-  operator = (weak_ptr const& other) = default;
+  operator = (weak_ptr const& other) noexcept = default;
 
   T&
-  operator * () const { return *get(); }
+  operator * () const noexcept { return *get(); }
 
   T*
-  operator -> () const { return get(); }
+  operator -> () const noexcept { return get(); }
 
   T*
-  get() const { return static_cast<T*>(generic_weak_ptr::get()); }
+  get() const noexcept { return static_cast<T*>(generic_weak_ptr::get()); }
 
   ptr<T>
-  lock() const { return {*store_, get()}; }
+  lock() const noexcept { return {*store_, get()}; }
 };
 
 struct page {
@@ -657,12 +657,12 @@ private:
 };
 
 inline generic_ptr*
-generic_ptr::root_list(free_store& fs) {
+generic_ptr::root_list(free_store& fs) noexcept {
   return fs.root_list();
 }
 
 inline generic_weak_ptr*
-generic_weak_ptr::root_list(free_store& fs) {
+generic_weak_ptr::root_list(free_store& fs) noexcept {
   return fs.weak_root_list();
 }
 

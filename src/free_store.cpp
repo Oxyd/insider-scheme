@@ -126,7 +126,7 @@ fixnum_payload(object* o) {
 }
 
 object*
-fixnum_to_ptr(word_type w) {
+fixnum_to_ptr(word_type w) noexcept {
   return reinterpret_cast<object*>((w << 1) | 1);
 }
 
