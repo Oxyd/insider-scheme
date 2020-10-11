@@ -63,7 +63,7 @@ expect_id(context& ctx, generic_ptr const& x) {
 template <typename T, typename... Args>
 std::unique_ptr<syntax>
 make_syntax(Args&&... args) {
-  return std::make_unique<syntax>(syntax{T{std::forward<Args>(args)...}});
+  return std::make_unique<syntax>(syntax{T(std::forward<Args>(args)...)});
 }
 
 static ptr<environment>
@@ -335,12 +335,14 @@ parse_body(parsing_context& pc, ptr<environment> const& env, generic_ptr const& 
     }
 
     sequence_syntax result;
-    result.expressions.push_back(make_syntax<let_syntax>(std::move(definitions),
-                                                         parse_expression_list(pc, content.env, content.forms)));
+    result.expressions.push_back(
+      make_syntax<let_syntax>(std::move(definitions),
+                              sequence_syntax{parse_expression_list(pc, content.env, content.forms)})
+    );
     return result;
   }
   else
-    return {parse_expression_list(pc, content.env, content.forms)};
+    return sequence_syntax{parse_expression_list(pc, content.env, content.forms)};
 }
 
 static std::unique_ptr<syntax>
@@ -1116,7 +1118,7 @@ parse_import_set(context& ctx, generic_ptr const& spec) {
     else if (head->value() == "prefix") {
       import_specifier::prefix result;
       result.from = std::make_unique<import_specifier>(parse_import_set(ctx, cadr(p)));
-      result.prefix = expect<symbol>(caddr(p))->value();
+      result.prefix_ = expect<symbol>(caddr(p))->value();
 
       return import_specifier{std::move(result)};
     }

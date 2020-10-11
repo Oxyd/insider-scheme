@@ -273,7 +273,7 @@ parse_import_set(context& ctx, import_specifier const& spec) {
   else if (auto* p = std::get_if<import_specifier::prefix>(&spec.value)) {
     import_set result = parse_import_set(ctx, *p->from);
     for (auto& [target, source] : result.names)
-      target = p->prefix + target;
+      target = p->prefix_ + target;
     return result;
   }
   else if (auto* r = std::get_if<import_specifier::rename>(&spec.value)) {

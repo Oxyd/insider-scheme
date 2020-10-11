@@ -35,15 +35,28 @@ struct syntax;
 
 struct literal_syntax {
   generic_ptr value;
+
+  explicit
+  literal_syntax(generic_ptr const& value) : value{value} { }
 };
 
 struct local_reference_syntax {
   std::shared_ptr<insider::variable> variable;
+
+  explicit
+  local_reference_syntax(std::shared_ptr<insider::variable> var)
+    : variable{std::move(var)}
+  { }
 };
 
 struct top_level_reference_syntax {
   operand location;
   std::string name;
+
+  top_level_reference_syntax(operand location, std::string name)
+    : location{location}
+    , name{std::move(name)}
+  { }
 };
 
 struct application_syntax {
@@ -67,27 +80,56 @@ struct application_syntax {
 
 struct sequence_syntax {
   std::vector<std::unique_ptr<syntax>> expressions;
+
+  sequence_syntax() = default;
+
+  explicit
+  sequence_syntax(std::vector<std::unique_ptr<syntax>> exprs)
+    : expressions{std::move(exprs)}
+  { }
 };
 
 struct definition_pair_syntax {
   generic_ptr                        id;
   std::shared_ptr<insider::variable> variable;
   std::unique_ptr<syntax>            expression;
+
+  definition_pair_syntax(generic_ptr id, std::shared_ptr<insider::variable> var,
+                         std::unique_ptr<syntax> expr)
+    : id{id}
+    , variable{std::move(var)}
+    , expression{std::move(expr)}
+  { }
 };
 
 struct let_syntax {
   std::vector<definition_pair_syntax> definitions;
   sequence_syntax body;
+
+  let_syntax(std::vector<definition_pair_syntax> defs, sequence_syntax body)
+    : definitions{std::move(defs)}
+    , body{std::move(body)}
+  { }
 };
 
 struct local_set_syntax {
   std::shared_ptr<variable> target;
   std::unique_ptr<syntax> expression;
+
+  local_set_syntax(std::shared_ptr<variable> target, std::unique_ptr<syntax> expr)
+    : target{std::move(target)}
+    , expression{std::move(expr)}
+  { }
 };
 
 struct top_level_set_syntax {
   operand location;
   std::unique_ptr<syntax> expression;
+
+  top_level_set_syntax(operand location, std::unique_ptr<syntax> expr)
+    : location{location}
+    , expression{std::move(expr)}
+  { }
 };
 
 struct lambda_syntax {
@@ -96,34 +138,79 @@ struct lambda_syntax {
   sequence_syntax body;
   std::optional<std::string> name;
   std::vector<std::shared_ptr<variable>> free_variables;
+
+  lambda_syntax(std::vector<std::shared_ptr<variable>> parameters,
+                bool has_rest,
+                sequence_syntax body,
+                std::optional<std::string> name,
+                std::vector<std::shared_ptr<variable>> free_variables)
+    : parameters{std::move(parameters)}
+    , has_rest{has_rest}
+    , body{std::move(body)}
+    , name{std::move(name)}
+    , free_variables{std::move(free_variables)}
+  { }
 };
 
 struct if_syntax {
   std::unique_ptr<syntax> test;
   std::unique_ptr<syntax> consequent;
   std::unique_ptr<syntax> alternative;
+
+  if_syntax(std::unique_ptr<syntax> test, std::unique_ptr<syntax> consequent, std::unique_ptr<syntax> alternative)
+    : test{std::move(test)}
+    , consequent{std::move(consequent)}
+    , alternative{std::move(alternative)}
+  { }
 };
 
 struct box_syntax {
   std::unique_ptr<syntax> expression;
+
+  box_syntax() = default;
+
+  explicit
+  box_syntax(std::unique_ptr<syntax> expression)
+    : expression{std::move(expression)}
+  { }
 };
 
 struct unbox_syntax {
   std::unique_ptr<syntax> box_expr;
+
+  explicit
+  unbox_syntax(std::unique_ptr<syntax> box_expr)
+    : box_expr{std::move(box_expr)}
+  { }
 };
 
 struct box_set_syntax {
   std::unique_ptr<syntax> box_expr;
   std::unique_ptr<syntax> value_expr;
+
+  box_set_syntax(std::unique_ptr<syntax> box_expr, std::unique_ptr<syntax> value_expr)
+    : box_expr{std::move(box_expr)}
+    , value_expr{std::move(value_expr)}
+  { }
 };
 
 struct cons_syntax {
   std::unique_ptr<syntax> car;
   std::unique_ptr<syntax> cdr;
+
+  cons_syntax(std::unique_ptr<syntax> car, std::unique_ptr<syntax> cdr)
+    : car{std::move(car)}
+    , cdr{std::move(cdr)}
+  { }
 };
 
 struct make_vector_syntax {
   std::vector<std::unique_ptr<syntax>> elements;
+
+  explicit
+  make_vector_syntax(std::vector<std::unique_ptr<syntax>> elements)
+    : elements{std::move(elements)}
+  { }
 };
 
 struct syntax {
@@ -159,21 +246,49 @@ struct import_specifier {
   struct only {
     std::unique_ptr<import_specifier> from;
     std::vector<std::string>          identifiers;
+
+    only() = default;
+
+    only(std::unique_ptr<import_specifier> from, std::vector<std::string> identifiers)
+      : from{std::move(from)}
+      , identifiers{std::move(identifiers)}
+    { }
   };
 
   struct except {
     std::unique_ptr<import_specifier> from;
     std::vector<std::string>          identifiers;
+
+    except() = default;
+
+    except(std::unique_ptr<import_specifier> from, std::vector<std::string> identifiers)
+      : from{std::move(from)}
+      , identifiers{std::move(identifiers)}
+    { }
   };
 
   struct prefix {
     std::unique_ptr<import_specifier> from;
-    std::string                       prefix;
+    std::string                       prefix_;
+
+    prefix() = default;
+
+    prefix(std::unique_ptr<import_specifier> from, std::string prefix)
+      : from{std::move(from)}
+      , prefix_{std::move(prefix)}
+    { }
   };
 
   struct rename {
     std::unique_ptr<import_specifier> from;
     std::vector<std::tuple<std::string, std::string>> renames;
+
+    rename() = default;
+
+    rename(std::unique_ptr<import_specifier> from, std::vector<std::tuple<std::string, std::string>> renames)
+      : from{std::move(from)}
+      , renames{std::move(renames)}
+    { }
   };
 
   using value_type = std::variant<
@@ -207,6 +322,16 @@ struct protomodule {
   std::vector<import_specifier> imports;
   std::vector<std::string>      exports;
   std::vector<generic_ptr>      body;
+
+  protomodule() = default;
+
+  protomodule(std::optional<module_name> name, std::vector<import_specifier> imports,
+              std::vector<std::string> exports, std::vector<generic_ptr> body)
+    : name{std::move(name)}
+    , imports{std::move(imports)}
+    , exports{std::move(exports)}
+    , body{std::move(body)}
+  { }
 };
 
 } // namespace insider

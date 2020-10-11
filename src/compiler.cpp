@@ -69,6 +69,13 @@ namespace {
     struct binding {
       std::shared_ptr<insider::variable> variable;
       shared_register                    destination;
+
+      binding() = default;
+
+      binding(std::shared_ptr<insider::variable> variable, shared_register destination)
+        : variable{std::move(variable)}
+        , destination{std::move(destination)}
+      { }
     };
     using scope = std::vector<binding>;
     using free_variables_map = std::unordered_map<std::shared_ptr<variable>, shared_register>;

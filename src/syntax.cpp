@@ -10,7 +10,7 @@ import_specifier::import_specifier(import_specifier const& other) {
   else if (auto* e = std::get_if<except>(&other.value))
     value = except{std::make_unique<import_specifier>(*e->from), e->identifiers};
   else if (auto* p = std::get_if<prefix>(&other.value))
-    value = prefix{std::make_unique<import_specifier>(*p->from), p->prefix};
+    value = prefix{std::make_unique<import_specifier>(*p->from), p->prefix_};
   else if (auto* r = std::get_if<rename>(&other.value))
     value = rename{std::make_unique<import_specifier>(*r->from), r->renames};
 }
