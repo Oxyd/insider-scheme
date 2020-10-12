@@ -110,14 +110,14 @@ execute_one(execution_state& state) {
     break;
   }
 
-  case opcode::load_global: {
+  case opcode::load_top_level: {
     operand global_num = bc.read_operand();
     operand dest = bc.read_operand();
     call_frame_set_local(frame, dest, state.ctx.get_top_level(global_num));
     break;
   }
 
-  case opcode::store_global: {
+  case opcode::store_top_level: {
     operand reg = bc.read_operand();
     operand global_num = bc.read_operand();
     state.ctx.set_top_level(global_num, call_frame_local(frame, reg));
@@ -183,13 +183,13 @@ execute_one(execution_state& state) {
   }
 
   case opcode::call:
-  case opcode::call_global:
+  case opcode::call_top_level:
   case opcode::call_static:
   case opcode::tail_call:
-  case opcode::tail_call_global:
+  case opcode::tail_call_top_level:
   case opcode::tail_call_static: {
     bool is_tail = op == opcode::tail_call
-                   || op == opcode::tail_call_global
+                   || op == opcode::tail_call_top_level
                    || op == opcode::tail_call_static;
 
     generic_ptr callee;
@@ -199,8 +199,8 @@ execute_one(execution_state& state) {
       callee = call_frame_local(frame, bc.read_operand());
       break;
 
-    case opcode::call_global:
-    case opcode::tail_call_global:
+    case opcode::call_top_level:
+    case opcode::tail_call_top_level:
       callee = state.ctx.get_top_level(bc.read_operand());
       break;
 

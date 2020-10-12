@@ -332,7 +332,7 @@ compile_local_set(context& ctx, procedure_context& proc, local_set_syntax const&
 static shared_register
 compile_top_level_set(context& ctx, procedure_context& proc, top_level_set_syntax const& stx) {
   shared_register value = compile_expression(ctx, proc, *stx.expression, false);
-  encode_instruction(proc.bytecode.back(), instruction{opcode::store_global, *value, stx.location});
+  encode_instruction(proc.bytecode.back(), instruction{opcode::store_top_level, *value, stx.location});
 
   return compile_static_reference(proc, ctx.statics.void_);
 }
@@ -458,7 +458,7 @@ compile_application(context& ctx, procedure_context& proc, application_syntax co
 
   if (auto* global = std::get_if<top_level_reference_syntax>(&stx.target->value)) {
     f = global->location;
-    oc = tail ? opcode::tail_call_global : opcode::call_global;
+    oc = tail ? opcode::tail_call_top_level : opcode::call_top_level;
   } else if (auto* lit = std::get_if<literal_syntax>(&stx.target->value)) {
     f = ctx.intern_static(lit->value);
     oc = tail ? opcode::tail_call_static : opcode::call_static;
@@ -502,7 +502,7 @@ compile_static_reference(procedure_context& proc, operand location) {
 static shared_register
 compile_global_reference(procedure_context& proc, operand global_num) {
   shared_register result = proc.registers.allocate_local();
-  encode_instruction(proc.bytecode.back(), instruction{opcode::load_global, global_num, *result});
+  encode_instruction(proc.bytecode.back(), instruction{opcode::load_top_level, global_num, *result});
   return result;
 }
 

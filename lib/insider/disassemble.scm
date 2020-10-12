@@ -32,12 +32,12 @@
 (define (related-top-level instr)
   (let ((m (instruction-mnemonic instr)))
     (cond
-     ((or (eq? m 'load-global)
-          (eq? m 'call-global)
-          (eq? m 'tail-call-global))
+     ((or (eq? m 'load-top-level)
+          (eq? m 'call-top-level)
+          (eq? m 'tail-call-top-level))
       (let ((top-level-num (car (instruction-operands instr))))
         (cons top-level-num (top-level-value top-level-num))))
-     ((eq? m 'store-global)
+     ((eq? m 'store-top-level)
       (let ((top-level-num (cadr (instruction-operands instr))))
         (cons top-level-num (top-level-value top-level-num))))
      (#t #f))))
@@ -154,7 +154,7 @@
          (target (jump-target instruction-record)))
     (cond
      (related-static (format-related 'static related-static))
-     (related-name (format-related 'global related-name))
+     (related-name (format-related 'top-level related-name))
      (target (string-append "=> " (cdr (assv target jump-alist))))
      (#t #f))))
 
@@ -197,7 +197,7 @@
           (newline)
           (loop (cdr instruction-records)))))))
 
-(define (related-procedure record recurse-to-globals?)
+(define (related-procedure record recurse-to-top-levels?)
   (define (find getter name)
     (let ((related (getter (caddr record))))
       (if related
@@ -210,14 +210,14 @@
           #f)))
 
   (or (find related-static 'static)
-      (and recurse-to-globals? (find related-top-level 'global))))
+      (and recurse-to-top-levels? (find related-top-level 'top-level))))
 
-(define (find-related-procedures f done to-do recurse-to-globals?)
+(define (find-related-procedures f done to-do recurse-to-top-levels?)
   (let loop ((instruction-records (procedure-bytecode f))
              (result '()))
     (if (null? instruction-records)
         result
-        (let ((related (related-procedure (car instruction-records) recurse-to-globals?)))
+        (let ((related (related-procedure (car instruction-records) recurse-to-top-levels?)))
           (loop (cdr instruction-records)
                 (if related
                     (cons related result)
@@ -235,7 +235,7 @@
                   (cons (car new) result))))))
 
 (define (disassemble f . rest)
-  (let ((recurse-to-globals? (and (not (null? rest)) (car rest))))
+  (let ((recurse-to-top-levels? (and (not (null? rest)) (car rest))))
     (let loop ((done '())
                (to-do (list (list #f #f f))))
       (unless (null? to-do)
@@ -249,4 +249,4 @@
             (loop done*
                   (add-to-do (cdr to-do)
                              done*
-                             (find-related-procedures current-proc done* to-do recurse-to-globals?)))))))))
+                             (find-related-procedures current-proc done* to-do recurse-to-top-levels?)))))))))

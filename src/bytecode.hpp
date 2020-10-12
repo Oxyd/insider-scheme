@@ -22,8 +22,8 @@ using operand = std::uint64_t;
 enum class opcode : std::uint8_t {
   no_operation,
   load_static,      // load-static <static number> <destination>
-  load_global,      // load-global <global number> <destination>
-  store_global,     // store-global <value> <global-number>
+  load_top_level,   // load-top-level <top-level number> <destination>
+  store_top_level,  // store-top-level <value> <top-level number>
   add,
   subtract,
   multiply,
@@ -33,10 +33,10 @@ enum class opcode : std::uint8_t {
   greater_than, // 10
   set,              // set <source> <destination>
   call,             // call <procedure> <return value destination> <arguments ...>
-  call_global,      // same as call, but <procedure> is the index of a global
+  call_top_level,   // same as call, but <procedure> is the index of a top-level
   call_static,      //                   -- "" --                      static
   tail_call,        // tail-call <procedure> <arguments ...>
-  tail_call_global,
+  tail_call_top_level,
   tail_call_static,
   ret,              // ret <return value>
   jump,             // jump <offset>
@@ -100,35 +100,35 @@ namespace detail {
 // the opcode enum. Opcode values are still given by the enum.
 constexpr std::array
 instructions{
-  std::tuple{"no-operation",     opcode::no_operation,     std::size_t{0}, false},
-  std::tuple{"load-static",      opcode::load_static,      std::size_t{2}, false},
-  std::tuple{"load-global",      opcode::load_global,      std::size_t{2}, false},
-  std::tuple{"store-global",     opcode::store_global,     std::size_t{2}, false},
-  std::tuple{"add",              opcode::add,              std::size_t{3}, false},
-  std::tuple{"subtract",         opcode::subtract,         std::size_t{3}, false},
-  std::tuple{"multiply",         opcode::multiply,         std::size_t{3}, false},
-  std::tuple{"divide",           opcode::divide,           std::size_t{3}, false},
-  std::tuple{"arith-equal",      opcode::arith_equal,      std::size_t{3}, false},
-  std::tuple{"less-than",        opcode::less_than,        std::size_t{3}, false},
-  std::tuple{"greater-than",     opcode::greater_than,     std::size_t{3}, false},
-  std::tuple{"set!",             opcode::set,              std::size_t{2}, false},
-  std::tuple{"call",             opcode::call,             std::size_t{2}, true},
-  std::tuple{"call-global",      opcode::call_global,      std::size_t{2}, true},
-  std::tuple{"call-static",      opcode::call_static,      std::size_t{2}, true},
-  std::tuple{"tail-call",        opcode::tail_call,        std::size_t{1}, true},
-  std::tuple{"tail-call-global", opcode::tail_call_global, std::size_t{1}, true},
-  std::tuple{"tail-call-static", opcode::tail_call_static, std::size_t{1}, true},
-  std::tuple{"ret",              opcode::ret,              std::size_t{1}, false},
-  std::tuple{"jump",             opcode::jump,             std::size_t{1}, false},
-  std::tuple{"jump-back",        opcode::jump_back,        std::size_t{1}, false},
-  std::tuple{"jump-unless",      opcode::jump_unless,      std::size_t{2}, false},
-  std::tuple{"jump-back-unless", opcode::jump_back_unless, std::size_t{2}, false},
-  std::tuple{"make-closure",     opcode::make_closure,     std::size_t{2}, true},
-  std::tuple{"box",              opcode::box,              std::size_t{2}, false},
-  std::tuple{"unbox",            opcode::unbox,            std::size_t{2}, false},
-  std::tuple{"box-set!",         opcode::box_set,          std::size_t{2}, false},
-  std::tuple{"cons",             opcode::cons,             std::size_t{3}, false},
-  std::tuple{"make-vector",      opcode::make_vector,      std::size_t{1}, true}
+  std::tuple{"no-operation",        opcode::no_operation,        std::size_t{0}, false},
+  std::tuple{"load-static",         opcode::load_static,         std::size_t{2}, false},
+  std::tuple{"load-top-level",      opcode::load_top_level,      std::size_t{2}, false},
+  std::tuple{"store-top-level",     opcode::store_top_level,     std::size_t{2}, false},
+  std::tuple{"add",                 opcode::add,                 std::size_t{3}, false},
+  std::tuple{"subtract",            opcode::subtract,            std::size_t{3}, false},
+  std::tuple{"multiply",            opcode::multiply,            std::size_t{3}, false},
+  std::tuple{"divide",              opcode::divide,              std::size_t{3}, false},
+  std::tuple{"arith-equal",         opcode::arith_equal,         std::size_t{3}, false},
+  std::tuple{"less-than",           opcode::less_than,           std::size_t{3}, false},
+  std::tuple{"greater-than",        opcode::greater_than,        std::size_t{3}, false},
+  std::tuple{"set!",                opcode::set,                 std::size_t{2}, false},
+  std::tuple{"call",                opcode::call,                std::size_t{2}, true},
+  std::tuple{"call-top-level",      opcode::call_top_level,      std::size_t{2}, true},
+  std::tuple{"call-static",         opcode::call_static,         std::size_t{2}, true},
+  std::tuple{"tail-call",           opcode::tail_call,           std::size_t{1}, true},
+  std::tuple{"tail-call-top-level", opcode::tail_call_top_level, std::size_t{1}, true},
+  std::tuple{"tail-call-static",    opcode::tail_call_static,    std::size_t{1}, true},
+  std::tuple{"ret",                 opcode::ret,                 std::size_t{1}, false},
+  std::tuple{"jump",                opcode::jump,                std::size_t{1}, false},
+  std::tuple{"jump-back",           opcode::jump_back,           std::size_t{1}, false},
+  std::tuple{"jump-unless",         opcode::jump_unless,         std::size_t{2}, false},
+  std::tuple{"jump-back-unless",    opcode::jump_back_unless,    std::size_t{2}, false},
+  std::tuple{"make-closure",        opcode::make_closure,        std::size_t{2}, true},
+  std::tuple{"box",                 opcode::box,                 std::size_t{2}, false},
+  std::tuple{"unbox",               opcode::unbox,               std::size_t{2}, false},
+  std::tuple{"box-set!",            opcode::box_set,             std::size_t{2}, false},
+  std::tuple{"cons",                opcode::cons,                std::size_t{3}, false},
+  std::tuple{"make-vector",         opcode::make_vector,         std::size_t{1}, true}
 };
 
 inline auto // std::array<instruction_info, N>
