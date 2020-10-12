@@ -215,6 +215,9 @@ private:
   std::size_t      size_;
 };
 
+instruction
+read_instruction(bytecode_decoder&);
+
 } // namespace insider
 
 #endif

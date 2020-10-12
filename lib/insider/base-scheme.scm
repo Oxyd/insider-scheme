@@ -12,7 +12,7 @@
         write-simple display newline append list->vector vector-append
         vector make-vector vector-length vector-ref vector-set!
         cons car cdr cadr caddr cadddr cddr cdddr
-        string-length string-append number->string datum->string
+        make-string string-length string-append number->string datum->string symbol->string
         list reverse map filter identity
         make-syntactic-closure syntactic-closure-expression syntactic-closure-environment
         type eq? eqv? equal? pair? symbol? syntactic-closure? identifier? null? not when unless cond case

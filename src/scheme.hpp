@@ -561,9 +561,9 @@ make_list(context& ctx, Ts... ts) {
   return result;
 }
 
-template <typename T, typename Converter>
+template <typename Container, typename Converter>
 generic_ptr
-make_list_from_vector(context& ctx, std::vector<T> const& values, Converter const& convert) {
+make_list_from_vector(context& ctx, Container const& values, Converter const& convert) {
   generic_ptr head = ctx.constants->null;
 
   for (auto elem = values.rbegin(); elem != values.rend(); ++elem)
@@ -626,6 +626,17 @@ vector_set(ptr<vector> const& v, std::size_t i, generic_ptr const& value) { v->s
 
 ptr<vector>
 make_vector(context&, std::vector<generic_ptr> const&);
+
+template <typename Container, typename Converter>
+generic_ptr
+make_vector(context& ctx, Container const& values, Converter const& convert) {
+  auto result = make<vector>(ctx, ctx, values.size());
+
+  for (std::size_t i = 0; i < values.size(); ++i)
+    vector_set(result, i, convert(values[i]));
+
+  return result;
+}
 
 ptr<vector>
 list_to_vector(context&, generic_ptr const& lst);

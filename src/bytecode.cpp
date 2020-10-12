@@ -82,4 +82,21 @@ encode_instruction(bytecode& bc, instruction const& instr) {
   }
 }
 
+instruction
+read_instruction(bytecode_decoder& dec) {
+  instruction result{dec.read_opcode()};
+  instruction_info info = opcode_to_info(result.opcode);
+
+  for (std::size_t i = 0; i < info.num_operands; ++i)
+    result.operands.push_back(dec.read_operand());
+
+  if (info.extra_operands) {
+    operand num_extra = dec.read_operand();
+    for (std::size_t i = 0; i < num_extra; ++i)
+      result.operands.push_back(dec.read_operand());
+  }
+
+  return result;
+}
+
 } // namespace insider
