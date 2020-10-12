@@ -506,6 +506,22 @@ context::intern_static(generic_ptr const& x) {
   return it->second;
 }
 
+generic_ptr
+context::get_static_checked(operand i) const {
+  if (i >= statics_.size())
+    throw std::runtime_error{fmt::format("Nonexistent static object {}", i)};
+
+  return statics_[i];
+}
+
+generic_ptr
+context::get_top_level_checked(operand i) const {
+  if (i >= top_level_objects_.size())
+    throw std::runtime_error{fmt::format("Nonexistent top-level object {}", i)};
+
+  return top_level_objects_[i];
+}
+
 void
 context::set_top_level(operand i, generic_ptr const& value) {
   assert(i < top_level_objects_.size());

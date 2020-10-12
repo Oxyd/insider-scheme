@@ -539,6 +539,11 @@ output_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out, b
     out->write_char(')');
   } else if (auto env = match<environment>(datum)) {
     out->write_string(fmt::format("#env@{}", static_cast<void*>(env.get())));
+  } else if (auto proc = match<procedure>(datum)) {
+    if (proc->name)
+      out->write_string(fmt::format("<procedure {}>", *proc->name));
+    else
+      out->write_string("<lambda>");
   } else
     out->write_string(fmt::format("<{}>", object_type_name(datum.get())));
 }

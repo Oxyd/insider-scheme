@@ -12,12 +12,13 @@
         write-simple display newline append list->vector vector-append
         vector make-vector vector-length vector-ref vector-set!
         cons car caar caadr cdr cadr cdar caddr cadddr cddr cdddr
-        assv memv length
+        assq assv assoc memq memv member length
         make-string string-length string-append number->string datum->string symbol->string
         list reverse map filter identity
         make-syntactic-closure syntactic-closure-expression syntactic-closure-environment
         type eq? eqv? equal? pair? symbol? syntactic-closure? identifier? null? not when unless cond case
-        do or and)
+        do or and
+        plain-procedure? native-procedure? closure? procedure? scheme-procedure?)
 
 (begin-for-syntax
  (%define pair?
@@ -276,23 +277,52 @@
 (define (cdar x)
   (cdr (car x)))
 
+(define (assoc x alist . rest)
+  (let ((pred (if (null? rest) equal? (car rest))))
+    (let loop ((lst alist))
+      (if (null? lst)
+          #f
+          (if (pred x (caar lst))
+              (car lst)
+              (loop (cdr lst)))))))
+
+(define (assq x alist)
+  (assoc x alist eq?))
+
 (define (assv x alist)
-  (let loop ((lst alist))
-    (if (null? lst)
-        #f
-        (if (eqv? x (caar lst))
-            (car lst)
-            (loop (cdr lst))))))
+  (assoc x alist eqv?))
+
+(define (member x list . rest)
+  (let ((pred (if (null? rest) equal? (car rest))))
+    (let loop ((lst list))
+      (if (null? lst)
+          #f
+          (if (pred x (car lst))
+              lst
+              (loop (cdr lst)))))))
+
+(define (memq x list)
+  (member x list eq?))
 
 (define (memv x list)
-  (let loop ((lst list))
-    (if (null? lst)
-        #f
-        (if (eqv? x (car lst))
-            lst
-            (loop (cdr lst))))))
+  (member x list eqv?))
 
 (define (length list)
   (do ((lst list (cdr lst))
        (result 0 (+ 1 result)))
       ((null? lst) result)))
+
+(define (plain-procedure? x)
+  (eq? (type x) 'insider::procedure))
+
+(define (native-procedure? x)
+  (eq? (type x) 'insider::native_procedure))
+
+(define (closure? x)
+  (eq? (type x) 'insider::closure))
+
+(define (procedure? x)
+  (or (plain-procedure? x) (native-procedure? x) (closure? x)))
+
+(define (scheme-procedure? x)
+  (or (plain-procedure? x) (closure? x)))

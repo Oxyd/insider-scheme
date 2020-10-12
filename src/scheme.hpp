@@ -302,7 +302,13 @@ public:
   }
 
   generic_ptr
+  get_static_checked(operand) const;
+
+  generic_ptr
   get_top_level(operand i) const { return top_level_objects_[i]; }
+
+  generic_ptr
+  get_top_level_checked(operand) const;
 
   void
   set_top_level(operand i, generic_ptr const&);

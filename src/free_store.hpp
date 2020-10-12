@@ -72,7 +72,7 @@ type_name() {
   return type_name(T::type_index);
 }
 
-constexpr char const* integer_type_name = "fixnum";
+constexpr char const* integer_type_name = "insider::fixnum";
 
 template <>
 inline std::string

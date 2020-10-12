@@ -7,7 +7,10 @@ namespace insider {
 
 static ptr<symbol>
 type(context& ctx, generic_ptr const& x) {
-  return ctx.intern(object_type(x.get()).name);
+  if (is_object_ptr(x.get()))
+    return ctx.intern(object_type(x.get()).name);
+  else
+    return ctx.intern(integer_type_name);
 }
 
 module
@@ -190,6 +193,11 @@ make_internal_module(context& ctx) {
     }
   );
 
+  define_lambda<ptr<procedure>(ptr<closure> const&)>(
+    ctx, result, "closure-procedure", true,
+    closure_procedure
+  );
+
   define_lambda<integer(ptr<opaque_value<instruction>> const&)>(
     ctx, result, "instruction-opcode", true,
     [] (ptr<opaque_value<instruction>> const& i) {
@@ -223,7 +231,14 @@ make_internal_module(context& ctx) {
   define_lambda<generic_ptr(context&, operand)>(
     ctx, result, "static-value", true,
     [] (context& ctx, operand op) {
-      return ctx.get_static(op);
+      return ctx.get_static_checked(op);
+    }
+  );
+
+  define_lambda<generic_ptr(context&, operand)>(
+    ctx, result, "top-level-value", true,
+    [] (context& ctx, operand op) {
+      return ctx.get_top_level_checked(op);
     }
   );
 

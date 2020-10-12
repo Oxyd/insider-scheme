@@ -2,7 +2,7 @@
 (import (insider base-scheme)
         (only (insider internal)
               procedure-bytecode procedure-name opcodes instruction-opcode instruction-operands
-              top-level-name static-value))
+              top-level-name static-value top-level-value closure-procedure))
 (export disassemble)
 
 (define instruction-column 8)
@@ -29,18 +29,24 @@
           (cons static-num (static-value static-num)))
         #f)))
 
-(define (related-top-level-name instr)
+(define (related-top-level instr)
   (let ((m (instruction-mnemonic instr)))
     (cond
      ((or (eq? m 'load-global)
           (eq? m 'call-global)
           (eq? m 'tail-call-global))
       (let ((top-level-num (car (instruction-operands instr))))
-        (cons top-level-num (top-level-name top-level-num))))
+        (cons top-level-num (top-level-value top-level-num))))
      ((eq? m 'store-global)
       (let ((top-level-num (cadr (instruction-operands instr))))
-        (cons top-level-num (top-level-name top-level-num))))
+        (cons top-level-num (top-level-value top-level-num))))
      (#t #f))))
+
+(define (related-top-level-name instr)
+  (let ((related (related-top-level instr)))
+    (if related
+        (cons (car related) (top-level-name (car related)))
+        #f)))
 
 (define (opcode-mnemonic opcode)
   (vector-ref opcodes opcode))
@@ -105,14 +111,20 @@
       (- next-location (second-operand instr)))
      (#t #f))))
 
+(define (prepend-unique x lst compare)
+  (if (member x lst compare)
+      lst
+      (cons x lst)))
+
+(define (prepend-unique/eq? x lst)
+  (prepend-unique x lst eq?))
+
+(define (prepend-unique/eqv? x lst)
+  (prepend-unique x lst eqv?))
+
 (define (build-jump-alist f)
   (define instrs (procedure-bytecode f))
-
-  (define (prepend-unique x lst)
-    (if (memv x lst)
-        lst
-        (cons x lst)))
-
+ 
   (define jump-targets
     (let loop ((result '())
                (instrs instrs))
@@ -120,7 +132,7 @@
           result
           (loop (let ((target (jump-target (car instrs))))
                   (if target
-                      (prepend-unique target result)
+                      (prepend-unique/eqv? target result)
                       result))
                 (cdr instrs)))))
 
@@ -146,32 +158,95 @@
      (target (string-append "=> " (cdr (assv target jump-alist))))
      (#t #f))))
 
-(define (disassemble f)
-  (define jump-alist (build-jump-alist f))
+(define (disassemble-procedure f number-kind number)
   (display (let ((name (procedure-name f)))
              (if name name "<lambda>")))
+
+  (when number
+    (display " (")
+    (display number-kind)
+    (display " ")
+    (display number)
+    (display ")"))
+
   (display #\:)
   (newline)
-  (let loop ((instruction-records (procedure-bytecode f)))
-    (unless (null? instruction-records)
-      (let* ((record (car instruction-records))
-             (location (car record))
-             (instr (caddr record)))
-        (let ((location-label (assv location jump-alist)))
-          (if location-label
-              (begin
-                (display (cdr location-label))
-                (display (make-indent instruction-column (string-length (cdr location-label)))))
-              (display (make-indent instruction-column 0))))
 
-        (let ((formatted-instr (format-instruction instr)))
-          (display formatted-instr)
+  (let ((jump-alist (build-jump-alist f)))
+    (let loop ((instruction-records (procedure-bytecode f)))
+      (unless (null? instruction-records)
+        (let* ((record (car instruction-records))
+               (location (car record))
+               (instr (caddr record)))
+          (let ((location-label (assv location jump-alist)))
+            (if location-label
+                (begin
+                  (display (cdr location-label))
+                  (display (make-indent instruction-column (string-length (cdr location-label)))))
+                (display (make-indent instruction-column 0))))
 
-          (let ((comment (instruction-comment record jump-alist)))
-            (when comment
-              (display (make-indent comment-column (string-length formatted-instr)))
-              (display " ; ")
-              (display comment))))
+          (let ((formatted-instr (format-instruction instr)))
+            (display formatted-instr)
 
-        (newline)
-        (loop (cdr instruction-records))))))
+            (let ((comment (instruction-comment record jump-alist)))
+              (when comment
+                (display (make-indent comment-column (string-length formatted-instr)))
+                (display " ; ")
+                (display comment))))
+
+          (newline)
+          (loop (cdr instruction-records)))))))
+
+(define (related-procedure record recurse-to-globals?)
+  (define (find getter name)
+    (let ((related (getter (caddr record))))
+      (if related
+          (let ((related* (cdr related)))
+            (if (scheme-procedure? related*)
+                (if (plain-procedure? related*)
+                    (list name (car related) related*)
+                    (list name (car related) (closure-procedure related*)))
+                #f))
+          #f)))
+
+  (or (find related-static 'static)
+      (and recurse-to-globals? (find related-top-level 'global))))
+
+(define (find-related-procedures f done to-do recurse-to-globals?)
+  (let loop ((instruction-records (procedure-bytecode f))
+             (result '()))
+    (if (null? instruction-records)
+        result
+        (let ((related (related-procedure (car instruction-records) recurse-to-globals?)))
+          (loop (cdr instruction-records)
+                (if related
+                    (cons related result)
+                    result))))))
+
+(define (add-to-do old-to-do done new-to-do)
+  (let loop ((new new-to-do)
+             (result old-to-do))
+    (if (null? new)
+        result
+        (loop (cdr new)
+              (if (or (member (car new) result (lambda (x y) (eq? (caddr x) (caddr y))))
+                      (memq (caddr (car new)) done))
+                  result
+                  (cons (car new) result))))))
+
+(define (disassemble f . rest)
+  (let ((recurse-to-globals? (and (not (null? rest)) (car rest))))
+    (let loop ((done '())
+               (to-do (list (list #f #f f))))
+      (unless (null? to-do)
+        (let* ((current (car to-do))
+               (current-proc (caddr current)))
+          (unless (null? done)
+            (newline))
+
+          (disassemble-procedure current-proc (car current) (cadr current))
+          (let ((done* (cons current-proc done)))
+            (loop done*
+                  (add-to-do (cdr to-do)
+                             done*
+                             (find-related-procedures current-proc done* to-do recurse-to-globals?)))))))))
