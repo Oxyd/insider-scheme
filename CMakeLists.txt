@@ -16,11 +16,12 @@ set(scheme_sources
   src/bytecode.cpp
   src/compiler.cpp
   src/free_store.cpp
+  src/internal_module.cpp
   src/io.cpp
   src/numeric.cpp
   src/scheme.cpp
-  src/vm.cpp
   src/syntax.cpp
+  src/vm.cpp
   )
 
 set(test_sources
