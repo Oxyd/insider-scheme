@@ -209,6 +209,9 @@ public:
   bool
   done() const { return pc_ >= size_; }
 
+  std::size_t
+  position() const { return pc_; }
+
 private:
   std::byte const* code_;
   std::size_t      pc_;

@@ -11,7 +11,8 @@
         set-verbose-collection!
         write-simple display newline append list->vector vector-append
         vector make-vector vector-length vector-ref vector-set!
-        cons car cdr cadr caddr cadddr cddr cdddr
+        cons car caar caadr cdr cadr cdar caddr cadddr cddr cdddr
+        assv memv length
         make-string string-length string-append number->string datum->string symbol->string
         list reverse map filter identity
         make-syntactic-closure syntactic-closure-expression syntactic-closure-environment
@@ -265,3 +266,33 @@
 
 (define (list . xs)
   xs)
+
+(define (caar x)
+  (car (car x)))
+
+(define (caadr x)
+  (car (car (cdr x))))
+
+(define (cdar x)
+  (cdr (car x)))
+
+(define (assv x alist)
+  (let loop ((lst alist))
+    (if (null? lst)
+        #f
+        (if (eqv? x (caar lst))
+            (car lst)
+            (loop (cdr lst))))))
+
+(define (memv x list)
+  (let loop ((lst list))
+    (if (null? lst)
+        #f
+        (if (eqv? x (car lst))
+            lst
+            (loop (cdr lst))))))
+
+(define (length list)
+  (do ((lst list (cdr lst))
+       (result 0 (+ 1 result)))
+      ((null? lst) result)))

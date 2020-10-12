@@ -871,8 +871,10 @@ namespace {
 
 static common_type
 find_common_type(generic_ptr const& lhs, generic_ptr const& rhs) {
-  if (!is_number(lhs) || !is_number(rhs))
-    throw std::runtime_error{"Expected number"};
+  if (!is_number(lhs))
+    throw std::runtime_error{fmt::format("Expected number, got {}", object_type_name(lhs.get()))};
+  if (!is_number(rhs))
+    throw std::runtime_error{fmt::format("Expected number, got {}", object_type_name(rhs.get()))};
 
   if (is<floating_point>(lhs) || is<floating_point>(rhs))
     return common_type::floating_point;

@@ -162,13 +162,20 @@ make_internal_module(context& ctx) {
     ctx, result, "procedure-bytecode", true,
     [] (context& ctx, ptr<procedure> const& f) {
       bytecode_decoder dec{f->bytecode};
-      std::vector<instruction> instrs;
-      while (!dec.done())
-        instrs.push_back(read_instruction(dec));
+      std::vector<std::tuple<std::size_t, std::size_t, instruction>> instrs;
+      while (!dec.done()) {
+        std::size_t pos = dec.position();
+        instruction instr = read_instruction(dec);
+
+        instrs.emplace_back(pos, dec.position() - pos, instr);
+      }
 
       return make_list_from_vector(ctx, instrs,
-                                   [&] (instruction i) {
-                                     return make<opaque_value<instruction>>(ctx, i);
+                                   [&] (std::tuple<std::size_t, std::size_t, instruction> i) {
+                                     return make_list(ctx,
+                                                      integer_to_ptr(std::get<0>(i)),
+                                                      integer_to_ptr(std::get<1>(i)),
+                                                      make<opaque_value<instruction>>(ctx, std::get<2>(i)));
                                    });
     }
   );
