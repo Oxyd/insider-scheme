@@ -496,7 +496,7 @@ TEST_F(scheme, exec_arithmetic) {
   auto state = make_state(ctx, proc);
   run(state);
 
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(), 18);
+  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(), 18);
 }
 
 TEST_F(scheme, exec_calls) {
@@ -540,7 +540,7 @@ TEST_F(scheme, exec_calls) {
   run(state);
 
   auto native_f = [] (int x, int y) { return 2 * x + y; };
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(),
+  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(),
             3 * native_f(5, 7) + native_f(2, native_f(3, 4)));
 }
 
@@ -575,7 +575,7 @@ TEST_F(scheme, exec_tail_calls) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(), 12);
+  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(), 12);
 }
 
 TEST_F(scheme, exec_loop) {
@@ -607,7 +607,7 @@ TEST_F(scheme, exec_loop) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(), 45);
+  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(), 45);
 }
 
 TEST_F(scheme, exec_native_call) {
@@ -633,7 +633,7 @@ TEST_F(scheme, exec_native_call) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(),
+  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(),
             2 * 10 + 3 * 20 + 5 * 30);
 }
 
@@ -659,7 +659,7 @@ TEST_F(scheme, exec_closure_ref) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_EQ(assume<integer>(call_frame_local(state.current_frame, 0)).value(), 5 + 3);
+  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(), 5 + 3);
 }
 
 TEST_F(scheme, exec_cons) {
@@ -680,7 +680,7 @@ TEST_F(scheme, exec_cons) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_TRUE(equal(call_frame_local(state.current_frame, 0), read("(1 2 3)")));
+  EXPECT_TRUE(equal(call_frame_local(state, 0), read("(1 2 3)")));
 }
 
 TEST_F(scheme, exec_make_vector) {
@@ -699,7 +699,7 @@ TEST_F(scheme, exec_make_vector) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_TRUE(equal(call_frame_local(state.current_frame, 0), read("#(1 2 3)")));
+  EXPECT_TRUE(equal(call_frame_local(state, 0), read("#(1 2 3)")));
 }
 
 TEST_F(scheme, compile_arithmetic) {

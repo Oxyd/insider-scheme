@@ -7,22 +7,29 @@
 
 namespace insider {
 
-// The virtual machine. The global environment is represented as a procedure
-// whose call frame is at the top of the call stack. Global variables and
-// procedures are stored as the top-level call frame's statics and locals.
-class call_frame : public dynamic_size_object<call_frame, object*> {
+// Dynamic-sized stack to store local variables.
+class stack : public composite_object<stack> {
 public:
-  bytecode_decoder bytecode;
+  generic_ptr
+  ref(free_store& store, std::size_t i) { return {store, data_[i]}; }
 
-  static std::size_t
-  extra_elements(ptr<insider::procedure> const& procedure, ptr<call_frame> const& parent);
+  void
+  set(free_store& store, std::size_t i, generic_ptr const& value) {
+    data_[i] = value.get();
+    store.notify_arc(this, value.get());
+  }
 
-  call_frame(ptr<insider::procedure> const& procedure, ptr<call_frame> const& parent);
+  void
+  grow(std::size_t n) { data_.resize(data_.size() + n); }
 
-  call_frame(call_frame&&);
+  void
+  shrink(std::size_t n) { data_.resize(data_.size() - n); }
+
+  void
+  erase(std::size_t begin, std::size_t end);
 
   std::size_t
-  size() const { return locals_size_; }
+  size() const { return data_.size(); }
 
   void
   trace(tracing_context&);
@@ -30,56 +37,46 @@ public:
   void
   update_references();
 
-  ptr<insider::procedure>
-  procedure(free_store& store) const { return {store, procedure_}; }
-
-  generic_ptr
-  local(free_store& store, std::size_t i) const {
-    assert(i < locals_size_);
-    return {store, storage_element(i)};
-  }
-
-  void
-  set_local(free_store& store, std::size_t i, generic_ptr const& value);
-
-  ptr<call_frame>
-  parent(free_store& store) const { return {store, parent_frame_}; }
-
-  operand
-  dest_register() const { return dest_register_; }
-
-  void
-  set_dest_register(operand d) { dest_register_ = d; }
-
 private:
-  insider::procedure* procedure_;
-  call_frame*         parent_frame_;
-  std::size_t         locals_size_;
-  operand             dest_register_ = std::numeric_limits<operand>::max();
+  std::vector<object*> data_;
 };
-
-inline ptr<procedure>
-call_frame_procedure(ptr<call_frame> const& cf) { return cf->procedure(cf.store()); }
 
 inline generic_ptr
-call_frame_local(ptr<call_frame> const& cf, std::size_t i) {
-  return cf->local(cf.store(), i);
-}
+stack_ref(ptr<stack> const& s, std::size_t i) { return s->ref(s.store(), i); }
 
 inline void
-call_frame_set_local(ptr<call_frame> const& cf, std::size_t i, generic_ptr const& value) {
-  cf->set_local(cf.store(), i, value);
+stack_set(ptr<stack> const& s, std::size_t i, generic_ptr const& value) {
+  s->set(s.store(), i, value);
 }
 
-inline ptr<call_frame>
-call_frame_parent(ptr<call_frame> const& cf) { return cf->parent(cf.store()); }
+class call_frame {
+public:
+  bytecode_decoder        bytecode;
+  ptr<insider::procedure> procedure;
+  std::size_t             stack_top;
+  operand                 dest_register = std::numeric_limits<operand>::max();
+
+  call_frame(ptr<insider::procedure> const& proc, std::size_t stack_top)
+    : bytecode{proc->bytecode}
+    , procedure{proc}
+    , stack_top{stack_top}
+  { }
+};
 
 struct execution_state {
-  context&        ctx;
-  ptr<call_frame> root_frame;
-  ptr<call_frame> current_frame;
-  generic_ptr     global_return;
+  context&                ctx;
+  ptr<stack>              value_stack;
+  std::vector<call_frame> call_stack;
+  generic_ptr             global_return;
+
+  execution_state(context& ctx)
+    : ctx{ctx}
+    , value_stack{make<stack>(ctx)}
+  { }
 };
+
+generic_ptr
+call_frame_local(execution_state& state, operand local);
 
 // Make execution state using the given procedure as the global call frame.
 execution_state
