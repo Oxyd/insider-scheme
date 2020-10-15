@@ -546,7 +546,36 @@ private:
   std::size_t total_used_ = 0;
 };
 
-using large_space = std::vector<std::unique_ptr<std::byte[]>>;
+class large_space {
+public:
+  std::byte*
+  allocate(std::size_t);
+
+  std::size_t
+  object_count() const { return allocations_.size(); }
+
+  bool
+  empty() const { return allocations_.empty(); }
+
+  std::size_t
+  bytes_used() const { return bytes_used_; }
+
+  std::byte*
+  get(std::size_t i) const { return allocations_[i].get(); }
+
+  void
+  move(std::size_t i, large_space& to);
+
+  void
+  deallocate(std::size_t i);
+
+  void
+  remove_empty();
+
+private:
+  std::vector<std::unique_ptr<std::byte[]>> allocations_;
+  std::size_t bytes_used_ = 0;
+};
 
 struct generation {
   static constexpr word_type nursery_1 = 0;

@@ -276,6 +276,48 @@ dense_space::has_preallocated_storage(std::size_t size) const {
   return !pages_.empty() && page_free(pages_.back()) >= size;
 }
 
+std::byte*
+large_space::allocate(std::size_t size) {
+  std::byte* result = allocations_.emplace_back(std::make_unique<std::byte[]>(size)).get();
+  bytes_used_ += size;
+  return result;
+}
+
+void
+large_space::move(std::size_t i, large_space& to) {
+  assert(allocations_[i]);
+
+  object* o = reinterpret_cast<object*>(allocations_[i].get() + sizeof(word_type));
+  std::size_t size = object_size(o);
+
+  to.allocations_.emplace_back(std::move(allocations_[i]));
+  to.bytes_used_ += size;
+  bytes_used_ -= size;
+
+  allocations_[i].reset();
+}
+
+void
+large_space::deallocate(std::size_t i) {
+  assert(allocations_[i]);
+
+  std::byte* storage = allocations_[i].get();
+  object* o = reinterpret_cast<object*>(storage + sizeof(word_type));
+  assert(is_alive(o));
+
+  bytes_used_ -= object_size(o);
+  object_type(o).destroy(o);
+
+  allocations_[i].reset();
+}
+
+void
+large_space::remove_empty() {
+  allocations_.erase(std::remove_if(allocations_.begin(), allocations_.end(),
+                                    [] (auto const& storage) { return !storage; }),
+                     allocations_.end());
+}
+
 static object*
 move_object(object* o, dense_space& to) {
   type_descriptor const& t = object_type(o);
@@ -357,21 +399,19 @@ promote(generation& from, generation& to) {
   move_survivors(from.small, to.small, to.generation_number);
 
   large_space& large = from.large;
-  for (std::unique_ptr<std::byte[]>& storage : large) {
-    object* o = reinterpret_cast<object*>(storage.get() + sizeof(word_type));
+  for (std::size_t i = 0; i < large.object_count(); ++i) {
+    object* o = reinterpret_cast<object*>(large.get(i) + sizeof(word_type));
     assert(object_color(o) != color::grey);
 
     if (object_color(o) == color::black) {
-      to.large.emplace_back(std::move(storage));
+      large.move(i, to.large);
       set_object_generation(o, to.generation_number);
       set_object_color(o, color::white);
-    }
-
-    storage.reset();
+    } else
+      large.deallocate(i);
   }
 
-  large.erase(std::remove_if(large.begin(), large.end(), [] (auto const& storage) { return !storage; }),
-              large.end());
+  large.remove_empty();
 
   return std::move(from.small);
 }
@@ -385,18 +425,17 @@ purge_mature(generation& from) {
   move_survivors(from.small, temp, from.generation_number);
 
   large_space& large = from.large;
-  for (std::unique_ptr<std::byte[]>& storage : large) {
-    object* o = reinterpret_cast<object*>(storage.get() + sizeof(word_type));
+  for (std::size_t i = 0; i < large.object_count(); ++i) {
+    object* o = reinterpret_cast<object*>(large.get(i) + sizeof(word_type));
     assert(object_color(o) != color::grey);
 
     if (object_color(o) == color::white)
-      storage.reset();
+      large.deallocate(i);
 
     set_object_color(o, color::white);
   }
 
-  large.erase(std::remove_if(large.begin(), large.end(), [] (auto const& storage) { return !storage; }),
-              large.end());
+  large.remove_empty();
 
   std::swap(from.small, temp);
   return temp;
@@ -423,8 +462,8 @@ update_references(dense_space const& space) {
 
 static void
 update_references(large_space const& space) {
-  for (auto const& storage : space) {
-    object* o = reinterpret_cast<object*>(storage.get() + sizeof(word_type));
+  for (std::size_t i = 0; i < space.object_count(); ++i) {
+    object* o = reinterpret_cast<object*>(space.get(i) + sizeof(word_type));
     object_type(o).update_references(o);
   }
 }
@@ -439,17 +478,6 @@ update_references(std::unordered_set<object*> const& set) {
   }
 }
 
-static std::size_t
-space_occupied_size(large_space const& s) {
-  std::size_t result = 0;
-  for (auto const& storage : s) {
-    object* o = reinterpret_cast<object*>(storage.get() + sizeof(word_type));
-    result += sizeof(word_type) + object_size(o);
-  }
-
-  return result;
-}
-
 static std::string
 format_stats(generation const& nursery_1, generation const& nursery_2, generation const& mature) {
   return fmt::format("\n"
@@ -457,11 +485,11 @@ format_stats(generation const& nursery_1, generation const& nursery_2, generatio
                      "  -- Nursery 2: {} pages, {} bytes, {} large objects, {} large bytes\n"
                      "  -- Mature: {} pages, {} bytes, {} large objects, {} large bytes",
                      nursery_1.small.pages_used(), nursery_1.small.bytes_used(),
-                     nursery_1.large.size(), space_occupied_size(nursery_1.large),
+                     nursery_1.large.object_count(), nursery_1.large.bytes_used(),
                      nursery_2.small.pages_used(), nursery_2.small.bytes_used(),
-                     nursery_2.large.size(), space_occupied_size(nursery_2.large),
+                     nursery_2.large.object_count(), nursery_2.large.bytes_used(),
                      mature.small.pages_used(), mature.small.bytes_used(),
-                     mature.large.size(), space_occupied_size(mature.large));
+                     mature.large.object_count(), mature.large.bytes_used());
 }
 
 static void
@@ -473,8 +501,8 @@ verify(generation const& g) {
     assert(!is_object_ptr(o) || object_generation(o) == g.generation_number);
   });
 
-  for (auto const& storage : g.large)
-    assert(object_generation(reinterpret_cast<object*>(storage.get() + sizeof(word_type))) == g.generation_number);
+  for (std::size_t i = 0; i < g.large.object_count(); ++i)
+    assert(object_generation(reinterpret_cast<object*>(g.large.get(i) + sizeof(word_type))) == g.generation_number);
 #endif
 }
 
@@ -553,7 +581,7 @@ free_store::allocate_object(std::size_t size, word_type type) {
 
   std::byte* storage = nullptr;
   if (total_size >= large_threshold)
-    storage = generations_[generation::nursery_1].large.emplace_back(std::make_unique<std::byte[]>(total_size)).get();
+    storage = generations_[generation::nursery_1].large.allocate(total_size);
   else {
     dense_space& space = generations_[generation::nursery_1].small;
     storage = space.allocate(total_size);
