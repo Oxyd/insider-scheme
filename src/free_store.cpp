@@ -14,7 +14,9 @@ namespace insider {
 static constexpr std::size_t page_size = 4096;
 static constexpr std::size_t large_threshold = 256;
 static constexpr std::size_t min_nursery_pages = 1024;
+static constexpr std::size_t min_nursery_size = 2 * min_nursery_pages * page_size;
 static constexpr std::size_t nursery_reserve_pages = 10;
+static constexpr std::size_t nursery_reserve_bytes = nursery_reserve_pages * page_size;
 static constexpr std::size_t mature_reserve_pages = 10;
 static constexpr std::size_t major_collection_frequency = 32;
 
@@ -553,16 +555,23 @@ free_store::collect_garbage(bool major) {
 
   requested_collection_level_ = std::nullopt;
 
-  target_nursery_pages_ = std::max(min_nursery_pages, nursery_1.small.pages_used() + nursery_reserve_pages);
+  target_nursery_pages_ = std::max(min_nursery_pages, nursery_2.small.pages_used() + nursery_reserve_pages);
+  target_nursery_bytes_ = std::max(min_nursery_size,
+                                   nursery_2.small.bytes_used()
+                                   + nursery_2.large.bytes_used()
+                                   + nursery_reserve_bytes);
+
   allocator_.keep_at_most(2 * target_nursery_pages_ + mature_reserve_pages);
 
   if (verbose_collection) {
     fmt::print("GC: New: {}\n", format_stats(nursery_1, nursery_2, mature));
     fmt::print("  -- target nursery pages: {}\n"
+               "  -- target nursery bytes: {}\n"
                "  -- allocator reserve: {} pages\n"
                "  -- allocated pages: {}\n"
                "  -- deallocated pages: {}\n" ,
-               target_nursery_pages_, allocator_.reserve_pages(),
+               target_nursery_pages_, target_nursery_bytes_,
+               allocator_.reserve_pages(),
                allocator_.allocated_pages(), allocator_.deallocated_pages());
   }
 
@@ -585,10 +594,9 @@ free_store::allocate_object(std::size_t size, word_type type) {
   else {
     dense_space& space = generations_[generation::nursery_1].small;
     storage = space.allocate(total_size);
-
-    if (space.pages_used() >= target_nursery_pages_)
-      request_collection();
   }
+
+  check_nursery_size();
 
   init_object_header(storage, type);
   std::byte* object_storage = storage + sizeof(word_type);
@@ -611,6 +619,15 @@ free_store::update_roots() {
     if (wp->get() && is_object_ptr(wp->get()) && !is_alive(wp->get()))
       wp->value_ = forwarding_address(wp->get());
   }
+}
+
+void
+free_store::check_nursery_size() {
+  generation& nursery = generations_[generation::nursery_1];
+
+  if (nursery.small.pages_used() > target_nursery_pages_
+      || nursery.small.bytes_used() + nursery.large.bytes_used() > target_nursery_bytes_)
+    request_collection();
 }
 
 void

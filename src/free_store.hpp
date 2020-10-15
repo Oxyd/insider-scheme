@@ -659,6 +659,7 @@ private:
                                generation{allocator_, generation::mature}};
 
   std::size_t target_nursery_pages_ = 0;
+  std::size_t target_nursery_bytes_ = 0;
   std::size_t collection_number_ = 0;
 
   // Two doubly-linked lists with head.
@@ -680,6 +681,9 @@ private:
 
   void
   update_roots();
+
+  void
+  check_nursery_size();
 
   void
   request_collection();
