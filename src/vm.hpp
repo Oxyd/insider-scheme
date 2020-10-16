@@ -8,15 +8,14 @@
 namespace insider {
 
 // Dynamic-sized stack to store local variables.
-class stack : public composite_object<stack> {
+class root_stack : public composite_root_object<root_stack> {
 public:
   generic_ptr
   ref(free_store& store, std::size_t i) { return {store, data_[i]}; }
 
   void
-  set(free_store& store, std::size_t i, generic_ptr const& value) {
+  set(free_store&, std::size_t i, generic_ptr const& value) {
     data_[i] = value.get();
-    store.notify_arc(this, value.get());
   }
 
   void
@@ -42,10 +41,10 @@ private:
 };
 
 inline generic_ptr
-stack_ref(ptr<stack> const& s, std::size_t i) { return s->ref(s.store(), i); }
+stack_ref(ptr<root_stack> const& s, std::size_t i) { return s->ref(s.store(), i); }
 
 inline void
-stack_set(ptr<stack> const& s, std::size_t i, generic_ptr const& value) {
+stack_set(ptr<root_stack> const& s, std::size_t i, generic_ptr const& value) {
   s->set(s.store(), i, value);
 }
 
@@ -65,13 +64,13 @@ public:
 
 struct execution_state {
   context&                ctx;
-  ptr<stack>              value_stack;
+  ptr<root_stack>              value_stack;
   std::vector<call_frame> call_stack;
   generic_ptr             global_return;
 
   execution_state(context& ctx)
     : ctx{ctx}
-    , value_stack{make<stack>(ctx)}
+    , value_stack{make<root_stack>(ctx)}
   { }
 };
 

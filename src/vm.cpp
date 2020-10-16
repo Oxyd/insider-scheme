@@ -12,18 +12,18 @@
 namespace insider {
 
 void
-stack::erase(std::size_t begin, std::size_t end) {
+root_stack::erase(std::size_t begin, std::size_t end) {
   data_.erase(data_.begin() + begin, data_.begin() + end);
 }
 
 void
-stack::trace(tracing_context& tc) {
+root_stack::trace(tracing_context& tc) {
   for (object* o : data_)
     tc.trace(o);
 }
 
 void
-stack::update_references() {
+root_stack::update_references() {
   for (object*& o : data_)
     update_reference(o);
 }

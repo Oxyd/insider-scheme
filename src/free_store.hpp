@@ -44,6 +44,7 @@ struct type_descriptor {
   bool constant_size;
   std::size_t size = 0;
   std::size_t (*get_size)(object*) = nullptr;
+  bool permanent_root = false;
 };
 
 // Base for any garbage-collectable Scheme object.
@@ -188,6 +189,26 @@ word_type const composite_object<Derived>::type_index = new_type(type_descriptor
   true,
   detail::round_to_words(sizeof(Derived)),
   nullptr
+});
+
+// Object that is allocated directly in the mature generation and is always
+// considered a source of roots for all generations.
+template <typename Derived>
+struct composite_root_object : object {
+  static word_type const type_index;
+};
+
+template <typename Derived>
+word_type const composite_root_object<Derived>::type_index = new_type(type_descriptor{
+  detail::demangle(typeid(Derived).name()),
+  detail::destroy<Derived>,
+  detail::move<Derived>,
+  detail::trace<Derived>,
+  detail::update_references<Derived>,
+  true,
+  detail::round_to_words(sizeof(Derived)),
+  nullptr,
+  true
 });
 
 // Object whose size is determined at instantiation time.
@@ -615,6 +636,10 @@ public:
 
     std::byte* storage = allocate_object(sizeof(T), T::type_index);
     object* result = new (storage) T(std::forward<Args>(args)...);
+
+    if (object_type(result).permanent_root)
+      permanent_roots_.push_back(result);
+
     return {*this, result};
   }
 
@@ -625,11 +650,17 @@ public:
     std::size_t size = detail::round_to_words(sizeof(T) + elements * sizeof(typename T::element_type));
     std::byte* storage = allocate_object(size, T::type_index);
     object* result = new (storage) T(std::forward<Args>(args)...);
+
+    if (object_type(result).permanent_root)
+      permanent_roots_.push_back(result);
+
     return {*this, result};
   }
 
   void
   notify_arc(object* from, object* to) {
+    assert(!object_type(from).permanent_root);
+
     if (is_object_ptr(to)
         && object_generation(from) == generation::mature
         && object_generation(to) < generation::mature)
@@ -668,6 +699,8 @@ private:
   generic_weak_ptr* weak_roots_ = &weak_head_;
   generic_weak_ptr  weak_head_;
 
+  std::vector<object*> permanent_roots_;
+
   std::vector<std::function<void()>> post_gc_callbacks_;
 
   unsigned disable_level_ = 0;
@@ -681,6 +714,12 @@ private:
 
   void
   update_roots();
+
+  void
+  update_permanent_roots();
+
+  void
+  reset_colors(word_type max_generation);
 
   void
   check_nursery_size();

@@ -53,8 +53,8 @@ header_word(object* o) {
 }
 
 static void
-init_object_header(std::byte* storage, word_type type) {
-  new (storage) word_type(type << type_shift | alive_bit);
+init_object_header(std::byte* storage, word_type type, word_type generation = generation::nursery_1) {
+  new (storage) word_type((type << type_shift) | alive_bit | (generation << generation_shift));
 }
 
 static word_type
@@ -341,7 +341,8 @@ free_store::~free_store() {
 }
 
 static void
-trace(generic_ptr* roots, generation_list const& gens, word_type max_generation) {
+trace(generic_ptr* roots, std::vector<object*> const& permanent_roots,
+      generation_list const& gens, word_type max_generation) {
   std::vector<object*> stack;
   tracing_context tc{stack, max_generation};
 
@@ -354,13 +355,21 @@ trace(generic_ptr* roots, generation_list const& gens, word_type max_generation)
       stack.push_back(root->get());
     }
 
-  for (word_type g = 0; g <= max_generation; ++g)
-    for (object* o : gens[g].incoming_arcs) {
-      assert(is_object_ptr(o));
-      assert(object_generation(o) > g);
+  if (max_generation < generation::mature)
+    for (object* o : permanent_roots)
+      if (object_color(o) == color::white) {
+        set_object_color(o, color::grey);
+        object_type(o).trace(o, tc);
+      }
 
-      object_type(o).trace(o, tc);
-    }
+  for (word_type g = 0; g <= max_generation; ++g)
+    for (object* o : gens[g].incoming_arcs)
+      if (object_generation(o) > max_generation && object_color(o) == color::white) {
+        assert(is_object_ptr(o));
+        assert(object_generation(o) > g);
+
+        object_type(o).trace(o, tc);
+      }
 
   while (!stack.empty()) {
     object* top = stack.back();
@@ -524,7 +533,7 @@ free_store::collect_garbage(bool major) {
   if (verbose_collection)
     fmt::print("GC: Old: {}\n", format_stats(nursery_1, nursery_2, mature));
 
-  trace(roots_, generations_, max_generation);
+  trace(roots_, permanent_roots_, generations_, max_generation);
 
   dense_space old_mature;
   if (max_generation >= generation::mature)
@@ -552,6 +561,8 @@ free_store::collect_garbage(bool major) {
   verify(mature);
 
   update_roots();
+  update_permanent_roots();
+  reset_colors(max_generation);
 
   requested_collection_level_ = std::nullopt;
 
@@ -587,18 +598,22 @@ free_store::update() {
 std::byte*
 free_store::allocate_object(std::size_t size, word_type type) {
   std::size_t total_size = size + sizeof(word_type);
+  word_type gen = generation::nursery_1;
+
+  if (types()[type].permanent_root)
+    gen = generation::mature;
 
   std::byte* storage = nullptr;
   if (total_size >= large_threshold)
-    storage = generations_[generation::nursery_1].large.allocate(total_size);
+    storage = generations_[gen].large.allocate(total_size);
   else {
-    dense_space& space = generations_[generation::nursery_1].small;
+    dense_space& space = generations_[gen].small;
     storage = space.allocate(total_size);
   }
 
   check_nursery_size();
 
-  init_object_header(storage, type);
+  init_object_header(storage, type, gen);
   std::byte* object_storage = storage + sizeof(word_type);
   return object_storage;
 }
@@ -612,13 +627,50 @@ free_store::update_roots() {
     }
 
     assert(!p->get() || !is_object_ptr(p->get()) || is_alive(p->get()));
-    assert(!p->get() || !is_object_ptr(p->get()) || object_color(p->get()) == color::white);
+    assert(!p->get() || !is_object_ptr(p->get()) || object_type(p->get()).permanent_root
+           || object_color(p->get()) == color::white);
   }
 
   for (generic_weak_ptr* wp = weak_roots_; wp; wp = wp->next()) {
     if (wp->get() && is_object_ptr(wp->get()) && !is_alive(wp->get()))
       wp->value_ = forwarding_address(wp->get());
   }
+}
+
+void
+free_store::update_permanent_roots() {
+  for (auto r = permanent_roots_.begin(); r != permanent_roots_.end();) {
+    if (!is_alive(*r))
+      *r = forwarding_address(*r);
+
+    if (!*r)
+      r = permanent_roots_.erase(r);
+    else
+      ++r;
+  }
+}
+
+void
+free_store::reset_colors(word_type max_generation) {
+  if (max_generation < generation::mature) {
+    for (word_type g = 0; g <= max_generation; ++g)
+      for (object* o : generations_[g].incoming_arcs)
+        set_object_color(o, color::white);
+
+    for (object* o : permanent_roots_)
+      set_object_color(o, color::white);
+  }
+
+#ifndef NDEBUG
+  if (max_generation == generation::mature) {
+    for (word_type g = 0; g <= generation::mature; ++g)
+      for (object* o : generations_[g].incoming_arcs)
+        assert(object_color(o) == color::white);
+
+    for (object* o : permanent_roots_)
+      assert(object_color(o) == color::white);
+  }
+#endif
 }
 
 void
