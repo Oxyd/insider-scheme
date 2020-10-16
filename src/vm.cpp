@@ -28,6 +28,14 @@ root_stack::update_references() {
     update_reference(o);
 }
 
+execution_state::execution_state(context& ctx)
+  : ctx{ctx}
+  , value_stack{make<root_stack>(ctx)}
+{
+  value_stack->reserve(4096);
+  call_stack.reserve(1024);
+}
+
 static std::vector<generic_ptr>
 collect_closure(ptr<closure> const& cls) {
   std::vector<generic_ptr> result;

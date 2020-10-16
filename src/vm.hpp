@@ -25,6 +25,9 @@ public:
   shrink(std::size_t n) { data_.resize(data_.size() - n); }
 
   void
+  reserve(std::size_t n) { data_.reserve(n); }
+
+  void
   erase(std::size_t begin, std::size_t end);
 
   std::size_t
@@ -64,14 +67,11 @@ public:
 
 struct execution_state {
   context&                ctx;
-  ptr<root_stack>              value_stack;
+  ptr<root_stack>         value_stack;
   std::vector<call_frame> call_stack;
   generic_ptr             global_return;
 
-  execution_state(context& ctx)
-    : ctx{ctx}
-    , value_stack{make<root_stack>(ctx)}
-  { }
+  execution_state(context& ctx);
 };
 
 generic_ptr
