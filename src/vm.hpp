@@ -51,25 +51,57 @@ stack_set(ptr<root_stack> const& s, std::size_t i, generic_ptr const& value) {
   s->set(s.store(), i, value);
 }
 
-class call_frame {
+class call_stack : public composite_root_object<call_stack> {
 public:
-  bytecode_decoder        bytecode;
-  ptr<insider::procedure> procedure;
-  std::size_t             stack_top;
-  operand                 dest_register = std::numeric_limits<operand>::max();
+  struct frame {
+    bytecode_decoder    bytecode;
+    insider::procedure* procedure;
+    std::size_t         stack_top;
+    operand             dest_register;
+  };
 
-  call_frame(ptr<insider::procedure> const& proc, std::size_t stack_top)
-    : bytecode{proc->bytecode}
-    , procedure{proc}
-    , stack_top{stack_top}
-  { }
+  frame&
+  push(insider::procedure* proc, std::size_t stack_top);
+
+  void
+  pop() { frames_.pop_back(); }
+
+  void
+  pop_parent() { frames_.erase(frames_.end() - 2); }
+
+  frame&
+  current_frame() { return frames_.back(); }
+
+  frame&
+  parent_frame() { assert(frames_.size() >= 2); return *(frames_.end() - 2); }
+
+  void
+  reserve(std::size_t n) { frames_.reserve(n); }
+
+  std::size_t
+  size() const { return frames_.size(); }
+
+  auto
+  rbegin() { return frames_.rbegin(); }
+
+  auto
+  rend() { return frames_.rend(); }
+
+  void
+  trace(tracing_context&);
+
+  void
+  update_references();
+
+private:
+  std::vector<frame> frames_;
 };
 
 struct execution_state {
-  context&                ctx;
-  ptr<root_stack>         value_stack;
-  std::vector<call_frame> call_stack;
-  generic_ptr             global_return;
+  context&                 ctx;
+  ptr<root_stack>          value_stack;
+  ptr<insider::call_stack> call_stack;
+  generic_ptr              global_return;
 
   execution_state(context& ctx);
 };

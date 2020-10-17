@@ -28,12 +28,30 @@ root_stack::update_references() {
     update_reference(o);
 }
 
+auto
+call_stack::push(insider::procedure* proc, std::size_t stack_top) -> frame& {
+  return frames_.emplace_back(frame{bytecode_decoder{proc->bytecode}, proc, stack_top, operand{}});
+}
+
+void
+call_stack::trace(tracing_context& tc) {
+  for (frame const& f : frames_)
+    tc.trace(f.procedure);
+}
+
+void
+call_stack::update_references() {
+  for (frame& f : frames_)
+    update_reference(f.procedure);
+}
+
 execution_state::execution_state(context& ctx)
   : ctx{ctx}
   , value_stack{make<root_stack>(ctx)}
+  , call_stack{make<insider::call_stack>(ctx)}
 {
   value_stack->reserve(4096);
-  call_stack.reserve(1024);
+  call_stack->reserve(1024);
 }
 
 static std::vector<generic_ptr>
@@ -51,11 +69,11 @@ collect_closure(ptr<closure> const& cls) {
 static std::size_t
 push_call_frame(execution_state& state, ptr<procedure> const& proc,
                 ptr<closure> const& cls, std::size_t num_args) {
-  call_frame& result = state.call_stack.emplace_back(call_frame{proc, state.value_stack->size()});
+  call_stack::frame& result = state.call_stack->push(proc.get(), state.value_stack->size());
   state.value_stack->grow(proc->locals_size);
 
-  assert(state.call_stack.size() >= 2);
-  call_frame& caller = *(state.call_stack.end() - 2);
+  assert(state.call_stack->size() >= 2);
+  call_stack::frame& caller = state.call_stack->parent_frame();
   bytecode_decoder& bc = caller.bytecode;
 
   std::size_t closure_size = 0;
@@ -75,40 +93,40 @@ push_call_frame(execution_state& state, ptr<procedure> const& proc,
 
 static void
 pop_call_frame(execution_state& state) {
-  std::size_t num_locals = state.call_stack.back().procedure->locals_size;
-  state.call_stack.pop_back();
+  std::size_t num_locals = state.call_stack->current_frame().procedure->locals_size;
+  state.call_stack->pop();
   state.value_stack->shrink(num_locals);
 }
 
 static void
 erase_parent_frame(execution_state& state) {
-  assert(state.call_stack.size() >= 2);
+  assert(state.call_stack->size() >= 2);
 
-  call_frame const& parent = *(state.call_stack.end() - 2);
+  call_stack::frame const& parent = state.call_stack->parent_frame();
   std::size_t values_begin = parent.stack_top;
   std::size_t values_end = values_begin + parent.procedure->locals_size;
 
-  state.call_stack.erase(state.call_stack.end() - 2);
+  state.call_stack->pop_parent();
   state.value_stack->erase(values_begin, values_end);
 
-  state.call_stack.back().stack_top = values_begin;
+  state.call_stack->current_frame().stack_top = values_begin;
 }
 
 static void
 call_frame_set_local(execution_state& state, operand local, generic_ptr const& value) {
   assert(value);
-  stack_set(state.value_stack, state.call_stack.back().stack_top + local, value);
+  stack_set(state.value_stack, state.call_stack->current_frame().stack_top + local, value);
 }
 
 generic_ptr
 call_frame_local(execution_state& state, operand local) {
-  return stack_ref(state.value_stack, state.call_stack.back().stack_top + local);
+  return stack_ref(state.value_stack, state.call_stack->current_frame().stack_top + local);
 }
 
 // Execute the current instruction in the current call frame.
 static void
 execute_one(execution_state& state) {
-  call_frame& frame = state.call_stack.back();
+  call_stack::frame& frame = state.call_stack->current_frame();
   bytecode_decoder& bc = frame.bytecode;
 
   opcode op = bc.read_opcode();
@@ -246,7 +264,7 @@ execute_one(execution_state& state) {
                     scheme_proc->min_args, num_args};
 
       std::size_t values_used = push_call_frame(state, scheme_proc, closure, scheme_proc->min_args);
-      bytecode_decoder& parent_bc = (state.call_stack.end() - 2)->bytecode;
+      bytecode_decoder& parent_bc = state.call_stack->parent_frame().bytecode;
 
       if (scheme_proc->has_rest) {
         // We have to pass exactly min_args + 1 arguments. The last one is a
@@ -256,12 +274,12 @@ execute_one(execution_state& state) {
         std::vector<generic_ptr> rest_args;
         rest_args.reserve(num_rest);
 
-        call_frame const& caller = *(state.call_stack.end() - 2);
+        call_stack::frame const& caller = state.call_stack->parent_frame();
         for (std::size_t i = 0; i < num_rest; ++i)
           rest_args.push_back(stack_ref(state.value_stack, caller.stack_top + parent_bc.read_operand()));
 
         generic_ptr rest_list = make_list_from_vector(state.ctx, rest_args);
-        stack_set(state.value_stack, state.call_stack.back().stack_top + values_used, rest_list);
+        stack_set(state.value_stack, state.call_stack->current_frame().stack_top + values_used, rest_list);
       }
 
       if (is_tail)
@@ -274,7 +292,7 @@ execute_one(execution_state& state) {
       std::vector<generic_ptr> args;
       args.reserve(num_args);
       for (std::size_t i = 0; i < num_args; ++i)
-        args.push_back(stack_ref(state.value_stack, state.call_stack.back().stack_top + bc.read_operand()));
+        args.push_back(stack_ref(state.value_stack, state.call_stack->current_frame().stack_top + bc.read_operand()));
 
       generic_ptr result = native_proc->target(state.ctx, args);
 
@@ -285,7 +303,7 @@ execute_one(execution_state& state) {
         // go back to this frame's caller. Since this is a native procedure, we
         // have to simulate the ret ourselves.
 
-        if (state.call_stack.size() == 1) {
+        if (state.call_stack->size() == 1) {
           // Same as in ret below: We're returning from the global procedure.
 
           state.global_return = result;
@@ -294,7 +312,7 @@ execute_one(execution_state& state) {
         }
 
         pop_call_frame(state);
-        stack_set(state.value_stack, state.call_stack.back().stack_top + state.call_stack.back().dest_register,
+        stack_set(state.value_stack, state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
                   result);
       }
     } else
@@ -306,7 +324,7 @@ execute_one(execution_state& state) {
     operand return_reg = bc.read_operand();
     generic_ptr result = call_frame_local(state, return_reg);
 
-    if (state.call_stack.size() == 1) {
+    if (state.call_stack->size() == 1) {
       // We are returning from the global procedure, so we have nowhere to
       // return to. We will set the global_return value and *not* pop the
       // stack. We'll then set pc past all the bytecode so we finish execution.
@@ -317,7 +335,7 @@ execute_one(execution_state& state) {
     }
 
     pop_call_frame(state);
-    stack_set(state.value_stack, state.call_stack.back().stack_top + state.call_stack.back().dest_register,
+    stack_set(state.value_stack, state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
               result);
     break;
   }
@@ -407,7 +425,7 @@ execution_state
 make_state(context& ctx, ptr<procedure> const& global,
            std::vector<generic_ptr> const& closure, std::vector<generic_ptr> const& arguments) {
   execution_state result{ctx};
-  result.call_stack.emplace_back(global, 0);
+  result.call_stack->push(global.get(), 0);
   result.value_stack->grow(global->locals_size);
 
   std::size_t closure_size = closure.size();
@@ -433,10 +451,10 @@ namespace {
     std::string
     format() const {
       std::string result;
-      for (auto frame = state_.call_stack.rbegin(); frame != state_.call_stack.rend(); ++frame) {
+      for (auto frame = state_.call_stack->rbegin(); frame != state_.call_stack->rend(); ++frame) {
         std::optional<std::string> name = frame->procedure->name;
 
-        if (frame != state_.call_stack.rbegin())
+        if (frame != state_.call_stack->rbegin())
           result += '\n';
         result += fmt::format("in {}", name ? *name : "<lambda>");
       }
@@ -453,12 +471,12 @@ generic_ptr
 run(execution_state& state) {
   execution_action a(state);
 
-  while (!state.call_stack.back().bytecode.done()) {
+  while (!state.call_stack->current_frame().bytecode.done()) {
     execute_one(state);
     state.ctx.store.update();
   }
 
-  assert(state.call_stack.size() == 1); // Non-global procedures must finish by executing ret.
+  assert(state.call_stack->size() == 1); // Non-global procedures must finish by executing ret.
 
   return state.global_return;
 }
