@@ -337,7 +337,16 @@ free_store::free_store()
 free_store::~free_store() {
   assert(!roots_->next());
   assert(!roots_->prev());
-  collect_garbage();
+
+  permanent_roots_.clear();
+  collect_garbage(true);
+
+#ifndef NDEBUG
+  for (generation const& g : generations_) {
+    assert(g.small.empty());
+    assert(g.large.empty());
+  }
+#endif
 }
 
 static void
