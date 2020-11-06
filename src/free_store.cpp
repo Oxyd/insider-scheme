@@ -20,57 +20,16 @@ static constexpr std::size_t nursery_reserve_bytes = nursery_reserve_pages * pag
 static constexpr std::size_t mature_reserve_pages = 10;
 static constexpr std::size_t major_collection_frequency = 32;
 
-static std::vector<type_descriptor>&
-types() {
-  static std::vector<type_descriptor> value;
-  return value;
-}
-
 enum class color : word_type {
   white = 0,
   grey = 1,
   black = 2,
 };
 
-// Object header word:
-//
-// Bits:   63 ..  5    ..      3   ..   1       0
-// Fields: | type | generation | colour | alive |
-
-static constexpr word_type alive_shift = 0;
-static constexpr word_type color_shift = 1;
-static constexpr word_type generation_shift = 3;
-static constexpr word_type type_shift = 5;
-
-static constexpr word_type alive_bit = 1 << alive_shift;
-static constexpr word_type color_bits = (1 << color_shift) | (1 << (color_shift + 1));
-static constexpr word_type generation_bits = (1 << generation_shift) | (1 << (generation_shift + 1));
-
-static word_type&
-header_word(object* o) {
-  assert(is_object_ptr(o));
-  return *reinterpret_cast<word_type*>(reinterpret_cast<std::byte*>(o) - sizeof(word_type));
-}
-
 static void
 init_object_header(std::byte* storage, word_type type, word_type generation = generation::nursery_1) {
   new (storage) word_type((type << type_shift) | alive_bit | (generation << generation_shift));
 }
-
-static word_type
-type_index(word_type header) { return header >> type_shift; }
-
-word_type
-object_type_index(object* o) { return type_index(header_word(o)); }
-
-std::string
-type_name(word_type index) { return types()[index].name; }
-
-static type_descriptor const&
-object_type(word_type header) { return types()[type_index(header)]; }
-
-type_descriptor const&
-object_type(object* o) { return object_type(header_word(o)); }
 
 std::size_t
 object_size(object* o) {
@@ -114,22 +73,6 @@ object*
 forwarding_address(object* o) {
   assert(!is_alive(o));
   return reinterpret_cast<object*>(header_word(o));
-}
-
-bool
-is_object_ptr(object* o) {
-  return !(reinterpret_cast<word_type>(o) & 1);
-}
-
-word_type
-fixnum_payload(object* o) {
-  assert(!is_object_ptr(o));
-  return reinterpret_cast<word_type>(o) >> 1;
-}
-
-object*
-fixnum_to_ptr(word_type w) noexcept {
-  return reinterpret_cast<object*>((w << 1) | 1);
 }
 
 static void

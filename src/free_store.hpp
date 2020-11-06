@@ -52,17 +52,75 @@ struct alignas(sizeof(word_type)) object {
   static constexpr bool is_dynamic_size = false;
 };
 
+// Object header word:
+//
+// Bits:   63 ..  5    ..      3   ..   1       0
+// Fields: | type | generation | colour | alive |
+
+static constexpr word_type alive_shift = 0;
+static constexpr word_type color_shift = 1;
+static constexpr word_type generation_shift = 3;
+static constexpr word_type type_shift = 5;
+
+static constexpr word_type alive_bit = 1 << alive_shift;
+static constexpr word_type color_bits = (1 << color_shift) | (1 << (color_shift + 1));
+static constexpr word_type generation_bits = (1 << generation_shift) | (1 << (generation_shift + 1));
+
+inline std::vector<type_descriptor>&
+types() {
+  static std::vector<type_descriptor> value;
+  return value;
+}
+
+inline bool
+is_object_ptr(object* o) {
+  return !(reinterpret_cast<word_type>(o) & 1);
+}
+
+inline bool
+is_fixnum(object* o) { return !is_object_ptr(o); }
+
+inline word_type&
+header_word(object* o) {
+  assert(is_object_ptr(o));
+  return *reinterpret_cast<word_type*>(reinterpret_cast<std::byte*>(o) - sizeof(word_type));
+}
+
 word_type
 new_type(type_descriptor);
 
-type_descriptor const&
-object_type(object*);
+inline std::string
+type_name(word_type index) { return types()[index].name; }
 
-word_type
-object_type_index(object*);
+inline word_type
+type_index(word_type header) { return header >> type_shift; }
 
-std::string
-type_name(word_type);
+inline type_descriptor const&
+object_type(word_type header) { return types()[type_index(header)]; }
+
+inline type_descriptor const&
+object_type(object* o) { return object_type(header_word(o)); }
+
+inline word_type
+object_type_index(object* o) { return type_index(header_word(o)); }
+
+inline word_type
+fixnum_payload(object* o) {
+  assert(!is_object_ptr(o));
+  return reinterpret_cast<word_type>(o) >> 1;
+}
+
+inline object*
+fixnum_to_ptr(word_type w) noexcept {
+  return reinterpret_cast<object*>((w << 1) | 1);
+}
+
+constexpr char const* integer_type_name = "insider::fixnum";
+
+inline std::string
+object_type_name(object* o) {
+  return is_object_ptr(o) ? type_name(object_type_index(o)) : integer_type_name;
+}
 
 std::size_t
 object_size(object*);
@@ -72,8 +130,6 @@ std::string
 type_name() {
   return type_name(T::type_index);
 }
-
-constexpr char const* integer_type_name = "insider::fixnum";
 
 template <>
 inline std::string
@@ -89,23 +145,6 @@ object_generation(object*);
 
 object*
 forwarding_address(object*);
-
-bool
-is_object_ptr(object*);
-
-inline bool
-is_fixnum(object* o) { return !is_object_ptr(o); }
-
-word_type
-fixnum_payload(object*);
-
-object*
-fixnum_to_ptr(word_type) noexcept;
-
-inline std::string
-object_type_name(object* o) {
-  return is_object_ptr(o) ? type_name(object_type_index(o)) : integer_type_name;
-}
 
 template <typename T>
 void
