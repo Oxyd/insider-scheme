@@ -19,18 +19,18 @@ namespace insider {
 // bindings visible to S-expression. The module is modified by adding a new
 // top-level binding if the datum is a top-level definition.
 std::unique_ptr<syntax>
-analyse(context&, generic_ptr const& datum, module&);
+analyse(context&, object* datum, module&);
 
 // Interpret the given list of data as a main (program) module.
 protomodule
-read_main_module(context&, std::vector<generic_ptr> const& data);
+read_main_module(context&, std::vector<generic_tracked_ptr> const& data);
 
 // Interpret the given list of data as a library.
 protomodule
-read_library(context&, std::vector<generic_ptr> const& data);
+read_library(context&, std::vector<generic_tracked_ptr> const& data);
 
 std::optional<module_name>
-read_library_name(context&, ptr<port> const&);
+read_library_name(context&, port*);
 
 // Analyse a protomodule's body in the given module.
 sequence_syntax

@@ -15,44 +15,56 @@ template <typename T, typename Enable = void>
 struct to_scheme_converter;
 
 template <typename T>
-generic_ptr
+object*
 to_scheme(context& ctx, T const& t) {
   return to_scheme_converter<T>::convert(ctx, t);
 }
 
 template <>
-struct to_scheme_converter<generic_ptr> {
-  static generic_ptr
-  convert(context&, generic_ptr const& p) { return p; }
+struct to_scheme_converter<object*> {
+  static object*
+  convert(context&, object* o) { return o; }
+};
+
+template <>
+struct to_scheme_converter<generic_tracked_ptr> {
+  static object*
+  convert(context&, generic_tracked_ptr const& p) { return p.get(); }
 };
 
 template <typename T>
-struct to_scheme_converter<ptr<T>> {
-  static generic_ptr
-  convert(context&, ptr<T> const& p) { return p; }
+struct to_scheme_converter<T*> {
+  static object*
+  convert(context&, T* o) { return o; }
+};
+
+template <typename T>
+struct to_scheme_converter<tracked_ptr<T>> {
+  static object*
+  convert(context&, tracked_ptr<T> const& p) { return p.get(); }
 };
 
 template <>
 struct to_scheme_converter<integer> {
-  static generic_ptr
+  static object*
   convert(context&, integer i) { return integer_to_ptr(i); }
 };
 
 template <typename T>
 struct to_scheme_converter<T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>> {
-  static generic_ptr
+  static object*
   convert(context&, T t) { return integer_to_ptr(integer{t}); }
 };
 
 template <>
 struct to_scheme_converter<bool> {
-  static generic_ptr
-  convert(context& ctx, bool b) { return b ? ctx.constants->t : ctx.constants->f; }
+  static object*
+  convert(context& ctx, bool b) { return b ? ctx.constants->t.get() : ctx.constants->f.get(); }
 };
 
 template <>
 struct to_scheme_converter<std::string> {
-  static generic_ptr
+  static object*
   convert(context& ctx, std::string const& s) { return make_string(ctx, s); }
 };
 
@@ -61,50 +73,68 @@ struct from_scheme_converter;
 
 template <typename T>
 auto
-from_scheme(context& ctx, generic_ptr const& x) {
-  return from_scheme_converter<std::remove_cv_t<std::remove_reference_t<T>>>::convert(ctx, x);
+from_scheme(context& ctx, object* o) {
+  return from_scheme_converter<std::remove_cv_t<std::remove_reference_t<T>>>::convert(ctx, o);
+}
+
+template <typename T>
+auto
+from_scheme(context& ctx, generic_tracked_ptr const& x) {
+  return from_scheme<T>(ctx, x.get());
 }
 
 template <>
-struct from_scheme_converter<generic_ptr> {
-  static generic_ptr
-  convert(context&, generic_ptr const& x) { return x; }
+struct from_scheme_converter<object*> {
+  static object*
+  convert(context&, object* o) { return o; }
+};
+
+template <>
+struct from_scheme_converter<generic_tracked_ptr> {
+  static generic_tracked_ptr
+  convert(context& ctx, object* o) { return track(ctx, o); }
 };
 
 template <typename T>
-struct from_scheme_converter<ptr<T>> {
-  static ptr<T>
-  convert(context&, generic_ptr const& x) { return expect<T>(x); }
+struct from_scheme_converter<T*> {
+  static T*
+  convert(context&, object* o) { return expect<T>(o); }
+};
+
+template <typename T>
+struct from_scheme_converter<tracked_ptr<T>> {
+  static tracked_ptr<T>
+  convert(context& ctx, object* o) { return track(ctx, expect<T>(o)); }
 };
 
 template <typename T>
 struct from_scheme_converter<T, std::enable_if_t<std::is_integral_v<T>>> {
   static T
-  convert(context&, generic_ptr const& x) { return expect<integer>(x).value(); }
+  convert(context&, object* o) { return expect<integer>(o).value(); }
 };
 
 template <>
 struct from_scheme_converter<std::string> {
   static std::string
-  convert(context&, generic_ptr const& x) { return expect<string>(x)->value(); }
+  convert(context&, object* o) { return expect<string>(o)->value(); }
 };
 
 template <typename T>
 struct from_scheme_converter<std::vector<T>> {
   static std::vector<T>
-  convert(context& ctx, generic_ptr const& x) {
+  convert(context& ctx, object* o) {
     std::vector<T> result;
 
-    if (auto v = match<vector>(x)) {
+    if (auto v = match<vector>(o)) {
       result.reserve(v->size());
       for (std::size_t i = 0; i < v->size(); ++i)
-        result.emplace_back(from_scheme<T>(vector_ref(v, i)));
+        result.emplace_back(from_scheme<T>(ctx, v->ref(i)));
     }
-    else if (is_list(x)) {
-      generic_ptr elem = x;
-      while (elem != ctx.constants->null) {
+    else if (is_list(o)) {
+      object* elem = o;
+      while (elem != ctx.constants->null.get()) {
         auto p = assume<pair>(elem);
-        result.emplace_back(from_scheme<T>(car(p)));
+        result.emplace_back(from_scheme<T>(ctx, car(p)));
         elem = cdr(p);
       }
     }
@@ -133,7 +163,7 @@ namespace detail {
            std::index_sequence<Is...>) {
       auto proc = make<native_procedure>(
         ctx,
-        [name, f = std::move(f)] (context& ctx, std::vector<generic_ptr> const& args) {
+        [name, f = std::move(f)] (context& ctx, std::vector<object*> const& args) {
           if (args.size() != sizeof...(Args))
             throw std::runtime_error{fmt::format(
               "{} called with incorrect number of arguments: {} required; {} given",
@@ -142,7 +172,7 @@ namespace detail {
 
           if constexpr (std::is_same_v<R, void>) {
             f(ctx, from_scheme<Args>(ctx, args[Is])...);
-            return ctx.constants->void_;
+            return ctx.constants->void_.get();
           } else
             return to_scheme(ctx, f(ctx, from_scheme<Args>(ctx, args[Is])...));
         },
@@ -167,7 +197,7 @@ namespace detail {
            std::index_sequence<Is...>) {
       auto proc = make<native_procedure>(
         ctx,
-        [name, f = std::move(f)] (context& ctx, std::vector<generic_ptr> const& args) {
+        [name, f = std::move(f)] (context& ctx, std::vector<object*> const& args) {
           if (args.size() != sizeof...(Args))
             throw std::runtime_error{fmt::format(
               "{} called with incorrect number of arguments: {} required; {} given",
@@ -176,7 +206,7 @@ namespace detail {
 
           if constexpr (std::is_same_v<R, void>) {
             f(from_scheme<Args>(ctx, args[Is])...);
-            return ctx.constants->void_;
+            return ctx.constants->void_.get();
           } else
             return to_scheme(ctx, f(from_scheme<Args>(ctx, args[Is])...));
         },
@@ -184,6 +214,26 @@ namespace detail {
       );
 
       define_top_level(ctx, m, name, proc, export_);
+    }
+  };
+
+  template <typename C, typename R, typename... Args>
+  struct lambda_definer<R (C::*)(Args...)> {
+    static void
+    define(context& ctx, module& m, std::string const& name, R (C::* f)(Args...), bool export_) {
+      lambda_definer<R(C*, Args...)>::define(ctx, m, name,
+                                             [=] (C* c, Args... args) { return (c->*f)(args...); },
+                                             export_);
+    }
+  };
+
+  template <typename C, typename R, typename... Args>
+  struct lambda_definer<R (C::*)(Args...) const> {
+    static void
+    define(context& ctx, module& m, std::string const& name, R (C::* f)(Args...) const, bool export_) {
+      lambda_definer<R(C const*, Args...)>::define(ctx, m, name,
+                                                   [=] (C const* c, Args... args) { return (c->*f)(args...); },
+                                                   export_);
     }
   };
 
@@ -221,19 +271,19 @@ template <typename Ret, typename... Args>
 class scheme_procedure<Ret(Args...)> {
 public:
   explicit
-  scheme_procedure(ptr<procedure> const& f) : f_{f} { }
+  scheme_procedure(tracked_ptr<procedure> const& f) : f_{f} { }
 
   explicit
-  scheme_procedure(generic_ptr const& f) : f_{expect<procedure>(f)} { }
+  scheme_procedure(generic_tracked_ptr const& f) : f_{expect<procedure>(f)} { }
 
   Ret
   operator () (context& ctx, Args&&... args) {
-    std::vector<generic_ptr> arguments{{to_scheme(ctx, std::forward<Args>(args))...}};
-    return from_scheme<Ret>(ctx, call(ctx, f_, arguments));
+    std::vector<object*> arguments{{to_scheme(ctx, std::forward<Args>(args))...}};
+    return from_scheme<Ret>(ctx, call(ctx, f_.get(), arguments));
   }
 
 private:
-  ptr<procedure> f_;
+  tracked_ptr<procedure> f_;
 };
 
 }

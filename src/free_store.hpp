@@ -13,7 +13,7 @@
 
 namespace insider {
 
-class generic_ptr;
+class generic_tracked_ptr;
 class integer;
 struct object;
 
@@ -246,18 +246,18 @@ class free_store;
 
 namespace detail {
   template <typename Derived>
-  class generic_ptr_base {
+  class tracked_ptr_base {
   public:
-    generic_ptr_base() noexcept = default;
+    tracked_ptr_base() noexcept = default;
 
-    generic_ptr_base(free_store& fs, object* value) noexcept
+    tracked_ptr_base(free_store& fs, object* value) noexcept
       : value_{value}
       , store_{&fs}
     {
       link();
     }
 
-    generic_ptr_base(generic_ptr_base const& other) noexcept
+    tracked_ptr_base(tracked_ptr_base const& other) noexcept
       : value_{other.value_}
       , store_{other.store_}
     {
@@ -265,13 +265,13 @@ namespace detail {
         link();
     }
 
-    ~generic_ptr_base() {
+    ~tracked_ptr_base() {
       if (store_)
         unlink();
     }
 
-    generic_ptr_base&
-    operator = (generic_ptr_base const& other) noexcept {
+    tracked_ptr_base&
+    operator = (tracked_ptr_base const& other) noexcept {
       if (this == &other)
         return *this;
 
@@ -353,40 +353,40 @@ namespace detail {
 } // namespace detail
 
 // Untyped pointer to a Scheme object, registered with the garbage collector as a GC root.
-class generic_ptr : public detail::generic_ptr_base<generic_ptr> {
+class generic_tracked_ptr : public detail::tracked_ptr_base<generic_tracked_ptr> {
 public:
-  using generic_ptr_base::generic_ptr_base;
+  using tracked_ptr_base::tracked_ptr_base;
 
   explicit
-  generic_ptr(word_type payload) noexcept {
+  generic_tracked_ptr(word_type payload) noexcept {
     value_ = fixnum_to_ptr(payload);
   }
 
-  generic_ptr&
-  operator = (generic_ptr const& other) noexcept = default;
+  generic_tracked_ptr&
+  operator = (generic_tracked_ptr const& other) noexcept = default;
 
 private:
-  friend class generic_ptr_base;
+  friend class tracked_ptr_base;
 
-  static generic_ptr*
+  static generic_tracked_ptr*
   root_list(free_store& fs) noexcept;
 };
 
 // Like generic_ptr, but does not keep an object alive.
-class generic_weak_ptr : public detail::generic_ptr_base<generic_weak_ptr> {
+class generic_weak_ptr : public detail::tracked_ptr_base<generic_weak_ptr> {
 public:
-  using generic_ptr_base::generic_ptr_base;
+  using tracked_ptr_base::tracked_ptr_base;
 
-  generic_weak_ptr(generic_weak_ptr const& other) noexcept : generic_ptr_base{other} { }
+  generic_weak_ptr(generic_weak_ptr const& other) noexcept : tracked_ptr_base{other} { }
 
   generic_weak_ptr&
   operator = (generic_weak_ptr const& other) noexcept = default;
 
-  generic_ptr
+  generic_tracked_ptr
   lock(free_store& fs) const noexcept { return {fs, value_}; }
 
 private:
-  friend class generic_ptr_base;
+  friend class tracked_ptr_base;
 
   static generic_weak_ptr*
   root_list(free_store& fs) noexcept;
@@ -394,24 +394,24 @@ private:
 
 template <typename Derived>
 bool
-operator == (detail::generic_ptr_base<Derived> const& lhs, detail::generic_ptr_base<Derived> const& rhs) noexcept {
+operator == (detail::tracked_ptr_base<Derived> const& lhs, detail::tracked_ptr_base<Derived> const& rhs) noexcept {
   return lhs.get() == rhs.get();
 }
 
 template <typename Derived>
 bool
-operator != (detail::generic_ptr_base<Derived> const& lhs, detail::generic_ptr_base<Derived> const& rhs) noexcept {
+operator != (detail::tracked_ptr_base<Derived> const& lhs, detail::tracked_ptr_base<Derived> const& rhs) noexcept {
   return !operator == (lhs, rhs);
 }
 
 // Typed pointer to a garbage-collectable object.
 template <typename T>
-class ptr : public generic_ptr {
+class tracked_ptr : public generic_tracked_ptr {
 public:
-  using generic_ptr::generic_ptr;
+  using generic_tracked_ptr::generic_tracked_ptr;
 
-  ptr&
-  operator = (ptr const& other) noexcept = default;
+  tracked_ptr&
+  operator = (tracked_ptr const& other) noexcept = default;
 
   T&
   operator * () const noexcept { return *get(); }
@@ -420,7 +420,7 @@ public:
   operator -> () const noexcept { return get(); }
 
   T*
-  get() const noexcept { return static_cast<T*>(generic_ptr::get()); }
+  get() const noexcept { return static_cast<T*>(generic_tracked_ptr::get()); }
 };
 
 // Typed weak pointer to a garbage-collectable object.
@@ -429,7 +429,7 @@ class weak_ptr : public generic_weak_ptr {
 public:
   using generic_weak_ptr::generic_weak_ptr;
 
-  weak_ptr(ptr<T> const& other) noexcept
+  weak_ptr(tracked_ptr<T> const& other) noexcept
     : weak_ptr{other.store(), other.get()}
   { }
 
@@ -445,7 +445,7 @@ public:
   T*
   get() const noexcept { return static_cast<T*>(generic_weak_ptr::get()); }
 
-  ptr<T>
+  tracked_ptr<T>
   lock() const noexcept { return {*store_, get()}; }
 };
 
@@ -630,7 +630,7 @@ public:
   ~free_store();
 
   template <typename T, typename... Args>
-  std::enable_if_t<!T::is_dynamic_size, ptr<T>>
+  std::enable_if_t<!T::is_dynamic_size, T*>
   make(Args&&... args) {
     static_assert(sizeof(T) % sizeof(word_type) == 0);
 
@@ -640,11 +640,11 @@ public:
     if (object_type(result).permanent_root)
       permanent_roots_.push_back(result);
 
-    return {*this, result};
+    return static_cast<T*>(result);
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<T::is_dynamic_size, ptr<T>>
+  std::enable_if_t<T::is_dynamic_size, T*>
   make(Args&&... args) {
     std::size_t elements = T::extra_elements(args...);
     std::size_t size = detail::round_to_words(sizeof(T) + elements * sizeof(typename T::element_type));
@@ -654,7 +654,7 @@ public:
     if (object_type(result).permanent_root)
       permanent_roots_.push_back(result);
 
-    return {*this, result};
+    return static_cast<T*>(result);
   }
 
   void
@@ -667,7 +667,7 @@ public:
       generations_[object_generation(to)].incoming_arcs.emplace(from);
   }
 
-  generic_ptr*
+  generic_tracked_ptr*
   root_list() { return roots_; }
 
   generic_weak_ptr*
@@ -694,8 +694,8 @@ private:
   std::size_t collection_number_ = 0;
 
   // Two doubly-linked lists with head.
-  generic_ptr*      roots_ = &root_head_;
-  generic_ptr       root_head_;
+  generic_tracked_ptr*      roots_ = &root_head_;
+  generic_tracked_ptr       root_head_;
   generic_weak_ptr* weak_roots_ = &weak_head_;
   generic_weak_ptr  weak_head_;
 
@@ -728,8 +728,8 @@ private:
   request_collection();
 };
 
-inline generic_ptr*
-generic_ptr::root_list(free_store& fs) noexcept {
+inline generic_tracked_ptr*
+generic_tracked_ptr::root_list(free_store& fs) noexcept {
   return fs.root_list();
 }
 

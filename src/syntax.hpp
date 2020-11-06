@@ -34,10 +34,10 @@ struct variable {
 struct syntax;
 
 struct literal_syntax {
-  generic_ptr value;
+  generic_tracked_ptr value;
 
   explicit
-  literal_syntax(generic_ptr const& value) : value{value} { }
+  literal_syntax(generic_tracked_ptr const& value) : value{value} { }
 };
 
 struct local_reference_syntax {
@@ -90,11 +90,11 @@ struct sequence_syntax {
 };
 
 struct definition_pair_syntax {
-  generic_ptr                        id;
+  generic_tracked_ptr                        id;
   std::shared_ptr<insider::variable> variable;
   std::unique_ptr<syntax>            expression;
 
-  definition_pair_syntax(generic_ptr id, std::shared_ptr<insider::variable> var,
+  definition_pair_syntax(generic_tracked_ptr id, std::shared_ptr<insider::variable> var,
                          std::unique_ptr<syntax> expr)
     : id{id}
     , variable{std::move(var)}
@@ -321,12 +321,12 @@ struct protomodule {
   std::optional<module_name>    name;
   std::vector<import_specifier> imports;
   std::vector<std::string>      exports;
-  std::vector<generic_ptr>      body;
+  std::vector<generic_tracked_ptr>      body;
 
   protomodule() = default;
 
   protomodule(std::optional<module_name> name, std::vector<import_specifier> imports,
-              std::vector<std::string> exports, std::vector<generic_ptr> body)
+              std::vector<std::string> exports, std::vector<generic_tracked_ptr> body)
     : name{std::move(name)}
     , imports{std::move(imports)}
     , exports{std::move(exports)}

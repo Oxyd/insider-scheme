@@ -355,11 +355,12 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx
     encode_instruction(proc.bytecode.back(), instruction{opcode::ret, *return_value});
 
   assert(proc.bytecode.size() == 1);
-  ptr<procedure> p = ctx.store.make<procedure>(std::move(proc.bytecode.back()),
-                                               proc.registers.locals_used(),
-                                               stx.parameters.size() - (stx.has_rest ? 1 : 0),
-                                               stx.has_rest,
-                                               stx.name);
+  tracked_ptr<procedure> p = make_tracked<procedure>(ctx,
+                                         std::move(proc.bytecode.back()),
+                                         proc.registers.locals_used(),
+                                         stx.parameters.size() - (stx.has_rest ? 1 : 0),
+                                         stx.has_rest,
+                                         stx.name);
   shared_register p_reg = compile_static_reference(parent, ctx.intern_static(p));
 
   if (!stx.free_variables.empty()) {
@@ -615,8 +616,8 @@ compile_sequence(context& ctx, procedure_context& proc, sequence_syntax const& s
   return result;
 }
 
-ptr<procedure>
-compile_expression(context& ctx, generic_ptr const& datum, module& mod) {
+procedure*
+compile_expression(context& ctx, object* datum, module& mod) {
   auto stx = analyse(ctx, datum, mod);
 
   procedure_context proc{nullptr, mod};
@@ -625,13 +626,11 @@ compile_expression(context& ctx, generic_ptr const& datum, module& mod) {
     encode_instruction(proc.bytecode.back(), instruction{opcode::ret, *result});
 
   assert(proc.bytecode.size() == 1);
-  return ctx.store.make<procedure>(std::move(proc.bytecode.back()),
-                                   proc.registers.locals_used(),
-                                   0);
+  return make<procedure>(ctx, std::move(proc.bytecode.back()), proc.registers.locals_used(), 0);
 }
 
 module
-compile_main_module(context& ctx, std::vector<generic_ptr> const& data) {
+compile_main_module(context& ctx, std::vector<generic_tracked_ptr> const& data) {
   simple_action a(ctx, "Analysing main module");
   protomodule pm = read_main_module(ctx, data);
   module result{ctx};
@@ -650,10 +649,10 @@ compile_module_body(context& ctx, module& m, protomodule const& pm) {
     encode_instruction(proc.bytecode.back(), instruction{opcode::ret, *result});
 
   assert(proc.bytecode.size() == 1);
-  m.set_top_level_procedure(make<procedure>(ctx,
-                                            std::move(proc.bytecode.back()),
-                                            proc.registers.locals_used(),
-                                            0));
+  m.set_top_level_procedure(make_tracked<procedure>(ctx,
+                                                std::move(proc.bytecode.back()),
+                                                proc.registers.locals_used(),
+                                                0));
 }
 
 } // namespace insider

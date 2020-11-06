@@ -47,19 +47,19 @@ call_stack::update_references() {
 
 execution_state::execution_state(context& ctx)
   : ctx{ctx}
-  , value_stack{make<root_stack>(ctx)}
-  , call_stack{make<insider::call_stack>(ctx)}
+  , value_stack{make_tracked<root_stack>(ctx)}
+  , call_stack{make_tracked<insider::call_stack>(ctx)}
 {
   value_stack->reserve(4096);
   call_stack->reserve(1024);
 }
 
-static std::vector<generic_ptr>
-collect_closure(ptr<closure> const& cls) {
-  std::vector<generic_ptr> result;
+static std::vector<object*>
+collect_closure(closure* cls) {
+  std::vector<object*> result;
   result.reserve(cls->size());
   for (std::size_t i = 0; i < cls->size(); ++i)
-    result.push_back(closure_ref(cls, i));
+    result.push_back(cls->ref(i));
 
   return result;
 }
@@ -67,9 +67,9 @@ collect_closure(ptr<closure> const& cls) {
 // Make a call frame and copy closure and call arguments into it, and push the
 // new frame to both value_stack and call_stack.
 static std::size_t
-push_call_frame(execution_state& state, ptr<procedure> const& proc,
-                ptr<closure> const& cls, std::size_t num_args) {
-  call_stack::frame& result = state.call_stack->push(proc.get(), state.value_stack->size());
+push_call_frame(execution_state& state, procedure* proc,
+                closure* cls, std::size_t num_args) {
+  call_stack::frame& result = state.call_stack->push(proc, state.value_stack->size());
   state.value_stack->grow(proc->locals_size);
 
   assert(state.call_stack->size() >= 2);
@@ -80,12 +80,12 @@ push_call_frame(execution_state& state, ptr<procedure> const& proc,
   if (cls) {
     closure_size = cls->size();
     for (std::size_t i = 0; i < closure_size; ++i)
-      stack_set(state.value_stack, result.stack_top + i, closure_ref(cls, i));
+      stack_set(state.value_stack, result.stack_top + i, cls->ref(i));
   }
 
   for (std::size_t i = 0; i < num_args; ++i) {
     stack_set(state.value_stack, result.stack_top + closure_size + i,
-              stack_ref(state.value_stack, caller.stack_top + bc.read_operand()));
+              state.value_stack->ref(caller.stack_top + bc.read_operand()));
   }
 
   return closure_size + num_args;
@@ -113,14 +113,14 @@ erase_parent_frame(execution_state& state) {
 }
 
 static void
-call_frame_set_local(execution_state& state, operand local, generic_ptr const& value) {
+call_frame_set_local(execution_state& state, operand local, object* value) {
   assert(value);
   stack_set(state.value_stack, state.call_stack->current_frame().stack_top + local, value);
 }
 
-generic_ptr
+object*
 call_frame_local(execution_state& state, operand local) {
-  return stack_ref(state.value_stack, state.call_stack->current_frame().stack_top + local);
+  return state.value_stack->ref(state.call_stack->current_frame().stack_top + local);
 }
 
 // Execute the current instruction in the current call frame.
@@ -159,8 +159,8 @@ execute_one(execution_state& state) {
   case opcode::subtract:
   case opcode::multiply:
   case opcode::divide: {
-    generic_ptr lhs = call_frame_local(state, bc.read_operand());
-    generic_ptr rhs = call_frame_local(state, bc.read_operand());
+    object* lhs = call_frame_local(state, bc.read_operand());
+    object* rhs = call_frame_local(state, bc.read_operand());
     operand dest = bc.read_operand();
 
     switch (op) {
@@ -186,8 +186,8 @@ execute_one(execution_state& state) {
   case opcode::arith_equal:
   case opcode::less_than:
   case opcode::greater_than: {
-    generic_ptr lhs = call_frame_local(state, bc.read_operand());
-    generic_ptr rhs = call_frame_local(state, bc.read_operand());
+    object* lhs = call_frame_local(state, bc.read_operand());
+    object* rhs = call_frame_local(state, bc.read_operand());
     operand dest = bc.read_operand();
 
     switch (op) {
@@ -223,7 +223,7 @@ execute_one(execution_state& state) {
                    || op == opcode::tail_call_top_level
                    || op == opcode::tail_call_static;
 
-    generic_ptr callee;
+    object* callee;
     switch (op) {
     case opcode::call:
     case opcode::tail_call:
@@ -248,11 +248,11 @@ execute_one(execution_state& state) {
       frame.dest_register = bc.read_operand();
 
     operand num_args = bc.read_operand();
-    generic_ptr call_target = callee;
-    ptr<insider::closure> closure;
+    object* call_target = callee;
+    insider::closure* closure = nullptr;
 
     if (auto cls = match<insider::closure>(call_target)) {
-      call_target = cls->procedure(state.ctx.store);
+      call_target = cls->procedure();
       closure = cls;
     }
 
@@ -271,14 +271,14 @@ execute_one(execution_state& state) {
         // list with all the arguments after the min_args'th.
 
         std::size_t num_rest = num_args - scheme_proc->min_args;
-        std::vector<generic_ptr> rest_args;
+        std::vector<object*> rest_args;
         rest_args.reserve(num_rest);
 
         call_stack::frame const& caller = state.call_stack->parent_frame();
         for (std::size_t i = 0; i < num_rest; ++i)
-          rest_args.push_back(stack_ref(state.value_stack, caller.stack_top + parent_bc.read_operand()));
+          rest_args.push_back(state.value_stack->ref(caller.stack_top + parent_bc.read_operand()));
 
-        generic_ptr rest_list = make_list_from_vector(state.ctx, rest_args);
+        object* rest_list = make_list_from_vector(state.ctx, rest_args);
         stack_set(state.value_stack, state.call_stack->current_frame().stack_top + values_used, rest_list);
       }
 
@@ -289,12 +289,12 @@ execute_one(execution_state& state) {
 
       assert(!closure);
 
-      std::vector<generic_ptr> args;
+      std::vector<object*> args;
       args.reserve(num_args);
       for (std::size_t i = 0; i < num_args; ++i)
-        args.push_back(stack_ref(state.value_stack, state.call_stack->current_frame().stack_top + bc.read_operand()));
+        args.push_back(state.value_stack->ref(state.call_stack->current_frame().stack_top + bc.read_operand()));
 
-      generic_ptr result = native_proc->target(state.ctx, args);
+      object* result = native_proc->target(state.ctx, args);
 
       if (!is_tail)
         stack_set(state.value_stack, frame.stack_top + frame.dest_register, result);
@@ -306,7 +306,7 @@ execute_one(execution_state& state) {
         if (state.call_stack->size() == 1) {
           // Same as in ret below: We're returning from the global procedure.
 
-          state.global_return = result;
+          state.global_return = track(state.ctx, result);
           frame.bytecode.jump_to_end();
           return;
         }
@@ -322,14 +322,14 @@ execute_one(execution_state& state) {
 
   case opcode::ret: {
     operand return_reg = bc.read_operand();
-    generic_ptr result = call_frame_local(state, return_reg);
+    object* result = call_frame_local(state, return_reg);
 
     if (state.call_stack->size() == 1) {
       // We are returning from the global procedure, so we have nowhere to
       // return to. We will set the global_return value and *not* pop the
       // stack. We'll then set pc past all the bytecode so we finish execution.
 
-      state.global_return = result;
+      state.global_return = track(state.ctx, result);
       frame.bytecode.jump_to_end();
       return;
     }
@@ -356,12 +356,12 @@ execute_one(execution_state& state) {
 
     int offset = (op == opcode::jump_back || op == opcode::jump_back_unless) ? -off : off;
     if (op == opcode::jump_unless || op == opcode::jump_back_unless) {
-      generic_ptr test_value = call_frame_local(state, condition_reg);
+      object* test_value = call_frame_local(state, condition_reg);
 
       // The only false value in Scheme is #f. So we only jump if the test_value
       // is exactly #f.
 
-      if (test_value != state.ctx.constants->f)
+      if (test_value != state.ctx.constants->f.get())
         break;
     }
 
@@ -370,39 +370,39 @@ execute_one(execution_state& state) {
   }
 
   case opcode::make_closure: {
-    ptr<procedure> proc = assume<procedure>(call_frame_local(state, bc.read_operand()));
+    procedure* proc = assume<procedure>(call_frame_local(state, bc.read_operand()));
     operand dest = bc.read_operand();
     operand num_captures = bc.read_operand();
 
     auto result = make<closure>(state.ctx, proc, num_captures);
     for (std::size_t i = 0; i < num_captures; ++i)
-      closure_set(result, i, call_frame_local(state, bc.read_operand()));
+      result->set(state.ctx.store, i, call_frame_local(state, bc.read_operand()));
 
     call_frame_set_local(state, dest, result);
     break;
   }
 
   case opcode::box: {
-    generic_ptr value = call_frame_local(state, bc.read_operand());
+    object* value = call_frame_local(state, bc.read_operand());
     call_frame_set_local(state, bc.read_operand(), state.ctx.store.make<box>(value));
     break;
   }
 
   case opcode::unbox: {
     auto box = expect<insider::box>(call_frame_local(state, bc.read_operand()));
-    call_frame_set_local(state, bc.read_operand(), unbox(box));
+    call_frame_set_local(state, bc.read_operand(), box->get());
     break;
   }
 
   case opcode::box_set: {
     auto box = expect<insider::box>(call_frame_local(state, bc.read_operand()));
-    box_set(box, call_frame_local(state, bc.read_operand()));
+    box->set(state.ctx.store, call_frame_local(state, bc.read_operand()));
     break;
   }
 
   case opcode::cons: {
-    generic_ptr car = call_frame_local(state, bc.read_operand());
-    generic_ptr cdr = call_frame_local(state, bc.read_operand());
+    object* car = call_frame_local(state, bc.read_operand());
+    object* cdr = call_frame_local(state, bc.read_operand());
     call_frame_set_local(state, bc.read_operand(), make<pair>(state.ctx, car, cdr));
     break;
   }
@@ -413,7 +413,7 @@ execute_one(execution_state& state) {
 
     auto result = make<vector>(state.ctx, state.ctx, num_elems);
     for (std::size_t i = 0; i < num_elems; ++i)
-      vector_set(result, i, call_frame_local(state, bc.read_operand()));
+      result->set(state.ctx.store, i, call_frame_local(state, bc.read_operand()));
 
     call_frame_set_local(state, dest, result);
     break;
@@ -422,10 +422,10 @@ execute_one(execution_state& state) {
 }
 
 execution_state
-make_state(context& ctx, ptr<procedure> const& global,
-           std::vector<generic_ptr> const& closure, std::vector<generic_ptr> const& arguments) {
+make_state(context& ctx, procedure* global,
+           std::vector<object*> const& closure, std::vector<object*> const& arguments) {
   execution_state result{ctx};
-  result.call_stack->push(global.get(), 0);
+  result.call_stack->push(global, 0);
   result.value_stack->grow(global->locals_size);
 
   std::size_t closure_size = closure.size();
@@ -467,7 +467,7 @@ namespace {
   };
 }
 
-generic_ptr
+object*
 run(execution_state& state) {
   execution_action a(state);
 
@@ -478,14 +478,14 @@ run(execution_state& state) {
 
   assert(state.call_stack->size() == 1); // Non-global procedures must finish by executing ret.
 
-  return state.global_return;
+  return state.global_return.get();
 }
 
-generic_ptr
-call(context& ctx, generic_ptr callable, std::vector<generic_ptr> const& arguments) {
-  std::vector<generic_ptr> closure;
+object*
+call(context& ctx, object* callable, std::vector<object*> const& arguments) {
+  std::vector<object*> closure;
   if (auto cls = match<insider::closure>(callable)) {
-    callable = closure_procedure(cls);
+    callable = cls->procedure();
     closure = collect_closure(cls);
   }
 

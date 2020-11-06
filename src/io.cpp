@@ -20,7 +20,7 @@ struct hash_left_paren { };
 struct dot { };
 
 struct generic_literal {
-  generic_ptr value;
+  object* value;
 };
 
 struct boolean_literal {
@@ -73,7 +73,7 @@ delimiter(char c) {
 }
 
 static void
-skip_whitespace(ptr<port> const& stream) {
+skip_whitespace(port* stream) {
   std::optional<char> c = stream->peek_char();
 
   while (c && (whitespace(*c) || *c == ';')) {
@@ -91,7 +91,7 @@ skip_whitespace(ptr<port> const& stream) {
 }
 
 static std::string
-read_until_delimiter(ptr<port> const& stream) {
+read_until_delimiter(port* stream) {
   std::string result;
   while (stream->peek_char() && !delimiter(*stream->peek_char()))
     result += *stream->read_char();
@@ -110,12 +110,12 @@ hexdigit(char c) {
 }
 
 static generic_literal
-read_numeric_literal(context& ctx, ptr<port> const& stream) {
+read_numeric_literal(context& ctx, port* stream) {
   return generic_literal{read_number(ctx, stream)};
 }
 
 static token
-read_character(context& ctx, ptr<port> const& stream) {
+read_character(context& ctx, port* stream) {
   static std::unordered_map<std::string, char> const character_names{
     {"alarm",     '\x07'},
     {"backspace", '\x08'},
@@ -155,7 +155,7 @@ read_character(context& ctx, ptr<port> const& stream) {
 }
 
 static token
-read_special_literal(context& ctx, ptr<port> const& stream) {
+read_special_literal(context& ctx, port* stream) {
   std::optional<char> c = stream->peek_char();
   if (!c)
     throw parse_error{"Unexpected end of input"};
@@ -194,7 +194,7 @@ read_special_literal(context& ctx, ptr<port> const& stream) {
 }
 
 static identifier
-read_identifier(ptr<port> const& stream) {
+read_identifier(port* stream) {
   std::string value;
   while (stream->peek_char() && !delimiter(*stream->peek_char()))
     value += *stream->read_char();
@@ -203,7 +203,7 @@ read_identifier(ptr<port> const& stream) {
 }
 
 static generic_literal
-read_string_literal(context& ctx, ptr<port> const& stream) {
+read_string_literal(context& ctx, port* stream) {
   // The opening " was consumed before calling this function.
 
   std::string result;
@@ -240,7 +240,7 @@ read_string_literal(context& ctx, ptr<port> const& stream) {
 }
 
 static token
-read_token(context& ctx, ptr<port> const& stream) {
+read_token(context& ctx, port* stream) {
   skip_whitespace(stream);
 
   std::optional<char> c = stream->read_char();
@@ -343,28 +343,28 @@ read_token(context& ctx, ptr<port> const& stream) {
   }
 }
 
-static generic_ptr
-read(context& ctx, token first_token, ptr<port> const& stream);
+static object*
+read(context& ctx, token first_token, port* stream);
 
-static generic_ptr
-read_list(context& ctx, ptr<port> const& stream) {
+static object*
+read_list(context& ctx, port* stream) {
   token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t))
     throw parse_error{"Unterminated list"};
   else if (std::holds_alternative<dot>(t))
     throw parse_error{"Unexpected . token"};
   else if (std::holds_alternative<right_paren>(t))
-    return ctx.constants->null;
+    return ctx.constants->null.get();
 
-  ptr<pair> result = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null);
-  ptr<pair> tail = result;
+  pair* result = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null.get());
+  pair* tail = result;
 
   t = read_token(ctx, stream);
   while (!std::holds_alternative<end>(t)
          && !std::holds_alternative<right_paren>(t)
          && !std::holds_alternative<dot>(t)) {
-    ptr<pair> new_tail = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null);
-    set_cdr(tail, new_tail);
+    pair* new_tail = make<pair>(ctx, read(ctx, t, stream), ctx.constants->null.get());
+    tail->set_cdr(ctx.store, new_tail);
     tail = new_tail;
 
     t = read_token(ctx, stream);
@@ -373,8 +373,8 @@ read_list(context& ctx, ptr<port> const& stream) {
   if (std::holds_alternative<end>(t))
     throw parse_error{"Unterminated list"};
   else if (std::holds_alternative<dot>(t)) {
-    generic_ptr cdr = read(ctx, read_token(ctx, stream), stream);
-    set_cdr(tail, cdr);
+    object* cdr = read(ctx, read_token(ctx, stream), stream);
+    tail->set_cdr(ctx.store, cdr);
 
     t = read_token(ctx, stream);
     if (!std::holds_alternative<right_paren>(t))
@@ -385,11 +385,11 @@ read_list(context& ctx, ptr<port> const& stream) {
   return result;
 }
 
-static generic_ptr
-read_vector(context& ctx, ptr<port> const& stream) {
+static object*
+read_vector(context& ctx, port* stream) {
   stream->read_char(); // Consume (
 
-  std::vector<generic_ptr> elements;
+  std::vector<object*> elements;
 
   token t = read_token(ctx, stream);
   while (!std::holds_alternative<end>(t) && !std::holds_alternative<right_paren>(t)) {
@@ -400,15 +400,15 @@ read_vector(context& ctx, ptr<port> const& stream) {
   if (std::holds_alternative<end>(t))
     throw parse_error{"Unterminated vector"};
 
-  ptr<vector> result = make<vector>(ctx, ctx, elements.size());
+  vector* result = make<vector>(ctx, ctx, elements.size());
   for (std::size_t i = 0; i < elements.size(); ++i)
-    vector_set(result, i, elements[i]);
+    result->set(ctx.store, i, elements[i]);
 
   return result;
 }
 
-static generic_ptr
-read_shortcut(context& ctx, ptr<port> const& stream,
+static object*
+read_shortcut(context& ctx, port* stream,
               std::string const& shortcut, std::string const& expansion) {
   token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t))
@@ -417,8 +417,8 @@ read_shortcut(context& ctx, ptr<port> const& stream,
   return make_list(ctx, ctx.intern(expansion), read(ctx, t, stream));
 }
 
-static generic_ptr
-read(context& ctx, token first_token, ptr<port> const& stream) {
+static object*
+read(context& ctx, token first_token, port* stream) {
   if (std::holds_alternative<end>(first_token))
     return {};
   else if (std::holds_alternative<left_paren>(first_token))
@@ -438,9 +438,9 @@ read(context& ctx, token first_token, ptr<port> const& stream) {
   else if (identifier* i = std::get_if<identifier>(&first_token))
     return ctx.intern(i->value);
   else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token))
-    return b->value ? ctx.constants->t : ctx.constants->f;
+    return b->value ? ctx.constants->t.get() : ctx.constants->f.get();
   else if (std::holds_alternative<void_literal>(first_token))
-    return ctx.constants->void_;
+    return ctx.constants->void_.get();
   else if (std::holds_alternative<dot>(first_token))
     throw parse_error{"Unexpected . token"};
   else if (std::holds_alternative<right_paren>(first_token))
@@ -449,34 +449,34 @@ read(context& ctx, token first_token, ptr<port> const& stream) {
   throw parse_error{"Probably unimplemented"};
 }
 
-generic_ptr
-read(context& ctx, ptr<port> const& stream) {
+object*
+read(context& ctx, port* stream) {
   return read(ctx, read_token(ctx, stream), stream);
 }
 
-generic_ptr
+object*
 read(context& ctx, std::string s) {
   auto port = make<insider::port>(ctx, std::move(s), true, false);
   return read(ctx, port);
 }
 
-std::vector<generic_ptr>
-read_multiple(context& ctx, ptr<port> const& in) {
-  std::vector<generic_ptr> result;
-  while (generic_ptr elem = read(ctx, in))
-    result.push_back(elem);
+std::vector<generic_tracked_ptr>
+read_multiple(context& ctx, port* in) {
+  std::vector<generic_tracked_ptr> result;
+  while (object* elem = read(ctx, in))
+    result.push_back(track(ctx, elem));
 
   return result;
 }
 
-std::vector<generic_ptr>
+std::vector<generic_tracked_ptr>
 read_multiple(context& ctx, std::string s) {
   auto port = make<insider::port>(ctx, std::move(s), true, false);
   return read_multiple(ctx, port);
 }
 
 static void
-write_string(ptr<string> const& s, ptr<port> const& out) {
+write_string(string* s, port* out) {
   out->write_char('"');
   for (char c : s->value())
     if (c == '"')
@@ -489,20 +489,20 @@ write_string(ptr<string> const& s, ptr<port> const& out) {
 }
 
 static void
-write_char(ptr<character> const& c, ptr<port> const& out) {
+write_char(character* c, port* out) {
   out->write_string(R"(#\)");
   out->write_char(c->value());
 }
 
 static void
-output_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out, bool display) {
-  if (datum == ctx.constants->null)
+output_primitive(context& ctx, object* datum, port* out, bool display) {
+  if (datum == ctx.constants->null.get())
     out->write_string("()");
-  else if (datum == ctx.constants->void_)
+  else if (datum == ctx.constants->void_.get())
     out->write_string("#void");
-  else if (datum == ctx.constants->t)
+  else if (datum == ctx.constants->t.get())
     out->write_string("#t");
-  else if (datum == ctx.constants->f)
+  else if (datum == ctx.constants->f.get())
     out->write_string("#f");
   else if (auto sym = match<symbol>(datum))
     out->write_string(sym->value());
@@ -520,10 +520,10 @@ output_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out, b
     write_number(ctx, datum, out);
   else if (auto sc = match<syntactic_closure>(datum)) {
     out->write_string("#syntactic-closure(");
-    write_simple(ctx, syntactic_closure_environment(sc), out);
+    write_simple(ctx, sc->environment(), out);
     out->write_char(' ');
 
-    std::vector<ptr<symbol>> free = syntactic_closure_free(sc);
+    std::vector<symbol*> free = sc->free();
     out->write_char('(');
 
     for (auto it = free.begin(); it != free.end(); ++it) {
@@ -535,23 +535,23 @@ output_primitive(context& ctx, generic_ptr const& datum, ptr<port> const& out, b
 
     out->write_string(") ");
 
-    write_simple(ctx, syntactic_closure_expression(sc), out);
+    write_simple(ctx, sc->expression(), out);
     out->write_char(')');
   } else if (auto env = match<environment>(datum)) {
-    out->write_string(fmt::format("#env@{}", static_cast<void*>(env.get())));
+    out->write_string(fmt::format("#env@{}", static_cast<void*>(env)));
   } else if (auto proc = match<procedure>(datum)) {
     if (proc->name)
       out->write_string(fmt::format("<procedure {}>", *proc->name));
     else
       out->write_string("<lambda>");
   } else
-    out->write_string(fmt::format("<{}>", object_type_name(datum.get())));
+    out->write_string(fmt::format("<{}>", object_type_name(datum)));
 }
 
 static void
-output_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out, bool display) {
+output_simple(context& ctx, object* datum, port* out, bool display) {
   struct record {
-    generic_ptr datum;
+    object*     datum;
     std::size_t written = 0;
     bool        omit_parens = false;
   };
@@ -575,7 +575,7 @@ output_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out, bool
         if (is<insider::pair>(cdr(pair))) {
           out->write_char(' ');
           stack.push_back({cdr(pair), 0, true});
-        } else if (cdr(pair) == ctx.constants->null) {
+        } else if (cdr(pair) == ctx.constants->null.get()) {
           if (!top.omit_parens)
             out->write_char(')');
           stack.pop_back();
@@ -603,7 +603,7 @@ output_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out, bool
         out->write_char(' ');
 
       std::size_t index = top.written++;
-      stack.push_back({vector_ref(vec, index)});
+      stack.push_back({vec->ref(index)});
     }
     else {
       output_primitive(ctx, top.datum, out, display);
@@ -613,17 +613,17 @@ output_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out, bool
 }
 
 void
-write_simple(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
+write_simple(context& ctx, object* datum, port* out) {
   output_simple(ctx, datum, out, false);
 }
 
 void
-display(context& ctx, generic_ptr const& datum, ptr<port> const& out) {
+display(context& ctx, object* datum, port* out) {
   output_simple(ctx, datum, out, true);
 }
 
 std::string
-datum_to_string(context& ctx, generic_ptr const& datum) {
+datum_to_string(context& ctx, object* datum) {
   auto p = make<port>(ctx, "", false, true);
   write_simple(ctx, datum, p);
   return p->get_string();

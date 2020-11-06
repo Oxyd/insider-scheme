@@ -10,12 +10,12 @@ namespace insider {
 // Dynamic-sized stack to store local variables.
 class root_stack : public composite_root_object<root_stack> {
 public:
-  generic_ptr
-  ref(free_store& store, std::size_t i) { return {store, data_[i]}; }
+  object*
+  ref(std::size_t i) { return data_[i]; }
 
   void
-  set(free_store&, std::size_t i, generic_ptr const& value) {
-    data_[i] = value.get();
+  set(free_store&, std::size_t i, object* value) {
+    data_[i] = value;
   }
 
   void
@@ -43,11 +43,8 @@ private:
   std::vector<object*> data_;
 };
 
-inline generic_ptr
-stack_ref(ptr<root_stack> const& s, std::size_t i) { return s->ref(s.store(), i); }
-
 inline void
-stack_set(ptr<root_stack> const& s, std::size_t i, generic_ptr const& value) {
+stack_set(tracked_ptr<root_stack> const& s, std::size_t i, object* value) {
   s->set(s.store(), i, value);
 }
 
@@ -98,30 +95,34 @@ private:
 };
 
 struct execution_state {
-  context&                 ctx;
-  ptr<root_stack>          value_stack;
-  ptr<insider::call_stack> call_stack;
-  generic_ptr              global_return;
+  context&                         ctx;
+  tracked_ptr<root_stack>          value_stack;
+  tracked_ptr<insider::call_stack> call_stack;
+  generic_tracked_ptr              global_return;
 
   execution_state(context& ctx);
 };
 
-generic_ptr
+object*
 call_frame_local(execution_state& state, operand local);
 
 // Make execution state using the given procedure as the global call frame.
 execution_state
-make_state(context&, ptr<procedure> const&,
-           std::vector<generic_ptr> const& closure = {}, std::vector<generic_ptr> const& arguments = {});
+make_state(context&, procedure*,
+           std::vector<object*> const& closure = {}, std::vector<object*> const& arguments = {});
 
 // Run the bytecode in the execution context's global call frame.
-generic_ptr
+//
+// Causes a garbage collection.
+object*
 run(execution_state&);
 
 // Create a new execution state with the given procedure as the root frame,
 // execute it, and return the procedure's return value.
-generic_ptr
-call(context&, generic_ptr callable, std::vector<generic_ptr> const& arguments);
+//
+// Causes a garbage collection.
+object*
+call(context&, object* callable, std::vector<object*> const& arguments);
 
 } // namespace insider
 

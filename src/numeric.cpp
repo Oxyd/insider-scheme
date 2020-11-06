@@ -53,7 +53,7 @@ big_integer::extra_elements(integer i) {
 }
 
 std::size_t
-big_integer::extra_elements(ptr<big_integer> const& i) {
+big_integer::extra_elements(big_integer* i) {
   return i->length();
 }
 
@@ -75,7 +75,7 @@ big_integer::big_integer(std::vector<limb_type> const& limbs, bool positive)
   std::copy(limbs.begin(), limbs.end(), begin());
 }
 
-big_integer::big_integer(ptr<big_integer> const& i)
+big_integer::big_integer(big_integer* i)
   : length_{i->length()}
   , positive_{i->positive()}
 {
@@ -136,9 +136,9 @@ big_integer::rend() -> reverse_iterator {
   return reverse_iterator{begin()};
 }
 
-fraction::fraction(generic_ptr const& num, generic_ptr const& den)
-  : numerator_{num.get()}
-  , denominator_{den.get()}
+fraction::fraction(object* num, object* den)
+  : numerator_{num}
+  , denominator_{den}
 {
   assert(is_integer(num));
   assert(is_integer(den));
@@ -159,8 +159,8 @@ digit_value(char c) {
     return c - 'A' + 10;
 }
 
-static ptr<big_integer>
-extend_big(context& ctx, ptr<big_integer> const& i, limb_type new_limb) {
+static big_integer*
+extend_big(context& ctx, big_integer* i, limb_type new_limb) {
   auto result = make<big_integer>(ctx, i->length() + 1, big_integer::dont_initialize);
   std::copy(i->begin(), i->end(), result->begin());
   result->back() = new_limb;
@@ -169,7 +169,7 @@ extend_big(context& ctx, ptr<big_integer> const& i, limb_type new_limb) {
 }
 
 static std::size_t
-normal_length(ptr<big_integer> const& i) {
+normal_length(big_integer* i) {
   std::size_t result = i->length();
   while (result > 0 && i->data()[result - 1] == limb_type{0})
     --result;
@@ -177,8 +177,8 @@ normal_length(ptr<big_integer> const& i) {
   return result;
 }
 
-static generic_ptr
-normalize(context& ctx, ptr<big_integer> const& i) {
+static object*
+normalize(context& ctx, big_integer* i) {
   std::size_t new_length = normal_length(i);
 
   if (new_length == 0)
@@ -218,10 +218,10 @@ normalize(context& ctx, ptr<big_integer> const& i) {
   return result;
 }
 
-static generic_ptr
-normalize_fraction(context& ctx, ptr<fraction> const& q) {
-  generic_ptr num = fraction_numerator(q);
-  generic_ptr den = fraction_denominator(q);
+static object*
+normalize_fraction(context& ctx, fraction* q) {
+  object* num = q->numerator();
+  object* den = q->denominator();
 
   if (auto d = match<integer>(den)) {
     if (d->value() == 0)
@@ -233,7 +233,7 @@ normalize_fraction(context& ctx, ptr<fraction> const& q) {
       return integer_to_ptr(*n);
   }
 
-  generic_ptr com_den = gcd(ctx, num, den);
+  object* com_den = gcd(ctx, num, den);
   if (auto c = match<integer>(com_den)) {
     if (c->value() == 1)
       return q;
@@ -242,9 +242,9 @@ normalize_fraction(context& ctx, ptr<fraction> const& q) {
   return make<fraction>(ctx, truncate_quotient(ctx, num, com_den), truncate_quotient(ctx, den, com_den));
 }
 
-static ptr<big_integer>
-add_big_magnitude_to_limb_destructive(context& ctx, ptr<big_integer> result,
-                                      ptr<big_integer> const& lhs, limb_type rhs) {
+static big_integer*
+add_big_magnitude_to_limb_destructive(context& ctx, big_integer* result,
+                                      big_integer* lhs, limb_type rhs) {
   assert(!lhs->zero());
 
   if (!result || result->length() < lhs->length())
@@ -270,8 +270,8 @@ add_big_magnitude_to_limb_destructive(context& ctx, ptr<big_integer> result,
     return result;
 }
 
-static generic_ptr
-add_magnitude_to_limb_destructive(context& ctx, generic_ptr lhs, limb_type rhs) {
+static object*
+add_magnitude_to_limb_destructive(context& ctx, object* lhs, limb_type rhs) {
   if (auto b = match<big_integer>(lhs))
     return add_big_magnitude_to_limb_destructive(ctx, b, b, rhs);
 
@@ -285,8 +285,8 @@ add_magnitude_to_limb_destructive(context& ctx, generic_ptr lhs, limb_type rhs) 
   return add_big_magnitude_to_limb_destructive(ctx, {}, make<big_integer>(ctx, lhs_int), rhs);
 }
 
-static ptr<big_integer>
-add_big_magnitude_destructive(context& ctx, ptr<big_integer> result, ptr<big_integer> lhs, ptr<big_integer> rhs) {
+static big_integer*
+add_big_magnitude_destructive(context& ctx, big_integer* result, big_integer* lhs, big_integer* rhs) {
   // lhs is always going to be the bigger of the two to simplify things in the
   // implementation.
 
@@ -317,8 +317,8 @@ add_big_magnitude_destructive(context& ctx, ptr<big_integer> result, ptr<big_int
     return result;
 }
 
-static ptr<big_integer>
-add_big_magnitude(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
+static big_integer*
+add_big_magnitude(context& ctx, big_integer* lhs, big_integer* rhs) {
   return add_big_magnitude_destructive(ctx, {}, lhs, rhs);
 }
 
@@ -331,7 +331,7 @@ namespace {
 }
 
 static compare
-compare_magnitude(ptr<big_integer> const& lhs, ptr<big_integer> const& rhs,
+compare_magnitude(big_integer* lhs, big_integer* rhs,
                   std::size_t lhs_length, std::size_t rhs_length) {
   if (lhs_length < rhs_length)
     return compare::less;
@@ -354,12 +354,12 @@ compare_magnitude(ptr<big_integer> const& lhs, ptr<big_integer> const& rhs,
 }
 
 static compare
-compare_magnitude(ptr<big_integer> const& lhs, ptr<big_integer> const& rhs) {
+compare_magnitude(big_integer* lhs, big_integer* rhs) {
   return compare_magnitude(lhs, rhs, lhs->length(), rhs->length());
 }
 
-static ptr<big_integer>
-sub_magnitude(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
+static big_integer*
+sub_magnitude(context& ctx, big_integer* lhs, big_integer* rhs) {
   // We want the bigger number to be the LHS to simplify stuff below.
 
   bool positive = true;
@@ -400,14 +400,14 @@ sub_magnitude(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   return result;
 }
 
-static ptr<big_integer>
-flip_sign(ptr<big_integer> const& i) {
+static big_integer*
+flip_sign(big_integer* i) {
   i->set_positive(!i->positive());
   return i;
 }
 
-static generic_ptr
-flip_sign(generic_ptr const& i) {
+static object*
+flip_sign(object* i) {
   if (auto b = match<big_integer>(i))
     return flip_sign(b);
 
@@ -416,8 +416,8 @@ flip_sign(generic_ptr const& i) {
   return integer_to_ptr(small);
 }
 
-static ptr<big_integer>
-set_sign_copy(context& ctx, ptr<big_integer> const& value, bool sign) {
+static big_integer*
+set_sign_copy(context& ctx, big_integer* value, bool sign) {
   if (value->positive() == sign)
     return value;
 
@@ -430,8 +430,8 @@ overflow(integer::storage_type i) {
   return detail::highest_storage_bit(i) != detail::highest_value_bit(i);
 }
 
-static ptr<big_integer>
-add_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
+static big_integer*
+add_big(context& ctx, big_integer* lhs, big_integer* rhs) {
   if (lhs->zero())
     return rhs;
   if (rhs->zero())
@@ -451,7 +451,7 @@ add_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
     return flip_sign(result);
 }
 
-static generic_ptr
+static object*
 add_small(context& ctx, integer lhs, integer rhs) {
   integer::storage_type sum = lhs.data() + rhs.data();
   if (overflow(sum))
@@ -460,26 +460,26 @@ add_small(context& ctx, integer lhs, integer rhs) {
     return integer_to_ptr(integer{sum});
 }
 
-static ptr<fraction>
-add_fraction(context& ctx, ptr<fraction> const& lhs, ptr<fraction> const& rhs) {
+static fraction*
+add_fraction(context& ctx, fraction* lhs, fraction* rhs) {
   //  a     c    ad + bc
   // --- + --- = -------
   //  b     d      bd
 
   return make<fraction>(ctx,
                         add(ctx,
-                            multiply(ctx, fraction_numerator(lhs), fraction_denominator(rhs)),
-                            multiply(ctx, fraction_denominator(lhs), fraction_numerator(rhs))),
-                        multiply(ctx, fraction_denominator(lhs), fraction_denominator(rhs)));
+                            multiply(ctx, lhs->numerator(), rhs->denominator()),
+                            multiply(ctx, lhs->denominator(), rhs->numerator())),
+                        multiply(ctx, lhs->denominator(), rhs->denominator()));
 }
 
-static ptr<floating_point>
-add_float(context& ctx, ptr<floating_point> const& lhs, ptr<floating_point> const& rhs) {
+static floating_point*
+add_float(context& ctx, floating_point* lhs, floating_point* rhs) {
   return make<floating_point>(ctx, lhs->value + rhs->value);
 }
 
-static ptr<big_integer>
-sub_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
+static big_integer*
+sub_big(context& ctx, big_integer* lhs, big_integer* rhs) {
   if (rhs->zero())
     return lhs;
 
@@ -500,7 +500,7 @@ sub_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
     return flip_sign(result);
 }
 
-static generic_ptr
+static object*
 sub_small(context& ctx, integer lhs, integer rhs) {
   integer::storage_type dif = lhs.data() + ~rhs.data() + 1;
   if (overflow(dif))
@@ -509,17 +509,17 @@ sub_small(context& ctx, integer lhs, integer rhs) {
     return integer_to_ptr(integer{dif});
 }
 
-static ptr<fraction>
-sub_fraction(context& ctx, ptr<fraction> const& lhs, ptr<fraction> const& rhs) {
+static fraction*
+sub_fraction(context& ctx, fraction* lhs, fraction* rhs) {
   return make<fraction>(ctx,
                         subtract(ctx,
-                                 multiply(ctx, fraction_numerator(lhs), fraction_denominator(rhs)),
-                                 multiply(ctx, fraction_denominator(lhs), fraction_numerator(rhs))),
-                        multiply(ctx, fraction_denominator(lhs), fraction_denominator(rhs)));
+                                 multiply(ctx, lhs->numerator(), rhs->denominator()),
+                                 multiply(ctx, lhs->denominator(), rhs->numerator())),
+                        multiply(ctx, lhs->denominator(), rhs->denominator()));
 }
 
-static ptr<floating_point>
-sub_float(context& ctx, ptr<floating_point> const& lhs, ptr<floating_point> const& rhs) {
+static floating_point*
+sub_float(context& ctx, floating_point* lhs, floating_point* rhs) {
   return make<floating_point>(ctx, lhs->value - rhs->value);
 }
 
@@ -529,9 +529,9 @@ mul_limb_by_limb(limb_type lhs, limb_type rhs) {
   return {limb_type(result >> limb_width), limb_type(result & limb_mask)};
 }
 
-static ptr<big_integer>
-mul_big_magnitude_by_limb_destructive(context& ctx, ptr<big_integer> result,
-                                      ptr<big_integer> const& lhs, limb_type rhs) {
+static big_integer*
+mul_big_magnitude_by_limb_destructive(context& ctx, big_integer* result,
+                                      big_integer* lhs, limb_type rhs) {
   if (rhs == 0)
     return make<big_integer>(ctx, 0);
   if (rhs == 1)
@@ -562,8 +562,8 @@ mul_big_magnitude_by_limb_destructive(context& ctx, ptr<big_integer> result,
     return result;
 }
 
-static ptr<big_integer>
-mul_big_magnitude_by_limb(context& ctx, ptr<big_integer> const& lhs, limb_type rhs) {
+static big_integer*
+mul_big_magnitude_by_limb(context& ctx, big_integer* lhs, limb_type rhs) {
   return mul_big_magnitude_by_limb_destructive(ctx, {}, lhs, rhs);
 }
 
@@ -572,8 +572,8 @@ small_mul_overflow(integer::storage_type x, integer::storage_type y) {
   return x > static_cast<integer::storage_type>(integer::max) / y;
 }
 
-static generic_ptr
-mul_magnitude_by_limb_destructive(context& ctx, generic_ptr lhs, limb_type rhs) {
+static object*
+mul_magnitude_by_limb_destructive(context& ctx, object* lhs, limb_type rhs) {
   if (auto b = match<big_integer>(lhs))
     return mul_big_magnitude_by_limb_destructive(ctx, b, b, rhs);
 
@@ -588,12 +588,12 @@ mul_magnitude_by_limb_destructive(context& ctx, generic_ptr lhs, limb_type rhs) 
 }
 
 static bool
-magnitude_one(ptr<big_integer> const& i) {
+magnitude_one(big_integer* i) {
   return i->length() == 1 && i->front() == 1;
 }
 
-static ptr<big_integer>
-shift(context& ctx, ptr<big_integer> const& i, unsigned k) {
+static big_integer*
+shift(context& ctx, big_integer* i, unsigned k) {
   if (k == 0)
     return i;
 
@@ -603,8 +603,8 @@ shift(context& ctx, ptr<big_integer> const& i, unsigned k) {
   return result;
 }
 
-static ptr<big_integer>
-mul_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
+static big_integer*
+mul_big(context& ctx, big_integer* lhs, big_integer* rhs) {
   if (lhs->zero())
     return lhs;
   if (rhs->zero())
@@ -631,7 +631,7 @@ mul_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   return result;
 }
 
-static generic_ptr
+static object*
 mul_small(context& ctx, integer lhs, integer rhs) {
   integer::storage_type x = lhs.value() > 0 ? lhs.value() : -lhs.value();
   integer::storage_type y = rhs.value() > 0 ? rhs.value() : -rhs.value();
@@ -644,20 +644,20 @@ mul_small(context& ctx, integer lhs, integer rhs) {
   return integer_to_ptr(integer{result_positive ? product : -product});
 }
 
-static ptr<fraction>
-mul_fraction(context& ctx, ptr<fraction> const& lhs, ptr<fraction> const& rhs) {
+static fraction*
+mul_fraction(context& ctx, fraction* lhs, fraction* rhs) {
   return make<fraction>(ctx,
-                        multiply(ctx, fraction_numerator(lhs), fraction_numerator(rhs)),
-                        multiply(ctx, fraction_denominator(lhs), fraction_denominator(rhs)));
+                        multiply(ctx, lhs->numerator(), rhs->numerator()),
+                        multiply(ctx, lhs->denominator(), rhs->denominator()));
 }
 
-static ptr<floating_point>
-mul_float(context& ctx, ptr<floating_point> const& lhs, ptr<floating_point> const& rhs) {
+static floating_point*
+mul_float(context& ctx, floating_point* lhs, floating_point* rhs) {
   return make<floating_point>(ctx, lhs->value * rhs->value);
 }
 
-static ptr<big_integer>
-bitshift_left_destructive(context& ctx, ptr<big_integer> i, std::size_t shift) {
+static big_integer*
+bitshift_left_destructive(context& ctx, big_integer* i, std::size_t shift) {
   if (shift == 0)
     return i;
 
@@ -688,13 +688,13 @@ bitshift_left_destructive(context& ctx, ptr<big_integer> i, std::size_t shift) {
   return i;
 }
 
-static ptr<big_integer>
-bitshift_left(context& ctx, ptr<big_integer> i, unsigned k) {
+static big_integer*
+bitshift_left(context& ctx, big_integer* i, unsigned k) {
   return bitshift_left_destructive(ctx, make<big_integer>(ctx, i), k);
 }
 
-static ptr<big_integer>
-bitshift_right_destructive(ptr<big_integer> i, std::size_t k) {
+static big_integer*
+bitshift_right_destructive(big_integer* i, std::size_t k) {
   if (k == 0)
     return i;
 
@@ -716,8 +716,8 @@ bitshift_right_destructive(ptr<big_integer> i, std::size_t k) {
   return i;
 }
 
-static ptr<big_integer>
-bitshift_right(context& ctx, ptr<big_integer> i, std::size_t k) {
+static big_integer*
+bitshift_right(context& ctx, big_integer* i, std::size_t k) {
   return bitshift_right_destructive(make<big_integer>(ctx, i), k);
 }
 
@@ -741,8 +741,8 @@ guess_quotient(limb_type a_hi, limb_type a_lo, limb_type b) {
   return std::min(q, double_limb_type{max_limb_value});
 }
 
-static std::tuple<ptr<big_integer>, limb_type>
-div_rem_by_limb_magnitude(context& ctx, ptr<big_integer> dividend, limb_type divisor) {
+static std::tuple<big_integer*, limb_type>
+div_rem_by_limb_magnitude(context& ctx, big_integer* dividend, limb_type divisor) {
   auto quotient = make<big_integer>(ctx, dividend->length());
   double_limb_type d{};
 
@@ -757,8 +757,8 @@ div_rem_by_limb_magnitude(context& ctx, ptr<big_integer> dividend, limb_type div
   return {quotient, limb_type(d)};
 }
 
-static std::tuple<ptr<big_integer>, ptr<big_integer>>
-div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divisor) {
+static std::tuple<big_integer*, big_integer*>
+div_rem_magnitude(context& ctx, big_integer* dividend, big_integer* divisor) {
   assert(!divisor->zero());
   assert(divisor->back() != 0);
 
@@ -780,7 +780,7 @@ div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divi
 
   auto quotient = make<big_integer>(ctx, dividend_len - divisor_len + 1);
 
-  ptr<big_integer> first_shifted_divisor = shift(ctx, divisor, dividend_len - divisor_len);
+  big_integer* first_shifted_divisor = shift(ctx, divisor, dividend_len - divisor_len);
   if (compare_magnitude(dividend, first_shifted_divisor) != compare::less) {
     quotient->data()[dividend_len - divisor_len] = 1;
     dividend = sub_big(ctx, dividend, first_shifted_divisor);
@@ -795,7 +795,7 @@ div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divi
     limb_type q = guess_quotient(dividend->data()[divisor_len + j],
                                  dividend->data()[divisor_len + j - 1],
                                  divisor->back());
-    ptr<big_integer> shifted_divisor = shift(ctx, divisor, j);
+    big_integer* shifted_divisor = shift(ctx, divisor, j);
     dividend = sub_big(ctx, dividend, mul_big_magnitude_by_limb(ctx, shifted_divisor, q));
 
     while (!dividend->positive()) {
@@ -809,8 +809,8 @@ div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divi
   return {quotient, bitshift_right(ctx, dividend, normalisation_shift)};
 }
 
-static std::tuple<generic_ptr, generic_ptr>
-div_rem_big(context& ctx, ptr<big_integer> const& dividend, ptr<big_integer> const& divisor) {
+static std::tuple<object*, object*>
+div_rem_big(context& ctx, big_integer* dividend, big_integer* divisor) {
   if (divisor->zero())
     throw std::runtime_error{"Division by zero"};
 
@@ -830,14 +830,14 @@ div_rem_big(context& ctx, ptr<big_integer> const& dividend, ptr<big_integer> con
             normalize(ctx, rem)};
 }
 
-static std::tuple<generic_ptr, generic_ptr>
+static std::tuple<object*, object*>
 div_rem_small(integer dividend, integer divisor) {
   auto [quot, rem] = std::div(dividend.value(), divisor.value());
   return {integer_to_ptr(integer{quot}), integer_to_ptr(integer{rem})};
 }
 
 static compare
-compare_big(ptr<big_integer> const& lhs, ptr<big_integer> const& rhs) {
+compare_big(big_integer* lhs, big_integer* rhs) {
   if (lhs->positive() != rhs->positive()) {
     if (!lhs->positive() && rhs->positive())
       return compare::less;
@@ -870,11 +870,11 @@ namespace {
 }
 
 static common_type
-find_common_type(generic_ptr const& lhs, generic_ptr const& rhs) {
+find_common_type(object* lhs, object* rhs) {
   if (!is_number(lhs))
-    throw std::runtime_error{fmt::format("Expected number, got {}", object_type_name(lhs.get()))};
+    throw std::runtime_error{fmt::format("Expected number, got {}", object_type_name(lhs))};
   if (!is_number(rhs))
-    throw std::runtime_error{fmt::format("Expected number, got {}", object_type_name(rhs.get()))};
+    throw std::runtime_error{fmt::format("Expected number, got {}", object_type_name(rhs))};
 
   if (is<floating_point>(lhs) || is<floating_point>(rhs))
     return common_type::floating_point;
@@ -889,8 +889,8 @@ find_common_type(generic_ptr const& lhs, generic_ptr const& rhs) {
   }
 }
 
-static ptr<big_integer>
-make_big(context& ctx, generic_ptr const& x) {
+static big_integer*
+make_big(context& ctx, object* x) {
   if (auto b = match<big_integer>(x))
     return b;
   else if (auto s = match<integer>(x)) {
@@ -902,8 +902,8 @@ make_big(context& ctx, generic_ptr const& x) {
   }
 }
 
-static ptr<big_integer>
-make_big_copy(context& ctx, generic_ptr const& x) {
+static big_integer*
+make_big_copy(context& ctx, object* x) {
   if (auto b = match<big_integer>(x))
     return make<big_integer>(ctx, b);
   else if (auto s = match<integer>(x)) {
@@ -915,8 +915,8 @@ make_big_copy(context& ctx, generic_ptr const& x) {
   }
 }
 
-static ptr<fraction>
-make_fraction(context& ctx, generic_ptr const& x) {
+static fraction*
+make_fraction(context& ctx, object* x) {
   if (is<integer>(x) || is<big_integer>(x))
     return make<fraction>(ctx, x, integer_to_ptr(integer{1}));
 
@@ -925,7 +925,7 @@ make_fraction(context& ctx, generic_ptr const& x) {
 }
 
 static floating_point::value_type
-big_to_float_value(ptr<big_integer> const& n) {
+big_to_float_value(big_integer* n) {
   floating_point::value_type result = 0;
 
   for (std::size_t i = n->length(); i > 0; --i)
@@ -938,15 +938,15 @@ big_to_float_value(ptr<big_integer> const& n) {
 }
 
 static floating_point::value_type
-integer_to_float_value(generic_ptr const& n) {
+integer_to_float_value(object* n) {
   if (auto s = match<integer>(n))
     return s->value();
   else
     return big_to_float_value(assume<big_integer>(n));
 }
 
-static ptr<floating_point>
-make_float(context& ctx, generic_ptr const& x) {
+static floating_point*
+make_float(context& ctx, object* x) {
   if (auto f = match<floating_point>(x))
     return f;
   else if (auto n = match<integer>(x))
@@ -956,8 +956,8 @@ make_float(context& ctx, generic_ptr const& x) {
   else if (auto q = match<fraction>(x))
     return make<floating_point>(
       ctx,
-      integer_to_float_value(fraction_numerator(q))
-      / integer_to_float_value(fraction_denominator(q))
+      integer_to_float_value(q->numerator())
+      / integer_to_float_value(q->denominator())
     );
 
   assert(false);
@@ -965,8 +965,8 @@ make_float(context& ctx, generic_ptr const& x) {
 }
 
 template <auto F>
-generic_ptr
-arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, integer::value_type neutral) {
+object*
+arithmetic(context& ctx, std::vector<object*> const& xs, bool allow_empty, integer::value_type neutral) {
   if (xs.empty()) {
     if (allow_empty)
       return integer_to_ptr(integer{neutral});
@@ -976,7 +976,7 @@ arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, i
   else if (xs.size() == 1)
     return F(ctx, integer_to_ptr(integer{neutral}), xs.front());
   else {
-    generic_ptr result = xs.front();
+    object* result = xs.front();
     for (auto rhs = xs.begin() + 1; rhs != xs.end(); ++rhs)
       result = F(ctx, result, *rhs);
 
@@ -984,11 +984,11 @@ arithmetic(context& ctx, std::vector<generic_ptr> const& xs, bool allow_empty, i
   }
 }
 
-using primitive_arithmetic_type = generic_ptr(context& ctx, generic_ptr const&, generic_ptr const&);
+using primitive_arithmetic_type = object*(context& ctx, object*, object*);
 
 template <auto Small, auto Big, auto Fraction, auto Float>
-generic_ptr
-arithmetic_two(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+object*
+arithmetic_two(context& ctx, object* lhs, object* rhs) {
   switch (find_common_type(lhs, rhs)) {
   case common_type::small_integer:
     return Small(ctx, assume<integer>(lhs), assume<integer>(rhs));
@@ -1005,57 +1005,57 @@ arithmetic_two(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
 }
 
 bool
-is_integer(generic_ptr const& x) {
+is_integer(object* x) {
   return is<integer>(x) || is<big_integer>(x);
 }
 
 bool
-is_number(generic_ptr const& x) {
+is_number(object* x) {
   return is_integer(x) || is<fraction>(x) || is<floating_point>(x);
 }
 
-generic_ptr
-add(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+object*
+add(context& ctx, object* lhs, object* rhs) {
   return arithmetic_two<add_small, add_big, add_fraction, add_float>(ctx, lhs, rhs);
 }
 
-generic_ptr
-add(context& ctx, std::vector<generic_ptr> const& xs) {
+object*
+add(context& ctx, std::vector<object*> const& xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&add)>(ctx, xs, true, 0);
 }
 
-generic_ptr
-subtract(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+object*
+subtract(context& ctx, object* lhs, object* rhs) {
   return arithmetic_two<sub_small, sub_big, sub_fraction, sub_float>(ctx, lhs, rhs);
 }
 
-generic_ptr
-subtract(context& ctx, std::vector<generic_ptr> const& xs) {
+object*
+subtract(context& ctx, std::vector<object*> const& xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&subtract)>(ctx, xs, false, 0);
 }
 
-generic_ptr
-multiply(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+object*
+multiply(context& ctx, object* lhs, object* rhs) {
   return arithmetic_two<mul_small, mul_big, mul_fraction, mul_float>(ctx, lhs, rhs);
 }
 
-generic_ptr
-multiply(context& ctx, std::vector<generic_ptr> const& xs) {
+object*
+multiply(context& ctx, std::vector<object*> const& xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&multiply)>(ctx, xs, true, 1);
 }
 
-generic_ptr
-truncate_quotient(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+object*
+truncate_quotient(context& ctx, object* lhs, object* rhs) {
   return std::get<0>(quotient_remainder(ctx, lhs, rhs));
 }
 
-generic_ptr
-truncate_quotient(context& ctx, std::vector<generic_ptr> const& xs) {
+object*
+truncate_quotient(context& ctx, std::vector<object*> const& xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&truncate_quotient)>(ctx, xs, false, 1);
 }
 
-std::tuple<generic_ptr, generic_ptr>
-quotient_remainder(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+std::tuple<object*, object*>
+quotient_remainder(context& ctx, object* lhs, object* rhs) {
   switch (find_common_type(lhs, rhs)) {
   case common_type::small_integer:
     return div_rem_small(assume<integer>(lhs), assume<integer>(rhs));
@@ -1069,23 +1069,23 @@ quotient_remainder(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs)
   return {};
 }
 
-static generic_ptr
-div_fraction(context& ctx, ptr<fraction> const& x, ptr<fraction> const& y) {
+static object*
+div_fraction(context& ctx, fraction* x, fraction* y) {
   return normalize_fraction(
     ctx,
     make<fraction>(ctx,
-                   multiply(ctx, fraction_numerator(x), fraction_denominator(y)),
-                   multiply(ctx, fraction_denominator(x), fraction_numerator(y)))
+                   multiply(ctx, x->numerator(), y->denominator()),
+                   multiply(ctx, x->denominator(), y->numerator()))
   );
 }
 
-static ptr<floating_point>
-div_float(context& ctx, ptr<floating_point> const& x, ptr<floating_point> const& y) {
+static floating_point*
+div_float(context& ctx, floating_point* x, floating_point* y) {
   return make<floating_point>(ctx, x->value / y->value);
 }
 
-generic_ptr
-divide(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+object*
+divide(context& ctx, object* lhs, object* rhs) {
   switch (find_common_type(lhs, rhs)) {
   case common_type::small_integer:
   case common_type::big_integer:
@@ -1101,8 +1101,8 @@ divide(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
 }
 
 template <auto Small>
-generic_ptr
-bitwise_two(generic_ptr const& lhs, generic_ptr const& rhs) {
+object*
+bitwise_two(object* lhs, object* rhs) {
   switch (find_common_type(lhs, rhs)) {
   case common_type::small_integer: {
     auto x = assume<integer>(lhs);
@@ -1141,117 +1141,117 @@ bitwise_or_small(integer x, integer y) {
   return x.data() | y.data();
 }
 
-generic_ptr
-arithmetic_shift(context&, generic_ptr const& lhs, generic_ptr const& rhs) {
+object*
+arithmetic_shift(context&, object* lhs, object* rhs) {
   return bitwise_two<arithmetic_shift_small>(lhs, rhs);
 }
 
-generic_ptr
-bitwise_and(context&, generic_ptr const& lhs, generic_ptr const& rhs) {
+object*
+bitwise_and(context&, object* lhs, object* rhs) {
   return bitwise_two<bitwise_and_small>(lhs, rhs);
 }
 
-generic_ptr
-bitwise_or(context&, generic_ptr const& lhs, generic_ptr const& rhs) {
+object*
+bitwise_or(context&, object* lhs, object* rhs) {
   return bitwise_two<bitwise_or_small>(lhs, rhs);
 }
 
-generic_ptr
-bitwise_not(context&, generic_ptr const& x) {
+object*
+bitwise_not(context&, object* x) {
   if (auto value = match<integer>(x))
     return integer_to_ptr(integer{~value->data()});
   else
     throw error{"Only fixnums are supported"};
 }
 
-using primitive_relational_type = ptr<boolean>(context&, generic_ptr const&, generic_ptr const&);
+using primitive_relational_type = boolean*(context&, object*, object*);
 
 template <primitive_relational_type* F>
-generic_ptr
-relational(context& ctx, std::vector<generic_ptr> const& xs, std::string const& name) {
+object*
+relational(context& ctx, std::vector<object*> const& xs, std::string const& name) {
   if (xs.size() < 2)
     throw std::runtime_error{fmt::format("Not enough arguments to {}", name)};
 
-  generic_ptr lhs = xs[0];
+  object* lhs = xs[0];
   for (std::size_t i = 1; i < xs.size(); ++i) {
-    generic_ptr rhs = xs[i];
-    if (F(ctx, lhs, rhs) == ctx.constants->f)
-      return ctx.constants->f;
+    object* rhs = xs[i];
+    if (F(ctx, lhs, rhs) == ctx.constants->f.get())
+      return ctx.constants->f.get();
 
     lhs = rhs;
   }
 
-  return ctx.constants->t;
+  return ctx.constants->t.get();
 }
 
-ptr<boolean>
-arith_equal(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
+boolean*
+arith_equal(context& ctx, object* lhs, object* rhs) {
   switch (find_common_type(lhs, rhs)) {
   case common_type::small_integer:
-    return assume<integer>(lhs).value() == assume<integer>(rhs).value() ? ctx.constants->t : ctx.constants->f;
+    return assume<integer>(lhs).value() == assume<integer>(rhs).value() ? ctx.constants->t.get() : ctx.constants->f.get();
   case common_type::big_integer:
     return compare_big(make_big(ctx, lhs), make_big(ctx, rhs)) == compare::equal
-           ? ctx.constants->t : ctx.constants->f;
+           ? ctx.constants->t.get() : ctx.constants->f.get();
   case common_type::fraction: {
     auto l = make_fraction(ctx, lhs);
     auto r = make_fraction(ctx, rhs);
-    if (arith_equal(ctx, fraction_numerator(l), fraction_numerator(r)) == ctx.constants->f)
-      return ctx.constants->f;
-    if (arith_equal(ctx, fraction_denominator(l), fraction_denominator(r)) == ctx.constants->f)
-      return ctx.constants->f;
-    return ctx.constants->t;
+    if (arith_equal(ctx, l->numerator(), r->numerator()) == ctx.constants->f.get())
+      return ctx.constants->f.get();
+    if (arith_equal(ctx, l->denominator(), r->denominator()) == ctx.constants->f.get())
+      return ctx.constants->f.get();
+    return ctx.constants->t.get();
   }
 
   case common_type::floating_point:
     if (make_float(ctx, lhs)->value == make_float(ctx, rhs)->value)
-      return ctx.constants->t;
+      return ctx.constants->t.get();
     else
-      return ctx.constants->f;
+      return ctx.constants->f.get();
   }
 
   assert(false);
   return {};
 }
 
-generic_ptr
-arith_equal(context& ctx, std::vector<generic_ptr> const& xs) {
+object*
+arith_equal(context& ctx, std::vector<object*> const& xs) {
   return relational<arith_equal>(ctx, xs, "=");
 }
 
-ptr<boolean>
-less(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return expect<integer>(lhs).value() < expect<integer>(rhs).value() ? ctx.constants->t : ctx.constants->f;
+boolean*
+less(context& ctx, object* lhs, object* rhs) {
+  return expect<integer>(lhs).value() < expect<integer>(rhs).value() ? ctx.constants->t.get() : ctx.constants->f.get();
 }
 
-generic_ptr
-less(context& ctx, std::vector<generic_ptr> const& xs) {
+object*
+less(context& ctx, std::vector<object*> const& xs) {
   return relational<less>(ctx, xs, "<");
 }
 
-ptr<boolean>
-greater(context& ctx, generic_ptr const& lhs, generic_ptr const& rhs) {
-  return expect<integer>(lhs).value() > expect<integer>(rhs).value() ? ctx.constants->t : ctx.constants->f;
+boolean*
+greater(context& ctx, object* lhs, object* rhs) {
+  return expect<integer>(lhs).value() > expect<integer>(rhs).value() ? ctx.constants->t.get() : ctx.constants->f.get();
 }
 
-generic_ptr
-greater(context& ctx, std::vector<generic_ptr> const& xs) {
+object*
+greater(context& ctx, std::vector<object*> const& xs) {
   return relational<greater>(ctx, xs, ">");
 }
 
 static bool
-odd(ptr<big_integer> const& i) {
+odd(big_integer* i) {
   if (i->zero())
     return false;
   return i->front() & 1;
 }
 
 static bool
-even(ptr<big_integer> const& i) {
+even(big_integer* i) {
   return !odd(i);
 }
 
-static generic_ptr
-gcd_big(context& ctx, ptr<big_integer> x, ptr<big_integer> y) {
+static object*
+gcd_big(context& ctx, big_integer* x, big_integer* y) {
   if (x->zero())
     return y;
   if (y->zero())
@@ -1284,8 +1284,8 @@ gcd_big(context& ctx, ptr<big_integer> x, ptr<big_integer> y) {
   return normalize(ctx, bitshift_left_destructive(ctx, x, shift));
 }
 
-generic_ptr
-gcd(context& ctx, generic_ptr const& x, generic_ptr const& y) {
+object*
+gcd(context& ctx, object* x, object* y) {
   switch (find_common_type(x, y)) {
   case common_type::small_integer:
     return integer_to_ptr(integer{std::gcd(assume<integer>(x).value(), assume<integer>(y).value())});
@@ -1301,7 +1301,7 @@ gcd(context& ctx, generic_ptr const& x, generic_ptr const& y) {
 
 static void
 export_native(context& ctx, module& m, std::string const& name,
-              generic_ptr (*f)(context&, std::vector<generic_ptr> const&), special_top_level_tag tag) {
+              object* (*f)(context&, std::vector<object*> const&), special_top_level_tag tag) {
   auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f), name);
   ctx.tag_top_level(index, tag);
   auto sym = ctx.intern(name);
@@ -1309,9 +1309,9 @@ export_native(context& ctx, module& m, std::string const& name,
   m.export_(sym);
 }
 
-generic_ptr
+object*
 read_integer(context& ctx, std::string const& digits, unsigned base) {
-  generic_ptr result = integer_to_ptr(integer{0});
+  object* result = integer_to_ptr(integer{0});
 
   for (char c : digits) {
     result = mul_magnitude_by_limb_destructive(ctx, result, base);
@@ -1325,13 +1325,13 @@ read_integer(context& ctx, std::string const& digits, unsigned base) {
 }
 
 static std::optional<char>
-peek_next(ptr<port> const& stream) {
+peek_next(port* stream) {
   stream->read_char();
   return stream->peek_char();
 }
 
 static std::string
-read_digits(ptr<port> const& stream) {
+read_digits(port* stream) {
   std::optional<char> c = stream->peek_char();
 
   std::string result;
@@ -1362,8 +1362,8 @@ string_to_double(std::string const& s) {
   return result;
 }
 
-generic_ptr
-read_number(context& ctx, ptr<port> const& stream) {
+object*
+read_number(context& ctx, port* stream) {
   std::optional<char> c = stream->peek_char();
   bool negative = false;
   assert(c);
@@ -1377,7 +1377,7 @@ read_number(context& ctx, ptr<port> const& stream) {
   if (c == '/') {
     stream->read_char();
 
-    generic_ptr num = read_integer(ctx, literal);
+    object* num = read_integer(ctx, literal);
     if (negative)
       num = flip_sign(num);
 
@@ -1404,7 +1404,7 @@ read_number(context& ctx, ptr<port> const& stream) {
     return make<floating_point>(ctx, value);
   }
   else {
-    generic_ptr value = read_integer(ctx, literal);
+    object* value = read_integer(ctx, literal);
     return negative ? flip_sign(value) : value;
   }
 }
@@ -1421,7 +1421,7 @@ write_small_magnitude(std::string& buffer, T n) {
 }
 
 static void
-write_small(integer value, ptr<port> const& out) {
+write_small(integer value, port* out) {
   if (value.value() == 0) {
     out->write_char('0');
     return;
@@ -1439,7 +1439,7 @@ write_small(integer value, ptr<port> const& out) {
 }
 
 static void
-write_big(context& ctx, ptr<big_integer> value, ptr<port> const& out) {
+write_big(context& ctx, big_integer* value, port* out) {
   if (value->zero()) {
     out->write_char('0');
     return;
@@ -1462,14 +1462,14 @@ write_big(context& ctx, ptr<big_integer> value, ptr<port> const& out) {
 }
 
 static void
-write_fraction(context& ctx, ptr<fraction> const& value, ptr<port> const& out) {
-  write_number(ctx, fraction_numerator(value), out);
+write_fraction(context& ctx, fraction* value, port* out) {
+  write_number(ctx, value->numerator(), out);
   out->write_char('/');
-  write_number(ctx, fraction_denominator(value), out);
+  write_number(ctx, value->denominator(), out);
 }
 
 static void
-write_float(ptr<floating_point> const& value, ptr<port> const& out) {
+write_float(floating_point* value, port* out) {
   // Same as with string_to_double: std::to_chars would be the ideal way to implement this, but we'll go with an
   // std::ostringstream in its absence.
 
@@ -1504,7 +1504,7 @@ write_float(ptr<floating_point> const& value, ptr<port> const& out) {
 }
 
 void
-write_number(context& ctx, generic_ptr const& value, ptr<port> const& out) {
+write_number(context& ctx, object* value, port* out) {
   if (auto s = match<integer>(value))
     write_small(*s, out);
   else if (auto b = match<big_integer>(value))

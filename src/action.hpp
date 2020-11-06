@@ -46,11 +46,18 @@ public:
     , args_{std::forward<Args>(args)...}
   { }
 
-  simple_action(context& ctx, generic_ptr const& irritant, std::string_view format, Args&&... args)
+  simple_action(context& ctx, generic_tracked_ptr const& irritant, std::string_view format, Args&&... args)
     : base{ctx}
     , format_{format}
     , args_{std::forward<Args>(args)...}
     , irritant_{irritant}
+  { }
+
+  simple_action(context& ctx, object* irritant, std::string_view format, Args&&... args)
+    : base{ctx}
+    , format_{format}
+    , args_{std::forward<Args>(args)...}
+    , irritant_{track(ctx, irritant)}
   { }
 
   ~simple_action() { this->check(); }
@@ -63,14 +70,14 @@ public:
 private:
   std::string_view    format_;
   std::tuple<Args...> args_;
-  generic_ptr         irritant_;
+  generic_tracked_ptr         irritant_;
 
   template <std::size_t... Is>
   std::string
   format_helper(std::index_sequence<Is...>) const {
     if (irritant_)
       return fmt::format("{}: {}", fmt::format(format_, std::get<Is>(args_)...),
-                         datum_to_string(this->ctx_, irritant_));
+                         datum_to_string(this->ctx_, irritant_.get()));
     else
       return fmt::format(format_, std::get<Is>(args_)...);
   }

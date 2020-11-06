@@ -27,26 +27,26 @@
 namespace insider {
 
 std::size_t
-hash(generic_ptr const& x);
+hash(object* x);
 
 struct generic_ptr_hash {
   std::size_t
-  operator () (generic_ptr const& p) const { return hash(p); }
+  operator () (generic_tracked_ptr const& p) const { return hash(p.get()); }
 };
 
 bool
-eqv(generic_ptr const& x, generic_ptr const& y);
+eqv(object* x, object* y);
 
 bool
-equal(generic_ptr const&, generic_ptr const&);
+equal(object*, object*);
 
 struct eqv_compare {
   bool
-  operator () (generic_ptr const& x, generic_ptr const& y) const { return eqv(x, y); }
+  operator () (generic_tracked_ptr const& x, generic_tracked_ptr const& y) const { return eqv(x.get(), y.get()); }
 };
 
 template <typename Value>
-using eqv_unordered_map = std::unordered_map<generic_ptr, Value, generic_ptr_hash, eqv_compare>;
+using eqv_unordered_map = std::unordered_map<generic_tracked_ptr, Value, generic_ptr_hash, eqv_compare>;
 
 // The empty list. There should only be exactly one instance of this type per
 // evaluation context.
@@ -70,40 +70,40 @@ class symbol;
 class transformer;
 
 bool
-is_identifier(generic_ptr const&);
+is_identifier(object*);
 
 std::string
-identifier_name(generic_ptr const& x);
+identifier_name(object* x);
 
 class environment : public composite_object<environment> {
 public:
-  using value_type = std::variant<std::shared_ptr<variable>, ptr<transformer>>;
+  using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
 
   explicit
-  environment(ptr<environment> const& parent)
-    : parent_{parent.get()}
+  environment(environment* parent)
+    : parent_{parent}
   { }
 
   void
-  add(free_store& store, generic_ptr const& identifier, std::shared_ptr<variable>);
+  add(free_store& store, object* identifier, std::shared_ptr<variable>);
 
   void
-  add(free_store& store, generic_ptr const& identifier, ptr<transformer> const&);
+  add(free_store& store, object* identifier, transformer*);
 
   void
-  add(free_store& store, generic_ptr const& identifier, value_type const&);
+  add(free_store& store, object* identifier, value_type const&);
 
-  ptr<environment>
-  parent(free_store& fs) const { return {fs, parent_}; }
+  environment*
+  parent() const { return parent_; }
 
   std::optional<value_type>
-  lookup(free_store&, generic_ptr const& identifier) const;
+  lookup(object* identifier) const;
 
   bool
-  has(generic_ptr const& identifier) const { return bindings_.count(identifier.get()); }
+  has(object* identifier) const { return bindings_.count(identifier); }
 
   std::vector<std::string>
-  bound_names(free_store& fs) const;
+  bound_names() const;
 
   void
   trace(tracing_context& tc);
@@ -118,53 +118,40 @@ private:
   std::unordered_map<object*, representation_type> bindings_;
 };
 
-inline ptr<environment>
-environment_parent(ptr<environment> const& e) { return e->parent(e.store()); }
-
-inline std::optional<environment::value_type>
-environment_lookup(ptr<environment> const& e, generic_ptr const& identifier) {
-  return e->lookup(e.store(), identifier);
-}
-
-inline std::vector<std::string>
-environment_bound_names(ptr<environment> const& e) {
-  return e->bound_names(e.store());
-}
-
 // A module is a map from symbols to top-level variable indices. It also
 // contains a top-level procedure which contains the code to be run when the
 // module is loaded.
 class module {
 public:
   using index_type = operand;
-  using binding_type = std::variant<index_type, ptr<transformer>>;
+  using binding_type = std::variant<index_type, transformer*>;
 
   explicit
   module(context&);
 
   std::optional<binding_type>
-  find(generic_ptr const&) const;
+  find(object*) const;
 
   void
-  add(generic_ptr const&, binding_type);
+  add(object*, binding_type);
 
   void
-  export_(ptr<symbol> const&);
+  export_(symbol*);
 
   std::unordered_set<std::string> const&
   exports() const { return exports_; }
 
-  ptr<procedure>
-  top_level_procedure() const { return proc_; }
+  procedure*
+  top_level_procedure() const { return proc_.get(); }
 
   void
-  set_top_level_procedure(ptr<procedure> const& p) { proc_ = p; }
+  set_top_level_procedure(tracked_ptr<procedure> const& p) { proc_ = p; }
 
-  ptr<insider::environment>
-  environment() const { return env_; }
+  insider::environment*
+  environment() const { return env_.get(); }
 
   std::vector<std::string>
-  top_level_names() const { return environment_bound_names(env_); }
+  top_level_names() const { return env_->bound_names(); }
 
   bool
   active() const { return active_; }
@@ -173,9 +160,9 @@ public:
   mark_active() { active_ = true; }
 
 private:
-  ptr<insider::environment>       env_;
+  tracked_ptr<insider::environment>       env_;
   std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
-  ptr<procedure>                  proc_;
+  tracked_ptr<procedure>                  proc_;
   bool                            active_ = false;
 };
 
@@ -198,12 +185,12 @@ void
 perform_imports(context&, module& to, protomodule const& import_declarations);
 
 void
-define_top_level(context&, module&, std::string const& name, generic_ptr const& object,
+define_top_level(context&, module&, std::string const& name, object* object,
                  bool export_ = false);
 
 // Recursively activate all dependencies of the given module, execute the
 // module's body and return the result of the last expression in its body.
-generic_ptr
+object*
 execute(context&, module&);
 
 // Interface for module providers. A module provider is used when a library is
@@ -217,7 +204,7 @@ public:
 
   // Try to provide the module with the given name. This function must only
   // return either nullopt or a library with the specified name.
-  virtual std::optional<std::vector<generic_ptr>>
+  virtual std::optional<std::vector<generic_tracked_ptr>>
   find_module(context&, module_name const&) = 0;
 };
 
@@ -230,7 +217,7 @@ public:
   explicit
   filesystem_module_provider(std::filesystem::path root) : root_{std::move(root)} { }
 
-  std::optional<std::vector<generic_ptr>>
+  std::optional<std::vector<generic_tracked_ptr>>
   find_module(context&, module_name const&) override;
 
 private:
@@ -253,10 +240,10 @@ enum class special_top_level_tag {
 class context {
 public:
   struct constants {
-    ptr<insider::null_type> null;
-    ptr<insider::void_type> void_;
-    ptr<boolean>        t, f;     // #t and #f.
-    ptr<core_form_type> let, set, lambda, if_, box, unbox, box_set, define, define_syntax,
+    tracked_ptr<insider::null_type> null;
+    tracked_ptr<insider::void_type> void_;
+    tracked_ptr<boolean>        t, f;     // #t and #f.
+    tracked_ptr<core_form_type> let, set, lambda, if_, box, unbox, box_set, define, define_syntax,
                         begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing, expand_quote,
                         syntax_trap;
   };
@@ -274,7 +261,7 @@ public:
   free_store                 store;
   std::unique_ptr<constants> constants;
   statics_list               statics;
-  ptr<port>                  output_port;
+  tracked_ptr<port>                  output_port;
   module                     internal_module; // (insider internal)
   std::unordered_map<std::string, std::string> type_names;
   std::string                error_backtrace; // Built from actions during stack unwinding.
@@ -289,32 +276,32 @@ public:
   // pre-existing symbol. Otherwise, create a new symbol object and return
   // that. This means that two interned symbols can be compared for equality
   // using pointer comparison.
-  ptr<symbol>
+  symbol*
   intern(std::string const&);
 
   operand
-  intern_static(generic_ptr const&);
+  intern_static(generic_tracked_ptr const&);
 
-  generic_ptr
+  object*
   get_static(operand i) const {
     assert(i < statics_.size());
-    return statics_[i];
+    return statics_[i].get();
   }
 
-  generic_ptr
+  object*
   get_static_checked(operand) const;
 
-  generic_ptr
-  get_top_level(operand i) const { return top_level_objects_[i]; }
+  object*
+  get_top_level(operand i) const { return top_level_objects_[i].get(); }
 
-  generic_ptr
+  object*
   get_top_level_checked(operand) const;
 
   void
-  set_top_level(operand i, generic_ptr const&);
+  set_top_level(operand i, object*);
 
   operand
-  add_top_level(generic_ptr const&, std::string name);
+  add_top_level(object*, std::string name);
 
   std::string
   get_top_level_name(operand) const;
@@ -326,7 +313,7 @@ public:
   find_tag(operand) const;
 
   void
-  load_library_module(std::vector<generic_ptr> const&);
+  load_library_module(std::vector<generic_tracked_ptr> const&);
 
   module*
   find_module(module_name const&);
@@ -339,9 +326,9 @@ public:
 
 private:
   std::unordered_map<std::string, weak_ptr<symbol>> interned_symbols_;
-  std::vector<generic_ptr> statics_;
+  std::vector<generic_tracked_ptr> statics_;
   eqv_unordered_map<std::size_t> statics_cache_;
-  std::vector<generic_ptr> top_level_objects_;
+  std::vector<generic_tracked_ptr> top_level_objects_;
   std::vector<std::string> top_level_binding_names_;
   std::unordered_map<operand, special_top_level_tag> top_level_tags_;
   std::map<module_name, protomodule> protomodules_;
@@ -354,10 +341,23 @@ private:
 
 // Create an instance of an object using the context's free store.
 template <typename T, typename... Args>
-ptr<T>
+T*
 make(context& ctx, Args&&... args) {
   return ctx.store.make<T>(std::forward<Args>(args)...);
 }
+
+template <typename T, typename... Args>
+tracked_ptr<T>
+make_tracked(context& ctx, Args&&... args) {
+  return tracked_ptr<T>{ctx.store, make<T>(ctx, std::forward<Args>(args)...)};
+}
+
+inline generic_tracked_ptr
+track(context& ctx, object* o) { return {ctx.store, o}; }
+
+template <typename T>
+tracked_ptr<T>
+track(context& ctx, T* o) { return {ctx.store, o}; }
 
 class error : public std::runtime_error {
 public:
@@ -385,7 +385,7 @@ private:
 };
 
 inline std::size_t
-boolean_hash(ptr<boolean> const& b) { return b->value(); }
+boolean_hash(boolean* b) { return b->value(); }
 
 // Character. TODO: Support Unicode.
 class character : public leaf_object<character> {
@@ -430,7 +430,7 @@ private:
   std::size_t size_;
 };
 
-ptr<string>
+string*
 make_string(context&, std::string_view value);
 
 // I/O port or a string port. Can be read or write, binary or text.
@@ -484,15 +484,15 @@ private:
 // A cons pair containing two other Scheme values, car and cdr.
 class pair : public composite_object<pair> {
 public:
-  pair(generic_ptr const& car, generic_ptr const& cdr)
-    : car_{car.get()}
-    , cdr_{cdr.get()}
+  pair(object* car, object* cdr)
+    : car_{car}
+    , cdr_{cdr}
   { }
 
-  generic_ptr
-  car(free_store& store) const { return {store, car_}; }
-  generic_ptr
-  cdr(free_store& store) const { return {store, cdr_}; }
+  object*
+  car() const { return car_; }
+  object*
+  cdr() const { return cdr_; }
 
   void
   set_car(free_store& store, object* p) { car_ = p; store.notify_arc(this, p); }
@@ -511,56 +511,62 @@ private:
 };
 
 std::size_t
-pair_hash(ptr<pair> const&);
+pair_hash(pair*);
 
-inline ptr<pair>
-cons(context& ctx, generic_ptr const& car, generic_ptr const& cdr) {
+inline pair*
+cons(context& ctx, object* car, object* cdr) {
   return make<pair>(ctx, car, cdr);
 }
 
 // Is the given object a list? A list is either the null value or a pair whose
 // cdr is a list.
 bool
-is_list(generic_ptr);
+is_list(object*);
 
 std::size_t
-list_length(generic_ptr);
+list_length(object*);
 
-inline generic_ptr
-car(ptr<pair> const& x) { return x->car(x.store()); }
+inline object*
+car(pair* x) { return x->car(); }
 
-inline generic_ptr
-cdr(ptr<pair> const& x) { return x->cdr(x.store()); }
+inline generic_tracked_ptr
+car(tracked_ptr<pair> const& x) { return {x.store(), car(x.get())}; }
+
+inline object*
+cdr(pair* x) { return x->cdr(); }
+
+inline generic_tracked_ptr
+cdr(tracked_ptr<pair> const& x) { return {x.store(), cdr(x.get())}; }
 
 inline void
-set_car(ptr<pair> const& p, generic_ptr const& x) { p->set_car(p.store(), x.get()); }
+set_car(tracked_ptr<pair> const& p, object* x) { p->set_car(p.store(), x); }
 
 inline void
-set_cdr(ptr<pair> const& p, generic_ptr const& x) { p->set_cdr(p.store(), x.get()); }
+set_cdr(tracked_ptr<pair> const& p, object* x) { p->set_cdr(p.store(), x); }
 
-generic_ptr
-cadr(ptr<pair> const&);
+object*
+cadr(pair*);
 
-generic_ptr
-caddr(ptr<pair> const&);
+object*
+caddr(pair*);
 
-generic_ptr
-cadddr(ptr<pair> const&);
+object*
+cadddr(pair*);
 
-generic_ptr
-cddr(ptr<pair> const&);
+object*
+cddr(pair*);
 
-generic_ptr
-cdddr(ptr<pair> const&);
+object*
+cdddr(pair*);
 
 // Make a list out of given objects.
 template <typename... Ts>
-generic_ptr
+object*
 make_list(context& ctx, Ts... ts) {
   constexpr std::size_t n = sizeof...(Ts);
-  std::array<generic_ptr, n> elements{std::move(ts)...};
+  std::array<object*, n> elements{std::move(ts)...};
 
-  generic_ptr result = ctx.constants->null;
+  object* result = ctx.constants->null.get();
   for (std::size_t i = n; i > 0; --i)
     result = make<pair>(ctx, elements[i - 1], result);
 
@@ -568,9 +574,9 @@ make_list(context& ctx, Ts... ts) {
 }
 
 template <typename Container, typename Converter>
-generic_ptr
+object*
 make_list_from_vector(context& ctx, Container const& values, Converter const& convert) {
-  generic_ptr head = ctx.constants->null;
+  object* head = ctx.constants->null.get();
 
   for (auto elem = values.rbegin(); elem != values.rend(); ++elem)
     head = cons(ctx, convert(*elem), head);
@@ -578,17 +584,17 @@ make_list_from_vector(context& ctx, Container const& values, Converter const& co
   return head;
 }
 
-inline generic_ptr
-make_list_from_vector(context& ctx, std::vector<generic_ptr> const& values) {
-  return make_list_from_vector(ctx, values, [] (generic_ptr const& x) { return x; });
+inline object*
+make_list_from_vector(context& ctx, std::vector<object*> const& values) {
+  return make_list_from_vector(ctx, values, [] (object* x) { return x; });
 }
 
 // Concatenate a number of lists. If there are 0 lists, return the empty
 // list. If there is 1 list, return it. Otherwise, return a new list whose
 // elements are the elements of the given lists. The last argument doesn't have
 // to be a list -- if it isn't, the result is an improper list.
-generic_ptr
-append(context&, std::vector<generic_ptr> const&);
+object*
+append(context&, std::vector<object*> const&);
 
 // An array of a fixed, dynamic size. Elements are allocated as a part of this
 // object, which requires cooperation from the allocator. From the C++ point of
@@ -608,8 +614,8 @@ public:
   void
   update_references();
 
-  generic_ptr
-  ref(free_store& store, std::size_t) const;
+  object*
+  ref(std::size_t) const;
 
   void
   set(free_store&, std::size_t, object*);
@@ -622,36 +628,33 @@ private:
 };
 
 std::size_t
-vector_hash(ptr<vector> const&);
-
-inline generic_ptr
-vector_ref(ptr<vector> const& v, std::size_t i) { return v->ref(v.store(), i); }
+vector_hash(vector*);
 
 inline void
-vector_set(ptr<vector> const& v, std::size_t i, generic_ptr const& value) { v->set(v.store(), i, value.get()); }
+vector_set(tracked_ptr<vector> const& v, std::size_t i, object* value) { v->set(v.store(), i, value); }
 
-ptr<vector>
-make_vector(context&, std::vector<generic_ptr> const&);
+vector*
+make_vector(context&, std::vector<object*> const&);
 
 template <typename Container, typename Converter>
-generic_ptr
+object*
 make_vector(context& ctx, Container const& values, Converter const& convert) {
   auto result = make<vector>(ctx, ctx, values.size());
 
   for (std::size_t i = 0; i < values.size(); ++i)
-    vector_set(result, i, convert(values[i]));
+    result->set(ctx.store, i, convert(values[i]));
 
   return result;
 }
 
-ptr<vector>
-list_to_vector(context&, generic_ptr const& lst);
+vector*
+list_to_vector(context&, object* lst);
 
-std::vector<generic_ptr>
-list_to_std_vector(generic_ptr const&);
+std::vector<object*>
+list_to_std_vector(object*);
 
-ptr<vector>
-vector_append(context&, std::vector<generic_ptr> const& vs);
+vector*
+vector_append(context&, std::vector<object*> const& vs);
 
 // An immutable string, used for identifying Scheme objects.
 class symbol : public leaf_object<symbol> {
@@ -670,10 +673,10 @@ private:
 class box : public composite_object<box> {
 public:
   explicit
-  box(generic_ptr const&);
+  box(object*);
 
-  generic_ptr
-  get(free_store& store) const { return {store, value_}; }
+  object*
+  get() const { return value_; }
 
   void
   set(free_store& store, object* value) { value_ = value; store.notify_arc(this, value); }
@@ -688,11 +691,8 @@ private:
   object* value_;
 };
 
-inline generic_ptr
-unbox(ptr<box> const& b) { return b->get(b.store()); }
-
 inline void
-box_set(ptr<box> const& b, generic_ptr const& value) { b->set(b.store(), value.get()); }
+box_set(tracked_ptr<box> const& b, object* value) { b->set(b.store(), value); }
 
 // Callable bytecode container. Contains all the information necessary to create
 // a call frame inside the VM.
@@ -712,22 +712,22 @@ public:
 class closure : public dynamic_size_object<closure, object*> {
 public:
   static std::size_t
-  extra_elements(ptr<insider::procedure> const&, std::size_t num_captures) {
+  extra_elements(insider::procedure*, std::size_t num_captures) {
     return num_captures;
   }
 
-  closure(ptr<insider::procedure> const&, std::size_t num_captures);
+  closure(insider::procedure*, std::size_t num_captures);
 
   closure(closure&&);
 
-  ptr<insider::procedure>
-  procedure(free_store& store) const { return {store, procedure_}; }
+  insider::procedure*
+  procedure() const { return procedure_; }
 
-  generic_ptr
-  ref(free_store& store, std::size_t) const;
+  object*
+  ref(std::size_t) const;
 
   void
-  set(free_store& store, std::size_t, generic_ptr const&);
+  set(free_store& store, std::size_t, object*);
 
   std::size_t
   size() const { return size_; }
@@ -743,19 +743,13 @@ private:
   std::size_t size_;
 };
 
-inline ptr<procedure>
-closure_procedure(ptr<closure> const& c) { return c->procedure(c.store()); }
-
-inline generic_ptr
-closure_ref(ptr<closure> const& c, std::size_t i) { return c->ref(c.store(), i); }
-
 inline void
-closure_set(ptr<closure> const& c, std::size_t i, generic_ptr const& v) { c->set(c.store(), i, v); }
+closure_set(tracked_ptr<closure> const& c, std::size_t i, object* v) { c->set(c.store(), i, v); }
 
 // Like procedure, but when invoked, it calls a C++ function.
 class native_procedure : public leaf_object<native_procedure> {
 public:
-  using target_type = std::function<generic_ptr(context&, std::vector<generic_ptr> const&)>;
+  using target_type = std::function<object*(context&, std::vector<object*> const&)>;
   target_type target;
   std::optional<std::string> name;
 
@@ -767,10 +761,10 @@ public:
 };
 
 bool
-is_callable(generic_ptr const& x);
+is_callable(object* x);
 
-generic_ptr
-expect_callable(generic_ptr const& x);
+object*
+expect_callable(object* x);
 
 // Wrapper for C++ values that don't contain references to any Scheme objects.
 template <typename T>
@@ -792,22 +786,22 @@ public:
 class syntactic_closure : public dynamic_size_object<syntactic_closure, object*> {
 public:
   static std::size_t
-  extra_elements(ptr<insider::environment>,
-                 generic_ptr const& expr, generic_ptr const& free);
+  extra_elements(insider::environment*,
+                 object* expr, object* free);
 
-  syntactic_closure(ptr<insider::environment>,
-                    generic_ptr const& expr, generic_ptr const& free);
+  syntactic_closure(insider::environment*,
+                    object* expr, object* free);
 
   syntactic_closure(syntactic_closure&&);
 
-  generic_ptr
-  expression(free_store& store) const { return {store, expression_}; }
+  object*
+  expression() const { return expression_; }
 
-  ptr<insider::environment>
-  environment(free_store& store) const { return {store, env_}; }
+  insider::environment*
+  environment() const { return env_; }
 
-  std::vector<ptr<symbol>>
-  free(free_store&) const;
+  std::vector<symbol*>
+  free() const;
 
   std::size_t
   size() const { return free_size_; }
@@ -824,28 +818,19 @@ private:
   std::size_t           free_size_;
 };
 
-inline generic_ptr
-syntactic_closure_expression(ptr<syntactic_closure> const& sc) { return sc->expression(sc.store()); }
-
-inline ptr<environment>
-syntactic_closure_environment(ptr<syntactic_closure> const& sc) { return sc->environment(sc.store()); }
-
-inline auto
-syntactic_closure_free(ptr<syntactic_closure> const& sc) { return sc->free(sc.store()); }
-
 // A procedure together with the environment it was defined in.
 class transformer : public composite_object<transformer> {
 public:
-  transformer(ptr<insider::environment> env, generic_ptr const& callable)
-    : env_{env.get()}
-    , callable_{callable.get()}
+  transformer(insider::environment* env, object* callable)
+    : env_{env}
+    , callable_{callable}
   { }
 
-  ptr<insider::environment>
-  environment(free_store& store) const { return {store, env_}; }
+  insider::environment*
+  environment() const { return env_; }
 
-  generic_ptr
-  callable(free_store& store) const { return {store, callable_}; }
+  object*
+  callable() const { return callable_; }
 
   void
   trace(tracing_context&);
@@ -858,52 +843,62 @@ private:
   insider::object*      callable_;
 };
 
-inline ptr<environment>
-transformer_environment(ptr<transformer> const& t) { return t->environment(t.store()); }
-
-inline generic_ptr
-transformer_callable(ptr<transformer> const& t) { return expect_callable(t->callable(t.store())); }
-
 // Is a given object an instance of the given Scheme type?
 template <typename T>
 bool
-is(generic_ptr const& x) {
+is(object* x) {
   assert(x);
-  return is_object_ptr(x.get()) && object_type_index(x.get()) == T::type_index;
+  return is_object_ptr(x) && object_type_index(x) == T::type_index;
 }
 
 template <>
 inline bool
-is<integer>(generic_ptr const& x) {
-  return is_fixnum(x.get());
+is<integer>(object* x) {
+  return is_fixnum(x);
+}
+
+template <typename T>
+bool
+is(generic_tracked_ptr const& x) {
+  return is<T>(x.get());
 }
 
 template <typename Expected>
 error
-make_type_error(generic_ptr const& actual) {
-  throw error{"Invalid type: expected {}, got {}", type_name<Expected>(), object_type_name(actual.get())};
+make_type_error(object* actual) {
+  throw error{"Invalid type: expected {}, got {}", type_name<Expected>(), object_type_name(actual)};
 }
 
 namespace detail {
   template <typename T>
   struct expect_helper {
-    static ptr<T>
-    expect(generic_ptr const& x, std::optional<std::string> const& message) {
+    static T*
+    expect(object* x, std::optional<std::string> const& message) {
       if (is<T>(x))
-        return {x.store(), static_cast<T*>(x.get())};
+        return static_cast<T*>(x);
       else
         throw message ? error{*message} : make_type_error<T>(x);
+    }
+
+    static tracked_ptr<T>
+    expect(generic_tracked_ptr const& x, std::optional<std::string> const& message) {
+      return {x.store(), expect(x.get(), message)};
     }
   };
 
   template <>
   struct expect_helper<integer> {
     static integer
-    expect(generic_ptr const& x, std::optional<std::string> const& message) {
+    expect(object* x, std::optional<std::string> const& message) {
       if (is<integer>(x))
         return ptr_to_integer(x);
       else
         throw message ? error{*message} : make_type_error<integer>(x);
+    }
+
+    static integer
+    expect(generic_tracked_ptr const& x, std::optional<std::string> const& message) {
+      return expect(x.get(), message);
     }
   };
 }
@@ -912,7 +907,13 @@ namespace detail {
 // to the object. Throws type_error if the object isn't of the required type.
 template <typename T>
 auto
-expect(generic_ptr const& x) {
+expect(object* x) {
+  return detail::expect_helper<T>::expect(x, std::nullopt);
+}
+
+template <typename T>
+auto
+expect(generic_tracked_ptr const& x) {
   return detail::expect_helper<T>::expect(x, std::nullopt);
 }
 
@@ -920,15 +921,27 @@ expect(generic_ptr const& x) {
 // actual type isn't the expected one.
 template <typename T>
 auto
-expect(generic_ptr const& x, std::string const& message) {
+expect(object* x, std::string const& message) {
+  return detail::expect_helper<T>::expect(x, message);
+}
+
+template <typename T>
+auto
+expect(generic_tracked_ptr const& x, std::string const& message) {
   return detail::expect_helper<T>::expect(x, message);
 }
 
 namespace detail {
   template <typename T>
   struct assume_helper {
-    static ptr<T>
-    assume(generic_ptr const& x) {
+    static T*
+    assume(object* x) {
+      assert(is<T>(x));
+      return static_cast<T*>(x);
+    }
+
+    static tracked_ptr<T>
+    assume(generic_tracked_ptr const& x) {
       assert(is<T>(x));
       return {x.store(), static_cast<T*>(x.get())};
     }
@@ -937,9 +950,15 @@ namespace detail {
   template <>
   struct assume_helper<integer> {
     static integer
-    assume(generic_ptr const& x) {
+    assume(object* x) {
       assert(is<integer>(x));
       return ptr_to_integer(x);
+    }
+
+    static integer
+    assume(generic_tracked_ptr const& x) {
+      assert(is<integer>(x));
+      return ptr_to_integer(x.get());
     }
   };
 }
@@ -949,30 +968,46 @@ namespace detail {
 // specified type.
 template <typename T>
 auto
-assume(generic_ptr const& x) {
+assume(object* x) {
+  return detail::assume_helper<T>::assume(x);
+}
+
+template <typename T>
+auto
+assume(generic_tracked_ptr const& x) {
   return detail::assume_helper<T>::assume(x);
 }
 
 namespace detail {
   template <typename T>
   struct match_helper {
-    static ptr<T>
-    match(generic_ptr const& x) {
+    static T*
+    match(object* x) {
       if (is<T>(x))
-        return {x.store(), static_cast<T*>(x.get())};
+        return static_cast<T*>(x);
       else
         return {};
+    }
+
+    static tracked_ptr<T>
+    match(generic_tracked_ptr const& x) {
+      return {x.store(), match(x.get())};
     }
   };
 
   template <>
   struct match_helper<integer> {
     static std::optional<integer>
-    match(generic_ptr const& x) {
+    match(object* x) {
       if (is<integer>(x))
         return ptr_to_integer(x);
       else
         return std::nullopt;
+    }
+
+    static std::optional<integer>
+    match(generic_tracked_ptr const& x) {
+      return match(x.get());
     }
   };
 }
@@ -981,16 +1016,41 @@ namespace detail {
 // return null.
 template <typename T>
 auto
-match(generic_ptr const& x) {
+match(object* x) {
   return detail::match_helper<T>::match(x);
+}
+
+template <typename T>
+auto
+match(generic_tracked_ptr const& x) {
+  return detail::match_helper<T>::match(x);
+}
+
+namespace detail {
+  template <typename T, typename SimilarTo>
+  struct pointer_like;
+
+  template <typename T>
+  struct pointer_like<T, object*> {
+    using type = T*;
+  };
+
+  template <typename T>
+  struct pointer_like<T, generic_tracked_ptr> {
+    using type = tracked_ptr<T>;
+  };
+
+  template <typename T, typename SimilarTo>
+  using pointer_like_t = typename pointer_like<T, SimilarTo>::type;
 }
 
 // Iterator over Scheme lists. Will throw an exception if the list turns out to
 // be improper (dotted list).
+template <typename Pointer>
 class list_iterator {
 public:
   using difference_type = std::ptrdiff_t;
-  using value_type = generic_ptr;
+  using value_type = Pointer;
   using pointer = value_type;
   using reference = value_type;
   using iterator_category = std::forward_iterator_tag;
@@ -998,7 +1058,7 @@ public:
   list_iterator() = default;
 
   explicit
-  list_iterator(generic_ptr const& x) {
+  list_iterator(Pointer x) {
     if (is<pair>(x))
       current_ = assume<pair>(x);
     else if (!is<null_type>(x))
@@ -1013,7 +1073,7 @@ public:
 
   list_iterator&
   operator ++ () {
-    generic_ptr next = cdr(current_);
+    Pointer next = cdr(current_);
     if (is<pair>(next))
       current_ = assume<pair>(next);
     else if (is<null_type>(next))
@@ -1034,23 +1094,24 @@ public:
   operator != (list_iterator const& other) { return !operator == (other); }
 
 private:
-  ptr<pair> current_{};
+  detail::pointer_like_t<pair, Pointer> current_{};
 };
 
 // Helper to allow range-based for iteration over a Scheme list.
+template <typename Pointer>
 class in_list {
 public:
   explicit
-  in_list(generic_ptr const& lst) : head_{lst} { }
+  in_list(Pointer lst) : head_{lst} { }
 
-  list_iterator
+  list_iterator<Pointer>
   begin() const { return list_iterator{head_}; }
 
-  list_iterator
+  list_iterator<Pointer>
   end() const { return {}; }
 
 private:
-  generic_ptr head_;
+  Pointer head_;
 };
 
 } // namespace insider

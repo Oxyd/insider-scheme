@@ -17,7 +17,7 @@
 namespace insider {
 
 std::size_t
-hash(generic_ptr const& x) {
+hash(object* x) {
   if (auto i = match<integer>(x))
     return integer_hash(*i);
   if (auto b = match<boolean>(x))
@@ -27,11 +27,11 @@ hash(generic_ptr const& x) {
   else if (auto v = match<vector>(x))
     return vector_hash(v);
   else
-    return reinterpret_cast<std::size_t>(x.get());
+    return reinterpret_cast<std::size_t>(x);
 }
 
 bool
-eqv(generic_ptr const& x, generic_ptr const& y) {
+eqv(object* x, object* y) {
   if (typeid(*x) != typeid(*y))
     return false;
   else if (auto lhs = match<integer>(x)) {
@@ -41,15 +41,16 @@ eqv(generic_ptr const& x, generic_ptr const& y) {
       return false;
   }
   else
-    return x.get() == y.get();
+    return x == y;
 }
 
 bool
-equal(generic_ptr const& x, generic_ptr const& y) {
+equal(object* x, object* y) {
   // XXX: This will break on infinite data structures.
 
   struct record {
-    generic_ptr left, right;
+    object* left;
+    object* right;
   };
 
   std::vector<record> stack{{x, y}};
@@ -73,7 +74,7 @@ equal(generic_ptr const& x, generic_ptr const& y) {
           return false;
 
         for (std::size_t i = l->size(); i > 0; --i)
-          stack.push_back({vector_ref(l, i - 1), vector_ref(r, i - 1)});
+          stack.push_back({l->ref(i - 1), r->ref(i - 1)});
       }
       else if (is<string>(top.left) && is<string>(top.right)) {
         if (assume<string>(top.left)->value() != assume<string>(top.right)->value())
@@ -88,73 +89,73 @@ equal(generic_ptr const& x, generic_ptr const& y) {
 }
 
 bool
-is_identifier(generic_ptr const& x) {
+is_identifier(object* x) {
   if (is<symbol>(x))
     return true;
   else if (auto sc = match<syntactic_closure>(x))
-    return is<symbol>(syntactic_closure_expression(sc));
+    return is<symbol>(sc->expression());
   else
     return false;
 }
 
 std::string
-identifier_name(generic_ptr const& x) {
+identifier_name(object* x) {
   if (auto s = match<symbol>(x))
     return s->value();
   else
-    return expect<symbol>(syntactic_closure_expression(expect<syntactic_closure>(x)))->value();
+    return expect<symbol>(expect<syntactic_closure>(x)->expression())->value();
 }
 
 void
-environment::add(free_store& store, generic_ptr const& identifier, std::shared_ptr<variable> var) {
+environment::add(free_store& store, object* identifier, std::shared_ptr<variable> var) {
   assert(is_identifier(identifier));
 
-  bool inserted = bindings_.emplace(identifier.get(), std::move(var)).second;
+  bool inserted = bindings_.emplace(identifier, std::move(var)).second;
   if (!inserted)
     throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
 
-  store.notify_arc(this, identifier.get());
+  store.notify_arc(this, identifier);
 }
 
 void
-environment::add(free_store& store, generic_ptr const& identifier, ptr<transformer> const& tr) {
+environment::add(free_store& store, object* identifier, transformer* tr) {
   assert(is_identifier(identifier));
 
-  bool inserted = bindings_.emplace(identifier.get(), tr.get()).second;
+  bool inserted = bindings_.emplace(identifier, tr).second;
   if (!inserted)
     throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
 
-  store.notify_arc(this, identifier.get());
-  store.notify_arc(this, tr.get());
+  store.notify_arc(this, identifier);
+  store.notify_arc(this, tr);
 }
 
 void
-environment::add(free_store& store, generic_ptr const& identifier, value_type const& value) {
+environment::add(free_store& store, object* identifier, value_type const& value) {
   if (auto var = std::get_if<std::shared_ptr<variable>>(&value))
     add(store, identifier, *var);
   else
-    add(store, identifier, std::get<ptr<transformer>>(value));
+    add(store, identifier, std::get<transformer*>(value));
 }
 
 auto
-environment::lookup(free_store& fs, generic_ptr const& identifier) const -> std::optional<value_type> {
-  if (auto it = bindings_.find(identifier.get()); it != bindings_.end()) {
+environment::lookup(object* identifier) const -> std::optional<value_type> {
+  if (auto it = bindings_.find(identifier); it != bindings_.end()) {
     if (auto var = std::get_if<std::shared_ptr<variable>>(&it->second))
       return *var;
     else
-      return ptr<transformer>{fs, std::get<transformer*>(it->second)};
+      return std::get<transformer*>(it->second);
   }
 
   return std::nullopt;
 }
 
 std::vector<std::string>
-environment::bound_names(free_store& fs) const {
+environment::bound_names() const {
   std::vector<std::string> result;
   result.reserve(bindings_.size());
 
   for (auto const& [identifier, binding] : bindings_)
-    result.push_back(identifier_name({fs, identifier}));
+    result.push_back(identifier_name(identifier));
 
   return result;
 }
@@ -192,23 +193,23 @@ environment::update_references() {
 }
 
 module::module(context& ctx)
-  : env_{make<insider::environment>(ctx, ptr<insider::environment>{})}
+  : env_{make_tracked<insider::environment>(ctx, nullptr)}
 { }
 
 auto
-module::find(generic_ptr const& identifier) const -> std::optional<binding_type> {
-  if (auto binding = environment_lookup(env_, identifier)) {
+module::find(object* identifier) const -> std::optional<binding_type> {
+  if (auto binding = env_->lookup(identifier)) {
     if (std::shared_ptr<variable>* var = std::get_if<std::shared_ptr<variable>>(&*binding))
       return (**var).global;
     else
-      return std::get<ptr<transformer>>(*binding);
+      return std::get<transformer*>(*binding);
   }
 
   return std::nullopt;
 }
 
 void
-module::add(generic_ptr const& identifier, binding_type b) {
+module::add(object* identifier, binding_type b) {
   assert(is_identifier(identifier));
 
   if (auto v = find(identifier)) {
@@ -221,11 +222,11 @@ module::add(generic_ptr const& identifier, binding_type b) {
   if (auto* index = std::get_if<index_type>(&b))
     env_->add(env_.store(), identifier, std::make_shared<variable>(identifier_name(identifier), *index));
   else
-    env_->add(env_.store(), identifier, std::get<ptr<transformer>>(b));
+    env_->add(env_.store(), identifier, std::get<transformer*>(b));
 }
 
 void
-module::export_(ptr<symbol> const& name) {
+module::export_(symbol* name) {
   if (!env_->has(name))
     throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name->value())};
 
@@ -374,7 +375,7 @@ perform_imports(context& ctx, module& m, protomodule const& pm) {
 }
 
 void
-define_top_level(context& ctx, module& m, std::string const& name, generic_ptr const& object,
+define_top_level(context& ctx, module& m, std::string const& name, object* object,
                  bool export_) {
   auto index = ctx.add_top_level(object, name);
   m.add(ctx.intern(name), index);
@@ -382,21 +383,21 @@ define_top_level(context& ctx, module& m, std::string const& name, generic_ptr c
     m.export_(ctx.intern(name));
 }
 
-static generic_ptr
+static object*
 run_module(context& ctx, module& m) {
   auto state = make_state(ctx, m.top_level_procedure());
   return run(state);
 }
 
-generic_ptr
+object*
 execute(context& ctx, module& mod) {
-  generic_ptr result = run_module(ctx, mod);
+  object* result = run_module(ctx, mod);
   mod.mark_active();
 
   return result;
 }
 
-std::optional<std::vector<generic_ptr>>
+std::optional<std::vector<generic_tracked_ptr>>
 filesystem_module_provider::find_module(context& ctx, module_name const& name) {
   std::filesystem::path p = root_;
   for (std::string const& element : name)
@@ -425,15 +426,15 @@ context::context()
   store.register_callback([&] { gc_callback(); });
 
   constants = std::make_unique<struct constants>();
-  constants->null = store.make<null_type>();
-  constants->void_ = store.make<void_type>();
-  constants->t = store.make<boolean>(true);
-  constants->f = store.make<boolean>(false);
+  constants->null = make_tracked<null_type>(*this);
+  constants->void_ = make_tracked<void_type>(*this);
+  constants->t = make_tracked<boolean>(*this, true);
+  constants->f = make_tracked<boolean>(*this, false);
 
   internal_module = make_internal_module(*this);
 
   struct {
-    ptr<core_form_type>& object;
+    tracked_ptr<core_form_type>& object;
     std::string          name;
   } core_forms[]{
     {constants->let,              "let"},
@@ -455,8 +456,8 @@ context::context()
     {constants->syntax_trap,      "syntax-trap"},
   };
   for (auto const& form : core_forms) {
-    form.object = store.make<core_form_type>();
-    auto index = add_top_level(form.object, form.name);
+    form.object = make_tracked<core_form_type>(*this);
+    auto index = add_top_level(form.object.get(), form.name);
     auto id = intern(form.name);
     internal_module.add(id, index);
     internal_module.export_(id);
@@ -466,37 +467,37 @@ context::context()
   statics.void_ = intern_static(constants->void_);
   statics.t = intern_static(constants->t);
   statics.f = intern_static(constants->f);
-  statics.zero = intern_static(integer_to_ptr(integer{0}));
-  statics.one = intern_static(integer_to_ptr(integer{1}));
+  statics.zero = intern_static(generic_tracked_ptr{0});
+  statics.one = intern_static(generic_tracked_ptr{1});
 
-  output_port = make<port>(*this, stdout, false, true, false);
+  output_port = make_tracked<port>(*this, stdout, false, true, false);
 }
 
 context::~context() {
   constants.reset();
 }
 
-ptr<symbol>
+symbol*
 context::intern(std::string const& s) {
   auto interned = interned_symbols_.find(s);
   if (interned != interned_symbols_.end()) {
-    if (ptr<symbol> sym = interned->second.lock())
-      return sym;
+    if (tracked_ptr<symbol> sym = interned->second.lock())
+      return sym.get();
     else {
-      ptr<symbol> result = store.make<symbol>(s);
+      tracked_ptr<symbol> result = make_tracked<symbol>(*this, s);
       interned->second = result;
-      return result;
+      return result.get();
     }
   }
 
-  ptr<symbol> result = store.make<symbol>(s);
-  interned_symbols_.emplace(s, result);
+  tracked_ptr<symbol> result = make_tracked<symbol>(*this, s);
+  interned_symbols_.emplace(s, weak_ptr<symbol>{result});
 
-  return result;
+  return result.get();
 }
 
 operand
-context::intern_static(generic_ptr const& x) {
+context::intern_static(generic_tracked_ptr const& x) {
   auto it = statics_cache_.find(x);
   if (it == statics_cache_.end()) {
     statics_.push_back(x);
@@ -506,31 +507,31 @@ context::intern_static(generic_ptr const& x) {
   return it->second;
 }
 
-generic_ptr
+object*
 context::get_static_checked(operand i) const {
   if (i >= statics_.size())
     throw std::runtime_error{fmt::format("Nonexistent static object {}", i)};
 
-  return statics_[i];
+  return statics_[i].get();
 }
 
-generic_ptr
+object*
 context::get_top_level_checked(operand i) const {
   if (i >= top_level_objects_.size())
     throw std::runtime_error{fmt::format("Nonexistent top-level object {}", i)};
 
-  return top_level_objects_[i];
+  return top_level_objects_[i].get();
 }
 
 void
-context::set_top_level(operand i, generic_ptr const& value) {
+context::set_top_level(operand i, object* value) {
   assert(i < top_level_objects_.size());
-  top_level_objects_[i] = value;
+  top_level_objects_[i] = {store, value};
 }
 
 operand
-context::add_top_level(generic_ptr const& x, std::string name) {
-  top_level_objects_.push_back(x);
+context::add_top_level(object* x, std::string name) {
+  top_level_objects_.push_back({store, x});
   top_level_binding_names_.emplace_back(std::move(name));
   return top_level_objects_.size() - 1;
 }
@@ -557,7 +558,7 @@ context::find_tag(operand i) const {
 }
 
 void
-context::load_library_module(std::vector<generic_ptr> const& data) {
+context::load_library_module(std::vector<generic_tracked_ptr> const& data) {
   protomodule pm = read_library(*this, data);
   assert(pm.name);
 
@@ -582,7 +583,7 @@ context::find_module(module_name const& name) {
   auto pm = protomodules_.find(name);
   if (pm == protomodules_.end()) {
     for (std::unique_ptr<module_provider> const& provider : module_providers_)
-      if (std::optional<std::vector<generic_ptr>> lib = provider->find_module(*this, name)) {
+      if (std::optional<std::vector<generic_tracked_ptr>> lib = provider->find_module(*this, name)) {
         load_library_module(*lib);
 
         pm = protomodules_.find(name);
@@ -626,7 +627,7 @@ context::gc_callback() {
   }
 
   for (auto [object, index] : to_reinsert)
-    statics_cache_.emplace(generic_ptr{store, object}, index);
+    statics_cache_.emplace(generic_tracked_ptr{store, object}, index);
 }
 
 string::string(string&& other)
@@ -653,7 +654,7 @@ string::value() const {
   return result;
 }
 
-ptr<string>
+string*
 make_string(context& ctx, std::string_view value) {
   auto result = make<string>(ctx, value.size());
 
@@ -790,23 +791,23 @@ port::destroy() {
 }
 
 std::size_t
-pair_hash(ptr<pair> const& p) {
+pair_hash(pair* p) {
   return 3 * hash(car(p)) ^ hash(cdr(p));
 }
 
 bool
-is_list(generic_ptr x) {
+is_list(object* x) {
   while (true)
     if (is<null_type>(x))
       return true;
-    else if (ptr<pair> p = match<pair>(x))
+    else if (pair* p = match<pair>(x))
       x = cdr(p);
     else
       return false;
 }
 
 std::size_t
-list_length(generic_ptr x) {
+list_length(object* x) {
   std::size_t result = 0;
   while (!is<null_type>(x)) {
     x = cdr(expect<pair>(x));
@@ -815,41 +816,41 @@ list_length(generic_ptr x) {
   return result;
 }
 
-generic_ptr
-cadr(ptr<pair> const& x) {
+object*
+cadr(pair* x) {
   return car(expect<pair>(cdr(x)));
 }
 
-generic_ptr
-caddr(ptr<pair> const& x) {
+object*
+caddr(pair* x) {
   return car(expect<pair>(cddr(x)));
 }
 
-generic_ptr
-cadddr(ptr<pair> const& x) {
+object*
+cadddr(pair* x) {
   return car(expect<pair>(cdddr(x)));
 }
 
-generic_ptr
-cddr(ptr<pair> const& x) {
+object*
+cddr(pair* x) {
   return cdr(expect<pair>(cdr(x)));
 }
 
-generic_ptr
-cdddr(ptr<pair> const& x) {
+object*
+cdddr(pair* x) {
   return cdr(expect<pair>(cddr(x)));
 }
 
-generic_ptr
-append(context& ctx, std::vector<generic_ptr> const& xs) {
+object*
+append(context& ctx, std::vector<object*> const& xs) {
   // If all the lists are empty, we return the empty list as well.
 
   auto x = xs.begin();
-  while (x != xs.end() && *x == ctx.constants->null)
+  while (x != xs.end() && *x == ctx.constants->null.get())
     ++x;
 
   if (x == xs.end())
-    return ctx.constants->null;
+    return ctx.constants->null.get();
 
   if (x == xs.end() - 1)
     return *x;
@@ -857,18 +858,18 @@ append(context& ctx, std::vector<generic_ptr> const& xs) {
   // We have more than one list, and at least the current list is non-empty. Do
   // the needful.
 
-  generic_ptr new_head = ctx.constants->null;
-  ptr<pair> new_tail;
-  generic_ptr current = expect<pair>(*x);
+  object* new_head = ctx.constants->null.get();
+  pair* new_tail = nullptr;
+  object* current = expect<pair>(*x);
   for (; x != xs.end() - 1; ++x) {
     current = *x;
 
-    while (current != ctx.constants->null) {
-      ptr<pair> c = expect<pair>(current);
-      ptr<pair> new_c = make<pair>(ctx, car(c), ctx.constants->null);
+    while (current != ctx.constants->null.get()) {
+      pair* c = expect<pair>(current);
+      pair* new_c = make<pair>(ctx, car(c), ctx.constants->null.get());
 
       if (new_tail)
-        set_cdr(new_tail, new_c);
+        new_tail->set_cdr(ctx.store, new_c);
       else
         new_head = new_c;
 
@@ -879,7 +880,7 @@ append(context& ctx, std::vector<generic_ptr> const& xs) {
 
   assert(x == xs.end() - 1);
   if (new_tail)
-    set_cdr(new_tail, *x);
+    new_tail->set_cdr(ctx.store, *x);
   else
     new_head = *x;
 
@@ -912,12 +913,12 @@ vector::update_references() {
     update_reference(storage_element(i));
 }
 
-generic_ptr
-vector::ref(free_store& store, std::size_t i) const {
+object*
+vector::ref(std::size_t i) const {
   if (i >= size_)
     throw std::runtime_error{fmt::format("Vector access out of bounds: index = {}, size = {}", i, size_)};
 
-  return {store, storage_element(i)};
+  return storage_element(i);
 }
 
 void
@@ -930,67 +931,67 @@ vector::set(free_store& store, std::size_t i, object* value) {
 }
 
 std::size_t
-vector_hash(ptr<vector> const& v) {
+vector_hash(vector* v) {
   std::size_t result = 0;
   for (std::size_t i = 0; i < v->size(); ++i)
-    result = 3 * result ^ hash(vector_ref(v, i));
+    result = 3 * result ^ hash(v->ref(i));
 
   return result;
 }
 
-ptr<vector>
-make_vector(context& ctx, std::vector<generic_ptr> const& elems) {
+vector*
+make_vector(context& ctx, std::vector<object*> const& elems) {
   auto result = make<vector>(ctx, ctx, elems.size());
   for (std::size_t i = 0; i < elems.size(); ++i)
-    vector_set(result, i, elems[i]);
+    result->set(ctx.store, i, elems[i]);
 
   return result;
 }
 
-ptr<vector>
-list_to_vector(context& ctx, generic_ptr const& lst) {
+vector*
+list_to_vector(context& ctx, object* lst) {
   std::size_t size = 0;
-  for (generic_ptr e = lst; e != ctx.constants->null; e = cdr(expect<pair>(e)))
+  for (object* e = lst; e != ctx.constants->null.get(); e = cdr(expect<pair>(e)))
     ++size;
 
   auto result = make<vector>(ctx, ctx, size);
   std::size_t i = 0;
-  for (generic_ptr e = lst; e != ctx.constants->null; e = cdr(assume<pair>(e)))
-    vector_set(result, i++, car(assume<pair>(e)));
+  for (object* e = lst; e != ctx.constants->null.get(); e = cdr(assume<pair>(e)))
+    result->set(ctx.store, i++, car(assume<pair>(e)));
 
   return result;
 }
 
-std::vector<generic_ptr>
-list_to_std_vector(generic_ptr const& lst) {
-  std::vector<generic_ptr> result;
-  for (generic_ptr e : in_list{lst})
+std::vector<object*>
+list_to_std_vector(object* lst) {
+  std::vector<object*> result;
+  for (object* e : in_list{lst})
     result.push_back(e);
 
   return result;
 }
 
-ptr<vector>
-vector_append(context& ctx, std::vector<generic_ptr> const& vs) {
+vector*
+vector_append(context& ctx, std::vector<object*> const& vs) {
   std::size_t size = 0;
-  for (generic_ptr const& e : vs) {
-    ptr<vector> v = expect<vector>(e);
+  for (object* e : vs) {
+    vector* v = expect<vector>(e);
     size += v->size();
   }
 
   auto result = make<vector>(ctx, ctx, size);
   std::size_t i = 0;
-  for (generic_ptr const& e : vs) {
-    ptr<vector> v = assume<vector>(e);
+  for (object* e : vs) {
+    vector* v = assume<vector>(e);
     for (std::size_t j = 0; j < v->size(); ++j)
-      vector_set(result, i++, vector_ref(v, j));
+      result->set(ctx.store, i++, v->ref(j));
   }
 
   return result;
 }
 
-box::box(generic_ptr const& value)
-  : value_{value.get()}
+box::box(object* value)
+  : value_{value}
 { }
 
 procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned min_args, bool has_rest,
@@ -1002,8 +1003,8 @@ procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned min_ar
   , name{std::move(name)}
 { }
 
-closure::closure(ptr<insider::procedure> const& p, std::size_t num_captures)
-  : procedure_{p.get()}
+closure::closure(insider::procedure* p, std::size_t num_captures)
+  : procedure_{p}
   , size_{num_captures}
 { }
 
@@ -1015,17 +1016,17 @@ closure::closure(closure&& other)
     storage_element(i) = other.storage_element(i);
 }
 
-generic_ptr
-closure::ref(free_store& store, std::size_t i) const {
+object*
+closure::ref(std::size_t i) const {
   assert(i < size_);
-  return {store, storage_element(i)};
+  return storage_element(i);
 }
 
 void
-closure::set(free_store& store, std::size_t i, generic_ptr const& value) {
+closure::set(free_store& store, std::size_t i, object* value) {
   assert(i < size_);
-  storage_element(i) = value.get();
-  store.notify_arc(this, value.get());
+  storage_element(i) = value;
+  store.notify_arc(this, value);
 }
 
 void
@@ -1043,12 +1044,12 @@ closure::update_references() {
 }
 
 bool
-is_callable(generic_ptr const& x) {
+is_callable(object* x) {
   return is<procedure>(x) || is<native_procedure>(x) || is<closure>(x);
 }
 
-generic_ptr
-expect_callable(generic_ptr const& x) {
+object*
+expect_callable(object* x) {
   if (!is_callable(x))
     throw std::runtime_error{"Expected a callable"};
   else
@@ -1056,20 +1057,18 @@ expect_callable(generic_ptr const& x) {
 }
 
 std::size_t
-syntactic_closure::extra_elements(ptr<insider::environment>,
-                                  generic_ptr const&, generic_ptr const& free) {
+syntactic_closure::extra_elements(insider::environment*, object*, object* free) {
   return list_length(free);
 }
 
-syntactic_closure::syntactic_closure(ptr<insider::environment> env,
-                                     generic_ptr const& expr, generic_ptr const& free)
-  : expression_{expr.get()}
-  , env_{env.get()}
+syntactic_closure::syntactic_closure(insider::environment* env, object* expr, object* free)
+  : expression_{expr}
+  , env_{env}
   , free_size_{0}
 {
-  for (generic_ptr name : in_list{free}) {
+  for (object* name : in_list{free}) {
     expect<symbol>(name);
-    storage_element(free_size_++) = name.get();
+    storage_element(free_size_++) = name;
   }
 }
 
@@ -1082,13 +1081,13 @@ syntactic_closure::syntactic_closure(syntactic_closure&& other)
     storage_element(i) = other.storage_element(i);
 }
 
-std::vector<ptr<symbol>>
-syntactic_closure::free(free_store& store) const {
-  std::vector<ptr<symbol>> result;
+std::vector<symbol*>
+syntactic_closure::free() const {
+  std::vector<symbol*> result;
   result.reserve(free_size_);
 
   for (std::size_t i = 0; i < free_size_; ++i)
-    result.push_back(ptr<symbol>{store, storage_element(i)});
+    result.push_back(assume<symbol>(storage_element(i)));
 
   return result;
 }

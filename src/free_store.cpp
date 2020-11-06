@@ -341,12 +341,12 @@ free_store::~free_store() {
 }
 
 static void
-trace(generic_ptr* roots, std::vector<object*> const& permanent_roots,
+trace(generic_tracked_ptr* roots, std::vector<object*> const& permanent_roots,
       generation_list const& gens, word_type max_generation) {
   std::vector<object*> stack;
   tracing_context tc{stack, max_generation};
 
-  for (generic_ptr* root = roots; root; root = root->next())
+  for (generic_tracked_ptr* root = roots; root; root = root->next())
     if (root->get() && is_object_ptr(root->get())
         && object_generation(root->get()) <= max_generation
         && object_color(root->get()) == color::white) {
@@ -620,7 +620,7 @@ free_store::allocate_object(std::size_t size, word_type type) {
 
 void
 free_store::update_roots() {
-  for (generic_ptr* p = roots_; p; p = p->next()) {
+  for (generic_tracked_ptr* p = roots_; p; p = p->next()) {
     if (p->get() && is_object_ptr(p->get()) && !is_alive(p->get())) {
       p->value_ = forwarding_address(p->get());
       assert(p->value_ != nullptr);

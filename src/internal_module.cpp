@@ -5,10 +5,10 @@
 
 namespace insider {
 
-static ptr<symbol>
-type(context& ctx, generic_ptr const& x) {
-  if (is_object_ptr(x.get()))
-    return ctx.intern(object_type(x.get()).name);
+static symbol*
+type(context& ctx, object* o) {
+  if (is_object_ptr(o))
+    return ctx.intern(object_type(o).name);
   else
     return ctx.intern(integer_type_name);
 }
@@ -20,17 +20,17 @@ make_internal_module(context& ctx) {
 
   export_numeric(ctx, result);
 
-  define_lambda<void(context&, generic_ptr const&)>(
+  define_lambda<void(context&, object*)>(
     ctx, result, "write-simple", true,
-    [] (context& ctx, generic_ptr const& datum) {
-      write_simple(ctx, datum, ctx.output_port);
+    [] (context& ctx, object* datum) {
+      write_simple(ctx, datum, ctx.output_port.get());
     }
   );
 
-  define_lambda<void(context&, generic_ptr const&)>(
+  define_lambda<void(context&, object*)>(
     ctx, result, "display", true,
-    [] (context& ctx, generic_ptr const& datum) {
-      display(ctx, datum, ctx.output_port);
+    [] (context& ctx, object* datum) {
+      display(ctx, datum, ctx.output_port.get());
     }
   );
 
@@ -40,42 +40,37 @@ make_internal_module(context& ctx) {
   );
 
   define_top_level(ctx, result, "append", make<native_procedure>(ctx, append, "append"), true);
-  define_lambda<ptr<vector>(context&, generic_ptr const&)>(ctx, result, "list->vector", true, list_to_vector);
+  define_lambda<vector*(context&, object*)>(ctx, result, "list->vector", true, list_to_vector);
   define_top_level(ctx, result, "vector-append", make<native_procedure>(ctx, vector_append, "vector-append"), true);
-  define_lambda<integer(ptr<vector> const&)>(
+  define_lambda<integer(vector*)>(
     ctx, result, "vector-length", true,
-    [] (ptr<vector> const& v) {
+    [] (vector* v) {
       return integer{v->size()};
     }
   );
   define_raw_lambda(ctx, result, "vector", true,
-                    static_cast<ptr<vector> (&)(context&, std::vector<generic_ptr> const&)>(make_vector));
-  define_lambda<ptr<vector>(context&, std::size_t)>(
+                    static_cast<vector* (&)(context&, std::vector<object*> const&)>(make_vector));
+  define_lambda<vector*(context&, std::size_t)>(
     ctx, result, "make-vector", true,
     [] (context& ctx, std::size_t len) {
       return make<vector>(ctx, ctx, len);
     }
   );
-  define_lambda<vector_ref>(ctx, result, "vector-ref", true);
+  define_lambda<&vector::ref>(ctx, result, "vector-ref", true);
   define_lambda<vector_set>(ctx, result, "vector-set!", true);
 
-  define_lambda<ptr<pair>(context&, generic_ptr const&, generic_ptr const&)>(
-    ctx, result, "cons", true,
-    [] (context& ctx, generic_ptr const& car, generic_ptr const& cdr) {
-      return make<pair>(ctx, car, cdr);
-    }
-  );
-  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "car", true, car);
-  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cdr", true, cdr);
-  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cadr", true, cadr);
-  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "caddr", true, caddr);
-  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cadddr", true, cadddr);
-  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cddr", true, cddr);
-  define_lambda<generic_ptr(ptr<pair> const&)>(ctx, result, "cdddr", true, cdddr);
+  define_lambda<cons>(ctx, result, "cons", true);
+  define_lambda<object*(pair*)>(ctx, result, "car", true, static_cast<object* (*)(pair*)>(car));
+  define_lambda<object*(pair*)>(ctx, result, "cdr", true, static_cast<object* (*)(pair*)>(cdr));
+  define_lambda<object*(pair*)>(ctx, result, "cadr", true, cadr);
+  define_lambda<object*(pair*)>(ctx, result, "caddr", true, caddr);
+  define_lambda<object*(pair*)>(ctx, result, "cadddr", true, cadddr);
+  define_lambda<object*(pair*)>(ctx, result, "cddr", true, cddr);
+  define_lambda<object*(pair*)>(ctx, result, "cdddr", true, cdddr);
 
   define_raw_lambda(
     ctx, result, "make-string", true,
-    [] (context& ctx, std::vector<generic_ptr> const& args) {
+    [] (context& ctx, std::vector<object*> const& args) {
       if (args.size() < 1)
         throw error{"make-string: Expected at least 1 argument"};
       if (args.size() > 2)
@@ -88,7 +83,7 @@ make_internal_module(context& ctx) {
       auto result = make<string>(ctx, length);
 
       if (args.size() == 2) {
-        ptr<character> fill = expect<character>(args[1]);
+        character* fill = expect<character>(args[1]);
         for (std::size_t i = 0; i < static_cast<std::size_t>(length); ++i)
           result->set(i, fill->value());
       }
@@ -97,73 +92,72 @@ make_internal_module(context& ctx) {
     }
   );
 
-  define_lambda<integer(ptr<string> const&)>(
+  define_lambda<integer(string*)>(
     ctx, result, "string-length", true,
-    [] (ptr<string> const& s) {
+    [] (string* s) {
       return integer{s->size()};
     }
   );
 
   define_top_level(ctx, result, "string-append",
                    make<native_procedure>(ctx,
-                                          [] (context& ctx, std::vector<generic_ptr> const& args) {
+                                          [] (context& ctx, std::vector<object*> const& args) {
                                             std::string result;
-                                            for (generic_ptr const& s : args)
+                                            for (object* s : args)
                                               result += expect<string>(s)->value();
                                             return make_string(ctx, result);
                                           },
                                           "string-append"),
                    true);
 
-  define_lambda<ptr<string>(context&, generic_ptr const&)>(
+  define_lambda<string*(context&, object*)>(
     ctx, result, "number->string", true,
-    [] (context& ctx, generic_ptr const& num) {
+    [] (context& ctx, object* num) {
       if (!is_number(num))
         throw error{"Not a number: {}", datum_to_string(ctx, num)};
       return datum_to_string(ctx, num);
     }
   );
 
-  define_lambda<ptr<string>(context&, generic_ptr const&)>(
+  define_lambda<string*(context&, object*)>(
     ctx, result, "datum->string", true,
-    [] (context& ctx, generic_ptr const& datum) {
+    [] (context& ctx, object* datum) {
       return datum_to_string(ctx, datum);
     }
   );
 
-  define_lambda<ptr<string>(context&, generic_ptr const&)>(
+  define_lambda<string*(context&, object*)>(
     ctx, result, "symbol->string", true,
-    [] (context& ctx, generic_ptr const& datum) {
+    [] (context& ctx, object* datum) {
       return make_string(ctx, expect<symbol>(datum)->value());
     }
   );
 
-  define_lambda<ptr<syntactic_closure>(context&, ptr<environment> const&,
-                                       generic_ptr const&, generic_ptr const&)>(
+  define_lambda<syntactic_closure*(context&, environment*, object*, object*)>(
     ctx, result, "make-syntactic-closure", true,
-    [] (context& ctx, ptr<environment> const& env, generic_ptr const& free, generic_ptr const& form) {
+    [] (context& ctx, environment* env, object* free, object* form) {
       return make<syntactic_closure>(ctx, env, form, free);
     }
   );
 
-  define_lambda<syntactic_closure_expression>(ctx, result, "syntactic-closure-expression", true);
-  define_lambda<syntactic_closure_environment>(ctx, result, "syntactic-closure-environment", true);
+  define_lambda<&syntactic_closure::expression>(ctx, result, "syntactic-closure-expression", true);
+  define_lambda<&syntactic_closure::environment>(ctx, result, "syntactic-closure-environment", true);
 
   define_lambda<type>(ctx, result, "type", true);
 
-  define_lambda<ptr<boolean>(context&, generic_ptr const&, generic_ptr const&)>(
+  define_lambda<boolean*(context&, object*, object*)>(
     ctx, result, "eq?", true,
-    [] (context& ctx, generic_ptr const& x, generic_ptr const& y) {
-      return x == y ? ctx.constants->t : ctx.constants->f;
+    [] (context& ctx, object* x, object* y) {
+      return x == y ? ctx.constants->t.get() : ctx.constants->f.get();
     }
   );
 
   define_lambda<eqv>(ctx, result, "eqv?", true);
   define_lambda<equal>(ctx, result, "equal?", true);
 
-  define_lambda<ptr<vector>(context&, ptr<procedure> const&)>(
+  define_lambda<vector*(context&, procedure*)>(
     ctx, result, "procedure-bytecode", true,
-    [] (context& ctx, ptr<procedure> const& f) {
+    [] (context& ctx, procedure* f) {
       bytecode_decoder dec{f->bytecode};
       std::vector<std::tuple<std::size_t, std::size_t, instruction>> instrs;
       while (!dec.done()) {
@@ -183,31 +177,28 @@ make_internal_module(context& ctx) {
     }
   );
 
-  define_lambda<generic_ptr(context&, ptr<procedure> const&)>(
+  define_lambda<object*(context&, procedure*)>(
     ctx, result, "procedure-name", true,
-    [] (context& ctx, ptr<procedure> const& f) -> generic_ptr {
+    [] (context& ctx, procedure* f) -> object* {
       if (f->name)
         return make_string(ctx, *f->name);
       else
-        return ctx.constants->f;
+        return ctx.constants->f.get();
     }
   );
 
-  define_lambda<ptr<procedure>(ptr<closure> const&)>(
-    ctx, result, "closure-procedure", true,
-    closure_procedure
-  );
+  define_lambda<&closure::procedure>(ctx, result, "closure-procedure", true);
 
-  define_lambda<integer(ptr<opaque_value<instruction>> const&)>(
+  define_lambda<integer(opaque_value<instruction>*)>(
     ctx, result, "instruction-opcode", true,
-    [] (ptr<opaque_value<instruction>> const& i) {
+    [] (opaque_value<instruction>* i) {
       return integer{static_cast<integer::storage_type>(i->value.opcode)};
     }
   );
 
-  define_lambda<generic_ptr(context&, ptr<opaque_value<instruction>> const&)>(
+  define_lambda<object*(context&, opaque_value<instruction>*)>(
     ctx, result, "instruction-operands", true,
-    [] (context& ctx, ptr<opaque_value<instruction>> const& i) {
+    [] (context& ctx, opaque_value<instruction>* i) {
       instruction instr = i->value;
       return make_list_from_vector(ctx, instr.operands,
                                    [&] (operand o) { return integer_to_ptr(o); });
@@ -221,30 +212,30 @@ make_internal_module(context& ctx) {
                                }),
                    true);
 
-  define_lambda<ptr<string>(context&, operand)>(
+  define_lambda<string*(context&, operand)>(
     ctx, result, "top-level-name", true,
     [] (context& ctx, operand op) {
       return make_string(ctx, ctx.get_top_level_name(op));
     }
   );
 
-  define_lambda<generic_ptr(context&, operand)>(
+  define_lambda<object*(context&, operand)>(
     ctx, result, "static-value", true,
     [] (context& ctx, operand op) {
       return ctx.get_static_checked(op);
     }
   );
 
-  define_lambda<generic_ptr(context&, operand)>(
+  define_lambda<object*(context&, operand)>(
     ctx, result, "top-level-value", true,
     [] (context& ctx, operand op) {
       return ctx.get_top_level_checked(op);
     }
   );
 
-  define_lambda<void(context&, ptr<boolean> const&)>(
+  define_lambda<void(context&, boolean*)>(
     ctx, result, "set-verbose-collection!", true,
-    [] (context& ctx, ptr<boolean> const& value) {
+    [] (context& ctx, boolean* value) {
       ctx.store.verbose_collection = value->value();
     }
   );

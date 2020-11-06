@@ -82,14 +82,14 @@ private:
 };
 
 inline integer
-ptr_to_integer(generic_ptr const& x) {
-  assert(!is_object_ptr(x.get()));
-  return integer{detail::make_normal(fixnum_payload(x.get()))};
+ptr_to_integer(object* x) {
+  assert(!is_object_ptr(x));
+  return integer{detail::make_normal(fixnum_payload(x))};
 }
 
-inline generic_ptr
+inline object*
 integer_to_ptr(integer i) {
-  return generic_ptr{i.data()};
+  return fixnum_to_ptr(i.data());
 }
 
 inline std::size_t
@@ -117,7 +117,7 @@ public:
   extra_elements(integer);
 
   static std::size_t
-  extra_elements(ptr<big_integer> const&);
+  extra_elements(big_integer*);
 
   explicit
   big_integer(std::size_t length);
@@ -131,7 +131,7 @@ public:
   big_integer(integer);
 
   explicit
-  big_integer(ptr<big_integer> const&);
+  big_integer(big_integer*);
 
   big_integer(big_integer&&);
 
@@ -184,19 +184,19 @@ private:
 
 class fraction : public composite_object<fraction> {
 public:
-  fraction(generic_ptr const& numerator, generic_ptr const& denominator);
+  fraction(object* numerator, object* denominator);
 
-  generic_ptr
-  numerator(free_store& store) const { return {store, numerator_}; };
+  object*
+  numerator() const { return numerator_; };
 
-  generic_ptr
-  denominator(free_store& store) const { return {store, denominator_}; }
-
-  void
-  set_numerator(free_store& store, generic_ptr const& n) { numerator_ = n.get(); store.notify_arc(this, n.get()); }
+  object*
+  denominator() const { return denominator_; }
 
   void
-  set_denominator(free_store& store, generic_ptr const& d) { denominator_ = d.get(); store.notify_arc(this, d.get()); }
+  set_numerator(free_store& store, object* n) { numerator_ = n; store.notify_arc(this, n); }
+
+  void
+  set_denominator(free_store& store, object* d) { denominator_ = d; store.notify_arc(this, d); }
 
   void
   trace(tracing_context& tc) { tc.trace(numerator_); tc.trace(denominator_); }
@@ -208,12 +208,6 @@ private:
   object* numerator_;
   object* denominator_;
 };
-
-inline generic_ptr
-fraction_numerator(ptr<fraction> const& f) { return f->numerator(f.store()); }
-
-inline generic_ptr
-fraction_denominator(ptr<fraction> const& f) { return f->denominator(f.store()); }
 
 class floating_point : public leaf_object<floating_point> {
 public:
@@ -231,75 +225,75 @@ public:
 };
 
 bool
-is_integer(generic_ptr const&);
+is_integer(object*);
 
 bool
-is_number(generic_ptr const&);
+is_number(object*);
 
-generic_ptr
-add(context&, generic_ptr const&, generic_ptr const&);
-generic_ptr
-add(context&, std::vector<generic_ptr> const&);
+object*
+add(context&, object*, object*);
+object*
+add(context&, std::vector<object*> const&);
 
-generic_ptr
-subtract(context&, generic_ptr const&, generic_ptr const&);
-generic_ptr
-subtract(context&, std::vector<generic_ptr> const&);
+object*
+subtract(context&, object*, object*);
+object*
+subtract(context&, std::vector<object*> const&);
 
-generic_ptr
-multiply(context&, generic_ptr const&, generic_ptr const&);
-generic_ptr
-multiply(context&, std::vector<generic_ptr> const&);
+object*
+multiply(context&, object*, object*);
+object*
+multiply(context&, std::vector<object*> const&);
 
-generic_ptr
-truncate_quotient(context&, generic_ptr const&, generic_ptr const&);
-generic_ptr
-truncate_quotient(context&, std::vector<generic_ptr> const&);
+object*
+truncate_quotient(context&, object*, object*);
+object*
+truncate_quotient(context&, std::vector<object*> const&);
 
-std::tuple<generic_ptr, generic_ptr>
-quotient_remainder(context&, generic_ptr const&, generic_ptr const&);
+std::tuple<object*, object*>
+quotient_remainder(context&, object*, object*);
 
-generic_ptr
-divide(context&, generic_ptr const&, generic_ptr const&);
+object*
+divide(context&, object*, object*);
 
-generic_ptr
-arithmetic_shift(context&, generic_ptr const&, generic_ptr const&);
+object*
+arithmetic_shift(context&, object*, object*);
 
-generic_ptr
-bitwise_and(context&, generic_ptr const&, generic_ptr const&);
+object*
+bitwise_and(context&, object*, object*);
 
-generic_ptr
-bitwise_or(context&, generic_ptr const&, generic_ptr const&);
+object*
+bitwise_or(context&, object*, object*);
 
-generic_ptr
-bitwise_not(context&, generic_ptr const&);
+object*
+bitwise_not(context&, object*);
 
-ptr<boolean>
-arith_equal(context&, generic_ptr const&, generic_ptr const&);
-generic_ptr
-arith_equal(context&, std::vector<generic_ptr> const&);
+boolean*
+arith_equal(context&, object*, object*);
+object*
+arith_equal(context&, std::vector<object*> const&);
 
-ptr<boolean>
-less(context&, generic_ptr const&, generic_ptr const&);
-generic_ptr
-less(context&, std::vector<generic_ptr> const&);
+boolean*
+less(context&, object*, object*);
+object*
+less(context&, std::vector<object*> const&);
 
-ptr<boolean>
-greater(context&, generic_ptr const&, generic_ptr const&);
-generic_ptr
-greater(context&, std::vector<generic_ptr> const&);
+boolean*
+greater(context&, object*, object*);
+object*
+greater(context&, std::vector<object*> const&);
 
-generic_ptr
-gcd(context&, generic_ptr const&, generic_ptr const&);
+object*
+gcd(context&, object*, object*);
 
-generic_ptr
+object*
 read_integer(context& ctx, std::string const& digits, unsigned base = 10);
 
-generic_ptr
-read_number(context&, ptr<port> const&);
+object*
+read_number(context&, port*);
 
 void
-write_number(context&, generic_ptr const& value, ptr<port> const& out);
+write_number(context&, object* value, port* out);
 
 void
 export_numeric(context&, module&);
