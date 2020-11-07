@@ -169,57 +169,29 @@ using bytecode = std::vector<std::byte>;
 void
 encode_instruction(bytecode&, instruction const&);
 
-// An iterator of sorts for decoding bytecode.
-class bytecode_decoder {
-public:
-  explicit
-  bytecode_decoder(bytecode const& bc)
-    : code_{bc.data()}
-    , pc_{0}
-    , size_{bc.size()}
-  { }
+inline opcode
+read_opcode(bytecode const& bc, std::size_t& pc) {
+  auto opcode_num = std::to_integer<std::uint8_t>(bc[pc++]);
+  if (opcode_num > instructions.size())
+    throw std::runtime_error{fmt::format("Invalid opcode number: {}", +opcode_num)};
+  return opcode{opcode_num};
+}
 
-  opcode
-  read_opcode() {
-    auto opcode_num = std::to_integer<std::uint8_t>(code_[pc_++]);
-    if (opcode_num > instructions.size())
-      throw std::runtime_error{fmt::format("Invalid opcode number: {}", +opcode_num)};
-    return opcode{opcode_num};
-  }
-
-  operand
-  read_operand() {
-    operand result = std::to_integer<std::uint8_t>(code_[pc_++]);
-    if (result < 0xFF)
-      return result;
-
-    result = 0;
-    for (std::size_t i = 0; i < sizeof(operand); ++i)
-      result |= std::to_integer<std::uint8_t>(code_[pc_++]) << (i * CHAR_BIT);
-
+inline operand
+read_operand(bytecode const& bc, std::size_t& pc) {
+  operand result = std::to_integer<std::uint8_t>(bc[pc++]);
+  if (result < 0xFF)
     return result;
-  }
 
-  void
-  jump(int offset) { pc_ += offset; }
+  result = 0;
+  for (std::size_t i = 0; i < sizeof(operand); ++i)
+    result |= std::to_integer<std::uint8_t>(bc[pc++]) << (i * CHAR_BIT);
 
-  void
-  jump_to_end() { pc_ = size_; }
-
-  bool
-  done() const { return pc_ >= size_; }
-
-  std::size_t
-  position() const { return pc_; }
-
-private:
-  std::byte const* code_;
-  std::size_t      pc_;
-  std::size_t      size_;
-};
+  return result;
+}
 
 instruction
-read_instruction(bytecode_decoder&);
+read_instruction(bytecode const&, std::size_t& pc);
 
 } // namespace insider
 

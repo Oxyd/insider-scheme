@@ -163,13 +163,13 @@ make_internal_module(context& ctx) {
   define_lambda<vector*(context&, procedure*)>(
     ctx, result, "procedure-bytecode", true,
     [] (context& ctx, procedure* f) {
-      bytecode_decoder dec{f->bytecode};
+      std::size_t pc = 0;
       std::vector<std::tuple<std::size_t, std::size_t, instruction>> instrs;
-      while (!dec.done()) {
-        std::size_t pos = dec.position();
-        instruction instr = read_instruction(dec);
+      while (pc < f->bytecode.size()) {
+        std::size_t pos = pc;
+        instruction instr = read_instruction(f->bytecode, pc);
 
-        instrs.emplace_back(pos, dec.position() - pos, instr);
+        instrs.emplace_back(pos, pc - pos, instr);
       }
 
       return make_list_from_vector(ctx, instrs,

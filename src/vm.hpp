@@ -51,7 +51,7 @@ stack_set(tracked_ptr<root_stack> const& s, std::size_t i, object* value) {
 class call_stack : public composite_root_object<call_stack> {
 public:
   struct frame {
-    bytecode_decoder    bytecode;
+    std::size_t         pc;
     insider::procedure* procedure;
     std::size_t         stack_top;
     operand             dest_register;

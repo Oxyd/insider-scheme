@@ -30,7 +30,7 @@ root_stack::update_references() {
 
 auto
 call_stack::push(insider::procedure* proc, std::size_t stack_top) -> frame& {
-  return frames_.emplace_back(frame{bytecode_decoder{proc->bytecode}, proc, stack_top, operand{}});
+  return frames_.emplace_back(frame{0, proc, stack_top, operand{}});
 }
 
 void
@@ -74,7 +74,7 @@ push_call_frame(execution_state& state, procedure* proc,
 
   assert(state.call_stack->size() >= 2);
   call_stack::frame& caller = state.call_stack->parent_frame();
-  bytecode_decoder& bc = caller.bytecode;
+  bytecode const& bc = caller.procedure->bytecode;
 
   std::size_t closure_size = 0;
   if (cls) {
@@ -85,7 +85,7 @@ push_call_frame(execution_state& state, procedure* proc,
 
   for (std::size_t i = 0; i < num_args; ++i) {
     stack_set(state.value_stack, result.stack_top + closure_size + i,
-              state.value_stack->ref(caller.stack_top + bc.read_operand()));
+              state.value_stack->ref(caller.stack_top + read_operand(bc, caller.pc)));
   }
 
   return closure_size + num_args;
@@ -127,30 +127,30 @@ call_frame_local(execution_state& state, operand local) {
 static void
 execute_one(execution_state& state) {
   call_stack::frame& frame = state.call_stack->current_frame();
-  bytecode_decoder& bc = frame.bytecode;
+  bytecode const& bc = frame.procedure->bytecode;
 
-  opcode op = bc.read_opcode();
+  opcode op = read_opcode(bc, frame.pc);
   switch (op) {
   case opcode::no_operation:
     break;
 
   case opcode::load_static: {
-    operand static_num = bc.read_operand();
-    operand dest = bc.read_operand();
+    operand static_num = read_operand(bc, frame.pc);
+    operand dest = read_operand(bc, frame.pc);
     call_frame_set_local(state, dest, state.ctx.get_static(static_num));
     break;
   }
 
   case opcode::load_top_level: {
-    operand global_num = bc.read_operand();
-    operand dest = bc.read_operand();
+    operand global_num = read_operand(bc, frame.pc);
+    operand dest = read_operand(bc, frame.pc);
     call_frame_set_local(state, dest, state.ctx.get_top_level(global_num));
     break;
   }
 
   case opcode::store_top_level: {
-    operand reg = bc.read_operand();
-    operand global_num = bc.read_operand();
+    operand reg = read_operand(bc, frame.pc);
+    operand global_num = read_operand(bc, frame.pc);
     state.ctx.set_top_level(global_num, call_frame_local(state, reg));
     break;
   }
@@ -159,9 +159,9 @@ execute_one(execution_state& state) {
   case opcode::subtract:
   case opcode::multiply:
   case opcode::divide: {
-    object* lhs = call_frame_local(state, bc.read_operand());
-    object* rhs = call_frame_local(state, bc.read_operand());
-    operand dest = bc.read_operand();
+    object* lhs = call_frame_local(state, read_operand(bc, frame.pc));
+    object* rhs = call_frame_local(state, read_operand(bc, frame.pc));
+    operand dest = read_operand(bc, frame.pc);
 
     switch (op) {
     case opcode::add:
@@ -186,9 +186,9 @@ execute_one(execution_state& state) {
   case opcode::arith_equal:
   case opcode::less_than:
   case opcode::greater_than: {
-    object* lhs = call_frame_local(state, bc.read_operand());
-    object* rhs = call_frame_local(state, bc.read_operand());
-    operand dest = bc.read_operand();
+    object* lhs = call_frame_local(state, read_operand(bc, frame.pc));
+    object* rhs = call_frame_local(state, read_operand(bc, frame.pc));
+    operand dest = read_operand(bc, frame.pc);
 
     switch (op) {
     case opcode::arith_equal:
@@ -207,8 +207,8 @@ execute_one(execution_state& state) {
   }
 
   case opcode::set: {
-    operand src = bc.read_operand();
-    operand dst = bc.read_operand();
+    operand src = read_operand(bc, frame.pc);
+    operand dst = read_operand(bc, frame.pc);
     call_frame_set_local(state, dst, call_frame_local(state, src));
     break;
   }
@@ -227,17 +227,17 @@ execute_one(execution_state& state) {
     switch (op) {
     case opcode::call:
     case opcode::tail_call:
-      callee = call_frame_local(state, bc.read_operand());
+      callee = call_frame_local(state, read_operand(bc, frame.pc));
       break;
 
     case opcode::call_top_level:
     case opcode::tail_call_top_level:
-      callee = state.ctx.get_top_level(bc.read_operand());
+      callee = state.ctx.get_top_level(read_operand(bc, frame.pc));
       break;
 
     case opcode::call_static:
     case opcode::tail_call_static:
-      callee = state.ctx.get_static(bc.read_operand());
+      callee = state.ctx.get_static(read_operand(bc, frame.pc));
       break;
 
     default:
@@ -245,9 +245,9 @@ execute_one(execution_state& state) {
     }
 
     if (!is_tail)
-      frame.dest_register = bc.read_operand();
+      frame.dest_register = read_operand(bc, frame.pc);
 
-    operand num_args = bc.read_operand();
+    operand num_args = read_operand(bc, frame.pc);
     object* call_target = callee;
     insider::closure* closure = nullptr;
 
@@ -264,7 +264,7 @@ execute_one(execution_state& state) {
                     scheme_proc->min_args, num_args};
 
       std::size_t values_used = push_call_frame(state, scheme_proc, closure, scheme_proc->min_args);
-      bytecode_decoder& parent_bc = state.call_stack->parent_frame().bytecode;
+      call_stack::frame& parent_frame = state.call_stack->parent_frame();
 
       if (scheme_proc->has_rest) {
         // We have to pass exactly min_args + 1 arguments. The last one is a
@@ -276,7 +276,8 @@ execute_one(execution_state& state) {
 
         call_stack::frame const& caller = state.call_stack->parent_frame();
         for (std::size_t i = 0; i < num_rest; ++i)
-          rest_args.push_back(state.value_stack->ref(caller.stack_top + parent_bc.read_operand()));
+          rest_args.push_back(state.value_stack->ref(caller.stack_top + read_operand(parent_frame.procedure->bytecode,
+                                                                                     parent_frame.pc)));
 
         object* rest_list = make_list_from_vector(state.ctx, rest_args);
         stack_set(state.value_stack, state.call_stack->current_frame().stack_top + values_used, rest_list);
@@ -292,7 +293,7 @@ execute_one(execution_state& state) {
       std::vector<object*> args;
       args.reserve(num_args);
       for (std::size_t i = 0; i < num_args; ++i)
-        args.push_back(state.value_stack->ref(state.call_stack->current_frame().stack_top + bc.read_operand()));
+        args.push_back(state.value_stack->ref(state.call_stack->current_frame().stack_top + read_operand(bc, frame.pc)));
 
       object* result = native_proc->target(state.ctx, args);
 
@@ -307,7 +308,7 @@ execute_one(execution_state& state) {
           // Same as in ret below: We're returning from the global procedure.
 
           state.global_return = track(state.ctx, result);
-          frame.bytecode.jump_to_end();
+          frame.pc = frame.procedure->bytecode.size();
           return;
         }
 
@@ -321,7 +322,7 @@ execute_one(execution_state& state) {
   }
 
   case opcode::ret: {
-    operand return_reg = bc.read_operand();
+    operand return_reg = read_operand(bc, frame.pc);
     object* result = call_frame_local(state, return_reg);
 
     if (state.call_stack->size() == 1) {
@@ -330,7 +331,7 @@ execute_one(execution_state& state) {
       // stack. We'll then set pc past all the bytecode so we finish execution.
 
       state.global_return = track(state.ctx, result);
-      frame.bytecode.jump_to_end();
+      frame.pc = frame.procedure->bytecode.size();
       return;
     }
 
@@ -348,10 +349,10 @@ execute_one(execution_state& state) {
     operand condition_reg{};
 
     if (op == opcode::jump || op == opcode::jump_back)
-      off = bc.read_operand();
+      off = read_operand(bc, frame.pc);
     else {
-      condition_reg = bc.read_operand();
-      off = bc.read_operand();
+      condition_reg = read_operand(bc, frame.pc);
+      off = read_operand(bc, frame.pc);
     }
 
     int offset = (op == opcode::jump_back || op == opcode::jump_back_unless) ? -off : off;
@@ -365,55 +366,55 @@ execute_one(execution_state& state) {
         break;
     }
 
-    frame.bytecode.jump(offset);
+    frame.pc += offset;
     break;
   }
 
   case opcode::make_closure: {
-    procedure* proc = assume<procedure>(call_frame_local(state, bc.read_operand()));
-    operand dest = bc.read_operand();
-    operand num_captures = bc.read_operand();
+    procedure* proc = assume<procedure>(call_frame_local(state, read_operand(bc, frame.pc)));
+    operand dest = read_operand(bc, frame.pc);
+    operand num_captures = read_operand(bc, frame.pc);
 
     auto result = make<closure>(state.ctx, proc, num_captures);
     for (std::size_t i = 0; i < num_captures; ++i)
-      result->set(state.ctx.store, i, call_frame_local(state, bc.read_operand()));
+      result->set(state.ctx.store, i, call_frame_local(state, read_operand(bc, frame.pc)));
 
     call_frame_set_local(state, dest, result);
     break;
   }
 
   case opcode::box: {
-    object* value = call_frame_local(state, bc.read_operand());
-    call_frame_set_local(state, bc.read_operand(), state.ctx.store.make<box>(value));
+    object* value = call_frame_local(state, read_operand(bc, frame.pc));
+    call_frame_set_local(state, read_operand(bc, frame.pc), state.ctx.store.make<box>(value));
     break;
   }
 
   case opcode::unbox: {
-    auto box = expect<insider::box>(call_frame_local(state, bc.read_operand()));
-    call_frame_set_local(state, bc.read_operand(), box->get());
+    auto box = expect<insider::box>(call_frame_local(state, read_operand(bc, frame.pc)));
+    call_frame_set_local(state, read_operand(bc, frame.pc), box->get());
     break;
   }
 
   case opcode::box_set: {
-    auto box = expect<insider::box>(call_frame_local(state, bc.read_operand()));
-    box->set(state.ctx.store, call_frame_local(state, bc.read_operand()));
+    auto box = expect<insider::box>(call_frame_local(state, read_operand(bc, frame.pc)));
+    box->set(state.ctx.store, call_frame_local(state, read_operand(bc, frame.pc)));
     break;
   }
 
   case opcode::cons: {
-    object* car = call_frame_local(state, bc.read_operand());
-    object* cdr = call_frame_local(state, bc.read_operand());
-    call_frame_set_local(state, bc.read_operand(), make<pair>(state.ctx, car, cdr));
+    object* car = call_frame_local(state, read_operand(bc, frame.pc));
+    object* cdr = call_frame_local(state, read_operand(bc, frame.pc));
+    call_frame_set_local(state, read_operand(bc, frame.pc), make<pair>(state.ctx, car, cdr));
     break;
   }
 
   case opcode::make_vector: {
-    operand dest = bc.read_operand();
-    operand num_elems = bc.read_operand();
+    operand dest = read_operand(bc, frame.pc);
+    operand num_elems = read_operand(bc, frame.pc);
 
     auto result = make<vector>(state.ctx, state.ctx, num_elems);
     for (std::size_t i = 0; i < num_elems; ++i)
-      result->set(state.ctx.store, i, call_frame_local(state, bc.read_operand()));
+      result->set(state.ctx.store, i, call_frame_local(state, read_operand(bc, frame.pc)));
 
     call_frame_set_local(state, dest, result);
     break;
@@ -471,7 +472,7 @@ object*
 run(execution_state& state) {
   execution_action a(state);
 
-  while (!state.call_stack->current_frame().bytecode.done()) {
+  while (state.call_stack->current_frame().pc != state.call_stack->current_frame().procedure->bytecode.size()) {
     execute_one(state);
     state.ctx.store.update();
   }

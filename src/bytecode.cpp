@@ -83,17 +83,17 @@ encode_instruction(bytecode& bc, instruction const& instr) {
 }
 
 instruction
-read_instruction(bytecode_decoder& dec) {
-  instruction result{dec.read_opcode()};
+read_instruction(bytecode const& bc, std::size_t& pc) {
+  instruction result{read_opcode(bc, pc)};
   instruction_info info = opcode_to_info(result.opcode);
 
   for (std::size_t i = 0; i < info.num_operands; ++i)
-    result.operands.push_back(dec.read_operand());
+    result.operands.push_back(read_operand(bc, pc));
 
   if (info.extra_operands) {
-    operand num_extra = dec.read_operand();
+    operand num_extra = read_operand(bc, pc);
     for (std::size_t i = 0; i < num_extra; ++i)
-      result.operands.push_back(dec.read_operand());
+      result.operands.push_back(read_operand(bc, pc));
   }
 
   return result;
