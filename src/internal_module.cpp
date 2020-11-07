@@ -57,7 +57,12 @@ make_internal_module(context& ctx) {
     }
   );
   define_lambda<&vector::ref>(ctx, result, "vector-ref", true);
-  define_lambda<vector_set>(ctx, result, "vector-set!", true);
+  define_lambda<void(context&, vector*, std::size_t, object*)>(
+    ctx, result, "vector-set!", true,
+    [] (context& ctx, vector* v, std::size_t i, object* o) {
+      v->set(ctx.store, i, o);
+    }
+  );
 
   define_lambda<cons>(ctx, result, "cons", true);
   define_lambda<object*(pair*)>(ctx, result, "car", true, static_cast<object* (*)(pair*)>(car));
