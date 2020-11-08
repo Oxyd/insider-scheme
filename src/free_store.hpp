@@ -35,7 +35,7 @@ private:
 };
 
 struct type_descriptor {
-  std::string name;
+  char const* name;
   void (*destroy)(object*);
   object* (*move)(object*, std::byte*);
   void (*trace)(object*, tracing_context&);
@@ -189,9 +189,6 @@ namespace detail {
   update_references(object* o) {
     static_cast<T*>(o)->update_references();
   }
-
-  std::string
-  demangle(char const* name);
 }
 
 // Object with no Scheme subobjects.
@@ -202,7 +199,7 @@ struct leaf_object : object {
 
 template <typename Derived>
 word_type const leaf_object<Derived>::type_index = new_type(type_descriptor{
-  detail::demangle(typeid(Derived).name()),
+  Derived::scheme_name,
   detail::destroy<Derived>,
   detail::move<Derived>,
   [] (object*, tracing_context&) { },
@@ -220,7 +217,7 @@ struct composite_object : object {
 
 template <typename Derived>
 word_type const composite_object<Derived>::type_index = new_type(type_descriptor{
-  detail::demangle(typeid(Derived).name()),
+  Derived::scheme_name,
   detail::destroy<Derived>,
   detail::move<Derived>,
   detail::trace<Derived>,
@@ -239,7 +236,7 @@ struct composite_root_object : object {
 
 template <typename Derived>
 word_type const composite_root_object<Derived>::type_index = new_type(type_descriptor{
-  detail::demangle(typeid(Derived).name()),
+  Derived::scheme_name,
   detail::destroy<Derived>,
   detail::move<Derived>,
   detail::trace<Derived>,
@@ -271,7 +268,7 @@ protected:
 
 template <typename Derived, typename T>
 word_type const dynamic_size_object<Derived, T>::type_index = new_type(type_descriptor{
-  detail::demangle(typeid(Derived).name()),
+  Derived::scheme_name,
   detail::destroy<Derived>,
   detail::move<Derived>,
   detail::trace<Derived>,

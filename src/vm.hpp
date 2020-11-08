@@ -10,6 +10,8 @@ namespace insider {
 // Dynamic-sized stack to store local variables.
 class root_stack : public composite_root_object<root_stack> {
 public:
+  static constexpr char const* scheme_name = "insider::root_stack";
+
   object*
   ref(std::size_t i) { return data_[i]; }
 
@@ -50,6 +52,8 @@ stack_set(tracked_ptr<root_stack> const& s, std::size_t i, object* value) {
 
 class call_stack : public composite_root_object<call_stack> {
 public:
+  static constexpr char const* scheme_name = "insider::call_stack";
+
   struct frame {
     std::size_t         pc;
     insider::procedure* procedure;

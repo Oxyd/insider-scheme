@@ -99,6 +99,8 @@ integer_hash(integer i) { return static_cast<std::size_t>(i.data()); }
 // limbs. The least-significant limb is stored first.
 class big_integer : public dynamic_size_object<big_integer, detail::limb_type> {
 public:
+  static constexpr char const* scheme_name = "insider::big_integer";
+
   struct dont_initialize_t { } static constexpr dont_initialize{};
   using iterator = detail::limb_type*;
   using reverse_iterator = std::reverse_iterator<iterator>;
@@ -184,6 +186,8 @@ private:
 
 class fraction : public composite_object<fraction> {
 public:
+  static constexpr char const* scheme_name = "insider::fraction";
+
   fraction(object* numerator, object* denominator);
 
   object*
@@ -211,6 +215,8 @@ private:
 
 class floating_point : public leaf_object<floating_point> {
 public:
+  static constexpr char const* scheme_name = "insider::floating_point";
+
   using value_type = double;
 
   value_type value;

@@ -56,6 +56,8 @@ struct scheme : testing::Test {
 };
 
 struct aaa : leaf_object<aaa> {
+  static constexpr char const* scheme_name = "aaa";
+
   bool* alive;
 
   explicit
@@ -98,6 +100,8 @@ TEST_F(scheme, collect_direct_garbage) {
 }
 
 struct bbb : composite_object<bbb> {
+  static constexpr char const* scheme_name = "bbb";
+
   bool* alive;
 
   explicit

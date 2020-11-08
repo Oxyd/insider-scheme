@@ -50,15 +50,21 @@ using eqv_unordered_map = std::unordered_map<generic_tracked_ptr, Value, generic
 
 // The empty list. There should only be exactly one instance of this type per
 // evaluation context.
-struct null_type : leaf_object<null_type> { };
+struct null_type : leaf_object<null_type> {
+  static constexpr char const* scheme_name = "insider::null_type";
+};
 
 // The empty value. Like null_type, there should only be exactly one instance
 // per evaluation context. This is used when no other meaningful value can be
 // had -- such as the result of evaluating (if #f anything).
-struct void_type : leaf_object<void_type> { };
+struct void_type : leaf_object<void_type> {
+  static constexpr char const* scheme_name = "insider::void_type";
+};
 
 // Dummy value used to represent core forms.
-struct core_form_type : leaf_object<core_form_type> { };
+struct core_form_type : leaf_object<core_form_type> {
+  static constexpr char const* scheme_name = "insider::core_form_type";
+};
 
 class boolean;
 class context;
@@ -77,6 +83,8 @@ identifier_name(object* x);
 
 class environment : public composite_object<environment> {
 public:
+  static constexpr char const* scheme_name = "insider::environment";
+
   using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
 
   explicit
@@ -263,7 +271,6 @@ public:
   statics_list               statics;
   tracked_ptr<port>                  output_port;
   module                     internal_module; // (insider internal)
-  std::unordered_map<std::string, std::string> type_names;
   std::string                error_backtrace; // Built from actions during stack unwinding.
 
   context();
@@ -374,6 +381,8 @@ format_error(context& ctx, std::runtime_error const&);
 // A boolean value.
 class boolean : public leaf_object<boolean> {
 public:
+  static constexpr char const* scheme_name = "insider::boolean";
+
   explicit
   boolean(bool value) : value_{value} { }
 
@@ -390,6 +399,8 @@ boolean_hash(boolean* b) { return b->value(); }
 // Character. TODO: Support Unicode.
 class character : public leaf_object<character> {
 public:
+  static constexpr char const* scheme_name = "insider::character";
+
   explicit
   character(char c) : value_{c} { }
 
@@ -403,6 +414,8 @@ private:
 // Fixed-length string. TODO: Support Unicode.
 class string : public dynamic_size_object<string, char> {
 public:
+  static constexpr char const* scheme_name = "insider::string";
+
   static std::size_t
   extra_elements(std::size_t size) { return size; }
 
@@ -436,6 +449,8 @@ make_string(context&, std::string_view value);
 // I/O port or a string port. Can be read or write, binary or text.
 class port : public leaf_object<port> {
 public:
+  static constexpr char const* scheme_name = "insider::port";
+
   port(FILE*, bool input, bool output, bool should_close = true);
   port(std::string, bool input, bool output);
   port(port&&);
@@ -484,6 +499,8 @@ private:
 // A cons pair containing two other Scheme values, car and cdr.
 class pair : public composite_object<pair> {
 public:
+  static constexpr char const* scheme_name = "insider::pair";
+
   pair(object* car, object* cdr)
     : car_{car}
     , cdr_{cdr}
@@ -601,6 +618,8 @@ append(context&, std::vector<object*> const&);
 // view, there is an array of object* allocated right after the vector object.
 class vector : public dynamic_size_object<vector, object*> {
 public:
+  static constexpr char const* scheme_name = "insider::vector";
+
   static std::size_t
   extra_elements(context&, std::size_t size) { return size; }
 
@@ -659,6 +678,8 @@ vector_append(context&, std::vector<object*> const& vs);
 // An immutable string, used for identifying Scheme objects.
 class symbol : public leaf_object<symbol> {
 public:
+  static constexpr char const* scheme_name = "insider::symbol";
+
   explicit
   symbol(std::string value) : value_{std::move(value)} { }
 
@@ -672,6 +693,8 @@ private:
 // Mutable container for a single element. Essentially a pointer.
 class box : public composite_object<box> {
 public:
+  static constexpr char const* scheme_name = "insider::box";
+
   explicit
   box(object*);
 
@@ -698,6 +721,8 @@ box_set(tracked_ptr<box> const& b, object* value) { b->set(b.store(), value); }
 // a call frame inside the VM.
 class procedure : public leaf_object<procedure> {
 public:
+  static constexpr char const* scheme_name = "insider::procedure";
+
   insider::bytecode          bytecode;
   unsigned                   locals_size;
   unsigned                   min_args;
@@ -711,6 +736,8 @@ public:
 // A procedure plus a list of captured objects.
 class closure : public dynamic_size_object<closure, object*> {
 public:
+  static constexpr char const* scheme_name = "insider::closure";
+
   static std::size_t
   extra_elements(insider::procedure*, std::size_t num_captures) {
     return num_captures;
@@ -749,6 +776,8 @@ closure_set(tracked_ptr<closure> const& c, std::size_t i, object* v) { c->set(c.
 // Like procedure, but when invoked, it calls a C++ function.
 class native_procedure : public leaf_object<native_procedure> {
 public:
+  static constexpr char const* scheme_name = "insider::native_procedure";
+
   using target_type = std::function<object*(context&, std::vector<object*> const&)>;
   target_type target;
   std::optional<std::string> name;
@@ -770,6 +799,8 @@ expect_callable(object* x);
 template <typename T>
 class opaque_value : public leaf_object<opaque_value<T>> {
 public:
+  static constexpr char const* scheme_name = "insider::opaque_value";
+
   T value;
 
   template <typename... Args>
@@ -785,6 +816,8 @@ public:
 // closure is being used.
 class syntactic_closure : public dynamic_size_object<syntactic_closure, object*> {
 public:
+  static constexpr char const* scheme_name = "insider::syntactic_closure";
+
   static std::size_t
   extra_elements(insider::environment*,
                  object* expr, object* free);
@@ -821,6 +854,8 @@ private:
 // A procedure together with the environment it was defined in.
 class transformer : public composite_object<transformer> {
 public:
+  static constexpr char const* scheme_name = "insider::transformer";
+
   transformer(insider::environment* env, object* callable)
     : env_{env}
     , callable_{callable}

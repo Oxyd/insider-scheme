@@ -3,10 +3,6 @@
 #include <algorithm>
 #include <cassert>
 
-#ifdef __GNUC__
-#include <cxxabi.h>
-#endif
-
 #include <fmt/format.h>
 
 namespace insider {
@@ -79,27 +75,6 @@ static void
 set_forwarding_address(object* from, object* target) {
   header_word(from) = reinterpret_cast<word_type>(target);
   assert((header_word(from) & alive_bit) == 0);
-}
-
-std::string
-detail::demangle(char const* name) {
-#ifdef __GNUC__
-  struct free_deallocator {
-    void
-    operator () (char* p) { std::free(p); }
-  };
-
-  int status;
-  std::unique_ptr<char, free_deallocator> result{abi::__cxa_demangle(name, nullptr, nullptr, &status)};
-
-  if (status == 0)
-    return std::string(result.get());
-  else
-    return std::string(name);
-
-#else
-  return std::string(name);
-#endif
 }
 
 void
