@@ -192,9 +192,8 @@ import_all_top_level(context&, module& to, module& from);
 void
 perform_imports(context&, module& to, protomodule const& import_declarations);
 
-void
-define_top_level(context&, module&, std::string const& name, object* object,
-                 bool export_ = false);
+operand
+define_top_level(context&, std::string const& name, module&, bool export_, object* object);
 
 // Recursively activate all dependencies of the given module, execute the
 // module's body and return the result of the last expression in its body.
@@ -778,7 +777,7 @@ class native_procedure : public leaf_object<native_procedure> {
 public:
   static constexpr char const* scheme_name = "insider::native_procedure";
 
-  using target_type = std::function<object*(context&, std::vector<object*> const&)>;
+  using target_type = std::function<object*(context&, native_procedure*, std::vector<object*> const&)>;
   target_type target;
   std::optional<std::string> name;
 

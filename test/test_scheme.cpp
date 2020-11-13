@@ -615,7 +615,7 @@ TEST_F(scheme, exec_loop) {
 }
 
 TEST_F(scheme, exec_native_call) {
-  auto native = [] (context&, std::vector<object*> const& args) {
+  auto native = [] (context&, native_procedure*, std::vector<object*> const& args) {
     return integer_to_ptr(integer{2 * expect<integer>(args[0]).value()
                                   + 3 * expect<integer>(args[1]).value()
                                   + 5 * expect<integer>(args[2]).value()});
@@ -977,13 +977,12 @@ TEST_F(scheme, compile_higher_order_arithmetic) {
 TEST_F(scheme, compile_module) {
   int sum = 0;
   define_top_level(
-    ctx, ctx.internal_module, "f",
+    ctx, "f", ctx.internal_module, true,
     make<native_procedure>(ctx,
-                           [&] (context& ctx, std::vector<object*> const& args) {
+                           [&] (context& ctx, native_procedure*, std::vector<object*> const& args) {
                              sum += expect<integer>(args[0]).value();
                              return ctx.constants->void_.get();
-                           }),
-    true
+                           })
   );
 
   auto m = compile_main_module(ctx,
@@ -1073,19 +1072,19 @@ TEST_F(scheme, compile_internal_define) {
 }
 
 TEST_F(scheme, define_lambda) {
-  define_lambda<int(int, int)>(
-    ctx, ctx.internal_module, "f", true,
+  define_procedure(
+    ctx, "f", ctx.internal_module, true,
     [] (int a, int b) { return 2 * a + b; }
   );
 
   int x = 0;
-  define_lambda<void(int)>(
-    ctx, ctx.internal_module, "g", true,
+  define_procedure<void(int)>(
+    ctx, "g", ctx.internal_module, true,
     [&] (int a) { x += a; }
   );
 
-  define_lambda<std::string(int)>(
-    ctx, ctx.internal_module, "to-string", true,
+  define_procedure(
+    ctx, "to-string", ctx.internal_module, true,
     [] (int i) { return std::to_string(i); }
   );
 
@@ -1318,8 +1317,8 @@ TEST_F(scheme, core_shadowing) {
 }
 
 TEST_F(scheme, opaque_value) {
-  define_lambda<opaque_value<int>(context&)>(
-    ctx, ctx.internal_module, "make-value", true,
+  define_procedure(
+    ctx, "make-value", ctx.internal_module, true,
     [] (context& ctx) { return make<opaque_value<int>>(ctx, 7); }
   );
   auto result = eval("(make-value)");
@@ -1462,8 +1461,8 @@ TEST_F(scheme, aliases) {
 
 TEST_F(scheme, module_activation) {
   std::vector<int> trace;
-  define_lambda<void(int)>(
-    ctx, ctx.internal_module, "leave-mark", true,
+  define_procedure<void(int)>(
+    ctx, "leave-mark", ctx.internal_module, true,
     [&] (int value) { trace.push_back(value); }
   );
 

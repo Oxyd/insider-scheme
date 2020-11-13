@@ -374,13 +374,14 @@ perform_imports(context& ctx, module& m, protomodule const& pm) {
     perform_imports(ctx, m, parse_import_set(ctx, spec));
 }
 
-void
-define_top_level(context& ctx, module& m, std::string const& name, object* object,
-                 bool export_) {
+operand
+define_top_level(context& ctx, std::string const& name, module& m, bool export_, object* object) {
   auto index = ctx.add_top_level(object, name);
   m.add(ctx.intern(name), index);
   if (export_)
     m.export_(ctx.intern(name));
+
+  return index;
 }
 
 static object*

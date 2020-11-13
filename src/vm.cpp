@@ -295,7 +295,7 @@ execute_one(execution_state& state) {
       for (std::size_t i = 0; i < num_args; ++i)
         args.push_back(state.value_stack->ref(state.call_stack->current_frame().stack_top + read_operand(bc, frame.pc)));
 
-      object* result = native_proc->target(state.ctx, args);
+      object* result = native_proc->target(state.ctx, native_proc, args);
 
       if (!is_tail)
         stack_set(state.value_stack, frame.stack_top + frame.dest_register, result);
@@ -498,7 +498,7 @@ call(context& ctx, object* callable, std::vector<object*> const& arguments) {
     return run(state);
   } else if (auto native_proc = match<native_procedure>(callable)) {
     assert(closure.empty());
-    return native_proc->target(ctx, arguments);
+    return native_proc->target(ctx, native_proc, arguments);
   } else
     throw std::runtime_error{"Expected a callable"};
 }

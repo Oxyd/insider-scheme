@@ -1302,7 +1302,15 @@ gcd(context& ctx, object* x, object* y) {
 static void
 export_native(context& ctx, module& m, std::string const& name,
               object* (*f)(context&, std::vector<object*> const&), special_top_level_tag tag) {
-  auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f), name);
+  auto index = ctx.add_top_level(
+    ctx.store.make<native_procedure>(
+      [=] (context& ctx, native_procedure*, std::vector<object*> const& args) {
+        return f(ctx, args);
+      },
+      name
+    ),
+    name
+  );
   ctx.tag_top_level(index, tag);
   auto sym = ctx.intern(name);
   m.add(sym, index);
@@ -1526,11 +1534,11 @@ export_numeric(context& ctx, module& result) {
   export_native(ctx, result, "=", arith_equal, special_top_level_tag::arith_equal);
   export_native(ctx, result, "<", less, special_top_level_tag::less_than);
   export_native(ctx, result, ">", greater, special_top_level_tag::greater_than);
-  define_lambda<gcd>(ctx, result, "gcd", true);
-  define_lambda<arithmetic_shift>(ctx, result, "arithmetic-shift", true);
-  define_lambda<bitwise_and>(ctx, result, "bitwise-and", true);
-  define_lambda<bitwise_or>(ctx, result, "bitwise-or", true);
-  define_lambda<bitwise_not>(ctx, result, "bitwise-not", true);
+  define_procedure(ctx, "gcd", result, true, gcd);
+  define_procedure(ctx, "arithmetic-shift", result, true, arithmetic_shift);
+  define_procedure(ctx, "bitwise-and", result, true, bitwise_and);
+  define_procedure(ctx, "bitwise-or", result, true, bitwise_or);
+  define_procedure(ctx, "bitwise-not", result, true, bitwise_not);
 }
 
 } // namespace insider

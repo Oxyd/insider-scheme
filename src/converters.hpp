@@ -146,119 +146,141 @@ struct from_scheme_converter<std::vector<T>> {
 };
 
 namespace detail {
-  template <typename T>
-  struct lambda_definer;
+  template <typename R, typename... Args, typename F, std::size_t... Is>
+  static operand
+  define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+                   F const& f, std::index_sequence<Is...>) {
+    auto proc = make<native_procedure>(
+      ctx,
+      [=] (context& ctx, native_procedure* self, std::vector<object*> const& args) {
+        if (args.size() != sizeof...(Args))
+          throw std::runtime_error{fmt::format(
+            "{} called with incorrect number of arguments: {} required; {} given",
+            self->name ? *self->name : "<native procedure>",
+            sizeof...(Args), args.size()
+          )};
+
+        if constexpr (std::is_same_v<R, void>) {
+          f(ctx, from_scheme<Args>(ctx, args[Is])...);
+          return ctx.constants->void_.get();
+        }
+        else
+          return to_scheme(ctx, f(ctx, from_scheme<Args>(ctx, args[Is])...));
+      },
+      name
+    );
+
+    return define_top_level(ctx, name, m, export_, proc);
+  }
+
+  template <typename FunctionType>
+  struct define_typed_procedure;
 
   template <typename R, typename... Args>
-  struct lambda_definer<R(context&, Args...)> {
-    template <typename F>
-    static void
-    define(context& ctx, module& m, std::string const& name, F f, bool export_) {
-      define(ctx, m, name, std::move(f), export_, std::index_sequence_for<Args...>{});
-    }
-
-    template <typename F, std::size_t... Is>
-    static void
-    define(context& ctx, module& m, std::string const& name, F f, bool export_,
-           std::index_sequence<Is...>) {
-      auto proc = make<native_procedure>(
-        ctx,
-        [name, f = std::move(f)] (context& ctx, std::vector<object*> const& args) {
-          if (args.size() != sizeof...(Args))
-            throw std::runtime_error{fmt::format(
-              "{} called with incorrect number of arguments: {} required; {} given",
-              name, sizeof...(Args), args.size()
-            )};
-
-          if constexpr (std::is_same_v<R, void>) {
-            f(ctx, from_scheme<Args>(ctx, args[Is])...);
-            return ctx.constants->void_.get();
-          } else
-            return to_scheme(ctx, f(ctx, from_scheme<Args>(ctx, args[Is])...));
-        },
-        name
-      );
-
-      define_top_level(ctx, m, name, proc, export_);
+  struct define_typed_procedure<R(context&, Args...)> {
+    template <typename Callable>
+    static operand
+    define(context& ctx, std::string const& name, module& m, bool export_, Callable const& f) {
+      return detail::define_procedure<R, context&, Args...>(ctx, name, m, export_, f,
+                                                            std::index_sequence_for<context&, Args...>{});
     }
   };
 
   template <typename R, typename... Args>
-  struct lambda_definer<R(Args...)> {
-    template <typename F>
-    static void
-    define(context& ctx, module& m, std::string const& name, F f, bool export_) {
-      define(ctx, m, name, std::move(f), export_, std::index_sequence_for<Args...>{});
-    }
-
-    template <typename F, std::size_t... Is>
-    static void
-    define(context& ctx, module& m, std::string const& name, F f, bool export_,
-           std::index_sequence<Is...>) {
-      auto proc = make<native_procedure>(
-        ctx,
-        [name, f = std::move(f)] (context& ctx, std::vector<object*> const& args) {
-          if (args.size() != sizeof...(Args))
-            throw std::runtime_error{fmt::format(
-              "{} called with incorrect number of arguments: {} required; {} given",
-              name, sizeof...(Args), args.size()
-            )};
-
-          if constexpr (std::is_same_v<R, void>) {
-            f(from_scheme<Args>(ctx, args[Is])...);
-            return ctx.constants->void_.get();
-          } else
-            return to_scheme(ctx, f(from_scheme<Args>(ctx, args[Is])...));
-        },
-        name
-      );
-
-      define_top_level(ctx, m, name, proc, export_);
+  struct define_typed_procedure<R(Args...)> {
+    template <typename Callable>
+    static operand
+    define(context& ctx, std::string const& name, module& m, bool export_, Callable const& f) {
+      return detail::define_procedure<R, Args...>(ctx, name, m, export_,
+                                                  [=] (context&, Args... args) { return f(args...); },
+                                                  std::index_sequence_for<Args...>{});
     }
   };
-
-  template <typename C, typename R, typename... Args>
-  struct lambda_definer<R (C::*)(Args...)> {
-    static void
-    define(context& ctx, module& m, std::string const& name, R (C::* f)(Args...), bool export_) {
-      lambda_definer<R(C*, Args...)>::define(ctx, m, name,
-                                             [=] (C* c, Args... args) { return (c->*f)(args...); },
-                                             export_);
-    }
-  };
-
-  template <typename C, typename R, typename... Args>
-  struct lambda_definer<R (C::*)(Args...) const> {
-    static void
-    define(context& ctx, module& m, std::string const& name, R (C::* f)(Args...) const, bool export_) {
-      lambda_definer<R(C const*, Args...)>::define(ctx, m, name,
-                                                   [=] (C const* c, Args... args) { return (c->*f)(args...); },
-                                                   export_);
-    }
-  };
-
-} // namespace detail
-
-// Define a native procedure in the given module with the given name. The C++
-// function type has to be given explicitly as the first template argument
-// because it cannot, in general, be deduced from the callable (which may be
-// callable with different argument types).
-template <typename T, typename F>
-void
-define_lambda(context& ctx, module& m, std::string const& name, bool export_, F f) {
-  detail::lambda_definer<T>::define(ctx, m, name, std::move(f), export_);
 }
 
-template <auto F>
-void
-define_lambda(context& ctx, module& m, std::string const& name, bool export_) {
-  detail::lambda_definer<std::remove_pointer_t<decltype(F)>>::define(ctx, m, name, F, export_);
+// Define a given procedure with the given Scheme name in the given module. The
+// procedure is given as the template parameter and has to be a pointer to a
+// free or member function.
+template <typename R, typename... Args>
+operand
+define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+                 R (*f)(context&, Args...)) {
+  return detail::define_procedure<R, Args...>(ctx, name, m, export_, f,
+                                              std::index_sequence_for<Args...>{});
 }
 
+template <typename R, typename... Args>
+operand
+define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+                 R (*f)(Args...)) {
+  return detail::define_procedure<R, Args...>(ctx, name, m, export_,
+                                              [=] (context&, Args... args) { return f(args...); },
+                                              std::index_sequence_for<Args...>{});
+}
+
+template <typename R, typename C, typename... Args>
+operand
+define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+                 R (C::* f)(context&, Args...)) {
+  return detail::define_procedure<R, C*, Args...>(ctx, name, m, export_,
+                                                  [=] (context& ctx, C* c, Args... args) {
+                                                    return (c->*f)(ctx, args...);
+                                                  },
+                                                  std::index_sequence_for<C*, Args...>{});
+}
+
+template <typename R, typename C, typename... Args>
+operand
+define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+                 R (C::* f)(context&, Args...) const) {
+  return detail::define_procedure<R, C*, Args...>(ctx, name, m, export_,
+                                                  [=] (context& ctx, C* c, Args... args) {
+                                                    return (c->*f)(ctx, args...);
+                                                  },
+                                                  std::index_sequence_for<C*, Args...>{});
+}
+
+template <typename R, typename C, typename... Args>
+operand
+define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+                 R (C::* f)(Args...)) {
+  return detail::define_procedure<R, C*, Args...>(ctx, name, m, export_,
+                                                  [=] (context&, C* c, Args... args) {
+                                                    return (c->*f)(args...);
+                                                  },
+                                                  std::index_sequence_for<C*, Args...>{});
+}
+
+template <typename R, typename C, typename... Args>
+operand
+define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+                 R (C::* f)(Args...) const) {
+  return detail::define_procedure<R, C*, Args...>(ctx, name, m, export_,
+                                                  [=] (context&, C* c, Args... args) {
+                                                    return (c->*f)(args...);
+                                                  },
+                                                  std::index_sequence_for<C*, Args...>{});
+}
+
+template <typename Callable>
+operand
+define_procedure(context& ctx, std::string const& name, module& m, bool export_, Callable const& f) {
+  return define_procedure(ctx, name, m, export_, +f);
+}
+
+template <typename FunctionType, typename Callable>
+operand
+define_procedure(context& ctx, std::string const& name, module& m, bool export_, Callable const& f) {
+  return detail::define_typed_procedure<FunctionType>::define(ctx, name, m, export_, f);
+}
+
+// Like define_procedure, but the procedure receives its arguments as a
+// vector<object*> with no conversion to C++ types.
 template <typename F>
-void
-define_raw_lambda(context& ctx, module& m, std::string const& name, bool export_, F f) {
-  define_top_level(ctx, m, name, make<native_procedure>(ctx, std::move(f), name), export_);
+operand
+define_raw_procedure(context& ctx, std::string const& name, module& m, bool export_, F const& f) {
+  auto proc = make<native_procedure>(ctx, f, name);
+  return define_top_level(ctx, name, m, export_, proc);
 }
 
 // Wrapper around a Scheme procedure. Acts as a C++ function of type T. When
