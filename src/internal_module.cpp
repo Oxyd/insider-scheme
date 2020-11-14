@@ -39,15 +39,9 @@ make_internal_module(context& ctx) {
     [] (context& ctx) { ctx.output_port->write_char('\n'); }
   );
 
-  define_raw_procedure(ctx, "append", result, true,
-                       [] (context& ctx, native_procedure*, std::vector<object*> const& args) {
-                         return append(ctx, args);
-                       });
+  define_raw_procedure(ctx, "append", result, true, append);
   define_procedure(ctx, "list->vector", result, true, list_to_vector);
-  define_raw_procedure(ctx, "vector-append", result, true,
-                       [] (context& ctx, native_procedure*, std::vector<object*> const& args) {
-                         return vector_append(ctx, args);
-                       });
+  define_raw_procedure(ctx, "vector-append", result, true, vector_append);
   define_procedure(
     ctx, "vector-length", result, true,
     [] (vector* v) {
@@ -81,7 +75,7 @@ make_internal_module(context& ctx) {
 
   define_raw_procedure(
     ctx, "make-string", result, true,
-    [] (context& ctx, native_procedure*, std::vector<object*> const& args) {
+    [] (context& ctx, std::vector<object*> const& args) {
       if (args.size() < 1)
         throw error{"make-string: Expected at least 1 argument"};
       if (args.size() > 2)
@@ -111,7 +105,7 @@ make_internal_module(context& ctx) {
   );
 
   define_raw_procedure(ctx, "string-append", result, true,
-                       [] (context& ctx, native_procedure*, std::vector<object*> const& args) {
+                       [] (context& ctx, std::vector<object*> const& args) {
                          std::string result;
                          for (object* s : args)
                            result += expect<string>(s)->value();

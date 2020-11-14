@@ -615,12 +615,12 @@ TEST_F(scheme, exec_loop) {
 }
 
 TEST_F(scheme, exec_native_call) {
-  auto native = [] (context&, native_procedure*, std::vector<object*> const& args) {
+  auto native = [] (context&, std::vector<object*> const& args) {
     return integer_to_ptr(integer{2 * expect<integer>(args[0]).value()
                                   + 3 * expect<integer>(args[1]).value()
                                   + 5 * expect<integer>(args[2]).value()});
   };
-  auto native_static = make_static<native_procedure>(ctx, native);
+  auto native_static = make_static<native_procedure<>>(ctx, native);
   auto ten = make_static<integer>(ctx, 10);
   auto twenty = make_static<integer>(ctx, 20);
   auto thirty = make_static<integer>(ctx, 30);
@@ -978,11 +978,11 @@ TEST_F(scheme, compile_module) {
   int sum = 0;
   define_top_level(
     ctx, "f", ctx.internal_module, true,
-    make<native_procedure>(ctx,
-                           [&] (context& ctx, native_procedure*, std::vector<object*> const& args) {
-                             sum += expect<integer>(args[0]).value();
-                             return ctx.constants->void_.get();
-                           })
+    make<native_procedure<>>(ctx,
+                             [&] (context& ctx, std::vector<object*> const& args) {
+                               sum += expect<integer>(args[0]).value();
+                               return ctx.constants->void_.get();
+                             })
   );
 
   auto m = compile_main_module(ctx,

@@ -1302,15 +1302,7 @@ gcd(context& ctx, object* x, object* y) {
 static void
 export_native(context& ctx, module& m, std::string const& name,
               object* (*f)(context&, std::vector<object*> const&), special_top_level_tag tag) {
-  auto index = ctx.add_top_level(
-    ctx.store.make<native_procedure>(
-      [=] (context& ctx, native_procedure*, std::vector<object*> const& args) {
-        return f(ctx, args);
-      },
-      name
-    ),
-    name
-  );
+  auto index = ctx.add_top_level(ctx.store.make<native_procedure<>>(f, name), name);
   ctx.tag_top_level(index, tag);
   auto sym = ctx.intern(name);
   m.add(sym, index);

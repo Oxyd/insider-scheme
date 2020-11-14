@@ -146,32 +146,53 @@ struct from_scheme_converter<std::vector<T>> {
 };
 
 namespace detail {
-  template <typename R, typename... Args, typename F, std::size_t... Is>
-  static operand
-  define_procedure(context& ctx, std::string const& name, module& m, bool export_,
-                   F const& f, std::index_sequence<Is...>) {
-    auto proc = make<native_procedure>(
-      ctx,
-      [=] (context& ctx, native_procedure* self, std::vector<object*> const& args) {
-        if (args.size() != sizeof...(Args))
-          throw std::runtime_error{fmt::format(
-            "{} called with incorrect number of arguments: {} required; {} given",
-            self->name ? *self->name : "<native procedure>",
-            sizeof...(Args), args.size()
-          )};
+  template <typename FunctionType, bool IsSmall>
+  struct make_native_procedure_object;
 
-        if constexpr (std::is_same_v<R, void>) {
-          f(ctx, from_scheme<Args>(ctx, args[Is])...);
-          return ctx.constants->void_.get();
-        }
-        else
-          return to_scheme(ctx, f(ctx, from_scheme<Args>(ctx, args[Is])...));
-      },
-      name
-    );
+  template <typename R, typename... Args>
+  struct make_native_procedure_object<R(Args...), true> {
+    template <typename Callable, std::size_t... Is>
+    static auto
+    make(context& ctx, std::string const& name, Callable const& f, std::index_sequence<Is...>) {
+      return insider::make<native_procedure<sizeof...(Args)>>(
+        ctx,
+        [=] (context& ctx, detail::object_t<Is>... args) {
+          if constexpr (std::is_same_v<R, void>) {
+            f(ctx, from_scheme<Args>(ctx, args)...);
+            return ctx.constants->void_.get();
+          } else
+            return to_scheme(ctx, f(ctx, from_scheme<Args>(ctx, args)...));
+        },
+        name
+      );
+    }
+  };
 
-    return define_top_level(ctx, name, m, export_, proc);
-  }
+  template <typename R, typename... Args>
+  struct make_native_procedure_object<R(Args...), false> {
+    template <typename Callable, std::size_t... Is>
+    static auto
+    make(context& ctx, std::string const& name, Callable const& f, std::index_sequence<Is...>) {
+      return insider::make<native_procedure<>>(
+        ctx,
+        [=] (context& ctx, std::vector<object*> const& args) {
+          if (args.size() != sizeof...(Args))
+            throw std::runtime_error{fmt::format(
+              "{} called with incorrect number of arguments: {} required; {} given",
+              name, sizeof...(Args), args.size()
+            )};
+
+          if constexpr (std::is_same_v<R, void>) {
+            f(ctx, from_scheme<Args>(ctx, args[Is])...);
+            return ctx.constants->void_.get();
+          }
+          else
+            return to_scheme(ctx, f(ctx, from_scheme<Args>(ctx, args[Is])...));
+        },
+        name
+      );
+    }
+  };
 
   template <typename FunctionType>
   struct define_typed_procedure;
@@ -181,8 +202,10 @@ namespace detail {
     template <typename Callable>
     static operand
     define(context& ctx, std::string const& name, module& m, bool export_, Callable const& f) {
-      return detail::define_procedure<R, context&, Args...>(ctx, name, m, export_, f,
-                                                            std::index_sequence_for<context&, Args...>{});
+      auto proc = make_native_procedure_object<R(Args...), sizeof...(Args) <= max_specialised_arity>::make(
+        ctx, name, f, std::index_sequence_for<Args...>{}
+      );
+      return define_top_level(ctx, name, m, export_, proc);
     }
   };
 
@@ -191,9 +214,10 @@ namespace detail {
     template <typename Callable>
     static operand
     define(context& ctx, std::string const& name, module& m, bool export_, Callable const& f) {
-      return detail::define_procedure<R, Args...>(ctx, name, m, export_,
-                                                  [=] (context&, Args... args) { return f(args...); },
-                                                  std::index_sequence_for<Args...>{});
+      return detail::define_typed_procedure<R(context&, Args...)>::define(
+        ctx, name, m, export_,
+        [=] (context&, Args... args) { return f(args...); }
+      );
     }
   };
 }
@@ -204,62 +228,48 @@ namespace detail {
 template <typename R, typename... Args>
 operand
 define_procedure(context& ctx, std::string const& name, module& m, bool export_,
-                 R (*f)(context&, Args...)) {
-  return detail::define_procedure<R, Args...>(ctx, name, m, export_, f,
-                                              std::index_sequence_for<Args...>{});
-}
-
-template <typename R, typename... Args>
-operand
-define_procedure(context& ctx, std::string const& name, module& m, bool export_,
                  R (*f)(Args...)) {
-  return detail::define_procedure<R, Args...>(ctx, name, m, export_,
-                                              [=] (context&, Args... args) { return f(args...); },
-                                              std::index_sequence_for<Args...>{});
+  return detail::define_typed_procedure<R(Args...)>::define(ctx, name, m, export_, f);
 }
 
 template <typename R, typename C, typename... Args>
 operand
 define_procedure(context& ctx, std::string const& name, module& m, bool export_,
                  R (C::* f)(context&, Args...)) {
-  return detail::define_procedure<R, C*, Args...>(ctx, name, m, export_,
-                                                  [=] (context& ctx, C* c, Args... args) {
-                                                    return (c->*f)(ctx, args...);
-                                                  },
-                                                  std::index_sequence_for<C*, Args...>{});
+  return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
+                                                                          [=] (context& ctx, C* c, Args... args) {
+                                                                            return (c->*f)(ctx, args...);
+                                                                          });
 }
 
 template <typename R, typename C, typename... Args>
 operand
 define_procedure(context& ctx, std::string const& name, module& m, bool export_,
                  R (C::* f)(context&, Args...) const) {
-  return detail::define_procedure<R, C*, Args...>(ctx, name, m, export_,
-                                                  [=] (context& ctx, C* c, Args... args) {
-                                                    return (c->*f)(ctx, args...);
-                                                  },
-                                                  std::index_sequence_for<C*, Args...>{});
+  return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
+                                                                          [=] (context& ctx, C* c, Args... args) {
+                                                                            return (c->*f)(ctx, args...);
+                                                                          });
 }
 
 template <typename R, typename C, typename... Args>
 operand
 define_procedure(context& ctx, std::string const& name, module& m, bool export_,
                  R (C::* f)(Args...)) {
-  return detail::define_procedure<R, C*, Args...>(ctx, name, m, export_,
-                                                  [=] (context&, C* c, Args... args) {
-                                                    return (c->*f)(args...);
-                                                  },
-                                                  std::index_sequence_for<C*, Args...>{});
+  return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
+                                                                          [=] (context&, C* c, Args... args) {
+                                                                            return (c->*f)(args...);
+                                                                          });
 }
 
 template <typename R, typename C, typename... Args>
 operand
 define_procedure(context& ctx, std::string const& name, module& m, bool export_,
                  R (C::* f)(Args...) const) {
-  return detail::define_procedure<R, C*, Args...>(ctx, name, m, export_,
-                                                  [=] (context&, C* c, Args... args) {
-                                                    return (c->*f)(args...);
-                                                  },
-                                                  std::index_sequence_for<C*, Args...>{});
+  return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
+                                                                          [=] (context&, C* c, Args... args) {
+                                                                            return (c->*f)(args...);
+                                                                          });
 }
 
 template <typename Callable>
@@ -279,7 +289,7 @@ define_procedure(context& ctx, std::string const& name, module& m, bool export_,
 template <typename F>
 operand
 define_raw_procedure(context& ctx, std::string const& name, module& m, bool export_, F const& f) {
-  auto proc = make<native_procedure>(ctx, f, name);
+  auto proc = make<native_procedure<>>(ctx, f, name);
   return define_top_level(ctx, name, m, export_, proc);
 }
 

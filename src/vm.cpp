@@ -123,6 +123,83 @@ call_frame_local(execution_state& state, operand local) {
   return state.value_stack->ref(state.call_stack->current_frame().stack_top + local);
 }
 
+template <int Arity, std::size_t... Is>
+object*
+do_call(execution_state& state, native_procedure<Arity>* proc, std::size_t num_args, std::index_sequence<Is...>) {
+  call_stack::frame& frame = state.call_stack->current_frame();
+  bytecode const& bc = frame.procedure->bytecode;
+
+  // Consume operands even if call is invalid.
+  std::array<operand, Arity> arg_operands{((void) Is, read_operand(bc, frame.pc))...};
+  (void) arg_operands; // Unused when Arity == 0.
+
+  if (Arity != num_args)
+    throw error{"{}: Wrong number of arguments, expected {}, got {}", proc->name, Arity, num_args};
+
+  return proc->target(state.ctx, state.value_stack->ref(frame.stack_top + arg_operands[Is])...);
+}
+
+template <int Arity>
+object*
+call_native_helper(execution_state& state, object* proc, std::size_t num_args) {
+  if (is<native_procedure<Arity>>(proc))
+    return do_call<Arity>(state, assume<native_procedure<Arity>>(proc), num_args, std::make_index_sequence<Arity>{});
+  else
+    return call_native_helper<Arity - 1>(state, proc, num_args);
+}
+
+template <>
+object*
+call_native_helper<-1>(execution_state& state, object* proc, std::size_t num_args) {
+  call_stack::frame& frame = state.call_stack->current_frame();
+  bytecode const& bc = frame.procedure->bytecode;
+  auto native_proc = assume<native_procedure<-1>>(proc);
+
+  std::vector<object*> args;
+  args.reserve(num_args);
+  for (std::size_t i = 0; i < num_args; ++i)
+    args.push_back(state.value_stack->ref(frame.stack_top + read_operand(bc, frame.pc)));
+
+  return native_proc->target(state.ctx, args);
+}
+
+static object*
+call_native(execution_state& state, object* proc, std::size_t num_args) {
+  return call_native_helper<max_specialised_arity>(state, proc, num_args);
+}
+
+template <int Arity, std::size_t... Is>
+object*
+do_call_vector(context& ctx, native_procedure<Arity>* proc, std::vector<object*> const& args,
+               std::index_sequence<Is...>) {
+  if (Arity != args.size())
+    throw error{"{}: Wrong number of arguments, expected {}, got {}", proc->name, Arity, args.size()};
+
+  return proc->target(ctx, args[Is]...);
+}
+
+
+template <int Arity>
+object*
+call_native_vector_helper(context& ctx, object* proc, std::vector<object*> const& args) {
+  if (is<native_procedure<Arity>>(proc))
+    return do_call_vector<Arity>(ctx, assume<native_procedure<Arity>>(proc), args, std::make_index_sequence<Arity>{});
+  else
+    return call_native_vector_helper<Arity - 1>(ctx, proc, args);
+}
+
+template <>
+object*
+call_native_vector_helper<-1>(context& ctx, object* proc, std::vector<object*> const& args) {
+  auto native_proc = assume<native_procedure<-1>>(proc);
+  return native_proc->target(ctx, args);
+}
+
+static object*
+call_native_vector(context& ctx, object* proc, std::vector<object*> const& args) {
+  return call_native_vector_helper<max_specialised_arity>(ctx, proc, args);
+}
+
 // Execute the current instruction in the current call frame.
 static void
 execute_one(execution_state& state) {
@@ -285,17 +362,12 @@ execute_one(execution_state& state) {
 
       if (is_tail)
         erase_parent_frame(state);
-    } else if (auto native_proc = match<native_procedure>(call_target)) {
-      simple_action a{state.ctx, "in {}", native_proc->name ? *native_proc->name : "<native procedure>"};
+    } else if (is_native_procedure(call_target)) {
+      simple_action<std::string const&> a{state.ctx, "in {}", native_procedure_name(call_target)};
 
       assert(!closure);
 
-      std::vector<object*> args;
-      args.reserve(num_args);
-      for (std::size_t i = 0; i < num_args; ++i)
-        args.push_back(state.value_stack->ref(state.call_stack->current_frame().stack_top + read_operand(bc, frame.pc)));
-
-      object* result = native_proc->target(state.ctx, native_proc, args);
+      object* result = call_native(state, call_target, num_args);
 
       if (!is_tail)
         stack_set(state.value_stack, frame.stack_top + frame.dest_register, result);
@@ -496,9 +568,9 @@ call(context& ctx, object* callable, std::vector<object*> const& arguments) {
 
     execution_state state = make_state(ctx, scheme_proc, closure, arguments);
     return run(state);
-  } else if (auto native_proc = match<native_procedure>(callable)) {
+  } else if (is_native_procedure(callable)) {
     assert(closure.empty());
-    return native_proc->target(ctx, native_proc, arguments);
+    return call_native_vector(ctx, callable, arguments);
   } else
     throw std::runtime_error{"Expected a callable"};
 }

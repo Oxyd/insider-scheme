@@ -772,21 +772,97 @@ private:
 inline void
 closure_set(tracked_ptr<closure> const& c, std::size_t i, object* v) { c->set(c.store(), i, v); }
 
-// Like procedure, but when invoked, it calls a C++ function.
-class native_procedure : public leaf_object<native_procedure> {
-public:
-  static constexpr char const* scheme_name = "insider::native_procedure";
+namespace detail {
+  template <typename... Args>
+  struct native_procedure_base : public leaf_object<native_procedure_base<Args...>> {
+    static constexpr char const* scheme_name = "insider::native_procedure";
 
-  using target_type = std::function<object*(context&, native_procedure*, std::vector<object*> const&)>;
-  target_type target;
-  std::optional<std::string> name;
+    using target_type = std::function<object*(context&, Args...)>;
+    target_type target;
+    std::string name;
 
-  explicit
-  native_procedure(target_type f, std::optional<std::string> name = {})
-    : target{std::move(f)}
-    , name{std::move(name)}
-  { }
-};
+    explicit
+    native_procedure_base(target_type f, std::string name = "<native procedure>")
+      : target{std::move(f)}
+      , name{std::move(name)}
+    { }
+  };
+
+  template <std::size_t>
+  using object_t = object*;
+
+  template <typename>
+  struct make_native_procedure_helper;
+
+  template <std::size_t... Is>
+  struct make_native_procedure_helper<std::index_sequence<Is...>> {
+    using type = native_procedure_base<object_t<Is>...>;
+  };
+
+  template <int Arity>
+  struct make_native_procedure {
+    using type = typename make_native_procedure_helper<std::make_index_sequence<Arity>>::type;
+  };
+
+  template <>
+  struct make_native_procedure<-1> {
+    using type = native_procedure_base<std::vector<object*> const&>;
+  };
+}
+
+// Like procedure, but when invoked, it calls a C++ function. It is specialised
+// for low arities to avoid having to create an std::vector object to invoke the
+// function. Arity of -1 means any arity.
+template <int Arity = -1>
+using native_procedure = typename detail::make_native_procedure<Arity>::type;
+
+constexpr int max_specialised_arity = 5;
+
+template <typename T>
+bool
+is(object* x);
+
+template <typename T>
+auto
+assume(object* x);
+
+template <typename T>
+auto
+assume(generic_tracked_ptr const& x);
+
+namespace detail {
+  template <int... Arities>
+  bool
+  is_native_procedure(object* x, std::integer_sequence<int, Arities...>) {
+    return (is<native_procedure<Arities - 1>>(x) || ...);
+  }
+
+  template <int Arity>
+  std::string const&
+  native_procedure_name(object* x) {
+    if (is<native_procedure<Arity>>(x))
+      return assume<native_procedure<Arity>>(x)->name;
+    else
+      return native_procedure_name<Arity - 1>(x);
+  }
+
+  template <>
+  inline std::string const&
+  native_procedure_name<-2>(object*) {
+    assert(!"Not a native procedure");
+
+    static std::string shut_up;
+    return shut_up;
+  }
+}
+
+inline bool
+is_native_procedure(object* x) {
+  return detail::is_native_procedure(x, std::make_integer_sequence<int, max_specialised_arity + 1>{});
+}
+
+inline std::string const&
+native_procedure_name(object* x) { return detail::native_procedure_name<max_specialised_arity>(x); }
 
 bool
 is_callable(object* x);

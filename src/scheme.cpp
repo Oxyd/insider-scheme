@@ -1046,7 +1046,7 @@ closure::update_references() {
 
 bool
 is_callable(object* x) {
-  return is<procedure>(x) || is<native_procedure>(x) || is<closure>(x);
+  return is<procedure>(x) || is_native_procedure(x) || is<closure>(x);
 }
 
 object*
