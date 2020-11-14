@@ -45,18 +45,18 @@ mnemonic_to_info(std::string_view mnemonic) {
 
 static void
 encode_opcode(bytecode& bc, opcode op) {
-  bc.push_back(std::byte{op});
+  bc.push_back(static_cast<std::uint8_t>(op));
 }
 
 static void
 encode_operand(bytecode& bc, operand op) {
   if (op < 0xFF)
-    bc.push_back(static_cast<std::byte>(op));
+    bc.push_back(static_cast<std::uint8_t>(op));
   else {
-    bc.push_back(std::byte{0xFF});
+    bc.push_back(std::uint8_t{0xFF});
 
     for (std::size_t i = 0; i < sizeof(operand); ++i) {
-      bc.push_back(static_cast<std::byte>(op & 0xFF));
+      bc.push_back(static_cast<std::uint8_t>(op & 0xFF));
       op >>= CHAR_BIT;
     }
   }

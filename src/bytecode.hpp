@@ -164,28 +164,26 @@ struct instruction {
   instruction(std::string_view mnemonic, std::vector<operand> operands);
 };
 
-using bytecode = std::vector<std::byte>;
+using bytecode = std::vector<std::uint8_t>;
 
 void
 encode_instruction(bytecode&, instruction const&);
 
 inline opcode
 read_opcode(bytecode const& bc, std::size_t& pc) {
-  auto opcode_num = std::to_integer<std::uint8_t>(bc[pc++]);
-  if (opcode_num > instructions.size())
-    throw std::runtime_error{fmt::format("Invalid opcode number: {}", +opcode_num)};
+  auto opcode_num = bc[pc++];
   return opcode{opcode_num};
 }
 
 inline operand
 read_operand(bytecode const& bc, std::size_t& pc) {
-  operand result = std::to_integer<std::uint8_t>(bc[pc++]);
+  operand result = bc[pc++];
   if (result < 0xFF)
     return result;
 
   result = 0;
   for (std::size_t i = 0; i < sizeof(operand); ++i)
-    result |= std::to_integer<std::uint8_t>(bc[pc++]) << (i * CHAR_BIT);
+    result |= bc[pc++] << (i * CHAR_BIT);
 
   return result;
 }
