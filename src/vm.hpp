@@ -4,6 +4,7 @@
 #include "scheme.hpp"
 
 #include <limits>
+#include <type_traits>
 
 namespace insider {
 
@@ -11,6 +12,8 @@ namespace insider {
 class root_stack : public composite_root_object<root_stack> {
 public:
   static constexpr char const* scheme_name = "insider::root_stack";
+
+  root_stack();
 
   object*
   ref(std::size_t i) { return data_[i]; }
@@ -21,19 +24,16 @@ public:
   }
 
   void
-  grow(std::size_t n) { data_.resize(data_.size() + n); }
+  grow(std::size_t n);
 
   void
-  shrink(std::size_t n) { data_.resize(data_.size() - n); }
-
-  void
-  reserve(std::size_t n) { data_.reserve(n); }
+  shrink(std::size_t n);
 
   void
   erase(std::size_t begin, std::size_t end);
 
   std::size_t
-  size() const { return data_.size(); }
+  size() const { return size_; }
 
   void
   trace(tracing_context&);
@@ -42,7 +42,9 @@ public:
   update_references();
 
 private:
-  std::vector<object*> data_;
+  std::unique_ptr<object*[]> data_;
+  std::size_t size_ = 0;
+  std::size_t alloc_;
 };
 
 inline void
@@ -61,32 +63,28 @@ public:
     operand             dest_register;
   };
 
+  call_stack();
+
   frame&
   push(insider::procedure* proc, std::size_t stack_top);
 
   void
-  pop() { frames_.pop_back(); }
+  pop() { --size_; }
 
   void
-  pop_parent() { frames_.erase(frames_.end() - 2); }
+  pop_parent();
 
   frame&
-  current_frame() { return frames_.back(); }
+  current_frame() { return frames_[size_ - 1]; }
 
   frame&
-  parent_frame() { assert(frames_.size() >= 2); return *(frames_.end() - 2); }
-
-  void
-  reserve(std::size_t n) { frames_.reserve(n); }
+  parent_frame() { assert(size_ >= 2); return frames_[size_ - 2]; }
 
   std::size_t
-  size() const { return frames_.size(); }
+  size() const { return size_; }
 
-  auto
-  rbegin() { return frames_.rbegin(); }
-
-  auto
-  rend() { return frames_.rend(); }
+  frame const&
+  get(std::size_t i) const { return frames_[i]; }
 
   void
   trace(tracing_context&);
@@ -95,7 +93,14 @@ public:
   update_references();
 
 private:
-  std::vector<frame> frames_;
+  static_assert(std::is_trivial_v<frame>);
+
+  std::unique_ptr<frame[]> frames_;
+  std::size_t size_ = 0;
+  std::size_t alloc_;
+
+  void
+  grow(std::size_t new_alloc);
 };
 
 struct execution_state {

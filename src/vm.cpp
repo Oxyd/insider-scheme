@@ -9,50 +9,106 @@
 #include <stdexcept>
 #include <vector>
 
+#include <fmt/format.h>
+
 namespace insider {
+
+static constexpr std::size_t root_stack_initial_size = 4096;
+
+root_stack::root_stack()
+  : data_{std::make_unique<object*[]>(root_stack_initial_size)}
+  , alloc_{root_stack_initial_size}
+{ }
+
+void
+root_stack::grow(std::size_t n) {
+  std::size_t old_size = size_;
+  size_ += n;
+
+  if (size_ > alloc_) {
+    fmt::print(stderr, "growing\n");
+
+    auto old_data = std::move(data_);
+    alloc_ = 3 * alloc_ / 2;
+    data_ = std::make_unique<object*[]>(alloc_);
+    std::copy(&old_data[0], &old_data[0] + old_size, &data_[0]);
+  }
+}
+
+void
+root_stack::shrink(std::size_t n) {
+  size_ -= n;
+}
 
 void
 root_stack::erase(std::size_t begin, std::size_t end) {
-  data_.erase(data_.begin() + begin, data_.begin() + end);
+  std::copy(&data_[0] + end, &data_[0] + size_, &data_[0] + begin);
+  size_ -= end - begin;
 }
 
 void
 root_stack::trace(tracing_context& tc) {
-  for (object* o : data_)
-    tc.trace(o);
+  for (std::size_t i = 0; i < size_; ++i)
+    tc.trace(data_[i]);
+
 }
 
 void
 root_stack::update_references() {
-  for (object*& o : data_)
-    update_reference(o);
+  for (std::size_t i = 0; i < size_; ++i)
+    update_reference(data_[i]);
 }
+
+static constexpr std::size_t call_stack_growth_constant = 1024;
+
+call_stack::call_stack()
+  : frames_{std::make_unique<frame[]>(call_stack_growth_constant)}
+  , alloc_{call_stack_growth_constant}
+{ }
 
 auto
 call_stack::push(insider::procedure* proc, std::size_t stack_top) -> frame& {
-  return frames_.emplace_back(frame{0, proc, stack_top, operand{}});
+  if (size_ >= alloc_)
+    grow(alloc_ + call_stack_growth_constant);
+
+  assert(size_ < alloc_);
+  return frames_[size_++] = frame{0, proc, stack_top, operand{}};
+}
+
+void
+call_stack::pop_parent() {
+  assert(size_ >= 2);
+  frames_[size_ - 2] = frames_[size_ - 1];
+  --size_;
 }
 
 void
 call_stack::trace(tracing_context& tc) {
-  for (frame const& f : frames_)
-    tc.trace(f.procedure);
+  for (std::size_t i = 0; i < size_; ++i)
+    tc.trace(frames_[i].procedure);
 }
 
 void
 call_stack::update_references() {
-  for (frame& f : frames_)
-    update_reference(f.procedure);
+  for (std::size_t i = 0; i < size_; ++i)
+    update_reference(frames_[i].procedure);
+}
+
+void
+call_stack::grow(std::size_t new_alloc) {
+  auto old_frames = std::move(frames_);
+
+  frames_ = std::make_unique<frame[]>(new_alloc);
+  std::copy(&old_frames[0], &old_frames[0] + size_, &frames_[0]);
+
+  alloc_ = new_alloc;
 }
 
 execution_state::execution_state(context& ctx)
   : ctx{ctx}
   , value_stack{make_tracked<root_stack>(ctx)}
   , call_stack{make_tracked<insider::call_stack>(ctx)}
-{
-  value_stack->reserve(4096);
-  call_stack->reserve(1024);
-}
+{ }
 
 static std::vector<object*>
 collect_closure(closure* cls) {
@@ -524,10 +580,11 @@ namespace {
     std::string
     format() const {
       std::string result;
-      for (auto frame = state_.call_stack->rbegin(); frame != state_.call_stack->rend(); ++frame) {
-        std::optional<std::string> name = frame->procedure->name;
+      for (std::size_t i = state_.call_stack->size(); i > 0; --i) {
+        auto const& frame = state_.call_stack->get(i - 1);
+        std::optional<std::string> name = frame.procedure->name;
 
-        if (frame != state_.call_stack->rbegin())
+        if (i != state_.call_stack->size())
           result += '\n';
         result += fmt::format("in {}", name ? *name : "<lambda>");
       }
