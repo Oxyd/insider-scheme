@@ -477,7 +477,7 @@ parse_box_set(parsing_context& pc, tracked_ptr<environment> const& env, pair* da
 }
 
 static std::unique_ptr<syntax>
-parse_sequence(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum_) {
+parse_sequence(parsing_context& pc, tracked_ptr<environment> const& env, object* datum_) {
   generic_tracked_ptr datum = track(pc.ctx, datum_);
 
   std::vector<std::unique_ptr<syntax>> exprs;
@@ -812,7 +812,7 @@ parse(parsing_context& pc, tracked_ptr<environment> const& env, object* d) {
       else if (form == pc.ctx.constants->box_set.get())
         return parse_box_set(pc, env, p);
       else if (form == pc.ctx.constants->begin.get())
-        return parse_sequence(pc, env, p);
+        return parse_sequence(pc, env, cdr(p));
       else if (form == pc.ctx.constants->define.get())
         return parse_define_or_set(pc, env, p, "define");
       else if (form == pc.ctx.constants->quote.get())
