@@ -9,8 +9,6 @@
 #include <stdexcept>
 #include <vector>
 
-#include <fmt/format.h>
-
 namespace insider {
 
 static constexpr std::size_t root_stack_initial_size = 4096;
@@ -22,22 +20,25 @@ root_stack::root_stack()
 
 void
 root_stack::grow(std::size_t n) {
-  std::size_t old_size = size_;
-  size_ += n;
-
-  if (size_ > alloc_) {
-    fmt::print(stderr, "growing\n");
-
-    auto old_data = std::move(data_);
-    alloc_ = 3 * alloc_ / 2;
-    data_ = std::make_unique<object*[]>(alloc_);
-    std::copy(&old_data[0], &old_data[0] + old_size, &data_[0]);
-  }
+  resize(size_ + n);
 }
 
 void
 root_stack::shrink(std::size_t n) {
   size_ -= n;
+}
+
+void
+root_stack::resize(std::size_t new_size) {
+  std::size_t old_size = size_;
+  size_ = new_size;
+
+  if (size_ > alloc_) {
+    auto old_data = std::move(data_);
+    alloc_ = 3 * alloc_ / 2;
+    data_ = std::make_unique<object*[]>(alloc_);
+    std::copy(&old_data[0], &old_data[0] + old_size, &data_[0]);
+  }
 }
 
 void
@@ -73,13 +74,6 @@ call_stack::push(insider::procedure* proc, std::size_t stack_top) -> frame& {
 
   assert(size_ < alloc_);
   return frames_[size_++] = frame{0, proc, stack_top, operand{}};
-}
-
-void
-call_stack::pop_parent() {
-  assert(size_ >= 2);
-  frames_[size_ - 2] = frames_[size_ - 1];
-  --size_;
 }
 
 void
@@ -120,33 +114,6 @@ collect_closure(closure* cls) {
   return result;
 }
 
-// Make a call frame and copy closure and call arguments into it, and push the
-// new frame to both value_stack and call_stack.
-static std::size_t
-push_call_frame(execution_state& state, procedure* proc,
-                closure* cls, std::size_t num_args) {
-  call_stack::frame& result = state.call_stack->push(proc, state.value_stack->size());
-  state.value_stack->grow(proc->locals_size);
-
-  assert(state.call_stack->size() >= 2);
-  call_stack::frame& caller = state.call_stack->parent_frame();
-  bytecode const& bc = caller.procedure->bytecode;
-
-  std::size_t closure_size = 0;
-  if (cls) {
-    closure_size = cls->size();
-    for (std::size_t i = 0; i < closure_size; ++i)
-      stack_set(state.value_stack, result.stack_top + i, cls->ref(i));
-  }
-
-  for (std::size_t i = 0; i < num_args; ++i) {
-    stack_set(state.value_stack, result.stack_top + closure_size + i,
-              state.value_stack->ref(caller.stack_top + read_operand(bc, caller.pc)));
-  }
-
-  return closure_size + num_args;
-}
-
 static void
 pop_call_frame(execution_state& state) {
   std::size_t num_locals = state.call_stack->current_frame().procedure->locals_size;
@@ -155,23 +122,9 @@ pop_call_frame(execution_state& state) {
 }
 
 static void
-erase_parent_frame(execution_state& state) {
-  assert(state.call_stack->size() >= 2);
-
-  call_stack::frame const& parent = state.call_stack->parent_frame();
-  std::size_t values_begin = parent.stack_top;
-  std::size_t values_end = values_begin + parent.procedure->locals_size;
-
-  state.call_stack->pop_parent();
-  state.value_stack->erase(values_begin, values_end);
-
-  state.call_stack->current_frame().stack_top = values_begin;
-}
-
-static void
 call_frame_set_local(execution_state& state, operand local, object* value) {
   assert(value);
-  stack_set(state.value_stack, state.call_stack->current_frame().stack_top + local, value);
+  state.value_stack->set(state.call_stack->current_frame().stack_top + local, value);
 }
 
 object*
@@ -396,28 +349,51 @@ execute_one(execution_state& state) {
                     scheme_proc->has_rest ? "at least " : "",
                     scheme_proc->min_args, num_args};
 
-      std::size_t values_used = push_call_frame(state, scheme_proc, closure, scheme_proc->min_args);
-      call_stack::frame& parent_frame = state.call_stack->parent_frame();
+      std::size_t closure_size = 0;
+      if (closure)
+        closure_size = closure->size();
+
+      std::size_t args_size = scheme_proc->min_args;
+      if (scheme_proc->has_rest)
+        ++args_size;
+
+      std::size_t new_base = state.value_stack->size();
+
+      for (std::size_t i = 0; i < closure_size; ++i)
+        state.value_stack->push(closure->ref(i));
+      for (std::size_t i = 0; i < scheme_proc->min_args; ++i)
+        state.value_stack->push(call_frame_local(state, read_operand(bc, frame.pc)));
 
       if (scheme_proc->has_rest) {
-        // We have to pass exactly min_args + 1 arguments. The last one is a
-        // list with all the arguments after the min_args'th.
-
         std::size_t num_rest = num_args - scheme_proc->min_args;
-        std::vector<object*> rest_args;
-        rest_args.reserve(num_rest);
 
-        call_stack::frame const& caller = state.call_stack->parent_frame();
         for (std::size_t i = 0; i < num_rest; ++i)
-          rest_args.push_back(state.value_stack->ref(caller.stack_top + read_operand(parent_frame.procedure->bytecode,
-                                                                                     parent_frame.pc)));
+          state.value_stack->push(call_frame_local(state, read_operand(bc, frame.pc)));
 
-        object* rest_list = make_list_from_vector(state.ctx, rest_args);
-        stack_set(state.value_stack, state.call_stack->current_frame().stack_top + values_used, rest_list);
+        state.value_stack->push(state.ctx.constants->null.get());
+
+        for (std::size_t i = 0; i < num_rest; ++i) {
+          object* tail = state.value_stack->pop();
+          object* head = state.value_stack->pop();
+          state.value_stack->push(cons(state.ctx, head, tail));
+        }
       }
 
-      if (is_tail)
-        erase_parent_frame(state);
+      if (is_tail) {
+        std::size_t parent_base = state.call_stack->current_frame().stack_top;
+
+        for (std::size_t i = 0; i < closure_size + args_size; ++i)
+          state.value_stack->set(parent_base + i, state.value_stack->ref(new_base + i));
+
+        auto& frame = state.call_stack->current_frame();
+        frame.pc = 0;
+        frame.procedure = scheme_proc;
+
+        state.value_stack->resize(parent_base + scheme_proc->locals_size);
+      } else {
+        state.call_stack->push(scheme_proc, new_base);
+        state.value_stack->grow(scheme_proc->locals_size - args_size - closure_size);
+      }
     } else if (is_native_procedure(call_target)) {
       simple_action<std::string const&> a{state.ctx, "in {}", native_procedure_name(call_target)};
 
@@ -426,7 +402,7 @@ execute_one(execution_state& state) {
       object* result = call_native(state, call_target, num_args);
 
       if (!is_tail)
-        stack_set(state.value_stack, frame.stack_top + frame.dest_register, result);
+        state.value_stack->set(frame.stack_top + frame.dest_register, result);
       else {
         // tail_call. For Scheme procedures, the callee would perform a ret and
         // go back to this frame's caller. Since this is a native procedure, we
@@ -441,7 +417,7 @@ execute_one(execution_state& state) {
         }
 
         pop_call_frame(state);
-        stack_set(state.value_stack, state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
+        state.value_stack->set(state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
                   result);
       }
     } else
@@ -464,8 +440,8 @@ execute_one(execution_state& state) {
     }
 
     pop_call_frame(state);
-    stack_set(state.value_stack, state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
-              result);
+    state.value_stack->set(state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
+                           result);
     break;
   }
 
@@ -559,10 +535,10 @@ make_state(context& ctx, procedure* global,
 
   std::size_t closure_size = closure.size();
   for (std::size_t i = 0; i < closure_size; ++i)
-    stack_set(result.value_stack, i, closure[i]);
+    result.value_stack->set(i, closure[i]);
 
   for (std::size_t i = 0; i < arguments.size(); ++i)
-    stack_set(result.value_stack, closure_size + i, arguments[i]);
+    result.value_stack->set(closure_size + i, arguments[i]);
 
   return result;
 }

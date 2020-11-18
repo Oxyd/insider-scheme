@@ -19,8 +19,19 @@ public:
   ref(std::size_t i) { return data_[i]; }
 
   void
-  set(free_store&, std::size_t i, object* value) {
+  set(std::size_t i, object* value) {
     data_[i] = value;
+  }
+
+  void
+  push(object* value) {
+    grow(1);
+    data_[size_ - 1] = value;
+  }
+
+  object*
+  pop() {
+    return data_[--size_];
   }
 
   void
@@ -28,6 +39,9 @@ public:
 
   void
   shrink(std::size_t n);
+
+  void
+  resize(std::size_t new_size);
 
   void
   erase(std::size_t begin, std::size_t end);
@@ -46,11 +60,6 @@ private:
   std::size_t size_ = 0;
   std::size_t alloc_;
 };
-
-inline void
-stack_set(tracked_ptr<root_stack> const& s, std::size_t i, object* value) {
-  s->set(s.store(), i, value);
-}
 
 class call_stack : public composite_root_object<call_stack> {
 public:
@@ -71,14 +80,8 @@ public:
   void
   pop() { --size_; }
 
-  void
-  pop_parent();
-
   frame&
   current_frame() { return frames_[size_ - 1]; }
-
-  frame&
-  parent_frame() { assert(size_ >= 2); return frames_[size_ - 2]; }
 
   std::size_t
   size() const { return size_; }
