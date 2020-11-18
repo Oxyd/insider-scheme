@@ -121,12 +121,6 @@ pop_call_frame(execution_state& state) {
   state.value_stack->shrink(num_locals);
 }
 
-static void
-call_frame_set_local(execution_state& state, operand local, object* value) {
-  assert(value);
-  state.value_stack->set(state.call_stack->current_frame().stack_top + local, value);
-}
-
 object*
 call_frame_local(execution_state& state, operand local) {
   return state.value_stack->ref(state.call_stack->current_frame().stack_top + local);
@@ -213,7 +207,11 @@ call_native_vector(context& ctx, object* proc, std::vector<object*> const& args)
 static void
 execute_one(execution_state& state) {
   call_stack::frame& frame = state.call_stack->current_frame();
+  root_stack& values = *state.value_stack;
   bytecode const& bc = frame.procedure->bytecode;
+
+  auto local = [&] (operand l) { return values.ref(frame.stack_top + l); };
+  auto set_local = [&] (operand l, object* value) { values.set(frame.stack_top + l, value); };
 
   opcode op = read_opcode(bc, frame.pc);
   switch (op) {
@@ -223,21 +221,21 @@ execute_one(execution_state& state) {
   case opcode::load_static: {
     operand static_num = read_operand(bc, frame.pc);
     operand dest = read_operand(bc, frame.pc);
-    call_frame_set_local(state, dest, state.ctx.get_static(static_num));
+    set_local(dest, state.ctx.get_static(static_num));
     break;
   }
 
   case opcode::load_top_level: {
     operand global_num = read_operand(bc, frame.pc);
     operand dest = read_operand(bc, frame.pc);
-    call_frame_set_local(state, dest, state.ctx.get_top_level(global_num));
+    set_local(dest, state.ctx.get_top_level(global_num));
     break;
   }
 
   case opcode::store_top_level: {
     operand reg = read_operand(bc, frame.pc);
     operand global_num = read_operand(bc, frame.pc);
-    state.ctx.set_top_level(global_num, call_frame_local(state, reg));
+    state.ctx.set_top_level(global_num, local(reg));
     break;
   }
 
@@ -245,22 +243,22 @@ execute_one(execution_state& state) {
   case opcode::subtract:
   case opcode::multiply:
   case opcode::divide: {
-    object* lhs = call_frame_local(state, read_operand(bc, frame.pc));
-    object* rhs = call_frame_local(state, read_operand(bc, frame.pc));
+    object* lhs = local(read_operand(bc, frame.pc));
+    object* rhs = local(read_operand(bc, frame.pc));
     operand dest = read_operand(bc, frame.pc);
 
     switch (op) {
     case opcode::add:
-      call_frame_set_local(state, dest, add(state.ctx, lhs, rhs));
+      set_local(dest, add(state.ctx, lhs, rhs));
       break;
     case opcode::subtract:
-      call_frame_set_local(state, dest, subtract(state.ctx, lhs, rhs));
+      set_local(dest, subtract(state.ctx, lhs, rhs));
       break;
     case opcode::multiply:
-      call_frame_set_local(state, dest, multiply(state.ctx, lhs, rhs));
+      set_local(dest, multiply(state.ctx, lhs, rhs));
       break;
     case opcode::divide:
-      call_frame_set_local(state, dest, truncate_quotient(state.ctx, lhs, rhs));
+      set_local(dest, truncate_quotient(state.ctx, lhs, rhs));
       break;
     default:
       assert(!"Cannot get here");
@@ -272,19 +270,19 @@ execute_one(execution_state& state) {
   case opcode::arith_equal:
   case opcode::less_than:
   case opcode::greater_than: {
-    object* lhs = call_frame_local(state, read_operand(bc, frame.pc));
-    object* rhs = call_frame_local(state, read_operand(bc, frame.pc));
+    object* lhs = local(read_operand(bc, frame.pc));
+    object* rhs = local(read_operand(bc, frame.pc));
     operand dest = read_operand(bc, frame.pc);
 
     switch (op) {
     case opcode::arith_equal:
-      call_frame_set_local(state, dest, arith_equal(state.ctx, lhs, rhs));
+      set_local(dest, arith_equal(state.ctx, lhs, rhs));
       break;
     case opcode::less_than:
-      call_frame_set_local(state, dest, less(state.ctx, lhs, rhs));
+      set_local(dest, less(state.ctx, lhs, rhs));
       break;
     case opcode::greater_than:
-      call_frame_set_local(state, dest, greater(state.ctx, lhs, rhs));
+      set_local(dest, greater(state.ctx, lhs, rhs));
       break;
     default:
       assert(!"Cannot get here");
@@ -295,7 +293,7 @@ execute_one(execution_state& state) {
   case opcode::set: {
     operand src = read_operand(bc, frame.pc);
     operand dst = read_operand(bc, frame.pc);
-    call_frame_set_local(state, dst, call_frame_local(state, src));
+    set_local(dst, local(src));
     break;
   }
 
@@ -313,7 +311,7 @@ execute_one(execution_state& state) {
     switch (op) {
     case opcode::call:
     case opcode::tail_call:
-      callee = call_frame_local(state, read_operand(bc, frame.pc));
+      callee = local(read_operand(bc, frame.pc));
       break;
 
     case opcode::call_top_level:
@@ -362,13 +360,13 @@ execute_one(execution_state& state) {
       for (std::size_t i = 0; i < closure_size; ++i)
         state.value_stack->push(closure->ref(i));
       for (std::size_t i = 0; i < scheme_proc->min_args; ++i)
-        state.value_stack->push(call_frame_local(state, read_operand(bc, frame.pc)));
+        state.value_stack->push(local(read_operand(bc, frame.pc)));
 
       if (scheme_proc->has_rest) {
         std::size_t num_rest = num_args - scheme_proc->min_args;
 
         for (std::size_t i = 0; i < num_rest; ++i)
-          state.value_stack->push(call_frame_local(state, read_operand(bc, frame.pc)));
+          state.value_stack->push(local(read_operand(bc, frame.pc)));
 
         state.value_stack->push(state.ctx.constants->null.get());
 
@@ -380,12 +378,11 @@ execute_one(execution_state& state) {
       }
 
       if (is_tail) {
-        std::size_t parent_base = state.call_stack->current_frame().stack_top;
+        std::size_t parent_base = frame.stack_top;
 
         for (std::size_t i = 0; i < closure_size + args_size; ++i)
           state.value_stack->set(parent_base + i, state.value_stack->ref(new_base + i));
 
-        auto& frame = state.call_stack->current_frame();
         frame.pc = 0;
         frame.procedure = scheme_proc;
 
@@ -427,7 +424,7 @@ execute_one(execution_state& state) {
 
   case opcode::ret: {
     operand return_reg = read_operand(bc, frame.pc);
-    object* result = call_frame_local(state, return_reg);
+    object* result = local(return_reg);
 
     if (state.call_stack->size() == 1) {
       // We are returning from the global procedure, so we have nowhere to
@@ -461,7 +458,7 @@ execute_one(execution_state& state) {
 
     int offset = (op == opcode::jump_back || op == opcode::jump_back_unless) ? -off : off;
     if (op == opcode::jump_unless || op == opcode::jump_back_unless) {
-      object* test_value = call_frame_local(state, condition_reg);
+      object* test_value = local(condition_reg);
 
       // The only false value in Scheme is #f. So we only jump if the test_value
       // is exactly #f.
@@ -475,40 +472,40 @@ execute_one(execution_state& state) {
   }
 
   case opcode::make_closure: {
-    procedure* proc = assume<procedure>(call_frame_local(state, read_operand(bc, frame.pc)));
+    procedure* proc = assume<procedure>(local(read_operand(bc, frame.pc)));
     operand dest = read_operand(bc, frame.pc);
     operand num_captures = read_operand(bc, frame.pc);
 
     auto result = make<closure>(state.ctx, proc, num_captures);
     for (std::size_t i = 0; i < num_captures; ++i)
-      result->set(state.ctx.store, i, call_frame_local(state, read_operand(bc, frame.pc)));
+      result->set(state.ctx.store, i, local(read_operand(bc, frame.pc)));
 
-    call_frame_set_local(state, dest, result);
+    set_local(dest, result);
     break;
   }
 
   case opcode::box: {
-    object* value = call_frame_local(state, read_operand(bc, frame.pc));
-    call_frame_set_local(state, read_operand(bc, frame.pc), state.ctx.store.make<box>(value));
+    object* value = local(read_operand(bc, frame.pc));
+    set_local(read_operand(bc, frame.pc), state.ctx.store.make<box>(value));
     break;
   }
 
   case opcode::unbox: {
-    auto box = expect<insider::box>(call_frame_local(state, read_operand(bc, frame.pc)));
-    call_frame_set_local(state, read_operand(bc, frame.pc), box->get());
+    auto box = expect<insider::box>(local(read_operand(bc, frame.pc)));
+    set_local(read_operand(bc, frame.pc), box->get());
     break;
   }
 
   case opcode::box_set: {
-    auto box = expect<insider::box>(call_frame_local(state, read_operand(bc, frame.pc)));
-    box->set(state.ctx.store, call_frame_local(state, read_operand(bc, frame.pc)));
+    auto box = expect<insider::box>(local(read_operand(bc, frame.pc)));
+    box->set(state.ctx.store, local(read_operand(bc, frame.pc)));
     break;
   }
 
   case opcode::cons: {
-    object* car = call_frame_local(state, read_operand(bc, frame.pc));
-    object* cdr = call_frame_local(state, read_operand(bc, frame.pc));
-    call_frame_set_local(state, read_operand(bc, frame.pc), make<pair>(state.ctx, car, cdr));
+    object* car = local(read_operand(bc, frame.pc));
+    object* cdr = local(read_operand(bc, frame.pc));
+    set_local(read_operand(bc, frame.pc), make<pair>(state.ctx, car, cdr));
     break;
   }
 
@@ -518,9 +515,9 @@ execute_one(execution_state& state) {
 
     auto result = make<vector>(state.ctx, state.ctx, num_elems);
     for (std::size_t i = 0; i < num_elems; ++i)
-      result->set(state.ctx.store, i, call_frame_local(state, read_operand(bc, frame.pc)));
+      result->set(state.ctx.store, i, local(read_operand(bc, frame.pc)));
 
-    call_frame_set_local(state, dest, result);
+    set_local(dest, result);
     break;
   }
   } // end switch
