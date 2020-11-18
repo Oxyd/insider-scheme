@@ -32,7 +32,9 @@ hash(object* x) {
 
 bool
 eqv(object* x, object* y) {
-  if (typeid(*x) != typeid(*y))
+  if (is_object_ptr(x) != is_object_ptr(y))
+    return false;
+  if (is_object_ptr(x) && is_object_ptr(y) && object_type_index(x) != object_type_index(y))
     return false;
   else if (auto lhs = match<integer>(x)) {
     if (auto rhs = match<integer>(y))
