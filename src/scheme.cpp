@@ -31,23 +31,27 @@ hash(object* x) {
 }
 
 bool
-eqv(object* x, object* y) {
-  if (is_object_ptr(x) != is_object_ptr(y))
+eqv(context& ctx, object* x, object* y) {
+  if (x == y)
+    return true;
+
+  if (!is_object_ptr(x) || !is_object_ptr(y))
+    return false; // Either both are fixnums and not the same, or they're different types.
+
+  if (is_number(x) && is_number(y) && is_exact(x) == is_exact(y))
+    return arith_equal(ctx, x, y);
+
+  if (object_type_index(x) != object_type_index(y))
     return false;
-  if (is_object_ptr(x) && is_object_ptr(y) && object_type_index(x) != object_type_index(y))
-    return false;
-  else if (auto lhs = match<integer>(x)) {
-    if (auto rhs = match<integer>(y))
-      return lhs->value() == rhs->value();
-    else
-      return false;
-  }
-  else
-    return x == y;
+
+  if (auto lhs = match<character>(x))
+    return lhs->value() == assume<character>(x)->value();
+
+  return false;
 }
 
 bool
-equal(object* x, object* y) {
+equal(context& ctx, object* x, object* y) {
   // XXX: This will break on infinite data structures.
 
   struct record {
@@ -60,7 +64,7 @@ equal(object* x, object* y) {
     record top = stack.back();
     stack.pop_back();
 
-    if (!eqv(top.left, top.right)) {
+    if (!eqv(ctx, top.left, top.right)) {
       if (is<pair>(top.left) && is<pair>(top.right)) {
         auto l = assume<pair>(top.left);
         auto r = assume<pair>(top.right);
@@ -425,6 +429,7 @@ filesystem_module_provider::find_module(context& ctx, module_name const& name) {
 
 context::context()
   : internal_module{*this}
+  , statics_cache_{0, {}, eqv_compare{*this}}
 {
   store.register_callback([&] { gc_callback(); });
 

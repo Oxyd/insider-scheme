@@ -684,7 +684,7 @@ TEST_F(scheme, exec_cons) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_TRUE(equal(call_frame_local(state, 0), read("(1 2 3)")));
+  EXPECT_TRUE(equal(ctx, call_frame_local(state, 0), read("(1 2 3)")));
 }
 
 TEST_F(scheme, exec_make_vector) {
@@ -703,7 +703,7 @@ TEST_F(scheme, exec_make_vector) {
   auto state = make_state(ctx, global);
   run(state);
 
-  EXPECT_TRUE(equal(call_frame_local(state, 0), read("#(1 2 3)")));
+  EXPECT_TRUE(equal(ctx, call_frame_local(state, 0), read("#(1 2 3)")));
 }
 
 TEST_F(scheme, compile_arithmetic) {
@@ -780,7 +780,7 @@ TEST_F(scheme, compile_lambda) {
         (list 1 2 3))
    )"
   );
-  EXPECT_TRUE(equal(result4, make_list(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}), integer_to_ptr(integer{3}))));
+  EXPECT_TRUE(equal(ctx, result4, make_list(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}), integer_to_ptr(integer{3}))));
 
   object* result5 = eval(
     R"(
@@ -1163,100 +1163,100 @@ TEST_F(scheme, quote) {
 }
 
 TEST_F(scheme, equal) {
-  EXPECT_TRUE(equal(read("1"), read("1")));
-  EXPECT_FALSE(equal(read("1"), read("2")));
-  EXPECT_FALSE(equal(read("1"), read("sym")));
-  EXPECT_TRUE(equal(read("'(1 2)"), read("'(1 2)")));
-  EXPECT_TRUE(equal(read("'(1 2)"), read("(quote (1 2))")));
-  EXPECT_FALSE(equal(read("'(1 2)"), read("'(1 3)")));
-  EXPECT_FALSE(equal(read("'(1 2)"), read("'(1 2 3)")));
-  EXPECT_TRUE(equal(make_string(ctx, "foo"), make_string(ctx, "foo")));
-  EXPECT_FALSE(equal(make_string(ctx, "foo"), make_string(ctx, "bar")));
+  EXPECT_TRUE(equal(ctx, read("1"), read("1")));
+  EXPECT_FALSE(equal(ctx, read("1"), read("2")));
+  EXPECT_FALSE(equal(ctx, read("1"), read("sym")));
+  EXPECT_TRUE(equal(ctx, read("'(1 2)"), read("'(1 2)")));
+  EXPECT_TRUE(equal(ctx, read("'(1 2)"), read("(quote (1 2))")));
+  EXPECT_FALSE(equal(ctx, read("'(1 2)"), read("'(1 3)")));
+  EXPECT_FALSE(equal(ctx, read("'(1 2)"), read("'(1 2 3)")));
+  EXPECT_TRUE(equal(ctx, make_string(ctx, "foo"), make_string(ctx, "foo")));
+  EXPECT_FALSE(equal(ctx, make_string(ctx, "foo"), make_string(ctx, "bar")));
 }
 
 TEST_F(scheme, quasiquote) {
   auto result1 = eval("`5");
-  EXPECT_TRUE(equal(result1, read("5")));
+  EXPECT_TRUE(equal(ctx, result1, read("5")));
 
   auto result2 = eval("`(1 2 5)");
-  EXPECT_TRUE(equal(result2, read("(1 2 5)")));
+  EXPECT_TRUE(equal(ctx, result2, read("(1 2 5)")));
 
   auto result3 = eval("(let ((a 7)) `(1 ,a 3))");
-  EXPECT_TRUE(equal(result3, read("(1 7 3)")));
+  EXPECT_TRUE(equal(ctx, result3, read("(1 7 3)")));
 
   auto result4 = eval("`(1 ,(+ 2 3) 3)");
-  EXPECT_TRUE(equal(result4, read("(1 5 3)")));
+  EXPECT_TRUE(equal(ctx, result4, read("(1 5 3)")));
 
   auto result5 = eval("(let ((name 'a)) `(list ,name ',name))");
-  EXPECT_TRUE(equal(result5, read("(list a (quote a))")));
+  EXPECT_TRUE(equal(ctx, result5, read("(list a (quote a))")));
 
   auto result6 = eval("`#(1 2 5)");
-  EXPECT_TRUE(equal(result6, read("#(1 2 5)")));
+  EXPECT_TRUE(equal(ctx, result6, read("#(1 2 5)")));
 
   auto result7 = eval("(let ((a 12)) `#(3 ,a 5 ,(* a 2) 9))");
-  EXPECT_TRUE(equal(result7, read("#(3 12 5 24 9)")));
+  EXPECT_TRUE(equal(ctx, result7, read("#(3 12 5 24 9)")));
 
   auto result8 = eval("(let ((b '(b1 b2 b3))) `(a1 a2 ,@b c1 c2))");
-  EXPECT_TRUE(equal(result8, read("(a1 a2 b1 b2 b3 c1 c2)")));
+  EXPECT_TRUE(equal(ctx, result8, read("(a1 a2 b1 b2 b3 c1 c2)")));
 
   auto result9 = eval("(let ((b '(b1 b2 b3))) `(a1 a2 ,b c1 c2))");
-  EXPECT_TRUE(equal(result9, read("(a1 a2 (b1 b2 b3) c1 c2)")));
+  EXPECT_TRUE(equal(ctx, result9, read("(a1 a2 (b1 b2 b3) c1 c2)")));
 
   auto result10 = eval("(let ((b '(b1 b2))) `(a1 a2 ,@b))");
-  EXPECT_TRUE(equal(result10, read("(a1 a2 b1 b2)")));
+  EXPECT_TRUE(equal(ctx, result10, read("(a1 a2 b1 b2)")));
 
   auto result11 = eval("``(a b ,c)");
-  EXPECT_TRUE(equal(result11, read("(quasiquote (a b (unquote c)))")));
+  EXPECT_TRUE(equal(ctx, result11, read("(quasiquote (a b (unquote c)))")));
 
   auto result12 = eval("(let ((b '(b1 b2 b3))) `#(a1 a2 ,@b c1 c2))");
-  EXPECT_TRUE(equal(result12, read("#(a1 a2 b1 b2 b3 c1 c2)")));
+  EXPECT_TRUE(equal(ctx, result12, read("#(a1 a2 b1 b2 b3 c1 c2)")));
 
   auto result13 = eval("(let ((b '(b1 b2 b3))) `#(a1 a2 ,b c1 c2))");
-  EXPECT_TRUE(equal(result13, read("#(a1 a2 (b1 b2 b3) c1 c2)")));
+  EXPECT_TRUE(equal(ctx, result13, read("#(a1 a2 (b1 b2 b3) c1 c2)")));
 
   auto result14 = eval("(let ((b '(a1 a2))) `#(,@b b1 b2 b3))");
-  EXPECT_TRUE(equal(result14, read("#(a1 a2 b1 b2 b3)")));
+  EXPECT_TRUE(equal(ctx, result14, read("#(a1 a2 b1 b2 b3)")));
 
   auto result15 = eval("(let ((b '(b1 b2))) `#(a1 a2 ,@b))");
-  EXPECT_TRUE(equal(result15, read("#(a1 a2 b1 b2)")));
+  EXPECT_TRUE(equal(ctx, result15, read("#(a1 a2 b1 b2)")));
 
   auto result16 = eval("(let ((b '(b1 b2))) ``(a1 a2 ,b c1 c2 ,(d1 d2 ,b e1 e2)))");
-  EXPECT_TRUE(equal(result16, read("(quasiquote (a1 a2 (unquote b) c1 c2 (unquote (d1 d2 (b1 b2) e1 e2))))")));
+  EXPECT_TRUE(equal(ctx, result16, read("(quasiquote (a1 a2 (unquote b) c1 c2 (unquote (d1 d2 (b1 b2) e1 e2))))")));
 
   auto result17 = eval("(let ((x '(x1 x2))) `(,@x . y))");
-  EXPECT_TRUE(equal(result17, read("(x1 x2 . y)")));
+  EXPECT_TRUE(equal(ctx, result17, read("(x1 x2 . y)")));
 
   auto result18 = eval("(let ((x '(x1 x2))) `(a1 a2 ,@x . y))");
-  EXPECT_TRUE(equal(result18, read("(a1 a2 x1 x2 . y)")));
+  EXPECT_TRUE(equal(ctx, result18, read("(a1 a2 x1 x2 . y)")));
 
   auto result19 = eval("(let ((x '(x1 x2))) `(,@x))");
-  EXPECT_TRUE(equal(result19, read("(x1 x2)")));
+  EXPECT_TRUE(equal(ctx, result19, read("(x1 x2)")));
 }
 
 TEST_F(scheme, append) {
   auto r1 = eval("(append '(a1 a2 a3) '(b1 b2 b3) '(c1 c2) '(d1) '() '(f1 f2))");
-  EXPECT_TRUE(equal(r1, read("(a1 a2 a3 b1 b2 b3 c1 c2 d1 f1 f2)")));
+  EXPECT_TRUE(equal(ctx, r1, read("(a1 a2 a3 b1 b2 b3 c1 c2 d1 f1 f2)")));
 
   auto r2 = eval("(append)");
-  EXPECT_TRUE(equal(r2, read("()")));
+  EXPECT_TRUE(equal(ctx, r2, read("()")));
 
   auto r3 = eval("(append '(a1 a2 a3))");
-  EXPECT_TRUE(equal(r3, read("(a1 a2 a3)")));
+  EXPECT_TRUE(equal(ctx, r3, read("(a1 a2 a3)")));
 
   auto r4 = eval("(append '(a1 a2) 'tail)");
   EXPECT_EQ(cddr(expect<pair>(r4)), ctx.intern("tail"));
 
   auto r5 = eval("(append '() '() '() '())");
-  EXPECT_TRUE(equal(r5, ctx.constants->null.get()));
+  EXPECT_TRUE(equal(ctx, r5, ctx.constants->null.get()));
 
   auto r6 = eval("(append '() '(a1 a2))");
-  EXPECT_TRUE(equal(r6, read("(a1 a2)")));
+  EXPECT_TRUE(equal(ctx, r6, read("(a1 a2)")));
 
   auto r7 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3))");
-  EXPECT_TRUE(equal(r7, read("(a1 a2 b1 b2 b3)")));
+  EXPECT_TRUE(equal(ctx, r7, read("(a1 a2 b1 b2 b3)")));
 
   auto r8 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3) '())");
-  EXPECT_TRUE(equal(r8, read("(a1 a2 b1 b2 b3)")));
+  EXPECT_TRUE(equal(ctx, r8, read("(a1 a2 b1 b2 b3)")));
 }
 
 TEST_F(scheme, call_from_native) {
@@ -1313,7 +1313,7 @@ TEST_F(scheme, core_shadowing) {
   EXPECT_EQ(expect<symbol>(result1)->value(), "let");
 
   auto result2 = eval("(let ((unquote 'x)) `(1 ,2 3))");
-  EXPECT_TRUE(equal(result2, read("(1 (unquote 2) 3)")));
+  EXPECT_TRUE(equal(ctx, result2, read("(1 (unquote 2) 3)")));
 }
 
 TEST_F(scheme, opaque_value) {

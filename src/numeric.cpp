@@ -1014,6 +1014,16 @@ is_number(object* x) {
   return is_integer(x) || is<fraction>(x) || is<floating_point>(x);
 }
 
+bool
+is_exact(object* x) {
+  return is_integer(x) || is<fraction>(x);
+}
+
+bool
+is_inexact(object* x) {
+  return is<floating_point>(x);
+}
+
 object*
 add(context& ctx, object* lhs, object* rhs) {
   return arithmetic_two<add_small, add_big, add_fraction, add_float>(ctx, lhs, rhs);

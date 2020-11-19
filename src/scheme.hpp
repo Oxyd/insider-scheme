@@ -35,14 +35,23 @@ struct generic_ptr_hash {
 };
 
 bool
-eqv(object* x, object* y);
+eqv(context&, object* x, object* y);
 
 bool
-equal(object*, object*);
+equal(context&, object*, object*);
 
-struct eqv_compare {
+class eqv_compare {
+public:
+  explicit
+  eqv_compare(context& ctx) : ctx_{ctx} { }
+
   bool
-  operator () (generic_tracked_ptr const& x, generic_tracked_ptr const& y) const { return eqv(x.get(), y.get()); }
+  operator () (generic_tracked_ptr const& x, generic_tracked_ptr const& y) const {
+    return eqv(ctx_, x.get(), y.get());
+  }
+
+private:
+  context& ctx_;
 };
 
 template <typename Value>

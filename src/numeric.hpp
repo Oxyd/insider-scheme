@@ -236,6 +236,12 @@ is_integer(object*);
 bool
 is_number(object*);
 
+bool
+is_exact(object*);
+
+bool
+is_inexact(object*);
+
 object*
 add(context&, object*, object*);
 object*
