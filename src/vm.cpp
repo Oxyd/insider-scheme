@@ -48,7 +48,7 @@ root_stack::erase(std::size_t begin, std::size_t end) {
 }
 
 void
-root_stack::trace(tracing_context& tc) {
+root_stack::trace(tracing_context& tc) const {
   for (std::size_t i = 0; i < size_; ++i)
     tc.trace(data_[i]);
 
@@ -77,7 +77,7 @@ call_stack::push(insider::procedure* proc, std::size_t stack_top) -> frame& {
 }
 
 void
-call_stack::trace(tracing_context& tc) {
+call_stack::trace(tracing_context& tc) const {
   for (std::size_t i = 0; i < size_; ++i)
     tc.trace(frames_[i].procedure);
 }

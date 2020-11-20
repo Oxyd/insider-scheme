@@ -38,9 +38,9 @@ struct type_descriptor {
   char const* name;
   void (*destroy)(object*);
   object* (*move)(object*, std::byte*);
-  void (*trace)(object*, tracing_context&);
+  void (*trace)(object const*, tracing_context&);
   void (*update_references)(object*);
-  std::size_t (*hash)(object*);
+  std::size_t (*hash)(object const*);
 
   bool constant_size;
   std::size_t size = 0;
@@ -181,8 +181,8 @@ namespace detail {
 
   template <typename T>
   void
-  trace(object* o, tracing_context& tc) {
-    static_cast<T*>(o)->trace(tc);
+  trace(object const* o, tracing_context& tc) {
+    static_cast<T const*>(o)->trace(tc);
   }
 
   template <typename T>
@@ -193,8 +193,8 @@ namespace detail {
 
   template <typename T>
   std::size_t
-  hash(object* o) {
-    return static_cast<T*>(o)->hash();
+  hash(object const* o) {
+    return static_cast<T const*>(o)->hash();
   }
 }
 
@@ -209,7 +209,7 @@ word_type const leaf_object<Derived>::type_index = new_type(type_descriptor{
   Derived::scheme_name,
   detail::destroy<Derived>,
   detail::move<Derived>,
-  [] (object*, tracing_context&) { },
+  [] (object const*, tracing_context&) { },
   [] (object*) { },
   detail::hash<Derived>,
   true,

@@ -123,7 +123,7 @@ struct bbb : composite_object<bbb> {
   }
 
   void
-  trace(tracing_context& tc) {
+  trace(tracing_context& tc) const {
     tc.trace(child_);
   }
 

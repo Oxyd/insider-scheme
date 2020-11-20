@@ -174,7 +174,7 @@ public:
   set_positive(bool p) { positive_ = p; }
 
   void
-  trace(tracing_context&) { }
+  trace(tracing_context&) const { }
 
   void
   update_references() { }
@@ -206,7 +206,7 @@ public:
   set_denominator(free_store& store, object* d) { denominator_ = d; store.notify_arc(this, d); }
 
   void
-  trace(tracing_context& tc) { tc.trace(numerator_); tc.trace(denominator_); }
+  trace(tracing_context& tc) const { tc.trace(numerator_); tc.trace(denominator_); }
 
   void
   update_references() { update_reference(numerator_); update_reference(denominator_); }

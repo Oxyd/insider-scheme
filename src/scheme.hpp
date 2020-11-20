@@ -132,7 +132,7 @@ public:
   bound_names() const;
 
   void
-  trace(tracing_context& tc);
+  trace(tracing_context& tc) const;
 
   void
   update_references();
@@ -454,7 +454,7 @@ public:
   size() const { return size_; }
 
   void
-  trace(tracing_context&) { }
+  trace(tracing_context&) const { }
 
   void
   update_references() { }
@@ -543,7 +543,7 @@ public:
   set_cdr(free_store& store, object* p) { cdr_ = p; store.notify_arc(this, p); }
 
   void
-  trace(tracing_context& tc) { tc.trace(car_); tc.trace(cdr_); }
+  trace(tracing_context& tc) const { tc.trace(car_); tc.trace(cdr_); }
 
   void
   update_references() { update_reference(car_); update_reference(cdr_); }
@@ -654,7 +654,7 @@ public:
   vector(vector&&);
 
   void
-  trace(tracing_context& tc);
+  trace(tracing_context& tc) const;
 
   void
   update_references();
@@ -734,7 +734,7 @@ public:
   set(free_store& store, object* value) { value_ = value; store.notify_arc(this, value); }
 
   void
-  trace(tracing_context& tc) { tc.trace(value_); }
+  trace(tracing_context& tc) const { tc.trace(value_); }
 
   void
   update_references() { update_reference(value_); }
@@ -795,7 +795,7 @@ public:
   size() const { return size_; }
 
   void
-  trace(tracing_context&);
+  trace(tracing_context&) const;
 
   void
   update_references();
@@ -964,7 +964,7 @@ public:
   size() const { return free_size_; }
 
   void
-  trace(tracing_context&);
+  trace(tracing_context&) const;
 
   void
   update_references();
@@ -997,7 +997,7 @@ public:
   callable() const { return callable_; }
 
   void
-  trace(tracing_context&);
+  trace(tracing_context&) const;
 
   void
   update_references();

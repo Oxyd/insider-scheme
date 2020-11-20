@@ -50,7 +50,7 @@ public:
   size() const { return size_; }
 
   void
-  trace(tracing_context&);
+  trace(tracing_context&) const;
 
   void
   update_references();
@@ -93,7 +93,7 @@ public:
   get(std::size_t i) const { return frames_[i]; }
 
   void
-  trace(tracing_context&);
+  trace(tracing_context&) const;
 
   void
   update_references();

@@ -162,12 +162,12 @@ environment::bound_names() const {
 }
 
 void
-environment::trace(tracing_context& tc) {
+environment::trace(tracing_context& tc) const {
   tc.trace(parent_);
 
   for (auto& [identifier, binding] : bindings_) {
     tc.trace(identifier);
-    if (transformer** tr = std::get_if<transformer*>(&binding))
+    if (transformer* const* tr = std::get_if<transformer*>(&binding))
       tc.trace(*tr);
   }
 }
@@ -907,7 +907,7 @@ vector::vector(vector&& other)
 }
 
 void
-vector::trace(tracing_context& tc) {
+vector::trace(tracing_context& tc) const {
   for (std::size_t i = 0; i < size_; ++i)
     tc.trace(storage_element(i));
 }
@@ -1046,7 +1046,7 @@ closure::set(free_store& store, std::size_t i, object* value) {
 }
 
 void
-closure::trace(tracing_context& tc) {
+closure::trace(tracing_context& tc) const {
   tc.trace(procedure_);
   for (std::size_t i = 0; i < size_; ++i)
     tc.trace(storage_element(i));
@@ -1109,7 +1109,7 @@ syntactic_closure::free() const {
 }
 
 void
-syntactic_closure::trace(tracing_context& tc) {
+syntactic_closure::trace(tracing_context& tc) const {
   tc.trace(expression_);
   tc.trace(env_);
   for (std::size_t i = 0; i < free_size_; ++i)
@@ -1125,7 +1125,7 @@ syntactic_closure::update_references() {
 }
 
 void
-transformer::trace(tracing_context& tc) {
+transformer::trace(tracing_context& tc) const {
   tc.trace(env_);
   tc.trace(callable_);
 }
