@@ -136,12 +136,32 @@ big_integer::rend() -> reverse_iterator {
   return reverse_iterator{begin()};
 }
 
+std::size_t
+big_integer::hash() const {
+  std::size_t result = 0;
+
+  for (std::size_t i = 0; i < length_; ++i)
+    result = storage_element(i) + (result << 6) + (result << 16) - result;
+
+  return result ^ positive_;
+}
+
 fraction::fraction(object* num, object* den)
   : numerator_{num}
   , denominator_{den}
 {
   assert(is_integer(num));
   assert(is_integer(den));
+}
+
+std::size_t
+fraction::hash() const {
+  return insider::hash(numerator_) ^ insider::hash(denominator_);
+}
+
+std::size_t
+floating_point::hash() const {
+  return std::hash<value_type>{}(value);
 }
 
 static bool

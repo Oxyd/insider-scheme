@@ -40,6 +40,7 @@ struct type_descriptor {
   object* (*move)(object*, std::byte*);
   void (*trace)(object*, tracing_context&);
   void (*update_references)(object*);
+  std::size_t (*hash)(object*);
 
   bool constant_size;
   std::size_t size = 0;
@@ -189,6 +190,12 @@ namespace detail {
   update_references(object* o) {
     static_cast<T*>(o)->update_references();
   }
+
+  template <typename T>
+  std::size_t
+  hash(object* o) {
+    return static_cast<T*>(o)->hash();
+  }
 }
 
 // Object with no Scheme subobjects.
@@ -204,6 +211,7 @@ word_type const leaf_object<Derived>::type_index = new_type(type_descriptor{
   detail::move<Derived>,
   [] (object*, tracing_context&) { },
   [] (object*) { },
+  detail::hash<Derived>,
   true,
   detail::round_to_words(sizeof(Derived)),
   nullptr
@@ -222,6 +230,7 @@ word_type const composite_object<Derived>::type_index = new_type(type_descriptor
   detail::move<Derived>,
   detail::trace<Derived>,
   detail::update_references<Derived>,
+  detail::hash<Derived>,
   true,
   detail::round_to_words(sizeof(Derived)),
   nullptr
@@ -241,6 +250,7 @@ word_type const composite_root_object<Derived>::type_index = new_type(type_descr
   detail::move<Derived>,
   detail::trace<Derived>,
   detail::update_references<Derived>,
+  detail::hash<Derived>,
   true,
   detail::round_to_words(sizeof(Derived)),
   nullptr,
@@ -273,6 +283,7 @@ word_type const dynamic_size_object<Derived, T>::type_index = new_type(type_desc
   detail::move<Derived>,
   detail::trace<Derived>,
   detail::update_references<Derived>,
+  detail::hash<Derived>,
   false,
   0,
   [] (object* o) { return sizeof(Derived) + detail::round_to_words(static_cast<Derived*>(o)->size() * sizeof(T)); }

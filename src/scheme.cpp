@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
+#include <functional>
 #include <typeinfo>
 
 namespace insider {
@@ -20,14 +21,8 @@ std::size_t
 hash(object* x) {
   if (auto i = match<integer>(x))
     return integer_hash(*i);
-  if (auto b = match<boolean>(x))
-    return boolean_hash(b);
-  else if (auto p = match<pair>(x))
-    return pair_hash(p);
-  else if (auto v = match<vector>(x))
-    return vector_hash(v);
   else
-    return reinterpret_cast<std::size_t>(x);
+    return object_type(x).hash(x);
 }
 
 bool
@@ -196,6 +191,11 @@ environment::update_references() {
 
   for (auto& [id, value] : to_reinsert)
     bindings_.emplace(id, std::move(value));
+}
+
+std::size_t
+environment::hash() const {
+  return (parent_ ? insider::hash(parent_) : 0) ^ bindings_.size();
 }
 
 module::module(context& ctx)
@@ -662,6 +662,17 @@ string::value() const {
   return result;
 }
 
+std::size_t
+string::hash() const {
+  // djb2
+  std::size_t result = 5381;
+
+  for (std::size_t i = 0; i < size_; ++i)
+    result = ((result << 5) + result) + storage_element(i);
+
+  return result;
+}
+
 string*
 make_string(context& ctx, std::string_view value) {
   auto result = make<string>(ctx, value.size());
@@ -791,16 +802,20 @@ port::rewind() {
     std::rewind(std::get<FILE*>(buffer_));
 }
 
+std::size_t
+port::hash() const {
+  if (FILE* const* fp = std::get_if<FILE*>(&buffer_))
+    return reinterpret_cast<std::size_t>(*fp);
+
+  string_buffer const& sb = std::get<string_buffer>(buffer_);
+  return std::hash<std::string>{}(sb.data) ^ sb.read_index;
+}
+
 void
 port::destroy() {
   if (should_close_)
     if (FILE** f = std::get_if<FILE*>(&buffer_))
       std::fclose(*f);
-}
-
-std::size_t
-pair_hash(pair* p) {
-  return 3 * hash(car(p)) ^ hash(cdr(p));
 }
 
 bool
@@ -939,10 +954,11 @@ vector::set(free_store& store, std::size_t i, object* value) {
 }
 
 std::size_t
-vector_hash(vector* v) {
+vector::hash() const {
   std::size_t result = 0;
-  for (std::size_t i = 0; i < v->size(); ++i)
-    result = 3 * result ^ hash(v->ref(i));
+
+  for (std::size_t i = 0; i < size_; ++i)
+    result = insider::hash(storage_element(i)) + (result << 6) + (result << 16) - result;
 
   return result;
 }
@@ -1010,6 +1026,16 @@ procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned min_ar
   , has_rest{has_rest}
   , name{std::move(name)}
 { }
+
+std::size_t
+procedure::hash() const {
+  std::size_t result = 0;
+
+  for (uint8_t b : bytecode)
+    result += b + (result << 6) + (result << 16) - result;
+
+  return result;
+}
 
 closure::closure(insider::procedure* p, std::size_t num_captures)
   : procedure_{p}

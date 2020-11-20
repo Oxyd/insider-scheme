@@ -55,6 +55,9 @@ public:
   void
   update_references();
 
+  std::size_t
+  hash() const { return 0; }
+
 private:
   std::unique_ptr<object*[]> data_;
   std::size_t size_ = 0;
@@ -94,6 +97,9 @@ public:
 
   void
   update_references();
+
+  std::size_t
+  hash() const { return 0; }
 
 private:
   static_assert(std::is_trivial_v<frame>);

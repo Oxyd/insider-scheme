@@ -69,6 +69,9 @@ struct aaa : leaf_object<aaa> {
     if (alive)
       *alive = false;
   }
+
+  std::size_t
+  hash() const { return 0; }
 };
 
 TEST_F(scheme, collect_direct_garbage) {
@@ -137,6 +140,9 @@ struct bbb : composite_object<bbb> {
     child_ = new_child;
     fs.notify_arc(this, new_child);
   }
+
+  std::size_t
+  hash() const { return 0; }
 
 private:
   bbb* child_ = nullptr;

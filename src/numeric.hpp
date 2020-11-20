@@ -179,6 +179,9 @@ public:
   void
   update_references() { }
 
+  std::size_t
+  hash() const;
+
 private:
   std::size_t length_;
   bool positive_ = true;
@@ -208,6 +211,9 @@ public:
   void
   update_references() { update_reference(numerator_); update_reference(denominator_); }
 
+  std::size_t
+  hash() const;
+
 private:
   object* numerator_;
   object* denominator_;
@@ -228,6 +234,9 @@ public:
 
   explicit
   floating_point(double v) : value{v} { }
+
+  std::size_t
+  hash() const;
 };
 
 bool

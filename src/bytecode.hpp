@@ -193,4 +193,14 @@ read_instruction(bytecode const&, std::size_t& pc);
 
 } // namespace insider
 
+namespace std {
+  template <>
+  struct hash<insider::instruction> {
+    std::size_t
+    operator () (insider::instruction i) const {
+      return std::hash<insider::opcode>{}(i.opcode) ^ (!i.operands.empty() ? i.operands.front() : 0);
+    }
+  };
+}
+
 #endif

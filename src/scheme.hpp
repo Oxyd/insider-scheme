@@ -61,6 +61,9 @@ using eqv_unordered_map = std::unordered_map<generic_tracked_ptr, Value, generic
 // evaluation context.
 struct null_type : leaf_object<null_type> {
   static constexpr char const* scheme_name = "insider::null_type";
+
+  std::size_t
+  hash() const { return 0; }
 };
 
 // The empty value. Like null_type, there should only be exactly one instance
@@ -68,11 +71,17 @@ struct null_type : leaf_object<null_type> {
 // had -- such as the result of evaluating (if #f anything).
 struct void_type : leaf_object<void_type> {
   static constexpr char const* scheme_name = "insider::void_type";
+
+  std::size_t
+  hash() const { return 0; }
 };
 
 // Dummy value used to represent core forms.
 struct core_form_type : leaf_object<core_form_type> {
   static constexpr char const* scheme_name = "insider::core_form_type";
+
+  std::size_t
+  hash() const { return 0; }
 };
 
 class boolean;
@@ -127,6 +136,9 @@ public:
 
   void
   update_references();
+
+  std::size_t
+  hash() const;
 
 private:
   using representation_type = std::variant<std::shared_ptr<variable>, transformer*>;
@@ -397,12 +409,12 @@ public:
   bool
   value() const { return value_; }
 
+  std::size_t
+  hash() const { return value_; }
+
 private:
   bool value_;
 };
-
-inline std::size_t
-boolean_hash(boolean* b) { return b->value(); }
 
 // Character. TODO: Support Unicode.
 class character : public leaf_object<character> {
@@ -414,6 +426,9 @@ public:
 
   char
   value() const { return value_; }
+
+  std::size_t
+  hash() const { return value_; }
 
 private:
   char value_;
@@ -446,6 +461,9 @@ public:
 
   void
   update_references() { }
+
+  std::size_t
+  hash() const;
 
 private:
   std::size_t size_;
@@ -487,6 +505,9 @@ public:
 
   void
   rewind();
+
+  std::size_t
+  hash() const;
 
 private:
   struct string_buffer {
@@ -530,13 +551,13 @@ public:
   void
   update_references() { update_reference(car_); update_reference(cdr_); }
 
+  std::size_t
+  hash() const { return 3 * insider::hash(car_) ^ insider::hash(cdr_); }
+
 private:
   object* car_;
   object* cdr_;
 };
-
-std::size_t
-pair_hash(pair*);
 
 inline pair*
 cons(context& ctx, object* car, object* cdr) {
@@ -650,12 +671,12 @@ public:
   std::size_t
   size() const { return size_; }
 
+  std::size_t
+  hash() const;
+
 private:
   std::size_t size_;
 };
-
-std::size_t
-vector_hash(vector*);
 
 inline void
 vector_set(tracked_ptr<vector> const& v, std::size_t i, object* value) { v->set(v.store(), i, value); }
@@ -694,6 +715,9 @@ public:
   std::string
   value() const { return value_; }
 
+  std::size_t
+  hash() const { return std::hash<std::string>{}(value_); }
+
 private:
   std::string value_;
 };
@@ -718,6 +742,9 @@ public:
   void
   update_references() { update_reference(value_); }
 
+  std::size_t
+  hash() const { return insider::hash(value_); }
+
 private:
   object* value_;
 };
@@ -739,6 +766,9 @@ public:
 
   procedure(insider::bytecode bc, unsigned locals_size, unsigned min_args, bool has_rest = false,
             std::optional<std::string> name = {});
+
+  std::size_t
+  hash() const;
 };
 
 // A procedure plus a list of captured objects.
@@ -773,6 +803,9 @@ public:
   void
   update_references();
 
+  std::size_t
+  hash() const { return insider::hash(procedure_) ^ size_; }
+
 private:
   insider::procedure* procedure_;
   std::size_t size_;
@@ -795,6 +828,11 @@ namespace detail {
       : target{std::move(f)}
       , name{std::move(name)}
     { }
+
+    std::size_t
+    hash() const {
+      return std::hash<std::string>{}(name);
+    }
   };
 
   template <std::size_t>
@@ -880,7 +918,7 @@ object*
 expect_callable(object* x);
 
 // Wrapper for C++ values that don't contain references to any Scheme objects.
-template <typename T>
+template <typename T, typename Hash = std::hash<T>>
 class opaque_value : public leaf_object<opaque_value<T>> {
 public:
   static constexpr char const* scheme_name = "insider::opaque_value";
@@ -892,6 +930,11 @@ public:
   opaque_value(Args&&... args)
     : value(std::forward<Args>(args)...)
   { }
+
+  std::size_t
+  hash() const {
+    return Hash{}(value);
+  }
 };
 
 // An expression together with an environment and a module in which to look up
@@ -929,6 +972,11 @@ public:
   void
   update_references();
 
+  std::size_t
+  hash() const {
+    return insider::hash(expression_) ^ insider::hash(env_) ^ std::hash<std::size_t>{}(free_size_);
+  }
+
 private:
   object*               expression_;
   insider::environment* env_;
@@ -956,6 +1004,9 @@ public:
 
   void
   update_references();
+
+  std::size_t
+  hash() const { return insider::hash(env_) ^ insider::hash(callable_); }
 
 private:
   insider::environment* env_;
