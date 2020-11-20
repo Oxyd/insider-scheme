@@ -721,9 +721,6 @@ public:
   weak_root_list() { return weak_roots_; }
 
   void
-  register_callback(std::function<void()> cb) { post_gc_callbacks_.emplace_back(std::move(cb)); }
-
-  void
   collect_garbage(bool major = false);
 
   // Check whether a collection should be performed and, if so, do a collection.
@@ -747,8 +744,6 @@ private:
   generic_weak_ptr  weak_head_;
 
   std::vector<object*> permanent_roots_;
-
-  std::vector<std::function<void()>> post_gc_callbacks_;
 
   unsigned disable_level_ = 0;
   std::optional<word_type> requested_collection_level_;

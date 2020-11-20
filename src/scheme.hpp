@@ -361,9 +361,6 @@ private:
   std::map<module_name, protomodule> protomodules_;
   std::map<module_name, std::unique_ptr<module>> modules_;
   std::vector<std::unique_ptr<module_provider>> module_providers_;
-
-  void
-  gc_callback();
 };
 
 // Create an instance of an object using the context's free store.

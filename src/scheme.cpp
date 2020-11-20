@@ -431,8 +431,6 @@ context::context()
   : internal_module{*this}
   , statics_cache_{0, {}, eqv_compare{*this}}
 {
-  store.register_callback([&] { gc_callback(); });
-
   constants = std::make_unique<struct constants>();
   constants->null = make_tracked<null_type>(*this);
   constants->void_ = make_tracked<void_type>(*this);
@@ -620,22 +618,6 @@ context::prepend_module_provider(std::unique_ptr<module_provider> provider) {
 void
 context::append_module_provider(std::unique_ptr<module_provider> provider) {
   module_providers_.push_back(std::move(provider));
-}
-
-void
-context::gc_callback() {
-  std::vector<std::tuple<object*, std::size_t>> to_reinsert;
-  for (auto it = statics_cache_.begin(); it != statics_cache_.end();) {
-    object* updated = update_reference_copy(it->first.get());
-    if (it->first.get() != updated) {
-      to_reinsert.emplace_back(updated, it->second);
-      it = statics_cache_.erase(it);
-    } else
-      ++it;
-  }
-
-  for (auto [object, index] : to_reinsert)
-    statics_cache_.emplace(generic_tracked_ptr{store, object}, index);
 }
 
 string::string(string&& other)
