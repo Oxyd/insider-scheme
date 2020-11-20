@@ -888,6 +888,21 @@ TEST_F(scheme, compile_if) {
     )"
   );
   EXPECT_EQ(expect<integer>(result10).value(), 16);
+
+  object* result11 = eval(
+    R"(
+      (let ((loop #void))
+        (set! loop (lambda (list result)
+                     (if (eq? list '())
+                         result
+                         (loop (cdr list)
+                               (if (> (car list) result)
+                                   (car list)
+                                   result)))))
+        (loop '(12 11 14 15 3 8) 0))
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result11).value(), 15);
 }
 
 TEST_F(scheme, compile_closure) {
