@@ -13,6 +13,10 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STRE
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -ggdb3 -DNDEBUG")
 endif()
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 set(scheme_sources
   src/analyser.cpp
   src/bytecode.cpp
@@ -50,9 +54,7 @@ if (UBSAN AND UNIX)
 endif()
 
 add_library(scheme ${scheme_sources})
-target_compile_features(scheme PUBLIC cxx_std_17)
 target_compile_options(scheme PRIVATE -Wsuggest-override)
-set_property(TARGET scheme PROPERTY CXX_EXTENSIONS OFF)
 
 target_link_libraries(scheme PUBLIC fmt::fmt-header-only)
 target_include_directories(scheme INTERFACE src)
@@ -60,8 +62,6 @@ set_property(TARGET scheme PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_executable(tests ${test_sources})
-target_compile_features(tests PUBLIC cxx_std_17)
-set_property(TARGET tests PROPERTY CXX_EXTENSIONS OFF)
 target_link_libraries(tests
   PUBLIC scheme
   PRIVATE gtest_main)
@@ -69,9 +69,7 @@ set_property(TARGET tests PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_executable(insider ${program_sources})
-target_compile_features(insider PUBLIC cxx_std_17)
 target_compile_options(insider PRIVATE -Wsuggest-override)
-set_property(TARGET insider PROPERTY CXX_EXTENSIONS OFF)
 target_link_libraries(insider
   PUBLIC scheme)
 target_link_libraries(insider PRIVATE fmt::fmt-header-only)
