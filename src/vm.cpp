@@ -214,326 +214,6 @@ call_native_vector(context& ctx, object* proc, std::vector<object*> const& args)
   return call_native_vector_helper<max_specialised_arity>(ctx, proc, args);
 }
 
-// Execute the current instruction in the current call frame.
-static void
-execute_one(execution_state& state) {
-  call_stack::frame& frame = state.call_stack->current_frame();
-  root_stack& values = *state.value_stack;
-  bytecode const& bc = frame.procedure->bytecode;
-
-  auto local = [&] (operand l) { return values.ref(frame.stack_top + l); };
-  auto set_local = [&] (operand l, object* value) { values.set(frame.stack_top + l, value); };
-
-  opcode op = read_opcode(bc, frame.pc);
-  switch (op) {
-  case opcode::no_operation:
-    break;
-
-  case opcode::load_static: {
-    operand static_num = read_operand(bc, frame.pc);
-    operand dest = read_operand(bc, frame.pc);
-    set_local(dest, state.ctx.get_static(static_num));
-    break;
-  }
-
-  case opcode::load_top_level: {
-    operand global_num = read_operand(bc, frame.pc);
-    operand dest = read_operand(bc, frame.pc);
-    set_local(dest, state.ctx.get_top_level(global_num));
-    break;
-  }
-
-  case opcode::store_top_level: {
-    operand reg = read_operand(bc, frame.pc);
-    operand global_num = read_operand(bc, frame.pc);
-    state.ctx.set_top_level(global_num, local(reg));
-    break;
-  }
-
-  case opcode::add:
-  case opcode::subtract:
-  case opcode::multiply:
-  case opcode::divide: {
-    object* lhs = local(read_operand(bc, frame.pc));
-    object* rhs = local(read_operand(bc, frame.pc));
-    operand dest = read_operand(bc, frame.pc);
-
-    switch (op) {
-    case opcode::add:
-      set_local(dest, add(state.ctx, lhs, rhs));
-      break;
-    case opcode::subtract:
-      set_local(dest, subtract(state.ctx, lhs, rhs));
-      break;
-    case opcode::multiply:
-      set_local(dest, multiply(state.ctx, lhs, rhs));
-      break;
-    case opcode::divide:
-      set_local(dest, truncate_quotient(state.ctx, lhs, rhs));
-      break;
-    default:
-      assert(!"Cannot get here");
-    }
-
-    break;
-  }
-
-  case opcode::arith_equal:
-  case opcode::less_than:
-  case opcode::greater_than: {
-    object* lhs = local(read_operand(bc, frame.pc));
-    object* rhs = local(read_operand(bc, frame.pc));
-    operand dest = read_operand(bc, frame.pc);
-
-    switch (op) {
-    case opcode::arith_equal:
-      set_local(dest, arith_equal(state.ctx, lhs, rhs));
-      break;
-    case opcode::less_than:
-      set_local(dest, less(state.ctx, lhs, rhs));
-      break;
-    case opcode::greater_than:
-      set_local(dest, greater(state.ctx, lhs, rhs));
-      break;
-    default:
-      assert(!"Cannot get here");
-    }
-    break;
-  }
-
-  case opcode::set: {
-    operand src = read_operand(bc, frame.pc);
-    operand dst = read_operand(bc, frame.pc);
-    set_local(dst, local(src));
-    break;
-  }
-
-  case opcode::call:
-  case opcode::call_top_level:
-  case opcode::call_static:
-  case opcode::tail_call:
-  case opcode::tail_call_top_level:
-  case opcode::tail_call_static: {
-    bool is_tail = op == opcode::tail_call
-                   || op == opcode::tail_call_top_level
-                   || op == opcode::tail_call_static;
-
-    object* callee;
-    switch (op) {
-    case opcode::call:
-    case opcode::tail_call:
-      callee = local(read_operand(bc, frame.pc));
-      break;
-
-    case opcode::call_top_level:
-    case opcode::tail_call_top_level:
-      callee = state.ctx.get_top_level(read_operand(bc, frame.pc));
-      break;
-
-    case opcode::call_static:
-    case opcode::tail_call_static:
-      callee = state.ctx.get_static(read_operand(bc, frame.pc));
-      break;
-
-    default:
-      assert(false);
-    }
-
-    if (!is_tail)
-      frame.dest_register = read_operand(bc, frame.pc);
-
-    operand num_args = read_operand(bc, frame.pc);
-    object* call_target = callee;
-    insider::closure* closure = nullptr;
-
-    if (auto cls = match<insider::closure>(call_target)) {
-      call_target = cls->procedure();
-      closure = cls;
-    }
-
-    if (auto scheme_proc = match<procedure>(call_target)) {
-      if (num_args < scheme_proc->min_args)
-        throw error{"{}: Wrong number of arguments, expected {}{}, got {}",
-                    scheme_proc->name ? *scheme_proc->name : "<lambda>",
-                    scheme_proc->has_rest ? "at least " : "",
-                    scheme_proc->min_args, num_args};
-
-      std::size_t closure_size = 0;
-      if (closure)
-        closure_size = closure->size();
-
-      std::size_t args_size = scheme_proc->min_args;
-      if (scheme_proc->has_rest)
-        ++args_size;
-
-      std::size_t new_base = state.value_stack->size();
-
-      for (std::size_t i = 0; i < closure_size; ++i)
-        state.value_stack->push(closure->ref(i));
-      for (std::size_t i = 0; i < scheme_proc->min_args; ++i)
-        state.value_stack->push(local(read_operand(bc, frame.pc)));
-
-      if (scheme_proc->has_rest) {
-        std::size_t num_rest = num_args - scheme_proc->min_args;
-
-        for (std::size_t i = 0; i < num_rest; ++i)
-          state.value_stack->push(local(read_operand(bc, frame.pc)));
-
-        state.value_stack->push(state.ctx.constants->null.get());
-
-        for (std::size_t i = 0; i < num_rest; ++i) {
-          object* tail = state.value_stack->pop();
-          object* head = state.value_stack->pop();
-          state.value_stack->push(cons(state.ctx, head, tail));
-        }
-      }
-
-      if (is_tail) {
-        std::size_t parent_base = frame.stack_top;
-
-        for (std::size_t i = 0; i < closure_size + args_size; ++i)
-          state.value_stack->set(parent_base + i, state.value_stack->ref(new_base + i));
-
-        frame.pc = 0;
-        frame.procedure = scheme_proc;
-
-        state.value_stack->resize(parent_base + scheme_proc->locals_size);
-      } else {
-        state.call_stack->push(scheme_proc, new_base);
-        state.value_stack->grow(scheme_proc->locals_size - args_size - closure_size);
-      }
-    } else if (is_native_procedure(call_target)) {
-      simple_action<std::string const&> a{state.ctx, "in {}", native_procedure_name(call_target)};
-
-      assert(!closure);
-
-      object* result = call_native(state, call_target, num_args);
-
-      if (!is_tail)
-        state.value_stack->set(frame.stack_top + frame.dest_register, result);
-      else {
-        // tail_call. For Scheme procedures, the callee would perform a ret and
-        // go back to this frame's caller. Since this is a native procedure, we
-        // have to simulate the ret ourselves.
-
-        if (state.call_stack->size() == 1) {
-          // Same as in ret below: We're returning from the global procedure.
-
-          state.global_return = track(state.ctx, result);
-          frame.pc = frame.procedure->bytecode.size();
-          return;
-        }
-
-        pop_call_frame(state);
-        state.value_stack->set(state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
-                  result);
-      }
-    } else
-      throw error{"Application: Not a procedure: {}", datum_to_string(state.ctx, call_target)};
-    break;
-  }
-
-  case opcode::ret: {
-    operand return_reg = read_operand(bc, frame.pc);
-    object* result = local(return_reg);
-
-    if (state.call_stack->size() == 1) {
-      // We are returning from the global procedure, so we have nowhere to
-      // return to. We will set the global_return value and *not* pop the
-      // stack. We'll then set pc past all the bytecode so we finish execution.
-
-      state.global_return = track(state.ctx, result);
-      frame.pc = frame.procedure->bytecode.size();
-      return;
-    }
-
-    pop_call_frame(state);
-    state.value_stack->set(state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
-                           result);
-    break;
-  }
-
-  case opcode::jump:
-  case opcode::jump_back:
-  case opcode::jump_unless:
-  case opcode::jump_back_unless: {
-    operand off;
-    operand condition_reg{};
-
-    if (op == opcode::jump || op == opcode::jump_back)
-      off = read_operand(bc, frame.pc);
-    else {
-      condition_reg = read_operand(bc, frame.pc);
-      off = read_operand(bc, frame.pc);
-    }
-
-    int offset = (op == opcode::jump_back || op == opcode::jump_back_unless) ? -off : off;
-    if (op == opcode::jump_unless || op == opcode::jump_back_unless) {
-      object* test_value = local(condition_reg);
-
-      // The only false value in Scheme is #f. So we only jump if the test_value
-      // is exactly #f.
-
-      if (test_value != state.ctx.constants->f.get())
-        break;
-    }
-
-    frame.pc += offset;
-    break;
-  }
-
-  case opcode::make_closure: {
-    procedure* proc = assume<procedure>(local(read_operand(bc, frame.pc)));
-    operand dest = read_operand(bc, frame.pc);
-    operand num_captures = read_operand(bc, frame.pc);
-
-    auto result = make<closure>(state.ctx, proc, num_captures);
-    for (std::size_t i = 0; i < num_captures; ++i)
-      result->set(state.ctx.store, i, local(read_operand(bc, frame.pc)));
-
-    set_local(dest, result);
-    break;
-  }
-
-  case opcode::box: {
-    object* value = local(read_operand(bc, frame.pc));
-    set_local(read_operand(bc, frame.pc), state.ctx.store.make<box>(value));
-    break;
-  }
-
-  case opcode::unbox: {
-    auto box = expect<insider::box>(local(read_operand(bc, frame.pc)));
-    set_local(read_operand(bc, frame.pc), box->get());
-    break;
-  }
-
-  case opcode::box_set: {
-    auto box = expect<insider::box>(local(read_operand(bc, frame.pc)));
-    box->set(state.ctx.store, local(read_operand(bc, frame.pc)));
-    break;
-  }
-
-  case opcode::cons: {
-    object* car = local(read_operand(bc, frame.pc));
-    object* cdr = local(read_operand(bc, frame.pc));
-    set_local(read_operand(bc, frame.pc), make<pair>(state.ctx, car, cdr));
-    break;
-  }
-
-  case opcode::make_vector: {
-    operand dest = read_operand(bc, frame.pc);
-    operand num_elems = read_operand(bc, frame.pc);
-
-    auto result = make<vector>(state.ctx, state.ctx, num_elems);
-    for (std::size_t i = 0; i < num_elems; ++i)
-      result->set(state.ctx.store, i, local(read_operand(bc, frame.pc)));
-
-    set_local(dest, result);
-    break;
-  }
-  } // end switch
-}
-
 execution_state
 make_state(context& ctx, procedure* global,
            std::vector<object*> const& closure, std::vector<object*> const& arguments) {
@@ -585,14 +265,318 @@ object*
 run(execution_state& state) {
   execution_action a(state);
 
-  while (state.call_stack->current_frame().pc != state.call_stack->current_frame().procedure->bytecode.size()) {
-    execute_one(state);
-    state.ctx.store.update();
+  while (true) {
+    call_stack::frame& frame = state.call_stack->current_frame();
+    root_stack& values = *state.value_stack;
+    bytecode const& bc = frame.procedure->bytecode;
+
+    auto local = [&] (operand l) { return values.ref(frame.stack_top + l); };
+    auto set_local = [&] (operand l, object* value) { values.set(frame.stack_top + l, value); };
+
+    opcode op = read_opcode(bc, frame.pc);
+    switch (op) {
+    case opcode::no_operation:
+      break;
+
+    case opcode::load_static: {
+      operand static_num = read_operand(bc, frame.pc);
+      operand dest = read_operand(bc, frame.pc);
+      set_local(dest, state.ctx.get_static(static_num));
+      break;
+    }
+
+    case opcode::load_top_level: {
+      operand global_num = read_operand(bc, frame.pc);
+      operand dest = read_operand(bc, frame.pc);
+      set_local(dest, state.ctx.get_top_level(global_num));
+      break;
+    }
+
+    case opcode::store_top_level: {
+      operand reg = read_operand(bc, frame.pc);
+      operand global_num = read_operand(bc, frame.pc);
+      state.ctx.set_top_level(global_num, local(reg));
+      break;
+    }
+
+    case opcode::add:
+    case opcode::subtract:
+    case opcode::multiply:
+    case opcode::divide: {
+      object* lhs = local(read_operand(bc, frame.pc));
+      object* rhs = local(read_operand(bc, frame.pc));
+      operand dest = read_operand(bc, frame.pc);
+
+      switch (op) {
+      case opcode::add:
+        set_local(dest, add(state.ctx, lhs, rhs));
+        break;
+      case opcode::subtract:
+        set_local(dest, subtract(state.ctx, lhs, rhs));
+        break;
+      case opcode::multiply:
+        set_local(dest, multiply(state.ctx, lhs, rhs));
+        break;
+      case opcode::divide:
+        set_local(dest, truncate_quotient(state.ctx, lhs, rhs));
+        break;
+      default:
+        assert(!"Cannot get here");
+      }
+
+      break;
+    }
+
+    case opcode::arith_equal:
+    case opcode::less_than:
+    case opcode::greater_than: {
+      object* lhs = local(read_operand(bc, frame.pc));
+      object* rhs = local(read_operand(bc, frame.pc));
+      operand dest = read_operand(bc, frame.pc);
+
+      switch (op) {
+      case opcode::arith_equal:
+        set_local(dest, arith_equal(state.ctx, lhs, rhs));
+        break;
+      case opcode::less_than:
+        set_local(dest, less(state.ctx, lhs, rhs));
+        break;
+      case opcode::greater_than:
+        set_local(dest, greater(state.ctx, lhs, rhs));
+        break;
+      default:
+        assert(!"Cannot get here");
+      }
+      break;
+    }
+
+    case opcode::set: {
+      operand src = read_operand(bc, frame.pc);
+      operand dst = read_operand(bc, frame.pc);
+      set_local(dst, local(src));
+      break;
+    }
+
+    case opcode::call:
+    case opcode::call_top_level:
+    case opcode::call_static:
+    case opcode::tail_call:
+    case opcode::tail_call_top_level:
+    case opcode::tail_call_static: {
+      bool is_tail = op == opcode::tail_call
+        || op == opcode::tail_call_top_level
+        || op == opcode::tail_call_static;
+
+      object* callee;
+      switch (op) {
+      case opcode::call:
+      case opcode::tail_call:
+        callee = local(read_operand(bc, frame.pc));
+        break;
+
+      case opcode::call_top_level:
+      case opcode::tail_call_top_level:
+        callee = state.ctx.get_top_level(read_operand(bc, frame.pc));
+        break;
+
+      case opcode::call_static:
+      case opcode::tail_call_static:
+        callee = state.ctx.get_static(read_operand(bc, frame.pc));
+        break;
+
+      default:
+        assert(false);
+      }
+
+      if (!is_tail)
+        frame.dest_register = read_operand(bc, frame.pc);
+
+      operand num_args = read_operand(bc, frame.pc);
+      object* call_target = callee;
+      insider::closure* closure = nullptr;
+
+      if (auto cls = match<insider::closure>(call_target)) {
+        call_target = cls->procedure();
+        closure = cls;
+      }
+
+      if (auto scheme_proc = match<procedure>(call_target)) {
+        if (num_args < scheme_proc->min_args)
+          throw error{"{}: Wrong number of arguments, expected {}{}, got {}",
+              scheme_proc->name ? *scheme_proc->name : "<lambda>",
+              scheme_proc->has_rest ? "at least " : "",
+              scheme_proc->min_args, num_args};
+
+        std::size_t closure_size = 0;
+        if (closure)
+          closure_size = closure->size();
+
+        std::size_t args_size = scheme_proc->min_args;
+        if (scheme_proc->has_rest)
+          ++args_size;
+
+        std::size_t new_base = state.value_stack->size();
+
+        for (std::size_t i = 0; i < closure_size; ++i)
+          state.value_stack->push(closure->ref(i));
+        for (std::size_t i = 0; i < scheme_proc->min_args; ++i)
+          state.value_stack->push(local(read_operand(bc, frame.pc)));
+
+        if (scheme_proc->has_rest) {
+          std::size_t num_rest = num_args - scheme_proc->min_args;
+
+          for (std::size_t i = 0; i < num_rest; ++i)
+            state.value_stack->push(local(read_operand(bc, frame.pc)));
+
+          state.value_stack->push(state.ctx.constants->null.get());
+
+          for (std::size_t i = 0; i < num_rest; ++i) {
+            object* tail = state.value_stack->pop();
+            object* head = state.value_stack->pop();
+            state.value_stack->push(cons(state.ctx, head, tail));
+          }
+        }
+
+        if (is_tail) {
+          std::size_t parent_base = frame.stack_top;
+
+          for (std::size_t i = 0; i < closure_size + args_size; ++i)
+            state.value_stack->set(parent_base + i, state.value_stack->ref(new_base + i));
+
+          frame.pc = 0;
+          frame.procedure = scheme_proc;
+
+          state.value_stack->resize(parent_base + scheme_proc->locals_size);
+        } else {
+          state.call_stack->push(scheme_proc, new_base);
+          state.value_stack->grow(scheme_proc->locals_size - args_size - closure_size);
+        }
+      } else if (is_native_procedure(call_target)) {
+        simple_action<std::string const&> a{state.ctx, "in {}", native_procedure_name(call_target)};
+
+        assert(!closure);
+
+        object* result = call_native(state, call_target, num_args);
+
+        if (!is_tail)
+          state.value_stack->set(frame.stack_top + frame.dest_register, result);
+        else {
+          // tail_call. For Scheme procedures, the callee would perform a ret and
+          // go back to this frame's caller. Since this is a native procedure, we
+          // have to simulate the ret ourselves.
+
+          if (state.call_stack->size() == 1)
+            // Same as in ret below: We're returning from the global procedure.
+            return result;
+
+          pop_call_frame(state);
+          state.value_stack->set(state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
+                                 result);
+        }
+      } else
+        throw error{"Application: Not a procedure: {}", datum_to_string(state.ctx, call_target)};
+      break;
+    }
+
+    case opcode::ret: {
+      operand return_reg = read_operand(bc, frame.pc);
+      object* result = local(return_reg);
+
+      if (state.call_stack->size() == 1)
+        // We are returning from the global procedure, so we return back to the
+        // calling C++ code. We won't pop the final stack so that the caller may
+        // inspect it (used in tests).
+        return result;
+
+      pop_call_frame(state);
+      state.value_stack->set(state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
+                             result);
+      break;
+    }
+
+    case opcode::jump:
+    case opcode::jump_back:
+    case opcode::jump_unless:
+    case opcode::jump_back_unless: {
+      operand off;
+      operand condition_reg{};
+
+      if (op == opcode::jump || op == opcode::jump_back)
+        off = read_operand(bc, frame.pc);
+      else {
+        condition_reg = read_operand(bc, frame.pc);
+        off = read_operand(bc, frame.pc);
+      }
+
+      int offset = (op == opcode::jump_back || op == opcode::jump_back_unless) ? -off : off;
+      if (op == opcode::jump_unless || op == opcode::jump_back_unless) {
+        object* test_value = local(condition_reg);
+
+        // The only false value in Scheme is #f. So we only jump if the test_value
+        // is exactly #f.
+
+        if (test_value != state.ctx.constants->f.get())
+          break;
+      }
+
+      frame.pc += offset;
+      break;
+    }
+
+    case opcode::make_closure: {
+      procedure* proc = assume<procedure>(local(read_operand(bc, frame.pc)));
+      operand dest = read_operand(bc, frame.pc);
+      operand num_captures = read_operand(bc, frame.pc);
+
+      auto result = make<closure>(state.ctx, proc, num_captures);
+      for (std::size_t i = 0; i < num_captures; ++i)
+        result->set(state.ctx.store, i, local(read_operand(bc, frame.pc)));
+
+      set_local(dest, result);
+      break;
+    }
+
+    case opcode::box: {
+      object* value = local(read_operand(bc, frame.pc));
+      set_local(read_operand(bc, frame.pc), state.ctx.store.make<box>(value));
+      break;
+    }
+
+    case opcode::unbox: {
+      auto box = expect<insider::box>(local(read_operand(bc, frame.pc)));
+      set_local(read_operand(bc, frame.pc), box->get());
+      break;
+    }
+
+    case opcode::box_set: {
+      auto box = expect<insider::box>(local(read_operand(bc, frame.pc)));
+      box->set(state.ctx.store, local(read_operand(bc, frame.pc)));
+      break;
+    }
+
+    case opcode::cons: {
+      object* car = local(read_operand(bc, frame.pc));
+      object* cdr = local(read_operand(bc, frame.pc));
+      set_local(read_operand(bc, frame.pc), make<pair>(state.ctx, car, cdr));
+      break;
+    }
+
+    case opcode::make_vector: {
+      operand dest = read_operand(bc, frame.pc);
+      operand num_elems = read_operand(bc, frame.pc);
+
+      auto result = make<vector>(state.ctx, state.ctx, num_elems);
+      for (std::size_t i = 0; i < num_elems; ++i)
+        result->set(state.ctx.store, i, local(read_operand(bc, frame.pc)));
+
+      set_local(dest, result);
+      break;
+    }
+    } // end switch
   }
 
-  assert(state.call_stack->size() == 1); // Non-global procedures must finish by executing ret.
-
-  return state.global_return.get();
+  assert(false); // The only way the loop above will exit is via return.
+  return nullptr;
 }
 
 object*

@@ -499,7 +499,8 @@ TEST_F(scheme, exec_arithmetic) {
                    instruction{opcode::load_static, three, operand{3}},
                    instruction{opcode::load_static, six,   operand{4}},
                    instruction{opcode::add,         operand{3}, operand{4}, operand{1}},
-                   instruction{opcode::multiply,    operand{2}, operand{1}, operand{0}}}),
+                   instruction{opcode::multiply,    operand{2}, operand{1}, operand{0}},
+                   instruction{opcode::ret,         operand{0}}}),
     5,
     0
   );
@@ -542,7 +543,8 @@ TEST_F(scheme, exec_calls) {
                    instruction{opcode::call,        operand{5}, operand{2}, operand{6}, operand{7}},
                    instruction{opcode::load_static, two,   operand{8}},
                    instruction{opcode::call,        operand{5}, operand{1}, operand{8}, operand{2}},
-                   instruction{opcode::add,         operand{0}, operand{1}, operand{0}}}),
+                   instruction{opcode::add,         operand{0}, operand{1}, operand{0}},
+                   instruction{opcode::ret,         operand{0}}}),
     9,
     0
   );
@@ -578,7 +580,8 @@ TEST_F(scheme, exec_tail_calls) {
     ctx,
     make_bytecode({instruction{opcode::load_static, f,   operand{1}},
                    instruction{opcode::load_static, six, operand{2}},
-                   instruction{opcode::call,        operand{1}, operand{0}, operand{2}}}),
+                   instruction{opcode::call,        operand{1}, operand{0}, operand{2}},
+                   instruction{opcode::ret,         operand{2}}}),
     3,
     0
   );
@@ -605,12 +608,12 @@ TEST_F(scheme, exec_loop) {
                    instruction{opcode::load_static, one,        operand{5}},
                    instruction{opcode::set,         operand{3}, operand{0}},
                    instruction{opcode::set,         operand{3}, operand{1}},
-                   instruction{opcode::less_than,   operand{1}, operand{4}, operand{2}}, // 4
-                   instruction{opcode::jump_unless, operand{2}, operand{10}},            // 3
-                   instruction{opcode::add,         operand{0}, operand{1}, operand{0}}, // 4
-                   instruction{opcode::add,         operand{1}, operand{5}, operand{1}}, // 3
-                   instruction{opcode::jump_back,   operand{17}},                        // 2
-                   instruction{opcode::no_operation}}),                                  // 1
+                   instruction{opcode::less_than,   operand{1}, operand{4}, operand{2}},
+                   instruction{opcode::jump_unless, operand{2}, operand{10}},
+                   instruction{opcode::add,         operand{0}, operand{1}, operand{0}},
+                   instruction{opcode::add,         operand{1}, operand{5}, operand{1}},
+                   instruction{opcode::jump_back,   operand{17}},
+                   instruction{opcode::ret,         operand{0}}}),
     6,
     0
   );
@@ -636,7 +639,8 @@ TEST_F(scheme, exec_native_call) {
                    instruction{opcode::load_static, twenty,        operand{2}},
                    instruction{opcode::load_static, thirty,        operand{3}},
                    instruction{opcode::load_static, native_static, operand{4}},
-                   instruction{opcode::call,        operand{4},    operand{0}, operand{1}, operand{2}, operand{3}}}),
+                   instruction{opcode::call,        operand{4},    operand{0}, operand{1}, operand{2}, operand{3}},
+                   instruction{opcode::ret,         operand{0}}}),
     5,
     0
   );
@@ -663,7 +667,8 @@ TEST_F(scheme, exec_closure_ref) {
                    instruction{opcode::load_static, three, operand{3}},
                    instruction{opcode::load_static, five,  operand{4}},
                    instruction{opcode::make_closure, operand{2}, operand{1}, operand{3}},
-                   instruction{opcode::call,         operand{1}, operand{0}, operand{4}}}),
+                   instruction{opcode::call,         operand{1}, operand{0}, operand{4}},
+                   instruction{opcode::ret,          operand{0}}}),
     5, 0
   );
   auto state = make_state(ctx, global);
@@ -684,7 +689,8 @@ TEST_F(scheme, exec_cons) {
                    instruction{opcode::load_static, three,            operand{4}},
                    instruction{opcode::cons,        operand{4},       operand{1}, operand{0}},
                    instruction{opcode::cons,        operand{3},       operand{0}, operand{0}},
-                   instruction{opcode::cons,        operand{2},       operand{0}, operand{0}}}),
+                   instruction{opcode::cons,        operand{2},       operand{0}, operand{0}},
+                   instruction{opcode::ret,         operand{0}}}),
     5, 0
   );
   auto state = make_state(ctx, global);
@@ -702,7 +708,8 @@ TEST_F(scheme, exec_make_vector) {
     make_bytecode({instruction{opcode::load_static, one,   operand{1}},
                    instruction{opcode::load_static, two,   operand{2}},
                    instruction{opcode::load_static, three, operand{3}},
-                   instruction{opcode::make_vector, operand{0}, operand{1}, operand{2}, operand{3}}}),
+                   instruction{opcode::make_vector, operand{0}, operand{1}, operand{2}, operand{3}},
+                   instruction{opcode::ret,         operand{0}}}),
     4, 0
   );
 

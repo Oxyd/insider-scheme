@@ -116,7 +116,6 @@ struct execution_state {
   context&                         ctx;
   tracked_ptr<root_stack>          value_stack;
   tracked_ptr<insider::call_stack> call_stack;
-  generic_tracked_ptr              global_return;
 
   execution_state(context& ctx);
 };
