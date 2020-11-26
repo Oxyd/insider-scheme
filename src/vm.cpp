@@ -142,18 +142,8 @@ do_call(execution_state& state, native_procedure<Arity>* proc, std::size_t num_a
   return proc->target(state.ctx, state.value_stack->ref(frame.stack_top + arg_operands[Is])...);
 }
 
-template <int Arity>
-object*
-call_native_helper(execution_state& state, object* proc, std::size_t num_args) {
-  if (is<native_procedure<Arity>>(proc))
-    return do_call<Arity>(state, assume<native_procedure<Arity>>(proc), num_args, std::make_index_sequence<Arity>{});
-  else
-    return call_native_helper<Arity - 1>(state, proc, num_args);
-}
-
-template <>
-object*
-call_native_helper<-1>(execution_state& state, object* proc, std::size_t num_args) {
+static object*
+do_call_generic(execution_state& state, object* proc, std::size_t num_args) {
   call_stack::frame& frame = state.call_stack->current_frame();
   bytecode const& bc = frame.procedure->bytecode;
   auto native_proc = assume<native_procedure<-1>>(proc);
@@ -166,9 +156,30 @@ call_native_helper<-1>(execution_state& state, object* proc, std::size_t num_arg
   return native_proc->target(state.ctx, args);
 }
 
+template <int Arity>
+object*
+call_native_helper(execution_state& state, object* proc, std::size_t num_args) {
+  if (num_args == Arity) {
+    if (is<native_procedure<Arity>>(proc))
+      return do_call<Arity>(state, assume<native_procedure<Arity>>(proc), num_args, std::make_index_sequence<Arity>{});
+    else
+      return do_call_generic(state, proc, num_args);
+  } else
+    return call_native_helper<Arity - 1>(state, proc, num_args);
+}
+
+template <>
+object*
+call_native_helper<-1>(execution_state& state, object* proc, std::size_t num_args) {
+  return do_call_generic(state, proc, num_args);
+}
+
 static object*
 call_native(execution_state& state, object* proc, std::size_t num_args) {
-  return call_native_helper<max_specialised_arity>(state, proc, num_args);
+  if (num_args <= max_specialised_arity)
+    return call_native_helper<max_specialised_arity>(state, proc, num_args);
+  else
+    return do_call_generic(state, proc, num_args);
 }
 
 template <int Arity, std::size_t... Is>
