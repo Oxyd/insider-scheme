@@ -181,9 +181,8 @@ read_operand(bytecode const& bc, std::size_t& pc) {
   if (result < 0xFF)
     return result;
 
-  result = 0;
-  for (std::size_t i = 0; i < sizeof(operand); ++i)
-    result |= bc[pc++] << (i * CHAR_BIT);
+  result = *reinterpret_cast<operand const*>(&bc[pc]);
+  pc += sizeof(operand);
 
   return result;
 }

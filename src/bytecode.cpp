@@ -55,10 +55,8 @@ encode_operand(bytecode& bc, operand op) {
   else {
     bc.push_back(std::uint8_t{0xFF});
 
-    for (std::size_t i = 0; i < sizeof(operand); ++i) {
-      bc.push_back(static_cast<std::uint8_t>(op & 0xFF));
-      op >>= CHAR_BIT;
-    }
+    bc.resize(bc.size() + sizeof(operand));
+    *reinterpret_cast<operand*>(&bc.back() - sizeof(operand)) = op;
   }
 }
 
