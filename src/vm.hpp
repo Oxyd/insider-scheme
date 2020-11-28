@@ -73,12 +73,16 @@ public:
     insider::procedure* procedure;
     std::size_t         stack_top;
     operand             dest_register;
+    char const*         native_name;
   };
 
   call_stack();
 
   frame&
   push(insider::procedure* proc, std::size_t stack_top);
+
+  frame&
+  push_native(char const* name);
 
   void
   pop() { --size_; }

@@ -153,7 +153,7 @@ namespace detail {
   struct make_native_procedure_object<R(Args...), true> {
     template <typename Callable, std::size_t... Is>
     static auto
-    make(context& ctx, std::string const& name, Callable const& f, std::index_sequence<Is...>) {
+    make(context& ctx, char const* name, Callable const& f, std::index_sequence<Is...>) {
       return insider::make<native_procedure<sizeof...(Args)>>(
         ctx,
         [=] (context& ctx, detail::object_t<Is>... args) {
@@ -172,7 +172,7 @@ namespace detail {
   struct make_native_procedure_object<R(Args...), false> {
     template <typename Callable, std::size_t... Is>
     static auto
-    make(context& ctx, std::string const& name, Callable const& f, std::index_sequence<Is...>) {
+    make(context& ctx, char const* name, Callable const& f, std::index_sequence<Is...>) {
       return insider::make<native_procedure<>>(
         ctx,
         [=] (context& ctx, std::vector<object*> const& args) {
@@ -201,11 +201,11 @@ namespace detail {
   struct define_typed_procedure<R(context&, Args...)> {
     template <typename Callable>
     static operand
-    define(context& ctx, std::string const& name, module& m, bool export_, Callable const& f) {
+    define(context& ctx, char const* name, module& m, bool export_, Callable const& f) {
       auto proc = make_native_procedure_object<R(Args...), sizeof...(Args) <= max_specialised_arity>::make(
         ctx, name, f, std::index_sequence_for<Args...>{}
       );
-      return define_top_level(ctx, name, m, export_, proc);
+      return define_top_level(ctx, std::string(name), m, export_, proc);
     }
   };
 
@@ -213,7 +213,7 @@ namespace detail {
   struct define_typed_procedure<R(Args...)> {
     template <typename Callable>
     static operand
-    define(context& ctx, std::string const& name, module& m, bool export_, Callable const& f) {
+    define(context& ctx, char const* name, module& m, bool export_, Callable const& f) {
       return detail::define_typed_procedure<R(context&, Args...)>::define(
         ctx, name, m, export_,
         [=] (context&, Args... args) { return f(args...); }
@@ -227,14 +227,14 @@ namespace detail {
 // free or member function.
 template <typename R, typename... Args>
 operand
-define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module& m, bool export_,
                  R (*f)(Args...)) {
   return detail::define_typed_procedure<R(Args...)>::define(ctx, name, m, export_, f);
 }
 
 template <typename R, typename C, typename... Args>
 operand
-define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module& m, bool export_,
                  R (C::* f)(context&, Args...)) {
   return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
                                                                           [=] (context& ctx, C* c, Args... args) {
@@ -244,7 +244,7 @@ define_procedure(context& ctx, std::string const& name, module& m, bool export_,
 
 template <typename R, typename C, typename... Args>
 operand
-define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module& m, bool export_,
                  R (C::* f)(context&, Args...) const) {
   return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
                                                                           [=] (context& ctx, C* c, Args... args) {
@@ -254,7 +254,7 @@ define_procedure(context& ctx, std::string const& name, module& m, bool export_,
 
 template <typename R, typename C, typename... Args>
 operand
-define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module& m, bool export_,
                  R (C::* f)(Args...)) {
   return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
                                                                           [=] (context&, C* c, Args... args) {
@@ -264,7 +264,7 @@ define_procedure(context& ctx, std::string const& name, module& m, bool export_,
 
 template <typename R, typename C, typename... Args>
 operand
-define_procedure(context& ctx, std::string const& name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module& m, bool export_,
                  R (C::* f)(Args...) const) {
   return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
                                                                           [=] (context&, C* c, Args... args) {
@@ -274,13 +274,13 @@ define_procedure(context& ctx, std::string const& name, module& m, bool export_,
 
 template <typename Callable>
 operand
-define_procedure(context& ctx, std::string const& name, module& m, bool export_, Callable const& f) {
+define_procedure(context& ctx, char const* name, module& m, bool export_, Callable const& f) {
   return define_procedure(ctx, name, m, export_, +f);
 }
 
 template <typename FunctionType, typename Callable>
 operand
-define_procedure(context& ctx, std::string const& name, module& m, bool export_, Callable const& f) {
+define_procedure(context& ctx, char const* name, module& m, bool export_, Callable const& f) {
   return detail::define_typed_procedure<FunctionType>::define(ctx, name, m, export_, f);
 }
 
@@ -288,9 +288,9 @@ define_procedure(context& ctx, std::string const& name, module& m, bool export_,
 // vector<object*> with no conversion to C++ types.
 template <typename F>
 operand
-define_raw_procedure(context& ctx, std::string const& name, module& m, bool export_, F const& f) {
+define_raw_procedure(context& ctx, char const* name, module& m, bool export_, F const& f) {
   auto proc = make<native_procedure<>>(ctx, f, name);
-  return define_top_level(ctx, name, m, export_, proc);
+  return define_top_level(ctx, std::string(name), m, export_, proc);
 }
 
 // Wrapper around a Scheme procedure. Acts as a C++ function of type T. When

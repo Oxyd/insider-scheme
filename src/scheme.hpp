@@ -818,17 +818,17 @@ namespace detail {
 
     using target_type = std::function<object*(context&, Args...)>;
     target_type target;
-    std::string name;
+    char const* name;
 
     explicit
-    native_procedure_base(target_type f, std::string name = "<native procedure>")
+    native_procedure_base(target_type f, char const* name = "<native procedure>")
       : target{std::move(f)}
-      , name{std::move(name)}
+      , name{name}
     { }
 
     std::size_t
     hash() const {
-      return std::hash<std::string>{}(name);
+      return std::hash<std::string_view>{}(name);
     }
   };
 
@@ -882,7 +882,7 @@ namespace detail {
   }
 
   template <int Arity>
-  std::string const&
+  char const*
   native_procedure_name(object* x) {
     if (is<native_procedure<Arity>>(x))
       return assume<native_procedure<Arity>>(x)->name;
@@ -891,12 +891,10 @@ namespace detail {
   }
 
   template <>
-  inline std::string const&
+  inline char const*
   native_procedure_name<-2>(object*) {
     assert(!"Not a native procedure");
-
-    static std::string shut_up;
-    return shut_up;
+    return {};
   }
 }
 
@@ -905,7 +903,7 @@ is_native_procedure(object* x) {
   return detail::is_native_procedure(x, std::make_integer_sequence<int, max_specialised_arity + 1>{});
 }
 
-inline std::string const&
+inline char const*
 native_procedure_name(object* x) { return detail::native_procedure_name<max_specialised_arity>(x); }
 
 bool

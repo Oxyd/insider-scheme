@@ -73,7 +73,15 @@ call_stack::push(insider::procedure* proc, std::size_t stack_top) -> frame& {
     grow(alloc_ + call_stack_growth_constant);
 
   assert(size_ < alloc_);
-  return frames_[size_++] = frame{0, proc, stack_top, operand{}};
+  return frames_[size_++] = frame{0, proc, stack_top, operand{}, nullptr};
+}
+
+auto
+call_stack::push_native(char const* name) -> frame& {
+  if (size_ >= alloc_)
+    grow(alloc_ + call_stack_growth_constant);
+
+  return frames_[size_++] = frame{0, nullptr, 0, operand{}, name};
 }
 
 void
@@ -133,13 +141,17 @@ do_call(execution_state& state, native_procedure<Arity>* proc, std::size_t num_a
   bytecode const& bc = frame.procedure->bytecode;
 
   // Consume operands even if call is invalid.
-  std::array<operand, Arity> arg_operands{((void) Is, read_operand(bc, frame.pc))...};
-  (void) arg_operands; // Unused when Arity == 0.
+  [[maybe_unused]] std::array<operand, Arity> arg_operands{((void) Is, read_operand(bc, frame.pc))...};
 
   if (Arity != num_args)
     throw error{"{}: Wrong number of arguments, expected {}, got {}", proc->name, Arity, num_args};
 
-  return proc->target(state.ctx, state.value_stack->ref(frame.stack_top + arg_operands[Is])...);
+  [[maybe_unused]] std::size_t stack_top = frame.stack_top;
+
+  state.call_stack->push_native(native_procedure_name(proc));
+  object* result = proc->target(state.ctx, state.value_stack->ref(stack_top + arg_operands[Is])...);
+  state.call_stack->pop();
+  return result;
 }
 
 static object*
@@ -153,7 +165,10 @@ do_call_generic(execution_state& state, object* proc, std::size_t num_args) {
   for (std::size_t i = 0; i < num_args; ++i)
     args.push_back(state.value_stack->ref(frame.stack_top + read_operand(bc, frame.pc)));
 
-  return native_proc->target(state.ctx, args);
+  state.call_stack->push_native(native_procedure_name(native_proc));
+  object* result = native_proc->target(state.ctx, args);
+  state.call_stack->pop();
+  return result;
 }
 
 template <int Arity>
@@ -245,12 +260,17 @@ namespace {
     format() const {
       std::string result;
       for (std::size_t i = state_.call_stack->size(); i > 0; --i) {
-        auto const& frame = state_.call_stack->get(i - 1);
-        std::optional<std::string> name = frame.procedure->name;
-
         if (i != state_.call_stack->size())
           result += '\n';
-        result += fmt::format("in {}", name ? *name : "<lambda>");
+
+        auto const& frame = state_.call_stack->get(i - 1);
+        if (frame.procedure) {
+          std::optional<std::string> name = frame.procedure->name;
+          result += fmt::format("in {}", name ? *name : "<lambda>");
+        } else {
+          assert(frame.native_name);
+          result += fmt::format("in native procedure {}", frame.native_name);
+        }
       }
 
       return result;
@@ -452,10 +472,7 @@ run(execution_state& state) {
           state.value_stack->grow(scheme_proc->locals_size - args_size - closure_size);
         }
       } else if (is_native_procedure(call_target)) {
-        simple_action<std::string const&> a{state.ctx, "in {}", native_procedure_name(call_target)};
-
         assert(!closure);
-
         object* result = call_native(state, call_target, num_args);
 
         if (!is_tail)
