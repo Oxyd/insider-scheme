@@ -20,11 +20,13 @@ public:
 
   void
   set(std::size_t i, object* value) {
+    assert(is_valid(value));
     data_[i] = value;
   }
 
   void
   push(object* value) {
+    assert(is_valid(value));
     grow(1);
     data_[size_ - 1] = value;
   }
@@ -135,14 +137,14 @@ make_state(context&, procedure*,
 // Run the bytecode in the execution context's global call frame.
 //
 // Causes a garbage collection.
-object*
+generic_tracked_ptr
 run(execution_state&);
 
 // Create a new execution state with the given procedure as the root frame,
 // execute it, and return the procedure's return value.
 //
 // Causes a garbage collection.
-object*
+generic_tracked_ptr
 call(context&, object* callable, std::vector<object*> const& arguments);
 
 } // namespace insider

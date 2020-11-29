@@ -141,6 +141,11 @@ type_name<integer>() {
 bool
 is_alive(object*);
 
+inline bool
+is_valid(object* o) {
+  return o == nullptr || !is_object_ptr(o) || is_alive(o);
+}
+
 word_type
 object_generation(object*);
 
@@ -727,6 +732,12 @@ public:
   void
   update();
 
+  void
+  disable_gc() { ++disable_level_; }
+
+  void
+  enable_gc();
+
 private:
   page_allocator allocator_;
   generation_list generations_{generation{allocator_, generation::nursery_1},
@@ -779,6 +790,28 @@ inline generic_weak_ptr*
 generic_weak_ptr::root_list(free_store& fs) noexcept {
   return fs.weak_root_list();
 }
+
+class gc_disabler {
+public:
+  explicit
+  gc_disabler(free_store& fs) : fs_{&fs} { fs_->disable_gc(); }
+
+  ~gc_disabler() { enable(); }
+
+  gc_disabler(gc_disabler const&) = delete;
+  void operator = (gc_disabler const&) = delete;
+
+  void
+  enable() {
+    if (fs_) {
+      fs_->enable_gc();
+      fs_ = nullptr;
+    }
+  }
+
+private:
+  free_store* fs_;
+};
 
 } // namespace insider
 

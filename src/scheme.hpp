@@ -218,7 +218,9 @@ define_top_level(context&, std::string const& name, module&, bool export_, objec
 
 // Recursively activate all dependencies of the given module, execute the
 // module's body and return the result of the last expression in its body.
-object*
+//
+// Causes garbage collection.
+generic_tracked_ptr
 execute(context&, module&);
 
 // Interface for module providers. A module provider is used when a library is

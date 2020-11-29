@@ -25,13 +25,13 @@ struct scheme : testing::Test {
     import_all_exported(ctx, m, ctx.internal_module);
     auto f = compile_expression(ctx, read(expr), m);
     auto state = make_state(ctx, f);
-    return run(state);
+    return run(state).get();
   }
 
   object*
   eval_module(std::string const& expr) {
     module m = compile_main_module(ctx, read_multiple(ctx, expr));
-    return execute(ctx, m);
+    return execute(ctx, m).get();
   }
 
   void
@@ -1289,7 +1289,7 @@ TEST_F(scheme, append) {
 
 TEST_F(scheme, call_from_native) {
   auto f = expect<procedure>(eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"));
-  object* result = call(ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})});
+  object* result = call(ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})}).get();
   EXPECT_EQ(expect<integer>(result).value(), 2 * 5 + 3 * 4);
 
   scheme_procedure<int(int, int)> g{track(ctx, eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"))};

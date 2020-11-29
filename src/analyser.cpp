@@ -112,7 +112,7 @@ expand(context& ctx, tracked_ptr<environment> const& env, generic_tracked_ptr da
       object* head = car(lst.get());
       if (is_identifier(head)) {
         if (transformer* t = lookup_transformer(ctx, env, head)) {
-          datum = track(ctx, call(ctx, t->callable(), {datum.get(), t->environment(), env.get()}));
+          datum = call(ctx, t->callable(), {datum.get(), t->environment(), env.get()});
           expanded = true;
         }
       }
@@ -128,7 +128,7 @@ eval_transformer(context& ctx, module& m, object* datum) {
   simple_action a(ctx, datum, "Evaluating transformer");
   auto proc = compile_expression(ctx, datum, m);
   auto state = make_state(ctx, proc);
-  return expect_callable(run(state));
+  return expect_callable(run(state).get());
 }
 
 namespace {

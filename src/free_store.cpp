@@ -522,6 +522,13 @@ free_store::update() {
     collect_garbage(*requested_collection_level_ == generation::mature);
 }
 
+void
+free_store::enable_gc() {
+  --disable_level_;
+  if (disable_level_ == 0)
+    update();
+}
+
 std::byte*
 free_store::allocate_object(std::size_t size, word_type type) {
   std::size_t total_size = size + sizeof(word_type);

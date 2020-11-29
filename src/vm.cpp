@@ -16,7 +16,9 @@ static constexpr std::size_t root_stack_initial_size = 4096;
 root_stack::root_stack()
   : data_{std::make_unique<object*[]>(root_stack_initial_size)}
   , alloc_{root_stack_initial_size}
-{ }
+{
+  std::fill(&data_[0], &data_[alloc_], nullptr);
+}
 
 void
 root_stack::grow(std::size_t n) {
@@ -39,6 +41,9 @@ root_stack::resize(std::size_t new_size) {
     data_ = std::make_unique<object*[]>(alloc_);
     std::copy(&old_data[0], &old_data[0] + old_size, &data_[0]);
   }
+
+  if (new_size > old_size)
+    std::fill(&data_[old_size], &data_[new_size], nullptr);
 }
 
 void
@@ -51,7 +56,6 @@ void
 root_stack::trace(tracing_context& tc) const {
   for (std::size_t i = 0; i < size_; ++i)
     tc.trace(data_[i]);
-
 }
 
 void
@@ -281,11 +285,13 @@ namespace {
   };
 }
 
-object*
+generic_tracked_ptr
 run(execution_state& state) {
   execution_action a(state);
 
   while (true) {
+    gc_disabler no_gc{state.ctx.store};
+
     call_stack::frame& frame = state.call_stack->current_frame();
     root_stack& values = *state.value_stack;
     bytecode const& bc = frame.procedure->bytecode;
@@ -377,10 +383,10 @@ run(execution_state& state) {
       break;
     }
 
+    case opcode::tail_call:
     case opcode::call:
     case opcode::call_top_level:
     case opcode::call_static:
-    case opcode::tail_call:
     case opcode::tail_call_top_level:
     case opcode::tail_call_static: {
       bool is_tail = op == opcode::tail_call
@@ -484,7 +490,7 @@ run(execution_state& state) {
 
           if (state.call_stack->size() == 1)
             // Same as in ret below: We're returning from the global procedure.
-            return result;
+            return track(state.ctx, result);
 
           pop_call_frame(state);
           state.value_stack->set(state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
@@ -503,7 +509,7 @@ run(execution_state& state) {
         // We are returning from the global procedure, so we return back to the
         // calling C++ code. We won't pop the final stack so that the caller may
         // inspect it (used in tests).
-        return result;
+        return track(state.ctx, result);
 
       pop_call_frame(state);
       state.value_stack->set(state.call_stack->current_frame().stack_top + state.call_stack->current_frame().dest_register,
@@ -590,13 +596,16 @@ run(execution_state& state) {
       break;
     }
     } // end switch
+
+    no_gc.enable();
+    state.ctx.store.update();
   }
 
   assert(false); // The only way the loop above will exit is via return.
-  return nullptr;
+  return {};
 }
 
-object*
+generic_tracked_ptr
 call(context& ctx, object* callable, std::vector<object*> const& arguments) {
   std::vector<object*> closure;
   if (auto cls = match<insider::closure>(callable)) {
@@ -612,7 +621,7 @@ call(context& ctx, object* callable, std::vector<object*> const& arguments) {
     return run(state);
   } else if (is_native_procedure(callable)) {
     assert(closure.empty());
-    return call_native_vector(ctx, callable, arguments);
+    return track(ctx, call_native_vector(ctx, callable, arguments));
   } else
     throw std::runtime_error{"Expected a callable"};
 }
