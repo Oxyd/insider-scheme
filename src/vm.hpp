@@ -27,7 +27,8 @@ public:
   void
   push(object* value) {
     assert(is_valid(value));
-    grow(1);
+
+    resize_uninitialised(size_ + 1);
     data_[size_ - 1] = value;
   }
 
@@ -64,6 +65,9 @@ private:
   std::unique_ptr<object*[]> data_;
   std::size_t size_ = 0;
   std::size_t alloc_;
+
+  void
+  resize_uninitialised(std::size_t new_size);
 };
 
 class call_stack : public composite_root_object<call_stack> {

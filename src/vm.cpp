@@ -33,15 +33,8 @@ root_stack::shrink(std::size_t n) {
 void
 root_stack::resize(std::size_t new_size) {
   std::size_t old_size = size_;
-  size_ = new_size;
 
-  if (size_ > alloc_) {
-    auto old_data = std::move(data_);
-    alloc_ = 3 * alloc_ / 2;
-    data_ = std::make_unique<object*[]>(alloc_);
-    std::copy(&old_data[0], &old_data[0] + old_size, &data_[0]);
-  }
-
+  resize_uninitialised(new_size);
   if (new_size > old_size)
     std::fill(&data_[old_size], &data_[new_size], nullptr);
 }
@@ -62,6 +55,19 @@ void
 root_stack::update_references() {
   for (std::size_t i = 0; i < size_; ++i)
     update_reference(data_[i]);
+}
+
+void
+root_stack::resize_uninitialised(std::size_t new_size) {
+  std::size_t old_size = size_;
+  size_ = new_size;
+
+  if (size_ > alloc_) {
+    auto old_data = std::move(data_);
+    alloc_ = 3 * alloc_ / 2;
+    data_ = std::make_unique<object*[]>(alloc_);
+    std::copy(&old_data[0], &old_data[0] + old_size, &data_[0]);
+  }
 }
 
 static constexpr std::size_t call_stack_growth_constant = 1024;
