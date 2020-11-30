@@ -75,11 +75,11 @@ public:
   static constexpr char const* scheme_name = "insider::call_stack";
 
   struct frame {
-    std::size_t         pc;
-    insider::procedure* procedure;
-    std::size_t         stack_top;
-    operand             dest_register;
-    char const*         native_name;
+    std::size_t             pc;
+    insider::procedure*     procedure;
+    std::size_t             stack_top;
+    operand                 dest_register;
+    named_native_procedure* native_procedure;
   };
 
   call_stack();
@@ -88,7 +88,7 @@ public:
   push(insider::procedure* proc, std::size_t stack_top);
 
   frame&
-  push_native(char const* name);
+  push_native(named_native_procedure*);
 
   void
   pop() { --size_; }

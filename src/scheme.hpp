@@ -813,19 +813,22 @@ private:
 inline void
 closure_set(tracked_ptr<closure> const& c, std::size_t i, object* v) { c->set(c.store(), i, v); }
 
+struct named_native_procedure {
+  char const* name;
+};
+
 namespace detail {
   template <typename... Args>
-  struct native_procedure_base : public leaf_object<native_procedure_base<Args...>> {
+  struct native_procedure_base : public leaf_object<native_procedure_base<Args...>>, named_native_procedure {
     static constexpr char const* scheme_name = "insider::native_procedure";
 
     using target_type = std::function<object*(context&, Args...)>;
     target_type target;
-    char const* name;
 
     explicit
     native_procedure_base(target_type f, char const* name = "<native procedure>")
-      : target{std::move(f)}
-      , name{name}
+      : named_native_procedure{name}
+      , target{std::move(f)}
     { }
 
     std::size_t
@@ -882,31 +885,12 @@ namespace detail {
   is_native_procedure(object* x, std::integer_sequence<int, Arities...>) {
     return (is<native_procedure<Arities - 1>>(x) || ...);
   }
-
-  template <int Arity>
-  char const*
-  native_procedure_name(object* x) {
-    if (is<native_procedure<Arity>>(x))
-      return assume<native_procedure<Arity>>(x)->name;
-    else
-      return native_procedure_name<Arity - 1>(x);
-  }
-
-  template <>
-  inline char const*
-  native_procedure_name<-2>(object*) {
-    assert(!"Not a native procedure");
-    return {};
-  }
 }
 
 inline bool
 is_native_procedure(object* x) {
   return detail::is_native_procedure(x, std::make_integer_sequence<int, max_specialised_arity + 1>{});
 }
-
-inline char const*
-native_procedure_name(object* x) { return detail::native_procedure_name<max_specialised_arity>(x); }
 
 bool
 is_callable(object* x);
