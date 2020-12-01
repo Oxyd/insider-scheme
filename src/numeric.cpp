@@ -82,14 +82,14 @@ big_integer::big_integer(big_integer* i)
   std::copy(i->begin(), i->end(), begin());
 }
 
-static std::tuple<bool, integer::storage_type>
+static std::tuple<bool, integer::value_type>
 short_integer_to_sign_magnitude(integer::value_type i) {
   if (i == 0)
     return {true, 0};
   else if (i > 0)
     return {true, i};
   else
-    return {false, ~*reinterpret_cast<integer::storage_type*>(&i) + 1};
+    return {false, -i};
 }
 
 big_integer::big_integer(integer i)
@@ -98,7 +98,7 @@ big_integer::big_integer(integer i)
   auto [sign, magnitude] = short_integer_to_sign_magnitude(i.value());
   positive_ = sign;
 
-  if constexpr (sizeof(integer::storage_type) <= sizeof(limb_type)) {
+  if constexpr (sizeof(integer::value_type) <= sizeof(limb_type)) {
     front() = magnitude;
   } else {
     auto it = begin();
@@ -208,21 +208,21 @@ normalize(context& ctx, big_integer* i) {
     if (new_length == 1) {
       limb_type l = i->front();
       if (i->positive() && l <= integer::max)
-        return integer_to_ptr(integer{l});
+        return integer_to_ptr(static_cast<integer::value_type>(l));
       else if (!i->positive() && l <= -integer::min) {
-        return integer_to_ptr(integer{~l + 1});
+        return integer_to_ptr(-static_cast<integer::value_type>(l));
       }
     }
   }
   else {
-    if (new_length <= sizeof(integer::storage_type) / sizeof(limb_type)) {
-      integer::storage_type small = 0;
+    if (new_length <= sizeof(integer::value_type) / sizeof(limb_type)) {
+      integer::value_type small = 0;
       for (std::size_t k = i->length(); k > 0; --k)
         small = (small << limb_width) | i->data()[k - 1];
 
       if (i->positive() && small <= integer::max)
         return integer_to_ptr(integer{small});
-      else if (!i->positive() && small <= integer::storage_type(-integer::min)) {
+      else if (!i->positive() && small <= -integer::min) {
         assert(small <= std::numeric_limits<integer::value_type>::max());
         return integer_to_ptr(integer{-static_cast<integer::value_type>(small)});
       }
@@ -446,8 +446,8 @@ set_sign_copy(context& ctx, big_integer* value, bool sign) {
 }
 
 static bool
-overflow(integer::storage_type i) {
-  return detail::highest_storage_bit(i) != detail::highest_value_bit(i);
+overflow(integer::value_type i) {
+  return i > integer::max || i < integer::min;
 }
 
 static big_integer*
@@ -473,7 +473,7 @@ add_big(context& ctx, big_integer* lhs, big_integer* rhs) {
 
 static object*
 add_small(context& ctx, integer lhs, integer rhs) {
-  integer::storage_type sum = lhs.data() + rhs.data();
+  integer::value_type sum = lhs.value() + rhs.value();
   if (overflow(sum))
     return add_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
   else
@@ -522,7 +522,7 @@ sub_big(context& ctx, big_integer* lhs, big_integer* rhs) {
 
 static object*
 sub_small(context& ctx, integer lhs, integer rhs) {
-  integer::storage_type dif = lhs.data() + ~rhs.data() + 1;
+  integer::value_type dif = lhs.value() - rhs.value();
   if (overflow(dif))
     return sub_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
   else
@@ -588,8 +588,9 @@ mul_big_magnitude_by_limb(context& ctx, big_integer* lhs, limb_type rhs) {
 }
 
 static bool
-small_mul_overflow(integer::storage_type x, integer::storage_type y) {
-  return x > static_cast<integer::storage_type>(integer::max) / y;
+small_mul_overflow(integer::value_type x, integer::value_type y) {
+  assert(y != 0);
+  return std::abs(x) > integer::max / std::abs(y);
 }
 
 static object*
@@ -653,8 +654,8 @@ mul_big(context& ctx, big_integer* lhs, big_integer* rhs) {
 
 static object*
 mul_small(context& ctx, integer lhs, integer rhs) {
-  integer::storage_type x = lhs.value() > 0 ? lhs.value() : -lhs.value();
-  integer::storage_type y = rhs.value() > 0 ? rhs.value() : -rhs.value();
+  integer::value_type x = lhs.value() > 0 ? lhs.value() : -lhs.value();
+  integer::value_type y = rhs.value() > 0 ? rhs.value() : -rhs.value();
   bool result_positive = (lhs.value() > 0) == (rhs.value() > 0);
 
   if (small_mul_overflow(x, y))
@@ -1137,9 +1138,9 @@ bitwise_two(object* lhs, object* rhs) {
   case common_type::small_integer: {
     auto x = assume<integer>(lhs);
     auto y = assume<integer>(rhs);
-    integer::storage_type value = Small(x, y);
+    integer::value_type value = Small(x, y);
 
-    if (detail::highest_storage_bit(value) != detail::highest_value_bit(value))
+    if (overflow(value))
       throw error{"Overflow in arithmetic-shift"};
 
     return integer_to_ptr(integer{value});
@@ -1153,22 +1154,22 @@ bitwise_two(object* lhs, object* rhs) {
   return {};
 }
 
-static integer::storage_type
+static integer::value_type
 arithmetic_shift_small(integer x, integer y) {
   if (y.value() > 0)
-    return x.data() << y.value();
+    return x.value() << y.value();
   else
-    return x.data() >> -y.value();
+    return x.value() >> -y.value();
 }
 
-static integer::storage_type
+static integer::value_type
 bitwise_and_small(integer x, integer y) {
-  return x.data() & y.data();
+  return x.value() & y.value();
 }
 
-static integer::storage_type
+static integer::value_type
 bitwise_or_small(integer x, integer y) {
-  return x.data() | y.data();
+  return x.value() | y.value();
 }
 
 object*
@@ -1189,7 +1190,7 @@ bitwise_or(context&, object* lhs, object* rhs) {
 object*
 bitwise_not(context&, object* x) {
   if (auto value = match<integer>(x))
-    return integer_to_ptr(integer{~value->data()});
+    return integer_to_ptr(integer{~value->value()});
   else
     throw error{"Only fixnums are supported"};
 }
@@ -1461,7 +1462,7 @@ write_small(integer value, port* out) {
     out->write_char('-');
 
   std::string buffer;
-  integer::storage_type n = value.value() >= 0 ? value.value() : -value.value();
+  integer::value_type n = value.value() >= 0 ? value.value() : -value.value();
   write_small_magnitude(buffer, n);
 
   std::reverse(buffer.begin(), buffer.end());

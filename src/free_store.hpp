@@ -106,14 +106,15 @@ inline word_type
 object_type_index(object* o) { return type_index(header_word(o)); }
 
 inline word_type
-fixnum_payload(object* o) {
+tagged_payload(object* o) {
   assert(!is_object_ptr(o));
-  return reinterpret_cast<word_type>(o) >> 1;
+  return reinterpret_cast<word_type>(o);
 }
 
 inline object*
-fixnum_to_ptr(word_type w) noexcept {
-  return reinterpret_cast<object*>((w << 1) | 1);
+immediate_to_ptr(word_type w) noexcept {
+  assert(w & 1);
+  return reinterpret_cast<object*>(w);
 }
 
 constexpr char const* integer_type_name = "insider::fixnum";
@@ -408,11 +409,6 @@ namespace detail {
 class generic_tracked_ptr : public detail::tracked_ptr_base<generic_tracked_ptr> {
 public:
   using tracked_ptr_base::tracked_ptr_base;
-
-  explicit
-  generic_tracked_ptr(word_type payload) noexcept {
-    value_ = fixnum_to_ptr(payload);
-  }
 
   generic_tracked_ptr&
   operator = (generic_tracked_ptr const& other) noexcept = default;

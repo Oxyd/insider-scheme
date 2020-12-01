@@ -473,8 +473,8 @@ context::context()
   statics.void_ = intern_static(constants->void_);
   statics.t = intern_static(constants->t);
   statics.f = intern_static(constants->f);
-  statics.zero = intern_static(generic_tracked_ptr{0});
-  statics.one = intern_static(generic_tracked_ptr{1});
+  statics.zero = intern_static(generic_tracked_ptr{store, integer_to_ptr(0)});
+  statics.one = intern_static(generic_tracked_ptr{store, integer_to_ptr(1)});
 
   output_port = make_tracked<port>(*this, stdout, false, true, false);
 }

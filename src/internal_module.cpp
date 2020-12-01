@@ -45,7 +45,7 @@ make_internal_module(context& ctx) {
   define_procedure(
     ctx, "vector-length", result, true,
     [] (vector* v) {
-      return integer{v->size()};
+      return integer{static_cast<integer::value_type>(v->size())};
     }
   );
   define_procedure(ctx, "vector", result, true,
@@ -100,7 +100,7 @@ make_internal_module(context& ctx) {
   define_procedure(
     ctx, "string-length", result, true,
     [] (string* s) {
-      return integer{s->size()};
+      return integer{static_cast<integer::value_type>(s->size())};
     }
   );
 
@@ -194,7 +194,7 @@ make_internal_module(context& ctx) {
   define_procedure(
     ctx, "instruction-opcode", result, true,
     [] (opaque_value<instruction>* i) {
-      return integer{static_cast<integer::storage_type>(i->value.opcode)};
+      return integer{static_cast<integer::value_type>(i->value.opcode)};
     }
   );
 

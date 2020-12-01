@@ -28,72 +28,43 @@ namespace detail {
   using double_limb_type = std::uint64_t;
 #endif
 
-  using integer_storage_type = std::uint64_t;
   using integer_value_type = std::int64_t;
-
-  constexpr unsigned
-  highest_storage_bit(integer_storage_type x) {
-    return x >> (short_integer_storage_width - 1);
-  }
-
-  constexpr unsigned
-  highest_value_bit(integer_storage_type x) {
-    return (x >> (short_integer_value_width - 1)) & 1;
-  }
-
-  inline void
-  assert_normal(integer_storage_type x) {
-    (void) x;
-    assert(highest_storage_bit(x) == highest_value_bit(x));
-  }
-
-  inline integer_storage_type
-  make_normal(integer_storage_type x) {
-    assert(highest_storage_bit(x) == 0);
-    return x | (integer_storage_type{highest_value_bit(x)} << (short_integer_storage_width - 1));
-  }
 }
 
 // A signed, fixed size integer.
 class integer {
 public:
-  using storage_type = detail::integer_storage_type;
   using value_type = detail::integer_value_type;
 
   static constexpr value_type max = (value_type{1} << (detail::short_integer_value_width - 1)) - 1;
   static constexpr value_type min = -max - 1;
 
   integer() = default;
-  integer(storage_type value) : value_{value} { detail::assert_normal(value_); }
-  integer(value_type value) : value_{static_cast<storage_type>(value)} { detail::assert_normal(value_); }
-  integer(int value) : value_{static_cast<storage_type>(value)} { detail::assert_normal(value_); }
+  integer(value_type value) : value_{value} { }
 
   value_type
-  value() const { return static_cast<value_type>(value_); }
+  value() const { return value_; }
 
   void
-  set_value(storage_type v) { value_ = v; }
-
-  storage_type
-  data() const { return value_; }
+  set_value(value_type v) { value_ = v; }
 
 private:
-  storage_type value_ = 0;
+  value_type value_ = 0;
 };
 
 inline integer
 ptr_to_integer(object* x) {
   assert(!is_object_ptr(x));
-  return integer{detail::make_normal(fixnum_payload(x))};
+  return integer{static_cast<integer::value_type>(tagged_payload(x)) >> 1};
 }
 
 inline object*
 integer_to_ptr(integer i) {
-  return fixnum_to_ptr(i.data());
+  return immediate_to_ptr(static_cast<word_type>(i.value() << 1) | 1);
 }
 
 inline std::size_t
-integer_hash(integer i) { return static_cast<std::size_t>(i.data()); }
+integer_hash(integer i) { return std::hash<integer::value_type>{}(i.value()); }
 
 // An arbitray-length signed magnitude integer. It is made up of 64-bit unsigned
 // limbs. The least-significant limb is stored first.
