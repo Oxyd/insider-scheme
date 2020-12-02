@@ -11,7 +11,11 @@
 
 namespace insider {
 
+#ifndef NDEBUG
+static constexpr std::size_t root_stack_initial_size = 0;
+#else
 static constexpr std::size_t root_stack_initial_size = 4096;
+#endif
 
 root_stack::root_stack()
   : data_{std::make_unique<object*[]>(root_stack_initial_size)}
@@ -21,8 +25,22 @@ root_stack::root_stack()
 }
 
 void
+root_stack::change_allocation(std::size_t new_alloc) {
+  if (new_alloc > alloc_) {
+    alloc_ = new_alloc;
+
+    auto old_data = std::move(data_);
+    data_ = std::make_unique<object*[]>(alloc_);
+    std::copy(&old_data[0], &old_data[0] + size_, &data_[0]);
+  }
+}
+
+void
 root_stack::grow(std::size_t n) {
-  resize(size_ + n);
+  assert(size_ + n <= alloc_);
+
+  std::fill(&data_[size_], &data_[size_ + n], nullptr);
+  size_ += n;
 }
 
 void
@@ -32,11 +50,10 @@ root_stack::shrink(std::size_t n) {
 
 void
 root_stack::resize(std::size_t new_size) {
-  std::size_t old_size = size_;
-
-  resize_uninitialised(new_size);
-  if (new_size > old_size)
-    std::fill(&data_[old_size], &data_[new_size], nullptr);
+  if (new_size > size_)
+    grow(new_size - size_);
+  else
+    shrink(size_ - new_size);
 }
 
 void
@@ -55,19 +72,6 @@ void
 root_stack::update_references() {
   for (std::size_t i = 0; i < size_; ++i)
     update_reference(data_[i]);
-}
-
-void
-root_stack::resize_uninitialised(std::size_t new_size) {
-  std::size_t old_size = size_;
-  size_ = new_size;
-
-  if (size_ > alloc_) {
-    auto old_data = std::move(data_);
-    alloc_ = 3 * alloc_ / 2;
-    data_ = std::make_unique<object*[]>(alloc_);
-    std::copy(&old_data[0], &old_data[0] + old_size, &data_[0]);
-  }
 }
 
 static constexpr std::size_t call_stack_growth_constant = 1024;
@@ -244,6 +248,8 @@ make_state(context& ctx, procedure* global,
            std::vector<object*> const& closure, std::vector<object*> const& arguments) {
   execution_state result{ctx};
   result.call_stack->push(global, 0);
+
+  result.value_stack->change_allocation(global->locals_size);
   result.value_stack->grow(global->locals_size);
 
   std::size_t closure_size = closure.size();
@@ -448,6 +454,7 @@ run(execution_state& state) {
           ++args_size;
 
         std::size_t new_base = state.value_stack->size();
+        state.value_stack->change_allocation(new_base + scheme_proc->locals_size);
 
         for (std::size_t i = 0; i < closure_size; ++i)
           state.value_stack->push(closure->ref(i));
@@ -456,6 +463,7 @@ run(execution_state& state) {
 
         if (scheme_proc->has_rest) {
           std::size_t num_rest = num_args - scheme_proc->min_args;
+          state.value_stack->change_allocation(state.value_stack->size() + num_rest + 1);
 
           for (std::size_t i = 0; i < num_rest; ++i)
             state.value_stack->push(local(read_operand(bc, frame.pc)));
@@ -481,7 +489,7 @@ run(execution_state& state) {
           state.value_stack->resize(parent_base + scheme_proc->locals_size);
         } else {
           state.call_stack->push(scheme_proc, new_base);
-          state.value_stack->grow(scheme_proc->locals_size - args_size - closure_size);
+          state.value_stack->resize(new_base + scheme_proc->locals_size);
         }
       } else if (is_native_procedure(call_target)) {
         assert(!closure);

@@ -27,15 +27,18 @@ public:
   void
   push(object* value) {
     assert(is_valid(value));
+    assert(size_ + 1 <= alloc_);
 
-    resize_uninitialised(size_ + 1);
-    data_[size_ - 1] = value;
+    data_[size_++] = value;
   }
 
   object*
   pop() {
     return data_[--size_];
   }
+
+  void
+  change_allocation(std::size_t alloc);
 
   void
   grow(std::size_t n);
@@ -65,9 +68,6 @@ private:
   std::unique_ptr<object*[]> data_;
   std::size_t size_ = 0;
   std::size_t alloc_;
-
-  void
-  resize_uninitialised(std::size_t new_size);
 };
 
 class call_stack : public composite_root_object<call_stack> {
