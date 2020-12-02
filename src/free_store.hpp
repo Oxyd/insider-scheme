@@ -726,13 +726,20 @@ public:
 
   // Check whether a collection should be performed and, if so, do a collection.
   void
-  update();
+  update() {
+    if (requested_collection_level_)
+      collect_garbage(*requested_collection_level_ == generation::mature);
+  }
 
   void
   disable_gc() { ++disable_level_; }
 
   void
-  enable_gc();
+  enable_gc() {
+    --disable_level_;
+    if (disable_level_ == 0)
+      update();
+  }
 
 private:
   page_allocator allocator_;
