@@ -1000,9 +1000,10 @@ box::box(object* value)
   : value_{value}
 { }
 
-procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned min_args, bool has_rest,
-                     std::optional<std::string> name)
-  : bytecode(std::move(bc))
+procedure::procedure(std::size_t entry_pc, std::size_t bytecode_size, unsigned locals_size,
+                     unsigned min_args, bool has_rest, std::optional<std::string> name)
+  : entry_pc{entry_pc}
+  , bytecode_size{bytecode_size}
   , locals_size{locals_size}
   , min_args{min_args}
   , has_rest{has_rest}
@@ -1011,12 +1012,15 @@ procedure::procedure(insider::bytecode bc, unsigned locals_size, unsigned min_ar
 
 std::size_t
 procedure::hash() const {
-  std::size_t result = 0;
+  return std::hash<std::uint64_t>{}(entry_pc);
+}
 
-  for (uint8_t b : bytecode)
-    result += b + (result << 6) + (result << 16) - result;
-
-  return result;
+procedure*
+make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
+               unsigned min_args, bool has_rest, std::optional<std::string> name) {
+  std::size_t entry = ctx.program.size();
+  ctx.program.insert(ctx.program.end(), bc.begin(), bc.end());
+  return make<procedure>(ctx, entry, bc.size(), locals_size, min_args, has_rest, std::move(name));
 }
 
 closure::closure(insider::procedure* p, std::size_t num_captures)

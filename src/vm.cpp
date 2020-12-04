@@ -87,7 +87,7 @@ call_stack::push(insider::procedure* proc, std::size_t stack_top) -> frame& {
     grow(alloc_ + call_stack_growth_constant);
 
   assert(size_ < alloc_);
-  return frames_[size_++] = frame{0, proc, stack_top, operand{}, nullptr};
+  return frames_[size_++] = frame{proc->entry_pc, proc, stack_top, operand{}, nullptr};
 }
 
 auto
@@ -152,7 +152,7 @@ template <int Arity, std::size_t... Is>
 object*
 do_call(execution_state& state, native_procedure<Arity>* proc, std::size_t num_args, std::index_sequence<Is...>) {
   call_stack::frame& frame = state.call_stack->current_frame();
-  bytecode const& bc = frame.procedure->bytecode;
+  bytecode const& bc = state.ctx.program;
 
   // Consume operands even if call is invalid.
   [[maybe_unused]] std::array<operand, Arity> arg_operands{((void) Is, read_operand(bc, frame.pc))...};
@@ -171,7 +171,7 @@ do_call(execution_state& state, native_procedure<Arity>* proc, std::size_t num_a
 static object*
 do_call_generic(execution_state& state, object* proc, std::size_t num_args) {
   call_stack::frame& frame = state.call_stack->current_frame();
-  bytecode const& bc = frame.procedure->bytecode;
+  bytecode const& bc = state.ctx.program;
   auto native_proc = assume<native_procedure<-1>>(proc);
 
   std::vector<object*> args;
@@ -306,7 +306,7 @@ run(execution_state& state) {
 
     call_stack::frame& frame = state.call_stack->current_frame();
     root_stack& values = *state.value_stack;
-    bytecode const& bc = frame.procedure->bytecode;
+    bytecode const& bc = state.ctx.program;
 
     auto local = [&] (operand l) { return values.ref(frame.stack_top + l); };
     auto set_local = [&] (operand l, object* value) { values.set(frame.stack_top + l, value); };
@@ -483,7 +483,7 @@ run(execution_state& state) {
           for (std::size_t i = 0; i < closure_size + args_size; ++i)
             state.value_stack->set(parent_base + i, state.value_stack->ref(new_base + i));
 
-          frame.pc = 0;
+          frame.pc = scheme_proc->entry_pc;
           frame.procedure = scheme_proc;
 
           state.value_stack->resize(parent_base + scheme_proc->locals_size);

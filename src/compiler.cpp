@@ -400,6 +400,12 @@ compile_top_level_set(context& ctx, procedure_context& proc, top_level_set_synta
   compile_static_reference(proc, ctx.statics.void_, result);
 }
 
+static procedure*
+make_procedure(context& ctx, procedure_context const& pc, unsigned min_args, bool has_rest,
+               std::optional<std::string> name) {
+  return make_procedure(ctx, pc.bytecode.back(), pc.registers.locals_used(), min_args, has_rest, std::move(name));
+}
+
 static void
 compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx, result_register& result) {
   procedure_context proc{&parent, parent.module};
@@ -419,12 +425,8 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx
     encode_instruction(proc.bytecode.back(), instruction{opcode::ret, *body_result.get(proc)});
 
   assert(proc.bytecode.size() == 1);
-  tracked_ptr<procedure> p = make_tracked<procedure>(ctx,
-                                                     std::move(proc.bytecode.back()),
-                                                     proc.registers.locals_used(),
-                                                     stx.parameters.size() - (stx.has_rest ? 1 : 0),
-                                                     stx.has_rest,
-                                                     stx.name);
+  auto p = track(ctx, make_procedure(ctx, proc, stx.parameters.size() - (stx.has_rest ? 1 : 0),
+                                     stx.has_rest, stx.name));
 
   if (!stx.free_variables.empty()) {
     shared_register p_reg = compile_static_reference_to_register(parent, ctx.intern_static(p));
@@ -685,7 +687,7 @@ compile_expression(context& ctx, object* datum, module& mod) {
     encode_instruction(proc.bytecode.back(), instruction{opcode::ret, *result});
 
   assert(proc.bytecode.size() == 1);
-  return make<procedure>(ctx, std::move(proc.bytecode.back()), proc.registers.locals_used(), 0);
+  return make_procedure(ctx, proc, 0, false, std::nullopt);
 }
 
 module
@@ -709,10 +711,7 @@ compile_module_body(context& ctx, module& m, protomodule const& pm) {
     encode_instruction(proc.bytecode.back(), instruction{opcode::ret, *result.get(proc)});
 
   assert(proc.bytecode.size() == 1);
-  m.set_top_level_procedure(make_tracked<procedure>(ctx,
-                                                std::move(proc.bytecode.back()),
-                                                proc.registers.locals_used(),
-                                                0));
+  m.set_top_level_procedure(track(ctx, make_procedure(ctx, proc, 0, false, std::nullopt)));
 }
 
 } // namespace insider

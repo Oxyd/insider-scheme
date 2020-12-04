@@ -291,9 +291,10 @@ public:
   free_store                 store;
   std::unique_ptr<constants> constants;
   statics_list               statics;
-  tracked_ptr<port>                  output_port;
+  tracked_ptr<port>          output_port;
   module                     internal_module; // (insider internal)
   std::string                error_backtrace; // Built from actions during stack unwinding.
+  bytecode                   program;
 
   context();
   ~context();
@@ -757,18 +758,23 @@ class procedure : public leaf_object<procedure> {
 public:
   static constexpr char const* scheme_name = "insider::procedure";
 
-  insider::bytecode          bytecode;
+  std::size_t                entry_pc;
+  std::size_t                bytecode_size;
   unsigned                   locals_size;
   unsigned                   min_args;
   bool                       has_rest;
   std::optional<std::string> name;
 
-  procedure(insider::bytecode bc, unsigned locals_size, unsigned min_args, bool has_rest = false,
-            std::optional<std::string> name = {});
+  procedure(std::size_t entry_pc, std::size_t bytecode_size, unsigned locals_size,
+            unsigned min_args, bool has_rest = false, std::optional<std::string> name = {});
 
   std::size_t
   hash() const;
 };
+
+procedure*
+make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
+               unsigned min_args = 0, bool has_rest = false, std::optional<std::string> name = {});
 
 // A procedure plus a list of captured objects.
 class closure : public dynamic_size_object<closure, object*> {
