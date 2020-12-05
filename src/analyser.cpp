@@ -127,8 +127,7 @@ static object*
 eval_transformer(context& ctx, module& m, object* datum) {
   simple_action a(ctx, datum, "Evaluating transformer");
   auto proc = compile_expression(ctx, datum, m);
-  auto state = make_state(ctx, proc);
-  return expect_callable(run(state).get());
+  return call(ctx, proc, {}).get();
 }
 
 namespace {

@@ -24,8 +24,7 @@ struct scheme : testing::Test {
     module m{ctx};
     import_all_exported(ctx, m, ctx.internal_module);
     auto f = compile_expression(ctx, read(expr), m);
-    auto state = make_state(ctx, f);
-    return run(state).get();
+    return call(ctx, f, {}).get();
   }
 
   object*
@@ -509,10 +508,8 @@ TEST_F(scheme, exec_arithmetic) {
     5,
     0
   );
-  auto state = make_state(ctx, proc);
-  run(state);
-
-  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(), 18);
+  auto result = call(ctx, proc, {});
+  EXPECT_EQ(assume<integer>(result).value(), 18);
 }
 
 TEST_F(scheme, exec_calls) {
@@ -553,11 +550,10 @@ TEST_F(scheme, exec_calls) {
     9,
     0
   );
-  auto state = make_state(ctx, global);
-  run(state);
+  auto result = call(ctx, global, {});
 
   auto native_f = [] (int x, int y) { return 2 * x + y; };
-  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(),
+  EXPECT_EQ(assume<integer>(result).value(),
             3 * native_f(5, 7) + native_f(2, native_f(3, 4)));
 }
 
@@ -586,14 +582,12 @@ TEST_F(scheme, exec_tail_calls) {
     make_bytecode({instruction{opcode::load_static, f,   operand{1}},
                    instruction{opcode::load_static, six, operand{2}},
                    instruction{opcode::call,        operand{1}, operand{0}, operand{2}},
-                   instruction{opcode::ret,         operand{2}}}),
+                   instruction{opcode::ret,         operand{0}}}),
     3,
     0
   );
-  auto state = make_state(ctx, global);
-  run(state);
-
-  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(), 12);
+  auto result = call(ctx, global, {});
+  EXPECT_EQ(assume<integer>(result).value(), 12);
 }
 
 TEST_F(scheme, exec_loop) {
@@ -622,10 +616,8 @@ TEST_F(scheme, exec_loop) {
     6,
     0
   );
-  auto state = make_state(ctx, global);
-  run(state);
-
-  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(), 45);
+  auto result = call(ctx, global, {});
+  EXPECT_EQ(assume<integer>(result).value(), 45);
 }
 
 TEST_F(scheme, exec_native_call) {
@@ -649,10 +641,8 @@ TEST_F(scheme, exec_native_call) {
     5,
     0
   );
-  auto state = make_state(ctx, global);
-  run(state);
-
-  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(),
+  auto result = call(ctx, global, {});
+  EXPECT_EQ(assume<integer>(result).value(),
             2 * 10 + 3 * 20 + 5 * 30);
 }
 
@@ -676,10 +666,8 @@ TEST_F(scheme, exec_closure_ref) {
                    instruction{opcode::ret,          operand{0}}}),
     5, 0
   );
-  auto state = make_state(ctx, global);
-  run(state);
-
-  EXPECT_EQ(assume<integer>(call_frame_local(state, 0)).value(), 5 + 3);
+  auto result = call(ctx, global, {});
+  EXPECT_EQ(assume<integer>(result).value(), 5 + 3);
 }
 
 TEST_F(scheme, exec_cons) {
@@ -698,10 +686,8 @@ TEST_F(scheme, exec_cons) {
                    instruction{opcode::ret,         operand{0}}}),
     5, 0
   );
-  auto state = make_state(ctx, global);
-  run(state);
-
-  EXPECT_TRUE(equal(ctx, call_frame_local(state, 0), read("(1 2 3)")));
+  auto result = call(ctx, global, {});
+  EXPECT_TRUE(equal(ctx, result.get(), read("(1 2 3)")));
 }
 
 TEST_F(scheme, exec_make_vector) {
@@ -718,10 +704,8 @@ TEST_F(scheme, exec_make_vector) {
     4, 0
   );
 
-  auto state = make_state(ctx, global);
-  run(state);
-
-  EXPECT_TRUE(equal(ctx, call_frame_local(state, 0), read("#(1 2 3)")));
+  auto result = call(ctx, global, {});
+  EXPECT_TRUE(equal(ctx, result.get(), read("#(1 2 3)")));
 }
 
 TEST_F(scheme, compile_arithmetic) {
@@ -1024,9 +1008,7 @@ TEST_F(scheme, compile_module) {
                                              "(f 3)"
                                              "(let ((x 2))"
                                              "  (f x))"));
-  auto state = make_state(ctx, m.top_level_procedure());
-  run(state);
-
+  call(ctx, m.top_level_procedure(), {});
   EXPECT_EQ(sum, 5);
 }
 

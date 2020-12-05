@@ -17,6 +17,119 @@ static constexpr std::size_t root_stack_initial_size = 0;
 static constexpr std::size_t root_stack_initial_size = 4096;
 #endif
 
+namespace {
+  // Dynamic-sized stack to store local variables.
+  class root_stack : public composite_root_object<root_stack> {
+  public:
+    static constexpr char const* scheme_name = "insider::root_stack";
+
+    root_stack();
+
+    object*
+    ref(std::size_t i) { return data_[i]; }
+
+    void
+    set(std::size_t i, object* value) {
+      assert(is_valid(value));
+      data_[i] = value;
+    }
+
+    void
+    push(object* value) {
+      assert(is_valid(value));
+      assert(size_ + 1 <= alloc_);
+
+      data_[size_++] = value;
+    }
+
+    object*
+    pop() {
+      return data_[--size_];
+    }
+
+    void
+    change_allocation(std::size_t alloc);
+
+    void
+    grow(std::size_t n);
+
+    void
+    shrink(std::size_t n);
+
+    void
+    resize(std::size_t new_size);
+
+    std::size_t
+    size() const { return size_; }
+
+    void
+    trace(tracing_context&) const;
+
+    void
+    update_references();
+
+    std::size_t
+    hash() const { return 0; }
+
+  private:
+    std::unique_ptr<object*[]> data_;
+    std::size_t size_ = 0;
+    std::size_t alloc_;
+  };
+
+  class call_stack : public composite_root_object<call_stack> {
+  public:
+    static constexpr char const* scheme_name = "insider::call_stack";
+
+    struct frame {
+      std::size_t             pc;
+      insider::procedure*     procedure;
+      std::size_t             stack_top;
+      operand                 dest_register;
+      named_native_procedure* native_procedure;
+    };
+
+    call_stack();
+
+    frame&
+    push(insider::procedure* proc, std::size_t stack_top);
+
+    frame&
+    push_native(named_native_procedure*);
+
+    void
+    pop() { --size_; }
+
+    frame&
+    current_frame() { return frames_[size_ - 1]; }
+
+    std::size_t
+    size() const { return size_; }
+
+    frame const&
+    get(std::size_t i) const { return frames_[i]; }
+
+    void
+    trace(tracing_context&) const;
+
+    void
+    update_references();
+
+    std::size_t
+    hash() const { return 0; }
+
+  private:
+    static_assert(std::is_trivial_v<frame>);
+
+    std::unique_ptr<frame[]> frames_;
+    std::size_t size_ = 0;
+    std::size_t alloc_;
+
+    void
+    grow(std::size_t new_alloc);
+  };
+} // anonymous namespace
+
 root_stack::root_stack()
   : data_{std::make_unique<object*[]>(root_stack_initial_size)}
   , alloc_{root_stack_initial_size}
@@ -54,12 +167,6 @@ root_stack::resize(std::size_t new_size) {
     grow(new_size - size_);
   else
     shrink(size_ - new_size);
-}
-
-void
-root_stack::erase(std::size_t begin, std::size_t end) {
-  std::copy(&data_[0] + end, &data_[0] + size_, &data_[0] + begin);
-  size_ -= end - begin;
 }
 
 void
@@ -120,6 +227,16 @@ call_stack::grow(std::size_t new_alloc) {
   alloc_ = new_alloc;
 }
 
+namespace {
+  struct execution_state {
+    context&                         ctx;
+    tracked_ptr<root_stack>          value_stack;
+    tracked_ptr<insider::call_stack> call_stack;
+
+    execution_state(context& ctx);
+  };
+}
+
 execution_state::execution_state(context& ctx)
   : ctx{ctx}
   , value_stack{make_tracked<root_stack>(ctx)}
@@ -141,11 +258,6 @@ pop_call_frame(execution_state& state) {
   std::size_t num_locals = state.call_stack->current_frame().procedure->locals_size;
   state.call_stack->pop();
   state.value_stack->shrink(num_locals);
-}
-
-object*
-call_frame_local(execution_state& state, operand local) {
-  return state.value_stack->ref(state.call_stack->current_frame().stack_top + local);
 }
 
 template <int Arity, std::size_t... Is>
@@ -243,7 +355,7 @@ call_native_vector(context& ctx, object* proc, std::vector<object*> const& args)
   return call_native_vector_helper<max_specialised_arity>(ctx, proc, args);
 }
 
-execution_state
+static execution_state
 make_state(context& ctx, procedure* global,
            std::vector<object*> const& closure, std::vector<object*> const& arguments) {
   execution_state result{ctx};
@@ -297,7 +409,7 @@ namespace {
   };
 }
 
-generic_tracked_ptr
+static generic_tracked_ptr
 run(execution_state& state) {
   execution_action a(state);
 

@@ -392,8 +392,7 @@ define_top_level(context& ctx, std::string const& name, module& m, bool export_,
 
 static generic_tracked_ptr
 run_module(context& ctx, module& m) {
-  auto state = make_state(ctx, m.top_level_procedure());
-  return run(state);
+  return call(ctx, m.top_level_procedure(), {});
 }
 
 generic_tracked_ptr
