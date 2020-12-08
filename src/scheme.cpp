@@ -999,7 +999,7 @@ box::box(object* value)
   : value_{value}
 { }
 
-procedure::procedure(std::size_t entry_pc, std::size_t bytecode_size, unsigned locals_size,
+procedure::procedure(integer::value_type entry_pc, std::size_t bytecode_size, unsigned locals_size,
                      unsigned min_args, bool has_rest, std::optional<std::string> name)
   : entry_pc{entry_pc}
   , bytecode_size{bytecode_size}

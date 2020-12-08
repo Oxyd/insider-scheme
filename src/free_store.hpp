@@ -144,7 +144,7 @@ is_alive(object*);
 
 inline bool
 is_valid(object* o) {
-  return o == nullptr || !is_object_ptr(o) || is_alive(o);
+  return !is_object_ptr(o) || is_alive(o);
 }
 
 word_type

@@ -1,6 +1,8 @@
 #ifndef INSIDER_BYTECODE_HPP
 #define INSIDER_BYTECODE_HPP
 
+#include "numeric.hpp"
+
 #include <array>
 #include <climits>
 #include <cstddef>
@@ -30,7 +32,7 @@ enum class opcode : std::uint8_t {
   divide,
   arith_equal,
   less_than,
-  greater_than, // 10
+  greater_than,     // 10
   set,              // set <source> <destination>
   call,             // call <procedure> <return value destination> <arguments ...>
   call_top_level,   // same as call, but <procedure> is the index of a top-level
@@ -40,7 +42,7 @@ enum class opcode : std::uint8_t {
   tail_call_static,
   ret,              // ret <return value>
   jump,             // jump <offset>
-  jump_back,        // jump-back <offset>
+  jump_back,        // jump-back <offset> // 20
   jump_unless,      // jump-unless <register> <offset>
   jump_back_unless, // jump-back-unless <register> <offset>
   make_closure,     // make-closure <procedure> <destination> <free variables ...>
@@ -170,13 +172,13 @@ void
 encode_instruction(bytecode&, instruction const&);
 
 inline opcode
-read_opcode(bytecode const& bc, std::size_t& pc) {
+read_opcode(bytecode const& bc, integer::value_type& pc) {
   auto opcode_num = bc[pc++];
   return opcode{opcode_num};
 }
 
 inline operand
-read_operand(bytecode const& bc, std::size_t& pc) {
+read_operand(bytecode const& bc, integer::value_type& pc) {
   operand result = bc[pc++];
   if (result < 0xFF)
     return result;
@@ -188,7 +190,7 @@ read_operand(bytecode const& bc, std::size_t& pc) {
 }
 
 instruction
-read_instruction(bytecode const&, std::size_t& pc);
+read_instruction(bytecode const&, integer::value_type& pc);
 
 } // namespace insider
 

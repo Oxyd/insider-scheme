@@ -160,11 +160,11 @@ make_internal_module(context& ctx) {
   define_procedure(
     ctx, "procedure-bytecode", result, true,
     [] (context& ctx, procedure* f) {
-      std::size_t pc = f->entry_pc;
+      integer::value_type pc = f->entry_pc;
       std::vector<std::tuple<std::size_t, std::size_t, instruction>> instrs;
 
-      while (pc < f->entry_pc + f->bytecode_size) {
-        std::size_t pos = pc;
+      while (pc < f->entry_pc + static_cast<integer::value_type>(f->bytecode_size)) {
+        integer::value_type pos = pc;
         instruction instr = read_instruction(ctx.program, pc);
 
         instrs.emplace_back(pos, pc - pos, instr);
