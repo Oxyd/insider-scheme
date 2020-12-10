@@ -168,24 +168,15 @@ pop_call_frame(execution_state& state) {
 
 static operand
 get_destination_register(execution_state& state) {
-  // pc now points to the call instruction. We'll decode it again to get the
-  // destination register and move pc past it.
-
   bytecode const& bc = state.ctx.program;
   integer::value_type& pc = state.pc;
 
-  [[maybe_unused]] opcode call_op = read_opcode(bc, pc);
-  assert(call_op == opcode::call || call_op == opcode::call_top_level || call_op == opcode::call_static
-         || call_op == opcode::tail_call || call_op == opcode::tail_call_top_level
-         || call_op == opcode::tail_call_static);
-  read_operand(bc, pc); // Callee.
-  operand destination_reg = read_operand(bc, pc);
+  basic_instruction bi = read_basic_instruction(bc, pc);
+  assert(bi.opcode == opcode::call || bi.opcode == opcode::call_top_level || bi.opcode == opcode::call_static);
 
-  operand num_args = read_operand(bc, pc);
-  for (std::size_t i = 0; i < num_args; ++i)
-    read_operand(bc, pc);
+  for_each_extra_operand(bc, pc, bi.operands[2], [] (operand) { }); // Skip over extra operands.
 
-  return destination_reg;
+  return bi.operands[1];
 }
 
 template <int Arity, std::size_t... Is>
@@ -193,11 +184,15 @@ object*
 do_call(execution_state& state, native_procedure<Arity>* proc, std::size_t num_args, std::index_sequence<Is...>) {
   bytecode const& bc = state.ctx.program;
 
-  // Consume operands even if call is invalid.
-  [[maybe_unused]] std::array<operand, Arity> arg_operands{((void) Is, read_operand(bc, state.pc))...};
-
-  if (Arity != num_args)
+  if (Arity != num_args) {
+    // Consume operands even if call is invalid.
+    for_each_extra_operand(bc, state.pc, num_args, [] (operand) { });
     throw error{"{}: Wrong number of arguments, expected {}, got {}", proc->name, Arity, num_args};
+  }
+
+  [[maybe_unused]] std::array<operand, Arity> arg_operands;
+  for_each_extra_operand(bc, state.pc, num_args,
+                         [&, i = 0] (operand op) mutable { arg_operands[i++] = op; });
 
   [[maybe_unused]] integer::value_type frame_base = state.frame_base;
 
@@ -221,8 +216,9 @@ do_call_generic(execution_state& state, object* proc, std::size_t num_args) {
 
   std::vector<object*> args;
   args.reserve(num_args);
-  for (std::size_t i = 0; i < num_args; ++i)
-    args.push_back(state.value_stack->ref(frame_base + read_operand(bc, state.pc)));
+
+  for_each_extra_operand(bc, state.pc, num_args,
+                         [&] (operand op) { args.push_back(state.value_stack->ref(frame_base + op)); });
 
   state.value_stack->change_allocation(state.value_stack->size() + 2);
   state.value_stack->push(integer_to_ptr(frame_base));
@@ -377,28 +373,28 @@ run(execution_state& state) {
     root_stack& values = *state.value_stack;
     bytecode const& bc = state.ctx.program;
 
-    opcode op = read_opcode(bc, pc);
-    switch (op) {
+    basic_instruction instr = read_basic_instruction(bc, pc);
+    switch (instr.opcode) {
     case opcode::no_operation:
       break;
 
     case opcode::load_static: {
-      operand static_num = read_operand(bc, pc);
-      operand dest = read_operand(bc, pc);
+      operand static_num = instr.operands[0];
+      operand dest = instr.operands[1];
       values.set(frame_base + dest, state.ctx.get_static(static_num));
       break;
     }
 
     case opcode::load_top_level: {
-      operand global_num = read_operand(bc, pc);
-      operand dest = read_operand(bc, pc);
+      operand global_num = instr.operands[0];
+      operand dest = instr.operands[1];
       values.set(frame_base + dest, state.ctx.get_top_level(global_num));
       break;
     }
 
     case opcode::store_top_level: {
-      operand reg = read_operand(bc, pc);
-      operand global_num = read_operand(bc, pc);
+      operand reg = instr.operands[0];
+      operand global_num = instr.operands[1];
       state.ctx.set_top_level(global_num, values.ref(frame_base + reg));
       break;
     }
@@ -407,11 +403,11 @@ run(execution_state& state) {
     case opcode::subtract:
     case opcode::multiply:
     case opcode::divide: {
-      object* lhs = values.ref(frame_base + read_operand(bc, pc));
-      object* rhs = values.ref(frame_base + read_operand(bc, pc));
-      operand dest = read_operand(bc, pc);
+      object* lhs = values.ref(frame_base + instr.operands[0]);
+      object* rhs = values.ref(frame_base + instr.operands[1]);
+      operand dest = instr.operands[2];
 
-      switch (op) {
+      switch (instr.opcode) {
       case opcode::add:
         values.set(frame_base + dest, add(state.ctx, lhs, rhs));
         break;
@@ -434,11 +430,11 @@ run(execution_state& state) {
     case opcode::arith_equal:
     case opcode::less_than:
     case opcode::greater_than: {
-      object* lhs = values.ref(frame_base + read_operand(bc, pc));
-      object* rhs = values.ref(frame_base + read_operand(bc, pc));
-      operand dest = read_operand(bc, pc);
+      object* lhs = values.ref(frame_base + instr.operands[0]);
+      object* rhs = values.ref(frame_base + instr.operands[1]);
+      operand dest = instr.operands[2];
 
-      switch (op) {
+      switch (instr.opcode) {
       case opcode::arith_equal:
         values.set(frame_base + dest, arith_equal(state.ctx, lhs, rhs));
         break;
@@ -455,8 +451,8 @@ run(execution_state& state) {
     }
 
     case opcode::set: {
-      operand src = read_operand(bc, pc);
-      operand dst = read_operand(bc, pc);
+      operand src = instr.operands[0];
+      operand dst = instr.operands[1];
       values.set(frame_base + dst, values.ref(frame_base + src));
       break;
     }
@@ -467,25 +463,25 @@ run(execution_state& state) {
     case opcode::call_static:
     case opcode::tail_call_top_level:
     case opcode::tail_call_static: {
-      bool is_tail = op == opcode::tail_call
-        || op == opcode::tail_call_top_level
-        || op == opcode::tail_call_static;
+      bool is_tail = instr.opcode == opcode::tail_call
+        || instr.opcode == opcode::tail_call_top_level
+        || instr.opcode == opcode::tail_call_static;
 
       object* callee;
-      switch (op) {
+      switch (instr.opcode) {
       case opcode::call:
       case opcode::tail_call:
-        callee = values.ref(frame_base + read_operand(bc, pc));
+        callee = values.ref(frame_base + instr.operands[0]);
         break;
 
       case opcode::call_top_level:
       case opcode::tail_call_top_level:
-        callee = state.ctx.get_top_level(read_operand(bc, pc));
+        callee = state.ctx.get_top_level(instr.operands[0]);
         break;
 
       case opcode::call_static:
       case opcode::tail_call_static:
-        callee = state.ctx.get_static(read_operand(bc, pc));
+        callee = state.ctx.get_static(instr.operands[0]);
         break;
 
       default:
@@ -493,10 +489,15 @@ run(execution_state& state) {
       }
 
       operand dest_register;
-      if (!is_tail)
-        dest_register = read_operand(bc, pc);
+      operand num_args;
 
-      operand num_args = read_operand(bc, pc);
+      if (is_tail)
+        num_args = instr.operands[1];
+      else {
+        dest_register = instr.operands[1];
+        num_args = instr.operands[2];
+      }
+
       object* call_target = callee;
       insider::closure* closure = nullptr;
 
@@ -529,16 +530,19 @@ run(execution_state& state) {
 
         for (std::size_t i = 0; i < closure_size; ++i)
           state.value_stack->push(closure->ref(i));
-        for (std::size_t i = 0; i < scheme_proc->min_args; ++i)
-          state.value_stack->push(values.ref(frame_base + read_operand(bc, pc)));
+
+        std::size_t num_rest = 0;
+        if (scheme_proc->has_rest) {
+          num_rest = num_args - scheme_proc->min_args;
+          state.value_stack->change_allocation(state.value_stack->size() + num_rest + 1);
+        }
+
+        for_each_extra_operand(bc, pc, num_args,
+                               [&] (operand op) {
+                                 state.value_stack->push(values.ref(frame_base + op));
+                               });
 
         if (scheme_proc->has_rest) {
-          std::size_t num_rest = num_args - scheme_proc->min_args;
-          state.value_stack->change_allocation(state.value_stack->size() + num_rest + 1);
-
-          for (std::size_t i = 0; i < num_rest; ++i)
-            state.value_stack->push(values.ref(frame_base + read_operand(bc, pc)));
-
           state.value_stack->push(state.ctx.constants->null.get());
 
           for (std::size_t i = 0; i < num_rest; ++i) {
@@ -585,7 +589,7 @@ run(execution_state& state) {
     }
 
     case opcode::ret: {
-      operand return_reg = read_operand(bc, pc);
+      operand return_reg = instr.operands[0];
       object* result = values.ref(frame_base + return_reg);
 
       pop_call_frame(state);
@@ -607,15 +611,15 @@ run(execution_state& state) {
       operand off;
       operand condition_reg{};
 
-      if (op == opcode::jump || op == opcode::jump_back)
-        off = read_operand(bc, pc);
+      if (instr.opcode == opcode::jump || instr.opcode == opcode::jump_back)
+        off = instr.operands[0];
       else {
-        condition_reg = read_operand(bc, pc);
-        off = read_operand(bc, pc);
+        condition_reg = instr.operands[0];
+        off = instr.operands[1];
       }
 
-      int offset = (op == opcode::jump_back || op == opcode::jump_back_unless) ? -off : off;
-      if (op == opcode::jump_unless || op == opcode::jump_back_unless) {
+      int offset = (instr.opcode == opcode::jump_back || instr.opcode == opcode::jump_back_unless) ? -off : off;
+      if (instr.opcode == opcode::jump_unless || instr.opcode == opcode::jump_back_unless) {
         object* test_value = values.ref(frame_base + condition_reg);
 
         // The only false value in Scheme is #f. So we only jump if the test_value
@@ -630,50 +634,56 @@ run(execution_state& state) {
     }
 
     case opcode::make_closure: {
-      procedure* proc = assume<procedure>(values.ref(frame_base + read_operand(bc, pc)));
-      operand dest = read_operand(bc, pc);
-      operand num_captures = read_operand(bc, pc);
+      procedure* proc = assume<procedure>(values.ref(frame_base + instr.operands[0]));
+      operand dest = instr.operands[1];
+      operand num_captures = instr.operands[2];
 
       auto result = make<closure>(state.ctx, proc, num_captures);
-      for (std::size_t i = 0; i < num_captures; ++i)
-        result->set(state.ctx.store, i, values.ref(frame_base + read_operand(bc, pc)));
+      for_each_extra_operand(bc, pc, num_captures,
+                             [&, i = 0] (operand op) mutable {
+                               result->set(state.ctx.store, i, values.ref(frame_base + op));
+                               ++i;
+                             });
 
       values.set(frame_base + dest, result);
       break;
     }
 
     case opcode::box: {
-      object* value = values.ref(frame_base + read_operand(bc, pc));
-      values.set(frame_base + read_operand(bc, pc), state.ctx.store.make<box>(value));
+      object* value = values.ref(frame_base + instr.operands[0]);
+      values.set(frame_base + instr.operands[1], state.ctx.store.make<box>(value));
       break;
     }
 
     case opcode::unbox: {
-      auto box = expect<insider::box>(values.ref(frame_base + read_operand(bc, pc)));
-      values.set(frame_base + read_operand(bc, pc), box->get());
+      auto box = expect<insider::box>(values.ref(frame_base + instr.operands[0]));
+      values.set(frame_base + instr.operands[1], box->get());
       break;
     }
 
     case opcode::box_set: {
-      auto box = expect<insider::box>(values.ref(frame_base + read_operand(bc, pc)));
-      box->set(state.ctx.store, values.ref(frame_base + read_operand(bc, pc)));
+      auto box = expect<insider::box>(values.ref(frame_base + instr.operands[0]));
+      box->set(state.ctx.store, values.ref(frame_base + instr.operands[1]));
       break;
     }
 
     case opcode::cons: {
-      object* car = values.ref(frame_base + read_operand(bc, pc));
-      object* cdr = values.ref(frame_base + read_operand(bc, pc));
-      values.set(frame_base + read_operand(bc, pc), make<pair>(state.ctx, car, cdr));
+      object* car = values.ref(frame_base + instr.operands[0]);
+      object* cdr = values.ref(frame_base + instr.operands[1]);
+      values.set(frame_base + instr.operands[2], make<pair>(state.ctx, car, cdr));
       break;
     }
 
     case opcode::make_vector: {
-      operand dest = read_operand(bc, pc);
-      operand num_elems = read_operand(bc, pc);
+      operand dest = instr.operands[0];
+      operand num_elems = instr.operands[1];
 
       auto result = make<vector>(state.ctx, state.ctx, num_elems);
-      for (std::size_t i = 0; i < num_elems; ++i)
-        result->set(state.ctx.store, i, values.ref(frame_base + read_operand(bc, pc)));
+      for_each_extra_operand(bc, pc, num_elems,
+                             [&, i = 0] (operand op) mutable {
+                               result->set(state.ctx.store, i, values.ref(frame_base + op));
+                               ++i;
+                             });
 
       values.set(frame_base + dest, result);
       break;

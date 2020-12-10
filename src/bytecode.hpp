@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -18,10 +19,10 @@
 
 namespace insider {
 
-using operand = std::uint64_t;
+using operand = std::uint16_t;
 
 // This enum defines the numeric opcode values.
-enum class opcode : std::uint8_t {
+enum class opcode : std::uint16_t {
   no_operation,
   load_static,      // load-static <static number> <destination>
   load_top_level,   // load-top-level <top-level number> <destination>
@@ -166,27 +167,54 @@ struct instruction {
   instruction(std::string_view mnemonic, std::vector<operand> operands);
 };
 
-using bytecode = std::vector<std::uint8_t>;
+struct basic_instruction {
+  insider::opcode        opcode;
+  std::array<operand, 3> operands;
+};
+
+static_assert(sizeof(basic_instruction) == 8);
+static_assert(std::is_standard_layout_v<basic_instruction>);
+
+using extra_operands = std::array<operand, 4>;
+static_assert(std::is_standard_layout_v<extra_operands>);
+
+union instruction_packet {
+  basic_instruction bi;
+  extra_operands    eo;
+
+  explicit
+  instruction_packet(basic_instruction bi) : bi{bi} { }
+
+  explicit
+  instruction_packet(extra_operands eo) : eo{eo} { }
+};
+static_assert(sizeof(instruction_packet) == 8);
+
+using bytecode = std::vector<instruction_packet>;
 
 void
 encode_instruction(bytecode&, instruction const&);
 
-inline opcode
-read_opcode(bytecode const& bc, integer::value_type& pc) {
-  auto opcode_num = bc[pc++];
-  return opcode{opcode_num};
+inline basic_instruction
+read_basic_instruction(bytecode const& bc, integer::value_type& pc) {
+  return bc[pc++].bi;
 }
 
-inline operand
-read_operand(bytecode const& bc, integer::value_type& pc) {
-  operand result = bc[pc++];
-  if (result < 0xFF)
-    return result;
+inline extra_operands
+read_extra_operands(bytecode const& bc, integer::value_type& pc) {
+  return bc[pc++].eo;
+}
 
-  result = *reinterpret_cast<operand const*>(&bc[pc]);
-  pc += sizeof(operand);
+template <typename F>
+void
+for_each_extra_operand(bytecode const& bc, integer::value_type& pc, operand num_extra, F&& f) {
+  for (operand i = 0; i < num_extra; i += 4) {
+    extra_operands eo = read_extra_operands(bc, pc);
 
-  return result;
+    std::size_t this_extra = std::min(num_extra - i, 4);
+    for (std::size_t e = 0; e < this_extra; ++e)
+      f(eo[e]);
+  }
 }
 
 instruction

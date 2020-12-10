@@ -5,9 +5,11 @@
 
 #include <fmt/format.h>
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_map>
 
@@ -265,6 +267,17 @@ result_register::get(procedure_context& proc) {
   return reg_;
 }
 
+template <typename T>
+operand
+to_operand(T value) {
+  static_assert(!std::is_signed_v<T>);
+  if (value > std::numeric_limits<operand>::max())
+    throw std::runtime_error{fmt::format("Implementation limit exceeded. Cannot encode {} as an instruction operand",
+                                         value)};
+
+  return operand(value);
+}
+
 static void
 compile_expression(context& ctx, procedure_context& proc, syntax const&, bool tail, result_register&);
 
@@ -470,7 +483,7 @@ compile_if(context& ctx, procedure_context& proc, if_syntax const& stx, bool tai
     bytecode else_bc = std::move(proc.bytecode.back());
     proc.bytecode.pop_back();
 
-    encode_instruction(proc.bytecode.back(), instruction{opcode::jump, else_bc.size()});
+    encode_instruction(proc.bytecode.back(), instruction{opcode::jump, to_operand(else_bc.size())});
     skip_num = proc.bytecode.back().size();
     proc.bytecode.back().insert(proc.bytecode.back().end(), else_bc.begin(), else_bc.end());
   } else {
@@ -485,14 +498,14 @@ compile_if(context& ctx, procedure_context& proc, if_syntax const& stx, bool tai
     bytecode else_bc = std::move(proc.bytecode.back());
     proc.bytecode.pop_back();
 
-    encode_instruction(proc.bytecode.back(), instruction{opcode::jump, operand{else_bc.size()}});
+    encode_instruction(proc.bytecode.back(), instruction{opcode::jump, to_operand(else_bc.size())});
     skip_num = proc.bytecode.back().size();
     proc.bytecode.back().insert(proc.bytecode.back().end(), else_bc.begin(), else_bc.end());
   }
 
   bytecode then_bc = std::move(proc.bytecode.back());
   proc.bytecode.pop_back();
-  encode_instruction(proc.bytecode.back(), instruction{opcode::jump_unless, *test_value, skip_num});
+  encode_instruction(proc.bytecode.back(), instruction{opcode::jump_unless, *test_value, to_operand(skip_num)});
   proc.bytecode.back().insert(proc.bytecode.back().end(), then_bc.begin(), then_bc.end());
 }
 
