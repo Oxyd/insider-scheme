@@ -350,6 +350,7 @@ namespace {
         }
 
         frame = previous_frame;
+        first = false;
       }
 
       return result;
