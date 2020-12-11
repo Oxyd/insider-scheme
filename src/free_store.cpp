@@ -369,8 +369,8 @@ purge_mature(generation& from) {
 
     if (object_color(o) == color::white)
       large.deallocate(i);
-
-    set_object_color(o, color::white);
+    else
+      set_object_color(o, color::white);
   }
 
   large.remove_empty();
