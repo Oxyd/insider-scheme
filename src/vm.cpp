@@ -256,11 +256,12 @@ namespace {
 static generic_tracked_ptr
 run(execution_state& state) {
   execution_action a(state);
+  gc_disabler no_gc{state.ctx.store};
+
   integer::value_type& frame_base = state.frame_base;
   integer::value_type& pc = state.pc;
 
   while (true) {
-    gc_disabler no_gc{state.ctx.store};
     integer::value_type previous_pc = pc;
 
     root_stack& values = *state.value_stack;
@@ -488,6 +489,8 @@ run(execution_state& state) {
 
           state.value_stack->set(frame_base + get_destination_register(state), result);
         }
+
+        no_gc.force_update();
       } else
         throw error{"Application: Not a procedure: {}", datum_to_string(state.ctx, call_target)};
       break;
@@ -506,6 +509,8 @@ run(execution_state& state) {
         return track(state.ctx, result);
 
       state.value_stack->set(frame_base + get_destination_register(state), result);
+
+      no_gc.force_update();
       break;
     }
 
@@ -594,9 +599,6 @@ run(execution_state& state) {
       break;
     }
     } // end switch
-
-    no_gc.enable();
-    state.ctx.store.update();
   }
 
   assert(false); // The only way the loop above will exit is via return.

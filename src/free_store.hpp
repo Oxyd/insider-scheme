@@ -799,16 +799,24 @@ public:
   explicit
   gc_disabler(free_store& fs) : fs_{&fs} { fs_->disable_gc(); }
 
-  ~gc_disabler() { enable(); }
+  ~gc_disabler() { enable_gc(); }
 
   gc_disabler(gc_disabler const&) = delete;
   void operator = (gc_disabler const&) = delete;
 
   void
-  enable() {
+  enable_gc() {
     if (fs_) {
       fs_->enable_gc();
       fs_ = nullptr;
+    }
+  }
+
+  void
+  force_update() {
+    if (fs_) {
+      fs_->enable_gc();
+      fs_->disable_gc();
     }
   }
 
