@@ -30,6 +30,9 @@ namespace {
     object*
     ref(std::size_t i) { assert(i < size_); assert(data_[i]); return data_[i]; }
 
+    object_span
+    span(std::size_t begin, std::size_t size) { return {data_.get() + begin, size}; }
+
     void
     set(std::size_t i, object* value) {
       assert(i < size_);
@@ -179,117 +182,6 @@ get_destination_register(execution_state& state) {
   return bi.operands[1];
 }
 
-template <int Arity, std::size_t... Is>
-object*
-do_call(execution_state& state, native_procedure<Arity>* proc, std::size_t num_args, std::index_sequence<Is...>) {
-  bytecode const& bc = state.ctx.program;
-
-  if (Arity != num_args) {
-    // Consume operands even if call is invalid.
-    for_each_extra_operand(bc, state.pc, num_args, [] (operand) { });
-    throw error{"{}: Wrong number of arguments, expected {}, got {}", proc->name, Arity, num_args};
-  }
-
-  [[maybe_unused]] std::array<operand, Arity> arg_operands;
-  for_each_extra_operand(bc, state.pc, num_args,
-                         [&, i = 0] (operand op) mutable { arg_operands[i++] = op; });
-
-  [[maybe_unused]] integer::value_type frame_base = state.frame_base;
-
-  state.value_stack->change_allocation(state.value_stack->size() + 2);
-  state.value_stack->push(integer_to_ptr(frame_base));
-  state.value_stack->push(proc);
-
-  object* result = proc->target(state.ctx, state.value_stack->ref(frame_base + arg_operands[Is])...);
-
-  state.value_stack->pop();
-  state.value_stack->pop();
-
-  return result;
-}
-
-static object*
-do_call_generic(execution_state& state, object* proc, std::size_t num_args) {
-  bytecode const& bc = state.ctx.program;
-  integer::value_type frame_base = state.frame_base;
-  auto native_proc = assume<native_procedure<-1>>(proc);
-
-  std::vector<object*> args;
-  args.reserve(num_args);
-
-  for_each_extra_operand(bc, state.pc, num_args,
-                         [&] (operand op) { args.push_back(state.value_stack->ref(frame_base + op)); });
-
-  state.value_stack->change_allocation(state.value_stack->size() + 2);
-  state.value_stack->push(integer_to_ptr(frame_base));
-  state.value_stack->push(proc);
-
-  object* result = native_proc->target(state.ctx, args);
-
-  state.value_stack->pop();
-  state.value_stack->pop();
-
-  return result;
-}
-
-template <int Arity>
-object*
-call_native_helper(execution_state& state, object* proc, std::size_t num_args) {
-  if (num_args == Arity) {
-    if (is<native_procedure<Arity>>(proc))
-      return do_call<Arity>(state, assume<native_procedure<Arity>>(proc), num_args, std::make_index_sequence<Arity>{});
-    else
-      return do_call_generic(state, proc, num_args);
-  } else
-    return call_native_helper<Arity - 1>(state, proc, num_args);
-}
-
-template <>
-object*
-call_native_helper<-1>(execution_state& state, object* proc, std::size_t num_args) {
-  return do_call_generic(state, proc, num_args);
-}
-
-static object*
-call_native(execution_state& state, object* proc, std::size_t num_args) {
-  if (num_args <= max_specialised_arity)
-    return call_native_helper<max_specialised_arity>(state, proc, num_args);
-  else
-    return do_call_generic(state, proc, num_args);
-}
-
-template <int Arity, std::size_t... Is>
-object*
-do_call_vector(context& ctx, native_procedure<Arity>* proc, std::vector<object*> const& args,
-               std::index_sequence<Is...>) {
-  if (Arity != args.size())
-    throw error{"{}: Wrong number of arguments, expected {}, got {}", proc->name, Arity, args.size()};
-
-  return proc->target(ctx, args[Is]...);
-}
-
-
-template <int Arity>
-object*
-call_native_vector_helper(context& ctx, object* proc, std::vector<object*> const& args) {
-  if (is<native_procedure<Arity>>(proc))
-    return do_call_vector<Arity>(ctx, assume<native_procedure<Arity>>(proc), args, std::make_index_sequence<Arity>{});
-  else
-    return call_native_vector_helper<Arity - 1>(ctx, proc, args);
-}
-
-template <>
-object*
-call_native_vector_helper<-1>(context& ctx, object* proc, std::vector<object*> const& args) {
-  auto native_proc = assume<native_procedure<-1>>(proc);
-  return native_proc->target(ctx, args);
-}
-
-static object*
-call_native_vector(context& ctx, object* proc, std::vector<object*> const& args) {
-  return call_native_vector_helper<max_specialised_arity>(ctx, proc, args);
-}
-
 static execution_state
 make_state(context& ctx, procedure* global,
            std::vector<object*> const& closure, std::vector<object*> const& arguments) {
@@ -345,8 +237,8 @@ namespace {
           auto name = scheme_proc->name;
           result += fmt::format("in {}", name ? *name : "<lambda>");
         } else {
-          assert(is_native_procedure(proc));
-          result += fmt::format("in native procedure {}", native_procedure_name(proc));
+          assert(is<native_procedure>(proc));
+          result += fmt::format("in native procedure {}", assume<native_procedure>(proc)->name);
         }
 
         frame = previous_frame;
@@ -489,7 +381,7 @@ run(execution_state& state) {
         assert(false);
       }
 
-      operand dest_register;
+      operand dest_register{};
       operand num_args;
 
       if (is_tail)
@@ -565,9 +457,21 @@ run(execution_state& state) {
           pc = scheme_proc->entry_pc;
           frame_base = new_base;
         }
-      } else if (is_native_procedure(call_target)) {
+      } else if (auto native_proc = match<native_procedure>(call_target)) {
         assert(!closure);
-        object* result = call_native(state, call_target, num_args);
+
+        values.change_allocation(state.value_stack->size() + num_args + frame_preamble_size);
+        values.push(integer_to_ptr(previous_pc));
+        values.push(integer_to_ptr(frame_base));
+        values.push(call_target);
+
+        std::size_t new_base = values.size();
+        for_each_extra_operand(bc, pc, num_args,
+                               [&] (operand op) { values.push(values.ref(frame_base + op)); });
+
+        object* result = native_proc->target(state.ctx, values.span(new_base, num_args));
+
+        values.shrink(num_args + frame_preamble_size);
 
         if (!is_tail)
           state.value_stack->set(frame_base + dest_register, result);
@@ -713,9 +617,9 @@ call(context& ctx, object* callable, std::vector<object*> const& arguments) {
 
     execution_state state = make_state(ctx, scheme_proc, closure, arguments);
     return run(state);
-  } else if (is_native_procedure(callable)) {
+  } else if (auto native_proc = match<native_procedure>(callable)) {
     assert(closure.empty());
-    return track(ctx, call_native_vector(ctx, callable, arguments));
+    return track(ctx, native_proc->target(ctx, object_span(arguments)));
   } else
     throw std::runtime_error{"Expected a callable"};
 }

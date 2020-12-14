@@ -2,6 +2,7 @@
 #define INSIDER_NUMERIC_HPP
 
 #include "free_store.hpp"
+#include "object_span.hpp"
 
 #include <cassert>
 #include <cstdint>
@@ -225,22 +226,22 @@ is_inexact(object*);
 object*
 add(context&, object*, object*);
 object*
-add(context&, std::vector<object*> const&);
+add(context&, object_span);
 
 object*
 subtract(context&, object*, object*);
 object*
-subtract(context&, std::vector<object*> const&);
+subtract(context&, object_span);
 
 object*
 multiply(context&, object*, object*);
 object*
-multiply(context&, std::vector<object*> const&);
+multiply(context&, object_span);
 
 object*
 truncate_quotient(context&, object*, object*);
 object*
-truncate_quotient(context&, std::vector<object*> const&);
+truncate_quotient(context&, object_span);
 
 std::tuple<object*, object*>
 quotient_remainder(context&, object*, object*);
@@ -263,17 +264,17 @@ bitwise_not(context&, object*);
 boolean*
 arith_equal(context&, object*, object*);
 object*
-arith_equal(context&, std::vector<object*> const&);
+arith_equal(context&, object_span);
 
 boolean*
 less(context&, object*, object*);
 object*
-less(context&, std::vector<object*> const&);
+less(context&, object_span);
 
 boolean*
 greater(context&, object*, object*);
 object*
-greater(context&, std::vector<object*> const&);
+greater(context&, object_span);
 
 object*
 gcd(context&, object*, object*);

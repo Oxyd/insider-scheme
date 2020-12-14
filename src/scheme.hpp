@@ -4,6 +4,7 @@
 #include "bytecode.hpp"
 #include "free_store.hpp"
 #include "numeric.hpp"
+#include "object_span.hpp"
 #include "syntax.hpp"
 
 #include <fmt/format.h>
@@ -640,7 +641,7 @@ make_list_from_vector(context& ctx, std::vector<object*> const& values) {
 // elements are the elements of the given lists. The last argument doesn't have
 // to be a list -- if it isn't, the result is an improper list.
 object*
-append(context&, std::vector<object*> const&);
+append(context&, object_span);
 
 // An array of a fixed, dynamic size. Elements are allocated as a part of this
 // object, which requires cooperation from the allocator. From the C++ point of
@@ -702,7 +703,7 @@ std::vector<object*>
 list_to_std_vector(object*);
 
 vector*
-vector_append(context&, std::vector<object*> const& vs);
+vector_append(context&, object_span vs);
 
 // An immutable string, used for identifying Scheme objects.
 class symbol : public leaf_object<symbol> {
@@ -819,56 +820,28 @@ private:
 inline void
 closure_set(tracked_ptr<closure> const& c, std::size_t i, object* v) { c->set(c.store(), i, v); }
 
-namespace detail {
-  template <typename... Args>
-  struct native_procedure_base : public leaf_object<native_procedure_base<Args...>> {
-    static constexpr char const* scheme_name = "insider::native_procedure";
-
-    using target_type = std::function<object*(context&, Args...)>;
-    target_type target;
-    char const* name;
-
-    explicit
-    native_procedure_base(target_type f, char const* name = "<native procedure>")
-      : target{std::move(f)}
-      , name{name}
-    { }
-
-    std::size_t
-    hash() const {
-      return std::hash<std::string_view>{}(name);
-    }
-  };
-
-  template <std::size_t>
-  using object_t = object*;
-
-  template <typename>
-  struct make_native_procedure_helper;
-
-  template <std::size_t... Is>
-  struct make_native_procedure_helper<std::index_sequence<Is...>> {
-    using type = native_procedure_base<object_t<Is>...>;
-  };
-
-  template <int Arity>
-  struct make_native_procedure {
-    using type = typename make_native_procedure_helper<std::make_index_sequence<Arity>>::type;
-  };
-
-  template <>
-  struct make_native_procedure<-1> {
-    using type = native_procedure_base<std::vector<object*> const&>;
-  };
-}
-
 // Like procedure, but when invoked, it calls a C++ function. It is specialised
 // for low arities to avoid having to create an std::vector object to invoke the
 // function. Arity of -1 means any arity.
-template <int Arity = -1>
-using native_procedure = typename detail::make_native_procedure<Arity>::type;
+struct native_procedure : public leaf_object<native_procedure> {
+  static constexpr char const* scheme_name = "insider::native_procedure";
 
-constexpr int max_specialised_arity = 5;
+  using target_type = std::function<object*(context&, object_span)>;
+  target_type target;
+  char const* name;
+
+  explicit
+  native_procedure(target_type f, char const* name = "<native procedure>")
+    : target{std::move(f)}
+    , name{name}
+  { }
+
+  std::size_t
+  hash() const {
+    return std::hash<std::string_view>{}(name);
+  }
+};
+
 
 template <typename T>
 bool
@@ -881,40 +854,6 @@ match(object* x);
 template <typename T>
 auto
 match(generic_tracked_ptr const& x);
-
-namespace detail {
-  template <int... Arities>
-  bool
-  is_native_procedure(object* x, std::integer_sequence<int, Arities...>) {
-    return (is<native_procedure<Arities - 1>>(x) || ...);
-  }
-
-  template <int Arity>
-  char const*
-  native_procedure_name(object* f) {
-    if (auto np = match<native_procedure<Arity>>(f))
-      return np->name;
-    else
-      return native_procedure_name<Arity - 1>(f);
-  }
-
-  template <>
-  inline char const*
-  native_procedure_name<-2>(object*) {
-    assert(!"Not a native procedure");
-    return nullptr;
-  }
-}
-
-inline bool
-is_native_procedure(object* x) {
-  return detail::is_native_procedure(x, std::make_integer_sequence<int, max_specialised_arity + 1>{});
-}
-
-inline char const*
-native_procedure_name(object* f) {
-  return detail::native_procedure_name<max_specialised_arity>(f);
-}
 
 bool
 is_callable(object* x);

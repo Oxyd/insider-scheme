@@ -75,7 +75,7 @@ make_internal_module(context& ctx) {
 
   define_raw_procedure(
     ctx, "make-string", result, true,
-    [] (context& ctx, std::vector<object*> const& args) {
+    [] (context& ctx, object_span args) {
       if (args.size() < 1)
         throw error{"make-string: Expected at least 1 argument"};
       if (args.size() > 2)
@@ -105,7 +105,7 @@ make_internal_module(context& ctx) {
   );
 
   define_raw_procedure(ctx, "string-append", result, true,
-                       [] (context& ctx, std::vector<object*> const& args) {
+                       [] (context& ctx, object_span args) {
                          std::string result;
                          for (object* s : args)
                            result += expect<string>(s)->value();

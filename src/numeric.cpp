@@ -987,7 +987,7 @@ make_float(context& ctx, object* x) {
 
 template <auto F>
 object*
-arithmetic(context& ctx, std::vector<object*> const& xs, bool allow_empty, integer::value_type neutral) {
+arithmetic(context& ctx, object_span xs, bool allow_empty, integer::value_type neutral) {
   if (xs.empty()) {
     if (allow_empty)
       return integer_to_ptr(integer{neutral});
@@ -1051,7 +1051,7 @@ add(context& ctx, object* lhs, object* rhs) {
 }
 
 object*
-add(context& ctx, std::vector<object*> const& xs) {
+add(context& ctx, object_span xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&add)>(ctx, xs, true, 0);
 }
 
@@ -1061,7 +1061,7 @@ subtract(context& ctx, object* lhs, object* rhs) {
 }
 
 object*
-subtract(context& ctx, std::vector<object*> const& xs) {
+subtract(context& ctx, object_span xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&subtract)>(ctx, xs, false, 0);
 }
 
@@ -1071,7 +1071,7 @@ multiply(context& ctx, object* lhs, object* rhs) {
 }
 
 object*
-multiply(context& ctx, std::vector<object*> const& xs) {
+multiply(context& ctx, object_span xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&multiply)>(ctx, xs, true, 1);
 }
 
@@ -1081,7 +1081,7 @@ truncate_quotient(context& ctx, object* lhs, object* rhs) {
 }
 
 object*
-truncate_quotient(context& ctx, std::vector<object*> const& xs) {
+truncate_quotient(context& ctx, object_span xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&truncate_quotient)>(ctx, xs, false, 1);
 }
 
@@ -1199,7 +1199,7 @@ using primitive_relational_type = boolean*(context&, object*, object*);
 
 template <primitive_relational_type* F>
 object*
-relational(context& ctx, std::vector<object*> const& xs, std::string const& name) {
+relational(context& ctx, object_span xs, std::string const& name) {
   if (xs.size() < 2)
     throw std::runtime_error{fmt::format("Not enough arguments to {}", name)};
 
@@ -1245,7 +1245,7 @@ arith_equal(context& ctx, object* lhs, object* rhs) {
 }
 
 object*
-arith_equal(context& ctx, std::vector<object*> const& xs) {
+arith_equal(context& ctx, object_span xs) {
   return relational<arith_equal>(ctx, xs, "=");
 }
 
@@ -1255,7 +1255,7 @@ less(context& ctx, object* lhs, object* rhs) {
 }
 
 object*
-less(context& ctx, std::vector<object*> const& xs) {
+less(context& ctx, object_span xs) {
   return relational<less>(ctx, xs, "<");
 }
 
@@ -1265,7 +1265,7 @@ greater(context& ctx, object* lhs, object* rhs) {
 }
 
 object*
-greater(context& ctx, std::vector<object*> const& xs) {
+greater(context& ctx, object_span xs) {
   return relational<greater>(ctx, xs, ">");
 }
 
@@ -1332,8 +1332,8 @@ gcd(context& ctx, object* x, object* y) {
 
 static void
 export_native(context& ctx, module& m, std::string const& name,
-              object* (*f)(context&, std::vector<object*> const&), special_top_level_tag tag) {
-  auto index = ctx.add_top_level(ctx.store.make<native_procedure<>>(f, name.c_str()), name);
+              object* (*f)(context&, object_span), special_top_level_tag tag) {
+  auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f, name.c_str()), name);
   ctx.tag_top_level(index, tag);
   auto sym = ctx.intern(name);
   m.add(sym, index);

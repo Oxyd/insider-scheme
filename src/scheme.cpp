@@ -846,7 +846,7 @@ cdddr(pair* x) {
 }
 
 object*
-append(context& ctx, std::vector<object*> const& xs) {
+append(context& ctx, object_span xs) {
   // If all the lists are empty, we return the empty list as well.
 
   auto x = xs.begin();
@@ -977,7 +977,7 @@ list_to_std_vector(object* lst) {
 }
 
 vector*
-vector_append(context& ctx, std::vector<object*> const& vs) {
+vector_append(context& ctx, object_span vs) {
   std::size_t size = 0;
   for (object* e : vs) {
     vector* v = expect<vector>(e);
@@ -1064,7 +1064,7 @@ closure::update_references() {
 
 bool
 is_callable(object* x) {
-  return is<procedure>(x) || is_native_procedure(x) || is<closure>(x);
+  return is<procedure>(x) || is<native_procedure>(x) || is<closure>(x);
 }
 
 object*

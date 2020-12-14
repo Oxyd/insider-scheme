@@ -146,36 +146,17 @@ struct from_scheme_converter<std::vector<T>> {
 };
 
 namespace detail {
-  template <typename FunctionType, bool IsSmall>
+  template <typename FunctionType>
   struct make_native_procedure_object;
 
   template <typename R, typename... Args>
-  struct make_native_procedure_object<R(Args...), true> {
+  struct make_native_procedure_object<R(Args...)> {
     template <typename Callable, std::size_t... Is>
     static auto
     make(context& ctx, char const* name, Callable const& f, std::index_sequence<Is...>) {
-      return insider::make<native_procedure<sizeof...(Args)>>(
+      return insider::make<native_procedure>(
         ctx,
-        [=] (context& ctx, detail::object_t<Is>... args) {
-          if constexpr (std::is_same_v<R, void>) {
-            f(ctx, from_scheme<Args>(ctx, args)...);
-            return ctx.constants->void_.get();
-          } else
-            return to_scheme(ctx, f(ctx, from_scheme<Args>(ctx, args)...));
-        },
-        name
-      );
-    }
-  };
-
-  template <typename R, typename... Args>
-  struct make_native_procedure_object<R(Args...), false> {
-    template <typename Callable, std::size_t... Is>
-    static auto
-    make(context& ctx, char const* name, Callable const& f, std::index_sequence<Is...>) {
-      return insider::make<native_procedure<>>(
-        ctx,
-        [=] (context& ctx, std::vector<object*> const& args) {
+        [=] (context& ctx, object_span args) {
           if (args.size() != sizeof...(Args))
             throw std::runtime_error{fmt::format(
               "{} called with incorrect number of arguments: {} required; {} given",
@@ -202,7 +183,7 @@ namespace detail {
     template <typename Callable>
     static operand
     define(context& ctx, char const* name, module& m, bool export_, Callable const& f) {
-      auto proc = make_native_procedure_object<R(Args...), sizeof...(Args) <= max_specialised_arity>::make(
+      auto proc = make_native_procedure_object<R(Args...)>::make(
         ctx, name, f, std::index_sequence_for<Args...>{}
       );
       return define_top_level(ctx, std::string(name), m, export_, proc);
@@ -289,7 +270,7 @@ define_procedure(context& ctx, char const* name, module& m, bool export_, Callab
 template <typename F>
 operand
 define_raw_procedure(context& ctx, char const* name, module& m, bool export_, F const& f) {
-  auto proc = make<native_procedure<>>(ctx, f, name);
+  auto proc = make<native_procedure>(ctx, f, name);
   return define_top_level(ctx, std::string(name), m, export_, proc);
 }
 
