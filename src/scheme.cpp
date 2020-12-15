@@ -428,6 +428,10 @@ filesystem_module_provider::find_module(context& ctx, module_name const& name) {
 
 context::context()
   : internal_module{*this}
+#ifdef INSIDER_VM_PROFILER
+  , instruction_counts(instructions.size())
+  , instruction_times(instructions.size())
+#endif
   , statics_cache_{0, {}, eqv_compare{*this}}
 {
   constants = std::make_unique<struct constants>();

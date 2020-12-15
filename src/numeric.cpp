@@ -1523,7 +1523,7 @@ write_float(floating_point* value, port* out) {
   std::ostringstream os;
   os.imbue(std::locale("C"));
 
-  os << std::showpoint
+  os << std::showpoint << std::fixed
      << std::setprecision(std::numeric_limits<floating_point::value_type>::max_digits10 - 1)
      << value->value;
 

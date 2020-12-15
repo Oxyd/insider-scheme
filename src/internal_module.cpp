@@ -3,6 +3,10 @@
 #include "converters.hpp"
 #include "io.hpp"
 
+#ifdef INSIDER_VM_PROFILER
+#include "vm.hpp"
+#endif
+
 namespace insider {
 
 static symbol*
@@ -241,6 +245,41 @@ make_internal_module(context& ctx) {
       ctx.store.verbose_collection = value->value();
     }
   );
+
+#ifdef INSIDER_VM_PROFILER
+  define_procedure(
+    ctx, "instruction-counts", result, true,
+    [] (context& ctx) {
+      return make_vector(ctx, ctx.instruction_counts,
+                         [&] (std::size_t count) { return to_scheme(ctx, static_cast<integer::value_type>(count)); });
+    }
+  );
+
+  define_procedure(
+    ctx, "reset-instruction-counts!", result, true,
+    [] (context& ctx) {
+      ctx.instruction_counts = std::vector<std::size_t>(instructions.size());
+    }
+  );
+
+  define_procedure(
+    ctx, "instruction-times", result, true,
+    [] (context& ctx) {
+      return make_vector(ctx, ctx.instruction_times,
+                         [&] (std::chrono::high_resolution_clock::duration time) {
+                           return to_scheme(ctx,
+                                            std::chrono::duration_cast<std::chrono::microseconds>(time).count() / 1.0e6);
+                         });
+    }
+  );
+
+  define_procedure(
+    ctx, "reset-instruction-times!", result, true,
+    [] (context& ctx) {
+      ctx.instruction_times = std::vector<std::chrono::high_resolution_clock::duration>(instructions.size());
+    }
+  );
+#endif
 
   return result;
 }

@@ -57,6 +57,12 @@ struct to_scheme_converter<T, std::enable_if_t<std::is_integral_v<T> && !std::is
 };
 
 template <>
+struct to_scheme_converter<double> {
+  static object*
+  convert(context& ctx, double value) { return make<floating_point>(ctx, value); }
+};
+
+template <>
 struct to_scheme_converter<bool> {
   static object*
   convert(context& ctx, bool b) { return b ? ctx.constants->t.get() : ctx.constants->f.get(); }

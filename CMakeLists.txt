@@ -3,6 +3,7 @@ project(insider-scheme)
 
 option(ASAN "Enable address sanitizer" OFF)
 option(UBSAN "Enable UB sanitizer" OFF)
+option(VM_PROFILER "Enable VM profiler" OFF)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_C_FLAGS "-Wall -Wextra -pedantic -fno-omit-frame-pointer")
@@ -54,12 +55,16 @@ if (UBSAN AND UNIX)
 endif()
 
 add_library(scheme ${scheme_sources})
-target_compile_options(scheme PRIVATE -Wsuggest-override)
+target_compile_options(scheme PUBLIC -Wsuggest-override)
 
 target_link_libraries(scheme PUBLIC fmt::fmt-header-only)
 target_include_directories(scheme INTERFACE src)
 set_property(TARGET scheme PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+if (VM_PROFILER)
+  target_compile_definitions(scheme PUBLIC INSIDER_VM_PROFILER)
+endif()
 
 add_executable(tests ${test_sources})
 target_link_libraries(tests
@@ -69,9 +74,7 @@ set_property(TARGET tests PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_executable(insider ${program_sources})
-target_compile_options(insider PRIVATE -Wsuggest-override)
 target_link_libraries(insider
   PUBLIC scheme)
-target_link_libraries(insider PRIVATE fmt::fmt-header-only)
 set_property(TARGET insider PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

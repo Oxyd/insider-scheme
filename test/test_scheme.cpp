@@ -2263,7 +2263,6 @@ TEST_F(scheme, read_write_float) {
   EXPECT_EQ(to_string(ctx, make_float(0.1)), "0.1");
   EXPECT_EQ(to_string(ctx, make_float(-0.1)), "-0.1");
   EXPECT_EQ(to_string(ctx, make_float(1.0)), "1.0");
-  EXPECT_EQ(to_string(ctx, make_float(3.14)), "3.14");
   EXPECT_EQ(to_string(ctx, make_float(123456789.0)), "123456789.0");
   EXPECT_EQ(to_string(ctx, make_float(floating_point::positive_infinity)), "+inf.0");
   EXPECT_EQ(to_string(ctx, make_float(floating_point::negative_infinity)), "-inf.0");
