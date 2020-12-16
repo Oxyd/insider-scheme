@@ -1131,6 +1131,11 @@ divide(context& ctx, object* lhs, object* rhs) {
   return {};
 }
 
+object*
+divide(context& ctx, object_span xs) {
+  return arithmetic<static_cast<primitive_arithmetic_type*>(&divide)>(ctx, xs, false, 1);
+}
+
 template <auto Small>
 object*
 bitwise_two(object* lhs, object* rhs) {
@@ -1553,7 +1558,7 @@ export_numeric(context& ctx, module& result) {
   export_native(ctx, result, "+", add, special_top_level_tag::plus);
   export_native(ctx, result, "-", subtract, special_top_level_tag::minus);
   export_native(ctx, result, "*", multiply, special_top_level_tag::times);
-  export_native(ctx, result, "/", truncate_quotient, special_top_level_tag::divide);
+  export_native(ctx, result, "/", divide, special_top_level_tag::divide);
   export_native(ctx, result, "=", arith_equal, special_top_level_tag::arith_equal);
   export_native(ctx, result, "<", less, special_top_level_tag::less_than);
   export_native(ctx, result, ">", greater, special_top_level_tag::greater_than);

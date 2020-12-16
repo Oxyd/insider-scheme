@@ -248,6 +248,8 @@ quotient_remainder(context&, object*, object*);
 
 object*
 divide(context&, object*, object*);
+object*
+divide(context&, object_span);
 
 object*
 arithmetic_shift(context&, object*, object*);
