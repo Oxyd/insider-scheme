@@ -408,6 +408,8 @@ run(execution_state& state) {
         default:
           assert(false);
         }
+
+        break;
       }
 
       switch (instr.opcode) {
