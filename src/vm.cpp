@@ -700,6 +700,17 @@ run(execution_state& state) {
       v->set(state.ctx.store, static_cast<std::size_t>(i), o);
       break;
     }
+
+    case opcode::vector_ref: {
+      vector* v = expect<vector>(values.ref(frame_base + instr.operands[0]));
+      integer::value_type i = expect<integer>(values.ref(frame_base + instr.operands[1])).value();
+
+      if (i < 0)
+        throw std::runtime_error{"vector-ref: Negative index"};
+
+      values.set(frame_base + instr.operands[2], v->ref(i));
+      break;
+    }
     } // end switch
   }
 

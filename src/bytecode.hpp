@@ -54,7 +54,8 @@ enum class opcode : std::uint16_t {
   box_set,          // box-set <box> <value> -- replace box's contained value with a new one
   cons,             // cons <a> <b> <destination> -- make a cons pair (a . b)
   make_vector,      // make-vector <destination> <elements ...>
-  vector_set        // vector-set! <vector> <index> <value>
+  vector_set,       // vector-set! <vector> <index> <value>
+  vector_ref        // vector-ref <vector> <index> <destination>
 };
 
 // Metainformation about an opcode. Used for decoding instructions.
@@ -137,7 +138,8 @@ instructions{
   std::tuple{"box-set!",            opcode::box_set,             std::size_t{2}, false},
   std::tuple{"cons",                opcode::cons,                std::size_t{3}, false},
   std::tuple{"make-vector",         opcode::make_vector,         std::size_t{1}, true},
-  std::tuple{"vector-set!",         opcode::vector_set,          std::size_t{3}, false}
+  std::tuple{"vector-set!",         opcode::vector_set,          std::size_t{3}, false},
+  std::tuple{"vector-ref",          opcode::vector_ref,          std::size_t{3}, false},
 };
 
 inline auto // std::array<instruction_info, N>

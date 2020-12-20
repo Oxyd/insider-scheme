@@ -271,7 +271,8 @@ enum class special_top_level_tag {
   less_or_equal,
   greater_than,
   greater_or_equal,
-  vector_set
+  vector_set,
+  vector_ref
 };
 
 // Evaluation context.

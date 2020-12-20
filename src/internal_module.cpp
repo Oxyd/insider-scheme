@@ -60,7 +60,9 @@ make_internal_module(context& ctx) {
       return make<vector>(ctx, ctx, len);
     }
   );
-  define_procedure(ctx, "vector-ref", result, true, &vector::ref);
+  operand vector_ref_index = define_procedure(ctx, "vector-ref", result, true, &vector::ref);
+  ctx.tag_top_level(vector_ref_index, special_top_level_tag::vector_ref);
+
   operand vector_set_index = define_procedure(
     ctx, "vector-set!", result, true,
     [] (context& ctx, vector* v, std::size_t i, object* o) {
