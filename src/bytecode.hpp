@@ -32,8 +32,10 @@ enum class opcode : std::uint16_t {
   multiply,
   divide,
   arith_equal,
-  less_than,
-  greater_than,     // 10
+  less,
+  greater,
+  less_or_equal,
+  greater_or_equal,
   set,              // set <source> <destination>
   call,             // call <procedure> <return value destination> <arguments ...>
   call_top_level,   // same as call, but <procedure> is the index of a top-level
@@ -43,7 +45,7 @@ enum class opcode : std::uint16_t {
   tail_call_static,
   ret,              // ret <return value>
   jump,             // jump <offset>
-  jump_back,        // jump-back <offset> // 20
+  jump_back,        // jump-back <offset>
   jump_unless,      // jump-unless <register> <offset>
   jump_back_unless, // jump-back-unless <register> <offset>
   make_closure,     // make-closure <procedure> <destination> <free variables ...>
@@ -112,8 +114,10 @@ instructions{
   std::tuple{"multiply",            opcode::multiply,            std::size_t{3}, false},
   std::tuple{"divide",              opcode::divide,              std::size_t{3}, false},
   std::tuple{"arith-equal",         opcode::arith_equal,         std::size_t{3}, false},
-  std::tuple{"less-than",           opcode::less_than,           std::size_t{3}, false},
-  std::tuple{"greater-than",        opcode::greater_than,        std::size_t{3}, false},
+  std::tuple{"less",                opcode::less,                std::size_t{3}, false},
+  std::tuple{"greater",             opcode::greater,             std::size_t{3}, false},
+  std::tuple{"less-or-equal",       opcode::less_or_equal,       std::size_t{3}, false},
+  std::tuple{"greater-or-equal",    opcode::greater_or_equal,    std::size_t{3}, false},
   std::tuple{"set!",                opcode::set,                 std::size_t{2}, false},
   std::tuple{"call",                opcode::call,                std::size_t{2}, true},
   std::tuple{"call-top-level",      opcode::call_top_level,      std::size_t{2}, true},

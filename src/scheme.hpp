@@ -268,7 +268,9 @@ enum class special_top_level_tag {
   divide,
   arith_equal,
   less_than,
-  greater_than
+  less_or_equal,
+  greater_than,
+  greater_or_equal
 };
 
 // Evaluation context.

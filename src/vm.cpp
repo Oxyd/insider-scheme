@@ -317,6 +317,37 @@ run(execution_state& state) {
       object* rhs = values.ref(frame_base + instr.operands[1]);
       operand dest = instr.operands[2];
 
+      if (is<integer>(lhs) && is<integer>(rhs) && instr.opcode != opcode::divide) {
+        switch (instr.opcode) {
+        case opcode::add:
+          if (object* result = add_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
+            values.set(frame_base + dest, result);
+          else
+            values.set(frame_base + dest, add(state.ctx, lhs, rhs));
+          break;
+
+        case opcode::subtract:
+          if (object* result = subtract_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
+            values.set(frame_base + dest, result);
+          else
+            values.set(frame_base + dest, subtract(state.ctx, lhs, rhs));
+          break;
+
+        case opcode::multiply:
+          if (object* result = multiply_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
+            values.set(frame_base + dest, result);
+          else
+            values.set(frame_base + dest, multiply(state.ctx, lhs, rhs));
+          break;
+
+        default:
+          assert(false);
+          break;
+        }
+
+        break;
+      }
+
       switch (instr.opcode) {
       case opcode::add:
         values.set(frame_base + dest, add(state.ctx, lhs, rhs));
@@ -338,21 +369,61 @@ run(execution_state& state) {
     }
 
     case opcode::arith_equal:
-    case opcode::less_than:
-    case opcode::greater_than: {
+    case opcode::less:
+    case opcode::greater:
+    case opcode::less_or_equal:
+    case opcode::greater_or_equal: {
       object* lhs = values.ref(frame_base + instr.operands[0]);
       object* rhs = values.ref(frame_base + instr.operands[1]);
       operand dest = instr.operands[2];
+
+      if (is<integer>(lhs) && is<integer>(rhs)) {
+        integer::value_type x = assume<integer>(lhs).value();
+        integer::value_type y = assume<integer>(rhs).value();
+        object* t = state.ctx.constants->t.get();
+        object* f = state.ctx.constants->f.get();
+
+        switch (instr.opcode) {
+        case opcode::arith_equal:
+          values.set(frame_base + dest, x == y ? t : f);
+          break;
+
+        case opcode::less:
+          values.set(frame_base + dest, x < y ? t : f);
+          break;
+
+        case opcode::greater:
+          values.set(frame_base + dest, x > y ? t : f);
+          break;
+
+        case opcode::less_or_equal:
+          values.set(frame_base + dest, x <= y ? t : f);
+          break;
+
+        case opcode::greater_or_equal:
+          values.set(frame_base + dest, x >= y ? t : f);
+          break;
+
+        default:
+          assert(false);
+        }
+      }
 
       switch (instr.opcode) {
       case opcode::arith_equal:
         values.set(frame_base + dest, arith_equal(state.ctx, lhs, rhs));
         break;
-      case opcode::less_than:
+      case opcode::less:
         values.set(frame_base + dest, less(state.ctx, lhs, rhs));
         break;
-      case opcode::greater_than:
+      case opcode::greater:
         values.set(frame_base + dest, greater(state.ctx, lhs, rhs));
+        break;
+      case opcode::less_or_equal:
+        values.set(frame_base + dest, less_or_equal(state.ctx, lhs, rhs));
+        break;
+      case opcode::greater_or_equal:
+        values.set(frame_base + dest, greater_or_equal(state.ctx, lhs, rhs));
         break;
       default:
         assert(!"Cannot get here");

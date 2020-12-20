@@ -343,20 +343,20 @@ add_big_magnitude(context& ctx, big_integer* lhs, big_integer* rhs) {
 }
 
 namespace {
-  enum class compare {
+  enum class exact_compare_result {
     less,
     equal,
     greater
   };
 }
 
-static compare
+static exact_compare_result
 compare_magnitude(big_integer* lhs, big_integer* rhs,
                   std::size_t lhs_length, std::size_t rhs_length) {
   if (lhs_length < rhs_length)
-    return compare::less;
+    return exact_compare_result::less;
   else if (lhs_length > rhs_length)
-    return compare::greater;
+    return exact_compare_result::greater;
 
   for (std::size_t i = lhs_length; i > 0; --i) {
     limb_type x = lhs->data()[i - 1];
@@ -364,16 +364,16 @@ compare_magnitude(big_integer* lhs, big_integer* rhs,
 
     if (x != y) {
       if (x < y)
-        return compare::less;
+        return exact_compare_result::less;
       else
-        return compare::greater;
+        return exact_compare_result::greater;
     }
   }
 
-  return compare::equal;
+  return exact_compare_result::equal;
 }
 
-static compare
+static exact_compare_result
 compare_magnitude(big_integer* lhs, big_integer* rhs) {
   return compare_magnitude(lhs, rhs, lhs->length(), rhs->length());
 }
@@ -386,14 +386,14 @@ sub_magnitude(context& ctx, big_integer* lhs, big_integer* rhs) {
   std::size_t lhs_length = normal_length(lhs);
   std::size_t rhs_length = normal_length(rhs);
   switch (compare_magnitude(lhs, rhs, lhs_length, rhs_length)) {
-  case compare::less:
+  case exact_compare_result::less:
     std::swap(lhs, rhs);
     std::swap(lhs_length, rhs_length);
     positive = false;
     break;
-  case compare::equal:
+  case exact_compare_result::equal:
     return make<big_integer>(ctx, 0);
-  case compare::greater:
+  case exact_compare_result::greater:
     break;
   }
 
@@ -443,11 +443,6 @@ set_sign_copy(context& ctx, big_integer* value, bool sign) {
 
   auto result = make<big_integer>(ctx, value);
   return flip_sign(result);
-}
-
-static bool
-overflow(integer::value_type i) {
-  return i > integer::max || i < integer::min;
 }
 
 static big_integer*
@@ -585,12 +580,6 @@ mul_big_magnitude_by_limb_destructive(context& ctx, big_integer* result,
 static big_integer*
 mul_big_magnitude_by_limb(context& ctx, big_integer* lhs, limb_type rhs) {
   return mul_big_magnitude_by_limb_destructive(ctx, {}, lhs, rhs);
-}
-
-static bool
-small_mul_overflow(integer::value_type x, integer::value_type y) {
-  assert(y != 0);
-  return std::abs(x) > integer::max / std::abs(y);
 }
 
 static object*
@@ -802,7 +791,7 @@ div_rem_magnitude(context& ctx, big_integer* dividend, big_integer* divisor) {
   auto quotient = make<big_integer>(ctx, dividend_len - divisor_len + 1);
 
   big_integer* first_shifted_divisor = shift(ctx, divisor, dividend_len - divisor_len);
-  if (compare_magnitude(dividend, first_shifted_divisor) != compare::less) {
+  if (compare_magnitude(dividend, first_shifted_divisor) != exact_compare_result::less) {
     quotient->data()[dividend_len - divisor_len] = 1;
     dividend = sub_big(ctx, dividend, first_shifted_divisor);
   }
@@ -857,25 +846,25 @@ div_rem_small(integer dividend, integer divisor) {
   return {integer_to_ptr(integer{quot}), integer_to_ptr(integer{rem})};
 }
 
-static compare
+static exact_compare_result
 compare_big(big_integer* lhs, big_integer* rhs) {
   if (lhs->positive() != rhs->positive()) {
     if (!lhs->positive() && rhs->positive())
-      return compare::less;
+      return exact_compare_result::less;
     else
-      return compare::greater;
+      return exact_compare_result::greater;
   }
 
-  compare result = compare_magnitude(lhs, rhs);
+  exact_compare_result result = compare_magnitude(lhs, rhs);
 
-  if (result == compare::equal)
+  if (result == exact_compare_result::equal)
     return result;
 
   if (!lhs->positive()) {
-    if (result == compare::less)
-      return compare::greater;
+    if (result == exact_compare_result::less)
+      return exact_compare_result::greater;
     else
-      return compare::less;
+      return exact_compare_result::less;
   }
 
   return result;
@@ -1043,6 +1032,11 @@ is_exact(object* x) {
 bool
 is_inexact(object* x) {
   return is<floating_point>(x);
+}
+
+bool
+is_nan(object* x) {
+  return is<floating_point>(x) && std::isnan(assume<floating_point>(x)->value);
 }
 
 object*
@@ -1220,33 +1214,101 @@ relational(context& ctx, object_span xs, std::string const& name) {
   return ctx.constants->t.get();
 }
 
+static bool
+positive(object* x) {
+  if (auto small = match<integer>(x))
+    return small->value() > 0;
+  else {
+    assert(is<big_integer>(x));
+    return assume<big_integer>(x)->positive();
+  }
+}
+
+namespace {
+  enum class general_compare_result {
+    less,
+    greater,
+    equal,
+    nan
+  };
+}
+
+static general_compare_result
+opposite(general_compare_result r) {
+  if (r == general_compare_result::less)
+    return general_compare_result::greater;
+  else if (r == general_compare_result::greater)
+    return general_compare_result::less;
+  else
+    return r;
+}
+
+static general_compare_result
+exact_to_general(exact_compare_result r) {
+  switch (r) {
+  case exact_compare_result::less: return general_compare_result::less;
+  case exact_compare_result::greater: return general_compare_result::greater;
+  case exact_compare_result::equal: return general_compare_result::equal;
+  }
+  return {};
+}
+
+static general_compare_result
+compare(context& ctx, object* lhs, object* rhs) {
+  switch (find_common_type(lhs, rhs)) {
+  case common_type::small_integer: {
+    integer::value_type x = assume<integer>(lhs).value();
+    integer::value_type y = assume<integer>(rhs).value();
+
+    if (x < y)
+      return general_compare_result::less;
+    else if (x > y)
+      return general_compare_result::greater;
+    else
+      return general_compare_result::equal;
+  }
+
+  case common_type::big_integer:
+    return exact_to_general(compare_big(make_big(ctx, lhs), make_big(ctx, rhs)));
+
+  case common_type::fraction: {
+    auto x = make_fraction(ctx, lhs);
+    auto y = make_fraction(ctx, rhs);
+
+    object* lhs_num = multiply(ctx, x->numerator(), y->denominator());
+    object* rhs_num = multiply(ctx, x->denominator(), y->numerator());
+    general_compare_result num_compare = compare(ctx, lhs_num, rhs_num);
+    if (num_compare == general_compare_result::equal)
+      return general_compare_result::equal;
+
+    object* common_den = multiply(ctx, x->denominator(), y->denominator());
+    if (positive(common_den))
+      return num_compare;
+    else
+      return opposite(num_compare);
+  }
+
+  case common_type::floating_point: {
+    auto x = make_float(ctx, lhs);
+    auto y = make_float(ctx, rhs);
+
+    if (is_nan(x) || is_nan(y))
+      return general_compare_result::nan;
+    else if (x->value < y->value)
+      return general_compare_result::less;
+    else if (x->value > y->value)
+      return general_compare_result::greater;
+    else
+      return general_compare_result::equal;
+  }
+  }
+
+  return {};
+}
+
 boolean*
 arith_equal(context& ctx, object* lhs, object* rhs) {
-  switch (find_common_type(lhs, rhs)) {
-  case common_type::small_integer:
-    return assume<integer>(lhs).value() == assume<integer>(rhs).value() ? ctx.constants->t.get() : ctx.constants->f.get();
-  case common_type::big_integer:
-    return compare_big(make_big(ctx, lhs), make_big(ctx, rhs)) == compare::equal
-           ? ctx.constants->t.get() : ctx.constants->f.get();
-  case common_type::fraction: {
-    auto l = make_fraction(ctx, lhs);
-    auto r = make_fraction(ctx, rhs);
-    if (arith_equal(ctx, l->numerator(), r->numerator()) == ctx.constants->f.get())
-      return ctx.constants->f.get();
-    if (arith_equal(ctx, l->denominator(), r->denominator()) == ctx.constants->f.get())
-      return ctx.constants->f.get();
-    return ctx.constants->t.get();
-  }
-
-  case common_type::floating_point:
-    if (make_float(ctx, lhs)->value == make_float(ctx, rhs)->value)
-      return ctx.constants->t.get();
-    else
-      return ctx.constants->f.get();
-  }
-
-  assert(false);
-  return {};
+  return compare(ctx, lhs, rhs) == general_compare_result::equal ? ctx.constants->t.get() : ctx.constants->f.get();
 }
 
 object*
@@ -1256,7 +1318,7 @@ arith_equal(context& ctx, object_span xs) {
 
 boolean*
 less(context& ctx, object* lhs, object* rhs) {
-  return expect<integer>(lhs).value() < expect<integer>(rhs).value() ? ctx.constants->t.get() : ctx.constants->f.get();
+  return compare(ctx, lhs, rhs) == general_compare_result::less ? ctx.constants->t.get() : ctx.constants->f.get();
 }
 
 object*
@@ -1266,12 +1328,36 @@ less(context& ctx, object_span xs) {
 
 boolean*
 greater(context& ctx, object* lhs, object* rhs) {
-  return expect<integer>(lhs).value() > expect<integer>(rhs).value() ? ctx.constants->t.get() : ctx.constants->f.get();
+  return compare(ctx, lhs, rhs) == general_compare_result::greater ? ctx.constants->t.get() : ctx.constants->f.get();
 }
 
 object*
 greater(context& ctx, object_span xs) {
   return relational<greater>(ctx, xs, ">");
+}
+
+boolean*
+less_or_equal(context& ctx, object* lhs, object* rhs) {
+  general_compare_result cmp = compare(ctx, lhs, rhs);
+  return (cmp == general_compare_result::less || cmp == general_compare_result::equal)
+         ? ctx.constants->t.get() : ctx.constants->f.get();
+}
+
+object*
+less_or_equal(context& ctx, object_span xs) {
+  return relational<less_or_equal>(ctx, xs, "<=");
+}
+
+boolean*
+greater_or_equal(context& ctx, object* lhs, object* rhs) {
+  general_compare_result cmp = compare(ctx, lhs, rhs);
+  return (cmp == general_compare_result::greater || cmp == general_compare_result::equal)
+         ? ctx.constants->t.get() : ctx.constants->f.get();
+}
+
+object*
+greater_or_equal(context& ctx, object_span xs) {
+  return relational<greater_or_equal>(ctx, xs, ">=");
 }
 
 static bool
@@ -1311,7 +1397,7 @@ gcd_big(context& ctx, big_integer* x, big_integer* y) {
     while (even(y))
       y = bitshift_right_destructive(y, 1);
 
-    if (compare_magnitude(x, y, normal_length(x), normal_length(y)) == compare::greater)
+    if (compare_magnitude(x, y, normal_length(x), normal_length(y)) == exact_compare_result::greater)
       std::swap(x, y);
 
     y = sub_magnitude(ctx, y, x);
@@ -1561,7 +1647,9 @@ export_numeric(context& ctx, module& result) {
   export_native(ctx, result, "/", divide, special_top_level_tag::divide);
   export_native(ctx, result, "=", arith_equal, special_top_level_tag::arith_equal);
   export_native(ctx, result, "<", less, special_top_level_tag::less_than);
+  export_native(ctx, result, "<=", less_or_equal, special_top_level_tag::less_or_equal);
   export_native(ctx, result, ">", greater, special_top_level_tag::greater_than);
+  export_native(ctx, result, ">=", greater_or_equal, special_top_level_tag::greater_or_equal);
   define_procedure(ctx, "gcd", result, true, gcd);
   define_procedure(ctx, "arithmetic-shift", result, true, arithmetic_shift);
   define_procedure(ctx, "bitwise-and", result, true, bitwise_and);

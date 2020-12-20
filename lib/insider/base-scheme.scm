@@ -259,12 +259,6 @@
 (define (identity x)
   x)
 
-(define (>= x y)
-  (or (> x y) (= x y)))
-
-(define (<= x y)
-  (or (< x y) (= x y)))
-
 (define (list . xs)
   xs)
 

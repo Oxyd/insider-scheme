@@ -607,7 +607,7 @@ TEST_F(scheme, exec_loop) {
                    instruction{opcode::load_static, one,        operand{5}},
                    instruction{opcode::set,         operand{3}, operand{0}},
                    instruction{opcode::set,         operand{3}, operand{1}},
-                   instruction{opcode::less_than,   operand{1}, operand{4}, operand{2}},
+                   instruction{opcode::less,        operand{1}, operand{4}, operand{2}},
                    instruction{opcode::jump_unless, operand{2}, operand{3}},
                    instruction{opcode::add,         operand{0}, operand{1}, operand{0}},
                    instruction{opcode::add,         operand{1}, operand{5}, operand{1}},

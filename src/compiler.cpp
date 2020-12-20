@@ -341,7 +341,7 @@ compile_arithmetic(context& ctx, procedure_context& proc, application_syntax con
                                            std::get<top_level_reference_syntax>(stx.target->value).name)};
   }
 
-  opcode op;
+  opcode op{};
   switch (tag) {
   case special_top_level_tag::plus:
     op = opcode::add;
@@ -369,11 +369,13 @@ compile_relational(context& ctx, procedure_context& proc, application_syntax con
     throw std::runtime_error{fmt::format("Not enough arguments for {}",
                                          std::get<local_reference_syntax>(stx.target->value).variable->name)};
 
-  opcode op;
+  opcode op{};
   switch (tag) {
-  case special_top_level_tag::arith_equal:  op = opcode::arith_equal; break;
-  case special_top_level_tag::less_than:    op = opcode::less_than; break;
-  case special_top_level_tag::greater_than: op = opcode::greater_than; break;
+  case special_top_level_tag::arith_equal:      op = opcode::arith_equal; break;
+  case special_top_level_tag::less_than:        op = opcode::less; break;
+  case special_top_level_tag::greater_than:     op = opcode::greater; break;
+  case special_top_level_tag::less_or_equal:    op = opcode::less_or_equal; break;
+  case special_top_level_tag::greater_or_equal: op = opcode::greater_or_equal; break;
   default:
     assert(!"Unimplemented");
   }
@@ -520,6 +522,8 @@ compile_application(context& ctx, procedure_context& proc, application_syntax co
         return;
       } else if (*tag == special_top_level_tag::less_than
                  || *tag == special_top_level_tag::greater_than
+                 || *tag == special_top_level_tag::less_or_equal
+                 || *tag == special_top_level_tag::greater_or_equal
                  || *tag == special_top_level_tag::arith_equal) {
         compile_relational(ctx, proc, stx, *tag, result);
         return;

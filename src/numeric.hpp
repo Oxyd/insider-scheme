@@ -223,20 +223,69 @@ is_exact(object*);
 bool
 is_inexact(object*);
 
+bool
+is_nan(object*);
+
 object*
 add(context&, object*, object*);
 object*
 add(context&, object_span);
+
+inline bool
+overflow(integer::value_type i) {
+  return i > integer::max || i < integer::min;
+}
+
+inline object*
+add_fixnums(integer::value_type x, integer::value_type y) {
+  integer::value_type result = x + y;
+  if (overflow(result))
+    return nullptr;
+  else
+    return integer_to_ptr(result);
+}
 
 object*
 subtract(context&, object*, object*);
 object*
 subtract(context&, object_span);
 
+inline object*
+subtract_fixnums(integer::value_type x, integer::value_type y) {
+  integer::value_type result = x - y;
+  if (overflow(result))
+    return nullptr;
+  else
+    return integer_to_ptr(result);
+}
+
 object*
 multiply(context&, object*, object*);
 object*
 multiply(context&, object_span);
+
+inline bool
+small_mul_overflow(integer::value_type x, integer::value_type y) {
+  assert(y != 0);
+  return std::abs(x) > integer::max / std::abs(y);
+}
+
+inline object*
+multiply_fixnums(integer::value_type lhs, integer::value_type rhs) {
+  if (rhs == 0)
+    return integer_to_ptr(0);
+
+  integer::value_type x = lhs > 0 ? lhs : -lhs;
+  integer::value_type y = rhs > 0 ? rhs : -rhs;
+  bool result_positive = (lhs > 0) == (rhs > 0);
+
+  if (small_mul_overflow(x, y))
+    return nullptr;
+  else {
+    integer::value_type product = x * y;
+    return integer_to_ptr(integer{result_positive ? product : -product});
+  }
+}
 
 object*
 truncate_quotient(context&, object*, object*);
@@ -277,6 +326,16 @@ boolean*
 greater(context&, object*, object*);
 object*
 greater(context&, object_span);
+
+boolean*
+less_or_equal(context&, object*, object*);
+object*
+less_or_equal(context&, object_span);
+
+boolean*
+greater_or_equal(context&, object*, object*);
+object*
+greater_or_equal(context&, object_span);
 
 object*
 gcd(context&, object*, object*);
