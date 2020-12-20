@@ -61,12 +61,13 @@ make_internal_module(context& ctx) {
     }
   );
   define_procedure(ctx, "vector-ref", result, true, &vector::ref);
-  define_procedure(
+  operand vector_set_index = define_procedure(
     ctx, "vector-set!", result, true,
     [] (context& ctx, vector* v, std::size_t i, object* o) {
       v->set(ctx.store, i, o);
     }
   );
+  ctx.tag_top_level(vector_set_index, special_top_level_tag::vector_set);
 
   define_procedure(ctx, "cons", result, true, cons);
   define_procedure(ctx, "car", result, true, static_cast<object* (*)(pair*)>(car));

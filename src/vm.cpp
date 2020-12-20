@@ -1,6 +1,7 @@
 #include "vm.hpp"
 
 #include "action.hpp"
+#include "converters.hpp"
 #include "io.hpp"
 #include "numeric.hpp"
 
@@ -683,6 +684,18 @@ run(execution_state& state) {
                              });
 
       values.set(frame_base + dest, result);
+      break;
+    }
+
+    case opcode::vector_set: {
+      vector* v = expect<vector>(values.ref(frame_base + instr.operands[0]));
+      integer::value_type i = expect<integer>(values.ref(frame_base + instr.operands[1])).value();
+      object* o = values.ref(frame_base + instr.operands[2]);
+
+      if (i < 0)
+        throw std::runtime_error{"vector-set!: Negative index"};
+
+      v->set(state.ctx.store, static_cast<std::size_t>(i), o);
       break;
     }
     } // end switch

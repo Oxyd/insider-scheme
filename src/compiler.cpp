@@ -384,6 +384,21 @@ compile_relational(context& ctx, procedure_context& proc, application_syntax con
 }
 
 static void
+compile_vector_set(context& ctx, procedure_context& proc, application_syntax const& stx, result_register& result) {
+  if (stx.arguments.size() != 3)
+    throw std::runtime_error{"vector-set!: Expected exactly 3 arguments"};
+
+  std::array<shared_register, 3> arg_registers;
+  for (std::size_t i = 0; i < 3; ++i)
+    arg_registers[i] = compile_expression_to_register(ctx, proc, *stx.arguments[i], false);
+
+  encode_instruction(proc.bytecode.back(),
+                     instruction{opcode::vector_set, *arg_registers[0], *arg_registers[1], *arg_registers[2]});
+
+  compile_static_reference(proc, ctx.statics.void_, result);
+}
+
+static void
 compile_let(context& ctx, procedure_context& proc, let_syntax const& stx, bool tail, result_register& result) {
   variable_bindings::scope scope;
   for (auto const& def : stx.definitions) {
@@ -526,6 +541,9 @@ compile_application(context& ctx, procedure_context& proc, application_syntax co
                  || *tag == special_top_level_tag::greater_or_equal
                  || *tag == special_top_level_tag::arith_equal) {
         compile_relational(ctx, proc, stx, *tag, result);
+        return;
+      } else if (*tag == special_top_level_tag::vector_set) {
+        compile_vector_set(ctx, proc, stx, result);
         return;
       }
     }
