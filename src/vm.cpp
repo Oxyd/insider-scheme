@@ -505,43 +505,43 @@ run(execution_state& state) {
         if (scheme_proc->has_rest)
           ++args_size;
 
-        std::size_t new_base = state.value_stack->size() + frame_preamble_size;
-        state.value_stack->change_allocation(new_base + scheme_proc->locals_size);
+        std::size_t new_base = values.size() + frame_preamble_size;
+        values.change_allocation(new_base + scheme_proc->locals_size);
 
-        state.value_stack->push(integer_to_ptr(previous_pc));
-        state.value_stack->push(integer_to_ptr(frame_base));
-        state.value_stack->push(scheme_proc);
+        values.push(integer_to_ptr(previous_pc));
+        values.push(integer_to_ptr(frame_base));
+        values.push(scheme_proc);
 
         for (std::size_t i = 0; i < closure_size; ++i)
-          state.value_stack->push(closure->ref(i));
+          values.push(closure->ref(i));
 
         std::size_t num_rest = 0;
         if (scheme_proc->has_rest) {
           num_rest = num_args - scheme_proc->min_args;
-          state.value_stack->change_allocation(state.value_stack->size() + num_rest + 1);
+          values.change_allocation(values.size() + num_rest + 1);
         }
 
         for_each_extra_operand(bc, pc, num_args,
                                [&] (operand op) {
-                                 state.value_stack->push(values.ref(frame_base + op));
+                                 values.push(values.ref(frame_base + op));
                                });
 
         if (scheme_proc->has_rest) {
-          state.value_stack->push(state.ctx.constants->null.get());
+          values.push(state.ctx.constants->null.get());
 
           for (std::size_t i = 0; i < num_rest; ++i) {
-            object* tail = state.value_stack->pop();
-            object* head = state.value_stack->pop();
-            state.value_stack->push(cons(state.ctx, head, tail));
+            object* tail = values.pop();
+            object* head = values.pop();
+            values.push(cons(state.ctx, head, tail));
           }
         }
 
         if (is_tail) {
           for (std::size_t i = 0; i < closure_size + args_size; ++i)
-            state.value_stack->set(frame_base + i, state.value_stack->ref(new_base + i));
+            values.set(frame_base + i, values.ref(new_base + i));
 
           pc = scheme_proc->entry_pc;
-          state.value_stack->resize(frame_base + scheme_proc->locals_size);
+          values.resize(frame_base + scheme_proc->locals_size);
         } else {
           values.resize(new_base + scheme_proc->locals_size);
 
@@ -551,7 +551,7 @@ run(execution_state& state) {
       } else if (auto native_proc = match<native_procedure>(call_target)) {
         assert(!closure);
 
-        values.change_allocation(state.value_stack->size() + num_args + frame_preamble_size);
+        values.change_allocation(values.size() + num_args + frame_preamble_size);
         values.push(integer_to_ptr(previous_pc));
         values.push(integer_to_ptr(frame_base));
         values.push(call_target);
@@ -565,7 +565,7 @@ run(execution_state& state) {
         values.shrink(num_args + frame_preamble_size);
 
         if (!is_tail)
-          state.value_stack->set(frame_base + dest_register, result);
+          values.set(frame_base + dest_register, result);
         else {
           // tail_call. For Scheme procedures, the callee would perform a ret and
           // go back to this frame's caller. Since this is a native procedure, we
@@ -577,7 +577,7 @@ run(execution_state& state) {
             // Same as in ret below: We're returning from the global procedure.
             return track(state.ctx, result);
 
-          state.value_stack->set(frame_base + get_destination_register(state), result);
+          values.set(frame_base + get_destination_register(state), result);
         }
 
         no_gc.force_update();
@@ -598,7 +598,7 @@ run(execution_state& state) {
         // inspect it (used in tests).
         return track(state.ctx, result);
 
-      state.value_stack->set(frame_base + get_destination_register(state), result);
+      values.set(frame_base + get_destination_register(state), result);
 
       no_gc.force_update();
       break;
