@@ -5,6 +5,8 @@
 
 #include <fmt/format.h>
 
+#undef small
+
 namespace insider {
 
 static constexpr std::size_t page_size = 4096;

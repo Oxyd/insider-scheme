@@ -7,11 +7,15 @@ option(VM_PROFILER "Enable VM profiler" OFF)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_C_FLAGS "-Wall -Wextra -pedantic -fno-omit-frame-pointer")
-  set(CMAKE_CXX_FLAGS "-Wall -Wextra -pedantic -fno-omit-frame-pointer")
+  set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wsuggest-override -pedantic -fno-omit-frame-pointer")
   set(CMAKE_C_FLAGS_DEBUG "-ggdb3")
   set(CMAKE_CXX_FLAGS_DEBUG "-ggdb3")
   set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -ggdb3 -DNDEBUG")
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -ggdb3 -DNDEBUG")
+endif()
+
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+  add_definitions(-DUNICODE -D_UNICODE)
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -55,13 +59,12 @@ if (UBSAN AND UNIX)
 endif()
 
 add_library(scheme ${scheme_sources})
-target_compile_options(scheme PUBLIC -Wsuggest-override)
 
 target_link_libraries(scheme PUBLIC fmt::fmt-header-only)
 target_include_directories(scheme INTERFACE src)
 set_property(TARGET scheme PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-
+  
 if (VM_PROFILER)
   target_compile_definitions(scheme PUBLIC INSIDER_VM_PROFILER)
 endif()

@@ -12,6 +12,8 @@
 #include <numeric>
 #include <sstream>
 
+#undef small
+
 namespace insider {
 
 using limb_type = detail::limb_type;
@@ -143,7 +145,7 @@ big_integer::hash() const {
   for (std::size_t i = 0; i < length_; ++i)
     result = storage_element(i) + (result << 6) + (result << 16) - result;
 
-  return result ^ positive_;
+  return result ^ static_cast<std::size_t>(positive_);
 }
 
 fraction::fraction(object* num, object* den)

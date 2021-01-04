@@ -10,11 +10,16 @@
 #include <fmt/format.h>
 
 #include <algorithm>
-#include <csignal>
 #include <optional>
 #include <set>
 #include <unordered_map>
 #include <vector>
+
+#ifndef WIN32
+#include <csignal>
+#else
+#include <intrin.h>
+#endif
 
 namespace insider {
 
@@ -551,7 +556,11 @@ parse_syntactic_closure(parsing_context& pc, tracked_ptr<environment> const& env
 
 static std::unique_ptr<syntax>
 parse_syntax_trap(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum) {
+#ifndef WIN32
   raise(SIGTRAP);
+#else
+  __debugbreak();
+#endif
   return parse(pc, env, cadr(datum));
 }
 

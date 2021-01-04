@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -414,7 +415,7 @@ public:
   operator = (generic_tracked_ptr const& other) noexcept = default;
 
 private:
-  friend class tracked_ptr_base;
+  friend class detail::tracked_ptr_base<generic_tracked_ptr>;
 
   static generic_tracked_ptr*
   root_list(free_store& fs) noexcept;
@@ -434,7 +435,7 @@ public:
   lock(free_store& fs) const noexcept { return {fs, value_}; }
 
 private:
-  friend class tracked_ptr_base;
+  friend class detail::tracked_ptr_base<generic_weak_ptr>;
 
   static generic_weak_ptr*
   root_list(free_store& fs) noexcept;

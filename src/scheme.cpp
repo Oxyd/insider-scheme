@@ -15,6 +15,12 @@
 #include <functional>
 #include <typeinfo>
 
+#ifdef WIN32
+#include <tchar.h>
+#else
+#define _T(x) x
+#endif
+
 namespace insider {
 
 std::size_t
@@ -403,6 +409,15 @@ execute(context& ctx, module& mod) {
   return result;
 }
 
+static FILE*
+open_file(std::filesystem::path const& path, std::filesystem::path::value_type const* mode) {
+#ifndef WIN32
+  return std::fopen(path.c_str(), mode);
+#else
+  return _wfopen(path.c_str(), mode);
+#endif
+}
+
 std::optional<std::vector<generic_tracked_ptr>>
 filesystem_module_provider::find_module(context& ctx, module_name const& name) {
   std::filesystem::path p = root_;
@@ -412,7 +427,7 @@ filesystem_module_provider::find_module(context& ctx, module_name const& name) {
   std::vector<std::filesystem::path> candidates{p.replace_extension(".sld"),
                                                 p.replace_extension(".scm")};
   for (auto const& candidate : candidates) {
-    FILE* f = std::fopen(candidate.c_str(), "r");
+    FILE* f = open_file(candidate.c_str(), _T("r"));
     if (f) {
       auto in = make<port>(ctx, f, true, false);
       std::optional<module_name> candidate_name = read_library_name(ctx, in);
