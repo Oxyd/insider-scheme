@@ -203,6 +203,12 @@ namespace detail {
   hash(object const* o) {
     return static_cast<T const*>(o)->hash();
   }
+
+  template <typename T, typename U>
+  std::size_t
+  size(object* o) {
+    return sizeof(T) + detail::round_to_words(static_cast<T*>(o)->size() * sizeof(U));
+  }
 }
 
 // Object with no Scheme subobjects.
@@ -293,7 +299,7 @@ word_type const dynamic_size_object<Derived, T>::type_index = new_type(type_desc
   detail::hash<Derived>,
   false,
   0,
-  [] (object* o) { return sizeof(Derived) + detail::round_to_words(static_cast<Derived*>(o)->size() * sizeof(T)); }
+  detail::size<Derived, T>
 });
 
 class free_store;
