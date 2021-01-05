@@ -189,6 +189,7 @@ static_assert(std::is_standard_layout_v<extra_operands>);
 union instruction_packet {
   basic_instruction bi;
   extra_operands    eo;
+  std::uint64_t     raw;
 
   explicit
   instruction_packet(basic_instruction bi) : bi{bi} { }
@@ -213,16 +214,27 @@ read_extra_operands(bytecode const& bc, integer::value_type& pc) {
   return bc[pc++].eo;
 }
 
+inline std::uint64_t
+read_raw(bytecode const& bc, integer::value_type& pc) {
+  return bc[pc++].raw;
+}
+
 template <typename F>
 void
 for_each_extra_operand(bytecode const& bc, integer::value_type& pc, operand num_extra, F&& f) {
-  for (operand i = 0; i < num_extra; i += 4) {
-    extra_operands eo = read_extra_operands(bc, pc);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+  std::uint64_t value;
 
-    std::size_t this_extra = std::min(num_extra - i, 4);
-    for (std::size_t e = 0; e < this_extra; ++e)
-      f(eo[e]);
+  for (operand i = 0; i < num_extra; ++i) {
+    if ((i & 3) == 0)
+      value = read_raw(bc, pc);
+
+    operand op = value & ((1 << 16) - 1);
+    f(op);
+    value >>= 16;
   }
+#pragma GCC diagnostic pop
 }
 
 instruction
