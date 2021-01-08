@@ -404,7 +404,7 @@ class error : public std::runtime_error {
 public:
   // Format an error message using fmtlib and append the action stack to it.
   template <typename... Args>
-  error(std::string const& fmt, Args&&... args)
+  error(std::string_view fmt, Args&&... args)
     : std::runtime_error{fmt::format(fmt, std::forward<Args>(args)...)}
   { }
 };
@@ -1000,15 +1000,15 @@ namespace detail {
   template <typename T>
   struct expect_helper {
     static T*
-    expect(object* x, std::optional<std::string> const& message) {
+    expect(object* x, std::string_view message) {
       if (is<T>(x))
         return static_cast<T*>(x);
       else
-        throw message ? error{*message} : make_type_error<T>(x);
+        throw !message.empty() ? error{message} : make_type_error<T>(x);
     }
 
     static tracked_ptr<T>
-    expect(generic_tracked_ptr const& x, std::optional<std::string> const& message) {
+    expect(generic_tracked_ptr const& x, std::string_view message) {
       return {x.store(), expect(x.get(), message)};
     }
   };
@@ -1016,15 +1016,15 @@ namespace detail {
   template <>
   struct expect_helper<integer> {
     static integer
-    expect(object* x, std::optional<std::string> const& message) {
+    expect(object* x, std::string_view message) {
       if (is<integer>(x))
         return ptr_to_integer(x);
       else
-        throw message ? error{*message} : make_type_error<integer>(x);
+        throw !message.empty() ? error{message} : make_type_error<integer>(x);
     }
 
     static integer
-    expect(generic_tracked_ptr const& x, std::optional<std::string> const& message) {
+    expect(generic_tracked_ptr const& x, std::string_view message) {
       return expect(x.get(), message);
     }
   };
@@ -1035,26 +1035,26 @@ namespace detail {
 template <typename T>
 auto
 expect(object* x) {
-  return detail::expect_helper<T>::expect(x, std::nullopt);
+  return detail::expect_helper<T>::expect(x, {});
 }
 
 template <typename T>
 auto
 expect(generic_tracked_ptr const& x) {
-  return detail::expect_helper<T>::expect(x, std::nullopt);
+  return detail::expect_helper<T>::expect(x, {});
 }
 
 // Same as expect, but throws a runtime_error with the given message if the
 // actual type isn't the expected one.
 template <typename T>
 auto
-expect(object* x, std::string const& message) {
+expect(object* x, std::string_view message) {
   return detail::expect_helper<T>::expect(x, message);
 }
 
 template <typename T>
 auto
-expect(generic_tracked_ptr const& x, std::string const& message) {
+expect(generic_tracked_ptr const& x, std::string_view message) {
   return detail::expect_helper<T>::expect(x, message);
 }
 
