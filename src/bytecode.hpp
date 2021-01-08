@@ -175,66 +175,19 @@ struct instruction {
   instruction(std::string_view mnemonic, std::vector<operand> operands);
 };
 
-struct basic_instruction {
-  insider::opcode        opcode;
-  std::array<operand, 3> operands;
-};
-
-static_assert(sizeof(basic_instruction) == 8);
-static_assert(std::is_standard_layout_v<basic_instruction>);
-
-using extra_operands = std::array<operand, 4>;
-static_assert(std::is_standard_layout_v<extra_operands>);
-
-union instruction_packet {
-  basic_instruction bi;
-  extra_operands    eo;
-  std::uint64_t     raw;
-
-  explicit
-  instruction_packet(basic_instruction bi) : bi{bi} { }
-
-  explicit
-  instruction_packet(extra_operands eo) : eo{eo} { }
-};
-static_assert(sizeof(instruction_packet) == 8);
-
-using bytecode = std::vector<instruction_packet>;
+using bytecode = std::vector<std::uint16_t>;
 
 void
 encode_instruction(bytecode&, instruction const&);
 
-inline basic_instruction
-read_basic_instruction(bytecode const& bc, integer::value_type& pc) {
-  return bc[pc++].bi;
+inline opcode
+read_opcode(bytecode const& bc, integer::value_type& pc) {
+  return static_cast<opcode>(bc[pc++]);
 }
 
-inline extra_operands
-read_extra_operands(bytecode const& bc, integer::value_type& pc) {
-  return bc[pc++].eo;
-}
-
-inline std::uint64_t
-read_raw(bytecode const& bc, integer::value_type& pc) {
-  return bc[pc++].raw;
-}
-
-template <typename F>
-void
-for_each_extra_operand(bytecode const& bc, integer::value_type& pc, operand num_extra, F&& f) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-  std::uint64_t value;
-
-  for (operand i = 0; i < num_extra; ++i) {
-    if ((i & 3) == 0)
-      value = read_raw(bc, pc);
-
-    operand op = value & ((1 << 16) - 1);
-    f(op);
-    value >>= 16;
-  }
-#pragma GCC diagnostic pop
+inline operand
+read_operand(bytecode const& bc, integer::value_type& pc) {
+  return bc[pc++];
 }
 
 instruction

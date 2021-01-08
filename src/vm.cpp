@@ -175,12 +175,17 @@ get_destination_register(execution_state& state) {
   bytecode const& bc = state.ctx.program;
   integer::value_type& pc = state.pc;
 
-  basic_instruction bi = read_basic_instruction(bc, pc);
-  assert(bi.opcode == opcode::call || bi.opcode == opcode::call_top_level || bi.opcode == opcode::call_static);
+  [[maybe_unused]] opcode opcode = read_opcode(bc, pc);
+  assert(opcode == opcode::call || opcode == opcode::call_top_level || opcode == opcode::call_static);
 
-  for_each_extra_operand(bc, pc, bi.operands[2], [] (operand) { }); // Skip over extra operands.
+  read_operand(bc, pc); // Call target.
+  operand dest = read_operand(bc, pc);
 
-  return bi.operands[1];
+  operand num_args = read_operand(bc, pc);
+  for (std::size_t i = 0; i < num_args; ++i)
+    read_operand(bc, pc); // Skip over arguments.
+
+  return dest;
 }
 
 static execution_state
@@ -268,44 +273,44 @@ run(execution_state& state) {
     root_stack& values = *state.value_stack;
     bytecode const& bc = state.ctx.program;
 
-    basic_instruction instr = read_basic_instruction(bc, pc);
+    opcode opcode = read_opcode(bc, pc);
 
 #ifdef INSIDER_VM_PROFILER
     ++state.ctx.instruction_counts[static_cast<std::size_t>(instr.opcode)];
 
     struct time_tracker {
-      opcode   oc;
-      context& ctx;
+      insider::opcode oc;
+      context&        ctx;
       std::chrono::high_resolution_clock::time_point begin = std::chrono::high_resolution_clock::now();
 
       ~time_tracker() {
         auto end = std::chrono::high_resolution_clock::now();
         ctx.instruction_times[static_cast<std::size_t>(oc)] += end - begin;
       }
-    } tracker{instr.opcode, state.ctx};
+    } tracker{opcode, state.ctx};
 #endif
 
-    switch (instr.opcode) {
+    switch (opcode) {
     case opcode::no_operation:
       break;
 
     case opcode::load_static: {
-      operand static_num = instr.operands[0];
-      operand dest = instr.operands[1];
+      operand static_num = read_operand(bc, pc);
+      operand dest = read_operand(bc, pc);
       values.set(frame_base + dest, state.ctx.get_static(static_num));
       break;
     }
 
     case opcode::load_top_level: {
-      operand global_num = instr.operands[0];
-      operand dest = instr.operands[1];
+      operand global_num = read_operand(bc, pc);
+      operand dest = read_operand(bc, pc);
       values.set(frame_base + dest, state.ctx.get_top_level(global_num));
       break;
     }
 
     case opcode::store_top_level: {
-      operand reg = instr.operands[0];
-      operand global_num = instr.operands[1];
+      operand reg = read_operand(bc, pc);
+      operand global_num = read_operand(bc, pc);
       state.ctx.set_top_level(global_num, values.ref(frame_base + reg));
       break;
     }
@@ -314,12 +319,12 @@ run(execution_state& state) {
     case opcode::subtract:
     case opcode::multiply:
     case opcode::divide: {
-      object* lhs = values.ref(frame_base + instr.operands[0]);
-      object* rhs = values.ref(frame_base + instr.operands[1]);
-      operand dest = instr.operands[2];
+      object* lhs = values.ref(frame_base + read_operand(bc, pc));
+      object* rhs = values.ref(frame_base + read_operand(bc, pc));
+      operand dest = read_operand(bc, pc);
 
-      if (is<integer>(lhs) && is<integer>(rhs) && instr.opcode != opcode::divide) {
-        switch (instr.opcode) {
+      if (is<integer>(lhs) && is<integer>(rhs) && opcode != opcode::divide) {
+        switch (opcode) {
         case opcode::add:
           if (object* result = add_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
             values.set(frame_base + dest, result);
@@ -349,7 +354,7 @@ run(execution_state& state) {
         break;
       }
 
-      switch (instr.opcode) {
+      switch (opcode) {
       case opcode::add:
         values.set(frame_base + dest, add(state.ctx, lhs, rhs));
         break;
@@ -374,9 +379,9 @@ run(execution_state& state) {
     case opcode::greater:
     case opcode::less_or_equal:
     case opcode::greater_or_equal: {
-      object* lhs = values.ref(frame_base + instr.operands[0]);
-      object* rhs = values.ref(frame_base + instr.operands[1]);
-      operand dest = instr.operands[2];
+      object* lhs = values.ref(frame_base + read_operand(bc, pc));
+      object* rhs = values.ref(frame_base + read_operand(bc, pc));
+      operand dest = read_operand(bc, pc);
 
       if (is<integer>(lhs) && is<integer>(rhs)) {
         integer::value_type x = assume<integer>(lhs).value();
@@ -384,7 +389,7 @@ run(execution_state& state) {
         object* t = state.ctx.constants->t.get();
         object* f = state.ctx.constants->f.get();
 
-        switch (instr.opcode) {
+        switch (opcode) {
         case opcode::arith_equal:
           values.set(frame_base + dest, x == y ? t : f);
           break;
@@ -412,7 +417,7 @@ run(execution_state& state) {
         break;
       }
 
-      switch (instr.opcode) {
+      switch (opcode) {
       case opcode::arith_equal:
         values.set(frame_base + dest, arith_equal(state.ctx, lhs, rhs));
         break;
@@ -435,8 +440,8 @@ run(execution_state& state) {
     }
 
     case opcode::set: {
-      operand src = instr.operands[0];
-      operand dst = instr.operands[1];
+      operand src = read_operand(bc, pc);
+      operand dst = read_operand(bc, pc);
       values.set(frame_base + dst, values.ref(frame_base + src));
       break;
     }
@@ -447,25 +452,25 @@ run(execution_state& state) {
     case opcode::call_static:
     case opcode::tail_call_top_level:
     case opcode::tail_call_static: {
-      bool is_tail = instr.opcode == opcode::tail_call
-        || instr.opcode == opcode::tail_call_top_level
-        || instr.opcode == opcode::tail_call_static;
+      bool is_tail = opcode == opcode::tail_call
+        || opcode == opcode::tail_call_top_level
+        || opcode == opcode::tail_call_static;
 
       object* callee;
-      switch (instr.opcode) {
+      switch (opcode) {
       case opcode::call:
       case opcode::tail_call:
-        callee = values.ref(frame_base + instr.operands[0]);
+        callee = values.ref(frame_base + read_operand(bc, pc));
         break;
 
       case opcode::call_top_level:
       case opcode::tail_call_top_level:
-        callee = state.ctx.get_top_level(instr.operands[0]);
+        callee = state.ctx.get_top_level(read_operand(bc, pc));
         break;
 
       case opcode::call_static:
       case opcode::tail_call_static:
-        callee = state.ctx.get_static(instr.operands[0]);
+        callee = state.ctx.get_static(read_operand(bc, pc));
         break;
 
       default:
@@ -476,10 +481,10 @@ run(execution_state& state) {
       operand num_args;
 
       if (is_tail)
-        num_args = instr.operands[1];
+        num_args = read_operand(bc, pc);
       else {
-        dest_register = instr.operands[1];
-        num_args = instr.operands[2];
+        dest_register = read_operand(bc, pc);
+        num_args = read_operand(bc, pc);
       }
 
       object* call_target = callee;
@@ -521,10 +526,8 @@ run(execution_state& state) {
           values.change_allocation(values.size() + num_rest + 1);
         }
 
-        for_each_extra_operand(bc, pc, num_args,
-                               [&] (operand op) {
-                                 values.push(values.ref(frame_base + op));
-                               });
+        for (std::size_t i = 0; i < num_args; ++i)
+          values.push(values.ref(frame_base + read_operand(bc, pc)));
 
         if (scheme_proc->has_rest) {
           values.push(state.ctx.constants->null.get());
@@ -557,8 +560,9 @@ run(execution_state& state) {
         values.push(call_target);
 
         std::size_t new_base = values.size();
-        for_each_extra_operand(bc, pc, num_args,
-                               [&] (operand op) { values.push(values.ref(frame_base + op)); });
+
+        for (std::size_t i = 0; i < num_args; ++i)
+          values.push(values.ref(frame_base + read_operand(bc, pc)));
 
         object* result = native_proc->target(state.ctx, values.span(new_base, num_args));
 
@@ -587,7 +591,7 @@ run(execution_state& state) {
     }
 
     case opcode::ret: {
-      operand return_reg = instr.operands[0];
+      operand return_reg = read_operand(bc, pc);
       object* result = values.ref(frame_base + return_reg);
 
       pop_call_frame(state);
@@ -611,15 +615,15 @@ run(execution_state& state) {
       operand off;
       operand condition_reg{};
 
-      if (instr.opcode == opcode::jump || instr.opcode == opcode::jump_back)
-        off = instr.operands[0];
+      if (opcode == opcode::jump || opcode == opcode::jump_back)
+        off = read_operand(bc, pc);
       else {
-        condition_reg = instr.operands[0];
-        off = instr.operands[1];
+        condition_reg = read_operand(bc, pc);
+        off = read_operand(bc, pc);
       }
 
-      int offset = (instr.opcode == opcode::jump_back || instr.opcode == opcode::jump_back_unless) ? -off : off;
-      if (instr.opcode == opcode::jump_unless || instr.opcode == opcode::jump_back_unless) {
+      int offset = (opcode == opcode::jump_back || opcode == opcode::jump_back_unless) ? -off : off;
+      if (opcode == opcode::jump_unless || opcode == opcode::jump_back_unless) {
         object* test_value = values.ref(frame_base + condition_reg);
 
         // The only false value in Scheme is #f. So we only jump if the test_value
@@ -634,65 +638,59 @@ run(execution_state& state) {
     }
 
     case opcode::make_closure: {
-      procedure* proc = assume<procedure>(values.ref(frame_base + instr.operands[0]));
-      operand dest = instr.operands[1];
-      operand num_captures = instr.operands[2];
+      procedure* proc = assume<procedure>(values.ref(frame_base + read_operand(bc, pc)));
+      operand dest = read_operand(bc, pc);
+      operand num_captures = read_operand(bc, pc);
 
       auto result = make<closure>(state.ctx, proc, num_captures);
-      for_each_extra_operand(bc, pc, num_captures,
-                             [&, i = 0] (operand op) mutable {
-                               result->set(state.ctx.store, i, values.ref(frame_base + op));
-                               ++i;
-                             });
+      for (std::size_t i = 0; i < num_captures; ++i)
+        result->set(state.ctx.store, i, values.ref(frame_base + read_operand(bc, pc)));
 
       values.set(frame_base + dest, result);
       break;
     }
 
     case opcode::box: {
-      object* value = values.ref(frame_base + instr.operands[0]);
-      values.set(frame_base + instr.operands[1], state.ctx.store.make<box>(value));
+      object* value = values.ref(frame_base + read_operand(bc, pc));
+      values.set(frame_base + read_operand(bc, pc), state.ctx.store.make<box>(value));
       break;
     }
 
     case opcode::unbox: {
-      auto box = expect<insider::box>(values.ref(frame_base + instr.operands[0]));
-      values.set(frame_base + instr.operands[1], box->get());
+      auto box = expect<insider::box>(values.ref(frame_base + read_operand(bc, pc)));
+      values.set(frame_base + read_operand(bc, pc), box->get());
       break;
     }
 
     case opcode::box_set: {
-      auto box = expect<insider::box>(values.ref(frame_base + instr.operands[0]));
-      box->set(state.ctx.store, values.ref(frame_base + instr.operands[1]));
+      auto box = expect<insider::box>(values.ref(frame_base + read_operand(bc, pc)));
+      box->set(state.ctx.store, values.ref(frame_base + read_operand(bc,pc)));
       break;
     }
 
     case opcode::cons: {
-      object* car = values.ref(frame_base + instr.operands[0]);
-      object* cdr = values.ref(frame_base + instr.operands[1]);
-      values.set(frame_base + instr.operands[2], make<pair>(state.ctx, car, cdr));
+      object* car = values.ref(frame_base + read_operand(bc, pc));
+      object* cdr = values.ref(frame_base + read_operand(bc, pc));
+      values.set(frame_base + read_operand(bc, pc), make<pair>(state.ctx, car, cdr));
       break;
     }
 
     case opcode::make_vector: {
-      operand dest = instr.operands[0];
-      operand num_elems = instr.operands[1];
+      operand dest = read_operand(bc, pc);
+      operand num_elems = read_operand(bc, pc);
 
       auto result = make<vector>(state.ctx, state.ctx, num_elems);
-      for_each_extra_operand(bc, pc, num_elems,
-                             [&, i = 0] (operand op) mutable {
-                               result->set(state.ctx.store, i, values.ref(frame_base + op));
-                               ++i;
-                             });
+      for (std::size_t i = 0; i < num_elems; ++i)
+        result->set(state.ctx.store, i, values.ref(frame_base + read_operand(bc, pc)));
 
       values.set(frame_base + dest, result);
       break;
     }
 
     case opcode::vector_set: {
-      vector* v = expect<vector>(values.ref(frame_base + instr.operands[0]));
-      integer::value_type i = expect<integer>(values.ref(frame_base + instr.operands[1])).value();
-      object* o = values.ref(frame_base + instr.operands[2]);
+      vector* v = expect<vector>(values.ref(frame_base + read_operand(bc, pc)));
+      integer::value_type i = expect<integer>(values.ref(frame_base + read_operand(bc, pc))).value();
+      object* o = values.ref(frame_base + read_operand(bc, pc));
 
       if (i < 0)
         throw std::runtime_error{"vector-set!: Negative index"};
@@ -702,13 +700,13 @@ run(execution_state& state) {
     }
 
     case opcode::vector_ref: {
-      vector* v = expect<vector>(values.ref(frame_base + instr.operands[0]));
-      integer::value_type i = expect<integer>(values.ref(frame_base + instr.operands[1])).value();
+      vector* v = expect<vector>(values.ref(frame_base + read_operand(bc, pc)));
+      integer::value_type i = expect<integer>(values.ref(frame_base + read_operand(bc, pc))).value();
 
       if (i < 0)
         throw std::runtime_error{"vector-ref: Negative index"};
 
-      values.set(frame_base + instr.operands[2], v->ref(i));
+      values.set(frame_base + read_operand(bc, pc), v->ref(i));
       break;
     }
     } // end switch
