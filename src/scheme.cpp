@@ -478,6 +478,7 @@ context::context()
     {constants->unquote_splicing, "unquote-splicing"},
     {constants->expand_quote,     "expand-quote"},
     {constants->syntax_trap,      "syntax-trap"},
+    {constants->syntax_error,     "syntax-error"}
   };
   for (auto const& form : core_forms) {
     form.object = make_tracked<core_form_type>(*this);

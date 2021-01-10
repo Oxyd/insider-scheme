@@ -585,6 +585,18 @@ parse_syntax_trap(parsing_context& pc, tracked_ptr<environment> const& env, pair
   return parse(pc, env, cadr(datum));
 }
 
+static std::unique_ptr<syntax>
+parse_syntax_error(parsing_context& pc, pair* datum) {
+  if (!is_list(datum) || list_length(datum) < 2)
+    throw error{"Invalid syntax-error syntax, how ironic"};
+
+  std::string result_msg = expect<string>(cadr(datum))->value();
+  for (object* irritant : in_list{cddr(datum)})
+    result_msg += " " + datum_to_string(pc.ctx, irritant);
+
+  throw error{result_msg};
+}
+
 namespace {
   struct qq_template;
 
@@ -854,6 +866,8 @@ parse(parsing_context& pc, tracked_ptr<environment> const& env, object* d) {
         throw error{"begin-for-syntax not at top level"};
       else if (form == pc.ctx.constants->syntax_trap.get())
         return parse_syntax_trap(pc, env, p);
+      else if (form == pc.ctx.constants->syntax_error.get())
+        return parse_syntax_error(pc, p);
     }
 
     return parse_application(pc, env, p);
