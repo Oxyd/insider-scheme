@@ -101,6 +101,27 @@ lookup_transformer(context& ctx, tracked_ptr<environment> const& env, object* id
   return {};
 }
 
+static generic_tracked_ptr
+call_transformer(context& ctx, transformer* t, tracked_ptr<environment> const& env,
+                 generic_tracked_ptr const& datum) {
+  struct guard {
+    context& ctx;
+
+    guard(context& ctx, tracked_ptr<environment> const& env)
+      : ctx{ctx}
+    {
+      assert(!ctx.current_usage_environment);
+      ctx.current_usage_environment = env;
+    }
+
+    ~guard() {
+      ctx.current_usage_environment.reset();
+    }
+  } g{ctx, env};
+
+  return call(ctx, t->callable(), {datum.get(), t->environment(), env.get()});
+}
+
 // If the head of the given list is bound to a transformer, run the transformer
 // on the datum, and repeat.
 //
@@ -117,7 +138,7 @@ expand(context& ctx, tracked_ptr<environment> const& env, generic_tracked_ptr da
       object* head = car(lst.get());
       if (is_identifier(head)) {
         if (transformer* t = lookup_transformer(ctx, env, head)) {
-          datum = call(ctx, t->callable(), {datum.get(), t->environment(), env.get()});
+          datum = call_transformer(ctx, t, env, datum);
           expanded = true;
         }
       }

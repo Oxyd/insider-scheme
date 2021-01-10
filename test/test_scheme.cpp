@@ -2283,3 +2283,40 @@ TEST_F(scheme, float_arithmetic) {
                                                        make<floating_point>(ctx, 0.0)))->value));
 #undef ASSERT_FP_EQ
 }
+
+TEST_F(scheme, free_identifier_eq) {
+  object* result1 = eval("(free-identifier=? 'x 'x)");
+  EXPECT_EQ(result1, ctx.constants->t.get());
+
+  object* result2 = eval("(free-identifier=? 'x 'y)");
+  EXPECT_EQ(result2, ctx.constants->f.get());
+
+  object* result3 = eval_module(R"(
+    (import (insider internal))
+
+    (define-syntax aux
+      (lambda (datum transformer-env usage-env)
+        #f))
+
+    (define-syntax is-aux
+      (lambda (datum transformer-env usage-env)
+        (free-identifier=? (car (cdr datum)) 'aux)))
+
+    (define-syntax test-for-aux
+      (lambda (datum transformer-env usage-env)
+        (make-syntactic-closure transformer-env '()
+                                `(is-aux ,(make-syntactic-closure usage-env '() (car (cdr datum)))))))
+
+    (define-syntax make-aux
+      (lambda (datum transformer-env usage-env)
+        (make-syntactic-closure usage-env '() 'aux)))
+
+    (let ((list (lambda l l)))
+      (list (is-aux aux) (is-aux is-aux) (is-aux not-aux) (test-for-aux aux) (test-for-aux not-aux)))
+  )");
+  EXPECT_EQ(car(expect<pair>(result3)), ctx.constants->t.get());
+  EXPECT_EQ(cadr(expect<pair>(result3)), ctx.constants->f.get());
+  EXPECT_EQ(caddr(expect<pair>(result3)), ctx.constants->f.get());
+  EXPECT_EQ(cadddr(expect<pair>(result3)), ctx.constants->t.get());
+  EXPECT_EQ(cadddr(expect<pair>(cdr(expect<pair>(result3)))), ctx.constants->f.get());
+}
