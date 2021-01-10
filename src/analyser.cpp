@@ -23,19 +23,6 @@
 
 namespace insider {
 
-static std::optional<environment::value_type>
-lookup(tracked_ptr<environment> env, object* id) {
-  while (env) {
-    if (auto binding = env->lookup(id))
-      return binding;
-
-    env = {env.store(), env->parent()};
-  }
-
-  return std::nullopt;
-}
-
-
 static std::shared_ptr<variable>
 lookup_variable(tracked_ptr<environment> const& env, object* id) {
   if (auto binding = lookup(env, id)) {
@@ -70,18 +57,6 @@ template <typename T, typename... Args>
 std::unique_ptr<syntax>
 make_syntax(Args&&... args) {
   return std::make_unique<syntax>(syntax{T(std::forward<Args>(args)...)});
-}
-
-static tracked_ptr<environment>
-syntactic_closure_to_environment(context& ctx, syntactic_closure* sc, tracked_ptr<environment> const& env) {
-  auto result = make_tracked<environment>(ctx, sc->environment());
-
-  for (symbol* free : sc->free()) {
-    if (auto binding = lookup(env, free))
-      result->add(ctx.store, free, *binding);
-  }
-
-  return result;
 }
 
 static transformer*

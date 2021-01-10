@@ -157,6 +157,9 @@ private:
   std::unordered_map<object*, representation_type> bindings_;
 };
 
+std::optional<environment::value_type>
+lookup(tracked_ptr<environment> env, object* id);
+
 // A module is a map from symbols to top-level variable indices. It also
 // contains a top-level procedure which contains the code to be run when the
 // module is loaded.
@@ -945,6 +948,9 @@ private:
   insider::environment* env_;
   std::size_t           free_size_;
 };
+
+tracked_ptr<environment>
+syntactic_closure_to_environment(context& ctx, syntactic_closure* sc, tracked_ptr<environment> const& env);
 
 // A procedure together with the environment it was defined in.
 class transformer : public composite_object<transformer> {

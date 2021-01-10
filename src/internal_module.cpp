@@ -169,11 +169,21 @@ make_internal_module(context& ctx) {
                      if (!is_identifier(x) || !is_identifier(y))
                        throw error{"Expected two identifiers"};
 
-                     std::optional<environment::value_type> x_binding, y_binding;
-                     if (ctx.current_usage_environment) {
-                       x_binding = ctx.current_usage_environment->lookup(x);
-                       y_binding = ctx.current_usage_environment->lookup(y);
-                     }
+                     auto lookup_binding = [&] (object* id) -> std::optional<environment::value_type> {
+                       tracked_ptr<environment> env = ctx.current_usage_environment;
+                       if (auto sc = match<syntactic_closure>(id)) {
+                         env = syntactic_closure_to_environment(ctx, sc, env);
+                         id = sc->expression();
+                       }
+
+                       if (env)
+                         return lookup(env, id);
+                       else
+                         return std::nullopt;
+                     };
+
+                     auto x_binding = lookup_binding(x);
+                     auto y_binding = lookup_binding(y);
 
                      if (x_binding && y_binding)
                        return *x_binding == *y_binding;

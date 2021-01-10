@@ -204,6 +204,18 @@ environment::hash() const {
   return (parent_ ? insider::hash(parent_) : 0) ^ bindings_.size();
 }
 
+std::optional<environment::value_type>
+lookup(tracked_ptr<environment> env, object* id) {
+  while (env) {
+    if (auto binding = env->lookup(id))
+      return binding;
+
+    env = {env.store(), env->parent()};
+  }
+
+  return std::nullopt;
+}
+
 module::module(context& ctx)
   : env_{make_tracked<insider::environment>(ctx, nullptr)}
 { }
@@ -1145,6 +1157,18 @@ syntactic_closure::update_references() {
   update_reference(env_);
   for (std::size_t i = 0; i < free_size_; ++i)
     update_reference(storage_element(i));
+}
+
+tracked_ptr<environment>
+syntactic_closure_to_environment(context& ctx, syntactic_closure* sc, tracked_ptr<environment> const& env) {
+  auto result = make_tracked<environment>(ctx, sc->environment());
+
+  if (env)
+    for (symbol* free : sc->free())
+      if (auto binding = lookup(env, free))
+        result->add(ctx.store, free, *binding);
+
+  return result;
 }
 
 void

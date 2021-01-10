@@ -16,7 +16,7 @@
         make-string string-length string-append number->string datum->string symbol->string
         list reverse map filter identity
         make-syntactic-closure syntactic-closure-expression syntactic-closure-environment
-        type eq? eqv? equal? pair? symbol? syntactic-closure? identifier? null? not when unless cond case
+        type eq? eqv? equal? pair? symbol? syntactic-closure? identifier? null? not when unless cond else case
         do or and
         plain-procedure? native-procedure? closure? procedure? scheme-procedure?)
 
@@ -160,22 +160,6 @@
             #void
             (begin ,@body))))))
 
-(define-syntax cond
-  (rsc-macro-transformer
-   (lambda (form env)
-     (if (not (null? (cdr form)))
-         (let ((first-clause (cadr form))
-               (rest (cddr form)))
-           (let ((check (car first-clause))
-                 (body (cdr first-clause) env)
-                 ($if (close-syntax 'if env))
-                 ($begin (close-syntax 'begin env))
-                 ($cond (close-syntax 'cond env)))
-             `(,$if ,check
-                  (,$begin ,@body)
-                  (,$cond ,@rest))))
-         #void))))
-
 (define-syntax or
   (sc-macro-transformer
    (lambda (form env)
@@ -196,6 +180,33 @@
            `(if ,(close-syntax first env)
                 ,(close-syntax `(and ,@rest) env)
                 #f))))))
+
+(define-syntax else
+  (sc-macro-transformer
+   (lambda (form env)
+     `(syntax-error "Invalid use of auxiliary syntax" ',form))))
+
+(define-syntax cond
+  (rsc-macro-transformer
+   (lambda (form env)
+     (if (not (null? (cdr form)))
+         (let ((first-clause (cadr form))
+               (rest (cddr form)))
+           (let ((check (car first-clause))
+                 (body (cdr first-clause) env)
+                 ($if (close-syntax 'if env))
+                 ($begin (close-syntax 'begin env))
+                 ($cond (close-syntax 'cond env))
+                 ($else (close-syntax 'else env))
+                 ($syntax-error (close-syntax 'syntax-error env)))
+             (if (and (identifier? check) (free-identifier=? check $else))
+                 (if (null? rest) ; else has to come last
+                     `(,$begin ,@body)
+                     `(,$syntax-error "else not the last clause of a cond"))
+                 `(,$if ,check
+                        (,$begin ,@body)
+                        (,$cond ,@rest)))))
+         #void))))
 
 (define-syntax case
   (sc-macro-transformer

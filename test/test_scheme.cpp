@@ -2307,10 +2307,6 @@ TEST_F(scheme, free_identifier_eq) {
         (make-syntactic-closure transformer-env '()
                                 `(is-aux ,(make-syntactic-closure usage-env '() (car (cdr datum)))))))
 
-    (define-syntax make-aux
-      (lambda (datum transformer-env usage-env)
-        (make-syntactic-closure usage-env '() 'aux)))
-
     (let ((list (lambda l l)))
       (list (is-aux aux) (is-aux is-aux) (is-aux not-aux) (test-for-aux aux) (test-for-aux not-aux)))
   )");
