@@ -481,7 +481,7 @@ context::context()
     {constants->syntax_error,     "syntax-error"}
   };
   for (auto const& form : core_forms) {
-    form.object = make_tracked<core_form_type>(*this);
+    form.object = make_tracked<core_form_type>(*this, form.name);
     auto index = add_top_level(form.object.get(), form.name);
     auto id = intern(form.name);
     internal_module.add(id, index);

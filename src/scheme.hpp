@@ -85,6 +85,11 @@ struct void_type : leaf_object<void_type> {
 struct core_form_type : leaf_object<core_form_type> {
   static constexpr char const* scheme_name = "insider::core_form_type";
 
+  std::string name;
+
+  explicit
+  core_form_type(std::string n) : name{std::move(n)} { }
+
   std::size_t
   hash() const { return 0; }
 };

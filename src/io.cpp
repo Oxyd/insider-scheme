@@ -544,6 +544,8 @@ output_primitive(context& ctx, object* datum, port* out, bool display) {
       out->write_string(fmt::format("<procedure {}>", *proc->name));
     else
       out->write_string("<lambda>");
+  } else if (auto core = match<core_form_type>(datum)) {
+    out->write_string(fmt::format("<core form {}>", core->name));
   } else
     out->write_string(fmt::format("<{}>", object_type_name(datum)));
 }
