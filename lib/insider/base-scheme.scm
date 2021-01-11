@@ -15,8 +15,8 @@
         assq assv assoc memq memv member length
         make-string string-length string-append number->string datum->string symbol->string
         list reverse map filter identity
-        make-syntactic-closure syntactic-closure-expression syntactic-closure-environment
-        type eq? eqv? equal? pair? symbol? syntactic-closure? identifier? null? not when unless cond else case
+        make-syntactic-closure syntactic-closure-expression syntactic-closure-environment define-auxiliary-syntax
+        type eq? eqv? equal? pair? symbol? syntactic-closure? identifier? null? not when unless cond else => case
         do or and
         plain-procedure? native-procedure? closure? procedure? scheme-procedure?)
 
@@ -181,32 +181,48 @@
                 ,(close-syntax `(and ,@rest) env)
                 #f))))))
 
-(define-syntax else
+(define-syntax define-auxiliary-syntax
   (sc-macro-transformer
    (lambda (form env)
-     `(syntax-error "Invalid use of auxiliary syntax" ',form))))
+     (let ((name (cadr form) env))
+       `(define-syntax ,name
+          (sc-macro-transformer
+           (lambda (form env)
+             `(syntax-error "Invalid use of auxiliary syntax" ,form))))))))
+
+(define-auxiliary-syntax else)
+(define-auxiliary-syntax =>)
 
 (define-syntax cond
   (rsc-macro-transformer
    (lambda (form env)
-     (if (not (null? (cdr form)))
+     (if (null? (cdr form))
+         #void
          (let ((first-clause (cadr form))
                (rest (cddr form)))
            (let ((check (car first-clause))
                  (body (cdr first-clause) env)
                  ($if (close-syntax 'if env))
+                 ($let (close-syntax 'let env))
                  ($begin (close-syntax 'begin env))
                  ($cond (close-syntax 'cond env))
                  ($else (close-syntax 'else env))
+                 ($=> (close-syntax '=> env))
                  ($syntax-error (close-syntax 'syntax-error env)))
              (if (and (identifier? check) (free-identifier=? check $else))
                  (if (null? rest) ; else has to come last
                      `(,$begin ,@body)
                      `(,$syntax-error "else not the last clause of a cond"))
-                 `(,$if ,check
-                        (,$begin ,@body)
-                        (,$cond ,@rest)))))
-         #void))))
+                 (if (and (pair? body) (identifier? (car body)) (free-identifier=? (car body) $=>))
+                     (let ((test-var (close-syntax 'test-var env))
+                           (continuation (cadr body)))
+                       `(,$let ((,test-var ,check))
+                          (,$if ,test-var
+                                (,continuation ,test-var)
+                                (,$cond ,@rest))))
+                     `(,$if ,check
+                            (,$begin ,@body)
+                            (,$cond ,@rest))))))))))
 
 (define-syntax case
   (sc-macro-transformer
@@ -228,10 +244,14 @@
                           (let ((test-expr (if (and (identifier? cases)
                                                     (free-identifier=? cases (close-syntax 'else transformer-env)))
                                                'else
-                                               `(or ,@(map (lambda (c) `(eqv? test-value ',c)) cases)))))
+                                               `(or ,@(map (lambda (c) `(eqv? test-value ',c)) cases))))
+                                (then-exprs (if (and (pair? exprs)
+                                                     (identifier? (car exprs))
+                                                     (free-identifier=? (car exprs) (close-syntax '=> transformer-env)))
+                                                `((,(close-syntax (cadr exprs) env) test-value))
+                                                (close-list exprs env))))
                             (loop rest
-                                  (cons `(,test-expr ,@(close-list exprs env))
-                                        accum)))))))))))))))
+                                  (cons `(,test-expr ,@then-exprs) accum)))))))))))))))
 
 (define-syntax do
   (rsc-macro-transformer
