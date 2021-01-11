@@ -211,23 +211,27 @@
 (define-syntax case
   (sc-macro-transformer
    (lambda (form env)
-     (let ((test-expr (close-syntax (cadr form) env))
-           (clauses (cddr form)))
-       `(let ((test-value ,test-expr))
-          (cond
-           ,@(let loop ((clauses clauses)
-                        (accum '()))
-               (if (null? clauses)
-                   (reverse accum)
-                   (let ((clause (car clauses))
-                         (rest (cdr clauses)))
-                     (let ((cases (car clause))
-                           (exprs (cdr clause)))
-                       (loop rest
-                             (cons `((or ,@(map (lambda (c) `(eqv? test-value ',c))
-                                                cases))
-                                     ,@(close-list exprs env))
-                                   accum))))))))))))
+     (capture-syntactic-environment
+      (lambda (transformer-env)
+        (let ((test-expr (close-syntax (cadr form) env))
+              (clauses (cddr form)))
+          `(let ((test-value ,test-expr))
+             (cond
+              ,@(let loop ((clauses clauses)
+                           (accum '()))
+                  (if (null? clauses)
+                      (reverse accum)
+                      (let ((clause (car clauses))
+                            (rest (cdr clauses)))
+                        (let ((cases (car clause))
+                              (exprs (cdr clause)))
+                          (let ((test-expr (if (and (identifier? cases)
+                                                    (free-identifier=? cases (close-syntax 'else transformer-env)))
+                                               'else
+                                               `(or ,@(map (lambda (c) `(eqv? test-value ',c)) cases)))))
+                            (loop rest
+                                  (cons `(,test-expr ,@(close-list exprs env))
+                                        accum)))))))))))))))
 
 (define-syntax do
   (rsc-macro-transformer
