@@ -559,14 +559,16 @@ run(execution_state& state) {
         values.push(integer_to_ptr(frame_base));
         values.push(call_target);
 
-        std::size_t new_base = values.size();
+        integer::value_type old_base = frame_base;
+        frame_base = values.size();
 
         for (std::size_t i = 0; i < num_args; ++i)
-          values.push(values.ref(frame_base + read_operand(bc, pc)));
+          values.push(values.ref(old_base + read_operand(bc, pc)));
 
-        object* result = native_proc->target(state.ctx, values.span(new_base, num_args));
+        object* result = native_proc->target(state.ctx, values.span(frame_base, num_args));
 
         values.shrink(num_args + frame_preamble_size);
+        frame_base = old_base;
 
         if (!is_tail)
           values.set(frame_base + dest_register, result);
