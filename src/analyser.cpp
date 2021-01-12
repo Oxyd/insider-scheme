@@ -615,6 +615,17 @@ namespace {
   };
 } // anonymous namespace
 
+static bool
+is_qq_form(context& ctx, tracked_ptr<environment> const& env, object* datum) {
+  if (auto p = match<pair>(datum))
+    if (auto form = match_core_form(ctx, env, car(p)))
+      return form == ctx.constants->unquote.get()
+             || form == ctx.constants->unquote_splicing.get()
+             || form == ctx.constants->quasiquote.get();
+
+  return false;
+}
+
 static std::unique_ptr<qq_template>
 parse_qq_template(context& ctx, tracked_ptr<environment> const& env, object* datum, unsigned quote_level) {
   if (auto p = match<pair>(datum)) {
@@ -643,8 +654,11 @@ parse_qq_template(context& ctx, tracked_ptr<environment> const& env, object* dat
     object* elem = p;
     while (!is<null_type>(elem)) {
       auto current = assume<pair>(elem);
-      if (!is<pair>(cdr(current)) && !is<null_type>(cdr(current)))
-        break; // Improper list.
+      if ((!is<pair>(cdr(current)) && !is<null_type>(cdr(current))) || is_qq_form(ctx, env, cdr(current)))
+        // An improper list or a list of the form (x . ,y), which is the same as
+        // (x unquote y) which is a proper list, but we don't want to consider
+        // it being proper here.
+        break;
 
       result.elems.push_back(parse_qq_template(ctx, env, car(current), nested_level));
       elem = cdr(current);

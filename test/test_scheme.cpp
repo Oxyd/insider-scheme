@@ -1246,6 +1246,12 @@ TEST_F(scheme, quasiquote) {
 
   auto result19 = eval("(let ((x '(x1 x2))) `(,@x))");
   EXPECT_TRUE(equal(ctx, result19, read("(x1 x2)")));
+
+  auto result20 = eval("(let ((x 2) (y 3)) `(,x . ,y))");
+  EXPECT_TRUE(equal(ctx, result20, read("(2 . 3)")));
+
+  auto result21 = eval("(let ((x 2)) `(a . `(b (,,x))))");
+  EXPECT_TRUE(equal(ctx, result21, read("(a . `(b (,2)))")));
 }
 
 TEST_F(scheme, append) {
