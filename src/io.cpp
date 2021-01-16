@@ -596,12 +596,15 @@ output_simple(context& ctx, object* datum, port* out, bool display) {
     else if (auto vec = match<vector>(top.datum)) {
       if (top.written == 0) {
         out->write_string("#(");
-      } else if (top.written == vec->size()) {
+      }
+
+      if (top.written == vec->size()) {
         out->write_char(')');
         stack.pop_back();
         continue;
       }
-      else
+
+      if (top.written != 0 && top.written != vec->size())
         out->write_char(' ');
 
       std::size_t index = top.written++;
