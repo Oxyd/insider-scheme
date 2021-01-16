@@ -79,6 +79,14 @@ make_internal_module(context& ctx) {
   define_procedure(ctx, "cadddr", result, true, cadddr);
   define_procedure(ctx, "cddr", result, true, cddr);
   define_procedure(ctx, "cdddr", result, true, cdddr);
+  define_procedure(ctx, "set-car!", result, true,
+                   [] (context& ctx, pair* p, object* new_car) {
+                     p->set_car(ctx.store, new_car);
+                   });
+  define_procedure(ctx, "set-cdr!", result, true,
+                   [] (context& ctx, pair* p, object* new_cdr) {
+                     p->set_cdr(ctx.store, new_cdr);
+                   });
 
   define_raw_procedure(
     ctx, "make-string", result, true,
