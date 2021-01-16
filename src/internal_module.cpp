@@ -161,6 +161,17 @@ make_internal_module(context& ctx) {
   define_procedure(ctx, "syntactic-closure-environment", result, true, &syntactic_closure::environment);
 
   define_procedure(ctx, "type", result, true, type);
+  define_raw_procedure(ctx, "error", result, true,
+                       [] (context& ctx, object_span args) -> object* {
+                         if (args.size() < 1)
+                           throw error{"Expected at least 1 argument"};
+
+                         std::string msg = expect<string>(args[0])->value();
+                         for (std::size_t i = 1; i < args.size(); ++i)
+                           msg += " " + datum_to_string(ctx, args[i]);
+
+                         throw error{msg};
+                       });
 
   define_procedure(
     ctx, "eq?", result, true,
