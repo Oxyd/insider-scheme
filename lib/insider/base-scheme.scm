@@ -10,8 +10,8 @@
         + - * / = < > >= <= gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         set-verbose-collection!
         write-simple display newline append list->vector vector-append
-        vector make-vector vector-length vector-ref vector-set!
-        cons car caar caadr cdr cadr cdar caddr cadddr cddr cdddr
+        vector vector? make-vector vector-length vector-ref vector-set!
+        cons car caar caadr cdr cadr cdar caddr cadddr cddr cdddr set-car! set-cdr!
         assq assv assoc memq memv member length
         make-string string-length string-append number->string datum->string symbol->string
         list reverse map filter identity
@@ -355,3 +355,6 @@
 
 (define (scheme-procedure? x)
   (or (plain-procedure? x) (closure? x)))
+
+(define (vector? x)
+  (eq? (type x) 'insider::vector))
