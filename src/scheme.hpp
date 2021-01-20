@@ -724,6 +724,9 @@ list_to_vector(context&, object* lst);
 std::vector<object*>
 list_to_std_vector(object*);
 
+object*
+vector_to_list(context&, vector*);
+
 vector*
 vector_append(context&, object_span vs);
 

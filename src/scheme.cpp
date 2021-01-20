@@ -1008,6 +1008,15 @@ list_to_std_vector(object* lst) {
   return result;
 }
 
+object*
+vector_to_list(context& ctx, vector* v) {
+  object* result = ctx.constants->null.get();
+  for (std::size_t i = v->size(); i > 0; --i)
+    result = cons(ctx, v->ref(i - 1), result);
+
+  return result;
+}
+
 vector*
 vector_append(context& ctx, object_span vs) {
   std::size_t size = 0;

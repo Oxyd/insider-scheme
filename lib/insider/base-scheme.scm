@@ -4,15 +4,15 @@
          (define %define)
          (let %let)))
 
-(export sc-macro-transformer rsc-macro-transformer capture-syntactic-environment define
-        let let* set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
+(export sc-macro-transformer rsc-macro-transformer capture-syntactic-environment close-syntax
+        define let let* set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
         quote quasiquote unquote unquote-splicing expand-quote syntax-trap syntax-error error
         + - * / = < > >= <= gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         set-verbose-collection!
-        write-simple display newline append list->vector vector-append
+        write-simple display newline append list->vector vector->list vector-append
         vector vector? make-vector vector-length vector-ref vector-set!
         cons car caar caadr cdr cadr cdar caddr cadddr cddr cdddr set-car! set-cdr!
-        assq assv assoc memq memv member length
+        assq assv assoc memq memv member length any
         make-string string-length string-append number->string datum->string symbol->string
         list reverse map filter identity
         make-syntactic-closure syntactic-closure-expression syntactic-closure-environment define-auxiliary-syntax
@@ -340,6 +340,13 @@
   (do ((lst list (cdr lst))
        (result 0 (+ 1 result)))
       ((null? lst) result)))
+
+(define (any pred lst) ;; TODO: SRFI 1 specifies this for arbitrary number of lists.
+  (let loop ((elem lst))
+    (if (null? elem)
+        #f
+        (let ((value (pred (car elem))))
+          (or value (loop (cdr elem)))))))
 
 (define (plain-procedure? x)
   (eq? (type x) 'insider::procedure))

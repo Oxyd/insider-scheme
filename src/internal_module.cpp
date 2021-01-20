@@ -45,6 +45,7 @@ make_internal_module(context& ctx) {
 
   define_raw_procedure(ctx, "append", result, true, append);
   define_procedure(ctx, "list->vector", result, true, list_to_vector);
+  define_procedure(ctx, "vector->list", result, true, vector_to_list);
   define_raw_procedure(ctx, "vector-append", result, true, vector_append);
   define_procedure(
     ctx, "vector-length", result, true,
