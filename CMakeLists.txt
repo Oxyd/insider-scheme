@@ -26,12 +26,12 @@ set(scheme_sources
   src/analyser.cpp
   src/bytecode.cpp
   src/compiler.cpp
+  src/expression.cpp
   src/free_store.cpp
   src/internal_module.cpp
   src/io.cpp
   src/numeric.cpp
   src/scheme.cpp
-  src/syntax.cpp
   src/vm.cpp
   )
 

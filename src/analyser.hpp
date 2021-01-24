@@ -1,8 +1,8 @@
 #ifndef INSIDER_ANALYSER_HPP
 #define INSIDER_ANALYSER_HPP
 
+#include "expression.hpp"
 #include "scheme.hpp"
-#include "syntax.hpp"
 
 #include <memory>
 #include <optional>
@@ -18,7 +18,7 @@ namespace insider {
 // Analyse a datum within a given module. The module provides the top-level
 // bindings visible to S-expression. The module is modified by adding a new
 // top-level binding if the datum is a top-level definition.
-std::unique_ptr<syntax>
+std::unique_ptr<expression>
 analyse(context&, object* datum, module&);
 
 // Interpret the given list of data as a main (program) module.
@@ -33,7 +33,7 @@ std::optional<module_name>
 read_library_name(context&, port*);
 
 // Analyse a protomodule's body in the given module.
-sequence_syntax
+sequence_expression
 analyse_module(context&, module&, protomodule const&);
 
 } // namespace insider

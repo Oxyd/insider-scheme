@@ -54,9 +54,9 @@ expect_id(context& ctx, object* x) {
 }
 
 template <typename T, typename... Args>
-std::unique_ptr<syntax>
-make_syntax(Args&&... args) {
-  return std::make_unique<syntax>(syntax{T(std::forward<Args>(args)...)});
+std::unique_ptr<expression>
+make_expression(Args&&... args) {
+  return std::make_unique<expression>(expression{T(std::forward<Args>(args)...)});
 }
 
 static transformer*
@@ -138,10 +138,10 @@ namespace {
   };
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse(parsing_context& pc, tracked_ptr<environment> const&, object* datum);
 
-static definition_pair_syntax
+static definition_pair_expression
 parse_definition_pair(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum) {
   simple_action a(pc.ctx, datum, "Parsing let definition pair");
 
@@ -313,9 +313,9 @@ process_internal_defines(parsing_context& pc, tracked_ptr<environment> const& en
   return result;
 }
 
-static std::vector<std::unique_ptr<syntax>>
+static std::vector<std::unique_ptr<expression>>
 parse_expression_list(parsing_context& pc, tracked_ptr<environment> const& env, std::vector<generic_tracked_ptr> const& exprs) {
-  std::vector<std::unique_ptr<syntax>> result;
+  std::vector<std::unique_ptr<expression>> result;
   result.reserve(exprs.size());
 
   for (generic_tracked_ptr const& e : exprs)
@@ -324,33 +324,33 @@ parse_expression_list(parsing_context& pc, tracked_ptr<environment> const& env, 
   return result;
 }
 
-static sequence_syntax
+static sequence_expression
 parse_body(parsing_context& pc, tracked_ptr<environment> const& env, object* datum) {
   if (!is_list(datum) || datum == pc.ctx.constants->null.get())
     throw error("Invalid syntax: Expected a list of expressions");
 
   body_content content = process_internal_defines(pc, env, datum); // GC
   if (!content.internal_variable_ids.empty()) {
-    std::vector<definition_pair_syntax> definitions;
+    std::vector<definition_pair_expression> definitions;
     for (generic_tracked_ptr const& id : content.internal_variable_ids) {
-      auto void_expr = make_syntax<literal_syntax>(pc.ctx.constants->void_);
+      auto void_expr = make_expression<literal_expression>(pc.ctx.constants->void_);
       auto var = lookup_variable(content.env, id.get());
       assert(var);
       definitions.push_back({id, var, std::move(void_expr)});
     }
 
-    sequence_syntax result;
+    sequence_expression result;
     result.expressions.push_back(
-      make_syntax<let_syntax>(std::move(definitions),
-                              sequence_syntax{parse_expression_list(pc, content.env, content.forms)})
+      make_expression<let_expression>(std::move(definitions),
+                                      sequence_expression{parse_expression_list(pc, content.env, content.forms)})
     );
     return result;
   }
   else
-    return sequence_syntax{parse_expression_list(pc, content.env, content.forms)};
+    return sequence_expression{parse_expression_list(pc, content.env, content.forms)};
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_let(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum) {
   simple_action a(pc.ctx, datum, "Parsing let");
 
@@ -361,7 +361,7 @@ parse_let(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum)
   if (!is_list(bindings))
     throw error("Invalid let syntax in binding definitions");
 
-  std::vector<definition_pair_syntax> definitions;
+  std::vector<definition_pair_expression> definitions;
   while (bindings != pc.ctx.constants->null.get()) {
     auto binding = car(assume<pair>(bindings));
     if (!is<pair>(binding))
@@ -372,13 +372,13 @@ parse_let(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum)
   }
 
   auto subenv = make_tracked<environment>(pc.ctx, env.get());
-  for (definition_pair_syntax const& dp : definitions)
+  for (definition_pair_expression const& dp : definitions)
     subenv->add(pc.ctx.store, dp.id.get(), dp.variable);
 
-  return make_syntax<let_syntax>(std::move(definitions), parse_body(pc, subenv, cddr(datum)));
+  return make_expression<let_expression>(std::move(definitions), parse_body(pc, subenv, cddr(datum)));
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_lambda(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum) {
   simple_action a(pc.ctx, datum, "Parsing lambda");
 
@@ -410,12 +410,12 @@ parse_lambda(parsing_context& pc, tracked_ptr<environment> const& env, pair* dat
       throw error{"Unexpected value in lambda parameters: {}", datum_to_string(pc.ctx, param_names)};
   }
 
-  return make_syntax<lambda_syntax>(std::move(parameters), has_rest,
-                                    parse_body(pc, subenv, cddr(datum)),
-                                    std::nullopt, std::vector<std::shared_ptr<insider::variable>>{});
+  return make_expression<lambda_expression>(std::move(parameters), has_rest,
+                                            parse_body(pc, subenv, cddr(datum)),
+                                            std::nullopt, std::vector<std::shared_ptr<insider::variable>>{});
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_if(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum) {
   simple_action a(pc.ctx, datum, "Parsing if");
 
@@ -428,12 +428,12 @@ parse_if(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum) 
   if (cdddr(datum) != pc.ctx.constants->null.get())
     else_expr = cadddr(datum);
 
-  return make_syntax<if_syntax>(parse(pc, env, test_expr),
-                                parse(pc, env, then_expr),
-                                else_expr ? parse(pc, env, else_expr) : nullptr);
+  return make_expression<if_expression>(parse(pc, env, test_expr),
+                                        parse(pc, env, then_expr),
+                                        else_expr ? parse(pc, env, else_expr) : nullptr);
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_application(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum_) {
   simple_action a(pc.ctx, datum_, "Parsing procedure application");
   auto datum = track(pc.ctx, datum_);
@@ -441,55 +441,55 @@ parse_application(parsing_context& pc, tracked_ptr<environment> const& env, pair
   if (!is_list(cdr(datum.get())))
     throw error("Invalid function call syntax");
 
-  std::vector<std::unique_ptr<syntax>> arguments;
+  std::vector<std::unique_ptr<expression>> arguments;
   auto arg_expr = track(pc.ctx, cdr(datum.get()));
   while (arg_expr != pc.ctx.constants->null) {
     arguments.push_back(parse(pc, env, car(assume<pair>(arg_expr.get()))));
     arg_expr = track(pc.ctx, cdr(assume<pair>(arg_expr.get())));
   }
 
-  return make_syntax<application_syntax>(parse(pc, env, car(datum.get())), std::move(arguments));
+  return make_expression<application_expression>(parse(pc, env, car(datum.get())), std::move(arguments));
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_box(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum) {
   if (!is_list(datum) || list_length(datum) != 2)
     throw error("Invalid box syntax");
 
-  return make_syntax<box_syntax>(parse(pc, env, cadr(datum)));
+  return make_expression<box_expression>(parse(pc, env, cadr(datum)));
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_unbox(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum) {
   if (!is_list(datum) || list_length(datum) != 2)
     throw error("Invalid unbox syntax");
 
-  return make_syntax<unbox_syntax>(parse(pc, env, cadr(datum)));
+  return make_expression<unbox_expression>(parse(pc, env, cadr(datum)));
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_box_set(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum) {
   if (!is_list(datum) || list_length(datum) != 3)
     throw error("Invalid box-set! syntax");
 
-  return make_syntax<box_set_syntax>(parse(pc, env, cadr(datum)),
-                                     parse(pc, env, caddr(datum)));
+  return make_expression<box_set_expression>(parse(pc, env, cadr(datum)),
+                                             parse(pc, env, caddr(datum)));
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_sequence(parsing_context& pc, tracked_ptr<environment> const& env, object* datum_) {
   generic_tracked_ptr datum = track(pc.ctx, datum_);
 
-  std::vector<std::unique_ptr<syntax>> exprs;
+  std::vector<std::unique_ptr<expression>> exprs;
   for (generic_tracked_ptr datum = track(pc.ctx, datum_);
        datum != pc.ctx.constants->null;
        datum = track(pc.ctx, cdr(expect<pair>(datum).get())))
     exprs.push_back(parse(pc, env, car(expect<pair>(datum).get())));
 
-  return make_syntax<sequence_syntax>(std::move(exprs));
+  return make_expression<sequence_expression>(std::move(exprs));
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_reference(tracked_ptr<environment> const& env, symbol* id) {
   auto var = lookup_variable(env, id);
 
@@ -497,12 +497,12 @@ parse_reference(tracked_ptr<environment> const& env, symbol* id) {
     throw error("Identifier {} not bound to a variable", identifier_name(id));
 
   if (!var->global)
-    return make_syntax<local_reference_syntax>(std::move(var));
+    return make_expression<local_reference_expression>(std::move(var));
   else
-    return make_syntax<top_level_reference_syntax>(*var->global, identifier_name(id));
+    return make_expression<top_level_reference_expression>(*var->global, identifier_name(id));
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_define_or_set(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum,
                     std::string const& form_name) {
   // Defines are processed in two passes: First all the define'd variables are
@@ -523,26 +523,26 @@ parse_define_or_set(parsing_context& pc, tracked_ptr<environment> const& env, pa
     throw error("Identifier {} not bound to a variable", identifier_name(name.get()));
 
   auto initialiser = parse(pc, env, expr);
-  if (auto l = std::get_if<lambda_syntax>(&initialiser->value))
+  if (auto l = std::get_if<lambda_expression>(&initialiser->value))
     l->name = identifier_name(name.get());
 
   if (!var->global) {
     var->is_set = true;
-    return make_syntax<local_set_syntax>(std::move(var), std::move(initialiser));
+    return make_expression<local_set_expression>(std::move(var), std::move(initialiser));
   }
   else
-    return make_syntax<top_level_set_syntax>(*var->global, std::move(initialiser));
+    return make_expression<top_level_set_expression>(*var->global, std::move(initialiser));
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_syntactic_closure(parsing_context& pc, tracked_ptr<environment> const& env,
                         syntactic_closure* sc) {
   if (is<symbol>(sc->expression())) {
     if (auto var = lookup_variable(env, sc)) {
       if (!var->global)
-        return make_syntax<local_reference_syntax>(std::move(var));
+        return make_expression<local_reference_expression>(std::move(var));
       else
-        return make_syntax<top_level_reference_syntax>(*var->global, identifier_name(sc));
+        return make_expression<top_level_reference_expression>(*var->global, identifier_name(sc));
     }
   }
 
@@ -550,7 +550,7 @@ parse_syntactic_closure(parsing_context& pc, tracked_ptr<environment> const& env
   return parse(pc, new_env, sc->expression());
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_syntax_trap(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum) {
 #ifndef WIN32
   raise(SIGTRAP);
@@ -560,7 +560,7 @@ parse_syntax_trap(parsing_context& pc, tracked_ptr<environment> const& env, pair
   return parse(pc, env, cadr(datum));
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_syntax_error(parsing_context& pc, pair* datum) {
   if (!is_list(datum) || list_length(datum) < 2)
     throw error{"Invalid syntax-error syntax, how ironic"};
@@ -700,13 +700,13 @@ parse_qq_template(context& ctx, tracked_ptr<environment> const& env, object* dat
     return std::make_unique<qq_template>(literal{track(ctx, datum)});
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 make_internal_reference(context& ctx, std::string name) {
   std::optional<module::binding_type> binding = ctx.internal_module.find(ctx.intern(name));
   assert(binding);
   assert(std::holds_alternative<module::index_type>(*binding));
-  return make_syntax<top_level_reference_syntax>(std::get<module::index_type>(*binding),
-                                                 std::move(name));
+  return make_expression<top_level_reference_expression>(std::get<module::index_type>(*binding),
+                                                         std::move(name));
 }
 
 static bool
@@ -717,38 +717,38 @@ is_splice(std::unique_ptr<qq_template> const& tpl) {
   return false;
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 process_qq_template(parsing_context& pc, tracked_ptr<environment> const& env, std::unique_ptr<qq_template> const& tpl) {
   if (auto* cp = std::get_if<list_pattern>(&tpl->value)) {
-    std::unique_ptr<syntax> tail;
+    std::unique_ptr<expression> tail;
     if (cp->last) {
       if (is_splice(cp->last->cdr))
         throw error("Invalid use of unquote-splicing");
 
       if (is_splice(cp->last->car))
-        tail = make_syntax<application_syntax>(make_internal_reference(pc.ctx, "append"),
-                                               process_qq_template(pc, env, cp->last->car),
-                                               process_qq_template(pc, env, cp->last->cdr));
+        tail = make_expression<application_expression>(make_internal_reference(pc.ctx, "append"),
+                                                       process_qq_template(pc, env, cp->last->car),
+                                                       process_qq_template(pc, env, cp->last->cdr));
       else
-        tail = make_syntax<cons_syntax>(process_qq_template(pc, env, cp->last->car),
-                                        process_qq_template(pc, env, cp->last->cdr));
+        tail = make_expression<cons_expression>(process_qq_template(pc, env, cp->last->car),
+                                                process_qq_template(pc, env, cp->last->cdr));
     }
 
     for (auto elem = cp->elems.rbegin(); elem != cp->elems.rend(); ++elem) {
       if (tail) {
         if (is_splice(*elem))
-          tail = make_syntax<application_syntax>(make_internal_reference(pc.ctx, "append"),
-                                                 process_qq_template(pc, env, *elem),
-                                                 std::move(tail));
+          tail = make_expression<application_expression>(make_internal_reference(pc.ctx, "append"),
+                                                         process_qq_template(pc, env, *elem),
+                                                         std::move(tail));
         else
-          tail = make_syntax<cons_syntax>(process_qq_template(pc, env, *elem),
-                                          std::move(tail));
+          tail = make_expression<cons_expression>(process_qq_template(pc, env, *elem),
+                                                  std::move(tail));
       } else {
         if (is_splice(*elem))
           tail = process_qq_template(pc, env, *elem);
         else
-          tail = make_syntax<cons_syntax>(process_qq_template(pc, env, *elem),
-                                          make_syntax<literal_syntax>(pc.ctx.constants->null));
+          tail = make_expression<cons_expression>(process_qq_template(pc, env, *elem),
+                                                  make_expression<literal_expression>(pc.ctx.constants->null));
       }
     }
 
@@ -769,54 +769,54 @@ process_qq_template(parsing_context& pc, tracked_ptr<environment> const& env, st
       }
 
     if (any_splices) {
-      auto result = make_syntax<application_syntax>(make_internal_reference(pc.ctx, "vector-append"));
-      application_syntax& app = std::get<application_syntax>(result->value);
+      auto result = make_expression<application_expression>(make_internal_reference(pc.ctx, "vector-append"));
+      application_expression& app = std::get<application_expression>(result->value);
 
-      std::vector<std::unique_ptr<syntax>> chunk;
+      std::vector<std::unique_ptr<expression>> chunk;
       for (std::unique_ptr<qq_template> const& elem : vp->elems) {
         if (is_splice(elem)) {
           if (!chunk.empty()) {
-            app.arguments.push_back(make_syntax<make_vector_syntax>(std::move(chunk)));
+            app.arguments.push_back(make_expression<make_vector_expression>(std::move(chunk)));
             chunk.clear();
           }
 
-          app.arguments.push_back(make_syntax<application_syntax>(make_internal_reference(pc.ctx, "list->vector"),
-                                                                  process_qq_template(pc, env, elem)));
+          app.arguments.push_back(make_expression<application_expression>(make_internal_reference(pc.ctx, "list->vector"),
+                                                                          process_qq_template(pc, env, elem)));
         }
         else
           chunk.push_back(process_qq_template(pc, env, elem));
       }
 
       if (!chunk.empty())
-        app.arguments.push_back(make_syntax<make_vector_syntax>(std::move(chunk)));
+        app.arguments.push_back(make_expression<make_vector_expression>(std::move(chunk)));
 
       return result;
     }
     else {
-      std::vector<std::unique_ptr<syntax>> elements;
+      std::vector<std::unique_ptr<expression>> elements;
       elements.reserve(vp->elems.size());
 
       for (std::unique_ptr<qq_template> const& elem : vp->elems)
         elements.push_back(process_qq_template(pc, env, elem));
 
-      return make_syntax<make_vector_syntax>(std::move(elements));
+      return make_expression<make_vector_expression>(std::move(elements));
     }
   }
   else if (auto* expr = std::get_if<unquote>(&tpl->value))
     return parse(pc, env, expr->datum.get());
   else if (auto* lit = std::get_if<literal>(&tpl->value))
-    return make_syntax<literal_syntax>(lit->value);
+    return make_expression<literal_expression>(lit->value);
 
   assert(!"Forgot a pattern");
   return {};
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse_quasiquote(parsing_context& pc, tracked_ptr<environment> const& env, pair* datum) {
   return process_qq_template(pc, env, parse_qq_template(pc.ctx, env, cadr(datum), 0));
 }
 
-static std::unique_ptr<syntax>
+static std::unique_ptr<expression>
 parse(parsing_context& pc, tracked_ptr<environment> const& env, object* d) {
   generic_tracked_ptr datum = expand(pc.ctx, env, track(pc.ctx, d)); // GC
 
@@ -846,11 +846,11 @@ parse(parsing_context& pc, tracked_ptr<environment> const& env, object* d) {
       else if (form == pc.ctx.constants->define.get())
         return parse_define_or_set(pc, env, p, "define");
       else if (form == pc.ctx.constants->quote.get())
-        return make_syntax<literal_syntax>(track(pc.ctx, cadr(p)));
+        return make_expression<literal_expression>(track(pc.ctx, cadr(p)));
       else if (form == pc.ctx.constants->quasiquote.get())
         return parse_quasiquote(pc, env, p);
       else if (form == pc.ctx.constants->expand_quote.get())
-        return make_syntax<literal_syntax>(expand(pc.ctx, env, track(pc.ctx, cadr(p)))); // GC
+        return make_expression<literal_expression>(expand(pc.ctx, env, track(pc.ctx, cadr(p)))); // GC
       else if (form == pc.ctx.constants->begin_for_syntax.get())
         throw error{"begin-for-syntax not at top level"};
       else if (form == pc.ctx.constants->syntax_trap.get())
@@ -862,64 +862,64 @@ parse(parsing_context& pc, tracked_ptr<environment> const& env, object* d) {
     return parse_application(pc, env, p);
   }
   else
-    return make_syntax<literal_syntax>(datum);
+    return make_expression<literal_expression>(datum);
 }
 
 template <auto F, typename... Args>
 void
-recurse(syntax* s, Args&... args) {
-  if (std::holds_alternative<literal_syntax>(s->value)
-      || std::holds_alternative<local_reference_syntax>(s->value)
-      || std::holds_alternative<top_level_reference_syntax>(s->value)) {
+recurse(expression* s, Args&... args) {
+  if (std::holds_alternative<literal_expression>(s->value)
+      || std::holds_alternative<local_reference_expression>(s->value)
+      || std::holds_alternative<top_level_reference_expression>(s->value)) {
     // Nothing to recurse into.
   }
-  else if (auto* app = std::get_if<application_syntax>(&s->value)) {
+  else if (auto* app = std::get_if<application_expression>(&s->value)) {
     F(app->target.get(), args...);
     for (auto const& arg : app->arguments)
       F(arg.get(), args...);
   }
-  else if (auto* let = std::get_if<let_syntax>(&s->value)) {
+  else if (auto* let = std::get_if<let_expression>(&s->value)) {
     for (auto const& def : let->definitions)
       F(def.expression.get(), args...);
     for (auto const& expr : let->body.expressions)
       F(expr.get(), args...);
   }
-  else if (auto* local_set = std::get_if<local_set_syntax>(&s->value)) {
+  else if (auto* local_set = std::get_if<local_set_expression>(&s->value)) {
     F(local_set->expression.get(), args...);
   }
-  else if (auto* top_level_set = std::get_if<top_level_set_syntax>(&s->value)) {
+  else if (auto* top_level_set = std::get_if<top_level_set_expression>(&s->value)) {
     F(top_level_set->expression.get(), args...);
   }
-  else if (auto* lambda = std::get_if<lambda_syntax>(&s->value)) {
+  else if (auto* lambda = std::get_if<lambda_expression>(&s->value)) {
     for (auto const& expr : lambda->body.expressions)
       F(expr.get(), args...);
   }
-  else if (auto* if_ = std::get_if<if_syntax>(&s->value)) {
+  else if (auto* if_ = std::get_if<if_expression>(&s->value)) {
     F(if_->test.get(), args...);
     F(if_->consequent.get(), args...);
     if (if_->alternative)
       F(if_->alternative.get(), args...);
   }
-  else if (auto* box = std::get_if<box_syntax>(&s->value)) {
+  else if (auto* box = std::get_if<box_expression>(&s->value)) {
     F(box->expression.get(), args...);
   }
-  else if (auto* unbox = std::get_if<unbox_syntax>(&s->value)) {
+  else if (auto* unbox = std::get_if<unbox_expression>(&s->value)) {
     F(unbox->box_expr.get(), args...);
   }
-  else if (auto* box_set = std::get_if<box_set_syntax>(&s->value)) {
+  else if (auto* box_set = std::get_if<box_set_expression>(&s->value)) {
     F(box_set->box_expr.get(), args...);
     F(box_set->value_expr.get(), args...);
   }
-  else if (auto* cons = std::get_if<cons_syntax>(&s->value)) {
+  else if (auto* cons = std::get_if<cons_expression>(&s->value)) {
     F(cons->car.get(), args...);
     F(cons->cdr.get(), args...);
   }
-  else if (auto* make_vector = std::get_if<make_vector_syntax>(&s->value)) {
-    for (std::unique_ptr<syntax> const& e : make_vector->elements)
+  else if (auto* make_vector = std::get_if<make_vector_expression>(&s->value)) {
+    for (std::unique_ptr<expression> const& e : make_vector->elements)
       F(e.get(), args...);
   }
-  else if (auto* sequence = std::get_if<sequence_syntax>(&s->value)) {
-    for (std::unique_ptr<syntax> const& e : sequence->expressions)
+  else if (auto* sequence = std::get_if<sequence_expression>(&s->value)) {
+    for (std::unique_ptr<expression> const& e : sequence->expressions)
       F(e.get(), args...);
   }
   else
@@ -927,46 +927,46 @@ recurse(syntax* s, Args&... args) {
 }
 
 static void
-box_variable_references(syntax* s, std::shared_ptr<variable> const& var) {
+box_variable_references(expression* s, std::shared_ptr<variable> const& var) {
   recurse<box_variable_references>(s, var);
 
-  if (auto* ref = std::get_if<local_reference_syntax>(&s->value)) {
+  if (auto* ref = std::get_if<local_reference_expression>(&s->value)) {
     if (ref->variable == var) {
-      local_reference_syntax original_ref = *ref;
-      s->value = unbox_syntax{std::make_unique<syntax>(original_ref)};
+      local_reference_expression original_ref = *ref;
+      s->value = unbox_expression{std::make_unique<expression>(original_ref)};
     }
-  } else if (auto* set = std::get_if<local_set_syntax>(&s->value))
+  } else if (auto* set = std::get_if<local_set_expression>(&s->value))
     if (set->target == var) {
-      local_set_syntax original_set = std::move(*set);
-      s->value = box_set_syntax{
-        std::make_unique<syntax>(local_reference_syntax{original_set.target}),
+      local_set_expression original_set = std::move(*set);
+      s->value = box_set_expression{
+        std::make_unique<expression>(local_reference_expression{original_set.target}),
         std::move(original_set.expression)
       };
     }
 }
 
 static void
-box_set_variables(syntax* s) {
+box_set_variables(expression* s) {
   recurse<box_set_variables>(s);
 
-  if (auto* let = std::get_if<let_syntax>(&s->value)) {
-    for (definition_pair_syntax& def : let->definitions)
+  if (auto* let = std::get_if<let_expression>(&s->value)) {
+    for (definition_pair_expression& def : let->definitions)
       if (def.variable->is_set) {
         box_variable_references(s, def.variable);
 
-        std::unique_ptr<syntax> orig_expr = std::move(def.expression);
-        def.expression = std::make_unique<syntax>(box_syntax{std::move(orig_expr)});
+        std::unique_ptr<expression> orig_expr = std::move(def.expression);
+        def.expression = std::make_unique<expression>(box_expression{std::move(orig_expr)});
       }
-  } else if (auto* lambda = std::get_if<lambda_syntax>(&s->value)) {
+  } else if (auto* lambda = std::get_if<lambda_expression>(&s->value)) {
     for (std::shared_ptr<variable> const& param : lambda->parameters)
       if (param->is_set) {
         box_variable_references(s, param);
 
-        auto set = std::make_unique<syntax>(local_set_syntax{param, {}});
-        auto box = std::make_unique<syntax>(box_syntax{});
-        auto ref = std::make_unique<syntax>(local_reference_syntax{param});
-        std::get<box_syntax>(box->value).expression = std::move(ref);
-        std::get<local_set_syntax>(set->value).expression = std::move(box);
+        auto set = std::make_unique<expression>(local_set_expression{param, {}});
+        auto box = std::make_unique<expression>(box_expression{});
+        auto ref = std::make_unique<expression>(local_reference_expression{param});
+        std::get<box_expression>(box->value).expression = std::move(ref);
+        std::get<local_set_expression>(set->value).expression = std::move(box);
 
         lambda->body.expressions.insert(lambda->body.expressions.begin(), std::move(set));
       }
@@ -977,8 +977,8 @@ using variable_set = std::unordered_set<std::shared_ptr<variable>>;
 
 // For each lambda find the list the free variables it uses.
 static void
-analyse_free_variables(syntax* s, variable_set& bound_vars, variable_set& free_vars) {
-  if (auto* lambda = std::get_if<lambda_syntax>(&s->value)) {
+analyse_free_variables(expression* s, variable_set& bound_vars, variable_set& free_vars) {
+  if (auto* lambda = std::get_if<lambda_expression>(&s->value)) {
     variable_set inner_bound;
     for (auto const& param : lambda->parameters)
       inner_bound.emplace(param);
@@ -996,20 +996,20 @@ analyse_free_variables(syntax* s, variable_set& bound_vars, variable_set& free_v
         free_vars.emplace(v);
     }
   }
-  else if (auto* let = std::get_if<let_syntax>(&s->value)) {
-    for (definition_pair_syntax const& dp : let->definitions)
+  else if (auto* let = std::get_if<let_expression>(&s->value)) {
+    for (definition_pair_expression const& dp : let->definitions)
       bound_vars.emplace(dp.variable);
 
     recurse<analyse_free_variables>(s, bound_vars, free_vars);
 
-    for (definition_pair_syntax const& dp : let->definitions)
+    for (definition_pair_expression const& dp : let->definitions)
       bound_vars.erase(dp.variable);
   }
-  else if (auto* ref = std::get_if<local_reference_syntax>(&s->value)) {
+  else if (auto* ref = std::get_if<local_reference_expression>(&s->value)) {
     if (!bound_vars.count(ref->variable))
       free_vars.emplace(ref->variable);
   }
-  else if (auto* set = std::get_if<local_set_syntax>(&s->value)) {
+  else if (auto* set = std::get_if<local_set_expression>(&s->value)) {
     assert(bound_vars.count(set->target)); // Local set!s are boxed, so this shouldn't happen.
     (void) set;
     recurse<analyse_free_variables>(s, bound_vars, free_vars);
@@ -1019,7 +1019,7 @@ analyse_free_variables(syntax* s, variable_set& bound_vars, variable_set& free_v
 }
 
 static void
-analyse_free_variables(syntax* s) {
+analyse_free_variables(expression* s) {
   variable_set bound;
   variable_set free;
 
@@ -1028,10 +1028,10 @@ analyse_free_variables(syntax* s) {
   assert(free.empty()); // Top-level can't have any free variables.
 }
 
-std::unique_ptr<syntax>
+std::unique_ptr<expression>
 analyse(context& ctx, object* datum, module& m) {
   parsing_context pc{ctx, m};
-  std::unique_ptr<syntax> result = parse(pc, track(ctx, m.environment()), datum);
+  std::unique_ptr<expression> result = parse(pc, track(ctx, m.environment()), datum);
   box_set_variables(result.get());
   analyse_free_variables(result.get());
   return result;
@@ -1263,11 +1263,11 @@ read_library_name(context& ctx, port* in) {
   }
 }
 
-sequence_syntax
+sequence_expression
 analyse_module(context& ctx, module& m, protomodule const& pm) {
   std::vector<generic_tracked_ptr> body = expand_top_level(ctx, m, pm);
 
-  sequence_syntax result;
+  sequence_expression result;
   for (generic_tracked_ptr const& datum : body)
     result.expressions.push_back(analyse(ctx, datum.get(), m));
 

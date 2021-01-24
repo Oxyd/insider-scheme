@@ -279,20 +279,20 @@ to_operand(T value) {
 }
 
 static void
-compile_expression(context& ctx, procedure_context& proc, syntax const&, bool tail, result_register&);
+compile_expression(context& ctx, procedure_context& proc, expression const&, bool tail, result_register&);
 
 static shared_register
-compile_expression_to_register(context& ctx, procedure_context& proc, syntax const& stx, bool tail) {
+compile_expression_to_register(context& ctx, procedure_context& proc, expression const& stx, bool tail) {
   result_register result;
   compile_expression(ctx, proc, stx, tail, result);
   return result.has_result() ? result.get(proc) : shared_register{};
 }
 
 static void
-compile_sequence(context& ctx, procedure_context& proc, sequence_syntax const&, bool tail, result_register&);
+compile_sequence(context& ctx, procedure_context& proc, sequence_expression const&, bool tail, result_register&);
 
 static void
-compile_local_reference(procedure_context& proc, local_reference_syntax const& stx, result_register&);
+compile_local_reference(procedure_context& proc, local_reference_expression const& stx, result_register&);
 
 static void
 compile_static_reference(procedure_context& proc, operand static_num, result_register&);
@@ -308,7 +308,7 @@ static void
 compile_global_reference(procedure_context& proc, operand global_num, result_register&);
 
 static void
-compile_fold(context& ctx, procedure_context& proc, std::vector<std::unique_ptr<syntax>> const& arguments,
+compile_fold(context& ctx, procedure_context& proc, std::vector<std::unique_ptr<expression>> const& arguments,
              opcode op, result_register& result) {
   std::vector<shared_register> arg_registers;
   for (auto const& arg : arguments)
@@ -325,7 +325,7 @@ compile_fold(context& ctx, procedure_context& proc, std::vector<std::unique_ptr<
 }
 
 static void
-compile_arithmetic(context& ctx, procedure_context& proc, application_syntax const& stx, special_top_level_tag tag,
+compile_arithmetic(context& ctx, procedure_context& proc, application_expression const& stx, special_top_level_tag tag,
                    result_register& result) {
   if (stx.arguments.empty()) {
     if (tag == special_top_level_tag::plus) {
@@ -338,7 +338,7 @@ compile_arithmetic(context& ctx, procedure_context& proc, application_syntax con
     }
     else
       throw std::runtime_error{fmt::format("Not enough arguments for {}",
-                                           std::get<top_level_reference_syntax>(stx.target->value).name)};
+                                           std::get<top_level_reference_expression>(stx.target->value).name)};
   }
 
   opcode op{};
@@ -363,11 +363,11 @@ compile_arithmetic(context& ctx, procedure_context& proc, application_syntax con
 }
 
 static void
-compile_relational(context& ctx, procedure_context& proc, application_syntax const& stx, special_top_level_tag tag,
+compile_relational(context& ctx, procedure_context& proc, application_expression const& stx, special_top_level_tag tag,
                    result_register& result) {
   if (stx.arguments.size() < 2)
     throw std::runtime_error{fmt::format("Not enough arguments for {}",
-                                         std::get<local_reference_syntax>(stx.target->value).variable->name)};
+                                         std::get<local_reference_expression>(stx.target->value).variable->name)};
 
   opcode op{};
   switch (tag) {
@@ -384,7 +384,7 @@ compile_relational(context& ctx, procedure_context& proc, application_syntax con
 }
 
 static void
-compile_vector_set(context& ctx, procedure_context& proc, application_syntax const& stx, result_register& result) {
+compile_vector_set(context& ctx, procedure_context& proc, application_expression const& stx, result_register& result) {
   if (stx.arguments.size() != 3)
     throw std::runtime_error{"vector-set!: Expected exactly 3 arguments"};
 
@@ -399,7 +399,7 @@ compile_vector_set(context& ctx, procedure_context& proc, application_syntax con
 }
 
 static void
-compile_vector_ref(context& ctx, procedure_context& proc, application_syntax const& stx, result_register& result) {
+compile_vector_ref(context& ctx, procedure_context& proc, application_expression const& stx, result_register& result) {
   if (stx.arguments.size() != 2)
     throw std::runtime_error{"vector-ref: Expected exactly 2 arguments"};
 
@@ -412,7 +412,7 @@ compile_vector_ref(context& ctx, procedure_context& proc, application_syntax con
 }
 
 static void
-compile_let(context& ctx, procedure_context& proc, let_syntax const& stx, bool tail, result_register& result) {
+compile_let(context& ctx, procedure_context& proc, let_expression const& stx, bool tail, result_register& result) {
   variable_bindings::scope scope;
   for (auto const& def : stx.definitions) {
     shared_register value = compile_expression_to_register(ctx, proc, *def.expression, false);
@@ -424,7 +424,7 @@ compile_let(context& ctx, procedure_context& proc, let_syntax const& stx, bool t
 }
 
 static void
-compile_local_set(context& ctx, procedure_context& proc, local_set_syntax const& stx, result_register& result) {
+compile_local_set(context& ctx, procedure_context& proc, local_set_expression const& stx, result_register& result) {
   shared_register dest = proc.bindings.lookup(stx.target);
   assert(dest);
 
@@ -435,7 +435,7 @@ compile_local_set(context& ctx, procedure_context& proc, local_set_syntax const&
 }
 
 static void
-compile_top_level_set(context& ctx, procedure_context& proc, top_level_set_syntax const& stx,
+compile_top_level_set(context& ctx, procedure_context& proc, top_level_set_expression const& stx,
                       result_register& result) {
   shared_register value = compile_expression_to_register(ctx, proc, *stx.expression, false);
   encode_instruction(proc.bytecode.back(), instruction{opcode::store_top_level, *value, stx.location});
@@ -450,7 +450,7 @@ make_procedure(context& ctx, procedure_context const& pc, unsigned min_args, boo
 }
 
 static void
-compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx, result_register& result) {
+compile_lambda(context& ctx, procedure_context& parent, lambda_expression const& stx, result_register& result) {
   procedure_context proc{&parent, parent.module};
   variable_bindings::scope args_scope;
 
@@ -484,7 +484,7 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_syntax const& stx
 }
 
 static void
-compile_if(context& ctx, procedure_context& proc, if_syntax const& stx, bool tail, result_register& result) {
+compile_if(context& ctx, procedure_context& proc, if_expression const& stx, bool tail, result_register& result) {
   shared_register test_value = compile_expression_to_register(ctx, proc, *stx.test, false);
 
   // The two subexpressions, then-expr and else-expr, will possibly place their
@@ -540,9 +540,9 @@ compile_if(context& ctx, procedure_context& proc, if_syntax const& stx, bool tai
 }
 
 static void
-compile_application(context& ctx, procedure_context& proc, application_syntax const& stx, bool tail,
+compile_application(context& ctx, procedure_context& proc, application_expression const& stx, bool tail,
                     result_register& result) {
-  if (auto* ref = std::get_if<top_level_reference_syntax>(&stx.target->value))
+  if (auto* ref = std::get_if<top_level_reference_expression>(&stx.target->value))
     if (std::optional<special_top_level_tag> tag = ctx.find_tag(ref->location)) {
       if (*tag == special_top_level_tag::plus || *tag == special_top_level_tag::minus
           || *tag == special_top_level_tag::times || *tag == special_top_level_tag::divide) {
@@ -568,10 +568,10 @@ compile_application(context& ctx, procedure_context& proc, application_syntax co
   operand f;
   shared_register f_reg;
 
-  if (auto* global = std::get_if<top_level_reference_syntax>(&stx.target->value)) {
+  if (auto* global = std::get_if<top_level_reference_expression>(&stx.target->value)) {
     f = global->location;
     oc = tail ? opcode::tail_call_top_level : opcode::call_top_level;
-  } else if (auto* lit = std::get_if<literal_syntax>(&stx.target->value)) {
+  } else if (auto* lit = std::get_if<literal_expression>(&stx.target->value)) {
     f = ctx.intern_static(lit->value);
     oc = tail ? opcode::tail_call_static : opcode::call_static;
   } else {
@@ -595,7 +595,7 @@ compile_application(context& ctx, procedure_context& proc, application_syntax co
 }
 
 static void
-compile_local_reference(procedure_context& proc, local_reference_syntax const& stx,
+compile_local_reference(procedure_context& proc, local_reference_expression const& stx,
                         result_register& result) {
   if (!result.result_used())
     return;
@@ -628,24 +628,24 @@ compile_global_reference(procedure_context& proc, operand global_num, result_reg
 }
 
 static void
-compile_global_reference(procedure_context& proc, top_level_reference_syntax const& stx, result_register& result) {
+compile_global_reference(procedure_context& proc, top_level_reference_expression const& stx, result_register& result) {
   compile_global_reference(proc, stx.location, result);
 }
 
 static void
-compile_box(context& ctx, procedure_context& proc, box_syntax const& stx, result_register& result) {
+compile_box(context& ctx, procedure_context& proc, box_expression const& stx, result_register& result) {
   shared_register value = compile_expression_to_register(ctx, proc, *stx.expression, false);
   encode_instruction(proc.bytecode.back(), instruction{opcode::box, *value, *result.get(proc)});
 }
 
 static void
-compile_unbox(context& ctx, procedure_context& proc, unbox_syntax const& stx, result_register& result) {
+compile_unbox(context& ctx, procedure_context& proc, unbox_expression const& stx, result_register& result) {
   shared_register box = compile_expression_to_register(ctx, proc, *stx.box_expr, false);
   encode_instruction(proc.bytecode.back(), instruction{opcode::unbox, *box, *result.get(proc)});
 }
 
 static void
-compile_box_set(context& ctx, procedure_context& proc, box_set_syntax const& stx, result_register& result) {
+compile_box_set(context& ctx, procedure_context& proc, box_set_expression const& stx, result_register& result) {
   shared_register box = compile_expression_to_register(ctx, proc, *stx.box_expr, false);
   shared_register value = compile_expression_to_register(ctx, proc, *stx.value_expr, false);
   encode_instruction(proc.bytecode.back(), instruction{opcode::box_set, *box, *value});
@@ -653,17 +653,17 @@ compile_box_set(context& ctx, procedure_context& proc, box_set_syntax const& stx
 }
 
 static void
-compile_cons(context& ctx, procedure_context& proc, cons_syntax const& stx, result_register& result) {
+compile_cons(context& ctx, procedure_context& proc, cons_expression const& stx, result_register& result) {
   shared_register car = compile_expression_to_register(ctx, proc, *stx.car, false);
   shared_register cdr = compile_expression_to_register(ctx, proc, *stx.cdr, false);
   encode_instruction(proc.bytecode.back(), instruction{opcode::cons, *car, *cdr, *result.get(proc)});
 }
 
 static void
-compile_make_vector(context& ctx, procedure_context& proc, make_vector_syntax const& stx, result_register& result) {
+compile_make_vector(context& ctx, procedure_context& proc, make_vector_expression const& stx, result_register& result) {
   std::vector<shared_register> exprs;
   exprs.reserve(stx.elements.size());
-  for (std::unique_ptr<syntax> const& e : stx.elements)
+  for (std::unique_ptr<expression> const& e : stx.elements)
     exprs.push_back(compile_expression_to_register(ctx, proc, *e, false));
 
   instruction make_vec{opcode::make_vector, *result.get(proc)};
@@ -675,43 +675,43 @@ compile_make_vector(context& ctx, procedure_context& proc, make_vector_syntax co
 
 // Translate an expression and return the register where the result is stored.
 static void
-compile_expression(context& ctx, procedure_context& proc, syntax const& stx, bool tail, result_register& result) {
-  if (auto* lit = std::get_if<literal_syntax>(&stx.value))
+compile_expression(context& ctx, procedure_context& proc, expression const& stx, bool tail, result_register& result) {
+  if (auto* lit = std::get_if<literal_expression>(&stx.value))
     compile_static_reference(proc, ctx.intern_static(lit->value), result);
-  else if (auto* local_ref = std::get_if<local_reference_syntax>(&stx.value))
+  else if (auto* local_ref = std::get_if<local_reference_expression>(&stx.value))
     compile_local_reference(proc, *local_ref, result);
-  else if (auto* top_level_ref = std::get_if<top_level_reference_syntax>(&stx.value))
+  else if (auto* top_level_ref = std::get_if<top_level_reference_expression>(&stx.value))
     compile_global_reference(proc, *top_level_ref, result);
-  else if (auto* app = std::get_if<application_syntax>(&stx.value))
+  else if (auto* app = std::get_if<application_expression>(&stx.value))
     compile_application(ctx, proc, *app, tail, result);
-  else if (auto* let = std::get_if<let_syntax>(&stx.value))
+  else if (auto* let = std::get_if<let_expression>(&stx.value))
     compile_let(ctx, proc, *let, tail, result);
-  else if (auto* local_set = std::get_if<local_set_syntax>(&stx.value))
+  else if (auto* local_set = std::get_if<local_set_expression>(&stx.value))
     compile_local_set(ctx, proc, *local_set, result);
-  else if (auto* top_level_set = std::get_if<top_level_set_syntax>(&stx.value))
+  else if (auto* top_level_set = std::get_if<top_level_set_expression>(&stx.value))
     compile_top_level_set(ctx, proc, *top_level_set, result);
-  else if (auto* lambda = std::get_if<lambda_syntax>(&stx.value))
+  else if (auto* lambda = std::get_if<lambda_expression>(&stx.value))
     compile_lambda(ctx, proc, *lambda, result);
-  else if (auto* if_ = std::get_if<if_syntax>(&stx.value))
+  else if (auto* if_ = std::get_if<if_expression>(&stx.value))
     compile_if(ctx, proc, *if_, tail, result);
-  else if (auto* box = std::get_if<box_syntax>(&stx.value))
+  else if (auto* box = std::get_if<box_expression>(&stx.value))
     compile_box(ctx, proc, *box, result);
-  else if (auto* unbox = std::get_if<unbox_syntax>(&stx.value))
+  else if (auto* unbox = std::get_if<unbox_expression>(&stx.value))
     compile_unbox(ctx, proc, *unbox, result);
-  else if (auto* box_set = std::get_if<box_set_syntax>(&stx.value))
+  else if (auto* box_set = std::get_if<box_set_expression>(&stx.value))
     compile_box_set(ctx, proc, *box_set, result);
-  else if (auto* cons = std::get_if<cons_syntax>(&stx.value))
+  else if (auto* cons = std::get_if<cons_expression>(&stx.value))
     compile_cons(ctx, proc, *cons, result);
-  else if (auto* make_vector = std::get_if<make_vector_syntax>(&stx.value))
+  else if (auto* make_vector = std::get_if<make_vector_expression>(&stx.value))
     compile_make_vector(ctx, proc, *make_vector, result);
-  else if (auto* sequence = std::get_if<sequence_syntax>(&stx.value))
+  else if (auto* sequence = std::get_if<sequence_expression>(&stx.value))
     compile_sequence(ctx, proc, *sequence, tail, result);
   else
-    assert(!"Unexpected syntax");
+    assert(!"Unexpected expression");
 }
 
 static void
-compile_sequence(context& ctx, procedure_context& proc, sequence_syntax const& stx, bool tail,
+compile_sequence(context& ctx, procedure_context& proc, sequence_expression const& stx, bool tail,
                  result_register& result) {
   if (stx.expressions.empty()) {
     compile_static_reference(proc, ctx.statics.void_, result);
@@ -753,7 +753,7 @@ compile_main_module(context& ctx, std::vector<generic_tracked_ptr> const& data) 
 
 void
 compile_module_body(context& ctx, module& m, protomodule const& pm) {
-  sequence_syntax body = analyse_module(ctx, m, pm);
+  sequence_expression body = analyse_module(ctx, m, pm);
 
   procedure_context proc{nullptr, m};
   result_register result;

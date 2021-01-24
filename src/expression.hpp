@@ -1,5 +1,5 @@
-#ifndef INSIDER_SYNTAX_HPP
-#define INSIDER_SYNTAX_HPP
+#ifndef INSIDER_EXPRESSION_HPP
+#define INSIDER_EXPRESSION_HPP
 
 #include "bytecode.hpp"
 #include "free_store.hpp"
@@ -31,46 +31,46 @@ struct variable {
   { }
 };
 
-struct syntax;
+struct expression;
 
-struct literal_syntax {
+struct literal_expression {
   generic_tracked_ptr value;
 
   explicit
-  literal_syntax(generic_tracked_ptr const& value) : value{value} { }
+  literal_expression(generic_tracked_ptr const& value) : value{value} { }
 };
 
-struct local_reference_syntax {
+struct local_reference_expression {
   std::shared_ptr<insider::variable> variable;
 
   explicit
-  local_reference_syntax(std::shared_ptr<insider::variable> var)
+  local_reference_expression(std::shared_ptr<insider::variable> var)
     : variable{std::move(var)}
   { }
 };
 
-struct top_level_reference_syntax {
+struct top_level_reference_expression {
   operand location;
   std::string name;
 
-  top_level_reference_syntax(operand location, std::string name)
+  top_level_reference_expression(operand location, std::string name)
     : location{location}
     , name{std::move(name)}
   { }
 };
 
-struct application_syntax {
-  std::unique_ptr<syntax> target;
-  std::vector<std::unique_ptr<syntax>> arguments;
+struct application_expression {
+  std::unique_ptr<expression> target;
+  std::vector<std::unique_ptr<expression>> arguments;
 
-  application_syntax(std::unique_ptr<syntax> t,
-                     std::vector<std::unique_ptr<syntax>> args)
+  application_expression(std::unique_ptr<expression> t,
+                         std::vector<std::unique_ptr<expression>> args)
     : target{std::move(t)}
     , arguments{std::move(args)}
   { }
 
   template <typename... Ts>
-  application_syntax(std::unique_ptr<syntax> t, Ts&&... ts)
+  application_expression(std::unique_ptr<expression> t, Ts&&... ts)
     : target{std::move(t)}
   {
     arguments.reserve(sizeof...(Ts));
@@ -78,72 +78,72 @@ struct application_syntax {
   }
 };
 
-struct sequence_syntax {
-  std::vector<std::unique_ptr<syntax>> expressions;
+struct sequence_expression {
+  std::vector<std::unique_ptr<expression>> expressions;
 
-  sequence_syntax() = default;
+  sequence_expression() = default;
 
   explicit
-  sequence_syntax(std::vector<std::unique_ptr<syntax>> exprs)
+  sequence_expression(std::vector<std::unique_ptr<expression>> exprs)
     : expressions{std::move(exprs)}
   { }
 };
 
-struct definition_pair_syntax {
-  generic_tracked_ptr                        id;
-  std::shared_ptr<insider::variable> variable;
-  std::unique_ptr<syntax>            expression;
+struct definition_pair_expression {
+  generic_tracked_ptr                  id;
+  std::shared_ptr<insider::variable>   variable;
+  std::unique_ptr<insider::expression> expression;
 
-  definition_pair_syntax(generic_tracked_ptr id, std::shared_ptr<insider::variable> var,
-                         std::unique_ptr<syntax> expr)
+  definition_pair_expression(generic_tracked_ptr id, std::shared_ptr<insider::variable> var,
+                             std::unique_ptr<insider::expression> expr)
     : id{id}
     , variable{std::move(var)}
     , expression{std::move(expr)}
   { }
 };
 
-struct let_syntax {
-  std::vector<definition_pair_syntax> definitions;
-  sequence_syntax body;
+struct let_expression {
+  std::vector<definition_pair_expression> definitions;
+  sequence_expression body;
 
-  let_syntax(std::vector<definition_pair_syntax> defs, sequence_syntax body)
+  let_expression(std::vector<definition_pair_expression> defs, sequence_expression body)
     : definitions{std::move(defs)}
     , body{std::move(body)}
   { }
 };
 
-struct local_set_syntax {
-  std::shared_ptr<variable> target;
-  std::unique_ptr<syntax> expression;
+struct local_set_expression {
+  std::shared_ptr<variable>            target;
+  std::unique_ptr<insider::expression> expression;
 
-  local_set_syntax(std::shared_ptr<variable> target, std::unique_ptr<syntax> expr)
+  local_set_expression(std::shared_ptr<variable> target, std::unique_ptr<insider::expression> expr)
     : target{std::move(target)}
     , expression{std::move(expr)}
   { }
 };
 
-struct top_level_set_syntax {
+struct top_level_set_expression {
   operand location;
-  std::unique_ptr<syntax> expression;
+  std::unique_ptr<insider::expression> expression;
 
-  top_level_set_syntax(operand location, std::unique_ptr<syntax> expr)
+  top_level_set_expression(operand location, std::unique_ptr<insider::expression> expr)
     : location{location}
     , expression{std::move(expr)}
   { }
 };
 
-struct lambda_syntax {
+struct lambda_expression {
   std::vector<std::shared_ptr<variable>> parameters;
   bool has_rest;
-  sequence_syntax body;
+  sequence_expression body;
   std::optional<std::string> name;
   std::vector<std::shared_ptr<variable>> free_variables;
 
-  lambda_syntax(std::vector<std::shared_ptr<variable>> parameters,
-                bool has_rest,
-                sequence_syntax body,
-                std::optional<std::string> name,
-                std::vector<std::shared_ptr<variable>> free_variables)
+  lambda_expression(std::vector<std::shared_ptr<variable>> parameters,
+                    bool has_rest,
+                    sequence_expression body,
+                    std::optional<std::string> name,
+                    std::vector<std::shared_ptr<variable>> free_variables)
     : parameters{std::move(parameters)}
     , has_rest{has_rest}
     , body{std::move(body)}
@@ -152,90 +152,92 @@ struct lambda_syntax {
   { }
 };
 
-struct if_syntax {
-  std::unique_ptr<syntax> test;
-  std::unique_ptr<syntax> consequent;
-  std::unique_ptr<syntax> alternative;
+struct if_expression {
+  std::unique_ptr<expression> test;
+  std::unique_ptr<expression> consequent;
+  std::unique_ptr<expression> alternative;
 
-  if_syntax(std::unique_ptr<syntax> test, std::unique_ptr<syntax> consequent, std::unique_ptr<syntax> alternative)
+  if_expression(std::unique_ptr<expression> test,
+                std::unique_ptr<expression> consequent,
+                std::unique_ptr<expression> alternative)
     : test{std::move(test)}
     , consequent{std::move(consequent)}
     , alternative{std::move(alternative)}
   { }
 };
 
-struct box_syntax {
-  std::unique_ptr<syntax> expression;
+struct box_expression {
+  std::unique_ptr<insider::expression> expression;
 
-  box_syntax() = default;
+  box_expression() = default;
 
   explicit
-  box_syntax(std::unique_ptr<syntax> expression)
+  box_expression(std::unique_ptr<insider::expression> expression)
     : expression{std::move(expression)}
   { }
 };
 
-struct unbox_syntax {
-  std::unique_ptr<syntax> box_expr;
+struct unbox_expression {
+  std::unique_ptr<expression> box_expr;
 
   explicit
-  unbox_syntax(std::unique_ptr<syntax> box_expr)
+  unbox_expression(std::unique_ptr<expression> box_expr)
     : box_expr{std::move(box_expr)}
   { }
 };
 
-struct box_set_syntax {
-  std::unique_ptr<syntax> box_expr;
-  std::unique_ptr<syntax> value_expr;
+struct box_set_expression {
+  std::unique_ptr<expression> box_expr;
+  std::unique_ptr<expression> value_expr;
 
-  box_set_syntax(std::unique_ptr<syntax> box_expr, std::unique_ptr<syntax> value_expr)
+  box_set_expression(std::unique_ptr<expression> box_expr, std::unique_ptr<expression> value_expr)
     : box_expr{std::move(box_expr)}
     , value_expr{std::move(value_expr)}
   { }
 };
 
-struct cons_syntax {
-  std::unique_ptr<syntax> car;
-  std::unique_ptr<syntax> cdr;
+struct cons_expression {
+  std::unique_ptr<expression> car;
+  std::unique_ptr<expression> cdr;
 
-  cons_syntax(std::unique_ptr<syntax> car, std::unique_ptr<syntax> cdr)
+  cons_expression(std::unique_ptr<expression> car, std::unique_ptr<expression> cdr)
     : car{std::move(car)}
     , cdr{std::move(cdr)}
   { }
 };
 
-struct make_vector_syntax {
-  std::vector<std::unique_ptr<syntax>> elements;
+struct make_vector_expression {
+  std::vector<std::unique_ptr<expression>> elements;
 
   explicit
-  make_vector_syntax(std::vector<std::unique_ptr<syntax>> elements)
+  make_vector_expression(std::vector<std::unique_ptr<expression>> elements)
     : elements{std::move(elements)}
   { }
 };
 
-struct syntax {
+struct expression {
   using value_type = std::variant<
-    literal_syntax,
-    local_reference_syntax,
-    top_level_reference_syntax,
-    application_syntax,
-    let_syntax,
-    local_set_syntax,
-    top_level_set_syntax,
-    lambda_syntax,
-    if_syntax,
-    box_syntax,
-    unbox_syntax,
-    box_set_syntax,
-    cons_syntax,
-    make_vector_syntax,
-    sequence_syntax
+    literal_expression,
+    local_reference_expression,
+    top_level_reference_expression,
+    application_expression,
+    let_expression,
+    local_set_expression,
+    top_level_set_expression,
+    lambda_expression,
+    if_expression,
+    box_expression,
+    unbox_expression,
+    box_set_expression,
+    cons_expression,
+    make_vector_expression,
+    sequence_expression
   >;
 
   value_type value;
 
   explicit
-  syntax(value_type value)
+  expression(value_type value)
     : value{std::move(value)}
   { }
 };
@@ -318,10 +320,10 @@ struct import_specifier {
 // Metainformation about a module -- its name, list of imports and exports, plus
 // its body as a list of unparsed data.
 struct protomodule {
-  std::optional<module_name>    name;
-  std::vector<import_specifier> imports;
-  std::vector<std::string>      exports;
-  std::vector<generic_tracked_ptr>      body;
+  std::optional<module_name>       name;
+  std::vector<import_specifier>    imports;
+  std::vector<std::string>         exports;
+  std::vector<generic_tracked_ptr> body;
 
   protomodule() = default;
 

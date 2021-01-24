@@ -2,10 +2,10 @@
 #define INSIDER_SCHEME_HPP
 
 #include "bytecode.hpp"
+#include "expression.hpp"
 #include "free_store.hpp"
 #include "numeric.hpp"
 #include "object_span.hpp"
-#include "syntax.hpp"
 
 #include <fmt/format.h>
 
