@@ -500,8 +500,8 @@ class port : public leaf_object<port> {
 public:
   static constexpr char const* scheme_name = "insider::port";
 
-  port(FILE*, bool input, bool output, bool should_close = true);
-  port(std::string, bool input, bool output);
+  port(FILE*, std::string name, bool input, bool output, bool should_close = true);
+  port(std::string value, bool input, bool output);
   port(port&&);
   ~port();
 
@@ -529,6 +529,9 @@ public:
   void
   rewind();
 
+  std::string const&
+  name() const { return name_; }
+
   std::size_t
   hash() const;
 
@@ -543,6 +546,7 @@ private:
   bool input_ = false;
   bool output_ = false;
   bool should_close_ = false;
+  std::string name_;
 
   void
   destroy();
@@ -904,6 +908,41 @@ public:
   hash() const {
     return Hash{}(value);
   }
+};
+
+struct source_location {
+  std::string file_name;
+  unsigned    line;
+  unsigned    column;
+};
+
+std::string
+format_location(source_location const&);
+
+class input_stream {
+public:
+  explicit
+  input_stream(insider::port*);
+
+  std::optional<char>
+  peek_char();
+
+  std::optional<char>
+  read_char();
+
+  void
+  put_back(char);
+
+  std::optional<char>
+  advance_and_peek_char();
+
+  source_location
+  current_location() const;
+
+private:
+  insider::port* port_;
+  unsigned       line_   = 1;
+  unsigned       column_ = 1;
 };
 
 // An expression together with an environment and a module in which to look up

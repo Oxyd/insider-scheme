@@ -10,7 +10,7 @@
 namespace insider {
 
 struct parse_error : std::runtime_error {
-  parse_error(std::string const& message);
+  parse_error(std::string const& message, input_stream const&);
 };
 
 // Read a single S-expression from the given input stream. Returns a null

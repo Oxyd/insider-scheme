@@ -441,7 +441,7 @@ filesystem_module_provider::find_module(context& ctx, module_name const& name) {
   for (auto const& candidate : candidates) {
     FILE* f = open_file(candidate.c_str(), _T("r"));
     if (f) {
-      auto in = make<port>(ctx, f, true, false);
+      auto in = make<port>(ctx, f, candidate, true, false);
       std::optional<module_name> candidate_name = read_library_name(ctx, in);
       if (candidate_name == name) {
         in->rewind();
@@ -507,7 +507,7 @@ context::context()
   statics.zero = intern_static(generic_tracked_ptr{store, integer_to_ptr(0)});
   statics.one = intern_static(generic_tracked_ptr{store, integer_to_ptr(1)});
 
-  output_port = make_tracked<port>(*this, stdout, false, true, false);
+  output_port = make_tracked<port>(*this, stdout, "<stdout>", false, true, false);
 }
 
 context::~context() {
@@ -696,11 +696,12 @@ make_string(context& ctx, std::string_view value) {
   return result;
 }
 
-port::port(FILE* f, bool input, bool output, bool should_close)
+port::port(FILE* f, std::string name, bool input, bool output, bool should_close)
   : buffer_{f}
   , input_{input}
   , output_{output}
   , should_close_{should_close}
+  , name_{std::move(name)}
 { }
 
 port::port(std::string buffer, bool input, bool output)
@@ -1114,6 +1115,61 @@ expect_callable(object* x) {
     throw std::runtime_error{"Expected a callable"};
   else
     return x;
+}
+
+std::string
+format_location(source_location const& loc) {
+  return fmt::format("{}:{}:{}",
+                     loc.file_name.empty() ? "<unknown>" : loc.file_name,
+                     loc.line, loc.column);
+}
+
+input_stream::input_stream(insider::port* p)
+  : port_{p}
+{ }
+
+std::optional<char>
+input_stream::peek_char() {
+  return port_->peek_char();
+}
+
+std::optional<char>
+input_stream::read_char() {
+  if (auto c = port_->read_char()) {
+    if (*c == '\n') {
+      ++line_;
+      column_ = 1;
+    } else
+      ++column_;
+
+    return c;
+  } else
+    return std::nullopt;
+}
+
+void
+input_stream::put_back(char c) {
+  if (c == '\n') {
+    assert(line_ > 1);
+    --line_;
+    column_ = 1;
+  } else {
+    assert(column_ > 1);
+    --column_;
+  }
+
+  port_->put_back(c);
+}
+
+std::optional<char>
+input_stream::advance_and_peek_char() {
+  read_char();
+  return peek_char();
+}
+
+source_location
+input_stream::current_location() const {
+  return source_location{port_->name(), line_, column_};
 }
 
 std::size_t

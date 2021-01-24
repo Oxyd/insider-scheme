@@ -12,6 +12,7 @@ namespace insider {
 
 class boolean;
 class context;
+class input_stream;
 class module;
 class port;
 
@@ -344,7 +345,7 @@ object*
 read_integer(context& ctx, std::string const& digits, unsigned base = 10);
 
 object*
-read_number(context&, port*);
+read_number(context&, input_stream&);
 
 void
 write_number(context&, object* value, port* out);

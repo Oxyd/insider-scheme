@@ -76,7 +76,7 @@ main(int argc, char** argv) {
       return 1;
     }
 
-    auto in = insider::make_tracked<insider::port>(ctx, f, true, false);
+    auto in = insider::make_tracked<insider::port>(ctx, f, std::move(program_path), true, false);
     auto mod = insider::compile_main_module(ctx, insider::read_multiple(ctx, in.get()));
 
     insider::simple_action a{ctx, "Executing program"};

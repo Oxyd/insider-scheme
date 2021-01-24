@@ -1448,20 +1448,14 @@ read_integer(context& ctx, std::string const& digits, unsigned base) {
   return result;
 }
 
-static std::optional<char>
-peek_next(port* stream) {
-  stream->read_char();
-  return stream->peek_char();
-}
-
 static std::string
-read_digits(port* stream) {
-  std::optional<char> c = stream->peek_char();
+read_digits(input_stream& stream) {
+  std::optional<char> c = stream.peek_char();
 
   std::string result;
   while (c && digit(*c)) {
     result += *c;
-    c = peek_next(stream);
+    c = stream.advance_and_peek_char();
   }
 
   return result;
@@ -1487,19 +1481,19 @@ string_to_double(std::string const& s) {
 }
 
 object*
-read_number(context& ctx, port* stream) {
-  std::optional<char> c = stream->peek_char();
+read_number(context& ctx, input_stream& stream) {
+  std::optional<char> c = stream.peek_char();
   bool negative = false;
   assert(c);
   if (c == '-' || c == '+') {
     negative = c == '-';
-    stream->read_char();
+    stream.read_char();
   }
 
   std::string literal = read_digits(stream);
-  c = stream->peek_char();
+  c = stream.peek_char();
   if (c == '/') {
-    stream->read_char();
+    stream.read_char();
 
     object* num = read_integer(ctx, literal);
     if (negative)
@@ -1511,13 +1505,13 @@ read_number(context& ctx, port* stream) {
   }
   else if (c == '.' || c == 'e' || c == 'E') {
     literal += *c;
-    stream->read_char();
+    stream.read_char();
     literal += read_digits(stream);
 
-    c = stream->peek_char();
+    c = stream.peek_char();
     if (c == 'e' || c == 'E') {
       literal += *c;
-      stream->read_char();
+      stream.read_char();
       literal += read_digits(stream);
     }
 

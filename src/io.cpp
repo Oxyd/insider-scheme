@@ -13,49 +13,52 @@
 
 namespace insider {
 
-struct end { };
-struct left_paren { };
-struct right_paren { };
-struct hash_left_paren { };
-struct dot { };
+namespace {
+  struct end { };
+  struct left_paren { };
+  struct right_paren { };
+  struct hash_left_paren { };
+  struct dot { };
 
-struct generic_literal {
-  object* value;
-};
+  struct generic_literal {
+    object* value;
+  };
 
-struct boolean_literal {
-  bool value;
-};
+  struct boolean_literal {
+    bool value;
+  };
 
-struct void_literal { };
+  struct void_literal { };
 
-struct identifier {
-  std::string value;
-};
+  struct identifier {
+    std::string value;
+  };
 
-struct quote { };
-struct backquote { };
-struct comma { };
-struct comma_at { };
+  struct quote { };
+  struct backquote { };
+  struct comma { };
+  struct comma_at { };
 
-using token = std::variant<
-  end,
-  left_paren,
-  right_paren,
-  hash_left_paren,
-  dot,
-  generic_literal,
-  boolean_literal,
-  void_literal,
-  identifier,
-  quote,
-  backquote,
-  comma,
-  comma_at
->;
+  using token = std::variant<
+    end,
+    left_paren,
+    right_paren,
+    hash_left_paren,
+    dot,
+    generic_literal,
+    boolean_literal,
+    void_literal,
+    identifier,
+    quote,
+    backquote,
+    comma,
+    comma_at
+  >;
+} // anonymous namespace
 
-parse_error::parse_error(std::string const& message)
-  : std::runtime_error{fmt::format("Parse error: {}", message)}
+parse_error::parse_error(std::string const& message, input_stream const& stream)
+  : std::runtime_error{fmt::format("{}: Parse error: {}", format_location(stream.current_location()),
+                                   message)}
 { }
 
 static bool
@@ -73,28 +76,26 @@ delimiter(char c) {
 }
 
 static void
-skip_whitespace(port* stream) {
-  std::optional<char> c = stream->peek_char();
+skip_whitespace(input_stream& stream) {
+  std::optional<char> c = stream.peek_char();
 
   while (c && (whitespace(*c) || *c == ';')) {
-    while (c && whitespace(*c)) {
-      stream->read_char();
-      c = stream->peek_char();
-    }
+    while (c && whitespace(*c))
+      c = stream.advance_and_peek_char();
 
     if (c == ';')
-      while (stream->read_char() != '\n')
+      while (stream.read_char() != '\n')
         ;
 
-    c = stream->peek_char();
+    c = stream.peek_char();
   }
 }
 
 static std::string
-read_until_delimiter(port* stream) {
+read_until_delimiter(input_stream& stream) {
   std::string result;
-  while (stream->peek_char() && !delimiter(*stream->peek_char()))
-    result += *stream->read_char();
+  while (stream.peek_char() && !delimiter(*stream.peek_char()))
+    result += *stream.read_char();
 
   return result;
 }
@@ -110,12 +111,12 @@ hexdigit(char c) {
 }
 
 static generic_literal
-read_numeric_literal(context& ctx, port* stream) {
+read_numeric_literal(context& ctx, input_stream& stream) {
   return generic_literal{read_number(ctx, stream)};
 }
 
 static token
-read_character(context& ctx, port* stream) {
+read_character(context& ctx, input_stream& stream) {
   static std::unordered_map<std::string, char> const character_names{
     {"alarm",     '\x07'},
     {"backspace", '\x08'},
@@ -128,9 +129,9 @@ read_character(context& ctx, port* stream) {
     {"tab",       '\x09'}
   };
 
-  if (stream->peek_char() != 'x') {
-    if (!std::isalpha(*stream->peek_char(), std::locale{"C"}))
-      return generic_literal{make<character>(ctx, *stream->read_char())};
+  if (stream.peek_char() != 'x') {
+    if (!std::isalpha(*stream.peek_char(), std::locale{"C"}))
+      return generic_literal{make<character>(ctx, *stream.read_char())};
 
     std::string literal = read_until_delimiter(stream);
     if (literal.size() == 1)
@@ -138,14 +139,14 @@ read_character(context& ctx, port* stream) {
     else if (auto it = character_names.find(literal); it != character_names.end())
       return generic_literal{make<character>(ctx, it->second)};
     else
-      throw parse_error{fmt::format("Unknown character literal #\\{}", literal)};
+      throw parse_error{fmt::format("Unknown character literal #\\{}", literal), stream};
   }
   else {
-    stream->read_char();
+    stream.read_char();
 
     std::string literal;
-    while (stream->peek_char() && hexdigit(*stream->peek_char()))
-      literal += *stream->read_char();
+    while (stream.peek_char() && hexdigit(*stream.peek_char()))
+      literal += *stream.read_char();
 
     return generic_literal{
       make<character>(ctx,
@@ -155,10 +156,10 @@ read_character(context& ctx, port* stream) {
 }
 
 static token
-read_special_literal(context& ctx, port* stream) {
-  std::optional<char> c = stream->peek_char();
+read_special_literal(context& ctx, input_stream& stream) {
+  std::optional<char> c = stream.peek_char();
   if (!c)
-    throw parse_error{"Unexpected end of input"};
+    throw parse_error{"Unexpected end of input", stream};
 
   switch (*c) {
   case 't':
@@ -167,7 +168,7 @@ read_special_literal(context& ctx, port* stream) {
     std::string literal = read_until_delimiter(stream);
 
     if (literal != "t" && literal != "f" && literal != "true" && literal != "false")
-      throw parse_error{fmt::format("Invalid literal: {}", literal)};
+      throw parse_error{fmt::format("Invalid literal: {}", literal), stream};
 
     if (c == 't')
       return boolean_literal{true};
@@ -178,47 +179,47 @@ read_special_literal(context& ctx, port* stream) {
   case 'v': {
     std::string literal = read_until_delimiter(stream);
     if (literal != "void")
-      throw parse_error{fmt::format("Invalid literal: {}", literal)};
+      throw parse_error{fmt::format("Invalid literal: {}", literal), stream};
 
     return void_literal{};
   }
 
   case '\\': {
-    stream->read_char();
+    stream.read_char();
     return read_character(ctx, stream);
   }
 
   default:
-    throw parse_error{"Unimplemented"};
+    throw parse_error{"Unimplemented", stream};
   }
 }
 
 static identifier
-read_identifier(port* stream) {
+read_identifier(input_stream& stream) {
   std::string value;
-  while (stream->peek_char() && !delimiter(*stream->peek_char()))
-    value += *stream->read_char();
+  while (stream.peek_char() && !delimiter(*stream.peek_char()))
+    value += *stream.read_char();
 
   return identifier{std::move(value)};
 }
 
 static generic_literal
-read_string_literal(context& ctx, port* stream) {
+read_string_literal(context& ctx, input_stream& stream) {
   // The opening " was consumed before calling this function.
 
   std::string result;
   while (true) {
-    std::optional<char> c = stream->read_char();
+    std::optional<char> c = stream.read_char();
     if (!c)
-      throw parse_error{"Unexpected end of input"};
+      throw parse_error{"Unexpected end of input", stream};
 
     if (*c == '"')
       break;
 
     if (*c == '\\') {
-      std::optional<char> escape = stream->read_char();
+      std::optional<char> escape = stream.read_char();
       if (!escape)
-        throw parse_error{"Unexpected end of input"};
+        throw parse_error{"Unexpected end of input", stream};
 
       switch (*escape) {
       case 'a': result += '\a'; break;
@@ -229,7 +230,7 @@ read_string_literal(context& ctx, port* stream) {
       case '|': result += '|'; break;
       default:
         // XXX: Support \ at end of line and \xXXXX.
-        throw parse_error{fmt::format("Unrecognised escape sequence \\{}", *escape)};
+        throw parse_error{fmt::format("Unrecognised escape sequence \\{}", *escape), stream};
       }
     }
     else
@@ -240,10 +241,10 @@ read_string_literal(context& ctx, port* stream) {
 }
 
 static token
-read_token(context& ctx, port* stream) {
+read_token(context& ctx, input_stream& stream) {
   skip_whitespace(stream);
 
-  std::optional<char> c = stream->read_char();
+  std::optional<char> c = stream.read_char();
   if (!c)
     return end{};
 
@@ -259,23 +260,23 @@ read_token(context& ctx, port* stream) {
     return backquote{};
   }
   else if (*c == ',') {
-    c = stream->peek_char();
+    c = stream.peek_char();
     if (c && *c == '@') {
-      stream->read_char();
+      stream.read_char();
       return comma_at{};
     }
     else
       return comma{};
   }
   else if (*c == '.') {
-    c = stream->peek_char();
+    c = stream.peek_char();
     if (!c)
-      throw parse_error{"Unexpected end of input"};
+      throw parse_error{"Unexpected end of input", stream};
 
     if (delimiter(*c))
       return dot{};
     else {
-      stream->put_back('.');
+      stream.put_back('.');
 
       if (digit(*c))
         return read_numeric_literal(ctx, stream);
@@ -289,11 +290,11 @@ read_token(context& ctx, port* stream) {
 
     char initial = *c;
 
-    c = stream->peek_char();
+    c = stream.peek_char();
     if (!c)
       return identifier{std::string(1, initial)};
 
-    stream->put_back(initial);
+    stream.put_back(initial);
     if (digit(*c) || *c == '.')
       return read_numeric_literal(ctx, stream);
     else {
@@ -319,15 +320,15 @@ read_token(context& ctx, port* stream) {
     }
   }
   else if (digit(*c)) {
-    stream->put_back(*c);
+    stream.put_back(*c);
     return read_numeric_literal(ctx, stream);
   }
   else if (*c == '#') {
-    c = stream->peek_char();
+    c = stream.peek_char();
     if (!c)
-      throw parse_error{"Unexpected end of input"};
+      throw parse_error{"Unexpected end of input", stream};
     else if (*c == '$') {
-      stream->put_back('#');
+      stream.put_back('#');
       return read_identifier(stream);
     }
     else if (*c == '(')
@@ -338,21 +339,21 @@ read_token(context& ctx, port* stream) {
   else if (*c == '"')
     return read_string_literal(ctx, stream);
   else {
-    stream->put_back(*c);
+    stream.put_back(*c);
     return read_identifier(stream);
   }
 }
 
 static object*
-read(context& ctx, token first_token, port* stream);
+read(context& ctx, token first_token, input_stream& stream);
 
 static object*
-read_list(context& ctx, port* stream) {
+read_list(context& ctx, input_stream& stream) {
   token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t))
-    throw parse_error{"Unterminated list"};
+    throw parse_error{"Unterminated list", stream};
   else if (std::holds_alternative<dot>(t))
-    throw parse_error{"Unexpected . token"};
+    throw parse_error{"Unexpected . token", stream};
   else if (std::holds_alternative<right_paren>(t))
     return ctx.constants->null.get();
 
@@ -371,14 +372,14 @@ read_list(context& ctx, port* stream) {
   }
 
   if (std::holds_alternative<end>(t))
-    throw parse_error{"Unterminated list"};
+    throw parse_error{"Unterminated list", stream};
   else if (std::holds_alternative<dot>(t)) {
     object* cdr = read(ctx, read_token(ctx, stream), stream);
     tail->set_cdr(ctx.store, cdr);
 
     t = read_token(ctx, stream);
     if (!std::holds_alternative<right_paren>(t))
-      throw parse_error{"Too many elements after ."};
+      throw parse_error{"Too many elements after .", stream};
   }
 
   assert(std::holds_alternative<right_paren>(t));
@@ -386,8 +387,8 @@ read_list(context& ctx, port* stream) {
 }
 
 static object*
-read_vector(context& ctx, port* stream) {
-  stream->read_char(); // Consume (
+read_vector(context& ctx, input_stream& stream) {
+  stream.read_char(); // Consume (
 
   std::vector<object*> elements;
 
@@ -398,7 +399,7 @@ read_vector(context& ctx, port* stream) {
   }
 
   if (std::holds_alternative<end>(t))
-    throw parse_error{"Unterminated vector"};
+    throw parse_error{"Unterminated vector", stream};
 
   vector* result = make<vector>(ctx, ctx, elements.size());
   for (std::size_t i = 0; i < elements.size(); ++i)
@@ -408,17 +409,17 @@ read_vector(context& ctx, port* stream) {
 }
 
 static object*
-read_shortcut(context& ctx, port* stream,
+read_shortcut(context& ctx, input_stream& stream,
               std::string const& shortcut, std::string const& expansion) {
   token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t))
-    throw parse_error{fmt::format("Expected token after {}", shortcut)};
+    throw parse_error{fmt::format("Expected token after {}", shortcut), stream};
 
   return make_list(ctx, ctx.intern(expansion), read(ctx, t, stream));
 }
 
 static object*
-read(context& ctx, token first_token, port* stream) {
+read(context& ctx, token first_token, input_stream& stream) {
   if (std::holds_alternative<end>(first_token))
     return {};
   else if (std::holds_alternative<left_paren>(first_token))
@@ -442,16 +443,17 @@ read(context& ctx, token first_token, port* stream) {
   else if (std::holds_alternative<void_literal>(first_token))
     return ctx.constants->void_.get();
   else if (std::holds_alternative<dot>(first_token))
-    throw parse_error{"Unexpected . token"};
+    throw parse_error{"Unexpected . token", stream};
   else if (std::holds_alternative<right_paren>(first_token))
-    throw parse_error{"Unexpected ) token"};
+    throw parse_error{"Unexpected ) token", stream};
 
-  throw parse_error{"Probably unimplemented"};
+  throw parse_error{"Probably unimplemented", stream};
 }
 
 object*
 read(context& ctx, port* stream) {
-  return read(ctx, read_token(ctx, stream), stream);
+  input_stream s{stream};
+  return read(ctx, read_token(ctx, s), s);
 }
 
 object*
