@@ -154,7 +154,7 @@ make_internal_module(context& ctx) {
   define_procedure(
     ctx, "make-syntactic-closure", result, true,
     [] (context& ctx, environment* env, object* free, object* form) {
-      return make<syntactic_closure>(ctx, env, form, free);
+      return make<syntactic_closure>(ctx, env, datum_to_syntax(ctx, source_location::unknown, form), free);
     }
   );
 
@@ -184,34 +184,34 @@ make_internal_module(context& ctx) {
   define_procedure(ctx, "eqv?", result, true, eqv);
   define_procedure(ctx, "equal?", result, true, equal);
 
-  define_procedure(ctx, "free-identifier=?", result, true,
-                   [] (context& ctx, object* x, object* y) {
-                     if (!is_identifier(x) || !is_identifier(y))
-                       throw error{"Expected two identifiers"};
+  // define_procedure(ctx, "free-identifier=?", result, true,
+  //                  [] (context& ctx, object* x, object* y) {
+  //                    if (!is_identifier(x) || !is_identifier(y))
+  //                      throw error{"Expected two identifiers"};
 
-                     auto lookup_binding = [&] (object* id) -> std::optional<environment::value_type> {
-                       tracked_ptr<environment> env = ctx.current_usage_environment;
-                       if (auto sc = match<syntactic_closure>(id)) {
-                         env = syntactic_closure_to_environment(ctx, sc, env);
-                         id = sc->expression();
-                       }
+  //                    auto lookup_binding = [&] (object* id) -> std::optional<environment::value_type> {
+  //                      tracked_ptr<environment> env = ctx.current_usage_environment;
+  //                      if (auto sc = match<syntactic_closure>(id)) {
+  //                        env = syntactic_closure_to_environment(ctx, sc, env);
+  //                        id = sc->expression();
+  //                      }
 
-                       if (env)
-                         return lookup(env, id);
-                       else
-                         return std::nullopt;
-                     };
+  //                      if (env)
+  //                        return lookup(env, id);
+  //                      else
+  //                        return std::nullopt;
+  //                    };
 
-                     auto x_binding = lookup_binding(x);
-                     auto y_binding = lookup_binding(y);
+  //                    auto x_binding = lookup_binding(x);
+  //                    auto y_binding = lookup_binding(y);
 
-                     if (x_binding && y_binding)
-                       return *x_binding == *y_binding;
-                     else if (!x_binding && !y_binding)
-                       return identifier_name(x) == identifier_name(y);
-                     else
-                       return false;
-                   });
+  //                    if (x_binding && y_binding)
+  //                      return *x_binding == *y_binding;
+  //                    else if (!x_binding && !y_binding)
+  //                      return identifier_name(x) == identifier_name(y);
+  //                    else
+  //                      return false;
+  //                  });
 
   define_procedure(
     ctx, "procedure-bytecode", result, true,

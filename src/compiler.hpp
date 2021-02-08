@@ -11,12 +11,12 @@ namespace insider {
 // modified by adding a top-level binding if the datum is a top-level
 // definition.
 procedure*
-compile_expression(context&, object* datum, module&);
+compile_expression(context&, syntax* datum, module&);
 
 // Interpret a list of expressions and import declarations as a main module and
 // create the module.
 module
-compile_main_module(context&, std::vector<generic_tracked_ptr> const& data);
+compile_main_module(context&, std::vector<tracked_ptr<syntax>> const& data);
 
 // Translate a protomodule's body.
 void

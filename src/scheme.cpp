@@ -100,17 +100,19 @@ is_identifier(object* x) {
   if (is<symbol>(x))
     return true;
   else if (auto sc = match<syntactic_closure>(x))
-    return is<symbol>(sc->expression());
+    return syntax_is<symbol>(sc->expression());
   else
     return false;
 }
 
 std::string
 identifier_name(object* x) {
-  if (auto s = match<symbol>(x))
+  if (auto stx = match<syntax>(x))
+    return identifier_name(stx->expression());
+  else if (auto s = match<symbol>(x))
     return s->value();
   else
-    return expect<symbol>(expect<syntactic_closure>(x)->expression())->value();
+    return syntax_expect<symbol>(expect<syntactic_closure>(x)->expression())->value();
 }
 
 void
@@ -154,6 +156,14 @@ environment::lookup(object* identifier) const -> std::optional<value_type> {
   }
 
   return std::nullopt;
+}
+
+bool
+environment::has(std::string const& name) const {
+  for (auto const& [identifier, binding] : bindings_)
+    if (identifier_name(identifier) == name)
+      return true;
+  return false;
 }
 
 std::vector<std::string>
@@ -250,11 +260,11 @@ module::add(object* identifier, binding_type b) {
 }
 
 void
-module::export_(symbol* name) {
+module::export_(std::string const& name) {
   if (!env_->has(name))
-    throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name->value())};
+    throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name)};
 
-  exports_.emplace(name->value());
+  exports_.emplace(name);
 }
 
 namespace {
@@ -367,7 +377,7 @@ instantiate(context& ctx, protomodule const& pm) {
   compile_module_body(ctx, *result, pm);
 
   for (std::string const& name : pm.exports)
-    result->export_(ctx.intern(name));
+    result->export_(name);
 
   return result;
 }
@@ -403,7 +413,7 @@ define_top_level(context& ctx, std::string const& name, module& m, bool export_,
   auto index = ctx.add_top_level(object, name);
   m.add(ctx.intern(name), index);
   if (export_)
-    m.export_(ctx.intern(name));
+    m.export_(name);
 
   return index;
 }
@@ -430,7 +440,7 @@ open_file(std::filesystem::path const& path, std::filesystem::path::value_type c
 #endif
 }
 
-std::optional<std::vector<generic_tracked_ptr>>
+std::optional<std::vector<tracked_ptr<syntax>>>
 filesystem_module_provider::find_module(context& ctx, module_name const& name) {
   std::filesystem::path p = root_;
   for (std::string const& element : name)
@@ -445,7 +455,7 @@ filesystem_module_provider::find_module(context& ctx, module_name const& name) {
       std::optional<module_name> candidate_name = read_library_name(ctx, in);
       if (candidate_name == name) {
         in->rewind();
-        return read_multiple(ctx, in);
+        return read_syntax_multiple(ctx, in);
       }
     }
   }
@@ -497,7 +507,7 @@ context::context()
     auto index = add_top_level(form.object.get(), form.name);
     auto id = intern(form.name);
     internal_module.add(id, index);
-    internal_module.export_(id);
+    internal_module.export_(form.name);
   }
 
   statics.null = intern_static(constants->null);
@@ -595,7 +605,7 @@ context::find_tag(operand i) const {
 }
 
 void
-context::load_library_module(std::vector<generic_tracked_ptr> const& data) {
+context::load_library_module(std::vector<tracked_ptr<syntax>> const& data) {
   protomodule pm = read_library(*this, data);
   assert(pm.name);
 
@@ -620,7 +630,7 @@ context::find_module(module_name const& name) {
   auto pm = protomodules_.find(name);
   if (pm == protomodules_.end()) {
     for (std::unique_ptr<module_provider> const& provider : module_providers_)
-      if (std::optional<std::vector<generic_tracked_ptr>> lib = provider->find_module(*this, name)) {
+      if (std::optional<std::vector<tracked_ptr<syntax>>> lib = provider->find_module(*this, name)) {
         load_library_module(*lib);
 
         pm = protomodules_.find(name);
@@ -1172,12 +1182,76 @@ input_stream::current_location() const {
   return source_location{port_->name(), line_, column_};
 }
 
+static object*
+syntax_to_datum_helper(context& ctx, object* o) {
+  if (o == ctx.constants->null.get()) {
+    return o;
+  } else if (auto p = semisyntax_match<pair>(o)) {
+    return cons(ctx, syntax_to_datum_helper(ctx, car(p)), syntax_to_datum_helper(ctx, cdr(p)));
+  } else if (auto v = semisyntax_match<vector>(o)) {
+    auto result = make<vector>(ctx, ctx, v->size());
+    for (std::size_t i = 0; i < v->size(); ++i)
+      result->set(ctx.store, i, syntax_to_datum_helper(ctx, v->ref(i)));
+    return result;
+  } else if (auto stx = match<syntax>(o)) {
+    return stx->expression();
+  } else {
+    return o;
+  }
+}
+
+object*
+syntax_to_datum(context& ctx, syntax* stx) {
+  return syntax_to_datum_helper(ctx, stx);
+}
+
+syntax*
+datum_to_syntax(context& ctx, source_location loc, object* datum) {
+  if (auto p = match<pair>(datum))
+    return make<syntax>(ctx, cons(ctx, datum_to_syntax(ctx, loc, car(p)), datum_to_syntax(ctx, loc, cdr(p))), loc);
+  else if (auto v = match<vector>(datum)) {
+    auto result_vec = make<vector>(ctx, ctx, v->size());
+    for (std::size_t i = 0; i < v->size(); ++i)
+      result_vec->set(ctx.store, i, datum_to_syntax(ctx, loc, v->ref(i)));
+    return make<syntax>(ctx, result_vec, loc);
+  } else if (auto s = match<syntax>(datum)) {
+    return s;
+  } else
+    return make<syntax>(ctx, datum, loc);
+}
+
+object*
+syntax_to_list(context& ctx, object* stx) {
+  if (stx == ctx.constants->null.get())
+    return ctx.constants->null.get();
+
+  if (!is<pair>(stx) && (!is<syntax>(stx) || !syntax_is<pair>(assume<syntax>(stx))))
+    return nullptr;
+
+  pair* result = make<pair>(ctx, car(semisyntax_assume<pair>(stx)), ctx.constants->null.get());
+  pair* tail = result;
+  object* datum = cdr(semisyntax_assume<pair>(stx));
+
+  while (pair* p = semisyntax_match<pair>(datum)) {
+    auto new_pair = make<pair>(ctx, car(p), ctx.constants->null.get());
+    tail->set_cdr(ctx.store, new_pair);
+    tail = new_pair;
+
+    datum = cdr(p);
+  }
+
+  if (!semisyntax_is<null_type>(datum))
+    return nullptr;
+
+  return result;
+}
+
 std::size_t
-syntactic_closure::extra_elements(insider::environment*, object*, object* free) {
+syntactic_closure::extra_elements(insider::environment*, syntax*, object* free) {
   return list_length(free);
 }
 
-syntactic_closure::syntactic_closure(insider::environment* env, object* expr, object* free)
+syntactic_closure::syntactic_closure(insider::environment* env, syntax* expr, object* free)
   : expression_{expr}
   , env_{env}
   , free_size_{0}

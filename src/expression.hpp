@@ -11,6 +11,7 @@
 
 namespace insider {
 
+class syntax;
 class transformer;
 
 // The binding between a name and its value. For top-level values, this directly
@@ -90,11 +91,11 @@ struct sequence_expression {
 };
 
 struct definition_pair_expression {
-  generic_tracked_ptr                  id;
+  tracked_ptr<syntax>                  id;
   std::shared_ptr<insider::variable>   variable;
   std::unique_ptr<insider::expression> expression;
 
-  definition_pair_expression(generic_tracked_ptr id, std::shared_ptr<insider::variable> var,
+  definition_pair_expression(tracked_ptr<syntax> id, std::shared_ptr<insider::variable> var,
                              std::unique_ptr<insider::expression> expr)
     : id{id}
     , variable{std::move(var)}
@@ -323,12 +324,12 @@ struct protomodule {
   std::optional<module_name>       name;
   std::vector<import_specifier>    imports;
   std::vector<std::string>         exports;
-  std::vector<generic_tracked_ptr> body;
+  std::vector<tracked_ptr<syntax>> body;
 
   protomodule() = default;
 
   protomodule(std::optional<module_name> name, std::vector<import_specifier> imports,
-              std::vector<std::string> exports, std::vector<generic_tracked_ptr> body)
+              std::vector<std::string> exports, std::vector<tracked_ptr<syntax>> body)
     : name{std::move(name)}
     , imports{std::move(imports)}
     , exports{std::move(exports)}

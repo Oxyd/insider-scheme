@@ -45,6 +45,201 @@ eqv(context&, object* x, object* y);
 bool
 equal(context&, object*, object*);
 
+class error : public std::runtime_error {
+public:
+  // Format an error message using fmtlib and append the action stack to it.
+  template <typename... Args>
+  error(std::string_view fmt, Args&&... args)
+    : std::runtime_error{fmt::format(fmt, std::forward<Args>(args)...)}
+  { }
+};
+
+std::string
+format_error(context& ctx, std::runtime_error const&);
+
+// Is a given object an instance of the given Scheme type?
+template <typename T>
+bool
+is(object* x) {
+  assert(x);
+  return is_object_ptr(x) && object_type_index(x) == T::type_index;
+}
+
+template <>
+inline bool
+is<integer>(object* x) {
+  return is_fixnum(x);
+}
+
+template <typename T>
+bool
+is(generic_tracked_ptr const& x) {
+  return is<T>(x.get());
+}
+
+template <typename Expected>
+error
+make_type_error(object* actual) {
+  throw error{"Invalid type: expected {}, got {}", type_name<Expected>(), object_type_name(actual)};
+}
+
+namespace detail {
+  template <typename T>
+  struct expect_helper {
+    static T*
+    expect(object* x, std::string_view message) {
+      if (is<T>(x))
+        return static_cast<T*>(x);
+      else
+        throw !message.empty() ? error{message} : make_type_error<T>(x);
+    }
+
+    static tracked_ptr<T>
+    expect(generic_tracked_ptr const& x, std::string_view message) {
+      return {x.store(), expect(x.get(), message)};
+    }
+  };
+
+  template <>
+  struct expect_helper<integer> {
+    static integer
+    expect(object* x, std::string_view message) {
+      if (is<integer>(x))
+        return ptr_to_integer(x);
+      else
+        throw !message.empty() ? error{message} : make_type_error<integer>(x);
+    }
+
+    static integer
+    expect(generic_tracked_ptr const& x, std::string_view message) {
+      return expect(x.get(), message);
+    }
+  };
+}
+
+// Expect an object to be of given type and return the apropriate typed pointer
+// to the object. Throws type_error if the object isn't of the required type.
+template <typename T>
+auto
+expect(object* x) {
+  return detail::expect_helper<T>::expect(x, {});
+}
+
+template <typename T>
+auto
+expect(generic_tracked_ptr const& x) {
+  return detail::expect_helper<T>::expect(x, {});
+}
+
+// Same as expect, but throws a runtime_error with the given message if the
+// actual type isn't the expected one.
+template <typename T>
+auto
+expect(object* x, std::string_view message) {
+  return detail::expect_helper<T>::expect(x, message);
+}
+
+template <typename T>
+auto
+expect(generic_tracked_ptr const& x, std::string_view message) {
+  return detail::expect_helper<T>::expect(x, message);
+}
+
+namespace detail {
+  template <typename T>
+  struct assume_helper {
+    static T*
+    assume(object* x) {
+      assert(is<T>(x));
+      return static_cast<T*>(x);
+    }
+
+    static tracked_ptr<T>
+    assume(generic_tracked_ptr const& x) {
+      assert(is<T>(x));
+      return {x.store(), static_cast<T*>(x.get())};
+    }
+  };
+
+  template <>
+  struct assume_helper<integer> {
+    static integer
+    assume(object* x) {
+      assert(is<integer>(x));
+      return ptr_to_integer(x);
+    }
+
+    static integer
+    assume(generic_tracked_ptr const& x) {
+      assert(is<integer>(x));
+      return ptr_to_integer(x.get());
+    }
+  };
+}
+
+// Assert that an object is of a given type and return the appropriate typed
+// pointer. It is undefined behaviour if the actual type doesn't match the
+// specified type.
+template <typename T>
+auto
+assume(object* x) {
+  return detail::assume_helper<T>::assume(x);
+}
+
+template <typename T>
+auto
+assume(generic_tracked_ptr const& x) {
+  return detail::assume_helper<T>::assume(x);
+}
+
+namespace detail {
+  template <typename T>
+  struct match_helper {
+    static T*
+    match(object* x) {
+      if (is<T>(x))
+        return static_cast<T*>(x);
+      else
+        return {};
+    }
+
+    static tracked_ptr<T>
+    match(generic_tracked_ptr const& x) {
+      return {x.store(), match(x.get())};
+    }
+  };
+
+  template <>
+  struct match_helper<integer> {
+    static std::optional<integer>
+    match(object* x) {
+      if (is<integer>(x))
+        return ptr_to_integer(x);
+      else
+        return std::nullopt;
+    }
+
+    static std::optional<integer>
+    match(generic_tracked_ptr const& x) {
+      return match(x.get());
+    }
+  };
+}
+
+// If an object is of the given type, return the typed pointer to it; otherwise,
+// return null.
+template <typename T>
+auto
+match(object* x) {
+  return detail::match_helper<T>::match(x);
+}
+
+template <typename T>
+auto
+match(generic_tracked_ptr const& x) {
+  return detail::match_helper<T>::match(x);
+}
+
 class eqv_compare {
 public:
   explicit
@@ -138,6 +333,9 @@ public:
   bool
   has(object* identifier) const { return bindings_.count(identifier); }
 
+  bool
+  has(std::string const& name) const;
+
   std::vector<std::string>
   bound_names() const;
 
@@ -178,7 +376,7 @@ public:
   add(object*, binding_type);
 
   void
-  export_(symbol*);
+  export_(std::string const& name);
 
   std::unordered_set<std::string> const&
   exports() const { return exports_; }
@@ -202,10 +400,10 @@ public:
   mark_active() { active_ = true; }
 
 private:
-  tracked_ptr<insider::environment>       env_;
-  std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
-  tracked_ptr<procedure>                  proc_;
-  bool                            active_ = false;
+  tracked_ptr<insider::environment> env_;
+  std::unordered_set<std::string>   exports_; // Bindings available for export to other modules.
+  tracked_ptr<procedure>            proc_;
+  bool                              active_ = false;
 };
 
 // Turn a protomodule into a module. First instantiate all uninstantiated
@@ -247,7 +445,7 @@ public:
 
   // Try to provide the module with the given name. This function must only
   // return either nullopt or a library with the specified name.
-  virtual std::optional<std::vector<generic_tracked_ptr>>
+  virtual std::optional<std::vector<tracked_ptr<syntax>>>
   find_module(context&, module_name const&) = 0;
 };
 
@@ -260,7 +458,7 @@ public:
   explicit
   filesystem_module_provider(std::filesystem::path root) : root_{std::move(root)} { }
 
-  std::optional<std::vector<generic_tracked_ptr>>
+  std::optional<std::vector<tracked_ptr<syntax>>>
   find_module(context&, module_name const&) override;
 
 private:
@@ -366,7 +564,7 @@ public:
   find_tag(operand) const;
 
   void
-  load_library_module(std::vector<generic_tracked_ptr> const&);
+  load_library_module(std::vector<tracked_ptr<syntax>> const&);
 
   module*
   find_module(module_name const&);
@@ -408,18 +606,6 @@ track(context& ctx, object* o) { return {ctx.store, o}; }
 template <typename T>
 tracked_ptr<T>
 track(context& ctx, T* o) { return {ctx.store, o}; }
-
-class error : public std::runtime_error {
-public:
-  // Format an error message using fmtlib and append the action stack to it.
-  template <typename... Args>
-  error(std::string_view fmt, Args&&... args)
-    : std::runtime_error{fmt::format(fmt, std::forward<Args>(args)...)}
-  { }
-};
-
-std::string
-format_error(context& ctx, std::runtime_error const&);
 
 // A boolean value.
 class boolean : public leaf_object<boolean> {
@@ -911,10 +1097,14 @@ public:
 };
 
 struct source_location {
+  static source_location const unknown;
+
   std::string file_name;
   unsigned    line;
   unsigned    column;
 };
+
+inline source_location const source_location::unknown{"<unknown>", 0, 0};
 
 std::string
 format_location(source_location const&);
@@ -945,6 +1135,108 @@ private:
   unsigned       column_ = 1;
 };
 
+// Part of the programs' source code. It is an S-expression together with
+// information about the source code location.
+class syntax : public composite_object<syntax> {
+public:
+  static constexpr char const* scheme_name = "insider::syntax";
+
+  syntax(object* expr, source_location loc)
+    : expression_{expr}
+    , location_{std::move(loc)}
+  {
+    assert(expr);
+  }
+
+  object*
+  expression() const { return expression_; }
+
+  source_location const&
+  location() const { return location_; }
+
+  void
+  trace(tracing_context& tc) const { tc.trace(expression_); }
+
+  void
+  update_references() { update_reference(expression_); }
+
+  std::size_t
+  hash() const { return insider::hash(expression_) ^ std::hash<std::string>{}(format_location(location_)); }
+
+private:
+  object*         expression_;
+  source_location location_;
+};
+
+template <typename T>
+bool
+syntax_is(syntax* stx) {
+  return is<T>(stx->expression());
+}
+
+template <typename T>
+auto
+syntax_match(syntax* stx) {
+  return match<T>(stx->expression());
+}
+
+template <typename T>
+auto
+syntax_expect(syntax* stx) {
+  return expect<T>(stx->expression());
+}
+
+template <typename T>
+auto
+syntax_assume(syntax* stx) {
+  return assume<T>(stx->expression());
+}
+
+template <typename T>
+auto
+semisyntax_is(object* x) {
+  if (auto stx = match<syntax>(x))
+    return is<T>(stx->expression());
+  else
+    return is<T>(x);
+}
+
+template <typename T>
+auto
+semisyntax_match(object* x) {
+  if (auto stx = match<syntax>(x))
+    return match<T>(stx->expression());
+  else
+    return match<T>(x);
+}
+
+template <typename T>
+auto
+semisyntax_expect(object* x) {
+  if (auto stx = match<syntax>(x))
+    return expect<T>(stx->expression());
+  else
+    return expect<T>(x);
+}
+
+template <typename T>
+auto
+semisyntax_assume(object* x) {
+  if (auto stx = match<syntax>(x))
+    return assume<T>(stx->expression());
+  else
+    return assume<T>(x);
+}
+
+object*
+syntax_to_datum(context&, syntax*);
+
+syntax*
+datum_to_syntax(context&, source_location, object*);
+
+object*
+syntax_to_list(context&, object*);
+
 // An expression together with an environment and a module in which to look up
 // the names used in the expression. Some names may be explicitly marked as
 // free, and they will be looked up in the environment in which the syntactic
@@ -955,14 +1247,14 @@ public:
 
   static std::size_t
   extra_elements(insider::environment*,
-                 object* expr, object* free);
+                 syntax* expr, object* free);
 
   syntactic_closure(insider::environment*,
-                    object* expr, object* free);
+                    syntax* expr, object* free);
 
   syntactic_closure(syntactic_closure&&);
 
-  object*
+  syntax*
   expression() const { return expression_; }
 
   insider::environment*
@@ -986,7 +1278,7 @@ public:
   }
 
 private:
-  object*               expression_;
+  syntax*               expression_;
   insider::environment* env_;
   std::size_t           free_size_;
 };
@@ -1023,189 +1315,6 @@ private:
   insider::environment* env_;
   insider::object*      callable_;
 };
-
-// Is a given object an instance of the given Scheme type?
-template <typename T>
-bool
-is(object* x) {
-  assert(x);
-  return is_object_ptr(x) && object_type_index(x) == T::type_index;
-}
-
-template <>
-inline bool
-is<integer>(object* x) {
-  return is_fixnum(x);
-}
-
-template <typename T>
-bool
-is(generic_tracked_ptr const& x) {
-  return is<T>(x.get());
-}
-
-template <typename Expected>
-error
-make_type_error(object* actual) {
-  throw error{"Invalid type: expected {}, got {}", type_name<Expected>(), object_type_name(actual)};
-}
-
-namespace detail {
-  template <typename T>
-  struct expect_helper {
-    static T*
-    expect(object* x, std::string_view message) {
-      if (is<T>(x))
-        return static_cast<T*>(x);
-      else
-        throw !message.empty() ? error{message} : make_type_error<T>(x);
-    }
-
-    static tracked_ptr<T>
-    expect(generic_tracked_ptr const& x, std::string_view message) {
-      return {x.store(), expect(x.get(), message)};
-    }
-  };
-
-  template <>
-  struct expect_helper<integer> {
-    static integer
-    expect(object* x, std::string_view message) {
-      if (is<integer>(x))
-        return ptr_to_integer(x);
-      else
-        throw !message.empty() ? error{message} : make_type_error<integer>(x);
-    }
-
-    static integer
-    expect(generic_tracked_ptr const& x, std::string_view message) {
-      return expect(x.get(), message);
-    }
-  };
-}
-
-// Expect an object to be of given type and return the apropriate typed pointer
-// to the object. Throws type_error if the object isn't of the required type.
-template <typename T>
-auto
-expect(object* x) {
-  return detail::expect_helper<T>::expect(x, {});
-}
-
-template <typename T>
-auto
-expect(generic_tracked_ptr const& x) {
-  return detail::expect_helper<T>::expect(x, {});
-}
-
-// Same as expect, but throws a runtime_error with the given message if the
-// actual type isn't the expected one.
-template <typename T>
-auto
-expect(object* x, std::string_view message) {
-  return detail::expect_helper<T>::expect(x, message);
-}
-
-template <typename T>
-auto
-expect(generic_tracked_ptr const& x, std::string_view message) {
-  return detail::expect_helper<T>::expect(x, message);
-}
-
-namespace detail {
-  template <typename T>
-  struct assume_helper {
-    static T*
-    assume(object* x) {
-      assert(is<T>(x));
-      return static_cast<T*>(x);
-    }
-
-    static tracked_ptr<T>
-    assume(generic_tracked_ptr const& x) {
-      assert(is<T>(x));
-      return {x.store(), static_cast<T*>(x.get())};
-    }
-  };
-
-  template <>
-  struct assume_helper<integer> {
-    static integer
-    assume(object* x) {
-      assert(is<integer>(x));
-      return ptr_to_integer(x);
-    }
-
-    static integer
-    assume(generic_tracked_ptr const& x) {
-      assert(is<integer>(x));
-      return ptr_to_integer(x.get());
-    }
-  };
-}
-
-// Assert that an object is of a given type and return the appropriate typed
-// pointer. It is undefined behaviour if the actual type doesn't match the
-// specified type.
-template <typename T>
-auto
-assume(object* x) {
-  return detail::assume_helper<T>::assume(x);
-}
-
-template <typename T>
-auto
-assume(generic_tracked_ptr const& x) {
-  return detail::assume_helper<T>::assume(x);
-}
-
-namespace detail {
-  template <typename T>
-  struct match_helper {
-    static T*
-    match(object* x) {
-      if (is<T>(x))
-        return static_cast<T*>(x);
-      else
-        return {};
-    }
-
-    static tracked_ptr<T>
-    match(generic_tracked_ptr const& x) {
-      return {x.store(), match(x.get())};
-    }
-  };
-
-  template <>
-  struct match_helper<integer> {
-    static std::optional<integer>
-    match(object* x) {
-      if (is<integer>(x))
-        return ptr_to_integer(x);
-      else
-        return std::nullopt;
-    }
-
-    static std::optional<integer>
-    match(generic_tracked_ptr const& x) {
-      return match(x.get());
-    }
-  };
-}
-
-// If an object is of the given type, return the typed pointer to it; otherwise,
-// return null.
-template <typename T>
-auto
-match(object* x) {
-  return detail::match_helper<T>::match(x);
-}
-
-template <typename T>
-auto
-match(generic_tracked_ptr const& x) {
-  return detail::match_helper<T>::match(x);
-}
 
 namespace detail {
   template <typename T, typename SimilarTo>

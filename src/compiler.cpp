@@ -729,7 +729,7 @@ compile_sequence(context& ctx, procedure_context& proc, sequence_expression cons
 }
 
 procedure*
-compile_expression(context& ctx, object* datum, module& mod) {
+compile_expression(context& ctx, syntax* datum, module& mod) {
   auto stx = analyse(ctx, datum, mod);
 
   procedure_context proc{nullptr, mod};
@@ -742,7 +742,7 @@ compile_expression(context& ctx, object* datum, module& mod) {
 }
 
 module
-compile_main_module(context& ctx, std::vector<generic_tracked_ptr> const& data) {
+compile_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& data) {
   simple_action a(ctx, "Analysing main module");
   protomodule pm = read_main_module(ctx, data);
   module result{ctx};
