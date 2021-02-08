@@ -23,6 +23,19 @@
 
 namespace insider {
 
+class syntax_error : public error {
+public:
+  template <typename... Args>
+  syntax_error(syntax* stx, std::string_view fmt, Args&&... args)
+    : error{"{}: {}", format_location(stx->location()), fmt::format(fmt, std::forward<Args>(args)...)}
+  { }
+
+  template <typename... Args>
+  syntax_error(source_location const& loc, std::string_view fmt, Args&&... args)
+    : error{"{}: {}", format_location(loc), fmt::format(fmt, std::forward<Args>(args)...)}
+  { }
+};
+
 static std::string
 syntax_to_string(context& ctx, syntax* stx) {
   return datum_to_string(ctx, syntax_to_datum(ctx, stx));
@@ -65,7 +78,7 @@ lookup_core(context& ctx, tracked_ptr<environment> const& env, syntax* id) {
 static syntax*
 expect_id(context& ctx, syntax* x) {
   if (!is_identifier(x->expression()))
-    throw error{"Expected identifier, got {}", syntax_to_string(ctx, x)};
+    throw syntax_error{x, "Expected identifier, got {}", syntax_to_string(ctx, x)};
 
   return x;
 }
@@ -165,12 +178,12 @@ parse_definition_pair(parsing_context& pc, tracked_ptr<environment> const& env, 
 
   object* datum = syntax_to_list(pc.ctx, stx);
   if (!datum || datum == pc.ctx.constants->null.get())
-    throw error{"Invalid let syntax: Expected a list, got {}", syntax_to_string(pc.ctx, stx)};
+    throw syntax_error{stx, "Invalid let syntax: Expected a list, got {}", syntax_to_string(pc.ctx, stx)};
 
   auto id = expect_id(pc.ctx, expect<syntax>(car(assume<pair>(datum))));
 
   if (cdr(assume<pair>(datum)) == pc.ctx.constants->null.get())
-    throw error("Invalid let syntax: No expression for {}", identifier_name(id));
+    throw syntax_error(stx, "Invalid let syntax: No expression for {}", identifier_name(id));
 
   return {track(pc.ctx, id),
           std::make_shared<variable>(identifier_name(id)), parse(pc, env, expect<syntax>(cadr(assume<pair>(datum))))};
@@ -268,13 +281,14 @@ transpose_syntactic_closure(context& ctx, syntactic_closure* sc, tracked_ptr<env
 //
 // Causes a garbage collection.
 static body_content
-process_internal_defines(parsing_context& pc, tracked_ptr<environment> const& env, object* data) {
+process_internal_defines(parsing_context& pc, tracked_ptr<environment> const& env, object* data,
+                         source_location const& loc) {
   body_content result;
   result.env = make_tracked<environment>(pc.ctx, env.get());
 
   object* list = syntax_to_list(pc.ctx, data);
   if (!list)
-    throw error{"Expected list of expressions"};
+    throw syntax_error{loc, "Expected list of expressions"};
 
   std::vector<tracked_ptr<syntax>> stack;
   for (object* e : in_list{list})
@@ -291,7 +305,7 @@ process_internal_defines(parsing_context& pc, tracked_ptr<environment> const& en
 
       if (form == pc.ctx.constants->define_syntax.get()) {
         if (seen_expression)
-          throw error("define-syntax after a nondefinition");
+          throw syntax_error(expr.get(), "define-syntax after a nondefinition");
 
         auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p)))));
         auto transformer_proc = eval_transformer(pc.ctx, pc.module, expect<syntax>(caddr(assume<pair>(p)))); // GC
@@ -302,7 +316,7 @@ process_internal_defines(parsing_context& pc, tracked_ptr<environment> const& en
       }
       else if (form == pc.ctx.constants->define.get()) {
         if (seen_expression)
-          throw error("define after a nondefinition");
+          throw syntax_error(expr.get(), "define after a nondefinition");
 
         auto id = expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p))));
         result.env->add(pc.ctx.store, id->expression(), std::make_shared<variable>(identifier_name(id)));
@@ -334,9 +348,9 @@ process_internal_defines(parsing_context& pc, tracked_ptr<environment> const& en
 
   if (!seen_expression) {
     if (!result.forms.empty())
-      throw error("No expression after a sequence of internal definitions");
+      throw syntax_error(loc, "No expression after a sequence of internal definitions");
     else
-      throw error("Empty body");
+      throw syntax_error(loc, "Empty body");
   }
 
   return result;
@@ -355,8 +369,8 @@ parse_expression_list(parsing_context& pc, tracked_ptr<environment> const& env,
 }
 
 static sequence_expression
-parse_body(parsing_context& pc, tracked_ptr<environment> const& env, object* data) {
-  body_content content = process_internal_defines(pc, env, data); // GC
+parse_body(parsing_context& pc, tracked_ptr<environment> const& env, object* data, source_location const& loc) {
+  body_content content = process_internal_defines(pc, env, data, loc); // GC
   if (!content.internal_variable_ids.empty()) {
     std::vector<definition_pair_expression> definitions;
     for (tracked_ptr<syntax> const& id : content.internal_variable_ids) {
@@ -383,17 +397,18 @@ parse_let(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx)
 
   object* datum = syntax_to_list(pc.ctx, stx);
   if (!datum || list_length(datum) < 3)
-    throw error("Invalid let syntax");
+    throw syntax_error(stx, "Invalid let syntax");
 
-  object* bindings = syntax_to_list(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))));
+  syntax* bindings_stx = expect<syntax>(cadr(assume<pair>(datum)));
+  object* bindings = syntax_to_list(pc.ctx, bindings_stx);
   if (!bindings)
-    throw error("Invalid let syntax in binding definitions");
+    throw syntax_error(bindings_stx, "Invalid let syntax in binding definitions");
 
   std::vector<definition_pair_expression> definitions;
   while (bindings != pc.ctx.constants->null.get()) {
     auto binding = expect<syntax>(car(assume<pair>(bindings)));
     if (!syntax_is<pair>(binding))
-      throw error("Invalid let syntax in binding definitions");
+      throw syntax_error(binding, "Invalid let syntax in binding definitions");
 
     definitions.push_back(parse_definition_pair(pc, env, binding));
     bindings = cdr(assume<pair>(bindings));
@@ -404,7 +419,7 @@ parse_let(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx)
     subenv->add(pc.ctx.store, dp.id->expression(), dp.variable);
 
   return make_expression<let_expression>(std::move(definitions),
-                                         parse_body(pc, subenv, cddr(expect<pair>(datum))));
+                                         parse_body(pc, subenv, cddr(expect<pair>(datum)), stx->location()));
 }
 
 static std::unique_ptr<expression>
@@ -413,9 +428,10 @@ parse_lambda(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s
 
   object* datum = syntax_to_list(pc.ctx, stx);
   if (!datum || cdr(assume<pair>(datum)) == pc.ctx.constants->null.get())
-    throw error("Invalid lambda syntax");
+    throw syntax_error(stx, "Invalid lambda syntax");
 
-  object* param_names = cadr(assume<pair>(datum));
+  syntax* param_stx = expect<syntax>(cadr(assume<pair>(datum)));
+  object* param_names = param_stx;
   std::vector<std::shared_ptr<variable>> parameters;
   bool has_rest = false;
   auto subenv = make_tracked<environment>(pc.ctx, env.get());
@@ -437,11 +453,12 @@ parse_lambda(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s
       break;
     }
     else
-      throw error{"Unexpected value in lambda parameters: {}", datum_to_string(pc.ctx, param_names)};
+      throw syntax_error{param_stx, "Unexpected value in lambda parameters: {}",
+                         datum_to_string(pc.ctx, param_names)};
   }
 
   return make_expression<lambda_expression>(std::move(parameters), has_rest,
-                                            parse_body(pc, subenv, cddr(assume<pair>(datum))),
+                                            parse_body(pc, subenv, cddr(assume<pair>(datum)), stx->location()),
                                             std::nullopt, std::vector<std::shared_ptr<insider::variable>>{});
 }
 
@@ -451,7 +468,7 @@ parse_if(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) 
 
   object* datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 3 && list_length(datum) != 4)
-    throw error("Invalid if syntax");
+    throw syntax_error(stx, "Invalid if syntax");
   pair* list = assume<pair>(datum);
 
   syntax* test_expr = expect<syntax>(cadr(list));
@@ -471,7 +488,7 @@ parse_application(parsing_context& pc, tracked_ptr<environment> const& env, synt
 
   auto datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
   if (!datum)
-    throw error("Invalid function call syntax");
+    throw syntax_error(stx, "Invalid function call syntax");
 
   std::vector<std::unique_ptr<expression>> arguments;
   auto arg_expr = track(pc.ctx, cdr(assume<pair>(datum.get())));
@@ -488,7 +505,7 @@ static std::unique_ptr<expression>
 parse_box(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
   object* datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 2)
-    throw error("Invalid box syntax");
+    throw syntax_error(stx, "Invalid box syntax");
 
   return make_expression<box_expression>(parse(pc, env, expect<syntax>(cadr(assume<pair>(datum)))));
 }
@@ -497,7 +514,7 @@ static std::unique_ptr<expression>
 parse_unbox(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
   object* datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 2)
-    throw error("Invalid unbox syntax");
+    throw syntax_error(stx, "Invalid unbox syntax");
 
   return make_expression<unbox_expression>(parse(pc, env, expect<syntax>(cadr(assume<pair>(datum)))));
 }
@@ -506,7 +523,7 @@ static std::unique_ptr<expression>
 parse_box_set(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
   object* datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 3)
-    throw error("Invalid box-set! syntax");
+    throw syntax_error(stx, "Invalid box-set! syntax");
 
   return make_expression<box_set_expression>(parse(pc, env, expect<syntax>(cadr(assume<pair>(datum)))),
                                              parse(pc, env, expect<syntax>(caddr(assume<pair>(datum)))));
@@ -543,7 +560,7 @@ parse_reference(tracked_ptr<environment> const& env, syntax* id) {
   auto var = lookup_variable(env, id);
 
   if (!var)
-    throw error("Identifier {} not bound to a variable", identifier_name(id));
+    throw syntax_error(id, "Identifier {} not bound to a variable", identifier_name(id));
 
   if (!var->global)
     return make_expression<local_reference_expression>(std::move(var));
@@ -563,14 +580,14 @@ parse_define_or_set(parsing_context& pc, tracked_ptr<environment> const& env, sy
 
   object* datum = syntax_to_list(pc.ctx, stx);
   if (!datum || list_length(datum) != 3)
-    throw error("Invalid {} syntax", form_name);
+    throw syntax_error(stx, "Invalid {} syntax", form_name);
 
   auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(datum)))));
   syntax* expr = expect<syntax>(caddr(assume<pair>(datum)));
 
   auto var = lookup_variable(env, name.get());
   if (!var)
-    throw error("Identifier {} not bound to a variable", identifier_name(name.get()));
+    throw syntax_error(name.get(), "Identifier {} not bound to a variable", identifier_name(name.get()));
 
   auto initialiser = parse(pc, env, expr);
   if (auto l = std::get_if<lambda_expression>(&initialiser->value))
@@ -610,7 +627,7 @@ parse_syntax_trap(parsing_context& pc, tracked_ptr<environment> const& env, synt
 
   object* datum = syntax_to_list(pc.ctx, stx);
   if (!datum)
-    throw error{"Invalid syntax-trap syntax"};
+    throw syntax_error{stx, "Invalid syntax-trap syntax"};
 
   return parse(pc, env, expect<syntax>(cadr(assume<pair>(datum))));
 }
@@ -619,7 +636,7 @@ static std::unique_ptr<expression>
 parse_syntax_error(parsing_context& pc, syntax* stx) {
   object* datum = syntax_to_list(pc.ctx, stx);
   if (!datum || list_length(datum) < 2)
-    throw error{"Invalid syntax-error syntax, how ironic"};
+    throw syntax_error{stx, "Invalid syntax-error syntax, how ironic"};
 
   std::string result_msg = syntax_expect<string>(expect<syntax>(cadr(assume<pair>(datum))))->value();
   for (object* irritant : in_list{cddr(assume<pair>(datum))})
@@ -663,10 +680,11 @@ namespace {
     >;
 
     value_type value;
+    source_location loc;
 
-    explicit
-    qq_template(value_type value)
+    qq_template(value_type value, syntax* stx)
       : value(std::move(value))
+      , loc{stx->location()}
     { }
   };
 } // anonymous namespace
@@ -690,13 +708,13 @@ parse_qq_template(context& ctx, tracked_ptr<environment> const& env, syntax* stx
     if (auto form = match_core_form(ctx, env, expect<syntax>(car(p)))) {
       if (form == ctx.constants->unquote.get()) {
         if (quote_level == 0)
-          return std::make_unique<qq_template>(unquote{track(ctx, syntax_cadr(stx)), false});
+          return std::make_unique<qq_template>(unquote{track(ctx, syntax_cadr(stx)), false}, syntax_cadr(stx));
         else
           nested_level = quote_level - 1;
       }
       else if (form == ctx.constants->unquote_splicing.get()) {
         if (quote_level == 0)
-          return std::make_unique<qq_template>(unquote{track(ctx, syntax_cadr(stx)), true});
+          return std::make_unique<qq_template>(unquote{track(ctx, syntax_cadr(stx)), true}, syntax_cadr(stx));
         else
           nested_level = quote_level - 1;
       }
@@ -733,9 +751,9 @@ parse_qq_template(context& ctx, tracked_ptr<environment> const& env, syntax* stx
     }
 
     if (all_literal)
-      return std::make_unique<qq_template>(literal{track(ctx, stx)});
+      return std::make_unique<qq_template>(literal{track(ctx, stx)}, stx);
     else
-      return std::make_unique<qq_template>(std::move(result));
+      return std::make_unique<qq_template>(std::move(result), stx);
   }
   else if (auto v = syntax_match<vector>(stx)) {
     std::vector<std::unique_ptr<qq_template>> templates;
@@ -749,12 +767,12 @@ parse_qq_template(context& ctx, tracked_ptr<environment> const& env, syntax* stx
     }
 
     if (all_literal)
-      return std::make_unique<qq_template>(literal{track(ctx, stx)});
+      return std::make_unique<qq_template>(literal{track(ctx, stx)}, stx);
     else
-      return std::make_unique<qq_template>(vector_pattern{std::move(templates)});
+      return std::make_unique<qq_template>(vector_pattern{std::move(templates)}, stx);
   }
   else
-    return std::make_unique<qq_template>(literal{track(ctx, stx)});
+    return std::make_unique<qq_template>(literal{track(ctx, stx)}, stx);
 }
 
 static std::unique_ptr<expression>
@@ -780,7 +798,7 @@ process_qq_template(parsing_context& pc, tracked_ptr<environment> const& env, st
     std::unique_ptr<expression> tail;
     if (cp->last) {
       if (is_splice(cp->last->cdr))
-        throw error("Invalid use of unquote-splicing");
+        throw syntax_error(tpl->loc, "Invalid use of unquote-splicing");
 
       if (is_splice(cp->last->car))
         tail = make_expression<application_expression>(make_internal_reference(pc.ctx, "append"),
@@ -909,7 +927,7 @@ parse(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s) {
       else if (form == pc.ctx.constants->expand_quote.get())
         return make_expression<literal_expression>(expand(pc.ctx, env, track(pc.ctx, syntax_cadr(stx)))); // GC
       else if (form == pc.ctx.constants->begin_for_syntax.get())
-        throw error{"begin-for-syntax not at top level"};
+        throw syntax_error{stx, "begin-for-syntax not at top level"};
       else if (form == pc.ctx.constants->syntax_trap.get())
         return parse_syntax_trap(pc, env, stx);
       else if (form == pc.ctx.constants->syntax_error.get())
@@ -1107,7 +1125,7 @@ parse_module_name(context& ctx, syntax* stx) {
 
   object* datum = syntax_to_list(ctx, stx);
   if (!datum)
-    throw error{"Invalid module name"};
+    throw syntax_error{stx, "Invalid module name"};
 
   for (object* elem : in_list{datum}) {
     syntax* e = expect<syntax>(elem);
@@ -1116,7 +1134,7 @@ parse_module_name(context& ctx, syntax* stx) {
     else if (auto i = syntax_match<integer>(e))
       result.push_back(std::to_string(i->value()));
     else
-      throw error("Invalid module name");
+      throw syntax_error(e, "Invalid module name");
   }
 
   return result;
@@ -1152,7 +1170,7 @@ expand_top_level(context& ctx, module& m, protomodule const& pm) {
 
     if (auto lst = track(ctx, syntax_to_list(ctx, stx.get()))) {
       if (lst == ctx.constants->null)
-        throw error{"Empty application"};
+        throw syntax_error{stx.get(), "Empty application"};
 
       pair* p = assume<pair>(lst.get());
       if (auto form = match_core_form(ctx, track(ctx, m.environment()), expect<syntax>(car(p)))) {
@@ -1166,7 +1184,7 @@ expand_top_level(context& ctx, module& m, protomodule const& pm) {
         }
         else if (form == ctx.constants->define.get()) {
           if (list_length(lst.get()) != 3)
-            throw error("Invalid define syntax");
+            throw syntax_error(stx.get(), "Invalid define syntax");
 
           auto name = expect_id(ctx, expect<syntax>(cadr(p)));
           auto index = ctx.add_top_level(ctx.constants->void_.get(), identifier_name(name));
@@ -1203,7 +1221,7 @@ static import_specifier
 parse_import_set(context& ctx, syntax* stx) {
   object* spec = syntax_to_list(ctx, stx);
   if (!spec)
-    throw error("import: Expected a non-empty list");
+    throw syntax_error(stx, "import: Expected a non-empty list");
 
   auto p = assume<pair>(spec);
 
@@ -1240,7 +1258,7 @@ parse_import_set(context& ctx, syntax* stx) {
       for (object* name_pair_stx : in_list{cddr(p)}) {
         object* name_pair = syntax_to_list(ctx, expect<syntax>(name_pair_stx));
         if (list_length(name_pair) != 2)
-          throw error("import: rename: Expected a list of length 2");
+          throw syntax_error(expect<syntax>(name_pair_stx), "import: rename: Expected a list of length 2");
 
         auto np = assume<pair>(name_pair);
 
@@ -1269,7 +1287,7 @@ read_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& contents)
     if (is_directive(stx->get(), "import")) {
       object* directive = syntax_to_list(ctx, cdr(syntax_assume<pair>(stx->get())));
       if (!directive)
-        throw error{"Invalid import directive"};
+        throw syntax_error{stx->get(), "Invalid import directive"};
 
       for (object* set : in_list{directive})
         result.imports.push_back(parse_import_set(ctx, expect<syntax>(set)));

@@ -601,6 +601,12 @@ output_primitive(context& ctx, object* datum, port* out, bool display) {
 
     write_simple(ctx, sc->expression(), out);
     out->write_char(')');
+  } else if (auto stx = match<syntax>(datum)) {
+    out->write_string("#<syntax ");
+    out->write_string(format_location(stx->location()));
+    out->write_char(' ');
+    write_simple(ctx, syntax_to_datum(ctx, stx), out);
+    out->write_string(">");
   } else if (auto env = match<environment>(datum)) {
     out->write_string(fmt::format("#env@{}", static_cast<void*>(env)));
   } else if (auto proc = match<procedure>(datum)) {
