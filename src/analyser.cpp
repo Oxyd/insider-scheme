@@ -922,6 +922,8 @@ parse(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s) {
         return parse_define_or_set(pc, env, stx, "define");
       else if (form == pc.ctx.constants->quote.get())
         return make_expression<literal_expression>(track(pc.ctx, syntax_to_datum(pc.ctx, syntax_cadr(stx))));
+      else if (form == pc.ctx.constants->syntax.get())
+        return make_expression<literal_expression>(track(pc.ctx, syntax_cadr(stx)));
       else if (form == pc.ctx.constants->quasiquote.get())
         return parse_quasiquote(pc, env, stx);
       else if (form == pc.ctx.constants->expand_quote.get())

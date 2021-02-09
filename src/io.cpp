@@ -38,6 +38,7 @@ namespace {
   struct backquote { };
   struct comma { };
   struct comma_at { };
+  struct hash_quote { };
 
   struct token {
     using value_type = std::variant<
@@ -53,7 +54,8 @@ namespace {
       quote,
       backquote,
       comma,
-      comma_at
+      comma_at,
+      hash_quote
     >;
 
     value_type      value;
@@ -340,6 +342,10 @@ read_token(context& ctx, input_stream& stream) {
     c = stream.peek_char();
     if (!c)
       throw parse_error{"Unexpected end of input", stream.current_location()};
+    else if (*c == '\'') {
+      stream.read_char();
+      return {hash_quote{}, loc};
+    }
     else if (*c == '$') {
       stream.put_back('#');
       return read_identifier(stream);
@@ -460,6 +466,8 @@ read(context& ctx, token first_token, input_stream& stream, bool read_syntax) {
     return read_vector(ctx, stream, read_syntax);
   else if (std::holds_alternative<quote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "'", "quote", read_syntax);
+  else if (std::holds_alternative<hash_quote>(first_token.value))
+    return read_shortcut(ctx, stream, first_token, "#'", "syntax", read_syntax);
   else if (std::holds_alternative<backquote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "`", "quasiquote", read_syntax);
   else if (std::holds_alternative<comma>(first_token.value))

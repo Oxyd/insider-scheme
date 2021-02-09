@@ -1177,6 +1177,23 @@ TEST_F(scheme, quote) {
   EXPECT_EQ(expect<symbol>(cadr(expect<pair>(result5)))->value(), "a");
 }
 
+TEST_F(scheme, syntax) {
+  auto result1 = eval("(syntax (a b c))");
+  ASSERT_TRUE(is<syntax>(result1));
+
+  auto result1_expr = assume<syntax>(result1)->expression();
+  ASSERT_TRUE(is<pair>(result1_expr));
+  ASSERT_TRUE(is<syntax>(car(assume<pair>(result1_expr))));
+
+  auto car_stx = assume<syntax>(car(assume<pair>(result1_expr)));
+  ASSERT_TRUE(is<symbol>(car_stx->expression()));
+  EXPECT_EQ(assume<symbol>(car_stx->expression())->value(), "a");
+
+  auto result2 = eval("#'(a b c)");
+  ASSERT_TRUE(is<syntax>(result2));
+  EXPECT_TRUE(equal(ctx, syntax_to_datum(ctx, assume<syntax>(result2)), read("(a b c)")));
+}
+
 TEST_F(scheme, equal) {
   EXPECT_TRUE(equal(ctx, read("1"), read("1")));
   EXPECT_FALSE(equal(ctx, read("1"), read("2")));

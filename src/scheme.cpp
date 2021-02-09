@@ -499,6 +499,7 @@ context::context()
     {constants->unquote,          "unquote"},
     {constants->unquote_splicing, "unquote-splicing"},
     {constants->expand_quote,     "expand-quote"},
+    {constants->syntax,           "syntax"},
     {constants->syntax_trap,      "syntax-trap"},
     {constants->syntax_error,     "syntax-error"}
   };
