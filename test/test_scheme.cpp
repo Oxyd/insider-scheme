@@ -1271,6 +1271,59 @@ TEST_F(scheme, quasiquote) {
   EXPECT_TRUE(equal(ctx, result21, read("(a . `(b (,2)))")));
 }
 
+static bool
+is_proper_syntax(object* x) {
+  if (!is<syntax>(x))
+    return false;
+
+  syntax* stx = assume<syntax>(x);
+  if (syntax_is<pair>(stx)) {
+    // cdr's don't have to be syntaxes, but all car's do.
+
+    object* elem = stx;
+    while (true) {
+      if (semisyntax_is<null_type>(elem))
+        return true;
+
+      if (!semisyntax_is<pair>(elem))
+        return is_proper_syntax(elem);
+
+      if (!is_proper_syntax(car(semisyntax_expect<pair>(elem))))
+        return false;
+
+      elem = cdr(semisyntax_assume<pair>(elem));
+    }
+  } else if (auto* v = syntax_match<vector>(stx)) {
+    for (std::size_t i = 0; i < v->size(); ++i)
+      if (!is_proper_syntax(v->ref(i)))
+        return false;
+  }
+
+  return true;
+}
+
+TEST_F(scheme, quasisyntax) {
+#define EXPECT_SYNTAX_EQ(x, y)                                          \
+  do {                                                                  \
+    auto result = x;                                                    \
+    EXPECT_TRUE(is_proper_syntax(result));                              \
+    EXPECT_TRUE(equal(ctx, syntax_to_datum(ctx, expect<syntax>(result)), y)); \
+  } while (false)
+
+  EXPECT_SYNTAX_EQ(eval("#`(a b c)"), read("(a b c)"));
+  EXPECT_SYNTAX_EQ(eval("#`(a #,(+ 2 3) c)"), read("(a 5 c)"));
+  EXPECT_SYNTAX_EQ(eval("(let ((middle '(x y z))) #`(a b #,@middle c d))"),
+                   read("(a b x y z c d)"));
+  EXPECT_SYNTAX_EQ(eval("(let ((a 'x) (b 'y)) #`(#,a . #,b))"),
+                   read("(x . y)"));
+  EXPECT_SYNTAX_EQ(eval("#`#(a #,(+ 9 7) c)"), read("#(a 16 c)"));
+  EXPECT_SYNTAX_EQ(eval("(let ((x '(a b c))) #`(#,@x))"), read("(a b c)"));
+  EXPECT_SYNTAX_EQ(eval("(let ((middle '(x y z))) #`#(a b #,@middle c d))"),
+                   read("#(a b x y z c d)"));
+
+#undef EXPECT_SYNTAX_EQ
+}
+
 TEST_F(scheme, append) {
   auto r1 = eval("(append '(a1 a2 a3) '(b1 b2 b3) '(c1 c2) '(d1) '() '(f1 f2))");
   EXPECT_TRUE(equal(ctx, r1, read("(a1 a2 a3 b1 b2 b3 c1 c2 d1 f1 f2)")));

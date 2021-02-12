@@ -39,6 +39,9 @@ namespace {
   struct comma { };
   struct comma_at { };
   struct hash_quote { };
+  struct hash_backquote { };
+  struct hash_comma { };
+  struct hash_comma_at { };
 
   struct token {
     using value_type = std::variant<
@@ -55,7 +58,10 @@ namespace {
       backquote,
       comma,
       comma_at,
-      hash_quote
+      hash_quote,
+      hash_backquote,
+      hash_comma,
+      hash_comma_at
     >;
 
     value_type      value;
@@ -345,8 +351,18 @@ read_token(context& ctx, input_stream& stream) {
     else if (*c == '\'') {
       stream.read_char();
       return {hash_quote{}, loc};
-    }
-    else if (*c == '$') {
+    } else if (*c == '`') {
+      stream.read_char();
+      return {hash_backquote{}, loc};
+    } else if (*c == ',') {
+      stream.read_char();
+      c = stream.peek_char();
+      if (c == '@') {
+        stream.read_char();
+        return {hash_comma_at{}, loc};
+      } else
+        return {hash_comma{}, loc};
+    } else if (*c == '$') {
       stream.put_back('#');
       return read_identifier(stream);
     }
@@ -470,10 +486,16 @@ read(context& ctx, token first_token, input_stream& stream, bool read_syntax) {
     return read_shortcut(ctx, stream, first_token, "#'", "syntax", read_syntax);
   else if (std::holds_alternative<backquote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "`", "quasiquote", read_syntax);
+  else if (std::holds_alternative<hash_backquote>(first_token.value))
+    return read_shortcut(ctx, stream, first_token, "#`", "quasisyntax", read_syntax);
   else if (std::holds_alternative<comma>(first_token.value))
     return read_shortcut(ctx, stream, first_token, ",", "unquote", read_syntax);
+  else if (std::holds_alternative<hash_comma>(first_token.value))
+    return read_shortcut(ctx, stream, first_token, "#,", "unsyntax", read_syntax);
   else if (std::holds_alternative<comma_at>(first_token.value))
     return read_shortcut(ctx, stream, first_token, ",@", "unquote-splicing", read_syntax);
+  else if (std::holds_alternative<hash_comma_at>(first_token.value))
+    return read_shortcut(ctx, stream, first_token, "#,@", "unsyntax-splicing", read_syntax);
   else if (generic_literal* lit = std::get_if<generic_literal>(&first_token.value))
     return lit->value;
   else if (identifier* i = std::get_if<identifier>(&first_token.value))

@@ -483,25 +483,28 @@ context::context()
     tracked_ptr<core_form_type>& object;
     std::string          name;
   } core_forms[]{
-    {constants->let,              "let"},
-    {constants->set,              "set!"},
-    {constants->lambda,           "lambda"},
-    {constants->if_,              "if"},
-    {constants->box,              "box"},
-    {constants->unbox,            "unbox"},
-    {constants->box_set,          "box-set!"},
-    {constants->define,           "define"},
-    {constants->define_syntax,    "define-syntax"},
-    {constants->begin,            "begin"},
-    {constants->begin_for_syntax, "begin-for-syntax"},
-    {constants->quote,            "quote"},
-    {constants->quasiquote,       "quasiquote"},
-    {constants->unquote,          "unquote"},
-    {constants->unquote_splicing, "unquote-splicing"},
-    {constants->expand_quote,     "expand-quote"},
-    {constants->syntax,           "syntax"},
-    {constants->syntax_trap,      "syntax-trap"},
-    {constants->syntax_error,     "syntax-error"}
+    {constants->let,               "let"},
+    {constants->set,               "set!"},
+    {constants->lambda,            "lambda"},
+    {constants->if_,               "if"},
+    {constants->box,               "box"},
+    {constants->unbox,             "unbox"},
+    {constants->box_set,           "box-set!"},
+    {constants->define,            "define"},
+    {constants->define_syntax,     "define-syntax"},
+    {constants->begin,             "begin"},
+    {constants->begin_for_syntax,  "begin-for-syntax"},
+    {constants->quote,             "quote"},
+    {constants->quasiquote,        "quasiquote"},
+    {constants->unquote,           "unquote"},
+    {constants->unquote_splicing,  "unquote-splicing"},
+    {constants->expand_quote,      "expand-quote"},
+    {constants->syntax,            "syntax"},
+    {constants->quasisyntax,       "quasisyntax"},
+    {constants->unsyntax,          "unsyntax"},
+    {constants->unsyntax_splicing, "unsyntax-splicing"},
+    {constants->syntax_trap,       "syntax-trap"},
+    {constants->syntax_error,      "syntax-error"}
   };
   for (auto const& form : core_forms) {
     form.object = make_tracked<core_form_type>(*this, form.name);
