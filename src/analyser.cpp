@@ -689,6 +689,8 @@ namespace {
   };
 
   struct quote_traits {
+    static constexpr char const* splicing_form_name = "unquote-splicing";
+
     static bool
     is_qq_form(context& ctx, tracked_ptr<environment> const& env, object* stx);
 
@@ -709,6 +711,8 @@ namespace {
   };
 
   struct syntax_traits {
+    static constexpr char const* splicing_form_name = "unsyntax-splicing";
+
     static bool
     is_qq_form(context& ctx, tracked_ptr<environment> const& env, object* stx);
 
@@ -889,7 +893,7 @@ process_qq_template(parsing_context& pc, tracked_ptr<environment> const& env, st
     std::unique_ptr<expression> tail;
     if (cp->last) {
       if (is_splice(cp->last->cdr))
-        throw syntax_error(tpl->stx.get(), "Invalid use of unquote-splicing");
+        throw syntax_error(tpl->stx.get(), fmt::format("Invalid use of {}", Traits::splicing_form_name));
 
       if (is_splice(cp->last->car))
         tail = make_application(pc.ctx, "append",
