@@ -1039,6 +1039,14 @@ parse(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s) {
         return parse_syntax_trap(pc, env, stx);
       else if (form == pc.ctx.constants->syntax_error.get())
         return parse_syntax_error(pc, stx);
+      else if (form == pc.ctx.constants->unquote.get())
+        throw syntax_error{stx, "invalid use of unquote"};
+      else if (form == pc.ctx.constants->unquote_splicing.get())
+        throw syntax_error{stx, "invalid use of unquote-splicing"};
+      else if (form == pc.ctx.constants->unsyntax.get())
+        throw syntax_error{stx, "invalid use of unsyntax"};
+      else if (form == pc.ctx.constants->unsyntax_splicing.get())
+        throw syntax_error{stx, "invalid use of unsyntax-splicing"};
     }
 
     return parse_application(pc, env, stx);
