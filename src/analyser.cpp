@@ -53,18 +53,6 @@ lookup_variable(tracked_ptr<environment> const& env, syntax* id) {
   return {};
 }
 
-static std::shared_ptr<variable>
-lookup_variable(tracked_ptr<environment> const& env, syntactic_closure* id) {
-  if (auto binding = lookup(env, id)) {
-    if (auto var = std::get_if<std::shared_ptr<variable>>(&*binding))
-      return *var;
-    else
-      return {};
-  }
-
-  return {};
-}
-
 static core_form_type*
 lookup_core(context& ctx, tracked_ptr<environment> const& env, syntax* id) {
   auto var = lookup_variable(env, id);
@@ -96,11 +84,6 @@ lookup_transformer(context& ctx, tracked_ptr<environment> const& env, syntax* id
       return *tr;
     else
       return {};
-  }
-
-  if (auto sc = match<syntactic_closure>(id)) {
-    tracked_ptr<environment> const& subenv = syntactic_closure_to_environment(ctx, sc, env);
-    return lookup_transformer(ctx, subenv, sc->expression());
   }
 
   return {};
@@ -199,76 +182,10 @@ namespace {
 
 static core_form_type*
 match_core_form(context& ctx, tracked_ptr<environment> env, syntax* stx) {
-  while (auto sc = syntax_match<syntactic_closure>(stx)) {
-    env = syntactic_closure_to_environment(ctx, sc, env);
-    stx = sc->expression();
-  }
-
   if (auto cf = syntax_match<core_form_type>(stx))
     return cf;
   else if (syntax_is<symbol>(stx))
     return lookup_core(ctx, env, stx);
-  return {};
-}
-
-static std::tuple<syntactic_closure*, tracked_ptr<environment> const&>
-collapse_syntactic_closures(context& ctx, syntactic_closure* sc, tracked_ptr<environment> env) {
-  env = syntactic_closure_to_environment(ctx, sc, env);
-
-  while (auto inner_sc = syntax_match<syntactic_closure>(sc->expression())) {
-    env = syntactic_closure_to_environment(ctx, inner_sc, env);
-    sc = inner_sc;
-  }
-
-  return {sc, env};
-}
-
-// Given
-//   (syntactic-closure
-//    (syntactic-closure
-//     ...
-//      (define name expr)
-//      - or -
-//      (define-syntax name expr)
-//      - or -
-//      (begin
-//       expr ...) ...))
-//
-// Transform it into
-//   (define name (syntactic-closure expr))
-//   - or -
-//   (define-syntax name (syntactic-closure expr))
-//   - or -
-//   (begin (syntactic-closure expr) ...)
-//
-// If the input form doesn't contain a begin or define, return nothing. The
-// input syntactic closures are all collapsed into one, and the output syntactic
-// closure has no free variables even if the input ones did.
-static syntax*
-transpose_syntactic_closure(context& ctx, syntactic_closure* sc, tracked_ptr<environment> env) {
-  std::tie(sc, env) = collapse_syntactic_closures(ctx, sc, env);
-
-  syntax* stx = sc->expression();
-  if (auto p = syntax_to_list(ctx, stx)) {
-    if (auto form = match_core_form(ctx, env, expect<syntax>(car(expect<pair>(p))))) {
-      if (form == ctx.constants->define.get() || form == ctx.constants->define_syntax.get()) {
-        auto name = expect<syntax>(cadr(assume<pair>(p)));
-        auto expr = expect<syntax>(caddr(assume<pair>(p)));
-        return datum_to_syntax(ctx, stx->location(),
-                               make_list(ctx, form, name,
-                                         make<syntactic_closure>(ctx, env.get(), expr, ctx.constants->null.get())));
-      }
-      else if (form == ctx.constants->begin.get()) {
-        std::vector<object*> exprs;
-        for (object* e : in_list{cdr(expect<pair>(p))})
-          exprs.push_back(make<syntactic_closure>(ctx, env.get(), expect<syntax>(e), ctx.constants->null.get()));
-
-        return datum_to_syntax(ctx, stx->location(),
-                               cons(ctx, form, make_list_from_vector(ctx, exprs)));
-      }
-    }
-  }
-
   return {};
 }
 
@@ -332,12 +249,6 @@ process_internal_defines(parsing_context& pc, tracked_ptr<environment> const& en
           subforms.push_back(track(pc.ctx, expect<syntax>(e)));
 
         std::copy(subforms.rbegin(), subforms.rend(), std::back_inserter(stack));
-        continue;
-      }
-    }
-    else if (auto sc = syntax_match<syntactic_closure>(expr.get())) {
-      if (syntax* subform = transpose_syntactic_closure(pc.ctx, sc, result.env)) {
-        stack.push_back(track(pc.ctx, subform));
         continue;
       }
     }
@@ -599,22 +510,6 @@ parse_define_or_set(parsing_context& pc, tracked_ptr<environment> const& env, sy
   }
   else
     return make_expression<top_level_set_expression>(*var->global, std::move(initialiser));
-}
-
-static std::unique_ptr<expression>
-parse_syntactic_closure(parsing_context& pc, tracked_ptr<environment> const& env,
-                        syntactic_closure* sc) {
-  if (syntax_is<symbol>(sc->expression())) {
-    if (auto var = lookup_variable(env, sc)) {
-      if (!var->global)
-        return make_expression<local_reference_expression>(std::move(var));
-      else
-        return make_expression<top_level_reference_expression>(*var->global, identifier_name(sc));
-    }
-  }
-
-  auto new_env = syntactic_closure_to_environment(pc.ctx, sc, env);
-  return parse(pc, new_env, sc->expression());
 }
 
 static std::unique_ptr<expression>
@@ -1004,8 +899,6 @@ parse(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s) {
 
   if (syntax_is<symbol>(stx))
     return parse_reference(env, stx);
-  else if (auto sc = syntax_match<syntactic_closure>(stx))
-    return parse_syntactic_closure(pc, env, sc);
   else if (syntax_is<pair>(stx)) {
     auto head = syntax_car(stx);
     if (auto form = match_core_form(pc.ctx, env, head)) {
@@ -1321,12 +1214,6 @@ expand_top_level(context& ctx, module& m, protomodule const& pm) {
           perform_begin_for_syntax(ctx, m, pm, track(ctx, cdr(p)));
           continue;
         }
-      }
-    }
-    else if (auto sc = syntax_match<syntactic_closure>(stx.get())) {
-      if (syntax* subform = transpose_syntactic_closure(ctx, sc, track(ctx, m.environment()))) {
-        stack.push_back(track(ctx, subform));
-        continue;
       }
     }
 

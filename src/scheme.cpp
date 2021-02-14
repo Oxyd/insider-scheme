@@ -99,8 +99,6 @@ bool
 is_identifier(object* x) {
   if (is<symbol>(x))
     return true;
-  else if (auto sc = match<syntactic_closure>(x))
-    return syntax_is<symbol>(sc->expression());
   else
     return false;
 }
@@ -112,7 +110,7 @@ identifier_name(object* x) {
   else if (auto s = match<symbol>(x))
     return s->value();
   else
-    return syntax_expect<symbol>(expect<syntactic_closure>(x)->expression())->value();
+    throw error{"Expected identifier"};
 }
 
 void
@@ -1246,70 +1244,6 @@ syntax_to_list(context& ctx, object* stx) {
 
   if (!semisyntax_is<null_type>(datum))
     return nullptr;
-
-  return result;
-}
-
-std::size_t
-syntactic_closure::extra_elements(insider::environment*, syntax*, object* free) {
-  return list_length(free);
-}
-
-syntactic_closure::syntactic_closure(insider::environment* env, syntax* expr, object* free)
-  : expression_{expr}
-  , env_{env}
-  , free_size_{0}
-{
-  for (object* name : in_list{free}) {
-    expect<symbol>(name);
-    storage_element(free_size_++) = name;
-  }
-}
-
-syntactic_closure::syntactic_closure(syntactic_closure&& other)
-  : expression_{other.expression_}
-  , env_{other.env_}
-  , free_size_{other.free_size_}
-{
-  for (std::size_t i = 0; i < free_size_; ++i)
-    storage_element(i) = other.storage_element(i);
-}
-
-std::vector<symbol*>
-syntactic_closure::free() const {
-  std::vector<symbol*> result;
-  result.reserve(free_size_);
-
-  for (std::size_t i = 0; i < free_size_; ++i)
-    result.push_back(assume<symbol>(storage_element(i)));
-
-  return result;
-}
-
-void
-syntactic_closure::trace(tracing_context& tc) const {
-  tc.trace(expression_);
-  tc.trace(env_);
-  for (std::size_t i = 0; i < free_size_; ++i)
-    tc.trace(storage_element(i));
-}
-
-void
-syntactic_closure::update_references() {
-  update_reference(expression_);
-  update_reference(env_);
-  for (std::size_t i = 0; i < free_size_; ++i)
-    update_reference(storage_element(i));
-}
-
-tracked_ptr<environment>
-syntactic_closure_to_environment(context& ctx, syntactic_closure* sc, tracked_ptr<environment> const& env) {
-  auto result = make_tracked<environment>(ctx, sc->environment());
-
-  if (env)
-    for (symbol* free : sc->free())
-      if (auto binding = lookup(env, free))
-        result->add(ctx.store, free, *binding);
 
   return result;
 }

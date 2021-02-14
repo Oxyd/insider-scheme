@@ -1238,55 +1238,6 @@ datum_to_syntax(context&, source_location, object*);
 object*
 syntax_to_list(context&, object*);
 
-// An expression together with an environment and a module in which to look up
-// the names used in the expression. Some names may be explicitly marked as
-// free, and they will be looked up in the environment in which the syntactic
-// closure is being used.
-class syntactic_closure : public dynamic_size_object<syntactic_closure, object*> {
-public:
-  static constexpr char const* scheme_name = "insider::syntactic_closure";
-
-  static std::size_t
-  extra_elements(insider::environment*,
-                 syntax* expr, object* free);
-
-  syntactic_closure(insider::environment*,
-                    syntax* expr, object* free);
-
-  syntactic_closure(syntactic_closure&&);
-
-  syntax*
-  expression() const { return expression_; }
-
-  insider::environment*
-  environment() const { return env_; }
-
-  std::vector<symbol*>
-  free() const;
-
-  std::size_t
-  size() const { return free_size_; }
-
-  void
-  trace(tracing_context&) const;
-
-  void
-  update_references();
-
-  std::size_t
-  hash() const {
-    return insider::hash(expression_) ^ insider::hash(env_) ^ std::hash<std::size_t>{}(free_size_);
-  }
-
-private:
-  syntax*               expression_;
-  insider::environment* env_;
-  std::size_t           free_size_;
-};
-
-tracked_ptr<environment>
-syntactic_closure_to_environment(context& ctx, syntactic_closure* sc, tracked_ptr<environment> const& env);
-
 // A procedure together with the environment it was defined in.
 class transformer : public composite_object<transformer> {
 public:

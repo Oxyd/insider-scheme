@@ -610,27 +610,8 @@ output_primitive(context& ctx, object* datum, port* out, bool display) {
       out->write_char(c->value());
     else
       write_char(c, out);
-  } else if (is_number(datum))
+  } else if (is_number(datum)) {
     write_number(ctx, datum, out);
-  else if (auto sc = match<syntactic_closure>(datum)) {
-    out->write_string("#syntactic-closure(");
-    write_simple(ctx, sc->environment(), out);
-    out->write_char(' ');
-
-    std::vector<symbol*> free = sc->free();
-    out->write_char('(');
-
-    for (auto it = free.begin(); it != free.end(); ++it) {
-      if (it != free.begin())
-        out->write_char(' ');
-
-      out->write_string((**it).value());
-    }
-
-    out->write_string(") ");
-
-    write_simple(ctx, sc->expression(), out);
-    out->write_char(')');
   } else if (auto stx = match<syntax>(datum)) {
     out->write_string("#<syntax ");
     out->write_string(format_location(stx->location()));

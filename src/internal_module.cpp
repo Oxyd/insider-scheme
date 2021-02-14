@@ -151,16 +151,6 @@ make_internal_module(context& ctx) {
     }
   );
 
-  define_procedure(
-    ctx, "make-syntactic-closure", result, true,
-    [] (context& ctx, environment* env, object* free, object* form) {
-      return make<syntactic_closure>(ctx, env, datum_to_syntax(ctx, source_location::unknown, form), free);
-    }
-  );
-
-  define_procedure(ctx, "syntactic-closure-expression", result, true, &syntactic_closure::expression);
-  define_procedure(ctx, "syntactic-closure-environment", result, true, &syntactic_closure::environment);
-
   define_procedure(ctx, "type", result, true, type);
   define_raw_procedure(ctx, "error", result, true,
                        [] (context& ctx, object_span args) -> object* {
