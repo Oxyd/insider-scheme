@@ -97,47 +97,82 @@ equal(context& ctx, object* x, object* y) {
 
 bool
 is_identifier(object* x) {
-  if (is<symbol>(x))
-    return true;
-  else
+  if (!is<syntax>(x))
     return false;
+  return is<symbol>(assume<syntax>(x)->expression());
 }
 
 std::string
-identifier_name(object* x) {
-  if (auto stx = match<syntax>(x))
-    return identifier_name(stx->expression());
-  else if (auto s = match<symbol>(x))
-    return s->value();
-  else
-    throw error{"Expected identifier"};
+identifier_name(syntax* x) {
+  return syntax_expect<symbol>(x)->value();
 }
 
 void
-environment::add(free_store& store, object* identifier, std::shared_ptr<variable> var) {
+add_environment(environment_set& set, environment* env) {
+  if (std::find(set.begin(), set.end(), env) == set.end())
+    set.push_back(env);
+}
+
+void
+remove_environment(environment_set& set, environment* env) {
+  set.erase(std::remove(set.begin(), set.end(), env), set.end());
+}
+
+void
+flip_environment(environment_set& set, environment* env) {
+  auto it = std::find(set.begin(), set.end(), env);
+  if (it == set.end())
+    set.push_back(env);
+  else
+    set.erase(it);
+}
+
+bool
+environment_sets_subseteq(environment_set const& lhs, environment_set const& rhs) {
+  for (environment const* e : lhs)
+    if (std::find(rhs.begin(), rhs.end(), e) == rhs.end())
+      return false;
+  return true;
+}
+
+bool
+environment_sets_equal(environment_set const& lhs, environment_set const& rhs) {
+  return environment_sets_subseteq(lhs, rhs) && environment_sets_subseteq(rhs, lhs);
+}
+
+environment_set&
+identifier_environments(context& ctx, syntax* id) {
+  if (!is_identifier(id))
+    throw error{fmt::format("Expected identifier, got {}", datum_to_string(ctx, syntax_to_datum(ctx, id)))};
+
+  return id->environments();
+}
+
+void
+environment::add(free_store& store, syntax* identifier, std::shared_ptr<variable> var) {
   assert(is_identifier(identifier));
 
-  bool inserted = bindings_.emplace(identifier, std::move(var)).second;
-  if (!inserted)
+  if (is_redefinition(identifier, var))
     throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
 
+  bindings_.emplace_back(binding{identifier, std::move(var)});
   store.notify_arc(this, identifier);
 }
 
 void
-environment::add(free_store& store, object* identifier, transformer* tr) {
+environment::add(free_store& store, syntax* identifier, transformer* tr) {
   assert(is_identifier(identifier));
-
-  bool inserted = bindings_.emplace(identifier, tr).second;
-  if (!inserted)
+  if (is_redefinition(identifier, tr))
     throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
+
+  bindings_.emplace_back(binding{identifier, tr});
 
   store.notify_arc(this, identifier);
   store.notify_arc(this, tr);
 }
 
 void
-environment::add(free_store& store, object* identifier, value_type const& value) {
+environment::add(free_store& store, syntax* identifier, value_type const& value) {
   if (auto var = std::get_if<std::shared_ptr<variable>>(&value))
     add(store, identifier, *var);
   else
@@ -145,23 +180,15 @@ environment::add(free_store& store, object* identifier, value_type const& value)
 }
 
 auto
-environment::lookup(object* identifier) const -> std::optional<value_type> {
-  if (auto it = bindings_.find(identifier); it != bindings_.end()) {
-    if (auto var = std::get_if<std::shared_ptr<variable>>(&it->second))
-      return *var;
-    else
-      return std::get<transformer*>(it->second);
+environment::find_candidates(symbol* name, environment_set const& envs) const -> std::vector<binding> {
+  std::vector<binding> result;
+  for (binding const& e : bindings_) {
+    syntax const* s = std::get<syntax*>(e);
+    if (assume<symbol>(s->expression()) == name && environment_sets_subseteq(s->environments(), envs))
+      result.push_back(e);
   }
 
-  return std::nullopt;
-}
-
-bool
-environment::has(std::string const& name) const {
-  for (auto const& [identifier, binding] : bindings_)
-    if (identifier_name(identifier) == name)
-      return true;
-  return false;
+  return result;
 }
 
 std::vector<std::string>
@@ -190,21 +217,13 @@ void
 environment::update_references() {
   update_reference(parent_);
 
-  std::vector<std::tuple<object*, representation_type>> to_reinsert;
-  for (auto it = bindings_.begin(); it != bindings_.end();) {
-    if (transformer** tr = std::get_if<transformer*>(&it->second))
+  for (binding& b : bindings_) {
+    update_reference(std::get<syntax*>(b));
+
+    value_type& value = std::get<value_type>(b);
+    if (transformer** tr = std::get_if<transformer*>(&value))
       update_reference(*tr);
-
-    object* new_id = update_reference_copy(it->first);
-    if (new_id != it->first) {
-      to_reinsert.emplace_back(new_id, std::move(it->second));
-      it = bindings_.erase(it);
-    } else
-      ++it;
   }
-
-  for (auto& [id, value] : to_reinsert)
-    bindings_.emplace(id, std::move(value));
 }
 
 std::size_t
@@ -212,16 +231,46 @@ environment::hash() const {
   return (parent_ ? insider::hash(parent_) : 0) ^ bindings_.size();
 }
 
+bool
+environment::is_redefinition(syntax* id, value_type const& intended_value) const {
+  for (binding const& b : bindings_)
+    if (assume<symbol>(std::get<syntax*>(b)->expression())->value() == assume<symbol>(id->expression())->value()
+        && environment_sets_equal(id->environments(), std::get<syntax*>(b)->environments())
+        && std::get<value_type>(b) != intended_value)
+      return true;
+  return false;
+}
+
 std::optional<environment::value_type>
-lookup(tracked_ptr<environment> env, object* id) {
-  while (env) {
-    if (auto binding = env->lookup(id))
-      return binding;
+lookup(symbol* name, environment_set const& envs) {
+  std::optional<environment::value_type> result;
+  std::size_t max_env_set_size = 0;
+  bool ambiguous = false;
 
-    env = {env.store(), env->parent()};
-  }
+  for (environment const* e : envs)
+    for (environment::binding const& b : e->find_candidates(name, envs)) {
+      environment_set const& binding_set = std::get<syntax*>(b)->environments();
 
-  return std::nullopt;
+      if (binding_set.size() == max_env_set_size && std::get<environment::value_type>(b) != result)
+        ambiguous = true;
+
+      if (binding_set.size() > max_env_set_size) {
+        result = std::get<environment::value_type>(b);
+        max_env_set_size = binding_set.size();
+        ambiguous = false;
+      }
+    }
+
+  if (ambiguous)
+    throw error{fmt::format("Ambiguous reference to {}", name->value())};
+
+  return result;
+}
+
+std::optional<environment::value_type>
+lookup(syntax* id) {
+  assert(is_identifier(id));
+  return lookup(assume<symbol>(id->expression()), id->environments());
 }
 
 module::module(context& ctx)
@@ -229,40 +278,35 @@ module::module(context& ctx)
 { }
 
 auto
-module::find(object* identifier) const -> std::optional<binding_type> {
-  if (auto binding = env_->lookup(identifier)) {
-    if (std::shared_ptr<variable>* var = std::get_if<std::shared_ptr<variable>>(&*binding))
-      return (**var).global;
-    else
-      return std::get<transformer*>(*binding);
-  }
+module::find(symbol* identifier) const -> std::optional<binding_type> {
+  if (auto binding = lookup(identifier, {env_.get()}))
+    return binding;
 
   return std::nullopt;
 }
 
 void
-module::add(object* identifier, binding_type b) {
-  assert(is_identifier(identifier));
-
+module::import_(context& ctx, symbol* identifier, binding_type b) {
   if (auto v = find(identifier)) {
     if (*v == b)
       return; // Re-importing the same variable under the same name is OK.
     else
-      throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
+      throw std::runtime_error{fmt::format("Redefinition of {}", identifier->value())};
   }
 
-  if (auto* index = std::get_if<index_type>(&b))
-    env_->add(env_.store(), identifier, std::make_shared<variable>(identifier_name(identifier), *index));
+  if (auto* var = std::get_if<std::shared_ptr<variable>>(&b))
+    env_->add(env_.store(), make<syntax>(ctx, identifier, environment_set{env_.get()}), *var);
   else
-    env_->add(env_.store(), identifier, std::get<transformer*>(b));
+    env_->add(env_.store(), make<syntax>(ctx, identifier, environment_set{env_.get()}),
+              std::get<transformer*>(b));
 }
 
 void
-module::export_(std::string const& name) {
-  if (!env_->has(name))
-    throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name)};
+module::export_(symbol* name) {
+  if (!find(name))
+    throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name->value())};
 
-  exports_.emplace(name);
+  exports_.emplace(name->value());
 }
 
 namespace {
@@ -345,7 +389,7 @@ static void
 perform_imports(context& ctx, module& m, import_set const& set) {
   for (auto const& [to_name, from_name] : set.names) {
     if (auto b = set.source->find(ctx.intern(from_name)))
-      m.add(ctx.intern(to_name), *b);
+      m.environment()->add(ctx.store, make<syntax>(ctx, ctx.intern(to_name), environment_set{m.environment()}), *b);
     else
       assert(!"Trying to import a nonexistent symbol");
   }
@@ -375,7 +419,7 @@ instantiate(context& ctx, protomodule const& pm) {
   compile_module_body(ctx, *result, pm);
 
   for (std::string const& name : pm.exports)
-    result->export_(name);
+    result->export_(ctx.intern(name));
 
   return result;
 }
@@ -409,9 +453,12 @@ perform_imports(context& ctx, module& m, protomodule const& pm) {
 operand
 define_top_level(context& ctx, std::string const& name, module& m, bool export_, object* object) {
   auto index = ctx.add_top_level(object, name);
-  m.add(ctx.intern(name), index);
+  auto name_sym = ctx.intern(name);
+  auto var = std::make_shared<variable>(name, index);
+  m.environment()->add(ctx.store, make<syntax>(ctx, name_sym, environment_set{m.environment()}), var);
+
   if (export_)
-    m.export_(name);
+    m.export_(name_sym);
 
   return index;
 }
@@ -507,9 +554,11 @@ context::context()
   for (auto const& form : core_forms) {
     form.object = make_tracked<core_form_type>(*this, form.name);
     auto index = add_top_level(form.object.get(), form.name);
-    auto id = intern(form.name);
-    internal_module.add(id, index);
-    internal_module.export_(form.name);
+    auto name = intern(form.name);
+    auto id = make<syntax>(*this, name, environment_set{internal_module.environment()});
+    auto var = std::make_shared<variable>(form.name, index);
+    internal_module.environment()->add(store, id, std::move(var));
+    internal_module.export_(name);
   }
 
   statics.null = intern_static(constants->null);
@@ -1182,6 +1231,22 @@ input_stream::advance_and_peek_char() {
 source_location
 input_stream::current_location() const {
   return source_location{port_->name(), line_, column_};
+}
+
+void
+syntax::trace(tracing_context& tc) const {
+  tc.trace(expression_);
+
+  for (environment* env : environments_)
+    tc.trace(env);
+}
+
+void
+syntax::update_references() {
+  update_reference(expression_);
+
+  for (environment*& env : environments_)
+    update_reference(env);
 }
 
 static object*

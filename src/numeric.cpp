@@ -1428,9 +1428,11 @@ export_native(context& ctx, module& m, std::string const& name,
               object* (*f)(context&, object_span), special_top_level_tag tag) {
   auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f, name.c_str()), name);
   ctx.tag_top_level(index, tag);
-  auto id = ctx.intern(name);;
-  m.add(id, index);
-  m.export_(name);
+
+  auto name_sym = ctx.intern(name);
+  auto id = make<syntax>(ctx, name_sym, environment_set{m.environment()});
+  m.environment()->add(ctx.store, id, std::make_shared<variable>(name, index));
+  m.export_(name_sym);
 }
 
 object*

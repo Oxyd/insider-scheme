@@ -17,7 +17,9 @@ namespace insider {
 
 // Analyse a datum within a given module. The module provides the top-level
 // bindings visible to S-expression. The module is modified by adding a new
-// top-level binding if the datum is a top-level definition.
+// top-level binding if the datum is a top-level definition. The input syntax is
+// modified by updating the scope sets of it and all the syntaxes it recursively
+// contains.
 std::unique_ptr<expression>
 analyse(context&, syntax* stx, module&);
 

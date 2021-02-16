@@ -291,6 +291,7 @@ struct core_form_type : leaf_object<core_form_type> {
 
 class boolean;
 class context;
+class environment;
 class integer;
 class module;
 class port;
@@ -302,13 +303,34 @@ bool
 is_identifier(object*);
 
 std::string
-identifier_name(object* x);
+identifier_name(syntax* x);
+
+using environment_set = std::vector<environment*>;
+
+void
+add_environment(environment_set&, environment*);
+
+void
+remove_environment(environment_set&, environment*);
+
+void
+flip_environment(environment_set&, environment*);
+
+bool
+environment_sets_subseteq(environment_set const& lhs, environment_set const& rhs);
+
+bool
+environment_sets_equal(environment_set const& lhs, environment_set const& rhs);
+
+environment_set&
+identifier_environments(context&, syntax*);
 
 class environment : public composite_object<environment> {
 public:
   static constexpr char const* scheme_name = "insider::environment";
 
   using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
+  using binding = std::tuple<syntax*, value_type>;
 
   explicit
   environment(environment* parent)
@@ -316,25 +338,19 @@ public:
   { }
 
   void
-  add(free_store& store, object* identifier, std::shared_ptr<variable>);
+  add(free_store& store, syntax* identifier, std::shared_ptr<variable>);
 
   void
-  add(free_store& store, object* identifier, transformer*);
+  add(free_store& store, syntax* identifier, transformer*);
 
   void
-  add(free_store& store, object* identifier, value_type const&);
+  add(free_store& store, syntax* identifier, value_type const&);
 
   environment*
   parent() const { return parent_; }
 
-  std::optional<value_type>
-  lookup(object* identifier) const;
-
-  bool
-  has(object* identifier) const { return bindings_.count(identifier); }
-
-  bool
-  has(std::string const& name) const;
+  std::vector<binding>
+  find_candidates(symbol* name, environment_set const& environments) const;
 
   std::vector<std::string>
   bound_names() const;
@@ -349,34 +365,37 @@ public:
   hash() const;
 
 private:
-  using representation_type = std::variant<std::shared_ptr<variable>, transformer*>;
+  environment*         parent_;
+  std::vector<binding> bindings_;
 
-  environment* parent_;
-  std::unordered_map<object*, representation_type> bindings_;
+  bool
+  is_redefinition(syntax*, value_type const& intended_value) const;
 };
 
 std::optional<environment::value_type>
-lookup(tracked_ptr<environment> env, object* id);
+lookup(symbol* id, environment_set const& envs);
+
+std::optional<environment::value_type>
+lookup(syntax* id);
 
 // A module is a map from symbols to top-level variable indices. It also
 // contains a top-level procedure which contains the code to be run when the
 // module is loaded.
 class module {
 public:
-  using index_type = operand;
-  using binding_type = std::variant<index_type, transformer*>;
+  using binding_type = insider::environment::value_type;
 
   explicit
   module(context&);
 
   std::optional<binding_type>
-  find(object*) const;
+  find(symbol*) const;
 
   void
-  add(object*, binding_type);
+  import_(context&, symbol*, binding_type);
 
   void
-  export_(std::string const& name);
+  export_(symbol* name);
 
   std::unordered_set<std::string> const&
   exports() const { return exports_; }
@@ -1149,17 +1168,28 @@ public:
     assert(expr);
   }
 
+  syntax(object* expr, environment_set envs)
+    : expression_{expr}
+    , environments_{std::move(envs)}
+  { }
+
   object*
   expression() const { return expression_; }
 
   source_location const&
   location() const { return location_; }
 
-  void
-  trace(tracing_context& tc) const { tc.trace(expression_); }
+  environment_set&
+  environments() { return environments_; }
+
+  environment_set const&
+  environments() const { return environments_; }
 
   void
-  update_references() { update_reference(expression_); }
+  trace(tracing_context& tc) const;
+
+  void
+  update_references();
 
   std::size_t
   hash() const { return insider::hash(expression_) ^ std::hash<std::string>{}(format_location(location_)); }
@@ -1167,6 +1197,7 @@ public:
 private:
   object*         expression_;
   source_location location_;
+  environment_set environments_;
 };
 
 template <typename T>
