@@ -217,10 +217,9 @@ match_core_form(context& ctx, syntax* stx) {
 //
 // Causes a garbage collection.
 static body_content
-process_internal_defines(parsing_context& pc, tracked_ptr<environment> const& env, object* data,
-                         source_location const& loc) {
+process_internal_defines(parsing_context& pc, object* data, source_location const& loc) {
   body_content result;
-  result.env = make_tracked<environment>(pc.ctx, env.get());
+  result.env = make_tracked<environment>(pc.ctx);
   add_environment(data, result.env.get());
 
   object* list = syntax_to_list(pc.ctx, data);
@@ -300,8 +299,8 @@ parse_expression_list(parsing_context& pc, tracked_ptr<environment> const& env,
 }
 
 static sequence_expression
-parse_body(parsing_context& pc, tracked_ptr<environment> const& env, object* data, source_location const& loc) {
-  body_content content = process_internal_defines(pc, env, data, loc); // GC
+parse_body(parsing_context& pc, object* data, source_location const& loc) {
+  body_content content = process_internal_defines(pc, data, loc); // GC
   if (!content.internal_variable_ids.empty()) {
     std::vector<definition_pair_expression> definitions;
     for (tracked_ptr<syntax> const& id : content.internal_variable_ids) {
@@ -345,7 +344,7 @@ parse_let(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx)
     bindings = cdr(assume<pair>(bindings));
   }
 
-  auto subenv = make_tracked<environment>(pc.ctx, env.get());
+  auto subenv = make_tracked<environment>(pc.ctx);
   for (definition_pair_expression const& dp : definitions) {
     add_environment(dp.id.get(), subenv.get());
     subenv->add(pc.ctx.store, dp.id.get(), dp.variable);
@@ -355,11 +354,11 @@ parse_let(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx)
   add_environment(body, subenv.get());
 
   return make_expression<let_expression>(std::move(definitions),
-                                         parse_body(pc, subenv, body, stx->location()));
+                                         parse_body(pc, body, stx->location()));
 }
 
 static std::unique_ptr<expression>
-parse_lambda(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_lambda(parsing_context& pc, syntax* stx) {
   simple_action a(pc.ctx, stx, "Parsing lambda");
 
   object* datum = syntax_to_list(pc.ctx, stx);
@@ -370,7 +369,7 @@ parse_lambda(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s
   object* param_names = param_stx;
   std::vector<std::shared_ptr<variable>> parameters;
   bool has_rest = false;
-  auto subenv = make_tracked<environment>(pc.ctx, env.get());
+  auto subenv = make_tracked<environment>(pc.ctx);
   while (!semisyntax_is<null_type>(param_names)) {
     if (auto param = semisyntax_match<pair>(param_names)) {
       auto id = expect_id(pc.ctx, expect<syntax>(car(param)));
@@ -401,7 +400,7 @@ parse_lambda(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s
   add_environment(body, subenv.get());
 
   return make_expression<lambda_expression>(std::move(parameters), has_rest,
-                                            parse_body(pc, subenv, body, stx->location()),
+                                            parse_body(pc, body, stx->location()),
                                             std::nullopt, std::vector<std::shared_ptr<insider::variable>>{});
 }
 
@@ -942,7 +941,7 @@ parse(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s) {
       else if (form == pc.ctx.constants->set.get())
         return parse_define_or_set(pc, env, stx, "set!");
       else if (form == pc.ctx.constants->lambda.get())
-        return parse_lambda(pc, env, stx);
+        return parse_lambda(pc, stx);
       else if (form == pc.ctx.constants->if_.get())
         return parse_if(pc, env, stx);
       else if (form == pc.ctx.constants->box.get())

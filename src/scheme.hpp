@@ -332,11 +332,6 @@ public:
   using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
   using binding = std::tuple<syntax*, value_type>;
 
-  explicit
-  environment(environment* parent)
-    : parent_{parent}
-  { }
-
   void
   add(free_store& store, syntax* identifier, std::shared_ptr<variable>);
 
@@ -345,9 +340,6 @@ public:
 
   void
   add(free_store& store, syntax* identifier, value_type const&);
-
-  environment*
-  parent() const { return parent_; }
 
   std::vector<binding>
   find_candidates(symbol* name, environment_set const& environments) const;
@@ -365,7 +357,6 @@ public:
   hash() const;
 
 private:
-  environment*         parent_;
   std::vector<binding> bindings_;
 
   bool

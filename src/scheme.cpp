@@ -204,8 +204,6 @@ environment::bound_names() const {
 
 void
 environment::trace(tracing_context& tc) const {
-  tc.trace(parent_);
-
   for (auto& [identifier, binding] : bindings_) {
     tc.trace(identifier);
     if (transformer* const* tr = std::get_if<transformer*>(&binding))
@@ -215,8 +213,6 @@ environment::trace(tracing_context& tc) const {
 
 void
 environment::update_references() {
-  update_reference(parent_);
-
   for (binding& b : bindings_) {
     update_reference(std::get<syntax*>(b));
 
@@ -228,7 +224,7 @@ environment::update_references() {
 
 std::size_t
 environment::hash() const {
-  return (parent_ ? insider::hash(parent_) : 0) ^ bindings_.size();
+  return bindings_.size();
 }
 
 bool
@@ -274,7 +270,7 @@ lookup(syntax* id) {
 }
 
 module::module(context& ctx)
-  : env_{make_tracked<insider::environment>(ctx, nullptr)}
+  : env_{make_tracked<insider::environment>(ctx)}
 { }
 
 auto
