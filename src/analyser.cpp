@@ -92,21 +92,6 @@ lookup_transformer(syntax* id) {
 static tracked_ptr<syntax>
 call_transformer(context& ctx, transformer* t, tracked_ptr<environment> const& env,
                  tracked_ptr<syntax> const& stx) {
-  struct guard {
-    context& ctx;
-
-    guard(context& ctx, tracked_ptr<environment> const& env)
-      : ctx{ctx}
-    {
-      assert(!ctx.current_usage_environment);
-      ctx.current_usage_environment = env;
-    }
-
-    ~guard() {
-      ctx.current_usage_environment.reset();
-    }
-  } g{ctx, env};
-
   object* result_datum = call(ctx, t->callable(), {syntax_to_datum(ctx, stx.get()), t->environment(), env.get()}).get();
   return track(ctx, datum_to_syntax(ctx, stx->location(), result_datum));
 }

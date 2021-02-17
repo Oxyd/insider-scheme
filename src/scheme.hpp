@@ -529,7 +529,6 @@ public:
   tracked_ptr<port>          output_port;
   module                     internal_module; // (insider internal)
   std::string                error_backtrace; // Built from actions during stack unwinding.
-  tracked_ptr<environment>   current_usage_environment; // Only non-null when a transformer is being evaluated.
   bytecode                   program;
 
 #ifdef INSIDER_VM_PROFILER
