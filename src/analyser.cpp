@@ -89,13 +89,6 @@ lookup_transformer(syntax* id) {
   return {};
 }
 
-static tracked_ptr<syntax>
-call_transformer(context& ctx, transformer* t, tracked_ptr<environment> const& env,
-                 tracked_ptr<syntax> const& stx) {
-  object* result_datum = call(ctx, t->callable(), {syntax_to_datum(ctx, stx.get()), t->environment(), env.get()}).get();
-  return track(ctx, datum_to_syntax(ctx, stx->location(), result_datum));
-}
-
 template <typename Operation>
 static void
 modify_environments(object* o, Operation const& op) {
@@ -130,12 +123,29 @@ remove_environment(object* expr, environment* e) {
   modify_environments(expr, [&] (syntax* stx) { remove_environment(stx->environments(), e); });
 }
 
+static void
+flip_environment(object* expr, environment* e) {
+  modify_environments(expr, [&] (syntax* stx) { flip_environment(stx->environments(), e); });
+}
+
+static tracked_ptr<syntax>
+call_transformer(context& ctx, transformer* t, tracked_ptr<syntax> const& stx) {
+  auto introduced_env = make_tracked<environment>(ctx);
+  add_environment(stx.get(), introduced_env.get());
+
+  syntax* result = expect<syntax>(call(ctx, t->callable(), {stx.get()}).get(),
+                                  "Syntax transformer didn't return a syntax");
+
+  flip_environment(result, introduced_env.get());
+  return track(ctx, result);
+}
+
 // If the head of the given list is bound to a transformer, run the transformer
 // on the datum, and repeat.
 //
 // Causes a garbage collection.
 static tracked_ptr<syntax>
-expand(context& ctx, tracked_ptr<environment> const& env, tracked_ptr<syntax> stx) {
+expand(context& ctx, tracked_ptr<syntax> stx) {
   simple_action a(ctx, stx, "Expanding macro use");
 
   bool expanded;
@@ -144,9 +154,9 @@ expand(context& ctx, tracked_ptr<environment> const& env, tracked_ptr<syntax> st
 
     if (auto lst = syntax_match<pair>(stx.get())) {
       syntax* head = expect<syntax>(car(lst));
-      if (is_identifier(head->expression())) {
+      if (is_identifier(head)) {
         if (transformer* t = lookup_transformer(head)) {
-          stx = call_transformer(ctx, t, env, stx);
+          stx = call_transformer(ctx, t, stx);
           expanded = true;
         }
       }
@@ -233,7 +243,7 @@ process_internal_defines(parsing_context& pc, object* data, source_location cons
 
   bool seen_expression = false;
   while (!stack.empty()) {
-    tracked_ptr<syntax> expr = expand(pc.ctx, result.env, stack.back()); // GC
+    tracked_ptr<syntax> expr = expand(pc.ctx, stack.back()); // GC
     stack.pop_back();
 
     if (auto p = syntax_to_list(pc.ctx, expr.get())) {
@@ -929,7 +939,7 @@ parse_quasisyntax(parsing_context& pc, tracked_ptr<environment> const& env, synt
 
 static std::unique_ptr<expression>
 parse(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s) {
-  syntax* stx = expand(pc.ctx, env, track(pc.ctx, s)).get(); // GC
+  syntax* stx = expand(pc.ctx, track(pc.ctx, s)).get(); // GC
 
   if (syntax_is<symbol>(stx))
     return parse_reference(stx);
@@ -963,7 +973,7 @@ parse(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s) {
       else if (form == pc.ctx.constants->quasisyntax.get())
         return parse_quasisyntax(pc, env, stx);
       else if (form == pc.ctx.constants->expand_quote.get())
-        return make_expression<literal_expression>(expand(pc.ctx, env, track(pc.ctx, syntax_cadr(stx)))); // GC
+        return make_expression<literal_expression>(expand(pc.ctx, track(pc.ctx, syntax_cadr(stx)))); // GC
       else if (form == pc.ctx.constants->begin_for_syntax.get())
         throw syntax_error{stx, "begin-for-syntax not at top level"};
       else if (form == pc.ctx.constants->syntax_trap.get())
@@ -1149,15 +1159,19 @@ analyse_free_variables(expression* s) {
   assert(free.empty()); // Top-level can't have any free variables.
 }
 
-std::unique_ptr<expression>
-analyse(context& ctx, syntax* stx, module& m) {
+static std::unique_ptr<expression>
+analyse_internal(context& ctx, syntax* stx, module& m) {
   parsing_context pc{ctx, m};
-
-  add_environment(stx, m.environment());
   std::unique_ptr<expression> result = parse(pc, track(ctx, m.environment()), stx);
   box_set_variables(result.get());
   analyse_free_variables(result.get());
   return result;
+}
+
+std::unique_ptr<expression>
+analyse(context& ctx, syntax* stx, module& m) {
+  add_environment(stx, m.environment());
+  return analyse_internal(ctx, stx, m);
 }
 
 static bool
@@ -1218,7 +1232,7 @@ expand_top_level(context& ctx, module& m, protomodule const& pm) {
 
   std::vector<tracked_ptr<syntax>> result;
   while (!stack.empty()) {
-    tracked_ptr<syntax> stx = expand(ctx, track(ctx, m.environment()), stack.back()); // GC
+    tracked_ptr<syntax> stx = expand(ctx, stack.back()); // GC
     stack.pop_back();
 
     if (auto lst = track(ctx, syntax_to_list(ctx, stx.get()))) {
@@ -1408,7 +1422,7 @@ analyse_module(context& ctx, module& m, protomodule const& pm) {
 
   sequence_expression result;
   for (tracked_ptr<syntax> const& datum : body)
-    result.expressions.push_back(analyse(ctx, datum.get(), m));
+    result.expressions.push_back(analyse_internal(ctx, datum.get(), m));
 
   return result;
 }
