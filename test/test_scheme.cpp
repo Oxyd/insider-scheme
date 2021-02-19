@@ -54,6 +54,58 @@ struct scheme : testing::Test {
   }
 };
 
+using limb_type = big_integer::limb_type;
+using limb_vector = std::vector<limb_type>;
+constexpr std::uintmax_t limb_max = std::numeric_limits<limb_type>::max();
+
+void
+convert_limbs(limb_vector&) { }
+
+template <typename Limb, typename... Limbs>
+void
+convert_limbs(limb_vector& limbs, Limb first, Limbs... rest) {
+  if constexpr (sizeof(Limb) <= sizeof(limb_type)) {
+    limbs.push_back(first);
+    convert_limbs(limbs, rest...);
+  } else if constexpr (sizeof(Limb) == 2 * sizeof(limb_type)) {
+    Limb mask = (Limb{1} << std::numeric_limits<limb_type>::digits) - 1;
+    limbs.push_back(first & mask);
+    limb_type hi = first >> std::numeric_limits<limb_type>::digits;
+    if (hi > 0 || sizeof...(rest) > 0)
+      limbs.push_back(hi);
+    convert_limbs(limbs, rest...);
+  } else
+    static_assert(sizeof(Limb) == 0, "Unimplemented");
+}
+
+template <typename... Limbs>
+big_integer*
+make_big(context& ctx, Limbs... limbs) {
+  limb_vector ls;
+  convert_limbs(ls, static_cast<std::uint64_t>(limbs)...);
+  return make<big_integer>(ctx, ls, true);
+}
+
+big_integer*
+make_big_literal(context& ctx, limb_vector limbs) {
+  return make<big_integer>(ctx, std::move(limbs), true);
+}
+
+template <typename... Limbs>
+big_integer*
+make_big_negative(context& ctx, Limbs... limbs) {
+  limb_vector ls;
+  convert_limbs(ls, static_cast<std::uint64_t>(limbs)...);
+  return make<big_integer>(ctx, ls, false);
+}
+
+big_integer*
+make_big_negative_literal(context& ctx, limb_vector limbs) {
+  return make<big_integer>(ctx, std::move(limbs), false);
+}
+
+struct gc : scheme { };
+
 struct aaa : leaf_object<aaa> {
   static constexpr char const* scheme_name = "aaa";
 
@@ -73,7 +125,7 @@ struct aaa : leaf_object<aaa> {
   hash() const { return 0; }
 };
 
-TEST_F(scheme, collect_direct_garbage) {
+TEST_F(gc, collect_direct_garbage) {
   bool one{}, two{}, three{};
   tracked_ptr<aaa> a = make_tracked<aaa>(ctx, &one);
   tracked_ptr<aaa> b = make_tracked<aaa>(ctx, &two);
@@ -147,7 +199,7 @@ private:
   bbb* child_ = nullptr;
 };
 
-TEST_F(scheme, collect_indirect_garbage) {
+TEST_F(gc, collect_indirect_garbage) {
   bool one{}, two{}, three{}, four{};
   tracked_ptr<bbb> root = make_tracked<bbb>(ctx, &one);
   root->set_child(ctx.store, make<bbb>(ctx, &two));
@@ -175,7 +227,7 @@ TEST_F(scheme, collect_indirect_garbage) {
   EXPECT_FALSE(four);
 }
 
-TEST_F(scheme, collect_circles) {
+TEST_F(gc, collect_circles) {
   bool one{}, two{};
   tracked_ptr<bbb> a = make_tracked<bbb>(ctx, &one);
   a->set_child(ctx.store, make<bbb>(ctx, &two));
@@ -191,7 +243,7 @@ TEST_F(scheme, collect_circles) {
   EXPECT_FALSE(two);
 }
 
-TEST_F(scheme, weak_ptr) {
+TEST_F(gc, weak_ptr) {
   bool one{};
   tracked_ptr<aaa> a = make_tracked<aaa>(ctx, &one);
   weak_ptr<aaa> w = a;
@@ -209,7 +261,9 @@ TEST_F(scheme, weak_ptr) {
   EXPECT_FALSE(b);
 }
 
-TEST_F(scheme, type_predicates) {
+struct procedures : scheme { };
+
+TEST_F(procedures, type_predicates) {
   pair* p = make<pair>(ctx, ctx.constants->null.get(), ctx.constants->null.get());
   object* x = p;
   object* null = ctx.constants->null.get();
@@ -230,7 +284,7 @@ TEST_F(scheme, type_predicates) {
     SUCCEED();
 }
 
-TEST_F(scheme, is_list) {
+TEST_F(procedures, is_list) {
   // (1 . 2)
   pair* l1 = make<pair>(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}));
   EXPECT_FALSE(is_list(l1));
@@ -248,7 +302,7 @@ TEST_F(scheme, is_list) {
   EXPECT_TRUE(is_list(l3));
 }
 
-TEST_F(scheme, make_list) {
+TEST_F(procedures, make_list) {
   object* empty = make_list(ctx);
   EXPECT_TRUE(empty == ctx.constants->null.get());
 
@@ -268,7 +322,47 @@ TEST_F(scheme, make_list) {
   EXPECT_EQ(cdr(third), ctx.constants->null.get());
 }
 
-TEST_F(scheme, intern) {
+TEST_F(procedures, equal) {
+  EXPECT_TRUE(equal(ctx, read("1"), read("1")));
+  EXPECT_FALSE(equal(ctx, read("1"), read("2")));
+  EXPECT_FALSE(equal(ctx, read("1"), read("sym")));
+  EXPECT_TRUE(equal(ctx, read("'(1 2)"), read("'(1 2)")));
+  EXPECT_TRUE(equal(ctx, read("'(1 2)"), read("(quote (1 2))")));
+  EXPECT_FALSE(equal(ctx, read("'(1 2)"), read("'(1 3)")));
+  EXPECT_FALSE(equal(ctx, read("'(1 2)"), read("'(1 2 3)")));
+  EXPECT_TRUE(equal(ctx, make_string(ctx, "foo"), make_string(ctx, "foo")));
+  EXPECT_FALSE(equal(ctx, make_string(ctx, "foo"), make_string(ctx, "bar")));
+}
+
+TEST_F(procedures, append) {
+  auto r1 = eval("(append '(a1 a2 a3) '(b1 b2 b3) '(c1 c2) '(d1) '() '(f1 f2))");
+  EXPECT_TRUE(equal(ctx, r1, read("(a1 a2 a3 b1 b2 b3 c1 c2 d1 f1 f2)")));
+
+  auto r2 = eval("(append)");
+  EXPECT_TRUE(equal(ctx, r2, read("()")));
+
+  auto r3 = eval("(append '(a1 a2 a3))");
+  EXPECT_TRUE(equal(ctx, r3, read("(a1 a2 a3)")));
+
+  auto r4 = eval("(append '(a1 a2) 'tail)");
+  EXPECT_EQ(cddr(expect<pair>(r4)), ctx.intern("tail"));
+
+  auto r5 = eval("(append '() '() '() '())");
+  EXPECT_TRUE(equal(ctx, r5, ctx.constants->null.get()));
+
+  auto r6 = eval("(append '() '(a1 a2))");
+  EXPECT_TRUE(equal(ctx, r6, read("(a1 a2)")));
+
+  auto r7 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3))");
+  EXPECT_TRUE(equal(ctx, r7, read("(a1 a2 b1 b2 b3)")));
+
+  auto r8 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3) '())");
+  EXPECT_TRUE(equal(ctx, r8, read("(a1 a2 b1 b2 b3)")));
+}
+
+struct types : scheme { };
+
+TEST_F(types, intern) {
   tracked_ptr<symbol> a_1 = track(ctx, ctx.intern("a"));
   tracked_ptr<symbol> b_1 = track(ctx, ctx.intern("b"));
   tracked_ptr<symbol> a_2 = track(ctx, ctx.intern("a"));
@@ -290,7 +384,7 @@ TEST_F(scheme, intern) {
   EXPECT_EQ(b_2, b_3);
 }
 
-TEST_F(scheme, vector) {
+TEST_F(types, vector) {
   tracked_ptr<vector> v1 = make_tracked<vector>(ctx, ctx, 3);
   v1->set(ctx.store, 0, integer_to_ptr(integer{1}));
   v1->set(ctx.store, 1, integer_to_ptr(integer{2}));
@@ -320,7 +414,18 @@ TEST_F(scheme, vector) {
   EXPECT_FALSE(two);
 }
 
-TEST_F(scheme, read_small_integer) {
+TEST_F(types, opaque_value) {
+  define_procedure(
+    ctx, "make-value", ctx.internal_module, true,
+    [] (context& ctx) { return make<opaque_value<int>>(ctx, 7); }
+  );
+  auto result = eval("(make-value)");
+  EXPECT_EQ(expect<opaque_value<int>>(result)->value, 7);
+}
+
+struct io : scheme { };
+
+TEST_F(io, read_small_integer) {
   EXPECT_EQ(expect<integer>(read("0")).value(), 0);
   EXPECT_EQ(expect<integer>(read("2")).value(), 2);
   EXPECT_EQ(expect<integer>(read("-2")).value(), -2);
@@ -332,7 +437,7 @@ TEST_F(scheme, read_small_integer) {
   EXPECT_EQ(expect<integer>(read("-4611686018427387902")).value(), -4611686018427387902);
 }
 
-TEST_F(scheme, read_list) {
+TEST_F(io, read_list) {
   object* empty_1 = read("()");
   EXPECT_EQ(empty_1, ctx.constants->null.get());
 
@@ -366,7 +471,7 @@ TEST_F(scheme, read_list) {
   EXPECT_THROW(read("(()"), parse_error);
 }
 
-TEST_F(scheme, read_vector) {
+TEST_F(io, read_vector) {
   auto v1 = expect<vector>(read("#()"));
   EXPECT_EQ(expect<vector>(v1)->size(), 0);
 
@@ -385,7 +490,7 @@ TEST_F(scheme, read_vector) {
   EXPECT_THROW(read("#(1 2"), parse_error);
 }
 
-TEST_F(scheme, read_symbol) {
+TEST_F(io, read_symbol) {
   EXPECT_EQ(read("foo"), ctx.intern("foo"));
   EXPECT_EQ(read("multiple-words"), ctx.intern("multiple-words"));
   EXPECT_EQ(read("%special-symbol"), ctx.intern("%special-symbol"));
@@ -404,7 +509,7 @@ TEST_F(scheme, read_symbol) {
   EXPECT_EQ(expect<symbol>(car(expect<pair>(cdr(expect<pair>(cdr(expect<pair>(l)))))))->value(), "three");
 }
 
-TEST_F(scheme, read_char) {
+TEST_F(io, read_char) {
   EXPECT_EQ(expect<character>(read(R"(#\a)"))->value(), 'a');
   EXPECT_EQ(expect<character>(read(R"(#\A)"))->value(), 'A');
   EXPECT_EQ(expect<character>(read(R"(#\4)"))->value(), '4');
@@ -418,7 +523,7 @@ TEST_F(scheme, read_char) {
   EXPECT_EQ(expect<character>(read(R"(#\x4d)"))->value(), 'M');
 }
 
-TEST_F(scheme, read_string) {
+TEST_F(io, read_string) {
   EXPECT_EQ(expect<string>(read(R"("foo")"))->value(), "foo");
   EXPECT_EQ(expect<string>(read(R"("one\ntwo")"))->value(), "one\ntwo");
   char const* msvc_workaround1 = R"("this \"is\" a quote")";
@@ -435,7 +540,7 @@ TEST_F(scheme, read_string) {
   EXPECT_THROW(read(msvc_workaround5), parse_error);
 }
 
-TEST_F(scheme, read_multiple) {
+TEST_F(io, read_multiple) {
   std::vector<generic_tracked_ptr> result1 = read_multiple(ctx, "foo bar baz");
   ASSERT_EQ(result1.size(), 3);
   EXPECT_EQ(expect<symbol>(result1[0])->value(), "foo");
@@ -451,12 +556,118 @@ TEST_F(scheme, read_multiple) {
   EXPECT_EQ(list_length(result2[1].get()), 2);
 }
 
-TEST_F(scheme, read_comments) {
+TEST_F(io, read_comments) {
   EXPECT_EQ(expect<integer>(read(R"(;; Comment
                                     2)")).value(),
             2);
   EXPECT_EQ(expect<integer>(read("7 ;; A prime number")).value(), 7);
   EXPECT_EQ(expect<string>(read(R"("foo;bar;baz" ; string)"))->value(), "foo;bar;baz");
+}
+
+static std::string
+to_string(context& ctx, object* datum) {
+  auto out = make<port>(ctx, std::string{}, false, true);
+  write_simple(ctx, datum, out);
+  return out->get_string();
+}
+
+TEST_F(io, write) {
+  EXPECT_EQ(to_string(ctx, read("(1 2 3)")), "(1 2 3)");
+
+  auto p1 = make<pair>(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}));
+  EXPECT_EQ(to_string(ctx, p1), "(1 . 2)");
+
+  auto p2 = make<pair>(ctx, integer_to_ptr(integer{0}), p1);
+  EXPECT_EQ(to_string(ctx, p2), "(0 1 . 2)");
+
+  auto v = make<vector>(ctx, ctx, 3);
+  v->set(ctx.store, 0, make<character>(ctx, 'r'));
+  v->set(ctx.store, 1, p2);
+  v->set(ctx.store, 2, make_string(ctx, "foobar"));
+  EXPECT_EQ(to_string(ctx, v), R"(#(#\r (0 1 . 2) "foobar"))");
+
+  auto s = make_string(ctx, R"(one "two" three \ four)");
+  char const* msvc_workaround1 = R"("one \"two\" three \\ four")";
+  EXPECT_EQ(to_string(ctx, s), msvc_workaround1);
+
+  auto l = make_list(
+    ctx,
+    ctx.constants->null.get(),
+    ctx.constants->void_.get(),
+    ctx.constants->t.get(),
+    ctx.constants->f.get(),
+    ctx.intern("symbol"),
+    make_string(ctx, "string"),
+    make<character>(ctx, 'c'),
+    integer_to_ptr(integer{-13})
+  );
+  EXPECT_EQ(to_string(ctx, l), R"((() #void #t #f symbol "string" #\c -13))");
+}
+
+TEST_F(io, read_bignum) {
+  EXPECT_TRUE(num_equal(read("18446744073709551616"), make_big(ctx, 0ull, 1ull)));
+  EXPECT_TRUE(num_equal(read("-18446744073709551616"), make_big_negative(ctx, 0ull, 1ull)));
+  EXPECT_TRUE(num_equal(read("4611686018427387903"), make_big(ctx, 4611686018427387903ull)));
+  EXPECT_TRUE(num_equal(read("38616195397574606111029898159411003755739963811995564291018845157317291934032285276296721365296300445450322552142080"),
+                        make_big(ctx,
+                                 262276201643358464ull,
+                                 43373824340229465ull,
+                                 7844025956150470852ull,
+                                 470401255560051253ull,
+                                 11431680516999648673ull,
+                                 18078852890099872823ull)));
+}
+
+TEST_F(io, write_bignum) {
+  EXPECT_EQ(to_string(ctx, make_big(ctx, 0, 1)), "18446744073709551616");
+  EXPECT_EQ(to_string(ctx, make_big_negative(ctx, 0, 1)), "-18446744073709551616");
+  EXPECT_EQ(to_string(ctx, make_big(ctx,
+                                    17938764184775092447ull,
+                                    4633044886490317294ull,
+                                    11636559762171942713ull,
+                                    8137458716480145127ull,
+                                    1756181151806355891ull,
+                                    13177594331470775302ull)),
+            "28147170656646448008236484114643053198784882683455037102776641378964740414176277099771727921396609852836168744626399");
+}
+
+TEST_F(io, read_write_fraction) {
+  EXPECT_TRUE(num_equal(read("1/2"), make_fraction(1, 2)));
+  EXPECT_TRUE(num_equal(read("2/4"), make_fraction(1, 2)));
+  EXPECT_TRUE(num_equal(read("-1/2"), make_fraction(-1, 2)));
+  EXPECT_TRUE(num_equal(read("0/5"), integer_to_ptr(integer{0})));
+  EXPECT_TRUE(num_equal(read("6/3"), integer_to_ptr(integer{2})));
+
+  EXPECT_EQ(to_string(ctx, make_fraction(1, 2)), "1/2");
+  EXPECT_EQ(to_string(ctx, make_fraction(-1, 2)), "-1/2");
+}
+
+TEST_F(io, read_write_float) {
+  EXPECT_TRUE(num_equal(read("0.0"), make_float(0.0)));
+  EXPECT_TRUE(num_equal(read("0.1"), make_float(0.1)));
+  EXPECT_TRUE(num_equal(read("-0.1"), make_float(-0.1)));
+  EXPECT_TRUE(num_equal(read("1.0"), make_float(1.0)));
+  EXPECT_TRUE(num_equal(read("3.14"), make_float(3.14)));
+  EXPECT_TRUE(num_equal(read(".5"), make_float(0.5)));
+  EXPECT_TRUE(num_equal(read("-.5"), make_float(-0.5)));
+  EXPECT_TRUE(num_equal(read("5."), make_float(5.0)));
+  EXPECT_TRUE(num_equal(read("-5."), make_float(-5.0)));
+  EXPECT_TRUE(num_equal(read("+inf.0"), make_float(floating_point::positive_infinity)));
+  EXPECT_TRUE(num_equal(read("+INF.0"), make_float(floating_point::positive_infinity)));
+  EXPECT_TRUE(num_equal(read("-inf.0"), make_float(floating_point::negative_infinity)));
+  EXPECT_TRUE(std::isnan(expect<floating_point>(read("+nan.0"))->value));
+  EXPECT_TRUE(std::isnan(expect<floating_point>(read("+NaN.0"))->value));
+  EXPECT_TRUE(std::isnan(expect<floating_point>(read("-nan.0"))->value));
+
+  EXPECT_EQ(to_string(ctx, make_float(0.0)), "0.0");
+  EXPECT_EQ(to_string(ctx, make_float(0.1)), "0.1");
+  EXPECT_EQ(to_string(ctx, make_float(-0.1)), "-0.1");
+  EXPECT_EQ(to_string(ctx, make_float(1.0)), "1.0");
+  EXPECT_EQ(to_string(ctx, make_float(123456789.0)), "123456789.0");
+  EXPECT_EQ(to_string(ctx, make_float(floating_point::positive_infinity)), "+inf.0");
+  EXPECT_EQ(to_string(ctx, make_float(floating_point::negative_infinity)), "-inf.0");
+  EXPECT_EQ(to_string(ctx, make_float(floating_point::positive_nan)), "+nan.0");
+  EXPECT_EQ(to_string(ctx, make_float(floating_point::negative_nan)), "-nan.0");
 }
 
 TEST(bytecode, instruction_info_consistency) {
@@ -490,7 +701,9 @@ make_bytecode(std::vector<instruction> const& instr) {
   return bc;
 }
 
-TEST_F(scheme, exec_arithmetic) {
+struct interpreter : scheme { };
+
+TEST_F(interpreter, exec_arithmetic) {
   // 2 * (3 + 6). The input constants are stored in statics, result is stored in
   // local register 0.
   auto two = make_static<integer>(ctx, 2);
@@ -512,7 +725,7 @@ TEST_F(scheme, exec_arithmetic) {
   EXPECT_EQ(assume<integer>(result).value(), 18);
 }
 
-TEST_F(scheme, exec_calls) {
+TEST_F(interpreter, exec_calls) {
   // f(x, y) = 2 * x + y
   // Evaluate: 3 * f(5, 7) + f(2, f(3, 4))
 
@@ -557,7 +770,7 @@ TEST_F(scheme, exec_calls) {
             3 * native_f(5, 7) + native_f(2, native_f(3, 4)));
 }
 
-TEST_F(scheme, exec_tail_calls) {
+TEST_F(interpreter, exec_tail_calls) {
   // f(x) = g(x)
   // g(x) = 2 * x
   auto two = make_static<integer>(ctx, 2);
@@ -590,7 +803,7 @@ TEST_F(scheme, exec_tail_calls) {
   EXPECT_EQ(assume<integer>(result).value(), 12);
 }
 
-TEST_F(scheme, exec_loop) {
+TEST_F(interpreter, exec_loop) {
   // sum = 0
   // i = 0
   // while i < 10
@@ -620,7 +833,7 @@ TEST_F(scheme, exec_loop) {
   EXPECT_EQ(assume<integer>(result).value(), 45);
 }
 
-TEST_F(scheme, exec_native_call) {
+TEST_F(interpreter, exec_native_call) {
   auto native = [] (context&, object_span args) {
     return integer_to_ptr(integer{2 * expect<integer>(args[0]).value()
                                   + 3 * expect<integer>(args[1]).value()
@@ -646,7 +859,7 @@ TEST_F(scheme, exec_native_call) {
             2 * 10 + 3 * 20 + 5 * 30);
 }
 
-TEST_F(scheme, exec_closure_ref) {
+TEST_F(interpreter, exec_closure_ref) {
   auto add = make_static_procedure(
     ctx,
     make_bytecode({instruction{opcode::add, operand{1}, operand{0}, operand{0}},
@@ -670,7 +883,7 @@ TEST_F(scheme, exec_closure_ref) {
   EXPECT_EQ(assume<integer>(result).value(), 5 + 3);
 }
 
-TEST_F(scheme, exec_cons) {
+TEST_F(interpreter, exec_cons) {
   auto one = make_static<integer>(ctx, 1);
   auto two = make_static<integer>(ctx, 2);
   auto three = make_static<integer>(ctx, 3);
@@ -690,7 +903,7 @@ TEST_F(scheme, exec_cons) {
   EXPECT_TRUE(equal(ctx, result.get(), read("(1 2 3)")));
 }
 
-TEST_F(scheme, exec_make_vector) {
+TEST_F(interpreter, exec_make_vector) {
   auto one = make_static<integer>(ctx, 1);
   auto two = make_static<integer>(ctx, 2);
   auto three = make_static<integer>(ctx, 3);
@@ -708,7 +921,9 @@ TEST_F(scheme, exec_make_vector) {
   EXPECT_TRUE(equal(ctx, result.get(), read("#(1 2 3)")));
 }
 
-TEST_F(scheme, compile_arithmetic) {
+struct compiler : scheme { };
+
+TEST_F(compiler, compile_arithmetic) {
   object* result = eval(
     "(+ 2 3 (* 5 9) (- 9 8) (/ 8 2))"
   );
@@ -716,7 +931,7 @@ TEST_F(scheme, compile_arithmetic) {
             2 + 3 + (5 * 9) + (9 - 8) + (8 / 2));
 }
 
-TEST_F(scheme, compile_let) {
+TEST_F(compiler, compile_let) {
   object* result = eval(
     R"(
       (let ((a 2)
@@ -739,7 +954,7 @@ TEST_F(scheme, compile_let) {
                std::runtime_error);
 }
 
-TEST_F(scheme, let_shadowing) {
+TEST_F(compiler, let_shadowing) {
   object* result = eval(
     R"(
       (let ((a 2))
@@ -750,7 +965,15 @@ TEST_F(scheme, let_shadowing) {
   EXPECT_EQ(expect<integer>(result).value(), 5);
 }
 
-TEST_F(scheme, compile_lambda) {
+TEST_F(compiler, core_shadowing) {
+  auto result1 = eval("(let ((let 'let)) let)");
+  EXPECT_EQ(expect<symbol>(result1)->value(), "let");
+
+  auto result2 = eval("(let ((unquote 'x)) `(1 ,2 3))");
+  EXPECT_TRUE(equal(ctx, result2, read("(1 (unquote 2) 3)")));
+}
+
+TEST_F(compiler, compile_lambda) {
   object* result1 = eval(
     R"(
       (let ((twice (lambda (x) (* 2 x))))
@@ -804,7 +1027,7 @@ TEST_F(scheme, compile_lambda) {
   EXPECT_EQ(expect<integer>(result6).value(), 2);
 }
 
-TEST_F(scheme, compile_if) {
+TEST_F(compiler, compile_if) {
   object* result1 = eval("(if #t 2 3)");
   EXPECT_EQ(expect<integer>(result1).value(), 2);
 
@@ -901,7 +1124,7 @@ TEST_F(scheme, compile_if) {
   EXPECT_EQ(expect<integer>(result11).value(), 15);
 }
 
-TEST_F(scheme, compile_closure) {
+TEST_F(compiler, compile_closure) {
   object* result1 = eval(
     R"(
       (let ((make-adder (lambda (x) (lambda (y) (+ x y)))))
@@ -921,7 +1144,7 @@ TEST_F(scheme, compile_closure) {
   EXPECT_EQ(expect<integer>(result2).value(), 10);
 }
 
-TEST_F(scheme, compile_set) {
+TEST_F(compiler, compile_set) {
   object* result1 = eval(
     R"(
       (let ((x 2))
@@ -955,7 +1178,7 @@ TEST_F(scheme, compile_set) {
   EXPECT_EQ(expect<integer>(result3).value(), 13);
 }
 
-TEST_F(scheme, compile_box) {
+TEST_F(compiler, compile_box) {
   object* result = eval(
     R"(
       (let ((b1 (box 5))
@@ -967,7 +1190,7 @@ TEST_F(scheme, compile_box) {
   EXPECT_EQ(expect<integer>(result).value(), 12);
 }
 
-TEST_F(scheme, compile_sequence) {
+TEST_F(compiler, compile_sequence) {
   object* result = eval(R"(
     (let ((a 0)
           (b 0))
@@ -981,7 +1204,7 @@ TEST_F(scheme, compile_sequence) {
   EXPECT_EQ(expect<integer>(result).value(), 3);
 }
 
-TEST_F(scheme, compile_higher_order_arithmetic) {
+TEST_F(compiler, compile_higher_order_arithmetic) {
   object* result = eval(
     R"(
       (let ((f (lambda (op x y) (op x y))))
@@ -991,7 +1214,7 @@ TEST_F(scheme, compile_higher_order_arithmetic) {
   EXPECT_EQ(expect<integer>(result).value(), 5);
 }
 
-TEST_F(scheme, compile_module) {
+TEST_F(compiler, compile_module) {
   int sum = 0;
   define_top_level(
     ctx, "f", ctx.internal_module, true,
@@ -1012,7 +1235,7 @@ TEST_F(scheme, compile_module) {
   EXPECT_EQ(sum, 5);
 }
 
-TEST_F(scheme, compile_top_level_define) {
+TEST_F(compiler, compile_top_level_define) {
   // auto result1 = eval_module(
   //   R"(
   //     (import (insider internal))
@@ -1053,7 +1276,7 @@ TEST_F(scheme, compile_top_level_define) {
   EXPECT_EQ(expect<integer>(result3).value(), 1 + 2 + 3 + 4 + 5 + 6 + 7);
 }
 
-TEST_F(scheme, compile_internal_define) {
+TEST_F(compiler, compile_internal_define) {
   auto result1 = eval_module(
     R"(
       (import (insider internal))
@@ -1086,7 +1309,7 @@ TEST_F(scheme, compile_internal_define) {
   EXPECT_EQ(expect<integer>(result2).value(), 4 + 5 + 4 * 5 + 4 * 4 + 5 * 5);
 }
 
-TEST_F(scheme, define_lambda) {
+TEST_F(compiler, define_lambda) {
   define_procedure(
     ctx, "f", ctx.internal_module, true,
     [] (int a, int b) { return 2 * a + b; }
@@ -1113,47 +1336,7 @@ TEST_F(scheme, define_lambda) {
   EXPECT_EQ(expect<string>(result3)->value(), "3");
 }
 
-static std::string
-to_string(context& ctx, object* datum) {
-  auto out = make<port>(ctx, std::string{}, false, true);
-  write_simple(ctx, datum, out);
-  return out->get_string();
-}
-
-TEST_F(scheme, test_write) {
-  EXPECT_EQ(to_string(ctx, read("(1 2 3)")), "(1 2 3)");
-
-  auto p1 = make<pair>(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}));
-  EXPECT_EQ(to_string(ctx, p1), "(1 . 2)");
-
-  auto p2 = make<pair>(ctx, integer_to_ptr(integer{0}), p1);
-  EXPECT_EQ(to_string(ctx, p2), "(0 1 . 2)");
-
-  auto v = make<vector>(ctx, ctx, 3);
-  v->set(ctx.store, 0, make<character>(ctx, 'r'));
-  v->set(ctx.store, 1, p2);
-  v->set(ctx.store, 2, make_string(ctx, "foobar"));
-  EXPECT_EQ(to_string(ctx, v), R"(#(#\r (0 1 . 2) "foobar"))");
-
-  auto s = make_string(ctx, R"(one "two" three \ four)");
-  char const* msvc_workaround1 = R"("one \"two\" three \\ four")";
-  EXPECT_EQ(to_string(ctx, s), msvc_workaround1);
-
-  auto l = make_list(
-    ctx,
-    ctx.constants->null.get(),
-    ctx.constants->void_.get(),
-    ctx.constants->t.get(),
-    ctx.constants->f.get(),
-    ctx.intern("symbol"),
-    make_string(ctx, "string"),
-    make<character>(ctx, 'c'),
-    integer_to_ptr(integer{-13})
-  );
-  EXPECT_EQ(to_string(ctx, l), R"((() #void #t #f symbol "string" #\c -13))");
-}
-
-TEST_F(scheme, quote) {
+TEST_F(compiler, quote) {
   auto result1 = eval("(quote (a b c))");
   EXPECT_TRUE(is_list(result1));
   EXPECT_EQ(list_length(result1), 3);
@@ -1177,7 +1360,7 @@ TEST_F(scheme, quote) {
   EXPECT_EQ(expect<symbol>(cadr(expect<pair>(result5)))->value(), "a");
 }
 
-TEST_F(scheme, syntax) {
+TEST_F(compiler, syntax) {
   auto result1 = eval("(syntax (a b c))");
   ASSERT_TRUE(is<syntax>(result1));
 
@@ -1194,19 +1377,7 @@ TEST_F(scheme, syntax) {
   EXPECT_TRUE(equal(ctx, syntax_to_datum(ctx, assume<syntax>(result2)), read("(a b c)")));
 }
 
-TEST_F(scheme, equal) {
-  EXPECT_TRUE(equal(ctx, read("1"), read("1")));
-  EXPECT_FALSE(equal(ctx, read("1"), read("2")));
-  EXPECT_FALSE(equal(ctx, read("1"), read("sym")));
-  EXPECT_TRUE(equal(ctx, read("'(1 2)"), read("'(1 2)")));
-  EXPECT_TRUE(equal(ctx, read("'(1 2)"), read("(quote (1 2))")));
-  EXPECT_FALSE(equal(ctx, read("'(1 2)"), read("'(1 3)")));
-  EXPECT_FALSE(equal(ctx, read("'(1 2)"), read("'(1 2 3)")));
-  EXPECT_TRUE(equal(ctx, make_string(ctx, "foo"), make_string(ctx, "foo")));
-  EXPECT_FALSE(equal(ctx, make_string(ctx, "foo"), make_string(ctx, "bar")));
-}
-
-TEST_F(scheme, quasiquote) {
+TEST_F(compiler, quasiquote) {
   auto result1 = eval("`5");
   EXPECT_TRUE(equal(ctx, result1, read("5")));
 
@@ -1302,7 +1473,7 @@ is_proper_syntax(object* x) {
   return true;
 }
 
-TEST_F(scheme, quasisyntax) {
+TEST_F(compiler, quasisyntax) {
 #define EXPECT_SYNTAX_EQ(x, y)                                          \
   do {                                                                  \
     auto result = x;                                                    \
@@ -1324,33 +1495,7 @@ TEST_F(scheme, quasisyntax) {
 #undef EXPECT_SYNTAX_EQ
 }
 
-TEST_F(scheme, append) {
-  auto r1 = eval("(append '(a1 a2 a3) '(b1 b2 b3) '(c1 c2) '(d1) '() '(f1 f2))");
-  EXPECT_TRUE(equal(ctx, r1, read("(a1 a2 a3 b1 b2 b3 c1 c2 d1 f1 f2)")));
-
-  auto r2 = eval("(append)");
-  EXPECT_TRUE(equal(ctx, r2, read("()")));
-
-  auto r3 = eval("(append '(a1 a2 a3))");
-  EXPECT_TRUE(equal(ctx, r3, read("(a1 a2 a3)")));
-
-  auto r4 = eval("(append '(a1 a2) 'tail)");
-  EXPECT_EQ(cddr(expect<pair>(r4)), ctx.intern("tail"));
-
-  auto r5 = eval("(append '() '() '() '())");
-  EXPECT_TRUE(equal(ctx, r5, ctx.constants->null.get()));
-
-  auto r6 = eval("(append '() '(a1 a2))");
-  EXPECT_TRUE(equal(ctx, r6, read("(a1 a2)")));
-
-  auto r7 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3))");
-  EXPECT_TRUE(equal(ctx, r7, read("(a1 a2 b1 b2 b3)")));
-
-  auto r8 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3) '())");
-  EXPECT_TRUE(equal(ctx, r8, read("(a1 a2 b1 b2 b3)")));
-}
-
-TEST_F(scheme, call_from_native) {
+TEST_F(compiler, call_from_native) {
   auto f = expect<procedure>(eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"));
   object* result = call(ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})}).get();
   EXPECT_EQ(expect<integer>(result).value(), 2 * 5 + 3 * 4);
@@ -1359,7 +1504,9 @@ TEST_F(scheme, call_from_native) {
   EXPECT_EQ(g(ctx, 5, 4), 2 * 5 + 3 * 4);
 }
 
-TEST_F(scheme, top_level_transformers) {
+struct macros : scheme { };
+
+TEST_F(macros, top_level_transformers) {
   auto result1 = eval_module(R"(
     (import (insider internal))
     (define-syntax num
@@ -1387,7 +1534,7 @@ TEST_F(scheme, top_level_transformers) {
   EXPECT_EQ(cdr(result2p), ctx.constants->f.get());
 }
 
-TEST_F(scheme, internal_transformers) {
+TEST_F(macros, internal_transformers) {
   auto result1 = eval_module(R"(
     (import (insider internal))
     (define foo
@@ -1402,7 +1549,7 @@ TEST_F(scheme, internal_transformers) {
   EXPECT_EQ(expect<integer>(result1).value(), 5 + 2 * 5);
 }
 
-TEST_F(scheme, hygiene) {
+TEST_F(macros, hygiene) {
   auto result1 = eval_module(R"(
     (import (insider internal))
 
@@ -1432,7 +1579,7 @@ TEST_F(scheme, hygiene) {
   EXPECT_EQ(expect<integer>(result2).value(), 1);
 }
 
-TEST_F(scheme, transformers_producing_definitions) {
+TEST_F(macros, transformers_producing_definitions) {
   auto result1 = eval_module(R"(
     (import (insider internal))
 
@@ -1497,24 +1644,9 @@ TEST_F(scheme, transformers_producing_definitions) {
   EXPECT_EQ(expect<integer>(result3).value(), 7 + 12);
 }
 
-TEST_F(scheme, core_shadowing) {
-  auto result1 = eval("(let ((let 'let)) let)");
-  EXPECT_EQ(expect<symbol>(result1)->value(), "let");
+struct modules : scheme { };
 
-  auto result2 = eval("(let ((unquote 'x)) `(1 ,2 3))");
-  EXPECT_TRUE(equal(ctx, result2, read("(1 (unquote 2) 3)")));
-}
-
-TEST_F(scheme, opaque_value) {
-  define_procedure(
-    ctx, "make-value", ctx.internal_module, true,
-    [] (context& ctx) { return make<opaque_value<int>>(ctx, 7); }
-  );
-  auto result = eval("(make-value)");
-  EXPECT_EQ(expect<opaque_value<int>>(result)->value, 7);
-}
-
-TEST_F(scheme, module_activation) {
+TEST_F(modules, module_activation) {
   std::vector<int> trace;
   define_procedure<void(int)>(
     ctx, "leave-mark", ctx.internal_module, true,
@@ -1547,7 +1679,7 @@ TEST_F(scheme, module_activation) {
   EXPECT_EQ(trace, (std::vector{1, 2, 3}));
 }
 
-TEST_F(scheme, module_variable_export) {
+TEST_F(modules, module_variable_export) {
   add_library(R"(
     (library (foo))
     (import (insider internal))
@@ -1574,7 +1706,7 @@ TEST_F(scheme, module_variable_export) {
   EXPECT_THROW(eval_module("(import (except (foo) not-exported)) 0"), std::runtime_error);
 }
 
-TEST_F(scheme, module_syntax_export) {
+TEST_F(modules, module_syntax_export) {
   add_library(R"(
     (library (foo))
     (import (insider internal))
@@ -1620,7 +1752,7 @@ TEST_F(scheme, module_syntax_export) {
   EXPECT_EQ(expect<integer>(result3).value(), 7);
 }
 
-TEST_F(scheme, import_specifiers) {
+TEST_F(modules, import_specifiers) {
   add_library(R"(
     (library (foo))
     (import (insider internal))
@@ -1679,7 +1811,7 @@ TEST_F(scheme, import_specifiers) {
   EXPECT_EQ(expect<integer>(result5).value(), 1 + 2);
 }
 
-TEST_F(scheme, begin_for_syntax) {
+TEST_F(modules, begin_for_syntax) {
   auto result1 = eval_module(R"(
     (import (insider internal))
     (begin-for-syntax
@@ -1707,57 +1839,9 @@ TEST_F(scheme, begin_for_syntax) {
   EXPECT_EQ(expect<symbol>(result2)->value(), "yes");
 }
 
-using limb_type = big_integer::limb_type;
-using limb_vector = std::vector<limb_type>;
-constexpr std::uintmax_t limb_max = std::numeric_limits<limb_type>::max();
+struct numeric : scheme { };
 
-void
-convert_limbs(limb_vector&) { }
-
-template <typename Limb, typename... Limbs>
-void
-convert_limbs(limb_vector& limbs, Limb first, Limbs... rest) {
-  if constexpr (sizeof(Limb) <= sizeof(limb_type)) {
-    limbs.push_back(first);
-    convert_limbs(limbs, rest...);
-  } else if constexpr (sizeof(Limb) == 2 * sizeof(limb_type)) {
-    Limb mask = (Limb{1} << std::numeric_limits<limb_type>::digits) - 1;
-    limbs.push_back(first & mask);
-    limb_type hi = first >> std::numeric_limits<limb_type>::digits;
-    if (hi > 0 || sizeof...(rest) > 0)
-      limbs.push_back(hi);
-    convert_limbs(limbs, rest...);
-  } else
-    static_assert(sizeof(Limb) == 0, "Unimplemented");
-}
-
-template <typename... Limbs>
-big_integer*
-make_big(context& ctx, Limbs... limbs) {
-  limb_vector ls;
-  convert_limbs(ls, static_cast<std::uint64_t>(limbs)...);
-  return make<big_integer>(ctx, ls, true);
-}
-
-big_integer*
-make_big_literal(context& ctx, limb_vector limbs) {
-  return make<big_integer>(ctx, std::move(limbs), true);
-}
-
-template <typename... Limbs>
-big_integer*
-make_big_negative(context& ctx, Limbs... limbs) {
-  limb_vector ls;
-  convert_limbs(ls, static_cast<std::uint64_t>(limbs)...);
-  return make<big_integer>(ctx, ls, false);
-}
-
-big_integer*
-make_big_negative_literal(context& ctx, limb_vector limbs) {
-  return make<big_integer>(ctx, std::move(limbs), false);
-}
-
-TEST_F(scheme, bignum_add_subtract) {
+TEST_F(numeric, bignum_add_subtract) {
   auto make_small = [&] (integer::value_type v) {
     return integer_to_ptr(integer{v});
   };
@@ -1802,7 +1886,7 @@ TEST_F(scheme, bignum_add_subtract) {
 #undef TEST_SUB
 }
 
-TEST_F(scheme, bignum_multiply) {
+TEST_F(numeric, bignum_multiply) {
   auto make_small = [&] (integer::value_type v) {
     return integer_to_ptr(integer{v});
   };
@@ -1933,7 +2017,7 @@ TEST_F(scheme, bignum_multiply) {
 #undef TEST_MUL
 }
 
-TEST_F(scheme, bignum_divide) {
+TEST_F(numeric, bignum_divide) {
   auto make_small = [&] (integer::value_type v) {
     return integer_to_ptr(integer{v});
   };
@@ -2202,34 +2286,7 @@ TEST_F(scheme, bignum_divide) {
                     731834574828767176ull));
 }
 
-TEST_F(scheme, read_bignum) {
-  EXPECT_TRUE(num_equal(read("18446744073709551616"), make_big(ctx, 0ull, 1ull)));
-  EXPECT_TRUE(num_equal(read("-18446744073709551616"), make_big_negative(ctx, 0ull, 1ull)));
-  EXPECT_TRUE(num_equal(read("4611686018427387903"), make_big(ctx, 4611686018427387903ull)));
-  EXPECT_TRUE(num_equal(read("38616195397574606111029898159411003755739963811995564291018845157317291934032285276296721365296300445450322552142080"),
-                        make_big(ctx,
-                                 262276201643358464ull,
-                                 43373824340229465ull,
-                                 7844025956150470852ull,
-                                 470401255560051253ull,
-                                 11431680516999648673ull,
-                                 18078852890099872823ull)));
-}
-
-TEST_F(scheme, write_bignum) {
-  EXPECT_EQ(to_string(ctx, make_big(ctx, 0, 1)), "18446744073709551616");
-  EXPECT_EQ(to_string(ctx, make_big_negative(ctx, 0, 1)), "-18446744073709551616");
-  EXPECT_EQ(to_string(ctx, make_big(ctx,
-                                    17938764184775092447ull,
-                                    4633044886490317294ull,
-                                    11636559762171942713ull,
-                                    8137458716480145127ull,
-                                    1756181151806355891ull,
-                                    13177594331470775302ull)),
-            "28147170656646448008236484114643053198784882683455037102776641378964740414176277099771727921396609852836168744626399");
-}
-
-TEST_F(scheme, gcd) {
+TEST_F(numeric, gcd) {
   EXPECT_EQ(expect<integer>(gcd(ctx, integer_to_ptr(integer{32}), integer_to_ptr(integer{36}))).value(), 4);
   EXPECT_EQ(expect<integer>(gcd(ctx, integer_to_ptr(integer{32}), integer_to_ptr(integer{-36}))).value(), 4);
   EXPECT_EQ(expect<integer>(gcd(ctx,
@@ -2246,18 +2303,7 @@ TEST_F(scheme, gcd) {
                         read("3482687899064411289424507725617653109781215164227824305838")));
 }
 
-TEST_F(scheme, read_write_fraction) {
-  EXPECT_TRUE(num_equal(read("1/2"), make_fraction(1, 2)));
-  EXPECT_TRUE(num_equal(read("2/4"), make_fraction(1, 2)));
-  EXPECT_TRUE(num_equal(read("-1/2"), make_fraction(-1, 2)));
-  EXPECT_TRUE(num_equal(read("0/5"), integer_to_ptr(integer{0})));
-  EXPECT_TRUE(num_equal(read("6/3"), integer_to_ptr(integer{2})));
-
-  EXPECT_EQ(to_string(ctx, make_fraction(1, 2)), "1/2");
-  EXPECT_EQ(to_string(ctx, make_fraction(-1, 2)), "-1/2");
-}
-
-TEST_F(scheme, fraction_arithmetic) {
+TEST_F(numeric, fraction_arithmetic) {
   EXPECT_TRUE(num_equal(add(ctx, make_fraction(1, 2), make_fraction(1, 3)), make_fraction(5, 6)));
   EXPECT_TRUE(num_equal(add(ctx, make_fraction(7, 12), make_fraction(5, 12)), integer_to_ptr(integer{1})));
   EXPECT_TRUE(num_equal(add(ctx, make_fraction(1, 6), make_fraction(2, 3)), make_fraction(5, 6)));
@@ -2272,35 +2318,7 @@ TEST_F(scheme, fraction_arithmetic) {
   EXPECT_TRUE(num_equal(divide(ctx, make_fraction(1, 3), make_fraction(2, 3)), make_fraction(1, 2)));
 }
 
-TEST_F(scheme, read_write_float) {
-  EXPECT_TRUE(num_equal(read("0.0"), make_float(0.0)));
-  EXPECT_TRUE(num_equal(read("0.1"), make_float(0.1)));
-  EXPECT_TRUE(num_equal(read("-0.1"), make_float(-0.1)));
-  EXPECT_TRUE(num_equal(read("1.0"), make_float(1.0)));
-  EXPECT_TRUE(num_equal(read("3.14"), make_float(3.14)));
-  EXPECT_TRUE(num_equal(read(".5"), make_float(0.5)));
-  EXPECT_TRUE(num_equal(read("-.5"), make_float(-0.5)));
-  EXPECT_TRUE(num_equal(read("5."), make_float(5.0)));
-  EXPECT_TRUE(num_equal(read("-5."), make_float(-5.0)));
-  EXPECT_TRUE(num_equal(read("+inf.0"), make_float(floating_point::positive_infinity)));
-  EXPECT_TRUE(num_equal(read("+INF.0"), make_float(floating_point::positive_infinity)));
-  EXPECT_TRUE(num_equal(read("-inf.0"), make_float(floating_point::negative_infinity)));
-  EXPECT_TRUE(std::isnan(expect<floating_point>(read("+nan.0"))->value));
-  EXPECT_TRUE(std::isnan(expect<floating_point>(read("+NaN.0"))->value));
-  EXPECT_TRUE(std::isnan(expect<floating_point>(read("-nan.0"))->value));
-
-  EXPECT_EQ(to_string(ctx, make_float(0.0)), "0.0");
-  EXPECT_EQ(to_string(ctx, make_float(0.1)), "0.1");
-  EXPECT_EQ(to_string(ctx, make_float(-0.1)), "-0.1");
-  EXPECT_EQ(to_string(ctx, make_float(1.0)), "1.0");
-  EXPECT_EQ(to_string(ctx, make_float(123456789.0)), "123456789.0");
-  EXPECT_EQ(to_string(ctx, make_float(floating_point::positive_infinity)), "+inf.0");
-  EXPECT_EQ(to_string(ctx, make_float(floating_point::negative_infinity)), "-inf.0");
-  EXPECT_EQ(to_string(ctx, make_float(floating_point::positive_nan)), "+nan.0");
-  EXPECT_EQ(to_string(ctx, make_float(floating_point::negative_nan)), "-nan.0");
-}
-
-TEST_F(scheme, float_arithmetic) {
+TEST_F(numeric, float_arithmetic) {
 #define ASSERT_FP_EQ(lhs, rhs) ASSERT_DOUBLE_EQ(expect<floating_point>(lhs)->value, rhs)
   ASSERT_FP_EQ(add(ctx, make<floating_point>(ctx, 0.5), make<floating_point>(ctx, 0.4)), 0.9);
   ASSERT_FP_EQ(add(ctx, make<floating_point>(ctx, 0.7), integer_to_ptr(integer{2})), 2.7);
