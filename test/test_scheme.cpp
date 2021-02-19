@@ -1236,28 +1236,28 @@ TEST_F(compiler, compile_module) {
 }
 
 TEST_F(compiler, compile_top_level_define) {
-  // auto result1 = eval_module(
-  //   R"(
-  //     (import (insider internal))
-  //     (define f
-  //       (lambda (x)
-  //         (+ x 2)))
-  //     (define var 7)
-  //     (f var)
-  //   )"
-  // );
-  // EXPECT_EQ(expect<integer>(result1).value(), 9);
+  auto result1 = eval_module(
+    R"(
+      (import (insider internal))
+      (define f
+        (lambda (x)
+          (+ x 2)))
+      (define var 7)
+      (f var)
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result1).value(), 9);
 
-  // auto result2 = eval_module(
-  //   R"(
-  //     (import (insider internal))
-  //     (define x 4)
-  //     (define y 7)
-  //     (set! x (+ y 2))
-  //     x
-  //   )"
-  // );
-  // EXPECT_EQ(expect<integer>(result2).value(), 9);
+  auto result2 = eval_module(
+    R"(
+      (import (insider internal))
+      (define x 4)
+      (define y 7)
+      (set! x (+ y 2))
+      x
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result2).value(), 9);
 
   auto result3 = eval_module(R"(
     (import (insider internal))
