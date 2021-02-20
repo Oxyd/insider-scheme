@@ -1430,8 +1430,8 @@ export_native(context& ctx, module& m, std::string const& name,
   ctx.tag_top_level(index, tag);
 
   auto name_sym = ctx.intern(name);
-  auto id = make<syntax>(ctx, name_sym, environment_set{m.environment()});
-  m.environment()->add(ctx.store, id, std::make_shared<variable>(name, index));
+  auto id = make<syntax>(ctx, name_sym, scope_set{m.scope()});
+  m.scope()->add(ctx.store, id, std::make_shared<variable>(name, index));
   m.export_(name_sym);
 }
 

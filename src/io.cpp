@@ -618,7 +618,7 @@ output_primitive(context& ctx, object* datum, port* out, bool display) {
     out->write_char(' ');
     write_simple(ctx, syntax_to_datum(ctx, stx), out);
     out->write_string(">");
-  } else if (auto env = match<environment>(datum)) {
+  } else if (auto env = match<scope>(datum)) {
     out->write_string(fmt::format("#env@{}", static_cast<void*>(env)));
   } else if (auto proc = match<procedure>(datum)) {
     if (proc->name)

@@ -57,7 +57,7 @@ static core_form_type*
 lookup_core(context& ctx, syntax* id) {
   auto var = lookup_variable(id);
   if (!var || !var->global)
-    return {};  // Core forms are never defined in a local environment.
+    return {};  // Core forms are never defined in a local scope.
 
   object* form = ctx.get_top_level(*var->global);
   return match<core_form_type>(form);
@@ -91,7 +91,7 @@ lookup_transformer(syntax* id) {
 
 template <typename Operation>
 static void
-modify_environments(object* o, Operation const& op) {
+modify_scopes(object* o, Operation const& op) {
   std::vector<object*> stack{o};
   while (!stack.empty()) {
     object* o = stack.back();
@@ -114,29 +114,29 @@ modify_environments(object* o, Operation const& op) {
 }
 
 static void
-add_environment(object* expr, environment* e) {
-  modify_environments(expr, [&] (syntax* stx) { add_environment(stx->environments(), e); });
+add_scope(object* expr, scope* e) {
+  modify_scopes(expr, [&] (syntax* stx) { add_scope(stx->scopes(), e); });
 }
 
 static void
-remove_environment(object* expr, environment* e) {
-  modify_environments(expr, [&] (syntax* stx) { remove_environment(stx->environments(), e); });
+remove_scope(object* expr, scope* e) {
+  modify_scopes(expr, [&] (syntax* stx) { remove_scope(stx->scopes(), e); });
 }
 
 static void
-flip_environment(object* expr, environment* e) {
-  modify_environments(expr, [&] (syntax* stx) { flip_environment(stx->environments(), e); });
+flip_scope(object* expr, scope* e) {
+  modify_scopes(expr, [&] (syntax* stx) { flip_scope(stx->scopes(), e); });
 }
 
 static tracked_ptr<syntax>
 call_transformer(context& ctx, transformer* t, tracked_ptr<syntax> const& stx) {
-  auto introduced_env = make_tracked<environment>(ctx);
-  add_environment(stx.get(), introduced_env.get());
+  auto introduced_env = make_tracked<scope>(ctx);
+  add_scope(stx.get(), introduced_env.get());
 
   syntax* result = expect<syntax>(call(ctx, t->callable(), {stx.get()}).get(),
                                   "Syntax transformer didn't return a syntax");
 
-  flip_environment(result, introduced_env.get());
+  flip_scope(result, introduced_env.get());
   return track(ctx, result);
 }
 
@@ -182,10 +182,10 @@ namespace {
 }
 
 static std::unique_ptr<expression>
-parse(parsing_context& pc, tracked_ptr<environment> const&, syntax* stx);
+parse(parsing_context& pc, tracked_ptr<scope> const&, syntax* stx);
 
 static definition_pair_expression
-parse_definition_pair(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_definition_pair(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx) {
   simple_action a(pc.ctx, stx, "Parsing let definition pair");
 
   object* datum = syntax_to_list(pc.ctx, stx);
@@ -203,7 +203,7 @@ parse_definition_pair(parsing_context& pc, tracked_ptr<environment> const& env, 
 
 namespace {
   struct body_content {
-    tracked_ptr<environment>         env;
+    tracked_ptr<scope>         env;
     std::vector<tracked_ptr<syntax>> forms;
     std::vector<tracked_ptr<syntax>> internal_variable_ids;
   };
@@ -229,8 +229,8 @@ match_core_form(context& ctx, syntax* stx) {
 static body_content
 process_internal_defines(parsing_context& pc, object* data, source_location const& loc) {
   body_content result;
-  result.env = make_tracked<environment>(pc.ctx);
-  add_environment(data, result.env.get());
+  result.env = make_tracked<scope>(pc.ctx);
+  add_scope(data, result.env.get());
 
   object* list = syntax_to_list(pc.ctx, data);
   if (!list)
@@ -297,7 +297,7 @@ process_internal_defines(parsing_context& pc, object* data, source_location cons
 }
 
 static std::vector<std::unique_ptr<expression>>
-parse_expression_list(parsing_context& pc, tracked_ptr<environment> const& env,
+parse_expression_list(parsing_context& pc, tracked_ptr<scope> const& env,
                       std::vector<tracked_ptr<syntax>> const& exprs) {
   std::vector<std::unique_ptr<expression>> result;
   result.reserve(exprs.size());
@@ -332,7 +332,7 @@ parse_body(parsing_context& pc, object* data, source_location const& loc) {
 }
 
 static std::unique_ptr<expression>
-parse_let(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_let(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx) {
   simple_action a(pc.ctx, stx, "Parsing let");
 
   object* datum = syntax_to_list(pc.ctx, stx);
@@ -354,14 +354,14 @@ parse_let(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx)
     bindings = cdr(assume<pair>(bindings));
   }
 
-  auto subenv = make_tracked<environment>(pc.ctx);
+  auto subenv = make_tracked<scope>(pc.ctx);
   for (definition_pair_expression const& dp : definitions) {
-    add_environment(dp.id.get(), subenv.get());
+    add_scope(dp.id.get(), subenv.get());
     subenv->add(pc.ctx.store, dp.id.get(), dp.variable);
   }
 
   object* body = cddr(expect<pair>(datum));
-  add_environment(body, subenv.get());
+  add_scope(body, subenv.get());
 
   return make_expression<let_expression>(std::move(definitions),
                                          parse_body(pc, body, stx->location()));
@@ -391,7 +391,7 @@ parse_syntax_definition_pair(parsing_context& pc, syntax* stx) {
 }
 
 static std::unique_ptr<expression>
-parse_let_syntax(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_let_syntax(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx) {
   simple_action a(pc.ctx, stx, "Parsing let-syntax");
 
   generic_tracked_ptr datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
@@ -413,9 +413,9 @@ parse_let_syntax(parsing_context& pc, tracked_ptr<environment> const& env, synta
     bindings = cdr(assume<pair>(bindings));
   }
 
-  auto subenv = make_tracked<environment>(pc.ctx);
+  auto subenv = make_tracked<scope>(pc.ctx);
   for (syntax_definition_pair const& dp : definitions) {
-    add_environment(dp.id.get(), subenv.get());
+    add_scope(dp.id.get(), subenv.get());
 
     auto transformer_proc = eval_transformer(pc.ctx, pc.module, dp.expression.get()); // GC
     auto transformer = make<insider::transformer>(pc.ctx, env.get(), transformer_proc);
@@ -423,7 +423,7 @@ parse_let_syntax(parsing_context& pc, tracked_ptr<environment> const& env, synta
   }
 
   object* body = cddr(expect<pair>(datum.get()));
-  add_environment(body, subenv.get());
+  add_scope(body, subenv.get());
 
   return make_expression<sequence_expression>(parse_body(pc, body, stx->location()));
 }
@@ -440,11 +440,11 @@ parse_lambda(parsing_context& pc, syntax* stx) {
   object* param_names = param_stx;
   std::vector<std::shared_ptr<variable>> parameters;
   bool has_rest = false;
-  auto subenv = make_tracked<environment>(pc.ctx);
+  auto subenv = make_tracked<scope>(pc.ctx);
   while (!semisyntax_is<null_type>(param_names)) {
     if (auto param = semisyntax_match<pair>(param_names)) {
       auto id = expect_id(pc.ctx, expect<syntax>(car(param)));
-      add_environment(id->environments(), subenv.get());
+      add_scope(id->scopes(), subenv.get());
 
       auto var = std::make_shared<variable>(identifier_name(id));
       parameters.push_back(var);
@@ -455,7 +455,7 @@ parse_lambda(parsing_context& pc, syntax* stx) {
     else if (semisyntax_is<symbol>(param_names)) {
       has_rest = true;
       auto name = expect<syntax>(param_names);
-      add_environment(name->environments(), subenv.get());
+      add_scope(name->scopes(), subenv.get());
 
       auto var = std::make_shared<variable>(identifier_name(name));
       parameters.push_back(var);
@@ -468,7 +468,7 @@ parse_lambda(parsing_context& pc, syntax* stx) {
   }
 
   object* body = cddr(assume<pair>(datum));
-  add_environment(body, subenv.get());
+  add_scope(body, subenv.get());
 
   return make_expression<lambda_expression>(std::move(parameters), has_rest,
                                             parse_body(pc, body, stx->location()),
@@ -476,7 +476,7 @@ parse_lambda(parsing_context& pc, syntax* stx) {
 }
 
 static std::unique_ptr<expression>
-parse_if(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_if(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx) {
   simple_action a(pc.ctx, stx, "Parsing if");
 
   object* datum = syntax_to_list(pc.ctx, stx);
@@ -496,7 +496,7 @@ parse_if(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) 
 }
 
 static std::unique_ptr<expression>
-parse_application(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_application(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx) {
   simple_action a(pc.ctx, stx, "Parsing procedure application");
 
   auto datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
@@ -515,7 +515,7 @@ parse_application(parsing_context& pc, tracked_ptr<environment> const& env, synt
 }
 
 static std::unique_ptr<expression>
-parse_box(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_box(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx) {
   object* datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 2)
     throw syntax_error(stx, "Invalid box syntax");
@@ -524,7 +524,7 @@ parse_box(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx)
 }
 
 static std::unique_ptr<expression>
-parse_unbox(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_unbox(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx) {
   object* datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 2)
     throw syntax_error(stx, "Invalid unbox syntax");
@@ -533,7 +533,7 @@ parse_unbox(parsing_context& pc, tracked_ptr<environment> const& env, syntax* st
 }
 
 static std::unique_ptr<expression>
-parse_box_set(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_box_set(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx) {
   object* datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 3)
     throw syntax_error(stx, "Invalid box-set! syntax");
@@ -558,7 +558,7 @@ syntax_cadr(object* stx) {
 }
 
 static std::unique_ptr<expression>
-parse_sequence(parsing_context& pc, tracked_ptr<environment> const& env, object* stx) {
+parse_sequence(parsing_context& pc, tracked_ptr<scope> const& env, object* stx) {
   std::vector<std::unique_ptr<expression>> exprs;
   for (generic_tracked_ptr datum = track(pc.ctx, stx);
        !semisyntax_is<null_type>(datum.get());
@@ -582,7 +582,7 @@ parse_reference(syntax* id) {
 }
 
 static std::unique_ptr<expression>
-parse_define_or_set(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx,
+parse_define_or_set(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx,
                     std::string const& form_name) {
   // Defines are processed in two passes: First all the define'd variables are
   // declared within the module or scope and initialised to #void; second, they
@@ -615,7 +615,7 @@ parse_define_or_set(parsing_context& pc, tracked_ptr<environment> const& env, sy
 }
 
 static std::unique_ptr<expression>
-parse_syntax_trap(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_syntax_trap(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx) {
 #ifndef WIN32
   raise(SIGTRAP);
 #else
@@ -798,7 +798,7 @@ syntax_traits::unwrap(context&, syntax* stx) {
 
 template <typename Traits>
 static std::unique_ptr<qq_template>
-parse_qq_template(context& ctx, tracked_ptr<environment> const& env, tracked_ptr<syntax> const& stx,
+parse_qq_template(context& ctx, tracked_ptr<scope> const& env, tracked_ptr<syntax> const& stx,
                   unsigned quote_level) {
   if (auto p = syntax_match<pair>(stx.get())) {
     unsigned nested_level = quote_level;
@@ -887,7 +887,7 @@ is_splice(std::unique_ptr<qq_template> const& tpl) {
 
 template <typename Traits>
 static std::unique_ptr<expression>
-process_qq_template(parsing_context& pc, tracked_ptr<environment> const& env, std::unique_ptr<qq_template> const& tpl,
+process_qq_template(parsing_context& pc, tracked_ptr<scope> const& env, std::unique_ptr<qq_template> const& tpl,
                     bool force_unwrapped = false) {
   if (auto* cp = std::get_if<list_pattern>(&tpl->value)) {
     std::unique_ptr<expression> tail;
@@ -983,7 +983,7 @@ process_qq_template(parsing_context& pc, tracked_ptr<environment> const& env, st
 }
 
 static std::unique_ptr<expression>
-parse_quasiquote(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_quasiquote(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx) {
   return process_qq_template<quote_traits>(
     pc, env,
     parse_qq_template<quote_traits>(pc.ctx, env, track(pc.ctx, syntax_cadr(stx)), 0)
@@ -991,7 +991,7 @@ parse_quasiquote(parsing_context& pc, tracked_ptr<environment> const& env, synta
 }
 
 static std::unique_ptr<expression>
-parse_quasisyntax(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+parse_quasisyntax(parsing_context& pc, tracked_ptr<scope> const& env, syntax* stx) {
   return process_qq_template<syntax_traits>(
     pc, env,
     parse_qq_template<syntax_traits>(pc.ctx, env, track(pc.ctx, syntax_cadr(stx)), 0)
@@ -999,7 +999,7 @@ parse_quasisyntax(parsing_context& pc, tracked_ptr<environment> const& env, synt
 }
 
 static std::unique_ptr<expression>
-parse(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s) {
+parse(parsing_context& pc, tracked_ptr<scope> const& env, syntax* s) {
   syntax* stx = expand(pc.ctx, track(pc.ctx, s)).get(); // GC
 
   if (syntax_is<symbol>(stx))
@@ -1225,7 +1225,7 @@ analyse_free_variables(expression* s) {
 static std::unique_ptr<expression>
 analyse_internal(context& ctx, syntax* stx, module& m) {
   parsing_context pc{ctx, m};
-  std::unique_ptr<expression> result = parse(pc, track(ctx, m.environment()), stx);
+  std::unique_ptr<expression> result = parse(pc, track(ctx, m.scope()), stx);
   box_set_variables(result.get());
   analyse_free_variables(result.get());
   return result;
@@ -1233,7 +1233,7 @@ analyse_internal(context& ctx, syntax* stx, module& m) {
 
 std::unique_ptr<expression>
 analyse(context& ctx, syntax* stx, module& m) {
-  add_environment(stx, m.environment());
+  add_scope(stx, m.scope());
   return analyse_internal(ctx, stx, m);
 }
 
@@ -1269,7 +1269,7 @@ static void
 perform_begin_for_syntax(context& ctx, module& m, protomodule const& parent_pm, generic_tracked_ptr const& body) {
   simple_action a(ctx, "Analysing begin-for-syntax");
 
-  remove_environment(body.get(), m.environment());
+  remove_scope(body.get(), m.scope());
   protomodule pm{parent_pm.name, parent_pm.imports, {},
                  from_scheme<std::vector<tracked_ptr<syntax>>>(ctx, syntax_to_list(ctx, body.get()))};
   auto submodule = instantiate(ctx, pm);
@@ -1287,7 +1287,7 @@ expand_top_level(context& ctx, module& m, protomodule const& pm) {
   simple_action a(ctx, "Expanding module top-level");
 
   for (tracked_ptr<syntax> e : pm.body)
-    add_environment(e.get(), m.environment());
+    add_scope(e.get(), m.scope());
 
   std::vector<tracked_ptr<syntax>> stack;
   stack.reserve(pm.body.size());
@@ -1307,8 +1307,8 @@ expand_top_level(context& ctx, module& m, protomodule const& pm) {
         if (form == ctx.constants->define_syntax.get()) {
           auto name = track(ctx, expect_id(ctx, expect<syntax>(cadr(p))));
           auto transformer_proc = eval_transformer(ctx, m, expect<syntax>(caddr(p))); // GC
-          auto transformer = make<insider::transformer>(ctx, m.environment(), transformer_proc);
-          m.environment()->add(ctx.store, name.get(), transformer);
+          auto transformer = make<insider::transformer>(ctx, m.scope(), transformer_proc);
+          m.scope()->add(ctx.store, name.get(), transformer);
 
           continue;
         }
@@ -1318,7 +1318,7 @@ expand_top_level(context& ctx, module& m, protomodule const& pm) {
 
           auto name = expect_id(ctx, expect<syntax>(cadr(p)));
           auto index = ctx.add_top_level(ctx.constants->void_.get(), identifier_name(name));
-          m.environment()->add(ctx.store, name, std::make_shared<variable>(identifier_name(name), index));
+          m.scope()->add(ctx.store, name, std::make_shared<variable>(identifier_name(name), index));
         }
         else if (form == ctx.constants->begin.get()) {
           std::vector<tracked_ptr<syntax>> subforms;

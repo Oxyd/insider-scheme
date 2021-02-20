@@ -108,18 +108,18 @@ identifier_name(syntax* x) {
 }
 
 void
-add_environment(environment_set& set, environment* env) {
+add_scope(scope_set& set, scope* env) {
   if (std::find(set.begin(), set.end(), env) == set.end())
     set.push_back(env);
 }
 
 void
-remove_environment(environment_set& set, environment* env) {
+remove_scope(scope_set& set, scope* env) {
   set.erase(std::remove(set.begin(), set.end(), env), set.end());
 }
 
 void
-flip_environment(environment_set& set, environment* env) {
+flip_scope(scope_set& set, scope* env) {
   auto it = std::find(set.begin(), set.end(), env);
   if (it == set.end())
     set.push_back(env);
@@ -128,28 +128,28 @@ flip_environment(environment_set& set, environment* env) {
 }
 
 bool
-environment_sets_subseteq(environment_set const& lhs, environment_set const& rhs) {
-  for (environment const* e : lhs)
+scope_sets_subseteq(scope_set const& lhs, scope_set const& rhs) {
+  for (scope const* e : lhs)
     if (std::find(rhs.begin(), rhs.end(), e) == rhs.end())
       return false;
   return true;
 }
 
 bool
-environment_sets_equal(environment_set const& lhs, environment_set const& rhs) {
-  return environment_sets_subseteq(lhs, rhs) && environment_sets_subseteq(rhs, lhs);
+scope_sets_equal(scope_set const& lhs, scope_set const& rhs) {
+  return scope_sets_subseteq(lhs, rhs) && scope_sets_subseteq(rhs, lhs);
 }
 
-environment_set&
-identifier_environments(context& ctx, syntax* id) {
+scope_set&
+identifier_scopes(context& ctx, syntax* id) {
   if (!is_identifier(id))
     throw error{fmt::format("Expected identifier, got {}", datum_to_string(ctx, syntax_to_datum(ctx, id)))};
 
-  return id->environments();
+  return id->scopes();
 }
 
 void
-environment::add(free_store& store, syntax* identifier, std::shared_ptr<variable> var) {
+scope::add(free_store& store, syntax* identifier, std::shared_ptr<variable> var) {
   assert(is_identifier(identifier));
 
   if (is_redefinition(identifier, var))
@@ -160,7 +160,7 @@ environment::add(free_store& store, syntax* identifier, std::shared_ptr<variable
 }
 
 void
-environment::add(free_store& store, syntax* identifier, transformer* tr) {
+scope::add(free_store& store, syntax* identifier, transformer* tr) {
   assert(is_identifier(identifier));
   if (is_redefinition(identifier, tr))
     throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
@@ -172,7 +172,7 @@ environment::add(free_store& store, syntax* identifier, transformer* tr) {
 }
 
 void
-environment::add(free_store& store, syntax* identifier, value_type const& value) {
+scope::add(free_store& store, syntax* identifier, value_type const& value) {
   if (auto var = std::get_if<std::shared_ptr<variable>>(&value))
     add(store, identifier, *var);
   else
@@ -180,11 +180,11 @@ environment::add(free_store& store, syntax* identifier, value_type const& value)
 }
 
 auto
-environment::find_candidates(symbol* name, environment_set const& envs) const -> std::vector<binding> {
+scope::find_candidates(symbol* name, scope_set const& envs) const -> std::vector<binding> {
   std::vector<binding> result;
   for (binding const& e : bindings_) {
     syntax const* s = std::get<syntax*>(e);
-    if (assume<symbol>(s->expression()) == name && environment_sets_subseteq(s->environments(), envs))
+    if (assume<symbol>(s->expression()) == name && scope_sets_subseteq(s->scopes(), envs))
       result.push_back(e);
   }
 
@@ -192,7 +192,7 @@ environment::find_candidates(symbol* name, environment_set const& envs) const ->
 }
 
 std::vector<std::string>
-environment::bound_names() const {
+scope::bound_names() const {
   std::vector<std::string> result;
   result.reserve(bindings_.size());
 
@@ -203,7 +203,7 @@ environment::bound_names() const {
 }
 
 void
-environment::trace(tracing_context& tc) const {
+scope::trace(tracing_context& tc) const {
   for (auto& [identifier, binding] : bindings_) {
     tc.trace(identifier);
     if (transformer* const* tr = std::get_if<transformer*>(&binding))
@@ -212,7 +212,7 @@ environment::trace(tracing_context& tc) const {
 }
 
 void
-environment::update_references() {
+scope::update_references() {
   for (binding& b : bindings_) {
     update_reference(std::get<syntax*>(b));
 
@@ -223,35 +223,35 @@ environment::update_references() {
 }
 
 std::size_t
-environment::hash() const {
+scope::hash() const {
   return bindings_.size();
 }
 
 bool
-environment::is_redefinition(syntax* id, value_type const& intended_value) const {
+scope::is_redefinition(syntax* id, value_type const& intended_value) const {
   for (binding const& b : bindings_)
     if (assume<symbol>(std::get<syntax*>(b)->expression())->value() == assume<symbol>(id->expression())->value()
-        && environment_sets_equal(id->environments(), std::get<syntax*>(b)->environments())
+        && scope_sets_equal(id->scopes(), std::get<syntax*>(b)->scopes())
         && std::get<value_type>(b) != intended_value)
       return true;
   return false;
 }
 
-std::optional<environment::value_type>
-lookup(symbol* name, environment_set const& envs) {
-  std::optional<environment::value_type> result;
+std::optional<scope::value_type>
+lookup(symbol* name, scope_set const& envs) {
+  std::optional<scope::value_type> result;
   std::size_t max_env_set_size = 0;
   bool ambiguous = false;
 
-  for (environment const* e : envs)
-    for (environment::binding const& b : e->find_candidates(name, envs)) {
-      environment_set const& binding_set = std::get<syntax*>(b)->environments();
+  for (scope const* e : envs)
+    for (scope::binding const& b : e->find_candidates(name, envs)) {
+      scope_set const& binding_set = std::get<syntax*>(b)->scopes();
 
-      if (binding_set.size() == max_env_set_size && std::get<environment::value_type>(b) != result)
+      if (binding_set.size() == max_env_set_size && std::get<scope::value_type>(b) != result)
         ambiguous = true;
 
       if (binding_set.size() > max_env_set_size) {
-        result = std::get<environment::value_type>(b);
+        result = std::get<scope::value_type>(b);
         max_env_set_size = binding_set.size();
         ambiguous = false;
       }
@@ -263,14 +263,14 @@ lookup(symbol* name, environment_set const& envs) {
   return result;
 }
 
-std::optional<environment::value_type>
+std::optional<scope::value_type>
 lookup(syntax* id) {
   assert(is_identifier(id));
-  return lookup(assume<symbol>(id->expression()), id->environments());
+  return lookup(assume<symbol>(id->expression()), id->scopes());
 }
 
 module::module(context& ctx)
-  : env_{make_tracked<insider::environment>(ctx)}
+  : env_{make_tracked<insider::scope>(ctx)}
 { }
 
 auto
@@ -291,9 +291,9 @@ module::import_(context& ctx, symbol* identifier, binding_type b) {
   }
 
   if (auto* var = std::get_if<std::shared_ptr<variable>>(&b))
-    env_->add(env_.store(), make<syntax>(ctx, identifier, environment_set{env_.get()}), *var);
+    env_->add(env_.store(), make<syntax>(ctx, identifier, scope_set{env_.get()}), *var);
   else
-    env_->add(env_.store(), make<syntax>(ctx, identifier, environment_set{env_.get()}),
+    env_->add(env_.store(), make<syntax>(ctx, identifier, scope_set{env_.get()}),
               std::get<transformer*>(b));
 }
 
@@ -385,7 +385,7 @@ static void
 perform_imports(context& ctx, module& m, import_set const& set) {
   for (auto const& [to_name, from_name] : set.names) {
     if (auto b = set.source->find(ctx.intern(from_name)))
-      m.environment()->add(ctx.store, make<syntax>(ctx, ctx.intern(to_name), environment_set{m.environment()}), *b);
+      m.scope()->add(ctx.store, make<syntax>(ctx, ctx.intern(to_name), scope_set{m.scope()}), *b);
     else
       assert(!"Trying to import a nonexistent symbol");
   }
@@ -451,7 +451,7 @@ define_top_level(context& ctx, std::string const& name, module& m, bool export_,
   auto index = ctx.add_top_level(object, name);
   auto name_sym = ctx.intern(name);
   auto var = std::make_shared<variable>(name, index);
-  m.environment()->add(ctx.store, make<syntax>(ctx, name_sym, environment_set{m.environment()}), var);
+  m.scope()->add(ctx.store, make<syntax>(ctx, name_sym, scope_set{m.scope()}), var);
 
   if (export_)
     m.export_(name_sym);
@@ -552,9 +552,9 @@ context::context()
     form.object = make_tracked<core_form_type>(*this, form.name);
     auto index = add_top_level(form.object.get(), form.name);
     auto name = intern(form.name);
-    auto id = make<syntax>(*this, name, environment_set{internal_module.environment()});
+    auto id = make<syntax>(*this, name, scope_set{internal_module.scope()});
     auto var = std::make_shared<variable>(form.name, index);
-    internal_module.environment()->add(store, id, std::move(var));
+    internal_module.scope()->add(store, id, std::move(var));
     internal_module.export_(name);
   }
 
@@ -1234,7 +1234,7 @@ void
 syntax::trace(tracing_context& tc) const {
   tc.trace(expression_);
 
-  for (environment* env : environments_)
+  for (scope* env : scopes_)
     tc.trace(env);
 }
 
@@ -1242,7 +1242,7 @@ void
 syntax::update_references() {
   update_reference(expression_);
 
-  for (environment*& env : environments_)
+  for (scope*& env : scopes_)
     update_reference(env);
 }
 

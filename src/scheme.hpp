@@ -291,7 +291,7 @@ struct core_form_type : leaf_object<core_form_type> {
 
 class boolean;
 class context;
-class environment;
+class scope;
 class integer;
 class module;
 class port;
@@ -305,29 +305,29 @@ is_identifier(object*);
 std::string
 identifier_name(syntax* x);
 
-using environment_set = std::vector<environment*>;
+using scope_set = std::vector<scope*>;
 
 void
-add_environment(environment_set&, environment*);
+add_scope(scope_set&, scope*);
 
 void
-remove_environment(environment_set&, environment*);
+remove_scope(scope_set&, scope*);
 
 void
-flip_environment(environment_set&, environment*);
+flip_scope(scope_set&, scope*);
 
 bool
-environment_sets_subseteq(environment_set const& lhs, environment_set const& rhs);
+scope_sets_subseteq(scope_set const& lhs, scope_set const& rhs);
 
 bool
-environment_sets_equal(environment_set const& lhs, environment_set const& rhs);
+scope_sets_equal(scope_set const& lhs, scope_set const& rhs);
 
-environment_set&
-identifier_environments(context&, syntax*);
+scope_set&
+identifier_scopes(context&, syntax*);
 
-class environment : public composite_object<environment> {
+class scope : public composite_object<scope> {
 public:
-  static constexpr char const* scheme_name = "insider::environment";
+  static constexpr char const* scheme_name = "insider::scope";
 
   using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
   using binding = std::tuple<syntax*, value_type>;
@@ -342,7 +342,7 @@ public:
   add(free_store& store, syntax* identifier, value_type const&);
 
   std::vector<binding>
-  find_candidates(symbol* name, environment_set const& environments) const;
+  find_candidates(symbol* name, scope_set const& scopess) const;
 
   std::vector<std::string>
   bound_names() const;
@@ -363,10 +363,10 @@ private:
   is_redefinition(syntax*, value_type const& intended_value) const;
 };
 
-std::optional<environment::value_type>
-lookup(symbol* id, environment_set const& envs);
+std::optional<scope::value_type>
+lookup(symbol* id, scope_set const& envs);
 
-std::optional<environment::value_type>
+std::optional<scope::value_type>
 lookup(syntax* id);
 
 // A module is a map from symbols to top-level variable indices. It also
@@ -374,7 +374,7 @@ lookup(syntax* id);
 // module is loaded.
 class module {
 public:
-  using binding_type = insider::environment::value_type;
+  using binding_type = insider::scope::value_type;
 
   explicit
   module(context&);
@@ -397,8 +397,8 @@ public:
   void
   set_top_level_procedure(tracked_ptr<procedure> const& p) { proc_ = p; }
 
-  insider::environment*
-  environment() const { return env_.get(); }
+  insider::scope*
+  scope() const { return env_.get(); }
 
   std::vector<std::string>
   top_level_names() const { return env_->bound_names(); }
@@ -410,7 +410,7 @@ public:
   mark_active() { active_ = true; }
 
 private:
-  tracked_ptr<insider::environment> env_;
+  tracked_ptr<insider::scope> env_;
   std::unordered_set<std::string>   exports_; // Bindings available for export to other modules.
   tracked_ptr<procedure>            proc_;
   bool                              active_ = false;
@@ -1159,9 +1159,9 @@ public:
     assert(expr);
   }
 
-  syntax(object* expr, environment_set envs)
+  syntax(object* expr, scope_set envs)
     : expression_{expr}
-    , environments_{std::move(envs)}
+    , scopes_{std::move(envs)}
   { }
 
   object*
@@ -1170,11 +1170,11 @@ public:
   source_location const&
   location() const { return location_; }
 
-  environment_set&
-  environments() { return environments_; }
+  scope_set&
+  scopes() { return scopes_; }
 
-  environment_set const&
-  environments() const { return environments_; }
+  scope_set const&
+  scopes() const { return scopes_; }
 
   void
   trace(tracing_context& tc) const;
@@ -1188,7 +1188,7 @@ public:
 private:
   object*         expression_;
   source_location location_;
-  environment_set environments_;
+  scope_set       scopes_;
 };
 
 template <typename T>
@@ -1260,18 +1260,18 @@ datum_to_syntax(context&, source_location, object*);
 object*
 syntax_to_list(context&, object*);
 
-// A procedure together with the environment it was defined in.
+// A procedure for transforming syntax to syntax.
 class transformer : public composite_object<transformer> {
 public:
   static constexpr char const* scheme_name = "insider::transformer";
 
-  transformer(insider::environment* env, object* callable)
+  transformer(insider::scope* env, object* callable)
     : env_{env}
     , callable_{callable}
   { }
 
-  insider::environment*
-  environment() const { return env_; }
+  insider::scope*
+  scope() const { return env_; }
 
   object*
   callable() const { return callable_; }
@@ -1286,7 +1286,7 @@ public:
   hash() const { return insider::hash(env_) ^ insider::hash(callable_); }
 
 private:
-  insider::environment* env_;
+  insider::scope* env_;
   insider::object*      callable_;
 };
 
