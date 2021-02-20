@@ -545,7 +545,8 @@ context::context()
     {constants->unsyntax,          "unsyntax"},
     {constants->unsyntax_splicing, "unsyntax-splicing"},
     {constants->syntax_trap,       "syntax-trap"},
-    {constants->syntax_error,      "syntax-error"}
+    {constants->syntax_error,      "syntax-error"},
+    {constants->let_syntax,        "let-syntax"}
   };
   for (auto const& form : core_forms) {
     form.object = make_tracked<core_form_type>(*this, form.name);

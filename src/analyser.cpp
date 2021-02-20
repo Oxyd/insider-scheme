@@ -367,6 +367,67 @@ parse_let(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx)
                                          parse_body(pc, body, stx->location()));
 }
 
+namespace {
+  struct syntax_definition_pair {
+    tracked_ptr<syntax> id;
+    tracked_ptr<syntax> expression;
+  };
+}
+
+static syntax_definition_pair
+parse_syntax_definition_pair(parsing_context& pc, syntax* stx) {
+  simple_action a(pc.ctx, stx, "Parsing let-syntax definition pair");
+
+  object* datum = syntax_to_list(pc.ctx, stx);
+  if (!datum || datum == pc.ctx.constants->null.get())
+    throw syntax_error{stx, "Invalid let-syntax syntax: Expected a list, got {}", syntax_to_string(pc.ctx, stx)};
+
+  auto id = expect_id(pc.ctx, expect<syntax>(car(assume<pair>(datum))));
+
+  if (cdr(assume<pair>(datum)) == pc.ctx.constants->null.get())
+    throw syntax_error(stx, "Invalid let-syntax syntax: No expression for {}", identifier_name(id));
+
+  return {track(pc.ctx, id), track(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))))};
+}
+
+static std::unique_ptr<expression>
+parse_let_syntax(parsing_context& pc, tracked_ptr<environment> const& env, syntax* stx) {
+  simple_action a(pc.ctx, stx, "Parsing let-syntax");
+
+  generic_tracked_ptr datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
+  if (!datum || list_length(datum.get()) < 3)
+    throw syntax_error(stx, "Invalid let-syntax syntax");
+
+  syntax* bindings_stx = expect<syntax>(cadr(assume<pair>(datum.get())));
+  object* bindings = syntax_to_list(pc.ctx, bindings_stx);
+  if (!bindings)
+    throw syntax_error(bindings_stx, "Invalid let-syntax syntax in binding definitions");
+
+  std::vector<syntax_definition_pair> definitions;
+  while (bindings != pc.ctx.constants->null.get()) {
+    auto binding = expect<syntax>(car(assume<pair>(bindings)));
+    if (!syntax_is<pair>(binding))
+      throw syntax_error(binding, "Invalid let-syntax syntax in binding definitions");
+
+    definitions.push_back(parse_syntax_definition_pair(pc, binding));
+    bindings = cdr(assume<pair>(bindings));
+  }
+
+  auto subenv = make_tracked<environment>(pc.ctx);
+  for (syntax_definition_pair const& dp : definitions) {
+    add_environment(dp.id.get(), subenv.get());
+
+    auto transformer_proc = eval_transformer(pc.ctx, pc.module, dp.expression.get()); // GC
+    auto transformer = make<insider::transformer>(pc.ctx, env.get(), transformer_proc);
+    subenv->add(pc.ctx.store, dp.id.get(), transformer);
+  }
+
+  object* body = cddr(expect<pair>(datum.get()));
+  add_environment(body, subenv.get());
+
+  return make_expression<sequence_expression>(parse_body(pc, body, stx->location()));
+}
+
 static std::unique_ptr<expression>
 parse_lambda(parsing_context& pc, syntax* stx) {
   simple_action a(pc.ctx, stx, "Parsing lambda");
@@ -988,6 +1049,8 @@ parse(parsing_context& pc, tracked_ptr<environment> const& env, syntax* s) {
         throw syntax_error{stx, "invalid use of unsyntax"};
       else if (form == pc.ctx.constants->unsyntax_splicing.get())
         throw syntax_error{stx, "invalid use of unsyntax-splicing"};
+      else if (form == pc.ctx.constants->let_syntax.get())
+        return parse_let_syntax(pc, env, stx);
     }
 
     return parse_application(pc, env, stx);

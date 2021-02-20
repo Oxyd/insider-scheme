@@ -501,7 +501,8 @@ public:
     tracked_ptr<core_form_type>
       let, set, lambda, if_, box, unbox, box_set, define, define_syntax,
       begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing, expand_quote,
-      syntax, quasisyntax, unsyntax, unsyntax_splicing, syntax_trap, syntax_error;
+      syntax, quasisyntax, unsyntax, unsyntax_splicing, syntax_trap, syntax_error,
+      let_syntax;
   };
 
   struct statics_list {

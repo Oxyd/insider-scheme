@@ -1644,6 +1644,28 @@ TEST_F(macros, transformers_producing_definitions) {
   EXPECT_EQ(expect<integer>(result3).value(), 7 + 12);
 }
 
+TEST_F(macros, let_syntax) {
+  auto result1 = eval(R"(
+    (let-syntax ((given-that (lambda (stx)
+                               (let ((subexprs (syntax->list stx)))
+                                 (let ((test (cadr subexprs))
+                                       (body (cddr subexprs)))
+                                   #`(if #,test (begin #,@body)))))))
+      (let ((if #t))
+        (given-that if (set! if 'now))
+        if))
+  )");
+  EXPECT_EQ(expect<symbol>(result1)->value(), "now");
+
+  auto result2 = eval(R"(
+    (let ((x 'outer))
+      (let-syntax ((m (lambda (stx) #'x)))
+        (let ((x 'inner))
+          (m))))
+  )");
+  EXPECT_EQ(expect<symbol>(result2)->value(), "outer");
+}
+
 struct modules : scheme { };
 
 TEST_F(modules, module_activation) {
