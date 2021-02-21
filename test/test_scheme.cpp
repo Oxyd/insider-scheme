@@ -1442,6 +1442,16 @@ TEST_F(compiler, quasiquote) {
   EXPECT_TRUE(equal(ctx, result21, read("(a . `(b (,2)))")));
 }
 
+TEST_F(compiler, unbound_vars) {
+  EXPECT_THROW(eval("foo"), error);
+  EXPECT_THROW(eval_module("foo"), error);
+  EXPECT_THROW(eval_module(R"((import (insider internal))
+                              (define-syntax foo (lambda (stx) #'bar))
+                              (foo))"),
+               error);
+  EXPECT_THROW(eval("(let-syntax ((foo (lambda (stx) #'bar))) (foo))"), error);
+}
+
 static bool
 is_proper_syntax(object* x) {
   if (!is<syntax>(x))
@@ -1664,6 +1674,18 @@ TEST_F(macros, let_syntax) {
           (m))))
   )");
   EXPECT_EQ(expect<symbol>(result2)->value(), "outer");
+}
+
+TEST_F(macros, out_of_scope) {
+  EXPECT_THROW(eval_module(R"(
+                             (import (insider internal))
+                             (define-syntax foo
+                               (lambda (stx)
+                                 (let ((bar 0))
+                                   #'bar)))
+                             (foo)
+                           )"),
+               error);
 }
 
 struct modules : scheme { };

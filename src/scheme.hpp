@@ -347,6 +347,12 @@ public:
   std::vector<std::string>
   bound_names() const;
 
+  auto
+  begin() const { return bindings_.begin(); }
+
+  auto
+  end() const { return bindings_.end(); }
+
   void
   trace(tracing_context& tc) const;
 
