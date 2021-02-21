@@ -1557,6 +1557,22 @@ TEST_F(macros, internal_transformers) {
     (foo 5)
   )");
   EXPECT_EQ(expect<integer>(result1).value(), 5 + 2 * 5);
+
+  auto result2 = eval_module(R"(
+    (import (insider internal))
+    (define foo
+      (lambda (x)
+        (define-syntax def
+          (lambda (stx)
+            (let ((subexprs (syntax->list stx)))
+              (let ((name (cadr subexprs))
+                    (value (caddr subexprs)))
+                #`(define #,name #,value)))))
+        (def result (* 2 x))
+        result))
+    (foo 8)
+  )");
+  EXPECT_EQ(expect<integer>(result2).value(), 16);
 }
 
 TEST_F(macros, hygiene) {
