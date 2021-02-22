@@ -1312,13 +1312,11 @@ syntax_to_list(context& ctx, object* stx) {
 
 void
 transformer::trace(tracing_context& tc) const {
-  tc.trace(env_);
   tc.trace(callable_);
 }
 
 void
 transformer::update_references() {
-  update_reference(env_);
   update_reference(callable_);
 }
 

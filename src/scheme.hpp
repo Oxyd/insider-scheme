@@ -1271,13 +1271,10 @@ class transformer : public composite_object<transformer> {
 public:
   static constexpr char const* scheme_name = "insider::transformer";
 
-  transformer(insider::scope* env, object* callable)
-    : env_{env}
-    , callable_{callable}
+  explicit
+  transformer(object* callable)
+    : callable_{callable}
   { }
-
-  insider::scope*
-  scope() const { return env_; }
 
   object*
   callable() const { return callable_; }
@@ -1289,11 +1286,10 @@ public:
   update_references();
 
   std::size_t
-  hash() const { return insider::hash(env_) ^ insider::hash(callable_); }
+  hash() const { return insider::hash(callable_); }
 
 private:
-  insider::scope* env_;
-  insider::object*      callable_;
+  insider::object* callable_;
 };
 
 namespace detail {
