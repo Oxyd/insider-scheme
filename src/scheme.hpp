@@ -332,6 +332,9 @@ public:
   using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
   using binding = std::tuple<syntax*, value_type>;
 
+  explicit
+  scope(std::string desc) : description_{std::move(desc)} { }
+
   void
   add(free_store& store, syntax* identifier, std::shared_ptr<variable>);
 
@@ -364,6 +367,7 @@ public:
 
 private:
   std::vector<binding> bindings_;
+  std::string          description_;
 
   bool
   is_redefinition(syntax*, value_type const& intended_value) const;

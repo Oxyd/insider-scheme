@@ -184,7 +184,8 @@ flip_scope(object* expr, scope* e) {
 
 static tracked_ptr<syntax>
 call_transformer(context& ctx, transformer* t, tracked_ptr<syntax> const& stx) {
-  auto introduced_env = make_tracked<scope>(ctx);
+  auto introduced_env = make_tracked<scope>(ctx, fmt::format("introduced environment for syntax expansion at {}",
+                                                             format_location(stx->location())));
   add_scope(stx.get(), introduced_env.get());
 
   syntax* result = expect<syntax>(call(ctx, t->callable(), {stx.get()}).get(),
@@ -276,7 +277,8 @@ match_core_form(parsing_context& pc, syntax* stx) {
 static body_content
 process_internal_defines(parsing_context& pc, object* data, source_location const& loc) {
   body_content result;
-  result.transformers_scope = make_tracked<scope>(pc.ctx);
+  result.transformers_scope = make_tracked<scope>(pc.ctx, fmt::format("transformers scope at {}",
+                                                                      format_location(loc)));
   add_scope(data, result.transformers_scope.get());
 
   object* list = syntax_to_list(pc.ctx, data);
@@ -359,7 +361,7 @@ parse_body(parsing_context& pc, object* data, source_location const& loc) {
   auto syn_env = extend_environment(pc, content.transformers_scope.get());
 
   if (!content.internal_variable_ids.empty()) {
-    auto subscope = make<scope>(pc.ctx);
+    auto subscope = make<scope>(pc.ctx, fmt::format("internal definition context at {}", format_location(loc)));
 
     std::vector<definition_pair_expression> definitions;
     for (tracked_ptr<syntax> const& id : content.internal_variable_ids) {
@@ -407,7 +409,7 @@ parse_let(parsing_context& pc, syntax* stx) {
     bindings = cdr(assume<pair>(bindings));
   }
 
-  auto subscope = make_tracked<scope>(pc.ctx);
+  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("let body at {}", format_location(stx->location())));
   for (definition_pair_expression const& dp : definitions) {
     add_scope(dp.id.get(), subscope.get());
     subscope->add(pc.ctx.store, dp.id.get(), dp.variable);
@@ -448,6 +450,7 @@ parse_syntax_definition_pair(parsing_context& pc, syntax* stx) {
 static std::unique_ptr<expression>
 parse_let_syntax(parsing_context& pc, syntax* stx) {
   simple_action a(pc.ctx, stx, "Parsing let-syntax");
+  source_location loc = stx->location();
 
   generic_tracked_ptr datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
   if (!datum || list_length(datum.get()) < 3)
@@ -468,7 +471,7 @@ parse_let_syntax(parsing_context& pc, syntax* stx) {
     bindings = cdr(assume<pair>(bindings));
   }
 
-  auto subscope = make_tracked<scope>(pc.ctx);
+  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("let-syntax body at {}", format_location(loc)));
   for (syntax_definition_pair const& dp : definitions) {
     add_scope(dp.id.get(), subscope.get());
 
@@ -482,7 +485,7 @@ parse_let_syntax(parsing_context& pc, syntax* stx) {
 
   auto subenv = extend_environment(pc, subscope.get());
 
-  return make_expression<sequence_expression>(parse_body(pc, body, stx->location()));
+  return make_expression<sequence_expression>(parse_body(pc, body, loc));
 }
 
 static std::unique_ptr<expression>
@@ -497,7 +500,7 @@ parse_lambda(parsing_context& pc, syntax* stx) {
   object* param_names = param_stx;
   std::vector<std::shared_ptr<variable>> parameters;
   bool has_rest = false;
-  auto subscope = make_tracked<scope>(pc.ctx);
+  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("lambda body at {}", format_location(stx->location())));
   while (!semisyntax_is<null_type>(param_names)) {
     if (auto param = semisyntax_match<pair>(param_names)) {
       auto id = expect_id(pc.ctx, expect<syntax>(car(param)));

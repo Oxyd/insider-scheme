@@ -270,7 +270,7 @@ lookup(syntax* id) {
 }
 
 module::module(context& ctx)
-  : env_{make_tracked<insider::scope>(ctx)}
+  : env_{make_tracked<insider::scope>(ctx, "module top-level")}
 { }
 
 auto
