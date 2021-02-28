@@ -350,6 +350,9 @@ public:
   std::vector<std::string>
   bound_names() const;
 
+  std::string const&
+  description() const { return description_; }
+
   auto
   begin() const { return bindings_.begin(); }
 
@@ -512,7 +515,7 @@ public:
       let, set, lambda, if_, box, unbox, box_set, define, define_syntax,
       begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing, expand_quote,
       syntax, quasisyntax, unsyntax, unsyntax_splicing, syntax_trap, syntax_error,
-      let_syntax;
+      let_syntax, letrec_syntax;
   };
 
   struct statics_list {
@@ -1174,6 +1177,12 @@ public:
     , scopes_{std::move(envs)}
   { }
 
+  syntax(object* expr, source_location loc, scope_set scopes)
+    : expression_{expr}
+    , location_{std::move(loc)}
+    , scopes_{std::move(scopes)}
+  { }
+
   object*
   expression() const { return expression_; }
 
@@ -1265,10 +1274,13 @@ object*
 syntax_to_datum(context&, syntax*);
 
 syntax*
-datum_to_syntax(context&, source_location, object*);
+datum_to_syntax(context&, syntax*, object*);
 
 object*
 syntax_to_list(context&, object*);
+
+syntax*
+copy_syntax(context&, syntax*);
 
 // A procedure for transforming syntax to syntax.
 class transformer : public composite_object<transformer> {

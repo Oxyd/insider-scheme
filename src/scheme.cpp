@@ -546,7 +546,8 @@ context::context()
     {constants->unsyntax_splicing, "unsyntax-splicing"},
     {constants->syntax_trap,       "syntax-trap"},
     {constants->syntax_error,      "syntax-error"},
-    {constants->let_syntax,        "let-syntax"}
+    {constants->let_syntax,        "let-syntax"},
+    {constants->letrec_syntax,     "letrec-syntax"}
   };
   for (auto const& form : core_forms) {
     form.object = make_tracked<core_form_type>(*this, form.name);
@@ -1270,18 +1271,20 @@ syntax_to_datum(context& ctx, syntax* stx) {
 }
 
 syntax*
-datum_to_syntax(context& ctx, source_location loc, object* datum) {
-  if (auto p = match<pair>(datum))
-    return make<syntax>(ctx, cons(ctx, datum_to_syntax(ctx, loc, car(p)), datum_to_syntax(ctx, loc, cdr(p))), loc);
-  else if (auto v = match<vector>(datum)) {
+datum_to_syntax(context& ctx, syntax* s, object* datum) {
+  if (auto p = match<pair>(datum)) {
+    syntax* head = datum_to_syntax(ctx, s, car(p));
+    syntax* tail = datum_to_syntax(ctx, s, cdr(p));
+    return make<syntax>(ctx, cons(ctx, head, tail), s->location(), s->scopes());
+  } else if (auto v = match<vector>(datum)) {
     auto result_vec = make<vector>(ctx, ctx, v->size());
     for (std::size_t i = 0; i < v->size(); ++i)
-      result_vec->set(ctx.store, i, datum_to_syntax(ctx, loc, v->ref(i)));
-    return make<syntax>(ctx, result_vec, loc);
-  } else if (auto s = match<syntax>(datum)) {
-    return s;
+      result_vec->set(ctx.store, i, datum_to_syntax(ctx, s, v->ref(i)));
+    return make<syntax>(ctx, result_vec, s->location(), s->scopes());
+  } else if (auto stx = match<syntax>(datum)) {
+    return stx;
   } else
-    return make<syntax>(ctx, datum, loc);
+    return make<syntax>(ctx, datum, s->location(), s->scopes());
 }
 
 object*
@@ -1308,6 +1311,26 @@ syntax_to_list(context& ctx, object* stx) {
     return nullptr;
 
   return result;
+}
+
+static object*
+copy_syntax_helper(context& ctx, object* o) {
+  if (auto stx = match<syntax>(o))
+    return make<syntax>(ctx, copy_syntax_helper(ctx, stx->expression()), stx->location(), stx->scopes());
+  else if (auto p = match<pair>(o))
+    return make<pair>(ctx, copy_syntax_helper(ctx, car(p)), copy_syntax_helper(ctx, cdr(p)));
+  else if (auto v = match<vector>(o)) {
+    auto new_v = make<vector>(ctx, ctx, v->size());
+    for (std::size_t i = 0; i < v->size(); ++i)
+      new_v->set(ctx.store, i, copy_syntax_helper(ctx, v->ref(i)));
+    return new_v;
+  } else
+    return o;
+}
+
+syntax*
+copy_syntax(context& ctx, syntax* stx) {
+  return assume<syntax>(copy_syntax_helper(ctx, stx));
 }
 
 void

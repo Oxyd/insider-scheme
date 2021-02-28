@@ -188,8 +188,8 @@ call_transformer(context& ctx, transformer* t, tracked_ptr<syntax> const& stx) {
                                                              format_location(stx->location())));
   add_scope(stx.get(), introduced_env.get());
 
-  syntax* result = expect<syntax>(call(ctx, t->callable(), {stx.get()}).get(),
-                                  "Syntax transformer didn't return a syntax");
+  syntax* result = copy_syntax(ctx, expect<syntax>(call(ctx, t->callable(), {stx.get()}).get(),
+                                                   "Syntax transformer didn't return a syntax"));
 
   flip_scope(result, introduced_env.get());
   return track(ctx, result);
@@ -447,31 +447,42 @@ parse_syntax_definition_pair(parsing_context& pc, syntax* stx) {
   return {track(pc.ctx, id), track(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))))};
 }
 
-static std::unique_ptr<expression>
-parse_let_syntax(parsing_context& pc, syntax* stx) {
-  simple_action a(pc.ctx, stx, "Parsing let-syntax");
+static auto
+parse_let_syntax_common(parsing_context& pc, syntax* stx, std::string_view form_name) {
   source_location loc = stx->location();
-
   generic_tracked_ptr datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
   if (!datum || list_length(datum.get()) < 3)
-    throw syntax_error(stx, "Invalid let-syntax syntax");
+    throw syntax_error(stx, "Invalid {} syntax", form_name);
 
   syntax* bindings_stx = expect<syntax>(cadr(assume<pair>(datum.get())));
   object* bindings = syntax_to_list(pc.ctx, bindings_stx);
   if (!bindings)
-    throw syntax_error(bindings_stx, "Invalid let-syntax syntax in binding definitions");
+    throw syntax_error(bindings_stx, "Invalid {} syntax in binding definitions", form_name);
 
   std::vector<syntax_definition_pair> definitions;
   while (bindings != pc.ctx.constants->null.get()) {
     auto binding = expect<syntax>(car(assume<pair>(bindings)));
     if (!syntax_is<pair>(binding))
-      throw syntax_error(binding, "Invalid let-syntax syntax in binding definitions");
+      throw syntax_error(binding, "Invalid {} syntax in binding definitions", form_name);
 
     definitions.push_back(parse_syntax_definition_pair(pc, binding));
     bindings = cdr(assume<pair>(bindings));
   }
 
-  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("let-syntax body at {}", format_location(loc)));
+  object* body = cddr(expect<pair>(datum.get()));
+  return std::tuple{definitions, track(pc.ctx, body)};
+}
+
+static std::unique_ptr<expression>
+parse_let_syntax(parsing_context& pc, syntax* stx) {
+  using namespace std::literals;
+  simple_action a(pc.ctx, stx, "Parsing let-syntax");
+  source_location loc = stx->location();
+
+  auto [definitions, body] = parse_let_syntax_common(pc, stx, "let-syntax"sv);
+
+  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("body scope for let-syntax at {}",
+                                                          format_location(loc)));
   for (syntax_definition_pair const& dp : definitions) {
     add_scope(dp.id.get(), subscope.get());
 
@@ -480,12 +491,35 @@ parse_let_syntax(parsing_context& pc, syntax* stx) {
     subscope->add(pc.ctx.store, dp.id.get(), transformer);
   }
 
-  object* body = cddr(expect<pair>(datum.get()));
-  add_scope(body, subscope.get());
-
+  add_scope(body.get(), subscope.get());
   auto subenv = extend_environment(pc, subscope.get());
 
-  return make_expression<sequence_expression>(parse_body(pc, body, loc));
+  return make_expression<sequence_expression>(parse_body(pc, body.get(), loc));
+}
+
+static std::unique_ptr<expression>
+parse_letrec_syntax(parsing_context& pc, syntax* stx) {
+  using namespace std::literals;
+  simple_action a(pc.ctx, stx, "Parsing letrec-syntax");
+  source_location loc = stx->location();
+
+  auto [definitions, body] = parse_let_syntax_common(pc, stx, "letrec-syntax"sv);
+
+  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("body scope for letrec-syntax at {}",
+                                                          format_location(loc)));
+  for (syntax_definition_pair const& dp : definitions) {
+    add_scope(dp.id.get(), subscope.get());
+
+    add_scope(dp.expression.get(), subscope.get());
+    auto transformer_proc = eval_transformer(pc.ctx, pc.module, dp.expression.get()); // GC
+    auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
+    subscope->add(pc.ctx.store, dp.id.get(), transformer);
+  }
+
+  add_scope(body.get(), subscope.get());
+  auto subenv = extend_environment(pc, subscope.get());
+
+  return make_expression<sequence_expression>(parse_body(pc, body.get(), loc));
 }
 
 static std::unique_ptr<expression>
@@ -1111,6 +1145,8 @@ parse(parsing_context& pc, syntax* s) {
         throw syntax_error{stx, "invalid use of unsyntax-splicing"};
       else if (form == pc.ctx.constants->let_syntax.get())
         return parse_let_syntax(pc, stx);
+      else if (form == pc.ctx.constants->letrec_syntax.get())
+        return parse_letrec_syntax(pc, stx);
     }
 
     return parse_application(pc, stx);

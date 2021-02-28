@@ -1704,6 +1704,41 @@ TEST_F(macros, out_of_scope) {
                error);
 }
 
+TEST_F(macros, recursive_syntax) {
+  auto result1 = eval(R"(
+    (letrec-syntax
+        ((my-or (lambda (stx)
+                  (let ((subexprs (cdr (syntax->list stx))))
+                    (if (eq? subexprs '())
+                        #'#f
+                        (if (eq? (cdr subexprs) '())
+                            (car subexprs)
+                            #`(let ((temp #,(car subexprs)))
+                                (if temp
+                                    temp
+                                    (my-or #,@(cdr subexprs))))))))))
+      (let ((x #f)
+            (y 7)
+            (temp 8)
+            (let (lambda (x) (< x 8)))
+            (if (lambda (x) (> x 8))))
+        (my-or x (let temp) (if y) y)))
+  )");
+  EXPECT_EQ(expect<integer>(result1).value(), 7);
+
+  auto result2 = eval(R"(
+    (letrec-syntax
+        ((identity (lambda (stx)
+                     (let ((misc-id (cadr (syntax->list stx))))
+                       #`(lambda (x)
+                           (let ((#,misc-id 'other))
+                             x))))))
+      (let ((f (identity x)))
+        (f 2)))
+  )");
+  EXPECT_EQ(expect<integer>(result2).value(), 2);
+}
+
 struct modules : scheme { };
 
 TEST_F(modules, module_activation) {

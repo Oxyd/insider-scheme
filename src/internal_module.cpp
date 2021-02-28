@@ -179,7 +179,7 @@ make_internal_module(context& ctx) {
 
   define_procedure(ctx, "datum->syntax", result, true,
                    [] (context& ctx, syntax* s, object* datum) {
-                     return datum_to_syntax(ctx, s->location(), datum);
+                     return datum_to_syntax(ctx, s, datum);
                    });
 
   // define_procedure(ctx, "free-identifier=?", result, true,
