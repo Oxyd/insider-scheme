@@ -512,7 +512,7 @@ public:
     tracked_ptr<insider::void_type> void_;
     tracked_ptr<boolean>        t, f;     // #t and #f.
     tracked_ptr<core_form_type>
-      let, set, lambda, if_, box, unbox, box_set, define, define_syntax,
+      let, letrec_star, set, lambda, if_, box, unbox, box_set, define, define_syntax,
       begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing, expand_quote,
       syntax, quasisyntax, unsyntax, unsyntax_splicing, syntax_trap, syntax_error,
       let_syntax, letrec_syntax;

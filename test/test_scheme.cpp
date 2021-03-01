@@ -965,6 +965,18 @@ TEST_F(compiler, let_shadowing) {
   EXPECT_EQ(expect<integer>(result).value(), 5);
 }
 
+TEST_F(compiler, letrec) {
+  auto result1 = eval(R"(
+    (letrec* ((f (lambda (n accum)
+                   (if (= n 0)
+                       accum
+                       (f (- n 1) (* n accum)))))
+              (factorial (lambda (n) (f n 1))))
+      (factorial 5))
+  )");
+  EXPECT_EQ(expect<integer>(result1).value(), 120);
+}
+
 TEST_F(compiler, core_shadowing) {
   auto result1 = eval("(let ((let 'let)) let)");
   EXPECT_EQ(expect<symbol>(result1)->value(), "let");

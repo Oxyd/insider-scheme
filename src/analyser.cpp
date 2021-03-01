@@ -10,6 +10,7 @@
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <iterator>
 #include <optional>
 #include <set>
 #include <unordered_map>
@@ -232,23 +233,6 @@ eval_transformer(context& ctx, module& m, syntax* datum) {
 static std::unique_ptr<expression>
 parse(parsing_context& pc, syntax* stx);
 
-static definition_pair_expression
-parse_definition_pair(parsing_context& pc, syntax* stx) {
-  simple_action a(pc.ctx, stx, "Parsing let definition pair");
-
-  object* datum = syntax_to_list(pc.ctx, stx);
-  if (!datum || datum == pc.ctx.constants->null.get())
-    throw syntax_error{stx, "Invalid let syntax: Expected a list, got {}", syntax_to_string(pc.ctx, stx)};
-
-  auto id = expect_id(pc.ctx, expect<syntax>(car(assume<pair>(datum))));
-
-  if (cdr(assume<pair>(datum)) == pc.ctx.constants->null.get())
-    throw syntax_error(stx, "Invalid let syntax: No expression for {}", identifier_name(id));
-
-  return {track(pc.ctx, id),
-          std::make_shared<variable>(identifier_name(id)), parse(pc, expect<syntax>(cadr(assume<pair>(datum))))};
-}
-
 namespace {
   struct body_content {
     tracked_ptr<scope>               transformers_scope;
@@ -386,69 +370,31 @@ parse_body(parsing_context& pc, object* data, source_location const& loc) {
     return sequence_expression{parse_expression_list(pc, content.forms)};
 }
 
-static std::unique_ptr<expression>
-parse_let(parsing_context& pc, syntax* stx) {
-  simple_action a(pc.ctx, stx, "Parsing let");
-
-  object* datum = syntax_to_list(pc.ctx, stx);
-  if (!datum || list_length(datum) < 3)
-    throw syntax_error(stx, "Invalid let syntax");
-
-  syntax* bindings_stx = expect<syntax>(cadr(assume<pair>(datum)));
-  object* bindings = syntax_to_list(pc.ctx, bindings_stx);
-  if (!bindings)
-    throw syntax_error(bindings_stx, "Invalid let syntax in binding definitions");
-
-  std::vector<definition_pair_expression> definitions;
-  while (bindings != pc.ctx.constants->null.get()) {
-    auto binding = expect<syntax>(car(assume<pair>(bindings)));
-    if (!syntax_is<pair>(binding))
-      throw syntax_error(binding, "Invalid let syntax in binding definitions");
-
-    definitions.push_back(parse_definition_pair(pc, binding));
-    bindings = cdr(assume<pair>(bindings));
-  }
-
-  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("let body at {}", format_location(stx->location())));
-  for (definition_pair_expression const& dp : definitions) {
-    add_scope(dp.id.get(), subscope.get());
-    subscope->add(pc.ctx.store, dp.id.get(), dp.variable);
-  }
-
-  object* body = cddr(expect<pair>(datum));
-  add_scope(body, subscope.get());
-
-  auto subenv = extend_environment(pc, subscope.get());
-
-  return make_expression<let_expression>(std::move(definitions),
-                                         parse_body(pc, body, stx->location()));
-}
-
 namespace {
-  struct syntax_definition_pair {
+  struct definition_pair {
     tracked_ptr<syntax> id;
     tracked_ptr<syntax> expression;
   };
 }
 
-static syntax_definition_pair
-parse_syntax_definition_pair(parsing_context& pc, syntax* stx) {
-  simple_action a(pc.ctx, stx, "Parsing let-syntax definition pair");
+static definition_pair
+parse_definition_pair(parsing_context& pc, syntax* stx, std::string_view form_name) {
+  simple_action a(pc.ctx, stx, "Parsing {} definition pair", form_name);
 
   object* datum = syntax_to_list(pc.ctx, stx);
   if (!datum || datum == pc.ctx.constants->null.get())
-    throw syntax_error{stx, "Invalid let-syntax syntax: Expected a list, got {}", syntax_to_string(pc.ctx, stx)};
+    throw syntax_error{stx, "Invalid {} syntax: Expected a list, got {}", form_name, syntax_to_string(pc.ctx, stx)};
 
   auto id = expect_id(pc.ctx, expect<syntax>(car(assume<pair>(datum))));
 
   if (cdr(assume<pair>(datum)) == pc.ctx.constants->null.get())
-    throw syntax_error(stx, "Invalid let-syntax syntax: No expression for {}", identifier_name(id));
+    throw syntax_error(stx, "Invalid {} syntax: No expression for {}", form_name, identifier_name(id));
 
   return {track(pc.ctx, id), track(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))))};
 }
 
 static auto
-parse_let_syntax_common(parsing_context& pc, syntax* stx, std::string_view form_name) {
+parse_let_common(parsing_context& pc, syntax* stx, std::string_view form_name) {
   source_location loc = stx->location();
   generic_tracked_ptr datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
   if (!datum || list_length(datum.get()) < 3)
@@ -459,13 +405,13 @@ parse_let_syntax_common(parsing_context& pc, syntax* stx, std::string_view form_
   if (!bindings)
     throw syntax_error(bindings_stx, "Invalid {} syntax in binding definitions", form_name);
 
-  std::vector<syntax_definition_pair> definitions;
+  std::vector<definition_pair> definitions;
   while (bindings != pc.ctx.constants->null.get()) {
     auto binding = expect<syntax>(car(assume<pair>(bindings)));
     if (!syntax_is<pair>(binding))
       throw syntax_error(binding, "Invalid {} syntax in binding definitions", form_name);
 
-    definitions.push_back(parse_syntax_definition_pair(pc, binding));
+    definitions.push_back(parse_definition_pair(pc, binding, form_name));
     bindings = cdr(assume<pair>(bindings));
   }
 
@@ -474,16 +420,81 @@ parse_let_syntax_common(parsing_context& pc, syntax* stx, std::string_view form_
 }
 
 static std::unique_ptr<expression>
+parse_let(parsing_context& pc, syntax* stx) {
+  using namespace std::literals;
+  simple_action a(pc.ctx, stx, "Parsing let");
+
+  auto [definitions, body] = parse_let_common(pc, stx, "let"sv);
+
+  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("let body at {}", format_location(stx->location())));
+
+  std::vector<definition_pair_expression> definition_exprs;
+  for (definition_pair const& dp : definitions) {
+    add_scope(dp.id.get(), subscope.get());
+    auto var = std::make_shared<variable>(identifier_name(dp.id.get()));
+    subscope->add(pc.ctx.store, dp.id.get(), var);
+
+    definition_exprs.emplace_back(dp.id, std::move(var), parse(pc, dp.expression.get()));
+  }
+
+  add_scope(body.get(), subscope.get());
+  auto subenv = extend_environment(pc, subscope.get());
+  return make_expression<let_expression>(std::move(definition_exprs),
+                                         parse_body(pc, body.get(), stx->location()));
+}
+
+static std::unique_ptr<expression>
+parse_letrec_star(parsing_context& pc, syntax* stx) {
+  using namespace std::literals;
+  simple_action a(pc.ctx, stx, "Parsing letrec*");
+
+  auto [definitions, body] = parse_let_common(pc, stx, "letrec*"sv);
+
+  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("letrec* body at {}", format_location(stx->location())));
+
+  std::vector<definition_pair_expression> definition_exprs;
+  std::vector<std::shared_ptr<variable>> variables;
+  for (definition_pair const& dp : definitions) {
+    add_scope(dp.id.get(), subscope.get());
+    auto var = std::make_shared<variable>(identifier_name(dp.id.get()));
+    subscope->add(pc.ctx.store, dp.id.get(), var);
+
+    variables.push_back(var);
+    auto void_expr = make_expression<literal_expression>(pc.ctx.constants->void_);
+    definition_exprs.emplace_back(dp.id, var, std::move(void_expr));
+  }
+
+  add_scope(body.get(), subscope.get());
+  auto subenv = extend_environment(pc, subscope.get());
+
+  sequence_expression body_sequence;
+  for (std::size_t i = 0; i < definition_exprs.size(); ++i) {
+    add_scope(definitions[i].expression.get(), subscope.get());
+    std::unique_ptr<expression> init_expr = parse(pc, definitions[i].expression.get());
+    variables[i]->is_set = true;
+    body_sequence.expressions.push_back(make_expression<local_set_expression>(std::move(variables[i]),
+                                                                              std::move(init_expr)));
+  }
+
+  auto proper_body_sequence = parse_body(pc, body.get(), stx->location());
+  body_sequence.expressions.insert(body_sequence.expressions.end(),
+                                   std::move_iterator(proper_body_sequence.expressions.begin()),
+                                   std::move_iterator(proper_body_sequence.expressions.end()));
+
+  return make_expression<let_expression>(std::move(definition_exprs), std::move(body_sequence));
+}
+
+static std::unique_ptr<expression>
 parse_let_syntax(parsing_context& pc, syntax* stx) {
   using namespace std::literals;
   simple_action a(pc.ctx, stx, "Parsing let-syntax");
   source_location loc = stx->location();
 
-  auto [definitions, body] = parse_let_syntax_common(pc, stx, "let-syntax"sv);
+  auto [definitions, body] = parse_let_common(pc, stx, "let-syntax"sv);
 
   auto subscope = make_tracked<scope>(pc.ctx, fmt::format("body scope for let-syntax at {}",
                                                           format_location(loc)));
-  for (syntax_definition_pair const& dp : definitions) {
+  for (definition_pair const& dp : definitions) {
     add_scope(dp.id.get(), subscope.get());
 
     auto transformer_proc = eval_transformer(pc.ctx, pc.module, dp.expression.get()); // GC
@@ -503,11 +514,11 @@ parse_letrec_syntax(parsing_context& pc, syntax* stx) {
   simple_action a(pc.ctx, stx, "Parsing letrec-syntax");
   source_location loc = stx->location();
 
-  auto [definitions, body] = parse_let_syntax_common(pc, stx, "letrec-syntax"sv);
+  auto [definitions, body] = parse_let_common(pc, stx, "letrec-syntax"sv);
 
   auto subscope = make_tracked<scope>(pc.ctx, fmt::format("body scope for letrec-syntax at {}",
                                                           format_location(loc)));
-  for (syntax_definition_pair const& dp : definitions) {
+  for (definition_pair const& dp : definitions) {
     add_scope(dp.id.get(), subscope.get());
 
     add_scope(dp.expression.get(), subscope.get());
@@ -1103,6 +1114,8 @@ parse(parsing_context& pc, syntax* s) {
     if (auto form = match_core_form(pc, head)) {
       if (form == pc.ctx.constants->let.get())
         return parse_let(pc, stx);
+      if (form == pc.ctx.constants->letrec_star.get())
+        return parse_letrec_star(pc, stx);
       else if (form == pc.ctx.constants->set.get())
         return parse_define_or_set(pc, stx, "set!");
       else if (form == pc.ctx.constants->lambda.get())

@@ -525,6 +525,7 @@ context::context()
     std::string          name;
   } core_forms[]{
     {constants->let,               "let"},
+    {constants->letrec_star,       "letrec*"},
     {constants->set,               "set!"},
     {constants->lambda,            "lambda"},
     {constants->if_,               "if"},
