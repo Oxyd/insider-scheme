@@ -235,9 +235,14 @@ parse(parsing_context& pc, syntax* stx);
 
 namespace {
   struct body_content {
-    tracked_ptr<scope>               transformers_scope;
+    struct internal_variable {
+      tracked_ptr<syntax> id;
+      tracked_ptr<syntax> init;
+      std::shared_ptr<variable> var;
+    };
+
     std::vector<tracked_ptr<syntax>> forms;
-    std::vector<tracked_ptr<syntax>> internal_variable_ids;
+    std::vector<internal_variable>   internal_variable_defs;
   };
 }
 
@@ -261,9 +266,17 @@ match_core_form(parsing_context& pc, syntax* stx) {
 static body_content
 process_internal_defines(parsing_context& pc, object* data, source_location const& loc) {
   body_content result;
-  result.transformers_scope = make_tracked<scope>(pc.ctx, fmt::format("transformers scope at {}",
-                                                                      format_location(loc)));
-  add_scope(data, result.transformers_scope.get());
+  auto outside_scope = make_tracked<scope>(pc.ctx, fmt::format("outside edge scope at {}", format_location(loc)));
+  add_scope(data, outside_scope.get());
+
+  std::vector<std::shared_ptr<variable>>& internal_vars = pc.environment.emplace_back();
+  struct env_guard {
+    parsing_context& pc;
+
+    ~env_guard() {
+      pc.environment.pop_back();
+    }
+  } guard{pc};
 
   object* list = syntax_to_list(pc.ctx, data);
   if (!list)
@@ -289,7 +302,7 @@ process_internal_defines(parsing_context& pc, object* data, source_location cons
         auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p)))));
         auto transformer_proc = eval_transformer(pc.ctx, pc.module, expect<syntax>(caddr(assume<pair>(p)))); // GC
         auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
-        result.transformers_scope->add(pc.ctx.store, name.get(), transformer);
+        outside_scope->add(pc.ctx.store, name.get(), transformer);
 
         continue;
       }
@@ -298,9 +311,14 @@ process_internal_defines(parsing_context& pc, object* data, source_location cons
           throw syntax_error(expr.get(), "define after a nondefinition");
 
         auto id = expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p))));
+        auto init = expect<syntax>(caddr(assume<pair>(p)));
+        auto var = std::make_shared<variable>(identifier_name(id));
 
-        result.forms.push_back(expr);
-        result.internal_variable_ids.push_back(track(pc.ctx, id));
+        result.internal_variable_defs.emplace_back(body_content::internal_variable{track(pc.ctx, id),
+                                                                                   track(pc.ctx, init),
+                                                                                   var});
+        outside_scope->add(pc.ctx.store, id, var);
+        internal_vars.emplace_back(std::move(var));
 
         continue;
       }
@@ -342,28 +360,37 @@ parse_expression_list(parsing_context& pc, std::vector<tracked_ptr<syntax>> cons
 static sequence_expression
 parse_body(parsing_context& pc, object* data, source_location const& loc) {
   body_content content = process_internal_defines(pc, data, loc); // GC
-  auto syn_env = extend_environment(pc, content.transformers_scope.get());
 
-  if (!content.internal_variable_ids.empty()) {
-    auto subscope = make<scope>(pc.ctx, fmt::format("internal definition context at {}", format_location(loc)));
+  if (!content.internal_variable_defs.empty()) {
+    // Simulate a letrec*.
 
-    std::vector<definition_pair_expression> definitions;
-    for (tracked_ptr<syntax> const& id : content.internal_variable_ids) {
+    std::vector<definition_pair_expression> definition_exprs;
+    std::vector<std::shared_ptr<variable>> variables;
+    for (auto const& [id, init, var] : content.internal_variable_defs) {
+      variables.push_back(var);
       auto void_expr = make_expression<literal_expression>(pc.ctx.constants->void_);
-      auto var = std::make_shared<variable>(identifier_name(id.get()));
-      definitions.push_back({id, var, std::move(void_expr)});
-      subscope->add(pc.ctx.store, id.get(), var);
+      definition_exprs.emplace_back(id, std::move(var), std::move(void_expr));
     }
 
-    for (tracked_ptr<syntax> const& e : content.forms)
-      add_scope(e.get(), subscope);
-    auto subenv = extend_environment(pc, subscope);
+    environment_extender subenv{pc, variables};
+
+    sequence_expression body_sequence;
+    for (std::size_t i = 0; i < definition_exprs.size(); ++i) {
+      tracked_ptr<syntax> init_stx = content.internal_variable_defs[i].init;
+      std::unique_ptr<expression> init_expr = parse(pc, init_stx.get());
+      variables[i]->is_set = true;
+      body_sequence.expressions.push_back(make_expression<local_set_expression>(std::move(variables[i]),
+                                                                                std::move(init_expr)));
+    }
+
+    sequence_expression proper_body_sequence{parse_expression_list(pc, content.forms)};
+    body_sequence.expressions.insert(body_sequence.expressions.end(),
+                                     std::move_iterator(proper_body_sequence.expressions.begin()),
+                                     std::move_iterator(proper_body_sequence.expressions.end()));
 
     sequence_expression result;
-    result.expressions.push_back(
-      make_expression<let_expression>(std::move(definitions),
-                                      sequence_expression{parse_expression_list(pc, content.forms)})
-    );
+    result.expressions.emplace_back(make_expression<let_expression>(std::move(definition_exprs),
+                                                                    std::move(body_sequence)));
     return result;
   }
   else
