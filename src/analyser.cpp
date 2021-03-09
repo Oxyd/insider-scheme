@@ -447,11 +447,12 @@ parse_let_common(parsing_context& pc, syntax* stx, std::string_view form_name) {
 }
 
 static std::unique_ptr<expression>
-parse_let(parsing_context& pc, syntax* stx) {
+parse_let(parsing_context& pc, syntax* stx_) {
   using namespace std::literals;
-  simple_action a(pc.ctx, stx, "Parsing let");
+  simple_action a(pc.ctx, stx_, "Parsing let");
 
-  auto [definitions, body] = parse_let_common(pc, stx, "let"sv);
+  auto stx = track(pc.ctx, stx_);
+  auto [definitions, body] = parse_let_common(pc, stx.get(), "let"sv);
 
   auto subscope = make_tracked<scope>(pc.ctx, fmt::format("let body at {}", format_location(stx->location())));
 
