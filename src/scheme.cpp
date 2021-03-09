@@ -240,21 +240,19 @@ scope::is_redefinition(syntax* id, value_type const& intended_value) const {
 std::optional<scope::value_type>
 lookup(symbol* name, scope_set const& envs) {
   std::optional<scope::value_type> result;
-  std::size_t max_env_set_size = 0;
+  scope_set maximal_scope_set;
   bool ambiguous = false;
 
   for (scope const* e : envs)
     for (scope::binding const& b : e->find_candidates(name, envs)) {
       scope_set const& binding_set = std::get<syntax*>(b)->scopes();
 
-      if (binding_set.size() == max_env_set_size && std::get<scope::value_type>(b) != result)
-        ambiguous = true;
-
-      if (binding_set.size() > max_env_set_size) {
-        result = std::get<scope::value_type>(b);
-        max_env_set_size = binding_set.size();
+      if (scope_sets_subseteq(maximal_scope_set, binding_set)) {
         ambiguous = false;
-      }
+        maximal_scope_set = binding_set;
+        result = std::get<scope::value_type>(b);
+      } else if (!scope_sets_subseteq(binding_set, maximal_scope_set))
+        ambiguous = true;
     }
 
   if (ambiguous)
