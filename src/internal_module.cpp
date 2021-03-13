@@ -182,34 +182,21 @@ make_internal_module(context& ctx) {
                      return datum_to_syntax(ctx, s, datum);
                    });
 
-  // define_procedure(ctx, "free-identifier=?", result, true,
-  //                  [] (context& ctx, object* x, object* y) {
-  //                    if (!is_identifier(x) || !is_identifier(y))
-  //                      throw error{"Expected two identifiers"};
+  define_procedure(ctx, "free-identifier=?", result, true,
+                   [] (syntax* x, syntax* y) {
+                     if (!is_identifier(x) || !is_identifier(y))
+                       throw error{"Expected two identifiers"};
 
-  //                    auto lookup_binding = [&] (object* id) -> std::optional<environment::value_type> {
-  //                      tracked_ptr<environment> env = ctx.current_usage_environment;
-  //                      if (auto sc = match<syntactic_closure>(id)) {
-  //                        env = syntactic_closure_to_environment(ctx, sc, env);
-  //                        id = sc->expression();
-  //                      }
+                     auto x_binding = lookup(x);
+                     auto y_binding = lookup(y);
 
-  //                      if (env)
-  //                        return lookup(env, id);
-  //                      else
-  //                        return std::nullopt;
-  //                    };
-
-  //                    auto x_binding = lookup_binding(x);
-  //                    auto y_binding = lookup_binding(y);
-
-  //                    if (x_binding && y_binding)
-  //                      return *x_binding == *y_binding;
-  //                    else if (!x_binding && !y_binding)
-  //                      return identifier_name(x) == identifier_name(y);
-  //                    else
-  //                      return false;
-  //                  });
+                     if (x_binding && y_binding)
+                       return *x_binding == *y_binding;
+                     else if (!x_binding && !y_binding)
+                       return identifier_name(x) == identifier_name(y);
+                     else
+                       return false;
+                   });
 
   define_procedure(
     ctx, "procedure-bytecode", result, true,
