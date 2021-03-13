@@ -524,13 +524,18 @@ read(context& ctx, std::string s) {
   return read(ctx, port);
 }
 
-syntax*
-read_syntax(context& ctx, port* stream) {
-  input_stream s{stream};
+static syntax*
+read_syntax(context& ctx, input_stream& s) {
   if (object* result = read_and_wrap(ctx, read_token(ctx, s), s, true))
     return assume<syntax>(result);
   else
     return nullptr;
+}
+
+syntax*
+read_syntax(context& ctx, port* stream) {
+  input_stream s{stream};
+  return read_syntax(ctx, s);
 }
 
 syntax*
@@ -555,7 +560,8 @@ read_multiple(context& ctx, std::string s) {
 }
 
 std::vector<tracked_ptr<syntax>>
-read_syntax_multiple(context& ctx, port* in) {
+read_syntax_multiple(context& ctx, port* p) {
+  input_stream in{p};
   std::vector<tracked_ptr<syntax>> result;
   while (syntax* elem = read_syntax(ctx, in))
     result.push_back(track(ctx, elem));
