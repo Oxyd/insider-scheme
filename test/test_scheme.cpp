@@ -1805,6 +1805,32 @@ TEST_F(macros, free_identifier_eq) {
   EXPECT_EQ(cadddr(expect<pair>(cdr(expect<pair>(cdr(expect<pair>(result3)))))), ctx.constants->f.get());
 }
 
+TEST_F(macros, bound_identifier_eq) {
+  pair* result1 = expect<pair>(eval_module(R"(
+    (import (insider internal))
+
+    (define-syntax check
+      (lambda (stx)
+        (let ((elems (syntax->list stx)))
+          (let ((x (cadr elems))
+                (y (caddr elems)))
+            (if (bound-identifier=? x y)
+                #'#t
+                #'#f)))))
+
+    (let ((list (lambda l l)))
+      (list (check a a)
+            (check a b)
+            (let-syntax ((check-a (lambda (stx)
+                                    (let ((x (cadr (syntax->list stx))))
+                                      #`(check a #,x)))))
+              (check-a a))))
+  )"));
+  EXPECT_EQ(car(result1), ctx.constants->t.get());
+  EXPECT_EQ(cadr(result1), ctx.constants->f.get());
+  EXPECT_EQ(caddr(result1), ctx.constants->f.get());
+}
+
 struct modules : scheme { };
 
 TEST_F(modules, module_activation) {

@@ -198,6 +198,26 @@ make_internal_module(context& ctx) {
                        return false;
                    });
 
+  define_procedure(ctx, "bound-identifier=?", result, true,
+                   [] (syntax* x, syntax* y) {
+                     if (!is_identifier(x) || !is_identifier(y))
+                       throw error{"Expected two identifiers"};
+
+                     if (x->expression() != y->expression())
+                       return false;
+
+                     scope_set x_scopes = x->scopes();
+                     scope_set y_scopes = y->scopes();
+
+                     if (x_scopes.size() != y_scopes.size())
+                       return false;
+
+                     std::sort(x_scopes.begin(), x_scopes.end());
+                     std::sort(y_scopes.begin(), y_scopes.end());
+
+                     return x_scopes == y_scopes;
+                   });
+
   define_procedure(
     ctx, "procedure-bytecode", result, true,
     [] (context& ctx, procedure* f) {
