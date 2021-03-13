@@ -333,7 +333,10 @@ public:
   using binding = std::tuple<syntax*, value_type>;
 
   explicit
-  scope(std::string desc) : description_{std::move(desc)} { }
+  scope(std::string desc, bool use_site = false)
+    : description_{std::move(desc)}
+    , use_site_{use_site}
+  { }
 
   void
   add(free_store& store, syntax* identifier, std::shared_ptr<variable>);
@@ -353,6 +356,9 @@ public:
   std::string const&
   description() const { return description_; }
 
+  bool
+  is_use_site() const { return use_site_; }
+
   auto
   begin() const { return bindings_.begin(); }
 
@@ -371,6 +377,7 @@ public:
 private:
   std::vector<binding> bindings_;
   std::string          description_;
+  bool                 use_site_;
 
   bool
   is_redefinition(syntax*, value_type const& intended_value) const;

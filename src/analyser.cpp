@@ -179,6 +179,15 @@ remove_scope(object* expr, scope* e) {
 }
 
 static void
+remove_use_site_scopes(syntax* expr) {
+  assert(is_identifier(expr));
+
+  expr->scopes().erase(std::remove_if(expr->scopes().begin(), expr->scopes().end(),
+                                      [] (scope const* s) { return s->is_use_site(); }),
+                       expr->scopes().end());
+}
+
+static void
 flip_scope(object* expr, scope* e) {
   modify_scopes(expr, [&] (syntax* stx) { flip_scope(stx->scopes(), e); });
 }
@@ -188,6 +197,12 @@ call_transformer(context& ctx, transformer* t, tracked_ptr<syntax> const& stx) {
   auto introduced_env = make_tracked<scope>(ctx, fmt::format("introduced environment for syntax expansion at {}",
                                                              format_location(stx->location())));
   add_scope(stx.get(), introduced_env.get());
+
+  auto use_site_scope = make_tracked<scope>(ctx,
+                                            fmt::format("use-site scope for syntax expansion at {}",
+                                                        format_location(stx->location())),
+                                            true);
+  add_scope(stx.get(), use_site_scope.get());
 
   syntax* result = copy_syntax(ctx, expect<syntax>(call(ctx, t->callable(), {stx.get()}).get(),
                                                    "Syntax transformer didn't return a syntax"));
@@ -300,6 +315,8 @@ process_internal_defines(parsing_context& pc, object* data, source_location cons
           throw syntax_error(expr.get(), "define-syntax after a nondefinition");
 
         auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p)))));
+        remove_use_site_scopes(name.get());
+
         auto transformer_proc = eval_transformer(pc.ctx, pc.module, expect<syntax>(caddr(assume<pair>(p)))); // GC
         auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
         outside_scope->add(pc.ctx.store, name.get(), transformer);
@@ -311,6 +328,8 @@ process_internal_defines(parsing_context& pc, object* data, source_location cons
           throw syntax_error(expr.get(), "define after a nondefinition");
 
         auto id = expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p))));
+        remove_use_site_scopes(id);
+
         auto init = expect<syntax>(caddr(assume<pair>(p)));
         auto var = std::make_shared<variable>(identifier_name(id));
 
@@ -1443,6 +1462,8 @@ expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
       if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
         if (form == pc.ctx.constants->define_syntax.get()) {
           auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(p))));
+          remove_use_site_scopes(name.get());
+
           auto transformer_proc = eval_transformer(pc.ctx, m, expect<syntax>(caddr(p))); // GC
           auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
           m.scope()->add(pc.ctx.store, name.get(), transformer);
@@ -1454,6 +1475,8 @@ expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
             throw syntax_error(stx.get(), "Invalid define syntax");
 
           auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
+          remove_use_site_scopes(name);
+
           auto index = pc.ctx.add_top_level(pc.ctx.constants->void_.get(), identifier_name(name));
           m.scope()->add(pc.ctx.store, name, std::make_shared<variable>(identifier_name(name), index));
         }

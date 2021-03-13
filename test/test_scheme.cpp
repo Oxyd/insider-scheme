@@ -1680,6 +1680,19 @@ TEST_F(macros, transformers_producing_definitions) {
     (+ a b)
   )");
   EXPECT_EQ(expect<integer>(result3).value(), 7 + 12);
+
+  auto result4 = eval_module(R"(
+    (import (insider internal))
+
+    (define-syntax define-identity
+      (lambda (stx)
+        (let ((id (cadr (syntax->list stx))))
+          #`(define #,id (lambda (x) x)))))
+
+    (define-identity f)
+    (f 5)
+  )");
+  EXPECT_EQ(expect<integer>(result4).value(), 5);
 }
 
 TEST_F(macros, let_syntax) {
@@ -1738,16 +1751,20 @@ TEST_F(macros, recursive_syntax) {
   )");
   EXPECT_EQ(expect<integer>(result1).value(), 7);
 
-  auto result2 = eval(R"(
-    (letrec-syntax
-        ((identity (lambda (stx)
-                     (let ((misc-id (cadr (syntax->list stx))))
-                       #`(lambda (x)
-                           (let ((#,misc-id 'other))
-                             x))))))
-      (let ((f (identity x)))
-        (f 2)))
+  auto result2 = eval_module(R"(
+    (import (insider internal))
+
+    (define-syntax identity
+      (lambda (stx)
+        (let ((misc-id (cadr (syntax->list stx))))
+          #`(lambda (x)
+              (let ((#,misc-id 'other))
+                x)))))
+
+    (define f (identity x))
+    (f 2)
   )");
+
   EXPECT_EQ(expect<integer>(result2).value(), 2);
 }
 
