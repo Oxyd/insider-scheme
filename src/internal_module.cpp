@@ -174,6 +174,8 @@ make_internal_module(context& ctx) {
   define_procedure(ctx, "eqv?", result, true, eqv);
   define_procedure(ctx, "equal?", result, true, equal);
 
+  define_procedure(ctx, "syntax-expression", result, true, &syntax::expression);
+
   define_procedure(ctx, "syntax->datum", result, true, syntax_to_datum);
   define_procedure(ctx, "syntax->list", result, true, syntax_to_list);
 
