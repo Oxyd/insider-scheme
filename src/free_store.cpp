@@ -52,7 +52,7 @@ static bool
 is_alive(word_type header) { return header & alive_bit; }
 
 bool
-is_alive(object* o) { return is_alive(header_word(o)); }
+is_alive(object* o) { return o != nullptr && is_alive(header_word(o)); }
 
 static word_type
 get_generation(word_type header) {

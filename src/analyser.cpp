@@ -169,45 +169,49 @@ modify_scopes(object* o, Operation const& op) {
 }
 
 static void
-add_scope(object* expr, scope* e) {
-  modify_scopes(expr, [&] (syntax* stx) { add_scope(stx->scopes(), e); });
+add_scope(free_store& fs, object* expr, scope* e) {
+  modify_scopes(expr, [&] (syntax* stx) { stx->add_scope(fs, e); });
 }
 
 static void
 remove_scope(object* expr, scope* e) {
-  modify_scopes(expr, [&] (syntax* stx) { remove_scope(stx->scopes(), e); });
+  modify_scopes(expr, [&] (syntax* stx) { stx->remove_scope(e); });
 }
 
 static void
 remove_use_site_scopes(syntax* expr) {
   assert(is_identifier(expr));
 
-  expr->scopes().erase(std::remove_if(expr->scopes().begin(), expr->scopes().end(),
-                                      [] (scope const* s) { return s->is_use_site(); }),
-                       expr->scopes().end());
+  std::vector<scope*> to_remove;
+  std::copy_if(expr->scopes().begin(), expr->scopes().end(),
+               std::back_inserter(to_remove),
+               [] (scope const* s) { return s->is_use_site(); });
+
+  for (scope* s : to_remove)
+    expr->remove_scope(s);
 }
 
 static void
-flip_scope(object* expr, scope* e) {
-  modify_scopes(expr, [&] (syntax* stx) { flip_scope(stx->scopes(), e); });
+flip_scope(free_store& fs, object* expr, scope* e) {
+  modify_scopes(expr, [&] (syntax* stx) { stx->flip_scope(fs, e); });
 }
 
 static tracked_ptr<syntax>
 call_transformer(context& ctx, transformer* t, tracked_ptr<syntax> const& stx) {
   auto introduced_env = make_tracked<scope>(ctx, fmt::format("introduced environment for syntax expansion at {}",
                                                              format_location(stx->location())));
-  add_scope(stx.get(), introduced_env.get());
+  add_scope(ctx.store, stx.get(), introduced_env.get());
 
   auto use_site_scope = make_tracked<scope>(ctx,
                                             fmt::format("use-site scope for syntax expansion at {}",
                                                         format_location(stx->location())),
                                             true);
-  add_scope(stx.get(), use_site_scope.get());
+  add_scope(ctx.store, stx.get(), use_site_scope.get());
 
   syntax* result = copy_syntax(ctx, expect<syntax>(call(ctx, t->callable(), {stx.get()}).get(),
                                                    "Syntax transformer didn't return a syntax"));
 
-  flip_scope(result, introduced_env.get());
+  flip_scope(ctx.store, result, introduced_env.get());
   return track(ctx, result);
 }
 
@@ -282,7 +286,7 @@ static body_content
 process_internal_defines(parsing_context& pc, object* data, source_location const& loc) {
   body_content result;
   auto outside_scope = make_tracked<scope>(pc.ctx, fmt::format("outside edge scope at {}", format_location(loc)));
-  add_scope(data, outside_scope.get());
+  add_scope(pc.ctx.store, data, outside_scope.get());
 
   std::vector<std::shared_ptr<variable>>& internal_vars = pc.environment.emplace_back();
   struct env_guard {
@@ -477,14 +481,14 @@ parse_let(parsing_context& pc, syntax* stx_) {
 
   std::vector<definition_pair_expression> definition_exprs;
   for (definition_pair const& dp : definitions) {
-    add_scope(dp.id.get(), subscope.get());
+    add_scope(pc.ctx.store, dp.id.get(), subscope.get());
     auto var = std::make_shared<variable>(identifier_name(dp.id.get()));
     subscope->add(pc.ctx.store, dp.id.get(), var);
 
     definition_exprs.emplace_back(dp.id, std::move(var), parse(pc, dp.expression.get()));
   }
 
-  add_scope(body.get(), subscope.get());
+  add_scope(pc.ctx.store, body.get(), subscope.get());
   auto subenv = extend_environment(pc, subscope.get());
   return make_expression<let_expression>(std::move(definition_exprs),
                                          parse_body(pc, body.get(), stx->location()));
@@ -502,7 +506,7 @@ parse_letrec_star(parsing_context& pc, syntax* stx) {
   std::vector<definition_pair_expression> definition_exprs;
   std::vector<std::shared_ptr<variable>> variables;
   for (definition_pair const& dp : definitions) {
-    add_scope(dp.id.get(), subscope.get());
+    add_scope(pc.ctx.store, dp.id.get(), subscope.get());
     auto var = std::make_shared<variable>(identifier_name(dp.id.get()));
     subscope->add(pc.ctx.store, dp.id.get(), var);
 
@@ -511,12 +515,12 @@ parse_letrec_star(parsing_context& pc, syntax* stx) {
     definition_exprs.emplace_back(dp.id, var, std::move(void_expr));
   }
 
-  add_scope(body.get(), subscope.get());
+  add_scope(pc.ctx.store, body.get(), subscope.get());
   auto subenv = extend_environment(pc, subscope.get());
 
   sequence_expression body_sequence;
   for (std::size_t i = 0; i < definition_exprs.size(); ++i) {
-    add_scope(definitions[i].expression.get(), subscope.get());
+    add_scope(pc.ctx.store, definitions[i].expression.get(), subscope.get());
     std::unique_ptr<expression> init_expr = parse(pc, definitions[i].expression.get());
     variables[i]->is_set = true;
     body_sequence.expressions.push_back(make_expression<local_set_expression>(std::move(variables[i]),
@@ -542,14 +546,14 @@ parse_let_syntax(parsing_context& pc, syntax* stx) {
   auto subscope = make_tracked<scope>(pc.ctx, fmt::format("body scope for let-syntax at {}",
                                                           format_location(loc)));
   for (definition_pair const& dp : definitions) {
-    add_scope(dp.id.get(), subscope.get());
+    add_scope(pc.ctx.store, dp.id.get(), subscope.get());
 
     auto transformer_proc = eval_transformer(pc.ctx, pc.module, dp.expression.get()); // GC
     auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
     subscope->add(pc.ctx.store, dp.id.get(), transformer);
   }
 
-  add_scope(body.get(), subscope.get());
+  add_scope(pc.ctx.store, body.get(), subscope.get());
   auto subenv = extend_environment(pc, subscope.get());
 
   return make_expression<sequence_expression>(parse_body(pc, body.get(), loc));
@@ -566,15 +570,15 @@ parse_letrec_syntax(parsing_context& pc, syntax* stx) {
   auto subscope = make_tracked<scope>(pc.ctx, fmt::format("body scope for letrec-syntax at {}",
                                                           format_location(loc)));
   for (definition_pair const& dp : definitions) {
-    add_scope(dp.id.get(), subscope.get());
+    add_scope(pc.ctx.store, dp.id.get(), subscope.get());
 
-    add_scope(dp.expression.get(), subscope.get());
+    add_scope(pc.ctx.store, dp.expression.get(), subscope.get());
     auto transformer_proc = eval_transformer(pc.ctx, pc.module, dp.expression.get()); // GC
     auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
     subscope->add(pc.ctx.store, dp.id.get(), transformer);
   }
 
-  add_scope(body.get(), subscope.get());
+  add_scope(pc.ctx.store, body.get(), subscope.get());
   auto subenv = extend_environment(pc, subscope.get());
 
   return make_expression<sequence_expression>(parse_body(pc, body.get(), loc));
@@ -596,7 +600,7 @@ parse_lambda(parsing_context& pc, syntax* stx) {
   while (!semisyntax_is<null_type>(param_names)) {
     if (auto param = semisyntax_match<pair>(param_names)) {
       auto id = expect_id(pc.ctx, expect<syntax>(car(param)));
-      add_scope(id->scopes(), subscope.get());
+      id->add_scope(pc.ctx.store, subscope.get());
 
       auto var = std::make_shared<variable>(identifier_name(id));
       parameters.push_back(var);
@@ -607,7 +611,7 @@ parse_lambda(parsing_context& pc, syntax* stx) {
     else if (semisyntax_is<symbol>(param_names)) {
       has_rest = true;
       auto name = expect<syntax>(param_names);
-      add_scope(name->scopes(), subscope.get());
+      name->add_scope(pc.ctx.store, subscope.get());
 
       auto var = std::make_shared<variable>(identifier_name(name));
       parameters.push_back(var);
@@ -620,7 +624,7 @@ parse_lambda(parsing_context& pc, syntax* stx) {
   }
 
   object* body = cddr(assume<pair>(datum));
-  add_scope(body, subscope.get());
+  add_scope(pc.ctx.store, body, subscope.get());
 
   auto subenv = extend_environment(pc, subscope.get());
 
@@ -1389,7 +1393,7 @@ analyse_internal(parsing_context& pc, syntax* stx) {
 std::unique_ptr<expression>
 analyse(context& ctx, syntax* stx, module& m) {
   parsing_context pc{ctx, m, {}};
-  add_scope(stx, m.scope());
+  add_scope(ctx.store, stx, m.scope());
   return analyse_internal(pc, stx);
 }
 
@@ -1443,7 +1447,7 @@ expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
   simple_action a(pc.ctx, "Expanding module top-level");
 
   for (tracked_ptr<syntax> e : pm.body)
-    add_scope(e.get(), m.scope());
+    add_scope(pc.ctx.store, e.get(), m.scope());
 
   std::vector<tracked_ptr<syntax>> stack;
   stack.reserve(pm.body.size());

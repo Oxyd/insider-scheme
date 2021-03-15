@@ -307,13 +307,13 @@ identifier_name(syntax* x);
 
 using scope_set = std::vector<scope*>;
 
-void
+bool // Was the scope actually added?
 add_scope(scope_set&, scope*);
 
 void
 remove_scope(scope_set&, scope*);
 
-void
+bool // Was the scope added?
 flip_scope(scope_set&, scope*);
 
 bool
@@ -321,9 +321,6 @@ scope_sets_subseteq(scope_set const& lhs, scope_set const& rhs);
 
 bool
 scope_sets_equal(scope_set const& lhs, scope_set const& rhs);
-
-scope_set&
-identifier_scopes(context&, syntax*);
 
 class scope : public composite_object<scope> {
 public:
@@ -1175,6 +1172,7 @@ public:
   syntax(object* expr, source_location loc)
     : expression_{expr}
     , location_{std::move(loc)}
+    , id_{counter++}
   {
     assert(expr);
   }
@@ -1182,12 +1180,14 @@ public:
   syntax(object* expr, scope_set envs)
     : expression_{expr}
     , scopes_{std::move(envs)}
+    , id_{counter++}
   { }
 
   syntax(object* expr, source_location loc, scope_set scopes)
     : expression_{expr}
     , location_{std::move(loc)}
     , scopes_{std::move(scopes)}
+    , id_{counter++}
   { }
 
   object*
@@ -1196,11 +1196,17 @@ public:
   source_location const&
   location() const { return location_; }
 
-  scope_set&
-  scopes() { return scopes_; }
-
   scope_set const&
   scopes() const { return scopes_; }
+
+  void
+  add_scope(free_store&, scope*);
+
+  void
+  remove_scope(scope*);
+
+  void
+  flip_scope(free_store&, scope*);
 
   void
   trace(tracing_context& tc) const;
@@ -1215,6 +1221,9 @@ private:
   object*         expression_;
   source_location location_;
   scope_set       scopes_;
+
+  static unsigned counter;
+  unsigned id_;
 };
 
 template <typename T>

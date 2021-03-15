@@ -157,17 +157,17 @@ forwarding_address(object*);
 template <typename T>
 void
 update_reference(T*& ref) {
-  if (ref && is_object_ptr(ref) && !is_alive(ref))
+  if (ref && is_object_ptr(ref) && !is_alive(ref)) {
     ref = static_cast<T*>(forwarding_address(ref));
+    assert(is_alive(ref));
+  }
 }
 
 template <typename T>
 T*
 update_reference_copy(T* ref) {
-  if (ref && is_object_ptr(ref) && !is_alive(ref))
-    return static_cast<T*>(forwarding_address(ref));
-  else
-    return ref;
+  update_reference(ref);
+  return ref;
 }
 
 namespace detail {
@@ -716,9 +716,7 @@ public:
   notify_arc(object* from, object* to) {
     assert(!object_type(from).permanent_root);
 
-    if (is_object_ptr(to)
-        && object_generation(from) == generation::mature
-        && object_generation(to) < generation::mature)
+    if (is_object_ptr(to) && object_generation(from) > object_generation(to))
       generations_[object_generation(to)].incoming_arcs.emplace(from);
   }
 

@@ -107,10 +107,13 @@ identifier_name(syntax* x) {
   return syntax_expect<symbol>(x)->value();
 }
 
-void
+bool
 add_scope(scope_set& set, scope* env) {
-  if (std::find(set.begin(), set.end(), env) == set.end())
+  if (std::find(set.begin(), set.end(), env) == set.end()) {
     set.push_back(env);
+    return true;
+  } else
+    return false;
 }
 
 void
@@ -118,13 +121,16 @@ remove_scope(scope_set& set, scope* env) {
   set.erase(std::remove(set.begin(), set.end(), env), set.end());
 }
 
-void
+bool
 flip_scope(scope_set& set, scope* env) {
   auto it = std::find(set.begin(), set.end(), env);
-  if (it == set.end())
+  if (it == set.end()) {
     set.push_back(env);
-  else
+    return true;
+  } else {
     set.erase(it);
+    return false;
+  }
 }
 
 bool
@@ -138,14 +144,6 @@ scope_sets_subseteq(scope_set const& lhs, scope_set const& rhs) {
 bool
 scope_sets_equal(scope_set const& lhs, scope_set const& rhs) {
   return scope_sets_subseteq(lhs, rhs) && scope_sets_subseteq(rhs, lhs);
-}
-
-scope_set&
-identifier_scopes(context& ctx, syntax* id) {
-  if (!is_identifier(id))
-    throw error{fmt::format("Expected identifier, got {}", datum_to_string(ctx, syntax_to_datum(ctx, id)))};
-
-  return id->scopes();
 }
 
 void
@@ -162,6 +160,8 @@ scope::add(free_store& store, syntax* identifier, std::shared_ptr<variable> var)
 void
 scope::add(free_store& store, syntax* identifier, transformer* tr) {
   assert(is_identifier(identifier));
+  assert(tr != nullptr);
+
   if (is_redefinition(identifier, tr))
     throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
 
@@ -1230,12 +1230,33 @@ input_stream::current_location() const {
   return source_location{port_->name(), line_, column_};
 }
 
+unsigned syntax::counter = 0;
+
 void
 syntax::trace(tracing_context& tc) const {
   tc.trace(expression_);
 
   for (scope* env : scopes_)
     tc.trace(env);
+}
+
+void
+syntax::add_scope(free_store& fs, scope* s) {
+  bool added = insider::add_scope(scopes_, s);
+  if (added)
+    fs.notify_arc(this, s);
+}
+
+void
+syntax::remove_scope(scope* s) {
+  insider::remove_scope(scopes_, s);
+}
+
+void
+syntax::flip_scope(free_store& fs, scope* s) {
+  bool added = insider::flip_scope(scopes_, s);
+  if (added)
+    fs.notify_arc(this, s);
 }
 
 void
