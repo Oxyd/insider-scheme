@@ -4,8 +4,7 @@
          (define %define)
          (let %let)))
 
-(export sc-macro-transformer rsc-macro-transformer capture-syntactic-environment close-syntax
-        define let let* set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
+(export define let let* set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
         quote quasiquote unquote unquote-splicing expand-quote syntax-trap syntax-error error
         + - * / = < > >= <= gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         set-verbose-collection!
@@ -15,8 +14,8 @@
         assq assv assoc memq memv member length any
         make-string string-length string-append number->string datum->string symbol->string
         list reverse map filter identity
-        make-syntactic-closure syntactic-closure-expression syntactic-closure-environment define-auxiliary-syntax
-        type eq? eqv? equal? pair? symbol? syntactic-closure? identifier? null? not when unless cond else => case
+        syntax-expression define-auxiliary-syntax
+        type eq? eqv? equal? pair? symbol? identifier? null? not when unless cond else => case
         do or and
         plain-procedure? native-procedure? closure? procedure? scheme-procedure?)
 
@@ -29,25 +28,15 @@
    (lambda (x)
      (eq? (type x) 'insider::symbol)))
 
- (%define syntactic-closure?
+ (%define syntax?
    (lambda (x)
-     (eq? (type x) 'insider::syntactic_closure)))
+     (eq? (type x) 'insider::syntax)))
 
  (%define identifier?
    (lambda (x)
-     (if (symbol? x)
-         #t
-         (if (syntactic-closure? x)
-             (symbol? (syntactic-closure-expression x))
-             #f))))
-
- (%define close-syntax
-   (lambda (form env)
-     (make-syntactic-closure env '() form)))
-
- (%define close-list
-   (lambda (lst env)
-     (map (lambda (x) (close-syntax x env)) lst)))
+     (if (syntax? x)
+         (symbol? (syntax-expression x))
+         #f)))
 
  (%define null?
    (lambda (x)
@@ -73,212 +62,179 @@
          (if (null? lst)
              accum
              (loop (cdr lst) (cons (car lst) accum)))))
-     (loop lst '()))))
+     (loop lst '())))
 
-(define-syntax sc-macro-transformer
-  (lambda (form transformer-env usage-env)
-    (%let ((transformer (make-syntactic-closure usage-env '() (cadr form))))
-      (make-syntactic-closure transformer-env '()
-                              `(lambda (form* transformer-env* usage-env*)
-                                 (make-syntactic-closure transformer-env* '()
-                                                         (,transformer form* usage-env*)))))))
+ (%define syntax-car
+   (lambda (x)
+     (if (syntax? x)
+         (car (syntax-expression x))
+         (car x))))
 
-(define-syntax rsc-macro-transformer
-  (lambda (form transformer-env usage-env)
-    (%let ((transformer (make-syntactic-closure usage-env '() (cadr form))))
-      (make-syntactic-closure transformer-env '()
-                              `(lambda (form* transformer-env* usage-env*)
-                                 (,transformer form* transformer-env*))))))
+ (%define syntax-cdr
+   (lambda (x)
+     (if (syntax? x)
+         (cdr (syntax-expression x))
+         (cdr x))))
 
-(define-syntax capture-syntactic-environment
-  (lambda (form transformer-env usage-env)
-    (%let ((f (cadr form)))
-      `(,f ,usage-env))))
+ (%define syntax-cadr
+   (lambda (x)
+     (syntax-car (syntax-cdr x)))))
 
 (define-syntax define
-  (rsc-macro-transformer
-   (lambda (form env)
-     (%let ((name-form (cadr form))
-            (body-forms (cddr form))
-            ($define (close-syntax 'define env))
-            ($%define (close-syntax '%define env))
-            ($lambda (close-syntax 'lambda env)))
-       (if (pair? name-form)
-           (%let ((name (car name-form))
-                  (params (cdr name-form)))
-             `(,$define ,name
-                (,$lambda ,params
-                  ,@body-forms)))
-           `(,$%define ,name-form ,@body-forms))))))
+  (lambda (stx)
+    (%let ((form (syntax->list stx)))
+      (%let ((name-form (cadr form))
+             (body-forms (cddr form)))
+        (if (pair? (syntax-expression name-form))
+            (%let ((name (car (syntax-expression name-form)))
+                   (params (cdr (syntax-expression name-form))))
+              #`(define #,name
+                  (lambda #,params
+                    #,@body-forms)))
+            #`(%define #,name-form #,@body-forms))))))
 
 (define-syntax let
-  (rsc-macro-transformer
-   (lambda (form env)
-     (%let ((variable-or-bindings (cadr form))
-            ($let (close-syntax '%let env))
-            ($set! (close-syntax 'set! env))
-            ($lambda (close-syntax 'lambda env)))
-       (if (identifier? variable-or-bindings)
-           (%let ((bindings (caddr form))
-                  (body (cdddr form)))
-             (%let ((names (map car bindings))
-                    (initial-values (map cadr bindings)))
-               `(,$let ((,variable-or-bindings #void))
-                  (,$set! ,variable-or-bindings (,$lambda ,names ,@body))
-                  (,variable-or-bindings ,@initial-values))))
-           (%let ((body (cddr form)))
-                 `(,$let ,variable-or-bindings ,@body)))))))
+  (lambda (stx)
+    (%let ((form (syntax->list stx)))
+      (%let ((variable-or-bindings (cadr form)))
+        (if (identifier? variable-or-bindings)
+            (%let ((bindings (syntax->list (caddr form)))
+                   (body (cdddr form)))
+              (%let ((names (map syntax-car bindings))
+                     (initial-values (map syntax-cadr bindings)))
+                #`(letrec* ((#,variable-or-bindings (lambda #,names #,@body)))
+                    (#,variable-or-bindings #,@initial-values))))
+            (%let ((body (cddr form)))
+              #`(%let #,variable-or-bindings #,@body)))))))
 
 (define-syntax let*
-  (rsc-macro-transformer
-   (lambda (form env)
-     (let ((bindings (cadr form))
-           (body (cddr form))
-           ($let (close-syntax 'let env))
-           ($let* (close-syntax 'let* env)))
-       (if (null? bindings)
-           `(,$let () ,@body)
-           `(,$let (,(car bindings))
-              (,$let* ,(cdr bindings)
-                ,@body)))))))
+  (lambda (stx)
+    (let ((form (syntax->list stx)))
+      (let ((bindings (syntax->list (cadr form)))
+            (body (cddr form)))
+        (if (null? bindings)
+            #`(let () #,@body)
+            #`(let (#,(car bindings))
+                (let* #,(cdr bindings)
+                  #,@body)))))))
 
 (define-syntax when
-  (sc-macro-transformer
-   (lambda (form env)
-     (let ((test (close-syntax (cadr form) env))
-           (body (close-list (cddr form) env)))
-       `(if ,test
-            (begin ,@body)
-            #void)))))
+  (lambda (stx)
+    (let ((form (syntax->list stx)))
+      (let ((test (cadr form))
+            (body (cddr form)))
+        #`(if #,test
+              (begin #,@body)
+              #void)))))
 
 (define-syntax unless
-  (sc-macro-transformer
-   (lambda (form env)
-     (let ((test (close-syntax (cadr form) env))
-           (body (close-list (cddr form) env)))
-       `(if ,test
-            #void
-            (begin ,@body))))))
+  (lambda (stx)
+    (let ((form (syntax->list stx)))
+      (let ((test (cadr form))
+            (body (cddr form)))
+        #`(if #,test
+              #void
+              (begin #,@body))))))
 
 (define-syntax or
-  (sc-macro-transformer
-   (lambda (form env)
-     (let ((first (cadr form))
-           (rest (cddr form)))
-       (if (null? rest)
-           (close-syntax first env)
-           `(let ((e ,(close-syntax first env)))
-              (if e e ,(close-syntax `(or ,@rest) env))))))))
+  (lambda (stx)
+    (let ((form (syntax->list stx)))
+      (let ((first (cadr form))
+            (rest (cddr form)))
+        (if (null? rest)
+            first
+            #`(let ((e #,first))
+                (if e e (or #,@rest))))))))
 
 (define-syntax and
-  (sc-macro-transformer
-   (lambda (form env)
-     (let ((first (cadr form))
-           (rest (cddr form)))
-       (if (null? rest)
-           (close-syntax first env)
-           `(if ,(close-syntax first env)
-                ,(close-syntax `(and ,@rest) env)
-                #f))))))
+  (lambda (stx)
+    (let ((form (syntax->list stx)))
+      (let ((first (cadr form))
+            (rest (cddr form)))
+        (if (null? rest)
+            first
+            #`(if #,first (and #,@rest) #f))))))
 
 (define-syntax define-auxiliary-syntax
-  (sc-macro-transformer
-   (lambda (form env)
-     (let ((name (cadr form) env))
-       `(define-syntax ,name
-          (sc-macro-transformer
-           (lambda (form env)
-             `(syntax-error "Invalid use of auxiliary syntax" ,form))))))))
+  (lambda (stx)
+    (let ((name (cadr (syntax->list stx))))
+      #`(define-syntax #,name
+          (lambda (stx)
+            #`(syntax-error "Invalid use of auxiliary syntax" #,stx))))))
 
 (define-auxiliary-syntax else)
 (define-auxiliary-syntax =>)
 
 (define-syntax cond
-  (rsc-macro-transformer
-   (lambda (form env)
-     (if (null? (cdr form))
-         #void
-         (let ((first-clause (cadr form))
-               (rest (cddr form)))
-           (let ((check (car first-clause))
-                 (body (cdr first-clause) env)
-                 ($if (close-syntax 'if env))
-                 ($let (close-syntax 'let env))
-                 ($begin (close-syntax 'begin env))
-                 ($cond (close-syntax 'cond env))
-                 ($else (close-syntax 'else env))
-                 ($=> (close-syntax '=> env))
-                 ($syntax-error (close-syntax 'syntax-error env)))
-             (if (and (identifier? check) (free-identifier=? check $else))
-                 (if (null? rest) ; else has to come last
-                     `(,$begin ,@body)
-                     `(,$syntax-error "else not the last clause of a cond"))
-                 (if (and (pair? body) (identifier? (car body)) (free-identifier=? (car body) $=>))
-                     (let ((test-var (close-syntax 'test-var env))
-                           (continuation (cadr body)))
-                       `(,$let ((,test-var ,check))
-                          (,$if ,test-var
-                                (,continuation ,test-var)
-                                (,$cond ,@rest))))
-                     `(,$if ,check
-                            (,$begin ,@body)
-                            (,$cond ,@rest))))))))))
+  (lambda (stx)
+    (let ((form (syntax->list stx)))
+      (if (null? (cdr form))
+          #'#void
+          (let ((first-clause (syntax->list (cadr form)))
+                (rest (cddr form)))
+            (let ((check (car first-clause))
+                  (body (cdr first-clause)))
+              (if (and (identifier? check) (free-identifier=? check #'else))
+                  (if (null? rest)
+                      #`(begin #,@body)
+                      #'(syntax-error "else not the last clause of cond"))
+                  (if (and (pair? body) (identifier? (car body)) (free-identifier=? (car body) #'=>))
+                      (let ((continuation (cadr body)))
+                        #`(let ((test #,check))
+                            (if test
+                                (#,continuation test)
+                                (cond #,@rest))))
+                      #`(if #,check
+                            (begin #,@body)
+                            (cond #,@rest))))))))))
 
 (define-syntax case
-  (sc-macro-transformer
-   (lambda (form env)
-     (capture-syntactic-environment
-      (lambda (transformer-env)
-        (let ((test-expr (close-syntax (cadr form) env))
-              (clauses (cddr form)))
-          `(let ((test-value ,test-expr))
-             (cond
-              ,@(let loop ((clauses clauses)
-                           (accum '()))
+  (lambda (stx)
+    (let ((form (syntax->list stx)))
+      (let ((test-expr (cadr form))
+            (clauses (cddr form)))
+        #`(let ((test-value #,test-expr))
+            (cond
+             #,@(let loop ((clauses clauses) (accum '()))
                   (if (null? clauses)
                       (reverse accum)
-                      (let ((clause (car clauses))
+                      (let ((clause (syntax->list (car clauses)))
                             (rest (cdr clauses)))
                         (let ((cases (car clause))
                               (exprs (cdr clause)))
                           (let ((test-expr (if (and (identifier? cases)
-                                                    (free-identifier=? cases (close-syntax 'else transformer-env)))
-                                               'else
-                                               `(or ,@(map (lambda (c) `(eqv? test-value ',c)) cases))))
+                                                    (free-identifier=? cases #'else))
+                                               #'else
+                                               #`(or #,@(map (lambda (c) #`(eqv? test-value '#,c)) (syntax->list cases)))))
                                 (then-exprs (if (and (pair? exprs)
                                                      (identifier? (car exprs))
-                                                     (free-identifier=? (car exprs) (close-syntax '=> transformer-env)))
-                                                `((,(close-syntax (cadr exprs) env) test-value))
-                                                (close-list exprs env))))
+                                                     (free-identifier=? (car exprs) #'=>))
+                                                #`((#,(cadr exprs) test-value))
+                                                exprs)))
                             (loop rest
-                                  (cons `(,test-expr ,@then-exprs) accum)))))))))))))))
+                                  (cons #`(#,test-expr #,@then-exprs) accum)))))))))))))
 
 (define-syntax do
-  (rsc-macro-transformer
-   (lambda (form env)
-     (let ((bindings (cadr form))
-           (test (car (caddr form)))
-           (result-exprs (cdr (caddr form)))
-           (body (cdddr form))
-           ($let (close-syntax 'let env))
-           ($if (close-syntax 'if env))
-           ($begin (close-syntax 'begin env))
-           ($set! (close-syntax 'set env))
-           ($lambda (close-syntax 'lambda env))
-           (loop (close-syntax 'loop env)))
-       (let ((bound-names (map car bindings)))
-         `(,$let ,loop ,(map (lambda (binding)
-                              `(,(car binding) ,(cadr binding)))
+  (lambda (stx)
+    (let ((form (syntax->list stx)))
+      (let ((bindings (syntax->list (cadr form)))
+            (test (syntax-car (caddr form)))
+            (result-exprs (syntax-cdr (caddr form)))
+            (body (cdddr form)))
+        (let ((bound-names (map syntax-car bindings)))
+          #`(let loop #,(map (lambda (binding)
+                               #`(#,(syntax-car binding) #,(syntax-cadr binding)))
                              bindings)
-            (,$if ,test
-                  (,$begin ,@result-exprs)
-                  (,$begin
-                   ,@body
-                   (,loop ,@(map (lambda (binding)
-                                   (if (null? (cddr binding))
-                                       (car binding)
-                                       (caddr binding)))
-                                 bindings))))))))))
+              (if #,test
+                  (begin #,@result-exprs)
+                  (begin
+                    #,@body
+                    (loop #,@(map (lambda (binding)
+                                    (let ((binding* (syntax->list binding)))
+                                      (if (null? (cddr binding*))
+                                          (car binding*)
+                                          (caddr binding*))))
+                                  bindings))))))))))
 
 (define (filter pred list)
   (reverse
