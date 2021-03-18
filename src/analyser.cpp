@@ -1216,7 +1216,7 @@ parse(parsing_context& pc, syntax* s) {
     return parse_application(pc, stx);
   }
   else
-    return make_expression<literal_expression>(track(pc.ctx, stx->expression()));
+    return make_expression<literal_expression>(track(pc.ctx, syntax_to_datum(pc.ctx, stx)));
 }
 
 template <auto F, typename... Args>
