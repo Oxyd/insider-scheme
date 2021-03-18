@@ -716,7 +716,7 @@ public:
   notify_arc(object* from, object* to) {
     assert(!object_type(from).permanent_root);
 
-    if (is_object_ptr(to) && object_generation(from) > object_generation(to))
+    if (to && is_object_ptr(to) && object_generation(from) > object_generation(to))
       generations_[object_generation(to)].incoming_arcs.emplace(from);
   }
 
