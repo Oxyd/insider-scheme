@@ -177,7 +177,13 @@ make_internal_module(context& ctx) {
   define_procedure(ctx, "syntax-expression", result, true, &syntax::expression);
 
   define_procedure(ctx, "syntax->datum", result, true, syntax_to_datum);
-  define_procedure(ctx, "syntax->list", result, true, syntax_to_list);
+  define_procedure(ctx, "syntax->list", result, true,
+                   [] (context& ctx, object* stx) -> object* {
+                     if (object* r = syntax_to_list(ctx, stx))
+                       return r;
+                     else
+                       return ctx.constants->f.get();
+                   });
 
   define_procedure(ctx, "datum->syntax", result, true,
                    [] (context& ctx, syntax* s, object* datum) {

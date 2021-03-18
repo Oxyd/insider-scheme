@@ -1309,7 +1309,7 @@ datum_to_syntax(context& ctx, syntax* s, object* datum) {
 
 object*
 syntax_to_list(context& ctx, object* stx) {
-  if (stx == ctx.constants->null.get())
+  if (semisyntax_is<null_type>(stx))
     return ctx.constants->null.get();
 
   if (!is<pair>(stx) && (!is<syntax>(stx) || !syntax_is<pair>(assume<syntax>(stx))))
