@@ -4,17 +4,20 @@
          (define %define)
          (let %let)))
 
-(export define let let* set! lambda if box unbox box-set! define-syntax begin begin-for-syntax
+(export define let let* let-syntax letrec-syntax set! lambda if box unbox box-set!
+        define-syntax begin begin-for-syntax
         quote quasiquote unquote unquote-splicing expand-quote syntax-trap syntax-error error
         + - * / = < > >= <= gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         set-verbose-collection!
         write-simple display newline append list->vector vector->list vector-append
         vector vector? make-vector vector-length vector-ref vector-set!
-        cons car caar caadr cdr cadr cdar caddr cadddr cddr cdddr set-car! set-cdr!
+        cons car caar caadr cdr cadr cdar caddr cadddr cddr cdddr cddddr set-car! set-cdr!
         assq assv assoc memq memv member length any
         make-string string-length string-append number->string datum->string symbol->string
         list reverse map filter identity
-        syntax-expression define-auxiliary-syntax
+        syntax quasisyntax unsyntax unsyntax-splicing syntax?
+        syntax-expression define-auxiliary-syntax syntax-null? syntax-car syntax-cdr syntax-cadr syntax-cddr
+        syntax->list syntax->datum datum->syntax free-identifier=? bound-identifier=? unwrap-syntax
         type eq? eqv? equal? pair? symbol? identifier? null? not when unless cond else => case
         do or and
         plain-procedure? native-procedure? closure? procedure? scheme-procedure?)
@@ -78,7 +81,11 @@
 
  (%define syntax-cadr
    (lambda (x)
-     (syntax-car (syntax-cdr x)))))
+     (syntax-car (syntax-cdr x))))
+
+ (%define syntax-cddr
+   (lambda (x)
+     (syntax-cdr (syntax-cdr x)))))
 
 (define-syntax define
   (lambda (stx)
@@ -262,6 +269,9 @@
 (define (cdar x)
   (cdr (car x)))
 
+(define (cddddr x)
+  (cdr (cdddr x)))
+
 (define (assoc x alist . rest)
   (let ((pred (if (null? rest) equal? (car rest))))
     (let loop ((lst alist))
@@ -321,3 +331,13 @@
 
 (define (vector? x)
   (eq? (type x) 'insider::vector))
+
+(define (unwrap-syntax x)
+  (if (syntax? x)
+      (syntax-expression x)
+      x))
+
+(define (syntax-null? x)
+  (or (null? x)
+      (and (syntax? x)
+           (null? (syntax-expression x)))))
