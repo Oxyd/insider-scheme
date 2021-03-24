@@ -210,7 +210,7 @@ large_space::move(std::size_t i, large_space& to) {
   assert(allocations_[i]);
 
   object* o = reinterpret_cast<object*>(allocations_[i].get() + sizeof(word_type));
-  std::size_t size = object_size(o);
+  std::size_t size = object_size(o) + sizeof(word_type);
 
   to.allocations_.emplace_back(std::move(allocations_[i]));
   to.bytes_used_ += size;
@@ -227,7 +227,7 @@ large_space::deallocate(std::size_t i) {
   object* o = reinterpret_cast<object*>(storage + sizeof(word_type));
   assert(is_alive(o));
 
-  bytes_used_ -= object_size(o);
+  bytes_used_ -= object_size(o) + sizeof(word_type);
   object_type(o).destroy(o);
 
   allocations_[i].reset();
