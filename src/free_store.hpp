@@ -19,10 +19,11 @@ class integer;
 struct object;
 
 using word_type = std::uint64_t;
+enum class generation : word_type;
 
 class tracing_context {
 public:
-  tracing_context(std::vector<object*>& stack, word_type max_generation)
+  tracing_context(std::vector<object*>& stack, generation max_generation)
     : stack_{stack}
     , max_generation_{max_generation}
   { }
@@ -32,7 +33,7 @@ public:
 
 private:
   std::vector<object*>& stack_;
-  word_type             max_generation_;
+  generation            max_generation_;
 };
 
 struct type_descriptor {
@@ -148,7 +149,7 @@ is_valid(object* o) {
   return !is_object_ptr(o) || is_alive(o);
 }
 
-word_type
+generation
 object_generation(object*);
 
 object*
@@ -653,26 +654,62 @@ private:
   std::size_t bytes_used_ = 0;
 };
 
-struct generation {
-  static constexpr word_type nursery_1 = 0;
-  static constexpr word_type nursery_2 = 1;
-  static constexpr word_type mature    = 2;
+enum class generation : word_type {
+  nursery_1 = 0,
+  nursery_2 = 1,
+  mature    = 2
+};
 
-  static constexpr std::size_t num_generations = 3;
+inline bool
+operator < (generation lhs, generation rhs) {
+  return static_cast<word_type>(lhs) < static_cast<word_type>(rhs);
+}
 
-  word_type   generation_number;
+inline bool
+operator == (generation lhs, generation rhs) {
+  return static_cast<word_type>(lhs) == static_cast<word_type>(rhs);
+}
+
+inline bool
+operator <= (generation lhs, generation rhs) {
+  return lhs < rhs || lhs == rhs;
+}
+
+inline bool
+operator > (generation lhs, generation rhs) {
+  return !(lhs <= rhs);
+}
+
+inline bool
+operator >= (generation lhs, generation rhs) {
+  return lhs > rhs || lhs == rhs;
+}
+
+static constexpr std::size_t num_generations = 3;
+
+struct nursery_generation {
+  generation  generation_number;
   dense_space small;
   large_space large;
   std::unordered_set<object*> incoming_arcs;
 
-  explicit
-  generation(page_allocator& allocator, word_type generation_number)
+  nursery_generation(page_allocator& allocator, generation generation_number)
     : generation_number{generation_number}
     , small{allocator}
   { }
 };
 
-using generation_list = std::array<generation, generation::num_generations>;
+struct mature_generation {
+  static constexpr generation generation_number = generation::mature;
+
+  dense_space small;
+  large_space large;
+
+  explicit
+  mature_generation(page_allocator& allocator)
+    : small{allocator}
+  { }
+};
 
 // Garbage-collected storage for Scheme objects.
 class free_store {
@@ -716,8 +753,21 @@ public:
   notify_arc(object* from, object* to) {
     assert(!object_type(from).permanent_root);
 
-    if (to && is_object_ptr(to) && object_generation(from) > object_generation(to))
-      generations_[object_generation(to)].incoming_arcs.emplace(from);
+    if (to && is_object_ptr(to) && object_generation(from) > object_generation(to)) {
+      switch (object_generation(to)) {
+      case generation::nursery_1:
+        nursery_1_.incoming_arcs.emplace(from);
+        break;
+
+      case generation::nursery_2:
+        nursery_2_.incoming_arcs.emplace(from);
+        break;
+
+      default:
+        assert(!"Incoming arc to mature generation");
+        break;
+      }
+    }
   }
 
   generic_tracked_ptr*
@@ -748,24 +798,24 @@ public:
 
 private:
   page_allocator allocator_;
-  generation_list generations_{generation{allocator_, generation::nursery_1},
-                               generation{allocator_, generation::nursery_2},
-                               generation{allocator_, generation::mature}};
+  nursery_generation nursery_1_{allocator_, generation::nursery_1};
+  nursery_generation nursery_2_{allocator_, generation::nursery_2};
+  mature_generation  mature_{allocator_};
 
   std::size_t target_nursery_pages_ = 0;
   std::size_t target_nursery_bytes_ = 0;
   std::size_t collection_number_ = 0;
 
   // Two doubly-linked lists with head.
-  generic_tracked_ptr*      roots_ = &root_head_;
-  generic_tracked_ptr       root_head_;
-  generic_weak_ptr* weak_roots_ = &weak_head_;
-  generic_weak_ptr  weak_head_;
+  generic_tracked_ptr* roots_      = &root_head_;
+  generic_tracked_ptr  root_head_;
+  generic_weak_ptr*    weak_roots_ = &weak_head_;
+  generic_weak_ptr     weak_head_;
 
   std::vector<object*> permanent_roots_;
 
   unsigned disable_level_ = 0;
-  std::optional<word_type> requested_collection_level_;
+  std::optional<generation> requested_collection_level_;
 
   // Allocate storage of the given payload size for an object of the given
   // type. size does not include the size of the header. The object is not
@@ -780,7 +830,7 @@ private:
   update_permanent_roots();
 
   void
-  reset_colors(word_type max_generation);
+  reset_colors(generation max_generation);
 
   void
   check_nursery_size();
