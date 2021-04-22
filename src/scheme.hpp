@@ -1172,7 +1172,6 @@ public:
   syntax(object* expr, source_location loc)
     : expression_{expr}
     , location_{std::move(loc)}
-    , id_{counter++}
   {
     assert(expr);
   }
@@ -1180,14 +1179,12 @@ public:
   syntax(object* expr, scope_set envs)
     : expression_{expr}
     , scopes_{std::move(envs)}
-    , id_{counter++}
   { }
 
   syntax(object* expr, source_location loc, scope_set scopes)
     : expression_{expr}
     , location_{std::move(loc)}
     , scopes_{std::move(scopes)}
-    , id_{counter++}
   { }
 
   object*
@@ -1221,9 +1218,6 @@ private:
   object*         expression_;
   source_location location_;
   scope_set       scopes_;
-
-  static unsigned counter;
-  unsigned id_;
 };
 
 template <typename T>

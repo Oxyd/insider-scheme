@@ -1230,8 +1230,6 @@ input_stream::current_location() const {
   return source_location{port_->name(), line_, column_};
 }
 
-unsigned syntax::counter = 0;
-
 void
 syntax::trace(tracing_context& tc) const {
   tc.trace(expression_);
