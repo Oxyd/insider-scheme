@@ -28,28 +28,28 @@ namespace {
 
     root_stack();
 
-    object*
+    ptr<>
     ref(std::size_t i) { assert(i < size_); assert(data_[i]); return data_[i]; }
 
     object_span
     span(std::size_t begin, std::size_t size) { return {data_.get() + begin, size}; }
 
     void
-    set(std::size_t i, object* value) {
+    set(std::size_t i, ptr<> value) {
       assert(i < size_);
       assert(is_valid(value));
       data_[i] = value;
     }
 
     void
-    push(object* value) {
+    push(ptr<> value) {
       assert(is_valid(value));
       assert(size_ + 1 <= alloc_);
 
       data_[size_++] = value;
     }
 
-    object*
+    ptr<>
     pop() {
       return data_[--size_];
     }
@@ -79,14 +79,14 @@ namespace {
     hash() const { return 0; }
 
   private:
-    std::unique_ptr<object*[]> data_;
+    std::unique_ptr<ptr<>[]> data_;
     std::size_t size_ = 0;
     std::size_t alloc_;
   };
 } // anonymous namespace
 
 root_stack::root_stack()
-  : data_{std::make_unique<object*[]>(root_stack_initial_size)}
+  : data_{std::make_unique<ptr<>[]>(root_stack_initial_size)}
   , alloc_{root_stack_initial_size}
 {
   std::fill(&data_[0], &data_[alloc_], nullptr);
@@ -98,7 +98,7 @@ root_stack::change_allocation(std::size_t new_alloc) {
     alloc_ = new_alloc;
 
     auto old_data = std::move(data_);
-    data_ = std::make_unique<object*[]>(alloc_);
+    data_ = std::make_unique<ptr<>[]>(alloc_);
     std::copy(&old_data[0], &old_data[0] + size_, &data_[0]);
   }
 }
@@ -152,9 +152,9 @@ execution_state::execution_state(context& ctx)
   , value_stack{make_tracked<root_stack>(ctx)}
 { }
 
-static std::vector<object*>
-collect_closure(closure* cls) {
-  std::vector<object*> result;
+static std::vector<ptr<>>
+collect_closure(ptr<closure> cls) {
+  std::vector<ptr<>> result;
   result.reserve(cls->size());
   for (std::size_t i = 0; i < cls->size(); ++i)
     result.push_back(cls->ref(i));
@@ -189,8 +189,8 @@ get_destination_register(execution_state& state) {
 }
 
 static execution_state
-make_state(context& ctx, procedure* global,
-           std::vector<object*> const& closure, std::vector<object*> const& arguments) {
+make_state(context& ctx, ptr<procedure> global,
+           std::vector<ptr<>> const& closure, std::vector<ptr<>> const& arguments) {
   execution_state result{ctx};
 
   result.value_stack->change_allocation(global->locals_size + frame_preamble_size);
@@ -237,7 +237,7 @@ namespace {
           result += '\n';
 
         integer::value_type previous_frame = ptr_to_integer(state_.value_stack->ref(frame - 2)).value();
-        object* proc = state_.value_stack->ref(frame - 1);
+        ptr<> proc = state_.value_stack->ref(frame - 1);
 
         if (auto scheme_proc = match<procedure>(proc)) {
           auto name = scheme_proc->name;
@@ -319,28 +319,28 @@ run(execution_state& state) {
     case opcode::subtract:
     case opcode::multiply:
     case opcode::divide: {
-      object* lhs = values.ref(frame_base + read_operand(bc, pc));
-      object* rhs = values.ref(frame_base + read_operand(bc, pc));
+      ptr<> lhs = values.ref(frame_base + read_operand(bc, pc));
+      ptr<> rhs = values.ref(frame_base + read_operand(bc, pc));
       operand dest = read_operand(bc, pc);
 
       if (is<integer>(lhs) && is<integer>(rhs) && opcode != opcode::divide) {
         switch (opcode) {
         case opcode::add:
-          if (object* result = add_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
+          if (ptr<> result = add_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
             values.set(frame_base + dest, result);
           else
             values.set(frame_base + dest, add(state.ctx, lhs, rhs));
           break;
 
         case opcode::subtract:
-          if (object* result = subtract_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
+          if (ptr<> result = subtract_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
             values.set(frame_base + dest, result);
           else
             values.set(frame_base + dest, subtract(state.ctx, lhs, rhs));
           break;
 
         case opcode::multiply:
-          if (object* result = multiply_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
+          if (ptr<> result = multiply_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
             values.set(frame_base + dest, result);
           else
             values.set(frame_base + dest, multiply(state.ctx, lhs, rhs));
@@ -379,15 +379,15 @@ run(execution_state& state) {
     case opcode::greater:
     case opcode::less_or_equal:
     case opcode::greater_or_equal: {
-      object* lhs = values.ref(frame_base + read_operand(bc, pc));
-      object* rhs = values.ref(frame_base + read_operand(bc, pc));
+      ptr<> lhs = values.ref(frame_base + read_operand(bc, pc));
+      ptr<> rhs = values.ref(frame_base + read_operand(bc, pc));
       operand dest = read_operand(bc, pc);
 
       if (is<integer>(lhs) && is<integer>(rhs)) {
         integer::value_type x = assume<integer>(lhs).value();
         integer::value_type y = assume<integer>(rhs).value();
-        object* t = state.ctx.constants->t.get();
-        object* f = state.ctx.constants->f.get();
+        ptr<> t = state.ctx.constants->t.get();
+        ptr<> f = state.ctx.constants->f.get();
 
         switch (opcode) {
         case opcode::arith_equal:
@@ -456,7 +456,7 @@ run(execution_state& state) {
         || opcode == opcode::tail_call_top_level
         || opcode == opcode::tail_call_static;
 
-      object* callee;
+      ptr<> callee;
       switch (opcode) {
       case opcode::call:
       case opcode::tail_call:
@@ -487,8 +487,8 @@ run(execution_state& state) {
         num_args = read_operand(bc, pc);
       }
 
-      object* call_target = callee;
-      insider::closure* closure = nullptr;
+      ptr<> call_target = callee;
+      ptr<insider::closure> closure = nullptr;
 
       if (auto cls = match<insider::closure>(call_target)) {
         call_target = cls->procedure();
@@ -533,8 +533,8 @@ run(execution_state& state) {
           values.push(state.ctx.constants->null.get());
 
           for (std::size_t i = 0; i < num_rest; ++i) {
-            object* tail = values.pop();
-            object* head = values.pop();
+            ptr<> tail = values.pop();
+            ptr<> head = values.pop();
             values.push(cons(state.ctx, head, tail));
           }
         }
@@ -565,7 +565,7 @@ run(execution_state& state) {
         for (std::size_t i = 0; i < num_args; ++i)
           values.push(values.ref(old_base + read_operand(bc, pc)));
 
-        object* result = native_proc->target(state.ctx, values.span(frame_base, num_args));
+        ptr<> result = native_proc->target(state.ctx, values.span(frame_base, num_args));
 
         values.shrink(num_args + frame_preamble_size);
         frame_base = old_base;
@@ -594,7 +594,7 @@ run(execution_state& state) {
 
     case opcode::ret: {
       operand return_reg = read_operand(bc, pc);
-      object* result = values.ref(frame_base + return_reg);
+      ptr<> result = values.ref(frame_base + return_reg);
 
       pop_call_frame(state);
 
@@ -626,7 +626,7 @@ run(execution_state& state) {
 
       int offset = (opcode == opcode::jump_back || opcode == opcode::jump_back_unless) ? -off : off;
       if (opcode == opcode::jump_unless || opcode == opcode::jump_back_unless) {
-        object* test_value = values.ref(frame_base + condition_reg);
+        ptr<> test_value = values.ref(frame_base + condition_reg);
 
         // The only false value in Scheme is #f. So we only jump if the test_value
         // is exactly #f.
@@ -640,7 +640,7 @@ run(execution_state& state) {
     }
 
     case opcode::make_closure: {
-      procedure* proc = assume<procedure>(values.ref(frame_base + read_operand(bc, pc)));
+      ptr<procedure> proc = assume<procedure>(values.ref(frame_base + read_operand(bc, pc)));
       operand dest = read_operand(bc, pc);
       operand num_captures = read_operand(bc, pc);
 
@@ -653,7 +653,7 @@ run(execution_state& state) {
     }
 
     case opcode::box: {
-      object* value = values.ref(frame_base + read_operand(bc, pc));
+      ptr<> value = values.ref(frame_base + read_operand(bc, pc));
       values.set(frame_base + read_operand(bc, pc), state.ctx.store.make<box>(value));
       break;
     }
@@ -671,8 +671,8 @@ run(execution_state& state) {
     }
 
     case opcode::cons: {
-      object* car = values.ref(frame_base + read_operand(bc, pc));
-      object* cdr = values.ref(frame_base + read_operand(bc, pc));
+      ptr<> car = values.ref(frame_base + read_operand(bc, pc));
+      ptr<> cdr = values.ref(frame_base + read_operand(bc, pc));
       values.set(frame_base + read_operand(bc, pc), make<pair>(state.ctx, car, cdr));
       break;
     }
@@ -690,9 +690,9 @@ run(execution_state& state) {
     }
 
     case opcode::vector_set: {
-      vector* v = expect<vector>(values.ref(frame_base + read_operand(bc, pc)));
+      ptr<vector> v = expect<vector>(values.ref(frame_base + read_operand(bc, pc)));
       integer::value_type i = expect<integer>(values.ref(frame_base + read_operand(bc, pc))).value();
-      object* o = values.ref(frame_base + read_operand(bc, pc));
+      ptr<> o = values.ref(frame_base + read_operand(bc, pc));
 
       if (i < 0)
         throw std::runtime_error{"vector-set!: Negative index"};
@@ -702,7 +702,7 @@ run(execution_state& state) {
     }
 
     case opcode::vector_ref: {
-      vector* v = expect<vector>(values.ref(frame_base + read_operand(bc, pc)));
+      ptr<vector> v = expect<vector>(values.ref(frame_base + read_operand(bc, pc)));
       integer::value_type i = expect<integer>(values.ref(frame_base + read_operand(bc, pc))).value();
 
       if (i < 0)
@@ -719,8 +719,8 @@ run(execution_state& state) {
 }
 
 generic_tracked_ptr
-call(context& ctx, object* callable, std::vector<object*> const& arguments) {
-  std::vector<object*> closure;
+call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  std::vector<ptr<>> closure;
   if (auto cls = match<insider::closure>(callable)) {
     callable = cls->procedure();
     closure = collect_closure(cls);

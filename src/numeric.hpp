@@ -55,12 +55,12 @@ private:
 };
 
 inline integer
-ptr_to_integer(object* x) {
+ptr_to_integer(ptr<> x) {
   assert(!is_object_ptr(x));
   return integer{static_cast<integer::value_type>(tagged_payload(x)) >> 1};
 }
 
-inline object*
+inline ptr<>
 integer_to_ptr(integer i) {
   return immediate_to_ptr(static_cast<word_type>(i.value() << 1) | 1);
 }
@@ -92,7 +92,7 @@ public:
   extra_elements(integer);
 
   static std::size_t
-  extra_elements(big_integer*);
+  extra_elements(ptr<big_integer>);
 
   explicit
   big_integer(std::size_t length);
@@ -106,7 +106,7 @@ public:
   big_integer(integer);
 
   explicit
-  big_integer(big_integer*);
+  big_integer(ptr<big_integer>);
 
   big_integer(big_integer&&);
 
@@ -164,19 +164,19 @@ class fraction : public composite_object<fraction> {
 public:
   static constexpr char const* scheme_name = "insider::fraction";
 
-  fraction(object* numerator, object* denominator);
+  fraction(ptr<> numerator, ptr<> denominator);
 
-  object*
+  ptr<>
   numerator() const { return numerator_; };
 
-  object*
+  ptr<>
   denominator() const { return denominator_; }
 
   void
-  set_numerator(free_store& store, object* n) { numerator_ = n; store.notify_arc(this, n); }
+  set_numerator(free_store& store, ptr<> n) { numerator_ = n; store.notify_arc(this, n); }
 
   void
-  set_denominator(free_store& store, object* d) { denominator_ = d; store.notify_arc(this, d); }
+  set_denominator(free_store& store, ptr<> d) { denominator_ = d; store.notify_arc(this, d); }
 
   void
   trace(tracing_context& tc) const { tc.trace(numerator_); tc.trace(denominator_); }
@@ -188,8 +188,8 @@ public:
   hash() const;
 
 private:
-  object* numerator_;
-  object* denominator_;
+  ptr<> numerator_;
+  ptr<> denominator_;
 };
 
 class floating_point : public leaf_object<floating_point> {
@@ -213,23 +213,23 @@ public:
 };
 
 bool
-is_integer(object*);
+is_integer(ptr<>);
 
 bool
-is_number(object*);
+is_number(ptr<>);
 
 bool
-is_exact(object*);
+is_exact(ptr<>);
 
 bool
-is_inexact(object*);
+is_inexact(ptr<>);
 
 bool
-is_nan(object*);
+is_nan(ptr<>);
 
-object*
-add(context&, object*, object*);
-object*
+ptr<>
+add(context&, ptr<>, ptr<>);
+ptr<>
 add(context&, object_span);
 
 inline bool
@@ -237,7 +237,7 @@ overflow(integer::value_type i) {
   return i > integer::max || i < integer::min;
 }
 
-inline object*
+inline ptr<>
 add_fixnums(integer::value_type x, integer::value_type y) {
   integer::value_type result = x + y;
   if (overflow(result))
@@ -246,12 +246,12 @@ add_fixnums(integer::value_type x, integer::value_type y) {
     return integer_to_ptr(result);
 }
 
-object*
-subtract(context&, object*, object*);
-object*
+ptr<>
+subtract(context&, ptr<>, ptr<>);
+ptr<>
 subtract(context&, object_span);
 
-inline object*
+inline ptr<>
 subtract_fixnums(integer::value_type x, integer::value_type y) {
   integer::value_type result = x - y;
   if (overflow(result))
@@ -260,9 +260,9 @@ subtract_fixnums(integer::value_type x, integer::value_type y) {
     return integer_to_ptr(result);
 }
 
-object*
-multiply(context&, object*, object*);
-object*
+ptr<>
+multiply(context&, ptr<>, ptr<>);
+ptr<>
 multiply(context&, object_span);
 
 inline bool
@@ -271,7 +271,7 @@ small_mul_overflow(integer::value_type x, integer::value_type y) {
   return std::abs(x) > integer::max / std::abs(y);
 }
 
-inline object*
+inline ptr<>
 multiply_fixnums(integer::value_type lhs, integer::value_type rhs) {
   if (rhs == 0)
     return integer_to_ptr(0);
@@ -288,67 +288,67 @@ multiply_fixnums(integer::value_type lhs, integer::value_type rhs) {
   }
 }
 
-object*
-truncate_quotient(context&, object*, object*);
-object*
+ptr<>
+truncate_quotient(context&, ptr<>, ptr<>);
+ptr<>
 truncate_quotient(context&, object_span);
 
-std::tuple<object*, object*>
-quotient_remainder(context&, object*, object*);
+std::tuple<ptr<>, ptr<>>
+quotient_remainder(context&, ptr<>, ptr<>);
 
-object*
-divide(context&, object*, object*);
-object*
+ptr<>
+divide(context&, ptr<>, ptr<>);
+ptr<>
 divide(context&, object_span);
 
-object*
-arithmetic_shift(context&, object*, object*);
+ptr<>
+arithmetic_shift(context&, ptr<>, ptr<>);
 
-object*
-bitwise_and(context&, object*, object*);
+ptr<>
+bitwise_and(context&, ptr<>, ptr<>);
 
-object*
-bitwise_or(context&, object*, object*);
+ptr<>
+bitwise_or(context&, ptr<>, ptr<>);
 
-object*
-bitwise_not(context&, object*);
+ptr<>
+bitwise_not(context&, ptr<>);
 
-boolean*
-arith_equal(context&, object*, object*);
-object*
+ptr<boolean>
+arith_equal(context&, ptr<>, ptr<>);
+ptr<>
 arith_equal(context&, object_span);
 
-boolean*
-less(context&, object*, object*);
-object*
+ptr<boolean>
+less(context&, ptr<>, ptr<>);
+ptr<>
 less(context&, object_span);
 
-boolean*
-greater(context&, object*, object*);
-object*
+ptr<boolean>
+greater(context&, ptr<>, ptr<>);
+ptr<>
 greater(context&, object_span);
 
-boolean*
-less_or_equal(context&, object*, object*);
-object*
+ptr<boolean>
+less_or_equal(context&, ptr<>, ptr<>);
+ptr<>
 less_or_equal(context&, object_span);
 
-boolean*
-greater_or_equal(context&, object*, object*);
-object*
+ptr<boolean>
+greater_or_equal(context&, ptr<>, ptr<>);
+ptr<>
 greater_or_equal(context&, object_span);
 
-object*
-gcd(context&, object*, object*);
+ptr<>
+gcd(context&, ptr<>, ptr<>);
 
-object*
+ptr<>
 read_integer(context& ctx, std::string const& digits, unsigned base = 10);
 
-object*
+ptr<>
 read_number(context&, input_stream&);
 
 void
-write_number(context&, object* value, port* out);
+write_number(context&, ptr<> value, ptr<port> out);
 
 void
 export_numeric(context&, module&);

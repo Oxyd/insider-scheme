@@ -21,7 +21,7 @@ namespace insider {
 // modified by updating the scope sets of it and all the syntaxes it recursively
 // contains.
 std::unique_ptr<expression>
-analyse(context&, syntax* stx, module&);
+analyse(context&, ptr<syntax> stx, module&);
 
 // Interpret the given list of data as a main (program) module.
 protomodule
@@ -32,7 +32,7 @@ protomodule
 read_library(context&, std::vector<tracked_ptr<syntax>> const& contents);
 
 std::optional<module_name>
-read_library_name(context&, port*);
+read_library_name(context&, ptr<port>);
 
 // Analyse a protomodule's body in the given module.
 sequence_expression

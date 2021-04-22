@@ -14,12 +14,12 @@ using namespace insider;
 struct scheme : testing::Test {
   context ctx;
 
-  object*
+  ptr<>
   read(std::string const& expr) {
     return insider::read(ctx, expr);
   }
 
-  object*
+  ptr<>
   eval(std::string const& expr) {
     module m{ctx};
     import_all_exported(ctx, m, ctx.internal_module);
@@ -27,7 +27,7 @@ struct scheme : testing::Test {
     return call(ctx, f, {}).get();
   }
 
-  object*
+  ptr<>
   eval_module(std::string const& expr) {
     module m = compile_main_module(ctx, read_syntax_multiple(ctx, expr));
     return execute(ctx, m).get();
@@ -39,16 +39,16 @@ struct scheme : testing::Test {
   }
 
   bool
-  num_equal(object* lhs, object* rhs) {
+  num_equal(ptr<> lhs, ptr<> rhs) {
     return arith_equal(ctx, lhs, rhs) == ctx.constants->t.get();
   }
 
-  fraction*
+  ptr<fraction>
   make_fraction(int n, int d) {
     return make<fraction>(ctx, integer_to_ptr(integer{n}), integer_to_ptr(integer{d}));
   }
 
-  floating_point*
+  ptr<floating_point>
   make_float(double value) {
     return make<floating_point>(ctx, value);
   }
@@ -79,27 +79,27 @@ convert_limbs(limb_vector& limbs, Limb first, Limbs... rest) {
 }
 
 template <typename... Limbs>
-big_integer*
+ptr<big_integer>
 make_big(context& ctx, Limbs... limbs) {
   limb_vector ls;
   convert_limbs(ls, static_cast<std::uint64_t>(limbs)...);
   return make<big_integer>(ctx, ls, true);
 }
 
-big_integer*
+ptr<big_integer>
 make_big_literal(context& ctx, limb_vector limbs) {
   return make<big_integer>(ctx, std::move(limbs), true);
 }
 
 template <typename... Limbs>
-big_integer*
+ptr<big_integer>
 make_big_negative(context& ctx, Limbs... limbs) {
   limb_vector ls;
   convert_limbs(ls, static_cast<std::uint64_t>(limbs)...);
   return make<big_integer>(ctx, ls, false);
 }
 
-big_integer*
+ptr<big_integer>
 make_big_negative_literal(context& ctx, limb_vector limbs) {
   return make<big_integer>(ctx, std::move(limbs), false);
 }
@@ -183,11 +183,11 @@ struct bbb : composite_object<bbb> {
     update_reference(child_);
   }
 
-  bbb*
+  ptr<bbb>
   child() const { return child_; }
 
   void
-  set_child(free_store& fs, bbb* new_child) {
+  set_child(free_store& fs, ptr<bbb> new_child) {
     child_ = new_child;
     fs.notify_arc(this, new_child);
   }
@@ -196,7 +196,7 @@ struct bbb : composite_object<bbb> {
   hash() const { return 0; }
 
 private:
-  bbb* child_ = nullptr;
+  ptr<bbb> child_ = nullptr;
 };
 
 TEST_F(gc, collect_indirect_garbage) {
@@ -264,9 +264,9 @@ TEST_F(gc, weak_ptr) {
 struct procedures : scheme { };
 
 TEST_F(procedures, type_predicates) {
-  pair* p = make<pair>(ctx, ctx.constants->null.get(), ctx.constants->null.get());
-  object* x = p;
-  object* null = ctx.constants->null.get();
+  ptr<pair> p = make<pair>(ctx, ctx.constants->null.get(), ctx.constants->null.get());
+  ptr<> x = p;
+  ptr<> null = ctx.constants->null.get();
 
   EXPECT_TRUE(is<pair>(x));
   EXPECT_FALSE(is<pair>(null));
@@ -286,11 +286,11 @@ TEST_F(procedures, type_predicates) {
 
 TEST_F(procedures, is_list) {
   // (1 . 2)
-  pair* l1 = make<pair>(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}));
+  ptr<pair> l1 = make<pair>(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}));
   EXPECT_FALSE(is_list(l1));
 
   // (1 2)
-  pair* l2 = make<pair>(ctx,
+  ptr<pair> l2 = make<pair>(ctx,
                             integer_to_ptr(integer{1}),
                             make<pair>(ctx,
                                        integer_to_ptr(integer{2}),
@@ -298,15 +298,15 @@ TEST_F(procedures, is_list) {
   EXPECT_TRUE(is_list(l2));
 
   // (0 1 2)
-  pair* l3 = make<pair>(ctx, integer_to_ptr(integer{0}), l2);
+  ptr<pair> l3 = make<pair>(ctx, integer_to_ptr(integer{0}), l2);
   EXPECT_TRUE(is_list(l3));
 }
 
 TEST_F(procedures, make_list) {
-  object* empty = make_list(ctx);
+  ptr<> empty = make_list(ctx);
   EXPECT_TRUE(empty == ctx.constants->null.get());
 
-  object* l = make_list(ctx,
+  ptr<> l = make_list(ctx,
                             integer_to_ptr(integer{1}),
                             integer_to_ptr(integer{2}),
                             integer_to_ptr(integer{3}));
@@ -377,8 +377,8 @@ TEST_F(types, intern) {
   b_1.reset();
   ctx.store.collect_garbage(true);
 
-  symbol* b_2 = ctx.intern("b");
-  symbol* b_3 = ctx.intern("b");
+  ptr<symbol> b_2 = ctx.intern("b");
+  ptr<symbol> b_3 = ctx.intern("b");
   EXPECT_TRUE(b_2);
   EXPECT_TRUE(b_3);
   EXPECT_EQ(b_2, b_3);
@@ -438,31 +438,31 @@ TEST_F(io, read_small_integer) {
 }
 
 TEST_F(io, read_list) {
-  object* empty_1 = read("()");
+  ptr<> empty_1 = read("()");
   EXPECT_EQ(empty_1, ctx.constants->null.get());
 
-  object* empty_2 = read("(   )");
+  ptr<> empty_2 = read("(   )");
   EXPECT_EQ(empty_2, ctx.constants->null.get());
 
-  object* single_element = read("(1)");
+  ptr<> single_element = read("(1)");
   EXPECT_TRUE(is_list(single_element));
   EXPECT_EQ(expect<integer>(car(expect<pair>(single_element))).value(), 1);
   EXPECT_EQ(cdr(expect<pair>(single_element)), ctx.constants->null.get());
 
-  object* two_elements = read("(1 2)");
+  ptr<> two_elements = read("(1 2)");
   EXPECT_TRUE(is_list(two_elements));
   EXPECT_EQ(expect<integer>(car(expect<pair>(two_elements))).value(), 1);
   EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(expect<pair>(two_elements))))).value(), 2);
   EXPECT_EQ(cdr(expect<pair>(cdr(expect<pair>(two_elements)))), ctx.constants->null.get());
 
-  object* no_elements = read("()");
+  ptr<> no_elements = read("()");
   EXPECT_EQ(no_elements, ctx.constants->null.get());
 
-  object* nested = read("(1 (2 3))");
+  ptr<> nested = read("(1 (2 3))");
   EXPECT_TRUE(is_list(nested));
   EXPECT_EQ(expect<integer>(car(expect<pair>(nested))).value(), 1);
   EXPECT_TRUE(is_list(car(expect<pair>(cdr(expect<pair>(nested))))));
-  pair* sublist_1 = expect<pair>(car(expect<pair>(cdr(expect<pair>(nested)))));
+  ptr<pair> sublist_1 = expect<pair>(car(expect<pair>(cdr(expect<pair>(nested)))));
   EXPECT_EQ(expect<integer>(car(sublist_1)).value(), 2);
   EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(sublist_1)))).value(), 3);
 
@@ -502,7 +502,7 @@ TEST_F(io, read_symbol) {
   EXPECT_EQ(read(".!"), ctx.intern(".!"));
   EXPECT_EQ(read(".dot"), ctx.intern(".dot"));
 
-  object* l = read("(one two three)");
+  ptr<> l = read("(one two three)");
   ASSERT_TRUE(is_list(l));
   EXPECT_EQ(expect<symbol>(car(expect<pair>(l)))->value(), "one");
   EXPECT_EQ(expect<symbol>(car(expect<pair>(cdr(expect<pair>(l)))))->value(), "two");
@@ -565,7 +565,7 @@ TEST_F(io, read_comments) {
 }
 
 static std::string
-to_string(context& ctx, object* datum) {
+to_string(context& ctx, ptr<> datum) {
   auto out = make<port>(ctx, std::string{}, false, true);
   write_simple(ctx, datum, out);
   return out->get_string();
@@ -924,7 +924,7 @@ TEST_F(interpreter, exec_make_vector) {
 struct compiler : scheme { };
 
 TEST_F(compiler, compile_arithmetic) {
-  object* result = eval(
+  ptr<> result = eval(
     "(+ 2 3 (* 5 9) (- 9 8) (/ 8 2))"
   );
   EXPECT_EQ(expect<integer>(result).value(),
@@ -932,7 +932,7 @@ TEST_F(compiler, compile_arithmetic) {
 }
 
 TEST_F(compiler, compile_let) {
-  object* result = eval(
+  ptr<> result = eval(
     R"(
       (let ((a 2)
             (b 5))
@@ -955,7 +955,7 @@ TEST_F(compiler, compile_let) {
 }
 
 TEST_F(compiler, let_shadowing) {
-  object* result = eval(
+  ptr<> result = eval(
     R"(
       (let ((a 2))
         (let ((a 5))
@@ -986,7 +986,7 @@ TEST_F(compiler, core_shadowing) {
 }
 
 TEST_F(compiler, compile_lambda) {
-  object* result1 = eval(
+  ptr<> result1 = eval(
     R"(
       (let ((twice (lambda (x) (* 2 x))))
         (twice 4))
@@ -994,7 +994,7 @@ TEST_F(compiler, compile_lambda) {
   );
   EXPECT_EQ(expect<integer>(result1).value(), 8);
 
-  object* result2 = eval(
+  ptr<> result2 = eval(
     R"(
       (let ((sum (lambda (a b c d) (+ a b c d))))
         (sum 1 2 3 4))
@@ -1002,7 +1002,7 @@ TEST_F(compiler, compile_lambda) {
   );
   EXPECT_EQ(expect<integer>(result2).value(), 1 + 2 + 3 + 4);
 
-  object* result3 = eval(
+  ptr<> result3 = eval(
     R"(
       (let ((call-with-sum (lambda (f a b) (f (+ a b))))
             (f (lambda (x) (* 2 x))))
@@ -1011,7 +1011,7 @@ TEST_F(compiler, compile_lambda) {
   );
   EXPECT_EQ(expect<integer>(result3).value(), 2 * (3 + 4));
 
-  object* result4 = eval(
+  ptr<> result4 = eval(
     R"(
       (let ((list (lambda args args)))
         (list 1 2 3))
@@ -1019,7 +1019,7 @@ TEST_F(compiler, compile_lambda) {
   );
   EXPECT_TRUE(equal(ctx, result4, make_list(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}), integer_to_ptr(integer{3}))));
 
-  object* result5 = eval(
+  ptr<> result5 = eval(
     R"(
       (let ((increment (lambda (value . rest)
                          (let ((addend (if (eq? rest '()) 1 (car rest))))
@@ -1030,7 +1030,7 @@ TEST_F(compiler, compile_lambda) {
   EXPECT_EQ(expect<integer>(car(expect<pair>(result5))).value(), 3);
   EXPECT_EQ(expect<integer>(cdr(expect<pair>(result5))).value(), 10);
 
-  object* result6 = eval(
+  ptr<> result6 = eval(
     R"(
       (let ((const (lambda () 2)))
         (const))
@@ -1040,19 +1040,19 @@ TEST_F(compiler, compile_lambda) {
 }
 
 TEST_F(compiler, compile_if) {
-  object* result1 = eval("(if #t 2 3)");
+  ptr<> result1 = eval("(if #t 2 3)");
   EXPECT_EQ(expect<integer>(result1).value(), 2);
 
-  object* result2 = eval("(if #f 2 3)");
+  ptr<> result2 = eval("(if #f 2 3)");
   EXPECT_EQ(expect<integer>(result2).value(), 3);
 
-  object* result3 = eval("(if #t 2)");
+  ptr<> result3 = eval("(if #t 2)");
   EXPECT_EQ(expect<integer>(result3).value(), 2);
 
-  object* result4 = eval("(if #f 2)");
+  ptr<> result4 = eval("(if #f 2)");
   EXPECT_EQ(result4, ctx.constants->void_.get());
 
-  object* result5 = eval(
+  ptr<> result5 = eval(
     R"(
       (let ((f (lambda (x) (* 2 x)))
             (x 4))
@@ -1063,7 +1063,7 @@ TEST_F(compiler, compile_if) {
   );
   EXPECT_EQ(expect<integer>(result5).value(), 8);
 
-  object* result6 = eval(
+  ptr<> result6 = eval(
     R"(
       (let ((f (lambda (x) (* 2 x)))
             (x 6))
@@ -1074,7 +1074,7 @@ TEST_F(compiler, compile_if) {
   );
   EXPECT_EQ(expect<integer>(result6).value(), 0);;
 
-  object* result7 = eval(
+  ptr<> result7 = eval(
     R"(
       (let ((f (lambda (x) (* 2 x)))
             (x 4))
@@ -1085,7 +1085,7 @@ TEST_F(compiler, compile_if) {
   );
   EXPECT_EQ(expect<integer>(result7).value(), 0);
 
-  object* result8 = eval(
+  ptr<> result8 = eval(
     R"(
       (let ((f (lambda (x) (* 2 x)))
             (x 6))
@@ -1096,7 +1096,7 @@ TEST_F(compiler, compile_if) {
   );
   EXPECT_EQ(expect<integer>(result8).value(), 12);
 
-  object* result9 = eval(
+  ptr<> result9 = eval(
     R"(
       (let ((f (lambda (x) (* 2 x)))
             (g (lambda (x) (+ 2 x)))
@@ -1108,7 +1108,7 @@ TEST_F(compiler, compile_if) {
   );
   EXPECT_EQ(expect<integer>(result9).value(), 8);
 
-  object* result10 = eval(
+  ptr<> result10 = eval(
     R"(
       (let ((f (lambda (x) (* 2 x)))
             (g (lambda (x) (+ 10 x)))
@@ -1120,7 +1120,7 @@ TEST_F(compiler, compile_if) {
   );
   EXPECT_EQ(expect<integer>(result10).value(), 16);
 
-  object* result11 = eval(
+  ptr<> result11 = eval(
     R"(
       (let ((loop #void))
         (set! loop (lambda (list result)
@@ -1137,7 +1137,7 @@ TEST_F(compiler, compile_if) {
 }
 
 TEST_F(compiler, compile_closure) {
-  object* result1 = eval(
+  ptr<> result1 = eval(
     R"(
       (let ((make-adder (lambda (x) (lambda (y) (+ x y)))))
         (let ((add-2 (make-adder 2)))
@@ -1146,7 +1146,7 @@ TEST_F(compiler, compile_closure) {
   );
   EXPECT_EQ(expect<integer>(result1).value(), 7);
 
-  object* result2 = eval(
+  ptr<> result2 = eval(
     R"(
       (let ((x 7))
         (let ((f (lambda (y) (+ x y))))
@@ -1157,7 +1157,7 @@ TEST_F(compiler, compile_closure) {
 }
 
 TEST_F(compiler, compile_set) {
-  object* result1 = eval(
+  ptr<> result1 = eval(
     R"(
       (let ((x 2))
         (set! x 5)
@@ -1166,7 +1166,7 @@ TEST_F(compiler, compile_set) {
   );
   EXPECT_EQ(expect<integer>(result1).value(), 5);
 
-  object* result2 = eval(
+  ptr<> result2 = eval(
     R"(
       (let ((fact #void))
         (set! fact (lambda (n)
@@ -1178,7 +1178,7 @@ TEST_F(compiler, compile_set) {
   );
   EXPECT_EQ(expect<integer>(result2).value(), 120);
 
-  object* result3 = eval(
+  ptr<> result3 = eval(
     R"(
       (let ((f (lambda (x)
                  (set! x (* 2 x))
@@ -1191,7 +1191,7 @@ TEST_F(compiler, compile_set) {
 }
 
 TEST_F(compiler, compile_box) {
-  object* result = eval(
+  ptr<> result = eval(
     R"(
       (let ((b1 (box 5))
             (b2 (box 7)))
@@ -1203,7 +1203,7 @@ TEST_F(compiler, compile_box) {
 }
 
 TEST_F(compiler, compile_sequence) {
-  object* result = eval(R"(
+  ptr<> result = eval(R"(
     (let ((a 0)
           (b 0))
       (if #t
@@ -1217,7 +1217,7 @@ TEST_F(compiler, compile_sequence) {
 }
 
 TEST_F(compiler, compile_higher_order_arithmetic) {
-  object* result = eval(
+  ptr<> result = eval(
     R"(
       (let ((f (lambda (op x y) (op x y))))
         (f + 2 3))
@@ -1465,15 +1465,15 @@ TEST_F(compiler, unbound_vars) {
 }
 
 static bool
-is_proper_syntax(object* x) {
+is_proper_syntax(ptr<> x) {
   if (!is<syntax>(x))
     return false;
 
-  syntax* stx = assume<syntax>(x);
+  ptr<syntax> stx = assume<syntax>(x);
   if (syntax_is<pair>(stx)) {
     // cdr's don't have to be syntaxes, but all car's do.
 
-    object* elem = stx;
+    ptr<> elem = stx;
     while (true) {
       if (semisyntax_is<null_type>(elem))
         return true;
@@ -1486,7 +1486,7 @@ is_proper_syntax(object* x) {
 
       elem = cdr(semisyntax_assume<pair>(elem));
     }
-  } else if (auto* v = syntax_match<vector>(stx)) {
+  } else if (auto v = syntax_match<vector>(stx)) {
     for (std::size_t i = 0; i < v->size(); ++i)
       if (!is_proper_syntax(v->ref(i)))
         return false;
@@ -1519,7 +1519,7 @@ TEST_F(compiler, quasisyntax) {
 
 TEST_F(compiler, call_from_native) {
   auto f = expect<procedure>(eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"));
-  object* result = call(ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})}).get();
+  ptr<> result = call(ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})}).get();
   EXPECT_EQ(expect<integer>(result).value(), 2 * 5 + 3 * 4);
 
   scheme_procedure<int(int, int)> g{track(ctx, eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"))};
@@ -1769,13 +1769,13 @@ TEST_F(macros, recursive_syntax) {
 }
 
 TEST_F(macros, free_identifier_eq) {
-  object* result1 = eval("(free-identifier=? #'x #'x)");
+  ptr<> result1 = eval("(free-identifier=? #'x #'x)");
   EXPECT_EQ(result1, ctx.constants->t.get());
 
-  object* result2 = eval("(free-identifier=? #'x #'y)");
+  ptr<> result2 = eval("(free-identifier=? #'x #'y)");
   EXPECT_EQ(result2, ctx.constants->f.get());
 
-  object* result3 = eval_module(R"(
+  ptr<> result3 = eval_module(R"(
     (import (insider internal))
 
     (define-syntax aux
@@ -1806,7 +1806,7 @@ TEST_F(macros, free_identifier_eq) {
 }
 
 TEST_F(macros, bound_identifier_eq) {
-  pair* result1 = expect<pair>(eval_module(R"(
+  ptr<pair> result1 = expect<pair>(eval_module(R"(
     (import (insider internal))
 
     (define-syntax check
@@ -2209,8 +2209,8 @@ TEST_F(numeric, bignum_divide) {
     return integer_to_ptr(integer{v});
   };
 
-  auto test_div = [&] (object* x, object* y,
-                       object* quotient, object* remainder) {
+  auto test_div = [&] (ptr<> x, ptr<> y,
+                       ptr<> quotient, ptr<> remainder) {
     auto [q, r] = quotient_remainder(ctx, x, y);
     EXPECT_TRUE(num_equal(q, quotient));
     EXPECT_TRUE(num_equal(r, remainder));

@@ -15,27 +15,27 @@ struct parse_error : std::runtime_error {
 
 // Read a single S-expression from the given input stream. Returns a null
 // pointer if there is no expression in the stream.
-object*
-read(context&, port*);
+ptr<>
+read(context&, ptr<port>);
 
-object*
+ptr<>
 read(context&, std::string);
 
-syntax*
-read_syntax(context&, port*);
+ptr<syntax>
+read_syntax(context&, ptr<port>);
 
-syntax*
+ptr<syntax>
 read_syntax(context&, std::string);
 
 // Read multiple S-expressions until the end of the stream or string.
 std::vector<generic_tracked_ptr>
-read_multiple(context&, port*);
+read_multiple(context&, ptr<port>);
 
 std::vector<generic_tracked_ptr>
 read_multiple(context&, std::string);
 
 std::vector<tracked_ptr<syntax>>
-read_syntax_multiple(context&, port*);
+read_syntax_multiple(context&, ptr<port>);
 
 std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context&, std::string);
@@ -44,13 +44,13 @@ read_syntax_multiple(context&, std::string);
 // not check for cycles in the datum, so if it is a cyclic data structure, this
 // will result in an infinite loop.
 void
-write_simple(context& ctx, object*, port*);
+write_simple(context& ctx, ptr<>, ptr<port>);
 
 void
-display(context& ctx, object*, port*);
+display(context& ctx, ptr<>, ptr<port>);
 
 std::string
-datum_to_string(context& ctx, object*);
+datum_to_string(context& ctx, ptr<>);
 
 } // namespace game::csm
 

@@ -12,7 +12,7 @@ namespace insider {
 //
 // Causes a garbage collection.
 generic_tracked_ptr
-call(context&, object* callable, std::vector<object*> const& arguments);
+call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
 
 } // namespace insider
 

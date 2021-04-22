@@ -15,62 +15,62 @@ template <typename T, typename Enable = void>
 struct to_scheme_converter;
 
 template <typename T>
-object*
+ptr<>
 to_scheme(context& ctx, T const& t) {
   return to_scheme_converter<T>::convert(ctx, t);
 }
 
 template <>
-struct to_scheme_converter<object*> {
-  static object*
-  convert(context&, object* o) { return o; }
+struct to_scheme_converter<ptr<>> {
+  static ptr<>
+  convert(context&, ptr<> o) { return o; }
 };
 
 template <>
 struct to_scheme_converter<generic_tracked_ptr> {
-  static object*
+  static ptr<>
   convert(context&, generic_tracked_ptr const& p) { return p.get(); }
 };
 
 template <typename T>
-struct to_scheme_converter<T*> {
-  static object*
-  convert(context&, T* o) { return o; }
+struct to_scheme_converter<ptr<T>> {
+  static ptr<>
+  convert(context&, ptr<T> o) { return o; }
 };
 
 template <typename T>
 struct to_scheme_converter<tracked_ptr<T>> {
-  static object*
+  static ptr<>
   convert(context&, tracked_ptr<T> const& p) { return p.get(); }
 };
 
 template <>
 struct to_scheme_converter<integer> {
-  static object*
+  static ptr<>
   convert(context&, integer i) { return integer_to_ptr(i); }
 };
 
 template <typename T>
 struct to_scheme_converter<T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>> {
-  static object*
+  static ptr<>
   convert(context&, T t) { return integer_to_ptr(integer{t}); }
 };
 
 template <>
 struct to_scheme_converter<double> {
-  static object*
+  static ptr<>
   convert(context& ctx, double value) { return make<floating_point>(ctx, value); }
 };
 
 template <>
 struct to_scheme_converter<bool> {
-  static object*
+  static ptr<>
   convert(context& ctx, bool b) { return b ? ctx.constants->t.get() : ctx.constants->f.get(); }
 };
 
 template <>
 struct to_scheme_converter<std::string> {
-  static object*
+  static ptr<>
   convert(context& ctx, std::string const& s) { return make_string(ctx, s); }
 };
 
@@ -79,7 +79,7 @@ struct from_scheme_converter;
 
 template <typename T>
 auto
-from_scheme(context& ctx, object* o) {
+from_scheme(context& ctx, ptr<> o) {
   return from_scheme_converter<std::remove_cv_t<std::remove_reference_t<T>>>::convert(ctx, o);
 }
 
@@ -90,45 +90,45 @@ from_scheme(context& ctx, generic_tracked_ptr const& x) {
 }
 
 template <>
-struct from_scheme_converter<object*> {
-  static object*
-  convert(context&, object* o) { return o; }
+struct from_scheme_converter<ptr<>> {
+  static ptr<>
+  convert(context&, ptr<> o) { return o; }
 };
 
 template <>
 struct from_scheme_converter<generic_tracked_ptr> {
   static generic_tracked_ptr
-  convert(context& ctx, object* o) { return track(ctx, o); }
+  convert(context& ctx, ptr<> o) { return track(ctx, o); }
 };
 
 template <typename T>
-struct from_scheme_converter<T*> {
-  static T*
-  convert(context&, object* o) { return expect<T>(o); }
+struct from_scheme_converter<ptr<T>> {
+  static ptr<T>
+  convert(context&, ptr<> o) { return expect<T>(o); }
 };
 
 template <typename T>
 struct from_scheme_converter<tracked_ptr<T>> {
   static tracked_ptr<T>
-  convert(context& ctx, object* o) { return track(ctx, expect<T>(o)); }
+  convert(context& ctx, ptr<> o) { return track(ctx, expect<T>(o)); }
 };
 
 template <typename T>
 struct from_scheme_converter<T, std::enable_if_t<std::is_integral_v<T>>> {
   static T
-  convert(context&, object* o) { return expect<integer>(o).value(); }
+  convert(context&, ptr<> o) { return expect<integer>(o).value(); }
 };
 
 template <>
 struct from_scheme_converter<std::string> {
   static std::string
-  convert(context&, object* o) { return expect<string>(o)->value(); }
+  convert(context&, ptr<> o) { return expect<string>(o)->value(); }
 };
 
 template <typename T>
 struct from_scheme_converter<std::vector<T>> {
   static std::vector<T>
-  convert(context& ctx, object* o) {
+  convert(context& ctx, ptr<> o) {
     std::vector<T> result;
 
     if (auto v = match<vector>(o)) {
@@ -137,7 +137,7 @@ struct from_scheme_converter<std::vector<T>> {
         result.emplace_back(from_scheme<T>(ctx, v->ref(i)));
     }
     else if (is_list(o)) {
-      object* elem = o;
+      ptr<> elem = o;
       while (elem != ctx.constants->null.get()) {
         auto p = assume<pair>(elem);
         result.emplace_back(from_scheme<T>(ctx, car(p)));
@@ -233,30 +233,30 @@ template <typename R, typename C, typename... Args>
 operand
 define_procedure(context& ctx, char const* name, module& m, bool export_,
                  R (C::* f)(context&, Args...) const) {
-  return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
-                                                                          [=] (context& ctx, C* c, Args... args) {
-                                                                            return (c->*f)(ctx, args...);
-                                                                          });
+  return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(ctx, name, m, export_,
+                                                                              [=] (context& ctx, ptr<C> c, Args... args) {
+                                                                                return (c.value()->*f)(ctx, args...);
+                                                                              });
 }
 
 template <typename R, typename C, typename... Args>
 operand
 define_procedure(context& ctx, char const* name, module& m, bool export_,
                  R (C::* f)(Args...)) {
-  return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
-                                                                          [=] (context&, C* c, Args... args) {
-                                                                            return (c->*f)(args...);
-                                                                          });
+  return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(ctx, name, m, export_,
+                                                                              [=] (context&, ptr<C> c, Args... args) {
+                                                                                return (c.value()->*f)(args...);
+                                                                              });
 }
 
 template <typename R, typename C, typename... Args>
 operand
 define_procedure(context& ctx, char const* name, module& m, bool export_,
                  R (C::* f)(Args...) const) {
-  return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
-                                                                          [=] (context&, C* c, Args... args) {
-                                                                            return (c->*f)(args...);
-                                                                          });
+  return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(ctx, name, m, export_,
+                                                                              [=] (context&, ptr<C> c, Args... args) {
+                                                                                return (c.value()->*f)(args...);
+                                                                              });
 }
 
 template <typename Callable>
@@ -272,7 +272,7 @@ define_procedure(context& ctx, char const* name, module& m, bool export_, Callab
 }
 
 // Like define_procedure, but the procedure receives its arguments as a
-// vector<object*> with no conversion to C++ types.
+// vector<ptr<>> with no conversion to C++ types.
 template <typename F>
 operand
 define_raw_procedure(context& ctx, char const* name, module& m, bool export_, F const& f) {
@@ -297,7 +297,7 @@ public:
 
   Ret
   operator () (context& ctx, Args&&... args) {
-    std::vector<object*> arguments{{to_scheme(ctx, std::forward<Args>(args))...}};
+    std::vector<ptr<>> arguments{{to_scheme(ctx, std::forward<Args>(args))...}};
     return from_scheme<Ret>(ctx, call(ctx, f_.get(), arguments));
   }
 

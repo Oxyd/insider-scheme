@@ -32,7 +32,7 @@ init_object_header(std::byte* storage, word_type type, generation gen = generati
 }
 
 std::size_t
-object_size(object* o) {
+object_size(ptr<> o) {
   type_descriptor const& t = object_type(o);
   return t.constant_size ? t.size : t.get_size(o);
 }
@@ -43,10 +43,10 @@ object_color(word_type header) {
 }
 
 static color
-object_color(object* o) { return object_color(header_word(o)); }
+object_color(ptr<> o) { return object_color(header_word(o)); }
 
 static void
-set_object_color(object* o, color c) {
+set_object_color(ptr<> o, color c) {
   header_word(o) = (header_word(o) & ~color_bits) | (static_cast<word_type>(c) << color_shift);
 }
 
@@ -54,7 +54,7 @@ static bool
 is_alive(word_type header) { return header & alive_bit; }
 
 bool
-is_alive(object* o) { return o != nullptr && is_alive(header_word(o)); }
+is_alive(ptr<> o) { return o != nullptr && is_alive(header_word(o)); }
 
 static generation
 get_generation(word_type header) {
@@ -62,27 +62,27 @@ get_generation(word_type header) {
 }
 
 generation
-object_generation(object* o) { return get_generation(header_word(o)); }
+object_generation(ptr<> o) { return get_generation(header_word(o)); }
 
 static void
-set_object_generation(object* o, generation gen) {
+set_object_generation(ptr<> o, generation gen) {
   header_word(o) = (header_word(o) & ~generation_bits) | (static_cast<word_type>(gen) << generation_shift);
 }
 
-object*
-forwarding_address(object* o) {
+ptr<>
+forwarding_address(ptr<> o) {
   assert(!is_alive(o));
   return reinterpret_cast<object*>(header_word(o));
 }
 
 static void
-set_forwarding_address(object* from, object* target) {
-  header_word(from) = reinterpret_cast<word_type>(target);
+set_forwarding_address(ptr<> from, ptr<> target) {
+  header_word(from) = reinterpret_cast<word_type>(target.value());
   assert((header_word(from) & alive_bit) == 0);
 }
 
 void
-tracing_context::trace(object* o) {
+tracing_context::trace(ptr<> o) {
   if (o && is_object_ptr(o) && object_color(o) == color::white
       && object_generation(o) <= max_generation_) {
     assert(is_alive(o));
@@ -211,7 +211,7 @@ void
 large_space::move(std::size_t i, large_space& to) {
   assert(allocations_[i]);
 
-  object* o = reinterpret_cast<object*>(allocations_[i].get() + sizeof(word_type));
+  ptr<> o = reinterpret_cast<object*>(allocations_[i].get() + sizeof(word_type));
   std::size_t size = object_size(o) + sizeof(word_type);
 
   to.allocations_.emplace_back(std::move(allocations_[i]));
@@ -226,7 +226,7 @@ large_space::deallocate(std::size_t i) {
   assert(allocations_[i]);
 
   std::byte* storage = allocations_[i].get();
-  object* o = reinterpret_cast<object*>(storage + sizeof(word_type));
+  ptr<> o = reinterpret_cast<object*>(storage + sizeof(word_type));
   assert(is_alive(o));
 
   bytes_used_ -= object_size(o) + sizeof(word_type);
@@ -242,8 +242,8 @@ large_space::remove_empty() {
                      allocations_.end());
 }
 
-static object*
-move_object(object* o, dense_space& to) {
+static ptr<>
+move_object(ptr<> o, dense_space& to) {
   type_descriptor const& t = object_type(o);
   std::size_t size = sizeof(word_type) + object_size(o);
   std::byte* storage = to.allocate(size);
@@ -274,12 +274,12 @@ free_store::~free_store() {
 }
 
 static void
-trace(generic_tracked_ptr* roots, std::vector<object*> const& permanent_roots,
+trace(generic_tracked_ptr* roots, std::vector<ptr<>> const& permanent_roots,
       nursery_generation const& nursery_1, nursery_generation const& nursery_2,
       generation max_generation) {
   assert(max_generation >= generation::nursery_2);
 
-  std::vector<object*> stack;
+  std::vector<ptr<>> stack;
   tracing_context tc{stack, max_generation};
 
   for (generic_tracked_ptr* root = roots; root; root = root->next())
@@ -292,14 +292,14 @@ trace(generic_tracked_ptr* roots, std::vector<object*> const& permanent_roots,
     }
 
   if (max_generation < generation::mature)
-    for (object* o : permanent_roots)
+    for (ptr<> o : permanent_roots)
       if (object_color(o) == color::white) {
         set_object_color(o, color::grey);
         object_type(o).trace(o, tc);
       }
 
   for (nursery_generation const* g : {&nursery_1, &nursery_2})
-    for (object* o : g->incoming_arcs)
+    for (ptr<> o : g->incoming_arcs)
       if (object_generation(o) > max_generation && object_color(o) == color::white) {
         assert(is_object_ptr(o));
         assert(object_generation(o) > g->generation_number);
@@ -308,7 +308,7 @@ trace(generic_tracked_ptr* roots, std::vector<object*> const& permanent_roots,
       }
 
   while (!stack.empty()) {
-    object* top = stack.back();
+    ptr<> top = stack.back();
     stack.pop_back();
 
     assert(object_color(top) != color::white);
@@ -321,20 +321,20 @@ trace(generic_tracked_ptr* roots, std::vector<object*> const& permanent_roots,
 
 static void
 move_survivors(dense_space& from, dense_space& to, generation to_gen) {
-  from.for_all([&] (object* o) {
+  from.for_all([&] (ptr<> o) {
     type_descriptor const& t = object_type(o);
     std::size_t size = object_size(o);
 
     assert(object_color(o) != color::grey);
     if (object_color(o) == color::black) {
-      object* target = move_object(o, to);
+      ptr<> target = move_object(o, to);
       set_forwarding_address(o, target);
       set_object_generation(target, to_gen);
     } else
       set_forwarding_address(o, nullptr);
 
     t.destroy(o);
-    std::uninitialized_fill_n(reinterpret_cast<std::byte*>(o), size, std::byte{0xAA});
+    std::uninitialized_fill_n(reinterpret_cast<std::byte*>(o.value()), size, std::byte{0xAA});
   });
 }
 
@@ -348,7 +348,7 @@ promote(FromG& from, ToG& to) {
 
   large_space& large = from.large;
   for (std::size_t i = 0; i < large.object_count(); ++i) {
-    object* o = reinterpret_cast<object*>(large.get(i) + sizeof(word_type));
+    ptr<> o = reinterpret_cast<object*>(large.get(i) + sizeof(word_type));
     assert(object_color(o) != color::grey);
 
     if (object_color(o) == color::black) {
@@ -375,7 +375,7 @@ purge_mature(Generation& from) {
 
   large_space& large = from.large;
   for (std::size_t i = 0; i < large.object_count(); ++i) {
-    object* o = reinterpret_cast<object*>(large.get(i) + sizeof(word_type));
+    ptr<> o = reinterpret_cast<object*>(large.get(i) + sizeof(word_type));
     assert(object_color(o) != color::grey);
 
     if (object_color(o) == color::white)
@@ -392,7 +392,7 @@ purge_mature(Generation& from) {
 
 static void
 move_incoming_arcs(nursery_generation& from, nursery_generation& to) {
-  for (object* o : from.incoming_arcs)
+  for (ptr<> o : from.incoming_arcs)
     if (is_alive(o)) {
       assert(object_generation(o) > to.generation_number);
       to.incoming_arcs.emplace(o);
@@ -406,23 +406,23 @@ move_incoming_arcs(nursery_generation& from, nursery_generation& to) {
 
 static void
 update_references(dense_space const& space) {
-  space.for_all([] (object* o) { object_type(o).update_references(o); });
+  space.for_all([] (ptr<> o) { object_type(o).update_references(o); });
 }
 
 static void
 update_references(large_space const& space) {
   for (std::size_t i = 0; i < space.object_count(); ++i) {
-    object* o = reinterpret_cast<object*>(space.get(i) + sizeof(word_type));
+    ptr<> o = reinterpret_cast<object*>(space.get(i) + sizeof(word_type));
     object_type(o).update_references(o);
   }
 }
 
 static void
-update_references(std::unordered_set<object*> const& set) {
-  for (object* o : set) {
+update_references(std::unordered_set<ptr<>> const& set) {
+  for (ptr<> o : set) {
     if (is_alive(o))
       object_type(o).update_references(o);
-    else if (object* fwd = forwarding_address(o); fwd != nullptr)
+    else if (ptr<> fwd = forwarding_address(o); fwd != nullptr)
       object_type(fwd).update_references(fwd);
   }
 }
@@ -446,7 +446,7 @@ template <typename Generation>
 static void
 verify([[maybe_unused]] Generation const& g) {
 #ifndef NDEBUG
-  g.small.for_all([&] (object* o) {
+  g.small.for_all([&] (ptr<> o) {
     assert(!is_object_ptr(o) || object_generation(o) == g.generation_number);
   });
 
@@ -475,7 +475,7 @@ free_store::collect_garbage(bool major) {
   dense_space old_nursery_2 = promote(nursery_2_, mature_);
   dense_space old_nursery_1 = promote(nursery_1_, nursery_2_);
 
-  std::unordered_set<object*> old_n2_incoming = std::move(nursery_2_.incoming_arcs);
+  std::unordered_set<ptr<>> old_n2_incoming = std::move(nursery_2_.incoming_arcs);
   nursery_2_.incoming_arcs.clear();
 
   move_incoming_arcs(nursery_1_, nursery_2_);
@@ -544,7 +544,7 @@ void
 free_store::update_roots() {
   for (generic_tracked_ptr* p = roots_; p; p = p->next()) {
     if (p->get() && is_object_ptr(p->get()) && !is_alive(p->get())) {
-      p->value_ = forwarding_address(p->get());
+      p->value_ = forwarding_address(p->get()).value();
       assert(p->value_ != nullptr);
     }
 
@@ -555,7 +555,7 @@ free_store::update_roots() {
 
   for (generic_weak_ptr* wp = weak_roots_; wp; wp = wp->next()) {
     if (wp->get() && is_object_ptr(wp->get()) && !is_alive(wp->get()))
-      wp->value_ = forwarding_address(wp->get());
+      wp->value_ = forwarding_address(wp->get()).value();
   }
 }
 
@@ -576,20 +576,20 @@ void
 free_store::reset_colors(generation max_generation) {
   if (max_generation < generation::mature) {
     for (nursery_generation* g : {&nursery_1_, &nursery_2_})
-      for (object* o : g->incoming_arcs)
+      for (ptr<> o : g->incoming_arcs)
         set_object_color(o, color::white);
 
-    for (object* o : permanent_roots_)
+    for (ptr<> o : permanent_roots_)
       set_object_color(o, color::white);
   }
 
 #ifndef NDEBUG
   if (max_generation == generation::mature) {
     for (nursery_generation* g : {&nursery_1_, &nursery_2_})
-      for (object* o : g->incoming_arcs)
+      for (ptr<> o : g->incoming_arcs)
         assert(object_color(o) == color::white);
 
-    for (object* o : permanent_roots_)
+    for (ptr<> o : permanent_roots_)
       assert(object_color(o) == color::white);
   }
 #endif

@@ -10,8 +10,8 @@ namespace insider {
 // take no arguments and will return the value of the expression. The module is
 // modified by adding a top-level binding if the datum is a top-level
 // definition.
-procedure*
-compile_expression(context&, syntax* datum, module&);
+ptr<procedure>
+compile_expression(context&, ptr<syntax> datum, module&);
 
 // Interpret a list of expressions and import declarations as a main module and
 // create the module.

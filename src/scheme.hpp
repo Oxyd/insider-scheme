@@ -32,7 +32,7 @@
 namespace insider {
 
 std::size_t
-hash(object* x);
+hash(ptr<> x);
 
 struct generic_ptr_hash {
   std::size_t
@@ -40,10 +40,10 @@ struct generic_ptr_hash {
 };
 
 bool
-eqv(context&, object* x, object* y);
+eqv(context&, ptr<> x, ptr<> y);
 
 bool
-equal(context&, object*, object*);
+equal(context&, ptr<>, ptr<>);
 
 class error : public std::runtime_error {
 public:
@@ -57,39 +57,19 @@ public:
 std::string
 format_error(context& ctx, std::runtime_error const&);
 
-// Is a given object an instance of the given Scheme type?
-template <typename T>
-bool
-is(object* x) {
-  assert(x);
-  return is_object_ptr(x) && object_type_index(x) == T::type_index;
-}
-
-template <>
-inline bool
-is<integer>(object* x) {
-  return is_fixnum(x);
-}
-
-template <typename T>
-bool
-is(generic_tracked_ptr const& x) {
-  return is<T>(x.get());
-}
-
 template <typename Expected>
 error
-make_type_error(object* actual) {
+make_type_error(ptr<> actual) {
   throw error{"Invalid type: expected {}, got {}", type_name<Expected>(), object_type_name(actual)};
 }
 
 namespace detail {
   template <typename T>
   struct expect_helper {
-    static T*
-    expect(object* x, std::string_view message) {
+    static ptr<T>
+    expect(ptr<> x, std::string_view message) {
       if (is<T>(x))
-        return static_cast<T*>(x);
+        return ptr_cast<T>(x);
       else
         throw !message.empty() ? error{message} : make_type_error<T>(x);
     }
@@ -103,7 +83,7 @@ namespace detail {
   template <>
   struct expect_helper<integer> {
     static integer
-    expect(object* x, std::string_view message) {
+    expect(ptr<> x, std::string_view message) {
       if (is<integer>(x))
         return ptr_to_integer(x);
       else
@@ -121,7 +101,7 @@ namespace detail {
 // to the object. Throws type_error if the object isn't of the required type.
 template <typename T>
 auto
-expect(object* x) {
+expect(ptr<> x) {
   return detail::expect_helper<T>::expect(x, {});
 }
 
@@ -135,7 +115,7 @@ expect(generic_tracked_ptr const& x) {
 // actual type isn't the expected one.
 template <typename T>
 auto
-expect(object* x, std::string_view message) {
+expect(ptr<> x, std::string_view message) {
   return detail::expect_helper<T>::expect(x, message);
 }
 
@@ -148,10 +128,10 @@ expect(generic_tracked_ptr const& x, std::string_view message) {
 namespace detail {
   template <typename T>
   struct assume_helper {
-    static T*
-    assume(object* x) {
+    static ptr<T>
+    assume(ptr<> x) {
       assert(is<T>(x));
-      return static_cast<T*>(x);
+      return ptr_cast<T>(x);
     }
 
     static tracked_ptr<T>
@@ -164,7 +144,7 @@ namespace detail {
   template <>
   struct assume_helper<integer> {
     static integer
-    assume(object* x) {
+    assume(ptr<> x) {
       assert(is<integer>(x));
       return ptr_to_integer(x);
     }
@@ -182,7 +162,7 @@ namespace detail {
 // specified type.
 template <typename T>
 auto
-assume(object* x) {
+assume(ptr<> x) {
   return detail::assume_helper<T>::assume(x);
 }
 
@@ -195,10 +175,10 @@ assume(generic_tracked_ptr const& x) {
 namespace detail {
   template <typename T>
   struct match_helper {
-    static T*
-    match(object* x) {
+    static ptr<T>
+    match(ptr<> x) {
       if (is<T>(x))
-        return static_cast<T*>(x);
+        return ptr_cast<T>(x);
       else
         return {};
     }
@@ -212,7 +192,7 @@ namespace detail {
   template <>
   struct match_helper<integer> {
     static std::optional<integer>
-    match(object* x) {
+    match(ptr<> x) {
       if (is<integer>(x))
         return ptr_to_integer(x);
       else
@@ -230,7 +210,7 @@ namespace detail {
 // return null.
 template <typename T>
 auto
-match(object* x) {
+match(ptr<> x) {
   return detail::match_helper<T>::match(x);
 }
 
@@ -300,21 +280,21 @@ class symbol;
 class transformer;
 
 bool
-is_identifier(object*);
+is_identifier(ptr<>);
 
 std::string
-identifier_name(syntax* x);
+identifier_name(ptr<syntax> x);
 
-using scope_set = std::vector<scope*>;
+using scope_set = std::vector<ptr<scope>>;
 
 bool // Was the scope actually added?
-add_scope(scope_set&, scope*);
+add_scope(scope_set&, ptr<scope>);
 
 void
-remove_scope(scope_set&, scope*);
+remove_scope(scope_set&, ptr<scope>);
 
 bool // Was the scope added?
-flip_scope(scope_set&, scope*);
+flip_scope(scope_set&, ptr<scope>);
 
 bool
 scope_sets_subseteq(scope_set const& lhs, scope_set const& rhs);
@@ -326,8 +306,8 @@ class scope : public composite_object<scope> {
 public:
   static constexpr char const* scheme_name = "insider::scope";
 
-  using value_type = std::variant<std::shared_ptr<variable>, transformer*>;
-  using binding = std::tuple<syntax*, value_type>;
+  using value_type = std::variant<std::shared_ptr<variable>, ptr<transformer>>;
+  using binding = std::tuple<ptr<syntax>, value_type>;
 
   explicit
   scope(std::string desc, bool use_site = false)
@@ -336,16 +316,16 @@ public:
   { }
 
   void
-  add(free_store& store, syntax* identifier, std::shared_ptr<variable>);
+  add(free_store& store, ptr<syntax> identifier, std::shared_ptr<variable>);
 
   void
-  add(free_store& store, syntax* identifier, transformer*);
+  add(free_store& store, ptr<syntax> identifier, ptr<transformer>);
 
   void
-  add(free_store& store, syntax* identifier, value_type const&);
+  add(free_store& store, ptr<syntax> identifier, value_type const&);
 
   std::vector<binding>
-  find_candidates(symbol* name, scope_set const& scopess) const;
+  find_candidates(ptr<symbol> name, scope_set const& scopess) const;
 
   std::vector<std::string>
   bound_names() const;
@@ -377,14 +357,14 @@ private:
   bool                 use_site_;
 
   bool
-  is_redefinition(syntax*, value_type const& intended_value) const;
+  is_redefinition(ptr<syntax>, value_type const& intended_value) const;
 };
 
 std::optional<scope::value_type>
-lookup(symbol* id, scope_set const& envs);
+lookup(ptr<symbol> id, scope_set const& envs);
 
 std::optional<scope::value_type>
-lookup(syntax* id);
+lookup(ptr<syntax> id);
 
 // A module is a map from symbols to top-level variable indices. It also
 // contains a top-level procedure which contains the code to be run when the
@@ -397,24 +377,24 @@ public:
   module(context&);
 
   std::optional<binding_type>
-  find(symbol*) const;
+  find(ptr<symbol>) const;
 
   void
-  import_(context&, symbol*, binding_type);
+  import_(context&, ptr<symbol>, binding_type);
 
   void
-  export_(symbol* name);
+  export_(ptr<symbol> name);
 
   std::unordered_set<std::string> const&
   exports() const { return exports_; }
 
-  procedure*
+  ptr<procedure>
   top_level_procedure() const { return proc_.get(); }
 
   void
   set_top_level_procedure(tracked_ptr<procedure> const& p) { proc_ = p; }
 
-  insider::scope*
+  ptr<insider::scope>
   scope() const { return env_.get(); }
 
   std::vector<std::string>
@@ -427,10 +407,10 @@ public:
   mark_active() { active_ = true; }
 
 private:
-  tracked_ptr<insider::scope> env_;
-  std::unordered_set<std::string>   exports_; // Bindings available for export to other modules.
-  tracked_ptr<procedure>            proc_;
-  bool                              active_ = false;
+  tracked_ptr<insider::scope>     env_;
+  std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
+  tracked_ptr<procedure>          proc_;
+  bool                            active_ = false;
 };
 
 // Turn a protomodule into a module. First instantiate all uninstantiated
@@ -452,7 +432,7 @@ void
 perform_imports(context&, module& to, protomodule const& import_declarations);
 
 operand
-define_top_level(context&, std::string const& name, module&, bool export_, object* object);
+define_top_level(context&, std::string const& name, module&, bool export_, ptr<> object);
 
 // Recursively activate all dependencies of the given module, execute the
 // module's body and return the result of the last expression in its body.
@@ -555,32 +535,32 @@ public:
   // pre-existing symbol. Otherwise, create a new symbol object and return
   // that. This means that two interned symbols can be compared for equality
   // using pointer comparison.
-  symbol*
+  ptr<symbol>
   intern(std::string const&);
 
   operand
   intern_static(generic_tracked_ptr const&);
 
-  object*
+  ptr<>
   get_static(operand i) const {
     assert(i < statics_.size());
     return statics_[i].get();
   }
 
-  object*
+  ptr<>
   get_static_checked(operand) const;
 
-  object*
+  ptr<>
   get_top_level(operand i) const { return top_level_objects_[i].get(); }
 
-  object*
+  ptr<>
   get_top_level_checked(operand) const;
 
   void
-  set_top_level(operand i, object*);
+  set_top_level(operand i, ptr<>);
 
   operand
-  add_top_level(object*, std::string name);
+  add_top_level(ptr<>, std::string name);
 
   std::string
   get_top_level_name(operand) const;
@@ -617,7 +597,7 @@ private:
 
 // Create an instance of an object using the context's free store.
 template <typename T, typename... Args>
-T*
+ptr<T>
 make(context& ctx, Args&&... args) {
   return ctx.store.make<T>(std::forward<Args>(args)...);
 }
@@ -629,11 +609,11 @@ make_tracked(context& ctx, Args&&... args) {
 }
 
 inline generic_tracked_ptr
-track(context& ctx, object* o) { return {ctx.store, o}; }
+track(context& ctx, ptr<> o) { return {ctx.store, o}; }
 
 template <typename T>
 tracked_ptr<T>
-track(context& ctx, T* o) { return {ctx.store, o}; }
+track(context& ctx, ptr<T> o) { return {ctx.store, o}; }
 
 // A boolean value.
 class boolean : public leaf_object<boolean> {
@@ -706,7 +686,7 @@ private:
   std::size_t size_;
 };
 
-string*
+ptr<string>
 make_string(context&, std::string_view value);
 
 // I/O port or a string port. Can be read or write, binary or text.
@@ -771,20 +751,20 @@ class pair : public composite_object<pair> {
 public:
   static constexpr char const* scheme_name = "insider::pair";
 
-  pair(object* car, object* cdr)
+  pair(ptr<> car, ptr<> cdr)
     : car_{car}
     , cdr_{cdr}
   { }
 
-  object*
+  ptr<>
   car() const { return car_; }
-  object*
+  ptr<>
   cdr() const { return cdr_; }
 
   void
-  set_car(free_store& store, object* p) { car_ = p; store.notify_arc(this, p); }
+  set_car(free_store& store, ptr<> p) { car_ = p; store.notify_arc(this, p); }
   void
-  set_cdr(free_store& store, object* p) { cdr_ = p; store.notify_arc(this, p); }
+  set_cdr(free_store& store, ptr<> p) { cdr_ = p; store.notify_arc(this, p); }
 
   void
   trace(tracing_context& tc) const { tc.trace(car_); tc.trace(cdr_); }
@@ -796,64 +776,64 @@ public:
   hash() const { return 3 * insider::hash(car_) ^ insider::hash(cdr_); }
 
 private:
-  object* car_;
-  object* cdr_;
+  ptr<> car_;
+  ptr<> cdr_;
 };
 
-inline pair*
-cons(context& ctx, object* car, object* cdr) {
+inline ptr<pair>
+cons(context& ctx, ptr<> car, ptr<> cdr) {
   return make<pair>(ctx, car, cdr);
 }
 
 // Is the given object a list? A list is either the null value or a pair whose
 // cdr is a list.
 bool
-is_list(object*);
+is_list(ptr<>);
 
 std::size_t
-list_length(object*);
+list_length(ptr<>);
 
-inline object*
-car(pair* x) { return x->car(); }
+inline ptr<>
+car(ptr<pair> x) { return x->car(); }
 
 inline generic_tracked_ptr
 car(tracked_ptr<pair> const& x) { return {x.store(), car(x.get())}; }
 
-inline object*
-cdr(pair* x) { return x->cdr(); }
+inline ptr<>
+cdr(ptr<pair> x) { return x->cdr(); }
 
 inline generic_tracked_ptr
 cdr(tracked_ptr<pair> const& x) { return {x.store(), cdr(x.get())}; }
 
 inline void
-set_car(tracked_ptr<pair> const& p, object* x) { p->set_car(p.store(), x); }
+set_car(tracked_ptr<pair> const& p, ptr<> x) { p->set_car(p.store(), x); }
 
 inline void
-set_cdr(tracked_ptr<pair> const& p, object* x) { p->set_cdr(p.store(), x); }
+set_cdr(tracked_ptr<pair> const& p, ptr<> x) { p->set_cdr(p.store(), x); }
 
-object*
-cadr(pair*);
+ptr<>
+cadr(ptr<pair>);
 
-object*
-caddr(pair*);
+ptr<>
+caddr(ptr<pair>);
 
-object*
-cadddr(pair*);
+ptr<>
+cadddr(ptr<pair>);
 
-object*
-cddr(pair*);
+ptr<>
+cddr(ptr<pair>);
 
-object*
-cdddr(pair*);
+ptr<>
+cdddr(ptr<pair>);
 
 // Make a list out of given objects.
 template <typename... Ts>
-object*
+ptr<>
 make_list(context& ctx, Ts... ts) {
   constexpr std::size_t n = sizeof...(Ts);
-  std::array<object*, n> elements{std::move(ts)...};
+  std::array<ptr<>, n> elements{std::move(ts)...};
 
-  object* result = ctx.constants->null.get();
+  ptr<> result = ctx.constants->null.get();
   for (std::size_t i = n; i > 0; --i)
     result = make<pair>(ctx, elements[i - 1], result);
 
@@ -861,9 +841,9 @@ make_list(context& ctx, Ts... ts) {
 }
 
 template <typename Container, typename Converter>
-object*
+ptr<>
 make_list_from_vector(context& ctx, Container const& values, Converter const& convert) {
-  object* head = ctx.constants->null.get();
+  ptr<> head = ctx.constants->null.get();
 
   for (auto elem = values.rbegin(); elem != values.rend(); ++elem)
     head = cons(ctx, convert(*elem), head);
@@ -871,22 +851,22 @@ make_list_from_vector(context& ctx, Container const& values, Converter const& co
   return head;
 }
 
-inline object*
-make_list_from_vector(context& ctx, std::vector<object*> const& values) {
-  return make_list_from_vector(ctx, values, [] (object* x) { return x; });
+inline ptr<>
+make_list_from_vector(context& ctx, std::vector<ptr<>> const& values) {
+  return make_list_from_vector(ctx, values, [] (ptr<> x) { return x; });
 }
 
 // Concatenate a number of lists. If there are 0 lists, return the empty
 // list. If there is 1 list, return it. Otherwise, return a new list whose
 // elements are the elements of the given lists. The last argument doesn't have
 // to be a list -- if it isn't, the result is an improper list.
-object*
+ptr<>
 append(context&, object_span);
 
 // An array of a fixed, dynamic size. Elements are allocated as a part of this
 // object, which requires cooperation from the allocator. From the C++ point of
-// view, there is an array of object* allocated right after the vector object.
-class vector : public dynamic_size_object<vector, object*> {
+// view, there is an array of ptr<> allocated right after the vector object.
+class vector : public dynamic_size_object<vector, ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::vector";
 
@@ -903,11 +883,11 @@ public:
   void
   update_references();
 
-  object*
+  ptr<>
   ref(std::size_t) const;
 
   void
-  set(free_store&, std::size_t, object*);
+  set(free_store&, std::size_t, ptr<>);
 
   std::size_t
   size() const { return size_; }
@@ -920,13 +900,13 @@ private:
 };
 
 inline void
-vector_set(tracked_ptr<vector> const& v, std::size_t i, object* value) { v->set(v.store(), i, value); }
+vector_set(tracked_ptr<vector> const& v, std::size_t i, ptr<> value) { v->set(v.store(), i, value); }
 
-vector*
-make_vector(context&, std::vector<object*> const&);
+ptr<vector>
+make_vector(context&, std::vector<ptr<>> const&);
 
 template <typename Container, typename Converter>
-object*
+ptr<>
 make_vector(context& ctx, Container const& values, Converter const& convert) {
   auto result = make<vector>(ctx, ctx, values.size());
 
@@ -936,16 +916,16 @@ make_vector(context& ctx, Container const& values, Converter const& convert) {
   return result;
 }
 
-vector*
-list_to_vector(context&, object* lst);
+ptr<vector>
+list_to_vector(context&, ptr<> lst);
 
-std::vector<object*>
-list_to_std_vector(object*);
+std::vector<ptr<>>
+list_to_std_vector(ptr<>);
 
-object*
-vector_to_list(context&, vector*);
+ptr<>
+vector_to_list(context&, ptr<vector>);
 
-vector*
+ptr<vector>
 vector_append(context&, object_span vs);
 
 // An immutable string, used for identifying Scheme objects.
@@ -972,13 +952,13 @@ public:
   static constexpr char const* scheme_name = "insider::box";
 
   explicit
-  box(object*);
+  box(ptr<>);
 
-  object*
+  ptr<>
   get() const { return value_; }
 
   void
-  set(free_store& store, object* value) { value_ = value; store.notify_arc(this, value); }
+  set(free_store& store, ptr<> value) { value_ = value; store.notify_arc(this, value); }
 
   void
   trace(tracing_context& tc) const { tc.trace(value_); }
@@ -990,11 +970,11 @@ public:
   hash() const { return insider::hash(value_); }
 
 private:
-  object* value_;
+  ptr<> value_;
 };
 
 inline void
-box_set(tracked_ptr<box> const& b, object* value) { b->set(b.store(), value); }
+box_set(tracked_ptr<box> const& b, ptr<> value) { b->set(b.store(), value); }
 
 // Callable bytecode container. Contains all the information necessary to create
 // a call frame inside the VM.
@@ -1016,32 +996,32 @@ public:
   hash() const;
 };
 
-procedure*
+ptr<procedure>
 make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
                unsigned min_args = 0, bool has_rest = false, std::optional<std::string> name = {});
 
 // A procedure plus a list of captured objects.
-class closure : public dynamic_size_object<closure, object*> {
+class closure : public dynamic_size_object<closure, ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::closure";
 
   static std::size_t
-  extra_elements(insider::procedure*, std::size_t num_captures) {
+  extra_elements(ptr<insider::procedure>, std::size_t num_captures) {
     return num_captures;
   }
 
-  closure(insider::procedure*, std::size_t num_captures);
+  closure(ptr<insider::procedure>, std::size_t num_captures);
 
   closure(closure&&);
 
-  insider::procedure*
+  ptr<insider::procedure>
   procedure() const { return procedure_; }
 
-  object*
+  ptr<>
   ref(std::size_t) const;
 
   void
-  set(free_store& store, std::size_t, object*);
+  set(free_store& store, std::size_t, ptr<>);
 
   std::size_t
   size() const { return size_; }
@@ -1056,12 +1036,12 @@ public:
   hash() const { return insider::hash(procedure_) ^ size_; }
 
 private:
-  insider::procedure* procedure_;
+  ptr<insider::procedure> procedure_;
   std::size_t size_;
 };
 
 inline void
-closure_set(tracked_ptr<closure> const& c, std::size_t i, object* v) { c->set(c.store(), i, v); }
+closure_set(tracked_ptr<closure> const& c, std::size_t i, ptr<> v) { c->set(c.store(), i, v); }
 
 // Like procedure, but when invoked, it calls a C++ function. It is specialised
 // for low arities to avoid having to create an std::vector object to invoke the
@@ -1069,7 +1049,7 @@ closure_set(tracked_ptr<closure> const& c, std::size_t i, object* v) { c->set(c.
 struct native_procedure : public leaf_object<native_procedure> {
   static constexpr char const* scheme_name = "insider::native_procedure";
 
-  using target_type = std::function<object*(context&, object_span)>;
+  using target_type = std::function<ptr<>(context&, object_span)>;
   target_type target;
   char const* name;
 
@@ -1088,21 +1068,21 @@ struct native_procedure : public leaf_object<native_procedure> {
 
 template <typename T>
 bool
-is(object* x);
+is(ptr<> x);
 
 template <typename T>
 auto
-match(object* x);
+match(ptr<> x);
 
 template <typename T>
 auto
 match(generic_tracked_ptr const& x);
 
 bool
-is_callable(object* x);
+is_callable(ptr<> x);
 
-object*
-expect_callable(object* x);
+ptr<>
+expect_callable(ptr<> x);
 
 // Wrapper for C++ values that don't contain references to any Scheme objects.
 template <typename T, typename Hash = std::hash<T>>
@@ -1140,7 +1120,7 @@ format_location(source_location const&);
 class input_stream {
 public:
   explicit
-  input_stream(insider::port*);
+  input_stream(insider::ptr<port>);
 
   std::optional<char>
   peek_char();
@@ -1158,9 +1138,9 @@ public:
   current_location() const;
 
 private:
-  insider::port* port_;
-  unsigned       line_   = 1;
-  unsigned       column_ = 1;
+  insider::ptr<port> port_;
+  unsigned           line_   = 1;
+  unsigned           column_ = 1;
 };
 
 // Part of the programs' source code. It is an S-expression together with
@@ -1169,25 +1149,25 @@ class syntax : public composite_object<syntax> {
 public:
   static constexpr char const* scheme_name = "insider::syntax";
 
-  syntax(object* expr, source_location loc)
+  syntax(ptr<> expr, source_location loc)
     : expression_{expr}
     , location_{std::move(loc)}
   {
     assert(expr);
   }
 
-  syntax(object* expr, scope_set envs)
+  syntax(ptr<> expr, scope_set envs)
     : expression_{expr}
     , scopes_{std::move(envs)}
   { }
 
-  syntax(object* expr, source_location loc, scope_set scopes)
+  syntax(ptr<> expr, source_location loc, scope_set scopes)
     : expression_{expr}
     , location_{std::move(loc)}
     , scopes_{std::move(scopes)}
   { }
 
-  object*
+  ptr<>
   expression() const { return expression_; }
 
   source_location const&
@@ -1197,13 +1177,13 @@ public:
   scopes() const { return scopes_; }
 
   void
-  add_scope(free_store&, scope*);
+  add_scope(free_store&, ptr<scope>);
 
   void
-  remove_scope(scope*);
+  remove_scope(ptr<scope>);
 
   void
-  flip_scope(free_store&, scope*);
+  flip_scope(free_store&, ptr<scope>);
 
   void
   trace(tracing_context& tc) const;
@@ -1215,38 +1195,38 @@ public:
   hash() const { return insider::hash(expression_) ^ std::hash<std::string>{}(format_location(location_)); }
 
 private:
-  object*         expression_;
+  ptr<>           expression_;
   source_location location_;
   scope_set       scopes_;
 };
 
 template <typename T>
 bool
-syntax_is(syntax* stx) {
+syntax_is(ptr<syntax> stx) {
   return is<T>(stx->expression());
 }
 
 template <typename T>
 auto
-syntax_match(syntax* stx) {
+syntax_match(ptr<syntax> stx) {
   return match<T>(stx->expression());
 }
 
 template <typename T>
 auto
-syntax_expect(syntax* stx) {
+syntax_expect(ptr<syntax> stx) {
   return expect<T>(stx->expression());
 }
 
 template <typename T>
 auto
-syntax_assume(syntax* stx) {
+syntax_assume(ptr<syntax> stx) {
   return assume<T>(stx->expression());
 }
 
 template <typename T>
 auto
-semisyntax_is(object* x) {
+semisyntax_is(ptr<> x) {
   if (auto stx = match<syntax>(x))
     return is<T>(stx->expression());
   else
@@ -1255,7 +1235,7 @@ semisyntax_is(object* x) {
 
 template <typename T>
 auto
-semisyntax_match(object* x) {
+semisyntax_match(ptr<> x) {
   if (auto stx = match<syntax>(x))
     return match<T>(stx->expression());
   else
@@ -1264,7 +1244,7 @@ semisyntax_match(object* x) {
 
 template <typename T>
 auto
-semisyntax_expect(object* x) {
+semisyntax_expect(ptr<> x) {
   if (auto stx = match<syntax>(x))
     return expect<T>(stx->expression());
   else
@@ -1273,24 +1253,24 @@ semisyntax_expect(object* x) {
 
 template <typename T>
 auto
-semisyntax_assume(object* x) {
+semisyntax_assume(ptr<> x) {
   if (auto stx = match<syntax>(x))
     return assume<T>(stx->expression());
   else
     return assume<T>(x);
 }
 
-object*
-syntax_to_datum(context&, syntax*);
+ptr<>
+syntax_to_datum(context&, ptr<syntax>);
 
-syntax*
-datum_to_syntax(context&, syntax*, object*);
+ptr<syntax>
+datum_to_syntax(context&, ptr<syntax>, ptr<>);
 
-object*
-syntax_to_list(context&, object*);
+ptr<>
+syntax_to_list(context&, ptr<>);
 
-syntax*
-copy_syntax(context&, syntax*);
+ptr<syntax>
+copy_syntax(context&, ptr<syntax>);
 
 // A procedure for transforming syntax to syntax.
 class transformer : public composite_object<transformer> {
@@ -1298,11 +1278,11 @@ public:
   static constexpr char const* scheme_name = "insider::transformer";
 
   explicit
-  transformer(object* callable)
+  transformer(ptr<> callable)
     : callable_{callable}
   { }
 
-  object*
+  ptr<>
   callable() const { return callable_; }
 
   void
@@ -1315,7 +1295,7 @@ public:
   hash() const { return insider::hash(callable_); }
 
 private:
-  insider::object* callable_;
+  insider::ptr<> callable_;
 };
 
 namespace detail {
@@ -1323,8 +1303,8 @@ namespace detail {
   struct pointer_like;
 
   template <typename T>
-  struct pointer_like<T, object*> {
-    using type = T*;
+  struct pointer_like<T, ptr<>> {
+    using type = ptr<T>;
   };
 
   template <typename T>

@@ -8,33 +8,33 @@ namespace insider {
 
 class object;
 
-// A view into a sequence of object*'s stored contiguously.
+// A view into a sequence of ptr<>'s stored contiguously.
 class object_span {
 public:
-  object_span(object* const* begin, std::size_t size)
+  object_span(ptr<> const* begin, std::size_t size)
     : begin_{begin}
     , size_{size}
   { }
 
   explicit
-  object_span(std::vector<object*> const& v)
+  object_span(std::vector<ptr<>> const& v)
     : begin_{&v[0]}
     , size_{v.size()}
   { }
 
-  object*
+  ptr<>
   operator [] (std::size_t i) const { return begin_[i]; }
 
-  object* const*
+  ptr<> const*
   begin() const { return begin_; }
 
-  object* const*
+  ptr<> const*
   end() const { return begin_ + size_; }
 
-  object*
+  ptr<>
   front() const { return begin_[0]; }
 
-  object*
+  ptr<>
   back() const { return begin_[size_ - 1]; }
 
   std::size_t
@@ -44,8 +44,8 @@ public:
   empty() const { return size_ == 0; }
 
 private:
-  object* const* begin_;
-  std::size_t    size_;
+  ptr<> const* begin_;
+  std::size_t  size_;
 };
 
 } // namespace insider

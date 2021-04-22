@@ -53,7 +53,7 @@ public:
     , irritant_{irritant}
   { }
 
-  simple_action(context& ctx, object* irritant, std::string_view format, Args... args)
+  simple_action(context& ctx, ptr<> irritant, std::string_view format, Args... args)
     : base{ctx}
     , format_{format}
     , args_{std::move(args)...}

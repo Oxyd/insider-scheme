@@ -9,8 +9,8 @@
 
 namespace insider {
 
-static symbol*
-type(context& ctx, object* o) {
+static ptr<symbol>
+type(context& ctx, ptr<> o) {
   if (is_object_ptr(o))
     return ctx.intern(object_type(o).name);
   else
@@ -26,14 +26,14 @@ make_internal_module(context& ctx) {
 
   define_procedure(
     ctx, "write-simple", result, true,
-    [] (context& ctx, object* datum) {
+    [] (context& ctx, ptr<> datum) {
       write_simple(ctx, datum, ctx.output_port.get());
     }
   );
 
   define_procedure(
     ctx, "display", result, true,
-    [] (context& ctx, object* datum) {
+    [] (context& ctx, ptr<> datum) {
       display(ctx, datum, ctx.output_port.get());
     }
   );
@@ -49,12 +49,12 @@ make_internal_module(context& ctx) {
   define_raw_procedure(ctx, "vector-append", result, true, vector_append);
   define_procedure(
     ctx, "vector-length", result, true,
-    [] (vector* v) {
+    [] (ptr<vector> v) {
       return integer{static_cast<integer::value_type>(v->size())};
     }
   );
   define_procedure(ctx, "vector", result, true,
-                   static_cast<vector* (*)(context&, std::vector<object*> const&)>(make_vector));
+                   static_cast<ptr<vector> (*)(context&, std::vector<ptr<>> const&)>(make_vector));
   define_procedure(
     ctx, "make-vector", result, true,
     [] (context& ctx, std::size_t len) {
@@ -66,26 +66,26 @@ make_internal_module(context& ctx) {
 
   operand vector_set_index = define_procedure(
     ctx, "vector-set!", result, true,
-    [] (context& ctx, vector* v, std::size_t i, object* o) {
+    [] (context& ctx, ptr<vector> v, std::size_t i, ptr<> o) {
       v->set(ctx.store, i, o);
     }
   );
   ctx.tag_top_level(vector_set_index, special_top_level_tag::vector_set);
 
   define_procedure(ctx, "cons", result, true, cons);
-  define_procedure(ctx, "car", result, true, static_cast<object* (*)(pair*)>(car));
-  define_procedure(ctx, "cdr", result, true, static_cast<object* (*)(pair*)>(cdr));
+  define_procedure(ctx, "car", result, true, static_cast<ptr<> (*)(ptr<pair>)>(car));
+  define_procedure(ctx, "cdr", result, true, static_cast<ptr<> (*)(ptr<pair>)>(cdr));
   define_procedure(ctx, "cadr", result, true, cadr);
   define_procedure(ctx, "caddr", result, true, caddr);
   define_procedure(ctx, "cadddr", result, true, cadddr);
   define_procedure(ctx, "cddr", result, true, cddr);
   define_procedure(ctx, "cdddr", result, true, cdddr);
   define_procedure(ctx, "set-car!", result, true,
-                   [] (context& ctx, pair* p, object* new_car) {
+                   [] (context& ctx, ptr<pair> p, ptr<> new_car) {
                      p->set_car(ctx.store, new_car);
                    });
   define_procedure(ctx, "set-cdr!", result, true,
-                   [] (context& ctx, pair* p, object* new_cdr) {
+                   [] (context& ctx, ptr<pair> p, ptr<> new_cdr) {
                      p->set_cdr(ctx.store, new_cdr);
                    });
 
@@ -104,7 +104,7 @@ make_internal_module(context& ctx) {
       auto result = make<string>(ctx, length);
 
       if (args.size() == 2) {
-        character* fill = expect<character>(args[1]);
+        ptr<character> fill = expect<character>(args[1]);
         for (std::size_t i = 0; i < static_cast<std::size_t>(length); ++i)
           result->set(i, fill->value());
       }
@@ -115,7 +115,7 @@ make_internal_module(context& ctx) {
 
   define_procedure(
     ctx, "string-length", result, true,
-    [] (string* s) {
+    [] (ptr<string> s) {
       return integer{static_cast<integer::value_type>(s->size())};
     }
   );
@@ -123,14 +123,14 @@ make_internal_module(context& ctx) {
   define_raw_procedure(ctx, "string-append", result, true,
                        [] (context& ctx, object_span args) {
                          std::string result;
-                         for (object* s : args)
+                         for (ptr<> s : args)
                            result += expect<string>(s)->value();
                          return make_string(ctx, result);
                        });
 
   define_procedure(
     ctx, "number->string", result, true,
-    [] (context& ctx, object* num) {
+    [] (context& ctx, ptr<> num) {
       if (!is_number(num))
         throw error{"Not a number: {}", datum_to_string(ctx, num)};
       return datum_to_string(ctx, num);
@@ -139,21 +139,21 @@ make_internal_module(context& ctx) {
 
   define_procedure(
     ctx, "datum->string", result, true,
-    [] (context& ctx, object* datum) {
+    [] (context& ctx, ptr<> datum) {
       return datum_to_string(ctx, datum);
     }
   );
 
   define_procedure(
     ctx, "symbol->string", result, true,
-    [] (context& ctx, object* datum) {
+    [] (context& ctx, ptr<> datum) {
       return make_string(ctx, expect<symbol>(datum)->value());
     }
   );
 
   define_procedure(ctx, "type", result, true, type);
   define_raw_procedure(ctx, "error", result, true,
-                       [] (context& ctx, object_span args) -> object* {
+                       [] (context& ctx, object_span args) -> ptr<> {
                          if (args.size() < 1)
                            throw error{"Expected at least 1 argument"};
 
@@ -166,7 +166,7 @@ make_internal_module(context& ctx) {
 
   define_procedure(
     ctx, "eq?", result, true,
-    [] (context& ctx, object* x, object* y) {
+    [] (context& ctx, ptr<> x, ptr<> y) {
       return x == y ? ctx.constants->t.get() : ctx.constants->f.get();
     }
   );
@@ -178,20 +178,20 @@ make_internal_module(context& ctx) {
 
   define_procedure(ctx, "syntax->datum", result, true, syntax_to_datum);
   define_procedure(ctx, "syntax->list", result, true,
-                   [] (context& ctx, object* stx) -> object* {
-                     if (object* r = syntax_to_list(ctx, stx))
+                   [] (context& ctx, ptr<> stx) -> ptr<> {
+                     if (ptr<> r = syntax_to_list(ctx, stx))
                        return r;
                      else
                        return ctx.constants->f.get();
                    });
 
   define_procedure(ctx, "datum->syntax", result, true,
-                   [] (context& ctx, syntax* s, object* datum) {
+                   [] (context& ctx, ptr<syntax> s, ptr<> datum) {
                      return datum_to_syntax(ctx, s, datum);
                    });
 
   define_procedure(ctx, "free-identifier=?", result, true,
-                   [] (syntax* x, syntax* y) {
+                   [] (ptr<syntax> x, ptr<syntax> y) {
                      if (!is_identifier(x) || !is_identifier(y))
                        throw error{"Expected two identifiers"};
 
@@ -207,7 +207,7 @@ make_internal_module(context& ctx) {
                    });
 
   define_procedure(ctx, "bound-identifier=?", result, true,
-                   [] (syntax* x, syntax* y) {
+                   [] (ptr<syntax> x, ptr<syntax> y) {
                      if (!is_identifier(x) || !is_identifier(y))
                        throw error{"Expected two identifiers"};
 
@@ -228,7 +228,7 @@ make_internal_module(context& ctx) {
 
   define_procedure(
     ctx, "procedure-bytecode", result, true,
-    [] (context& ctx, procedure* f) {
+    [] (context& ctx, ptr<procedure> f) {
       integer::value_type pc = f->entry_pc;
       std::vector<std::tuple<std::size_t, std::size_t, instruction>> instrs;
 
@@ -251,7 +251,7 @@ make_internal_module(context& ctx) {
 
   define_procedure(
     ctx, "procedure-name", result, true,
-    [] (context& ctx, procedure* f) -> object* {
+    [] (context& ctx, ptr<procedure> f) -> ptr<> {
       if (f->name)
         return make_string(ctx, *f->name);
       else
@@ -263,14 +263,14 @@ make_internal_module(context& ctx) {
 
   define_procedure(
     ctx, "instruction-opcode", result, true,
-    [] (opaque_value<instruction>* i) {
+    [] (ptr<opaque_value<instruction>> i) {
       return integer{static_cast<integer::value_type>(i->value.opcode)};
     }
   );
 
   define_procedure(
     ctx, "instruction-operands", result, true,
-    [] (context& ctx, opaque_value<instruction>* i) {
+    [] (context& ctx, ptr<opaque_value<instruction>> i) {
       instruction instr = i->value;
       return make_list_from_vector(ctx, instr.operands,
                                    [&] (operand o) { return integer_to_ptr(o); });
@@ -306,7 +306,7 @@ make_internal_module(context& ctx) {
 
   define_procedure(
     ctx, "set-verbose-collection!", result, true,
-    [] (context& ctx, boolean* value) {
+    [] (context& ctx, ptr<boolean> value) {
       ctx.store.verbose_collection = value->value();
     }
   );

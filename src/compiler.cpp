@@ -443,7 +443,7 @@ compile_top_level_set(context& ctx, procedure_context& proc, top_level_set_expre
   compile_static_reference(proc, ctx.statics.void_, result);
 }
 
-static procedure*
+static ptr<procedure>
 make_procedure(context& ctx, procedure_context const& pc, unsigned min_args, bool has_rest,
                std::optional<std::string> name) {
   return make_procedure(ctx, pc.bytecode.back(), pc.registers.locals_used(), min_args, has_rest, std::move(name));
@@ -728,8 +728,8 @@ compile_sequence(context& ctx, procedure_context& proc, sequence_expression cons
   }
 }
 
-procedure*
-compile_expression(context& ctx, syntax* datum, module& mod) {
+ptr<procedure>
+compile_expression(context& ctx, ptr<syntax> datum, module& mod) {
   auto stx = analyse(ctx, datum, mod);
 
   procedure_context proc{nullptr, mod};

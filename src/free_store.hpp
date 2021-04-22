@@ -21,39 +21,89 @@ struct object;
 using word_type = std::uint64_t;
 enum class generation : word_type;
 
-class tracing_context {
+template <typename = void>
+class ptr;
+
+template <>
+class ptr<> {
 public:
-  tracing_context(std::vector<object*>& stack, generation max_generation)
-    : stack_{stack}
-    , max_generation_{max_generation}
-  { }
+  ptr() = default;
+
+  ptr(object* value) : value_{value} { }
+
+  ptr(std::nullptr_t) { }
+
+  explicit
+  operator bool () const { return value_ != nullptr; }
 
   void
-  trace(object* o);
+  reset(object* new_value) { value_ = new_value; }
 
-private:
-  std::vector<object*>& stack_;
-  generation            max_generation_;
+  object*
+  value() const { return value_; }
+
+protected:
+  object* value_ = nullptr;
 };
 
-struct type_descriptor {
-  char const* name;
-  void (*destroy)(object*);
-  object* (*move)(object*, std::byte*);
-  void (*trace)(object const*, tracing_context&);
-  void (*update_references)(object*);
-  std::size_t (*hash)(object const*);
+template <typename T>
+class ptr : public ptr<> {
+public:
+  ptr() = default;
 
-  bool constant_size;
-  std::size_t size = 0;
-  std::size_t (*get_size)(object*) = nullptr;
-  bool permanent_root = false;
+  ptr(T* value) : ptr<>(value) { }
+
+  ptr(std::nullptr_t) { }
+
+  T*
+  operator -> () const { return static_cast<T*>(value_); }
+
+  T&
+  operator * () const { return *static_cast<T*>(value_); }
+
+  T*
+  value() const { return static_cast<T*>(value_); }
 };
 
-// Base for any garbage-collectable Scheme object.
-struct alignas(sizeof(word_type)) object {
-  static constexpr bool is_dynamic_size = false;
-};
+template <typename T, typename U>
+bool
+operator == (ptr<T> lhs, ptr<U> rhs) { return lhs.value() == rhs.value(); }
+
+template <typename T>
+bool
+operator == (ptr<T> lhs, std::nullptr_t) { return lhs.value() == nullptr; }
+
+template <typename T>
+bool
+operator == (std::nullptr_t, ptr<T> rhs) { return rhs.value() == nullptr; }
+
+template <typename T, typename U>
+bool
+operator != (ptr<T> lhs, ptr<U> rhs) { return lhs.value() != rhs.value(); }
+
+template <typename T>
+bool
+operator != (ptr<T> lhs, std::nullptr_t) { return lhs.value() != nullptr; }
+
+template <typename T>
+bool
+operator != (std::nullptr_t, ptr<T> rhs) { return rhs.value() != nullptr; }
+
+template <typename T>
+bool
+operator < (ptr<T> lhs, ptr<T> rhs) { return std::less<T*>{}(lhs.value(), rhs.value()); }
+
+} // namespace insider
+
+namespace std {
+  template <typename T>
+  struct hash<insider::ptr<T>> {
+    auto
+    operator () (insider::ptr<T> value) const { return std::hash<insider::object*>{}(value.value()); }
+  };
+} // namespace std
+
+namespace insider {
 
 // Object header word:
 //
@@ -69,24 +119,89 @@ static constexpr word_type alive_bit = 1 << alive_shift;
 static constexpr word_type color_bits = (1 << color_shift) | (1 << (color_shift + 1));
 static constexpr word_type generation_bits = (1 << generation_shift) | (1 << (generation_shift + 1));
 
+inline bool
+is_object_ptr(ptr<> o) {
+  return !(reinterpret_cast<word_type>(o.value()) & 1);
+}
+
+inline bool
+is_fixnum(ptr<> o) { return !is_object_ptr(o); }
+
+inline word_type&
+header_word(ptr<> o) {
+  assert(is_object_ptr(o));
+  return *reinterpret_cast<word_type*>(reinterpret_cast<std::byte*>(o.value()) - sizeof(word_type));
+}
+
+inline word_type
+type_index(word_type header) { return header >> type_shift; }
+
+inline word_type
+object_type_index(ptr<> o) { return type_index(header_word(o)); }
+
+// Is a given object an instance of the given Scheme type?
+template <typename T>
+bool
+is(ptr<> x) {
+  assert(x);
+  return is_object_ptr(x) && object_type_index(x) == T::type_index;
+}
+
+template <>
+inline bool
+is<integer>(ptr<> x) {
+  return is_fixnum(x);
+}
+
+template <typename T>
+ptr<T>
+ptr_cast(ptr<> value) {
+  assert(!value || is<T>(value));
+  return ptr<T>{static_cast<T*>(value.value())};
+}
+
+template <>
+inline ptr<>
+ptr_cast<void>(ptr<> value) { return value; }
+
+class tracing_context {
+public:
+  tracing_context(std::vector<ptr<>>& stack, generation max_generation)
+    : stack_{stack}
+    , max_generation_{max_generation}
+  { }
+
+  void
+  trace(ptr<> o);
+
+private:
+  std::vector<ptr<>>& stack_;
+  generation            max_generation_;
+};
+
+struct type_descriptor {
+  char const* name;
+  void (*destroy)(ptr<>);
+  ptr<> (*move)(ptr<>, std::byte*);
+  void (*trace)(ptr<>, tracing_context&);
+  void (*update_references)(ptr<>);
+  std::size_t (*hash)(ptr<>);
+
+  bool constant_size;
+  std::size_t size = 0;
+  std::size_t (*get_size)(ptr<>) = nullptr;
+  bool permanent_root = false;
+};
+
+// Base for any garbage-collectable Scheme object.
+struct alignas(sizeof(word_type)) object {
+  static constexpr bool is_dynamic_size = false;
+};
+
 inline std::vector<type_descriptor>&
 types() {
   static std::vector<type_descriptor> value;
   return value;
-}
-
-inline bool
-is_object_ptr(object* o) {
-  return !(reinterpret_cast<word_type>(o) & 1);
-}
-
-inline bool
-is_fixnum(object* o) { return !is_object_ptr(o); }
-
-inline word_type&
-header_word(object* o) {
-  assert(is_object_ptr(o));
-  return *reinterpret_cast<word_type*>(reinterpret_cast<std::byte*>(o) - sizeof(word_type));
 }
 
 word_type
@@ -95,39 +210,33 @@ new_type(type_descriptor);
 inline std::string
 type_name(word_type index) { return types()[index].name; }
 
-inline word_type
-type_index(word_type header) { return header >> type_shift; }
-
 inline type_descriptor const&
 object_type(word_type header) { return types()[type_index(header)]; }
 
 inline type_descriptor const&
-object_type(object* o) { return object_type(header_word(o)); }
+object_type(ptr<> o) { return object_type(header_word(o)); }
 
 inline word_type
-object_type_index(object* o) { return type_index(header_word(o)); }
-
-inline word_type
-tagged_payload(object* o) {
+tagged_payload(ptr<> o) {
   assert(!is_object_ptr(o));
-  return reinterpret_cast<word_type>(o);
+  return reinterpret_cast<word_type>(o.value());
 }
 
-inline object*
+inline ptr<>
 immediate_to_ptr(word_type w) noexcept {
   assert(w & 1);
-  return reinterpret_cast<object*>(w);
+  return ptr<>{reinterpret_cast<object*>(w)};
 }
 
 constexpr char const* integer_type_name = "insider::fixnum";
 
 inline std::string
-object_type_name(object* o) {
+object_type_name(ptr<> o) {
   return is_object_ptr(o) ? type_name(object_type_index(o)) : integer_type_name;
 }
 
 std::size_t
-object_size(object*);
+object_size(ptr<>);
 
 template <typename T>
 std::string
@@ -142,24 +251,24 @@ type_name<integer>() {
 }
 
 bool
-is_alive(object*);
+is_alive(ptr<>);
 
 inline bool
-is_valid(object* o) {
+is_valid(ptr<> o) {
   return !is_object_ptr(o) || is_alive(o);
 }
 
 generation
-object_generation(object*);
+object_generation(ptr<>);
 
-object*
-forwarding_address(object*);
+ptr<>
+forwarding_address(ptr<>);
 
 template <typename T>
 void
-update_reference(T*& ref) {
+update_reference(ptr<T>& ref) {
   if (ref && is_object_ptr(ref) && !is_alive(ref)) {
-    ref = static_cast<T*>(forwarding_address(ref));
+    ref = ptr_cast<T>(forwarding_address(ref));
     assert(is_alive(ref));
   }
 }
@@ -179,36 +288,36 @@ namespace detail {
 
   template <typename T>
   void
-  destroy(object* o) { static_cast<T*>(o)->~T(); }
+  destroy(ptr<> o) { static_cast<T*>(o.value())->~T(); }
 
   template <typename T>
-  object*
-  move(object* o, std::byte* storage) {
-    return new (storage) T(std::move(*static_cast<T*>(o)));
+  ptr<>
+  move(ptr<> o, std::byte* storage) {
+    return new (storage) T(std::move(*static_cast<T*>(o.value())));
   }
 
   template <typename T>
   void
-  trace(object const* o, tracing_context& tc) {
-    static_cast<T const*>(o)->trace(tc);
+  trace(ptr<> o, tracing_context& tc) {
+    static_cast<T const*>(o.value())->trace(tc);
   }
 
   template <typename T>
   void
-  update_references(object* o) {
-    static_cast<T*>(o)->update_references();
+  update_references(ptr<> o) {
+    static_cast<T*>(o.value())->update_references();
   }
 
   template <typename T>
   std::size_t
-  hash(object const* o) {
-    return static_cast<T const*>(o)->hash();
+  hash(ptr<> o) {
+    return static_cast<T const*>(o.value())->hash();
   }
 
   template <typename T, typename U>
   std::size_t
-  size(object* o) {
-    return sizeof(T) + detail::round_to_words(static_cast<T*>(o)->size() * sizeof(U));
+  size(ptr<> o) {
+    return sizeof(T) + detail::round_to_words(static_cast<T*>(o.value())->size() * sizeof(U));
   }
 }
 
@@ -223,8 +332,8 @@ word_type const leaf_object<Derived>::type_index = new_type(type_descriptor{
   Derived::scheme_name,
   detail::destroy<Derived>,
   detail::move<Derived>,
-  [] (object const*, tracing_context&) { },
-  [] (object*) { },
+  [] (ptr<>, tracing_context&) { },
+  [] (ptr<>) { },
   detail::hash<Derived>,
   true,
   detail::round_to_words(sizeof(Derived)),
@@ -318,6 +427,10 @@ namespace detail {
       link();
     }
 
+    tracked_ptr_base(free_store& fs, ptr<> value) noexcept
+      : tracked_ptr_base(fs, value.value())
+    { }
+
     tracked_ptr_base(tracked_ptr_base const& other) noexcept
       : value_{other.value_}
       , store_{other.store_}
@@ -354,11 +467,11 @@ namespace detail {
     object&
     operator * () const noexcept { return *get(); }
 
-    object*
+    ptr<>
     operator -> () const noexcept { return get(); }
 
-    object*
-    get() const noexcept { return value_; }
+    ptr<>
+    get() const noexcept { return ptr<>{value_}; }
 
     explicit
     operator bool () const { return value_ != nullptr; }
@@ -473,10 +586,10 @@ public:
   operator * () const noexcept { return *get(); }
 
   T*
-  operator -> () const noexcept { return get(); }
+  operator -> () const noexcept { return get().value(); }
 
-  T*
-  get() const noexcept { return static_cast<T*>(generic_tracked_ptr::get()); }
+  ptr<T>
+  get() const noexcept { return ptr_cast<T>(generic_tracked_ptr::get()); }
 };
 
 // Typed weak pointer to a garbage-collectable object.
@@ -498,12 +611,18 @@ public:
   T*
   operator -> () const noexcept { return get(); }
 
-  T*
-  get() const noexcept { return static_cast<T*>(generic_weak_ptr::get()); }
+  ptr<T>
+  get() const noexcept { return ptr_cast<T>(generic_weak_ptr::get()); }
 
   tracked_ptr<T>
   lock() const noexcept { return {*store_, get()}; }
 };
+
+template <typename T>
+bool
+is(generic_tracked_ptr const& x) {
+  return is<T>(x.get());
+}
 
 struct page {
   std::unique_ptr<std::byte[]> storage;
@@ -581,7 +700,7 @@ public:
       std::size_t i = 0;
       while (i < p.used) {
         std::byte* storage = p.storage.get() + i;
-        object* o = reinterpret_cast<object*>(storage + sizeof(word_type));
+        ptr<> o{reinterpret_cast<object*>(storage + sizeof(word_type))};
         std::size_t size = object_size(o);
 
         f(o);
@@ -598,7 +717,7 @@ public:
       std::size_t i = 0;
       while (i < p.used) {
         std::byte* storage = p.storage.get() + i;
-        object* o = reinterpret_cast<object*>(storage + sizeof(word_type));
+        ptr<> o{reinterpret_cast<object*>(storage + sizeof(word_type))};
         std::size_t size = object_size(o);
 
         f(o);
@@ -691,7 +810,7 @@ struct nursery_generation {
   generation  generation_number;
   dense_space small;
   large_space large;
-  std::unordered_set<object*> incoming_arcs;
+  std::unordered_set<ptr<>> incoming_arcs;
 
   nursery_generation(page_allocator& allocator, generation generation_number)
     : generation_number{generation_number}
@@ -722,35 +841,35 @@ public:
   ~free_store();
 
   template <typename T, typename... Args>
-  std::enable_if_t<!T::is_dynamic_size, T*>
+  std::enable_if_t<!T::is_dynamic_size, ptr<T>>
   make(Args&&... args) {
     static_assert(sizeof(T) % sizeof(word_type) == 0);
 
     std::byte* storage = allocate_object(sizeof(T), T::type_index);
-    object* result = new (storage) T(std::forward<Args>(args)...);
+    ptr<> result = new (storage) T(std::forward<Args>(args)...);
 
     if (object_type(result).permanent_root)
       permanent_roots_.push_back(result);
 
-    return static_cast<T*>(result);
+    return ptr_cast<T>(result);
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<T::is_dynamic_size, T*>
+  std::enable_if_t<T::is_dynamic_size, ptr<T>>
   make(Args&&... args) {
     std::size_t elements = T::extra_elements(args...);
     std::size_t size = detail::round_to_words(sizeof(T) + elements * sizeof(typename T::element_type));
     std::byte* storage = allocate_object(size, T::type_index);
-    object* result = new (storage) T(std::forward<Args>(args)...);
+    ptr<> result = new (storage) T(std::forward<Args>(args)...);
 
     if (object_type(result).permanent_root)
       permanent_roots_.push_back(result);
 
-    return static_cast<T*>(result);
+    return ptr_cast<T>(result);
   }
 
   void
-  notify_arc(object* from, object* to) {
+  notify_arc(ptr<> from, ptr<> to) {
     assert(!object_type(from).permanent_root);
 
     if (to && is_object_ptr(to) && object_generation(from) > object_generation(to)) {
@@ -812,7 +931,7 @@ private:
   generic_weak_ptr*    weak_roots_ = &weak_head_;
   generic_weak_ptr     weak_head_;
 
-  std::vector<object*> permanent_roots_;
+  std::vector<ptr<>> permanent_roots_;
 
   unsigned disable_level_ = 0;
   std::optional<generation> requested_collection_level_;

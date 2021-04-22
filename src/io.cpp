@@ -21,7 +21,7 @@ namespace {
   struct dot { };
 
   struct generic_literal {
-    object* value;
+    ptr<> value;
   };
 
   struct boolean_literal {
@@ -379,8 +379,8 @@ read_token(context& ctx, input_stream& stream) {
   }
 }
 
-static object*
-wrap(context& ctx, object* value, source_location const& loc, bool read_syntax) {
+static ptr<>
+wrap(context& ctx, ptr<> value, source_location const& loc, bool read_syntax) {
   if (!value)
     return nullptr;
 
@@ -390,15 +390,15 @@ wrap(context& ctx, object* value, source_location const& loc, bool read_syntax) 
     return value;
 }
 
-static object*
+static ptr<>
 read(context& ctx, token first_token, input_stream& stream, bool read_syntax);
 
-static object*
+static ptr<>
 read_and_wrap(context& ctx, token first_token, input_stream& stream, bool read_syntax) {
   return wrap(ctx, read(ctx, first_token, stream, read_syntax), first_token.location, read_syntax);
 }
 
-static object*
+static ptr<>
 read_list(context& ctx, input_stream& stream, bool read_syntax) {
   token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t.value))
@@ -408,14 +408,14 @@ read_list(context& ctx, input_stream& stream, bool read_syntax) {
   else if (std::holds_alternative<right_paren>(t.value))
     return ctx.constants->null.get();
 
-  pair* result = make<pair>(ctx, read_and_wrap(ctx, t, stream, read_syntax), ctx.constants->null.get());
-  pair* tail = result;
+  ptr<pair> result = make<pair>(ctx, read_and_wrap(ctx, t, stream, read_syntax), ctx.constants->null.get());
+  ptr<pair> tail = result;
 
   t = read_token(ctx, stream);
   while (!std::holds_alternative<end>(t.value)
          && !std::holds_alternative<right_paren>(t.value)
          && !std::holds_alternative<dot>(t.value)) {
-    pair* new_tail = make<pair>(ctx, read_and_wrap(ctx, t, stream, read_syntax), ctx.constants->null.get());
+    ptr<pair> new_tail = make<pair>(ctx, read_and_wrap(ctx, t, stream, read_syntax), ctx.constants->null.get());
     tail->set_cdr(ctx.store, new_tail);
     tail = new_tail;
 
@@ -426,7 +426,7 @@ read_list(context& ctx, input_stream& stream, bool read_syntax) {
     throw parse_error{"Unterminated list", t.location};
   else if (std::holds_alternative<dot>(t.value)) {
     t = read_token(ctx, stream);
-    object* cdr = read_and_wrap(ctx, t, stream, read_syntax);
+    ptr<> cdr = read_and_wrap(ctx, t, stream, read_syntax);
     tail->set_cdr(ctx.store, cdr);
 
     t = read_token(ctx, stream);
@@ -438,11 +438,11 @@ read_list(context& ctx, input_stream& stream, bool read_syntax) {
   return result;
 }
 
-static object*
+static ptr<>
 read_vector(context& ctx, input_stream& stream, bool read_syntax) {
   stream.read_char(); // Consume (
 
-  std::vector<object*> elements;
+  std::vector<ptr<>> elements;
 
   token t = read_token(ctx, stream);
   while (!std::holds_alternative<end>(t.value) && !std::holds_alternative<right_paren>(t.value)) {
@@ -453,14 +453,14 @@ read_vector(context& ctx, input_stream& stream, bool read_syntax) {
   if (std::holds_alternative<end>(t.value))
     throw parse_error{"Unterminated vector", t.location};
 
-  vector* result = make<vector>(ctx, ctx, elements.size());
+  ptr<vector> result = make<vector>(ctx, ctx, elements.size());
   for (std::size_t i = 0; i < elements.size(); ++i)
     result->set(ctx.store, i, elements[i]);
 
   return result;
 }
 
-static object*
+static ptr<>
 read_shortcut(context& ctx, input_stream& stream, token shortcut_token,
               std::string const& shortcut, std::string const& expansion,
               bool read_syntax) {
@@ -472,7 +472,7 @@ read_shortcut(context& ctx, input_stream& stream, token shortcut_token,
                    read_and_wrap(ctx, t, stream, read_syntax));
 }
 
-static object*
+static ptr<>
 read(context& ctx, token first_token, input_stream& stream, bool read_syntax) {
   if (std::holds_alternative<end>(first_token.value))
     return {};
@@ -512,42 +512,42 @@ read(context& ctx, token first_token, input_stream& stream, bool read_syntax) {
   throw parse_error{"Probably unimplemented", first_token.location};
 }
 
-object*
-read(context& ctx, port* stream) {
+ptr<>
+read(context& ctx, ptr<port> stream) {
   input_stream s{stream};
   return read(ctx, read_token(ctx, s), s, false);
 }
 
-object*
+ptr<>
 read(context& ctx, std::string s) {
   auto port = make<insider::port>(ctx, std::move(s), true, false);
   return read(ctx, port);
 }
 
-static syntax*
+static ptr<syntax>
 read_syntax(context& ctx, input_stream& s) {
-  if (object* result = read_and_wrap(ctx, read_token(ctx, s), s, true))
+  if (ptr<> result = read_and_wrap(ctx, read_token(ctx, s), s, true))
     return assume<syntax>(result);
   else
     return nullptr;
 }
 
-syntax*
-read_syntax(context& ctx, port* stream) {
+ptr<syntax>
+read_syntax(context& ctx, ptr<port> stream) {
   input_stream s{stream};
   return read_syntax(ctx, s);
 }
 
-syntax*
+ptr<syntax>
 read_syntax(context& ctx, std::string s) {
   auto port = make<insider::port>(ctx, std::move(s), true, false);
   return read_syntax(ctx, port);
 }
 
 std::vector<generic_tracked_ptr>
-read_multiple(context& ctx, port* in) {
+read_multiple(context& ctx, ptr<port> in) {
   std::vector<generic_tracked_ptr> result;
-  while (object* elem = read(ctx, in))
+  while (ptr<> elem = read(ctx, in))
     result.push_back(track(ctx, elem));
 
   return result;
@@ -560,10 +560,10 @@ read_multiple(context& ctx, std::string s) {
 }
 
 std::vector<tracked_ptr<syntax>>
-read_syntax_multiple(context& ctx, port* p) {
+read_syntax_multiple(context& ctx, ptr<port> p) {
   input_stream in{p};
   std::vector<tracked_ptr<syntax>> result;
-  while (syntax* elem = read_syntax(ctx, in))
+  while (ptr<syntax> elem = read_syntax(ctx, in))
     result.push_back(track(ctx, elem));
 
   return result;
@@ -576,7 +576,7 @@ read_syntax_multiple(context& ctx, std::string s) {
 }
 
 static void
-write_string(string* s, port* out) {
+write_string(ptr<string> s, ptr<port> out) {
   out->write_char('"');
   for (char c : s->value())
     if (c == '"')
@@ -589,13 +589,13 @@ write_string(string* s, port* out) {
 }
 
 static void
-write_char(character* c, port* out) {
+write_char(ptr<character> c, ptr<port> out) {
   out->write_string(R"(#\)");
   out->write_char(c->value());
 }
 
 static void
-output_primitive(context& ctx, object* datum, port* out, bool display) {
+output_primitive(context& ctx, ptr<> datum, ptr<port> out, bool display) {
   if (datum == ctx.constants->null.get())
     out->write_string("()");
   else if (datum == ctx.constants->void_.get())
@@ -625,7 +625,7 @@ output_primitive(context& ctx, object* datum, port* out, bool display) {
     write_simple(ctx, syntax_to_datum(ctx, stx), out);
     out->write_string(">");
   } else if (auto env = match<scope>(datum)) {
-    out->write_string(fmt::format("#env@{}", static_cast<void*>(env)));
+    out->write_string(fmt::format("#env@{}", static_cast<void*>(env.value())));
   } else if (auto proc = match<procedure>(datum)) {
     if (proc->name)
       out->write_string(fmt::format("<procedure {}>", *proc->name));
@@ -638,9 +638,9 @@ output_primitive(context& ctx, object* datum, port* out, bool display) {
 }
 
 static void
-output_simple(context& ctx, object* datum, port* out, bool display) {
+output_simple(context& ctx, ptr<> datum, ptr<port> out, bool display) {
   struct record {
-    object*     datum;
+    ptr<>       datum;
     std::size_t written = 0;
     bool        omit_parens = false;
   };
@@ -705,17 +705,17 @@ output_simple(context& ctx, object* datum, port* out, bool display) {
 }
 
 void
-write_simple(context& ctx, object* datum, port* out) {
+write_simple(context& ctx, ptr<> datum, ptr<port> out) {
   output_simple(ctx, datum, out, false);
 }
 
 void
-display(context& ctx, object* datum, port* out) {
+display(context& ctx, ptr<> datum, ptr<port> out) {
   output_simple(ctx, datum, out, true);
 }
 
 std::string
-datum_to_string(context& ctx, object* datum) {
+datum_to_string(context& ctx, ptr<> datum) {
   auto p = make<port>(ctx, "", false, true);
   write_simple(ctx, datum, p);
   return p->get_string();

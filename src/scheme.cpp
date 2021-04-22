@@ -24,7 +24,7 @@
 namespace insider {
 
 std::size_t
-hash(object* x) {
+hash(ptr<> x) {
   if (auto i = match<integer>(x))
     return integer_hash(*i);
   else
@@ -32,7 +32,7 @@ hash(object* x) {
 }
 
 bool
-eqv(context& ctx, object* x, object* y) {
+eqv(context& ctx, ptr<> x, ptr<> y) {
   if (x == y)
     return true;
 
@@ -40,7 +40,7 @@ eqv(context& ctx, object* x, object* y) {
     return false; // Either both are fixnums and not the same, or they're different types.
 
   if (is_number(x) && is_number(y) && is_exact(x) == is_exact(y))
-    return arith_equal(ctx, x, y);
+    return arith_equal(ctx, x, y) == ctx.constants->t.get();
 
   if (object_type_index(x) != object_type_index(y))
     return false;
@@ -52,12 +52,12 @@ eqv(context& ctx, object* x, object* y) {
 }
 
 bool
-equal(context& ctx, object* x, object* y) {
+equal(context& ctx, ptr<> x, ptr<> y) {
   // XXX: This will break on infinite data structures.
 
   struct record {
-    object* left;
-    object* right;
+    ptr<> left;
+    ptr<> right;
   };
 
   std::vector<record> stack{{x, y}};
@@ -96,19 +96,19 @@ equal(context& ctx, object* x, object* y) {
 }
 
 bool
-is_identifier(object* x) {
+is_identifier(ptr<> x) {
   if (!is<syntax>(x))
     return false;
   return is<symbol>(assume<syntax>(x)->expression());
 }
 
 std::string
-identifier_name(syntax* x) {
+identifier_name(ptr<syntax> x) {
   return syntax_expect<symbol>(x)->value();
 }
 
 bool
-add_scope(scope_set& set, scope* env) {
+add_scope(scope_set& set, ptr<scope> env) {
   if (std::find(set.begin(), set.end(), env) == set.end()) {
     set.push_back(env);
     return true;
@@ -117,12 +117,12 @@ add_scope(scope_set& set, scope* env) {
 }
 
 void
-remove_scope(scope_set& set, scope* env) {
+remove_scope(scope_set& set, ptr<scope> env) {
   set.erase(std::remove(set.begin(), set.end(), env), set.end());
 }
 
 bool
-flip_scope(scope_set& set, scope* env) {
+flip_scope(scope_set& set, ptr<scope> env) {
   auto it = std::find(set.begin(), set.end(), env);
   if (it == set.end()) {
     set.push_back(env);
@@ -135,7 +135,7 @@ flip_scope(scope_set& set, scope* env) {
 
 bool
 scope_sets_subseteq(scope_set const& lhs, scope_set const& rhs) {
-  for (scope const* e : lhs)
+  for (ptr<scope> e : lhs)
     if (std::find(rhs.begin(), rhs.end(), e) == rhs.end())
       return false;
   return true;
@@ -147,7 +147,7 @@ scope_sets_equal(scope_set const& lhs, scope_set const& rhs) {
 }
 
 void
-scope::add(free_store& store, syntax* identifier, std::shared_ptr<variable> var) {
+scope::add(free_store& store, ptr<syntax> identifier, std::shared_ptr<variable> var) {
   assert(is_identifier(identifier));
 
   if (is_redefinition(identifier, var))
@@ -158,7 +158,7 @@ scope::add(free_store& store, syntax* identifier, std::shared_ptr<variable> var)
 }
 
 void
-scope::add(free_store& store, syntax* identifier, transformer* tr) {
+scope::add(free_store& store, ptr<syntax> identifier, ptr<transformer> tr) {
   assert(is_identifier(identifier));
   assert(tr != nullptr);
 
@@ -172,18 +172,18 @@ scope::add(free_store& store, syntax* identifier, transformer* tr) {
 }
 
 void
-scope::add(free_store& store, syntax* identifier, value_type const& value) {
+scope::add(free_store& store, ptr<syntax> identifier, value_type const& value) {
   if (auto var = std::get_if<std::shared_ptr<variable>>(&value))
     add(store, identifier, *var);
   else
-    add(store, identifier, std::get<transformer*>(value));
+    add(store, identifier, std::get<ptr<transformer>>(value));
 }
 
 auto
-scope::find_candidates(symbol* name, scope_set const& envs) const -> std::vector<binding> {
+scope::find_candidates(ptr<symbol> name, scope_set const& envs) const -> std::vector<binding> {
   std::vector<binding> result;
   for (binding const& e : bindings_) {
-    syntax const* s = std::get<syntax*>(e);
+    ptr<syntax> s = std::get<ptr<syntax>>(e);
     if (assume<symbol>(s->expression()) == name && scope_sets_subseteq(s->scopes(), envs))
       result.push_back(e);
   }
@@ -206,7 +206,7 @@ void
 scope::trace(tracing_context& tc) const {
   for (auto& [identifier, binding] : bindings_) {
     tc.trace(identifier);
-    if (transformer* const* tr = std::get_if<transformer*>(&binding))
+    if (ptr<transformer> const* tr = std::get_if<ptr<transformer>>(&binding))
       tc.trace(*tr);
   }
 }
@@ -214,10 +214,10 @@ scope::trace(tracing_context& tc) const {
 void
 scope::update_references() {
   for (binding& b : bindings_) {
-    update_reference(std::get<syntax*>(b));
+    update_reference(std::get<ptr<syntax>>(b));
 
     value_type& value = std::get<value_type>(b);
-    if (transformer** tr = std::get_if<transformer*>(&value))
+    if (ptr<transformer>* tr = std::get_if<ptr<transformer>>(&value))
       update_reference(*tr);
   }
 }
@@ -228,24 +228,24 @@ scope::hash() const {
 }
 
 bool
-scope::is_redefinition(syntax* id, value_type const& intended_value) const {
+scope::is_redefinition(ptr<syntax> id, value_type const& intended_value) const {
   for (binding const& b : bindings_)
-    if (assume<symbol>(std::get<syntax*>(b)->expression())->value() == assume<symbol>(id->expression())->value()
-        && scope_sets_equal(id->scopes(), std::get<syntax*>(b)->scopes())
+    if (assume<symbol>(std::get<ptr<syntax>>(b)->expression())->value() == assume<symbol>(id->expression())->value()
+        && scope_sets_equal(id->scopes(), std::get<ptr<syntax>>(b)->scopes())
         && std::get<value_type>(b) != intended_value)
       return true;
   return false;
 }
 
 std::optional<scope::value_type>
-lookup(symbol* name, scope_set const& envs) {
+lookup(ptr<symbol> name, scope_set const& envs) {
   std::optional<scope::value_type> result;
   scope_set maximal_scope_set;
   bool ambiguous = false;
 
-  for (scope const* e : envs)
+  for (ptr<scope> e : envs)
     for (scope::binding const& b : e->find_candidates(name, envs)) {
-      scope_set const& binding_set = std::get<syntax*>(b)->scopes();
+      scope_set const& binding_set = std::get<ptr<syntax>>(b)->scopes();
 
       if (scope_sets_subseteq(maximal_scope_set, binding_set)) {
         ambiguous = false;
@@ -262,7 +262,7 @@ lookup(symbol* name, scope_set const& envs) {
 }
 
 std::optional<scope::value_type>
-lookup(syntax* id) {
+lookup(ptr<syntax> id) {
   assert(is_identifier(id));
   return lookup(assume<symbol>(id->expression()), id->scopes());
 }
@@ -272,7 +272,7 @@ module::module(context& ctx)
 { }
 
 auto
-module::find(symbol* identifier) const -> std::optional<binding_type> {
+module::find(ptr<symbol> identifier) const -> std::optional<binding_type> {
   if (auto binding = lookup(identifier, {env_.get()}))
     return binding;
 
@@ -280,7 +280,7 @@ module::find(symbol* identifier) const -> std::optional<binding_type> {
 }
 
 void
-module::import_(context& ctx, symbol* identifier, binding_type b) {
+module::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
   if (auto v = find(identifier)) {
     if (*v == b)
       return; // Re-importing the same variable under the same name is OK.
@@ -292,11 +292,11 @@ module::import_(context& ctx, symbol* identifier, binding_type b) {
     env_->add(env_.store(), make<syntax>(ctx, identifier, scope_set{env_.get()}), *var);
   else
     env_->add(env_.store(), make<syntax>(ctx, identifier, scope_set{env_.get()}),
-              std::get<transformer*>(b));
+              std::get<ptr<transformer>>(b));
 }
 
 void
-module::export_(symbol* name) {
+module::export_(ptr<symbol> name) {
   if (!find(name))
     throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name->value())};
 
@@ -445,7 +445,7 @@ perform_imports(context& ctx, module& m, protomodule const& pm) {
 }
 
 operand
-define_top_level(context& ctx, std::string const& name, module& m, bool export_, object* object) {
+define_top_level(context& ctx, std::string const& name, module& m, bool export_, ptr<> object) {
   auto index = ctx.add_top_level(object, name);
   auto name_sym = ctx.intern(name);
   auto var = std::make_shared<variable>(name, index);
@@ -572,7 +572,7 @@ context::~context() {
   constants.reset();
 }
 
-symbol*
+ptr<symbol>
 context::intern(std::string const& s) {
   auto interned = interned_symbols_.find(s);
   if (interned != interned_symbols_.end()) {
@@ -602,7 +602,7 @@ context::intern_static(generic_tracked_ptr const& x) {
   return it->second;
 }
 
-object*
+ptr<>
 context::get_static_checked(operand i) const {
   if (i >= statics_.size())
     throw std::runtime_error{fmt::format("Nonexistent static object {}", i)};
@@ -610,7 +610,7 @@ context::get_static_checked(operand i) const {
   return statics_[i].get();
 }
 
-object*
+ptr<>
 context::get_top_level_checked(operand i) const {
   if (i >= top_level_objects_.size())
     throw std::runtime_error{fmt::format("Nonexistent top-level object {}", i)};
@@ -619,13 +619,13 @@ context::get_top_level_checked(operand i) const {
 }
 
 void
-context::set_top_level(operand i, object* value) {
+context::set_top_level(operand i, ptr<> value) {
   assert(i < top_level_objects_.size());
   top_level_objects_[i] = {store, value};
 }
 
 operand
-context::add_top_level(object* x, std::string name) {
+context::add_top_level(ptr<> x, std::string name) {
   top_level_objects_.push_back({store, x});
   top_level_binding_names_.emplace_back(std::move(name));
   return top_level_objects_.size() - 1;
@@ -744,7 +744,7 @@ string::hash() const {
   return result;
 }
 
-string*
+ptr<string>
 make_string(context& ctx, std::string_view value) {
   auto result = make<string>(ctx, value.size());
 
@@ -891,18 +891,18 @@ port::destroy() {
 }
 
 bool
-is_list(object* x) {
+is_list(ptr<> x) {
   while (true)
     if (is<null_type>(x))
       return true;
-    else if (pair* p = match<pair>(x))
+    else if (ptr<pair> p = match<pair>(x))
       x = cdr(p);
     else
       return false;
 }
 
 std::size_t
-list_length(object* x) {
+list_length(ptr<> x) {
   std::size_t result = 0;
   while (!is<null_type>(x)) {
     x = cdr(expect<pair>(x));
@@ -911,32 +911,32 @@ list_length(object* x) {
   return result;
 }
 
-object*
-cadr(pair* x) {
+ptr<>
+cadr(ptr<pair> x) {
   return car(expect<pair>(cdr(x)));
 }
 
-object*
-caddr(pair* x) {
+ptr<>
+caddr(ptr<pair> x) {
   return car(expect<pair>(cddr(x)));
 }
 
-object*
-cadddr(pair* x) {
+ptr<>
+cadddr(ptr<pair> x) {
   return car(expect<pair>(cdddr(x)));
 }
 
-object*
-cddr(pair* x) {
+ptr<>
+cddr(ptr<pair> x) {
   return cdr(expect<pair>(cdr(x)));
 }
 
-object*
-cdddr(pair* x) {
+ptr<>
+cdddr(ptr<pair> x) {
   return cdr(expect<pair>(cddr(x)));
 }
 
-object*
+ptr<>
 append(context& ctx, object_span xs) {
   // If all the lists are empty, we return the empty list as well.
 
@@ -953,15 +953,15 @@ append(context& ctx, object_span xs) {
   // We have more than one list, and at least the current list is non-empty. Do
   // the needful.
 
-  object* new_head = ctx.constants->null.get();
-  pair* new_tail = nullptr;
-  object* current = expect<pair>(*x);
+  ptr<> new_head = ctx.constants->null.get();
+  ptr<pair> new_tail = nullptr;
+  ptr<> current = expect<pair>(*x);
   for (; x != xs.end() - 1; ++x) {
     current = *x;
 
     while (current != ctx.constants->null.get()) {
-      pair* c = expect<pair>(current);
-      pair* new_c = make<pair>(ctx, car(c), ctx.constants->null.get());
+      ptr<pair> c = expect<pair>(current);
+      ptr<pair> new_c = make<pair>(ctx, car(c), ctx.constants->null.get());
 
       if (new_tail)
         new_tail->set_cdr(ctx.store, new_c);
@@ -1008,7 +1008,7 @@ vector::update_references() {
     update_reference(storage_element(i));
 }
 
-object*
+ptr<>
 vector::ref(std::size_t i) const {
   if (i >= size_)
     throw std::runtime_error{fmt::format("Vector access out of bounds: index = {}, size = {}", i, size_)};
@@ -1017,7 +1017,7 @@ vector::ref(std::size_t i) const {
 }
 
 void
-vector::set(free_store& store, std::size_t i, object* value) {
+vector::set(free_store& store, std::size_t i, ptr<> value) {
   if (i >= size_)
     throw std::runtime_error{fmt::format("Vector access out of bounds: index = {}, size = {}", i, size_)};
 
@@ -1035,8 +1035,8 @@ vector::hash() const {
   return result;
 }
 
-vector*
-make_vector(context& ctx, std::vector<object*> const& elems) {
+ptr<vector>
+make_vector(context& ctx, std::vector<ptr<>> const& elems) {
   auto result = make<vector>(ctx, ctx, elems.size());
   for (std::size_t i = 0; i < elems.size(); ++i)
     result->set(ctx.store, i, elems[i]);
@@ -1044,50 +1044,50 @@ make_vector(context& ctx, std::vector<object*> const& elems) {
   return result;
 }
 
-vector*
-list_to_vector(context& ctx, object* lst) {
+ptr<vector>
+list_to_vector(context& ctx, ptr<> lst) {
   std::size_t size = 0;
-  for (object* e = lst; e != ctx.constants->null.get(); e = cdr(expect<pair>(e)))
+  for (ptr<> e = lst; e != ctx.constants->null.get(); e = cdr(expect<pair>(e)))
     ++size;
 
   auto result = make<vector>(ctx, ctx, size);
   std::size_t i = 0;
-  for (object* e = lst; e != ctx.constants->null.get(); e = cdr(assume<pair>(e)))
+  for (ptr<> e = lst; e != ctx.constants->null.get(); e = cdr(assume<pair>(e)))
     result->set(ctx.store, i++, car(assume<pair>(e)));
 
   return result;
 }
 
-std::vector<object*>
-list_to_std_vector(object* lst) {
-  std::vector<object*> result;
-  for (object* e : in_list{lst})
+std::vector<ptr<>>
+list_to_std_vector(ptr<> lst) {
+  std::vector<ptr<>> result;
+  for (ptr<> e : in_list{lst})
     result.push_back(e);
 
   return result;
 }
 
-object*
-vector_to_list(context& ctx, vector* v) {
-  object* result = ctx.constants->null.get();
+ptr<>
+vector_to_list(context& ctx, ptr<vector> v) {
+  ptr<> result = ctx.constants->null.get();
   for (std::size_t i = v->size(); i > 0; --i)
     result = cons(ctx, v->ref(i - 1), result);
 
   return result;
 }
 
-vector*
+ptr<vector>
 vector_append(context& ctx, object_span vs) {
   std::size_t size = 0;
-  for (object* e : vs) {
-    vector* v = expect<vector>(e);
+  for (ptr<> e : vs) {
+    ptr<vector> v = expect<vector>(e);
     size += v->size();
   }
 
   auto result = make<vector>(ctx, ctx, size);
   std::size_t i = 0;
-  for (object* e : vs) {
-    vector* v = assume<vector>(e);
+  for (ptr<> e : vs) {
+    ptr<vector> v = assume<vector>(e);
     for (std::size_t j = 0; j < v->size(); ++j)
       result->set(ctx.store, i++, v->ref(j));
   }
@@ -1095,7 +1095,7 @@ vector_append(context& ctx, object_span vs) {
   return result;
 }
 
-box::box(object* value)
+box::box(ptr<> value)
   : value_{value}
 { }
 
@@ -1114,7 +1114,7 @@ procedure::hash() const {
   return std::hash<std::uint64_t>{}(entry_pc);
 }
 
-procedure*
+ptr<procedure>
 make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
                unsigned min_args, bool has_rest, std::optional<std::string> name) {
   std::size_t entry = ctx.program.size();
@@ -1122,7 +1122,7 @@ make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
   return make<procedure>(ctx, entry, bc.size(), locals_size, min_args, has_rest, std::move(name));
 }
 
-closure::closure(insider::procedure* p, std::size_t num_captures)
+closure::closure(ptr<insider::procedure> p, std::size_t num_captures)
   : procedure_{p}
   , size_{num_captures}
 { }
@@ -1135,14 +1135,14 @@ closure::closure(closure&& other)
     storage_element(i) = other.storage_element(i);
 }
 
-object*
+ptr<>
 closure::ref(std::size_t i) const {
   assert(i < size_);
   return storage_element(i);
 }
 
 void
-closure::set(free_store& store, std::size_t i, object* value) {
+closure::set(free_store& store, std::size_t i, ptr<> value) {
   assert(i < size_);
   storage_element(i) = value;
   store.notify_arc(this, value);
@@ -1163,12 +1163,12 @@ closure::update_references() {
 }
 
 bool
-is_callable(object* x) {
+is_callable(ptr<> x) {
   return is<procedure>(x) || is<native_procedure>(x) || is<closure>(x);
 }
 
-object*
-expect_callable(object* x) {
+ptr<>
+expect_callable(ptr<> x) {
   if (!is_callable(x))
     throw std::runtime_error{"Expected a callable"};
   else
@@ -1182,7 +1182,7 @@ format_location(source_location const& loc) {
                      loc.line, loc.column);
 }
 
-input_stream::input_stream(insider::port* p)
+input_stream::input_stream(insider::ptr<port> p)
   : port_{p}
 { }
 
@@ -1234,24 +1234,24 @@ void
 syntax::trace(tracing_context& tc) const {
   tc.trace(expression_);
 
-  for (scope* env : scopes_)
+  for (ptr<scope> env : scopes_)
     tc.trace(env);
 }
 
 void
-syntax::add_scope(free_store& fs, scope* s) {
+syntax::add_scope(free_store& fs, ptr<scope> s) {
   bool added = insider::add_scope(scopes_, s);
   if (added)
     fs.notify_arc(this, s);
 }
 
 void
-syntax::remove_scope(scope* s) {
+syntax::remove_scope(ptr<scope> s) {
   insider::remove_scope(scopes_, s);
 }
 
 void
-syntax::flip_scope(free_store& fs, scope* s) {
+syntax::flip_scope(free_store& fs, ptr<scope> s) {
   bool added = insider::flip_scope(scopes_, s);
   if (added)
     fs.notify_arc(this, s);
@@ -1261,12 +1261,12 @@ void
 syntax::update_references() {
   update_reference(expression_);
 
-  for (scope*& env : scopes_)
+  for (ptr<scope>& env : scopes_)
     update_reference(env);
 }
 
-static object*
-syntax_to_datum_helper(context& ctx, object* o) {
+static ptr<>
+syntax_to_datum_helper(context& ctx, ptr<> o) {
   if (o == ctx.constants->null.get()) {
     return o;
   } else if (auto p = semisyntax_match<pair>(o)) {
@@ -1283,16 +1283,16 @@ syntax_to_datum_helper(context& ctx, object* o) {
   }
 }
 
-object*
-syntax_to_datum(context& ctx, syntax* stx) {
+ptr<>
+syntax_to_datum(context& ctx, ptr<syntax> stx) {
   return syntax_to_datum_helper(ctx, stx);
 }
 
-syntax*
-datum_to_syntax(context& ctx, syntax* s, object* datum) {
+ptr<syntax>
+datum_to_syntax(context& ctx, ptr<syntax> s, ptr<> datum) {
   if (auto p = match<pair>(datum)) {
-    syntax* head = datum_to_syntax(ctx, s, car(p));
-    syntax* tail = datum_to_syntax(ctx, s, cdr(p));
+    ptr<syntax> head = datum_to_syntax(ctx, s, car(p));
+    ptr<syntax> tail = datum_to_syntax(ctx, s, cdr(p));
     return make<syntax>(ctx, cons(ctx, head, tail), s->location(), s->scopes());
   } else if (auto v = match<vector>(datum)) {
     auto result_vec = make<vector>(ctx, ctx, v->size());
@@ -1305,19 +1305,19 @@ datum_to_syntax(context& ctx, syntax* s, object* datum) {
     return make<syntax>(ctx, datum, s->location(), s->scopes());
 }
 
-object*
-syntax_to_list(context& ctx, object* stx) {
+ptr<>
+syntax_to_list(context& ctx, ptr<> stx) {
   if (semisyntax_is<null_type>(stx))
     return ctx.constants->null.get();
 
   if (!is<pair>(stx) && (!is<syntax>(stx) || !syntax_is<pair>(assume<syntax>(stx))))
     return nullptr;
 
-  pair* result = make<pair>(ctx, car(semisyntax_assume<pair>(stx)), ctx.constants->null.get());
-  pair* tail = result;
-  object* datum = cdr(semisyntax_assume<pair>(stx));
+  ptr<pair> result = make<pair>(ctx, car(semisyntax_assume<pair>(stx)), ctx.constants->null.get());
+  ptr<pair> tail = result;
+  ptr<> datum = cdr(semisyntax_assume<pair>(stx));
 
-  while (pair* p = semisyntax_match<pair>(datum)) {
+  while (ptr<pair> p = semisyntax_match<pair>(datum)) {
     auto new_pair = make<pair>(ctx, car(p), ctx.constants->null.get());
     tail->set_cdr(ctx.store, new_pair);
     tail = new_pair;
@@ -1331,8 +1331,8 @@ syntax_to_list(context& ctx, object* stx) {
   return result;
 }
 
-static object*
-copy_syntax_helper(context& ctx, object* o) {
+static ptr<>
+copy_syntax_helper(context& ctx, ptr<> o) {
   if (auto stx = match<syntax>(o))
     return make<syntax>(ctx, copy_syntax_helper(ctx, stx->expression()), stx->location(), stx->scopes());
   else if (auto p = match<pair>(o))
@@ -1346,8 +1346,8 @@ copy_syntax_helper(context& ctx, object* o) {
     return o;
 }
 
-syntax*
-copy_syntax(context& ctx, syntax* stx) {
+ptr<syntax>
+copy_syntax(context& ctx, ptr<syntax> stx) {
   return assume<syntax>(copy_syntax_helper(ctx, stx));
 }
 
