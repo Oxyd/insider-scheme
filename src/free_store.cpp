@@ -69,7 +69,7 @@ set_object_generation(ptr<> o, generation gen) {
   header_word(o) = (header_word(o) & ~generation_bits) | (static_cast<word_type>(gen) << generation_shift);
 }
 
-ptr<>
+static ptr<>
 forwarding_address(ptr<> o) {
   assert(!is_alive(o));
   return reinterpret_cast<object*>(header_word(o));
@@ -79,18 +79,6 @@ static void
 set_forwarding_address(ptr<> from, ptr<> target) {
   header_word(from) = reinterpret_cast<word_type>(target.value());
   assert((header_word(from) & alive_bit) == 0);
-}
-
-void
-tracing_context::trace(ptr<> o) {
-  if (o && is_object_ptr(o) && object_color(o) == color::white
-      && object_generation(o) <= max_generation_) {
-    assert(is_alive(o));
-    assert(object_type_index(o) < types().size());
-
-    stack_.push_back(o);
-    set_object_color(o, color::grey);
-  }
 }
 
 word_type
@@ -280,7 +268,21 @@ trace(generic_tracked_ptr* roots, std::vector<ptr<>> const& permanent_roots,
   assert(max_generation >= generation::nursery_2);
 
   std::vector<ptr<>> stack;
-  tracing_context tc{stack, max_generation};
+  auto trace = [&] (ptr<> object) {
+    object_type(object).visit_members(
+      object,
+      [&] (ptr<> member) {
+        if (member && is_object_ptr(member) && object_color(member) == color::white
+            && object_generation(member) <= max_generation) {
+          assert(is_alive(member));
+          assert(object_type_index(member) < types().size());
+
+          stack.push_back(member);
+          set_object_color(member, color::grey);
+        }
+      }
+    );
+  };
 
   for (generic_tracked_ptr* root = roots; root; root = root->next())
     if (root->get() && is_object_ptr(root->get())
@@ -295,7 +297,7 @@ trace(generic_tracked_ptr* roots, std::vector<ptr<>> const& permanent_roots,
     for (ptr<> o : permanent_roots)
       if (object_color(o) == color::white) {
         set_object_color(o, color::grey);
-        object_type(o).trace(o, tc);
+        trace(o);
       }
 
   for (nursery_generation const* g : {&nursery_1, &nursery_2})
@@ -304,7 +306,7 @@ trace(generic_tracked_ptr* roots, std::vector<ptr<>> const& permanent_roots,
         assert(is_object_ptr(o));
         assert(object_generation(o) > g->generation_number);
 
-        object_type(o).trace(o, tc);
+        trace(o);
       }
 
   while (!stack.empty()) {
@@ -313,7 +315,7 @@ trace(generic_tracked_ptr* roots, std::vector<ptr<>> const& permanent_roots,
 
     assert(object_color(top) != color::white);
     if (object_color(top) == color::grey) {
-      object_type(top).trace(top, tc);
+      trace(top);
       set_object_color(top, color::black);
     }
   }
@@ -405,15 +407,30 @@ move_incoming_arcs(nursery_generation& from, nursery_generation& to) {
 }
 
 static void
+update_reference(ptr<>& ref) {
+  if (ref && is_object_ptr(ref) && !is_alive(ref)) {
+    ref.reset(forwarding_address(ref));
+    assert(is_alive(ref));
+  }
+}
+
+static void
+update_members(ptr<> o) {
+  object_type(o).visit_members(o, [] (ptr<>& member) {
+    update_reference(member);
+  });
+}
+
+static void
 update_references(dense_space const& space) {
-  space.for_all([] (ptr<> o) { object_type(o).update_references(o); });
+  space.for_all(update_members);
 }
 
 static void
 update_references(large_space const& space) {
   for (std::size_t i = 0; i < space.object_count(); ++i) {
     ptr<> o = reinterpret_cast<object*>(space.get(i) + sizeof(word_type));
-    object_type(o).update_references(o);
+    update_members(o);
   }
 }
 
@@ -421,9 +438,9 @@ static void
 update_references(std::unordered_set<ptr<>> const& set) {
   for (ptr<> o : set) {
     if (is_alive(o))
-      object_type(o).update_references(o);
+      update_members(o);
     else if (ptr<> fwd = forwarding_address(o); fwd != nullptr)
-      object_type(fwd).update_references(fwd);
+      update_members(fwd);
   }
 }
 

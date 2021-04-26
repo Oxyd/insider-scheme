@@ -64,27 +64,13 @@ is<integer>(ptr<> x) {
   return is_fixnum(x);
 }
 
-class tracing_context {
-public:
-  tracing_context(std::vector<ptr<>>& stack, generation max_generation)
-    : stack_{stack}
-    , max_generation_{max_generation}
-  { }
-
-  void
-  trace(ptr<> o);
-
-private:
-  std::vector<ptr<>>& stack_;
-  generation            max_generation_;
-};
+using member_visitor = std::function<void(ptr<>&)>;
 
 struct type_descriptor {
   char const* name;
   void (*destroy)(ptr<>);
   ptr<> (*move)(ptr<>, std::byte*);
-  void (*trace)(ptr<>, tracing_context&);
-  void (*update_references)(ptr<>);
+  void (*visit_members)(ptr<>, member_visitor const&);
   std::size_t (*hash)(ptr<>);
 
   bool constant_size;
@@ -161,25 +147,6 @@ is_valid(ptr<> o) {
 generation
 object_generation(ptr<>);
 
-ptr<>
-forwarding_address(ptr<>);
-
-template <typename T>
-void
-update_reference(ptr<T>& ref) {
-  if (ref && is_object_ptr(ref) && !is_alive(ref)) {
-    ref = ptr_cast<T>(forwarding_address(ref));
-    assert(is_alive(ref));
-  }
-}
-
-template <typename T>
-T*
-update_reference_copy(T* ref) {
-  update_reference(ref);
-  return ref;
-}
-
 namespace detail {
   constexpr std::size_t
   round_to_words(std::size_t s) {
@@ -198,14 +165,8 @@ namespace detail {
 
   template <typename T>
   void
-  trace(ptr<> o, tracing_context& tc) {
-    static_cast<T const*>(o.value())->trace(tc);
-  }
-
-  template <typename T>
-  void
-  update_references(ptr<> o) {
-    static_cast<T*>(o.value())->update_references();
+  visit_members(ptr<> o, member_visitor const& f) {
+    static_cast<T*>(o.value())->visit_members(f);
   }
 
   template <typename T>
@@ -232,8 +193,7 @@ word_type const leaf_object<Derived>::type_index = new_type(type_descriptor{
   Derived::scheme_name,
   detail::destroy<Derived>,
   detail::move<Derived>,
-  [] (ptr<>, tracing_context&) { },
-  [] (ptr<>) { },
+  [] (ptr<>, member_visitor const&) { },
   detail::hash<Derived>,
   true,
   detail::round_to_words(sizeof(Derived)),
@@ -251,8 +211,7 @@ word_type const composite_object<Derived>::type_index = new_type(type_descriptor
   Derived::scheme_name,
   detail::destroy<Derived>,
   detail::move<Derived>,
-  detail::trace<Derived>,
-  detail::update_references<Derived>,
+  detail::visit_members<Derived>,
   detail::hash<Derived>,
   true,
   detail::round_to_words(sizeof(Derived)),
@@ -271,8 +230,7 @@ word_type const composite_root_object<Derived>::type_index = new_type(type_descr
   Derived::scheme_name,
   detail::destroy<Derived>,
   detail::move<Derived>,
-  detail::trace<Derived>,
-  detail::update_references<Derived>,
+  detail::visit_members<Derived>,
   detail::hash<Derived>,
   true,
   detail::round_to_words(sizeof(Derived)),
@@ -304,8 +262,7 @@ word_type const dynamic_size_object<Derived, T>::type_index = new_type(type_desc
   Derived::scheme_name,
   detail::destroy<Derived>,
   detail::move<Derived>,
-  detail::trace<Derived>,
-  detail::update_references<Derived>,
+  detail::visit_members<Derived>,
   detail::hash<Derived>,
   false,
   0,

@@ -174,13 +174,8 @@ struct bbb : composite_object<bbb> {
   }
 
   void
-  trace(tracing_context& tc) const {
-    tc.trace(child_);
-  }
-
-  void
-  update_references() {
-    update_reference(child_);
+  visit_members(member_visitor const& f) {
+    f(child_);
   }
 
   ptr<bbb>

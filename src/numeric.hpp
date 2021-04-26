@@ -147,10 +147,7 @@ public:
   set_positive(bool p) { positive_ = p; }
 
   void
-  trace(tracing_context&) const { }
-
-  void
-  update_references() { }
+  visit_members(member_visitor const&) { }
 
   std::size_t
   hash() const;
@@ -179,10 +176,7 @@ public:
   set_denominator(free_store& store, ptr<> d) { denominator_ = d; store.notify_arc(this, d); }
 
   void
-  trace(tracing_context& tc) const { tc.trace(numerator_); tc.trace(denominator_); }
-
-  void
-  update_references() { update_reference(numerator_); update_reference(denominator_); }
+  visit_members(member_visitor const& f) { f(numerator_); f(denominator_); }
 
   std::size_t
   hash() const;

@@ -203,22 +203,11 @@ scope::bound_names() const {
 }
 
 void
-scope::trace(tracing_context& tc) const {
+scope::visit_members(member_visitor const& f) {
   for (auto& [identifier, binding] : bindings_) {
-    tc.trace(identifier);
-    if (ptr<transformer> const* tr = std::get_if<ptr<transformer>>(&binding))
-      tc.trace(*tr);
-  }
-}
-
-void
-scope::update_references() {
-  for (binding& b : bindings_) {
-    update_reference(std::get<ptr<syntax>>(b));
-
-    value_type& value = std::get<value_type>(b);
-    if (ptr<transformer>* tr = std::get_if<ptr<transformer>>(&value))
-      update_reference(*tr);
+    f(identifier);
+    if (ptr<transformer>* tr = std::get_if<ptr<transformer>>(&binding))
+      f(*tr);
   }
 }
 
@@ -997,15 +986,9 @@ vector::vector(vector&& other)
 }
 
 void
-vector::trace(tracing_context& tc) const {
+vector::visit_members(member_visitor const& f) {
   for (std::size_t i = 0; i < size_; ++i)
-    tc.trace(storage_element(i));
-}
-
-void
-vector::update_references() {
-  for (std::size_t i = 0; i < size_; ++i)
-    update_reference(storage_element(i));
+    f(storage_element(i));
 }
 
 ptr<>
@@ -1149,17 +1132,10 @@ closure::set(free_store& store, std::size_t i, ptr<> value) {
 }
 
 void
-closure::trace(tracing_context& tc) const {
-  tc.trace(procedure_);
+closure::visit_members(member_visitor const& f) {
+  f(procedure_);
   for (std::size_t i = 0; i < size_; ++i)
-    tc.trace(storage_element(i));
-}
-
-void
-closure::update_references() {
-  update_reference(procedure_);
-  for (std::size_t i = 0; i < size_; ++i)
-    update_reference(storage_element(i));
+    f(storage_element(i));
 }
 
 bool
@@ -1231,11 +1207,11 @@ input_stream::current_location() const {
 }
 
 void
-syntax::trace(tracing_context& tc) const {
-  tc.trace(expression_);
+syntax::visit_members(member_visitor const& f) {
+  f(expression_);
 
-  for (ptr<scope> env : scopes_)
-    tc.trace(env);
+  for (ptr<scope>& env : scopes_)
+    f(env);
 }
 
 void
@@ -1255,14 +1231,6 @@ syntax::flip_scope(free_store& fs, ptr<scope> s) {
   bool added = insider::flip_scope(scopes_, s);
   if (added)
     fs.notify_arc(this, s);
-}
-
-void
-syntax::update_references() {
-  update_reference(expression_);
-
-  for (ptr<scope>& env : scopes_)
-    update_reference(env);
 }
 
 static ptr<>
@@ -1352,13 +1320,8 @@ copy_syntax(context& ctx, ptr<syntax> stx) {
 }
 
 void
-transformer::trace(tracing_context& tc) const {
-  tc.trace(callable_);
-}
-
-void
-transformer::update_references() {
-  update_reference(callable_);
+transformer::visit_members(member_visitor const& f) {
+  f(callable_);
 }
 
 } // namespace insider

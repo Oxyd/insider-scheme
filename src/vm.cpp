@@ -66,14 +66,11 @@ namespace {
     void
     resize(std::size_t new_size);
 
+    void
+    visit_members(member_visitor const& f);
+
     integer::value_type
     size() const { return size_; }
-
-    void
-    trace(tracing_context&) const;
-
-    void
-    update_references();
 
     std::size_t
     hash() const { return 0; }
@@ -125,15 +122,9 @@ root_stack::resize(std::size_t new_size) {
 }
 
 void
-root_stack::trace(tracing_context& tc) const {
+root_stack::visit_members(member_visitor const& f) {
   for (std::size_t i = 0; i < size_; ++i)
-    tc.trace(data_[i]);
-}
-
-void
-root_stack::update_references() {
-  for (std::size_t i = 0; i < size_; ++i)
-    update_reference(data_[i]);
+    f(data_[i]);
 }
 
 namespace {

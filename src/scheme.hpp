@@ -343,10 +343,7 @@ public:
   end() const { return bindings_.end(); }
 
   void
-  trace(tracing_context& tc) const;
-
-  void
-  update_references();
+  visit_members(member_visitor const& f);
 
   std::size_t
   hash() const;
@@ -674,10 +671,7 @@ public:
   size() const { return size_; }
 
   void
-  trace(tracing_context&) const { }
-
-  void
-  update_references() { }
+  visit_members(member_visitor const&) { }
 
   std::size_t
   hash() const;
@@ -767,10 +761,7 @@ public:
   set_cdr(free_store& store, ptr<> p) { cdr_ = p; store.notify_arc(this, p); }
 
   void
-  trace(tracing_context& tc) const { tc.trace(car_); tc.trace(cdr_); }
-
-  void
-  update_references() { update_reference(car_); update_reference(cdr_); }
+  visit_members(member_visitor const& f) { f(car_); f(cdr_); }
 
   std::size_t
   hash() const { return 3 * insider::hash(car_) ^ insider::hash(cdr_); }
@@ -878,10 +869,7 @@ public:
   vector(vector&&);
 
   void
-  trace(tracing_context& tc) const;
-
-  void
-  update_references();
+  visit_members(member_visitor const&);
 
   ptr<>
   ref(std::size_t) const;
@@ -961,10 +949,7 @@ public:
   set(free_store& store, ptr<> value) { value_ = value; store.notify_arc(this, value); }
 
   void
-  trace(tracing_context& tc) const { tc.trace(value_); }
-
-  void
-  update_references() { update_reference(value_); }
+  visit_members(member_visitor const& f) { f(value_); }
 
   std::size_t
   hash() const { return insider::hash(value_); }
@@ -1027,10 +1012,7 @@ public:
   size() const { return size_; }
 
   void
-  trace(tracing_context&) const;
-
-  void
-  update_references();
+  visit_members(member_visitor const&);
 
   std::size_t
   hash() const { return insider::hash(procedure_) ^ size_; }
@@ -1186,10 +1168,7 @@ public:
   flip_scope(free_store&, ptr<scope>);
 
   void
-  trace(tracing_context& tc) const;
-
-  void
-  update_references();
+  visit_members(member_visitor const&);
 
   std::size_t
   hash() const { return insider::hash(expression_) ^ std::hash<std::string>{}(format_location(location_)); }
@@ -1286,10 +1265,7 @@ public:
   callable() const { return callable_; }
 
   void
-  trace(tracing_context&) const;
-
-  void
-  update_references();
+  visit_members(member_visitor const&);
 
   std::size_t
   hash() const { return insider::hash(callable_); }
