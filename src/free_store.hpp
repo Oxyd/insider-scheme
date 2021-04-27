@@ -475,7 +475,6 @@ struct mature_generation {
   dense_space small;
   large_space large;
 
-  explicit
   mature_generation(page_allocator& allocator)
     : small{allocator}
   { }
@@ -484,6 +483,12 @@ struct mature_generation {
 // Garbage-collected storage for Scheme objects.
 class free_store {
 public:
+  struct generations {
+    nursery_generation nursery_1;
+    nursery_generation nursery_2;
+    mature_generation  mature;
+  };
+
   bool verbose_collection = false;
 
   free_store();
@@ -526,11 +531,11 @@ public:
     if (to && is_object_ptr(to) && object_generation(from) > object_generation(to)) {
       switch (object_generation(to)) {
       case generation::nursery_1:
-        nursery_1_.incoming_arcs.emplace(from);
+        generations_.nursery_1.incoming_arcs.emplace(from);
         break;
 
       case generation::nursery_2:
-        nursery_2_.incoming_arcs.emplace(from);
+        generations_.nursery_2.incoming_arcs.emplace(from);
         break;
 
       default:
@@ -568,9 +573,9 @@ public:
 
 private:
   page_allocator allocator_;
-  nursery_generation nursery_1_{allocator_, generation::nursery_1};
-  nursery_generation nursery_2_{allocator_, generation::nursery_2};
-  mature_generation  mature_{allocator_};
+  generations    generations_{{allocator_, generation::nursery_1},
+                              {allocator_, generation::nursery_2},
+                              {allocator_}};
 
   std::size_t target_nursery_pages_ = 0;
   std::size_t target_nursery_bytes_ = 0;

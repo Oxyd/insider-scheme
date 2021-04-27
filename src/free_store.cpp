@@ -252,12 +252,12 @@ free_store::~free_store() {
   collect_garbage(true);
 
 #ifndef NDEBUG
-  assert(nursery_1_.small.empty());
-  assert(nursery_1_.large.empty());
-  assert(nursery_2_.small.empty());
-  assert(nursery_2_.large.empty());
-  assert(mature_.small.empty());
-  assert(mature_.large.empty());
+  assert(generations_.nursery_1.small.empty());
+  assert(generations_.nursery_1.large.empty());
+  assert(generations_.nursery_2.small.empty());
+  assert(generations_.nursery_2.large.empty());
+  assert(generations_.mature.small.empty());
+  assert(generations_.mature.large.empty());
 #endif
 }
 
@@ -482,34 +482,34 @@ free_store::collect_garbage(bool major) {
   }
 
   if (verbose_collection)
-    fmt::print("GC: Old: {}\n", format_stats(nursery_1_, nursery_2_, mature_));
+    fmt::print("GC: Old: {}\n", format_stats(generations_.nursery_1, generations_.nursery_2, generations_.mature));
 
-  trace(roots_, permanent_roots_, nursery_1_, nursery_2_, max_generation);
+  trace(roots_, permanent_roots_, generations_.nursery_1, generations_.nursery_2, max_generation);
 
   dense_space old_mature;
   if (max_generation >= generation::mature)
-    old_mature = purge_mature(mature_);
-  dense_space old_nursery_2 = promote(nursery_2_, mature_);
-  dense_space old_nursery_1 = promote(nursery_1_, nursery_2_);
+    old_mature = purge_mature(generations_.mature);
+  dense_space old_nursery_2 = promote(generations_.nursery_2, generations_.mature);
+  dense_space old_nursery_1 = promote(generations_.nursery_1, generations_.nursery_2);
 
-  std::unordered_set<ptr<>> old_n2_incoming = std::move(nursery_2_.incoming_arcs);
-  nursery_2_.incoming_arcs.clear();
+  std::unordered_set<ptr<>> old_n2_incoming = std::move(generations_.nursery_2.incoming_arcs);
+  generations_.nursery_2.incoming_arcs.clear();
 
-  move_incoming_arcs(nursery_1_, nursery_2_);
-  nursery_1_.incoming_arcs.clear();
+  move_incoming_arcs(generations_.nursery_1, generations_.nursery_2);
+  generations_.nursery_1.incoming_arcs.clear();
 
-  assert(nursery_1_.small.empty());
-  assert(nursery_1_.large.empty());
+  assert(generations_.nursery_1.small.empty());
+  assert(generations_.nursery_1.large.empty());
 
-  update_references(nursery_2_.small);
-  update_references(mature_.small);
-  update_references(nursery_2_.large);
-  update_references(mature_.large);
+  update_references(generations_.nursery_2.small);
+  update_references(generations_.mature.small);
+  update_references(generations_.nursery_2.large);
+  update_references(generations_.mature.large);
   update_references(old_n2_incoming);
 
-  verify(nursery_1_);
-  verify(nursery_2_);
-  verify(mature_);
+  verify(generations_.nursery_1);
+  verify(generations_.nursery_2);
+  verify(generations_.mature);
 
   update_roots();
   update_permanent_roots();
@@ -517,16 +517,17 @@ free_store::collect_garbage(bool major) {
 
   requested_collection_level_ = std::nullopt;
 
-  target_nursery_pages_ = std::max(min_nursery_pages, nursery_2_.small.pages_used() + nursery_reserve_pages);
+  target_nursery_pages_ = std::max(min_nursery_pages,
+                                   generations_.nursery_2.small.pages_used() + nursery_reserve_pages);
   target_nursery_bytes_ = std::max(min_nursery_size,
-                                   nursery_2_.small.bytes_used()
-                                   + nursery_2_.large.bytes_used()
+                                   generations_.nursery_2.small.bytes_used()
+                                   + generations_.nursery_2.large.bytes_used()
                                    + nursery_reserve_bytes);
 
   allocator_.keep_at_most(2 * target_nursery_pages_ + mature_reserve_pages);
 
   if (verbose_collection) {
-    fmt::print("GC: New: {}\n", format_stats(nursery_1_, nursery_2_, mature_));
+    fmt::print("GC: New: {}\n", format_stats(generations_.nursery_1, generations_.nursery_2, generations_.mature));
     fmt::print("  -- target nursery pages: {}\n"
                "  -- target nursery bytes: {}\n"
                "  -- allocator reserve: {} pages\n"
@@ -546,9 +547,9 @@ free_store::allocate_object(std::size_t size, word_type type) {
 
   std::byte* storage = nullptr;
   if (total_size >= large_threshold)
-    storage = nursery_1_.large.allocate(total_size);
+    storage = generations_.nursery_1.large.allocate(total_size);
   else
-    storage = nursery_1_.small.allocate(total_size);
+    storage = generations_.nursery_1.small.allocate(total_size);
 
   check_nursery_size();
 
@@ -592,7 +593,7 @@ free_store::update_permanent_roots() {
 void
 free_store::reset_colors(generation max_generation) {
   if (max_generation < generation::mature) {
-    for (nursery_generation* g : {&nursery_1_, &nursery_2_})
+    for (nursery_generation* g : {&generations_.nursery_1, &generations_.nursery_2})
       for (ptr<> o : g->incoming_arcs)
         set_object_color(o, color::white);
 
@@ -602,7 +603,7 @@ free_store::reset_colors(generation max_generation) {
 
 #ifndef NDEBUG
   if (max_generation == generation::mature) {
-    for (nursery_generation* g : {&nursery_1_, &nursery_2_})
+    for (nursery_generation* g : {&generations_.nursery_1, &generations_.nursery_2})
       for (ptr<> o : g->incoming_arcs)
         assert(object_color(o) == color::white);
 
@@ -614,8 +615,8 @@ free_store::reset_colors(generation max_generation) {
 
 void
 free_store::check_nursery_size() {
-  if (nursery_1_.small.pages_used() > target_nursery_pages_
-      || nursery_1_.small.bytes_used() + nursery_1_.large.bytes_used() > target_nursery_bytes_)
+  if (generations_.nursery_1.small.pages_used() > target_nursery_pages_
+      || generations_.nursery_1.small.bytes_used() + generations_.nursery_1.large.bytes_used() > target_nursery_bytes_)
     request_collection();
 }
 
