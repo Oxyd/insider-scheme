@@ -322,7 +322,19 @@ trace(generic_tracked_ptr* roots, std::vector<ptr<>> const& permanent_roots,
 }
 
 static void
-move_survivors(dense_space& from, dense_space& to, generation to_gen) {
+find_arcs_to_younger(ptr<> o, free_store::generations& gens) {
+  object_type(o).visit_members(o, [&] (ptr<> member) {
+    // We only consider arcs into nursery-1 here. This is called as part of the
+    // general GC process, so nursery-2 will be moved to mature soon after. Only
+    // arcs going into nursery-1 matter because that will become nursery-2.
+
+    if (member && is_object_ptr(member) && object_generation(member) == generation::nursery_1)
+      gens.nursery_1.incoming_arcs.emplace(o);
+  });
+}
+
+static void
+move_survivors(dense_space& from, dense_space& to, generation to_gen, free_store::generations& gens) {
   from.for_all([&] (ptr<> o) {
     type_descriptor const& t = object_type(o);
     std::size_t size = object_size(o);
@@ -332,6 +344,9 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen) {
       ptr<> target = move_object(o, to);
       set_forwarding_address(o, target);
       set_object_generation(target, to_gen);
+
+      if (to_gen == generation::mature)
+        find_arcs_to_younger(target, gens);
     } else
       set_forwarding_address(o, nullptr);
 
@@ -345,8 +360,8 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen) {
 template <typename FromG, typename ToG>
 [[nodiscard]]
 static dense_space
-promote(FromG& from, ToG& to) {
-  move_survivors(from.small, to.small, to.generation_number);
+promote(FromG& from, ToG& to, free_store::generations& gens) {
+  move_survivors(from.small, to.small, to.generation_number, gens);
 
   large_space& large = from.large;
   for (std::size_t i = 0; i < large.object_count(); ++i) {
@@ -357,6 +372,9 @@ promote(FromG& from, ToG& to) {
       large.move(i, to.large);
       set_object_generation(o, to.generation_number);
       set_object_color(o, color::white);
+
+      if (to.generation_number == generation::mature)
+        find_arcs_to_younger(o, gens);
     } else
       large.deallocate(i);
   }
@@ -368,14 +386,13 @@ promote(FromG& from, ToG& to) {
 
 // Move living mature objects to a new space. Returns the old space, with dead
 // objects and forwrding addresses for moved objects.
-template <typename Generation>
 [[nodiscard]]
 static dense_space
-purge_mature(Generation& from) {
-  dense_space temp{from.small.allocator()};
-  move_survivors(from.small, temp, from.generation_number);
+purge_mature(mature_generation& mature, free_store::generations& gens) {
+  dense_space temp{mature.small.allocator()};
+  move_survivors(mature.small, temp, generation::mature, gens);
 
-  large_space& large = from.large;
+  large_space& large = mature.large;
   for (std::size_t i = 0; i < large.object_count(); ++i) {
     ptr<> o = reinterpret_cast<object*>(large.get(i) + sizeof(word_type));
     assert(object_color(o) != color::grey);
@@ -388,13 +405,13 @@ purge_mature(Generation& from) {
 
   large.remove_empty();
 
-  std::swap(from.small, temp);
+  std::swap(mature.small, temp);
   return temp;
 }
 
 static void
-move_incoming_arcs(nursery_generation& from, nursery_generation& to) {
-  for (ptr<> o : from.incoming_arcs)
+move_incoming_arcs(std::unordered_set<ptr<>> const& arcs, nursery_generation& to) {
+  for (ptr<> o : arcs)
     if (is_alive(o)) {
       assert(object_generation(o) > to.generation_number);
       to.incoming_arcs.emplace(o);
@@ -402,8 +419,6 @@ move_incoming_arcs(nursery_generation& from, nursery_generation& to) {
       assert(object_generation(forwarding_address(o)) > to.generation_number);
       to.incoming_arcs.emplace(forwarding_address(o));
     }
-
-  from.incoming_arcs.clear();
 }
 
 static void
@@ -431,16 +446,6 @@ update_references(large_space const& space) {
   for (std::size_t i = 0; i < space.object_count(); ++i) {
     ptr<> o = reinterpret_cast<object*>(space.get(i) + sizeof(word_type));
     update_members(o);
-  }
-}
-
-static void
-update_references(std::unordered_set<ptr<>> const& set) {
-  for (ptr<> o : set) {
-    if (is_alive(o))
-      update_members(o);
-    else if (ptr<> fwd = forwarding_address(o); fwd != nullptr)
-      update_members(fwd);
   }
 }
 
@@ -486,26 +491,41 @@ free_store::collect_garbage(bool major) {
 
   trace(roots_, permanent_roots_, generations_.nursery_1, generations_.nursery_2, max_generation);
 
-  dense_space old_mature;
-  if (max_generation >= generation::mature)
-    old_mature = purge_mature(generations_.mature);
-  dense_space old_nursery_2 = promote(generations_.nursery_2, generations_.mature);
-  dense_space old_nursery_1 = promote(generations_.nursery_1, generations_.nursery_2);
+  std::unordered_set<ptr<>> old_n1_incoming = std::move(generations_.nursery_1.incoming_arcs);
+  generations_.nursery_1.incoming_arcs.clear();
 
   std::unordered_set<ptr<>> old_n2_incoming = std::move(generations_.nursery_2.incoming_arcs);
   generations_.nursery_2.incoming_arcs.clear();
 
-  move_incoming_arcs(generations_.nursery_1, generations_.nursery_2);
-  generations_.nursery_1.incoming_arcs.clear();
+  dense_space old_mature;
+  if (max_generation >= generation::mature)
+    old_mature = purge_mature(generations_.mature, generations_);
+  dense_space old_nursery_2 = promote(generations_.nursery_2, generations_.mature, generations_);
+  dense_space old_nursery_1 = promote(generations_.nursery_1, generations_.nursery_2, generations_);
 
   assert(generations_.nursery_1.small.empty());
   assert(generations_.nursery_1.large.empty());
+
+  // If we purged the mature generation, nursery-1 now has incoming arcs from
+  // mature survivors and from nursery-2 survivors who have been promoted to
+  // mature. In that case, there is nothing to do, just move those arcs to
+  // nursery-2.
+  //
+  // If this is a minor collection, we nursery-1's incoming arcs only contain
+  // promoted nursery-2 survivors. So we need to go through old incoming arcs
+  // into nursery-1, and if the source is still alive, add it to the current
+  // incoming arcs.
+
+  assert(generations_.nursery_2.incoming_arcs.empty());
+  generations_.nursery_2.incoming_arcs = std::move(generations_.nursery_1.incoming_arcs);
+
+  if (max_generation < generation::mature)
+    move_incoming_arcs(old_n1_incoming, generations_.nursery_2);
 
   update_references(generations_.nursery_2.small);
   update_references(generations_.mature.small);
   update_references(generations_.nursery_2.large);
   update_references(generations_.mature.large);
-  update_references(old_n2_incoming);
 
   verify(generations_.nursery_1);
   verify(generations_.nursery_2);
