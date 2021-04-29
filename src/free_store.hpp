@@ -504,9 +504,6 @@ public:
     std::byte* storage = allocate_object(sizeof(T), T::type_index);
     ptr<> result = new (storage) T(std::forward<Args>(args)...);
 
-    if (object_type(result).permanent_root)
-      permanent_roots_.push_back(result);
-
     return ptr_cast<T>(result);
   }
 
@@ -517,9 +514,6 @@ public:
     std::size_t size = detail::round_to_words(sizeof(T) + elements * sizeof(typename T::element_type));
     std::byte* storage = allocate_object(size, T::type_index);
     ptr<> result = new (storage) T(std::forward<Args>(args)...);
-
-    if (object_type(result).permanent_root)
-      permanent_roots_.push_back(result);
 
     return ptr_cast<T>(result);
   }
