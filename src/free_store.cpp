@@ -87,23 +87,16 @@ new_type(type_descriptor d) {
   return types().size() - 1;
 }
 
-static page
-allocate_page() {
-  return {std::make_unique<std::byte[]>(page_size), 0};
-}
-
-page
+page_allocator::page
 page_allocator::allocate() {
   if (!reserve_.empty()) {
     page result = std::move(reserve_.back());
     reserve_.pop_back();
-
-    result.used = 0;
     return result;
   }
 
   ++allocated_pages_;
-  return allocate_page();
+  return std::make_unique<std::byte[]>(page_size);
 }
 
 void
@@ -150,17 +143,12 @@ dense_space::operator = (dense_space&& other) noexcept {
   return *this;
 }
 
-static std::size_t
-page_free(page const& p) {
-  return page_size - p.used;
-}
-
 std::byte*
 dense_space::allocate(std::size_t size) {
   assert(size < page_size);
 
-  if (pages_.empty() || page_free(pages_.back()) < size)
-    pages_.emplace_back(allocator_->allocate());
+  if (pages_.empty() || page_size - pages_.back().used < size)
+    pages_.emplace_back(page{allocator_->allocate()});
 
   page& p = pages_.back();
   std::byte* result = p.storage.get() + p.used;
@@ -178,14 +166,14 @@ dense_space::clear() {
 
   if (!empty())
     for (page& p : pages_)
-      allocator_->deallocate(std::move(p));
+      allocator_->deallocate(std::move(p.storage));
 
   total_used_ = 0;
 }
 
 bool
 dense_space::has_preallocated_storage(std::size_t size) const {
-  return !pages_.empty() && page_free(pages_.back()) >= size;
+  return !pages_.empty() && page_size - pages_.back().used >= size;
 }
 
 std::byte*

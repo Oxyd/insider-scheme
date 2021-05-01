@@ -275,18 +275,10 @@ is(generic_tracked_ptr const& x) {
   return is<T>(x.get());
 }
 
-struct page {
-  std::unique_ptr<std::byte[]> storage;
-  std::size_t used = 0;
-};
-
-struct space {
-  std::vector<page> pages;
-  std::size_t       current = 0;
-};
-
 class page_allocator {
 public:
+  using page = std::unique_ptr<std::byte[]>;
+
   page
   allocate();
 
@@ -318,6 +310,11 @@ private:
 };
 
 class dense_space {
+  struct page {
+    std::unique_ptr<std::byte[]> storage;
+    std::size_t used = 0;
+  };
+
 public:
   dense_space() = default;
 
