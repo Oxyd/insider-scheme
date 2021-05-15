@@ -17,6 +17,7 @@ static constexpr std::size_t nursery_reserve_pages = 10;
 static constexpr std::size_t nursery_reserve_bytes = nursery_reserve_pages * page_size;
 static constexpr std::size_t mature_reserve_pages = 10;
 static constexpr std::size_t major_collection_frequency = 32;
+static constexpr std::size_t stack_size = 4 * 1024 * 1024;
 
 enum class color : word_type {
   white = 0,
@@ -24,8 +25,8 @@ enum class color : word_type {
   black = 2,
 };
 
-static void
-init_object_header(std::byte* storage, word_type type, generation gen = generation::nursery_1) {
+void
+init_object_header(std::byte* storage, word_type type, generation gen) {
   new (storage) word_type((type << type_shift)
                           | alive_bit
                           | (static_cast<word_type>(gen) << generation_shift));
@@ -218,6 +219,31 @@ large_space::remove_empty() {
                      allocations_.end());
 }
 
+stack_generation::stack_generation()
+  : storage_{std::make_unique<std::byte[]>(stack_size)}
+{ }
+
+std::byte*
+stack_generation::allocate(std::size_t size) {
+  assert(size >= 2 * sizeof(word_type));
+
+  if (size >= stack_size - top_)
+    throw std::runtime_error{"Stack exhausted"};
+
+  std::byte* result = storage_.get() + top_;
+  top_ += size;
+  return result;
+}
+
+void
+stack_generation::deallocate(std::byte* x, std::size_t allocation_size) {
+  if (storage_.get() + top_ != x + allocation_size)
+    throw std::runtime_error{"Deallocating an object not on top of the stack"};
+
+  assert(top_ >= allocation_size);
+  top_ -= allocation_size;
+}
+
 static ptr<>
 move_object(ptr<> o, dense_space& to) {
   type_descriptor const& t = object_type(o);
@@ -246,12 +272,14 @@ free_store::~free_store() {
   assert(generations_.nursery_2.large.empty());
   assert(generations_.mature.small.empty());
   assert(generations_.mature.large.empty());
+  assert(generations_.stack.empty());
 #endif
 }
 
 static void
 trace(generic_tracked_ptr* roots, std::vector<ptr<>> const& permanent_roots,
       nursery_generation const& nursery_1, nursery_generation const& nursery_2,
+      stack_generation const& stack_gen,
       generation max_generation) {
   assert(max_generation >= generation::nursery_2);
 
@@ -296,6 +324,13 @@ trace(generic_tracked_ptr* roots, std::vector<ptr<>> const& permanent_roots,
 
         trace(o);
       }
+
+  stack_gen.for_all([&] (ptr<> o) {
+    if (object_color(o) == color::white) {
+      set_object_color(o, color::grey);
+      stack.push_back(o);
+    }
+  });
 
   while (!stack.empty()) {
     ptr<> top = stack.back();
@@ -446,6 +481,11 @@ update_references(large_space const& space) {
   }
 }
 
+static void
+update_references(stack_generation const& stack_gen) {
+  stack_gen.for_all(update_members);
+}
+
 static std::string
 format_stats(nursery_generation const& nursery_1, nursery_generation const& nursery_2,
              mature_generation const& mature) {
@@ -486,7 +526,7 @@ free_store::collect_garbage(bool major) {
   if (verbose_collection)
     fmt::print("GC: Old: {}\n", format_stats(generations_.nursery_1, generations_.nursery_2, generations_.mature));
 
-  trace(roots_, permanent_roots_, generations_.nursery_1, generations_.nursery_2, max_generation);
+  trace(roots_, permanent_roots_, generations_.nursery_1, generations_.nursery_2, generations_.stack, max_generation);
 
   std::unordered_set<ptr<>> old_n1_incoming = std::move(generations_.nursery_1.incoming_arcs);
   generations_.nursery_1.incoming_arcs.clear();
@@ -523,6 +563,7 @@ free_store::collect_garbage(bool major) {
   update_references(generations_.mature.small);
   update_references(generations_.nursery_2.large);
   update_references(generations_.mature.large);
+  update_references(generations_.stack);
 
   verify(generations_.nursery_1);
   verify(generations_.nursery_2);
@@ -617,6 +658,8 @@ free_store::reset_colors(generation max_generation) {
     for (ptr<> o : permanent_roots_)
       set_object_color(o, color::white);
   }
+
+  generations_.stack.for_all([] (ptr<> o) { set_object_color(o, color::white); });
 
 #ifndef NDEBUG
   if (max_generation == generation::mature) {

@@ -14,7 +14,13 @@
 namespace insider {
 
 using word_type = std::uint64_t;
-enum class generation : word_type;
+
+enum class generation : word_type {
+  stack     = 0,
+  nursery_1 = 1,
+  nursery_2 = 2,
+  mature    = 3
+};
 
 // Object header word:
 //
@@ -37,6 +43,9 @@ is_object_ptr(ptr<> o) {
 
 inline bool
 is_fixnum(ptr<> o) { return !is_object_ptr(o); }
+
+void
+init_object_header(std::byte* storage, word_type type, generation gen = generation::nursery_1);
 
 inline word_type&
 header_word(ptr<> o) {
@@ -421,12 +430,6 @@ private:
   std::size_t bytes_used_ = 0;
 };
 
-enum class generation : word_type {
-  nursery_1 = 0,
-  nursery_2 = 1,
-  mature    = 2
-};
-
 inline bool
 operator < (generation lhs, generation rhs) {
   return static_cast<word_type>(lhs) < static_cast<word_type>(rhs);
@@ -452,8 +455,6 @@ operator >= (generation lhs, generation rhs) {
   return lhs > rhs || lhs == rhs;
 }
 
-static constexpr std::size_t num_generations = 3;
-
 struct nursery_generation {
   generation  generation_number;
   dense_space small;
@@ -477,10 +478,61 @@ struct mature_generation {
   { }
 };
 
+class stack_generation {
+public:
+  stack_generation();
+
+  stack_generation(stack_generation const&) = delete;
+  void operator = (stack_generation const&) = delete;
+
+  std::byte*
+  allocate(std::size_t);
+
+  void
+  deallocate(std::byte*, std::size_t object_size);
+
+  bool
+  empty() const { return top_ == 0; }
+
+  template <typename F>
+  void
+  for_all(F const& f) const {
+    std::size_t i = 0;
+    while (i < top_) {
+      std::byte* storage = storage_.get() + i;
+      ptr<> o{reinterpret_cast<object*>(storage + sizeof(word_type))};
+      std::size_t size = object_size(o);
+
+      f(o);
+
+      i += size + sizeof(word_type);
+    }
+  }
+
+private:
+  std::unique_ptr<std::byte[]> storage_;
+  std::size_t top_ = 0;
+};
+
+namespace detail {
+  template <typename T, typename... Args>
+  std::size_t
+  allocation_size(Args&&... args) {
+    if constexpr (T::is_dynamic_size) {
+      std::size_t elements = T::extra_elements(args...);
+      return detail::round_to_words(sizeof(T) + elements * sizeof(typename T::element_type));
+    } else {
+      static_assert(sizeof(T) % sizeof(word_type) == 0);
+      return sizeof(T);
+    }
+  }
+}
+
 // Garbage-collected storage for Scheme objects.
 class free_store {
 public:
   struct generations {
+    stack_generation   stack;
     nursery_generation nursery_1;
     nursery_generation nursery_2;
     mature_generation  mature;
@@ -494,25 +546,35 @@ public:
   ~free_store();
 
   template <typename T, typename... Args>
-  std::enable_if_t<!T::is_dynamic_size, ptr<T>>
+  ptr<T>
   make(Args&&... args) {
     static_assert(sizeof(T) % sizeof(word_type) == 0);
 
-    std::byte* storage = allocate_object(sizeof(T), T::type_index);
+    std::byte* storage = allocate_object(detail::allocation_size<T>(args...),
+                                         T::type_index);
     ptr<> result = new (storage) T(std::forward<Args>(args)...);
 
     return ptr_cast<T>(result);
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<T::is_dynamic_size, ptr<T>>
-  make(Args&&... args) {
-    std::size_t elements = T::extra_elements(args...);
-    std::size_t size = detail::round_to_words(sizeof(T) + elements * sizeof(typename T::element_type));
-    std::byte* storage = allocate_object(size, T::type_index);
-    ptr<> result = new (storage) T(std::forward<Args>(args)...);
+  ptr<T>
+  make_stack(Args&&... args) {
+    static_assert(sizeof(T) % sizeof(word_type) == 0);
 
+    std::byte* storage = generations_.stack.allocate(detail::allocation_size<T>(args...) + sizeof(word_type));
+    init_object_header(storage, T::type_index, generation::stack);
+
+    ptr<> result = new (storage + sizeof(word_type)) T(std::forward<Args>(args)...);
     return ptr_cast<T>(result);
+  }
+
+  void
+  deallocate_stack(ptr<> o) {
+    assert(object_generation(o) == generation::stack);
+    std::size_t size = object_size(o) + sizeof(word_type);
+    object_type(o).destroy(o);
+    generations_.stack.deallocate(reinterpret_cast<std::byte*>(o.value()) - sizeof(word_type), size);
   }
 
   void
@@ -564,7 +626,8 @@ public:
 
 private:
   page_allocator allocator_;
-  generations    generations_{{allocator_, generation::nursery_1},
+  generations    generations_{{},
+                              {allocator_, generation::nursery_1},
                               {allocator_, generation::nursery_2},
                               {allocator_}};
 

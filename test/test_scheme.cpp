@@ -153,6 +153,57 @@ TEST_F(gc, collect_direct_garbage) {
   EXPECT_FALSE(three);
 }
 
+struct ccc : composite_object<ccc> {
+  static constexpr char const* scheme_name = "ccc";
+
+  bool* alive;
+  ptr<> ref;
+
+  ccc(bool* alive, object* ref)
+    : alive{alive}
+    , ref{ref}
+  {
+    *alive = true;
+  }
+
+  ~ccc() {
+    *alive = false;
+  }
+
+  void
+  visit_members(member_visitor const& f) {
+    f(ref);
+  }
+
+  std::size_t
+  hash() const { return 0; }
+};
+
+TEST_F(gc, stack) {
+  bool stack_one{}, stack_two{}, dynamic_one{};
+  ptr<aaa> dyn = make<aaa>(ctx, &dynamic_one);
+  ptr<aaa> a = ctx.store.make_stack<aaa>(&stack_one);
+  ptr<ccc> b = ctx.store.make_stack<ccc>(&stack_two, dyn.value());
+
+  ctx.store.collect_garbage();
+
+  EXPECT_TRUE(stack_one);
+  EXPECT_TRUE(stack_two);
+  EXPECT_TRUE(dynamic_one);
+
+  ctx.store.deallocate_stack(b);
+  ctx.store.collect_garbage();
+
+  EXPECT_TRUE(stack_one);
+  EXPECT_FALSE(stack_two);
+  EXPECT_FALSE(dynamic_one);
+
+  ctx.store.deallocate_stack(a);
+  EXPECT_FALSE(stack_one);
+  EXPECT_FALSE(stack_two);
+  EXPECT_FALSE(dynamic_one);
+}
+
 struct bbb : composite_object<bbb> {
   static constexpr char const* scheme_name = "bbb";
 
