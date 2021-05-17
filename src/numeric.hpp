@@ -6,6 +6,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 namespace insider {
