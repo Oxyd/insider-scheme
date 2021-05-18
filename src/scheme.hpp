@@ -6,6 +6,7 @@
 #include "free_store.hpp"
 #include "numeric.hpp"
 #include "object_span.hpp"
+#include "vm.hpp"
 
 #include <fmt/format.h>
 
@@ -509,13 +510,14 @@ public:
       ;
   };
 
-  free_store                 store;
-  std::unique_ptr<constants> constants;
-  statics_list               statics;
-  tracked_ptr<port>          output_port;
-  module                     internal_module; // (insider internal)
-  std::string                error_backtrace; // Built from actions during stack unwinding.
-  bytecode                   program;
+  free_store                       store;
+  std::unique_ptr<constants>       constants;
+  statics_list                     statics;
+  tracked_ptr<port>                output_port;
+  module                           internal_module; // (insider internal)
+  std::string                      error_backtrace; // Built from actions during stack unwinding.
+  bytecode                         program;
+  std::unique_ptr<execution_state> current_execution;
 
 #ifdef INSIDER_VM_PROFILER
   std::vector<std::size_t> instruction_counts;

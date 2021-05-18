@@ -916,6 +916,25 @@ TEST_F(interpreter, exec_make_vector) {
   EXPECT_TRUE(equal(ctx, result.get(), read("#(1 2 3)")));
 }
 
+TEST_F(interpreter, scheme_to_native_to_scheme) {
+  define_procedure(ctx, "apply-and-double", ctx.internal_module, true,
+                   [] (context& ctx, ptr<procedure> f, ptr<> arg) {
+                     return 2 * expect<integer>(call(ctx, f, {arg})).value();
+                   });
+  ptr<> result = eval_module(
+    R"(
+      (import (insider internal))
+
+      (define add-3
+        (lambda (x)
+          (+ x 3)))
+
+      (apply-and-double add-3 5)
+   )"
+  );
+  EXPECT_EQ(expect<integer>(result).value(), 2 * (5 + 3));
+}
+
 struct compiler : scheme { };
 
 TEST_F(compiler, compile_arithmetic) {

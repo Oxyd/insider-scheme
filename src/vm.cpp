@@ -20,67 +20,65 @@ static constexpr std::size_t root_stack_initial_size = 4096;
 
 static constexpr std::size_t frame_preamble_size = 3;
 
-namespace {
-  // Dynamic-sized stack to store local variables.
-  class root_stack : public composite_root_object<root_stack> {
-  public:
-    static constexpr char const* scheme_name = "insider::root_stack";
+// Dynamic-sized stack to store local variables.
+class root_stack : public composite_root_object<root_stack> {
+public:
+  static constexpr char const* scheme_name = "insider::root_stack";
 
-    root_stack();
+  root_stack();
 
-    ptr<>
-    ref(std::size_t i) { assert(i < size_); assert(data_[i]); return data_[i]; }
+  ptr<>
+  ref(std::size_t i) { assert(i < size_); assert(data_[i]); return data_[i]; }
 
-    object_span
-    span(std::size_t begin, std::size_t size) { return {data_.get() + begin, size}; }
+  object_span
+  span(std::size_t begin, std::size_t size) { return {data_.get() + begin, size}; }
 
-    void
-    set(std::size_t i, ptr<> value) {
-      assert(i < size_);
-      assert(is_valid(value));
-      data_[i] = value;
-    }
+  void
+  set(std::size_t i, ptr<> value) {
+    assert(i < size_);
+    assert(is_valid(value));
+    data_[i] = value;
+  }
 
-    void
-    push(ptr<> value) {
-      assert(is_valid(value));
-      assert(size_ + 1 <= alloc_);
+  void
+  push(ptr<> value) {
+    assert(is_valid(value));
+    assert(size_ + 1 <= alloc_);
 
-      data_[size_++] = value;
-    }
+    data_[size_++] = value;
+  }
 
-    ptr<>
-    pop() {
-      return data_[--size_];
-    }
+  ptr<>
+  pop() {
+    return data_[--size_];
+  }
 
-    void
-    change_allocation(std::size_t alloc);
+  void
+  change_allocation(std::size_t alloc);
 
-    void
-    grow(std::size_t n);
+  void
+  grow(std::size_t n);
 
-    void
-    shrink(std::size_t n);
+  void
+  shrink(std::size_t n);
 
-    void
-    resize(std::size_t new_size);
+  void
+  resize(std::size_t new_size);
 
-    void
-    visit_members(member_visitor const& f);
+  void
+  visit_members(member_visitor const& f);
 
-    integer::value_type
-    size() const { return size_; }
+  integer::value_type
+  size() const { return size_; }
 
-    std::size_t
-    hash() const { return 0; }
+  std::size_t
+  hash() const { return 0; }
 
-  private:
-    std::unique_ptr<ptr<>[]> data_;
-    std::size_t size_ = 0;
-    std::size_t alloc_;
-  };
-} // anonymous namespace
+private:
+  std::unique_ptr<ptr<>[]> data_;
+  std::size_t size_ = 0;
+  std::size_t alloc_;
+};
 
 root_stack::root_stack()
   : data_{std::make_unique<ptr<>[]>(root_stack_initial_size)}
@@ -127,21 +125,15 @@ root_stack::visit_members(member_visitor const& f) {
     f(data_[i]);
 }
 
-namespace {
-  struct execution_state {
-    context&                         ctx;
-    tracked_ptr<root_stack>          value_stack;
-    integer::value_type              pc;
-    integer::value_type              frame_base = 0;
-
-    execution_state(context& ctx);
-  };
-}
-
 execution_state::execution_state(context& ctx)
   : ctx{ctx}
   , value_stack{make_tracked<root_stack>(ctx)}
 { }
+
+static bool
+state_done(execution_state& state) {
+  return state.frame_base == -1;
+}
 
 static std::vector<ptr<>>
 collect_closure(ptr<closure> cls) {
@@ -151,6 +143,19 @@ collect_closure(ptr<closure> cls) {
     result.push_back(cls->ref(i));
 
   return result;
+}
+
+static std::size_t
+push_frame(execution_state& state, ptr<procedure> proc, integer::value_type previous_pc) {
+  root_stack& values = *state.value_stack;
+  std::size_t new_base = values.size() + frame_preamble_size;
+
+  values.change_allocation(new_base + proc->locals_size);
+  values.push(integer_to_ptr(previous_pc));
+  values.push(integer_to_ptr(state.frame_base));
+  values.push(proc);
+
+  return new_base;
 }
 
 static void
@@ -179,31 +184,21 @@ get_destination_register(execution_state& state) {
   return dest;
 }
 
-static execution_state
-make_state(context& ctx, ptr<procedure> global,
-           std::vector<ptr<>> const& closure, std::vector<ptr<>> const& arguments) {
-  execution_state result{ctx};
+static void
+extend_execution_state(execution_state& state, ptr<procedure> proc,
+                       std::vector<ptr<>> const& closure, std::vector<ptr<>> const& arguments) {
+  root_stack& values = *state.value_stack;
+  std::size_t new_base = push_frame(state, proc, -1);
 
-  result.value_stack->change_allocation(global->locals_size + frame_preamble_size);
+  state.pc = proc->entry_pc;
+  state.frame_base = new_base;
 
-  result.value_stack->push(integer_to_ptr(-1)); // Previous PC.
-  result.value_stack->push(integer_to_ptr(-1)); // Previous frame base.
-  result.value_stack->push(global);
+  for (ptr<> c : closure)
+    values.push(c);
+  for (ptr<> a : arguments)
+    values.push(a);
 
-  integer::value_type frame_base = frame_preamble_size;
-
-  result.value_stack->grow(global->locals_size);
-  result.pc = global->entry_pc;
-  result.frame_base = frame_base;
-
-  std::size_t closure_size = closure.size();
-  for (std::size_t i = 0; i < closure_size; ++i)
-    result.value_stack->set(frame_base + i, closure[i]);
-
-  for (std::size_t i = 0; i < arguments.size(); ++i)
-    result.value_stack->set(frame_base + closure_size + i, arguments[i]);
-
-  return result;
+  values.resize(new_base + proc->locals_size);
 }
 
 namespace {
@@ -252,11 +247,15 @@ namespace {
 
 static generic_tracked_ptr
 run(execution_state& state) {
-  execution_action a(state);
+  std::optional<execution_action> a;
   gc_disabler no_gc{state.ctx.store};
 
   integer::value_type& frame_base = state.frame_base;
   integer::value_type& pc = state.pc;
+
+  if (frame_base == frame_preamble_size)
+    // Only create an execution_action if this is the top-level execution.
+    a.emplace(state);
 
   while (true) {
     integer::value_type previous_pc = pc;
@@ -501,12 +500,7 @@ run(execution_state& state) {
         if (scheme_proc->has_rest)
           ++args_size;
 
-        std::size_t new_base = values.size() + frame_preamble_size;
-        values.change_allocation(new_base + scheme_proc->locals_size);
-
-        values.push(integer_to_ptr(previous_pc));
-        values.push(integer_to_ptr(frame_base));
-        values.push(scheme_proc);
+        std::size_t new_base = push_frame(state, scheme_proc, previous_pc);
 
         for (std::size_t i = 0; i < closure_size; ++i)
           values.push(closure->ref(i));
@@ -591,8 +585,12 @@ run(execution_state& state) {
 
       if (frame_base == -1)
         // We are returning from the global procedure, so we return back to the
-        // calling C++ code. We won't pop the final stack so that the caller may
-        // inspect it (used in tests).
+        // calling C++ code.
+        return track(state.ctx, result);
+
+      if (is<native_procedure>(values.ref(frame_base - 1)))
+        // Return to a native procedure. We'll abandon run() immediately; the
+        // native procedure will then return back to a previous run() call.
         return track(state.ctx, result);
 
       values.set(frame_base + get_destination_register(state), result);
@@ -721,8 +719,16 @@ call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
     if (scheme_proc->min_args != arguments.size())
       throw std::runtime_error{"Wrong number of arguments in function call"};
 
-    execution_state state = make_state(ctx, scheme_proc, closure, arguments);
-    return run(state);
+    if (!ctx.current_execution)
+      ctx.current_execution = std::make_unique<execution_state>(ctx);
+
+    extend_execution_state(*ctx.current_execution, scheme_proc, closure, arguments);
+    generic_tracked_ptr result = run(*ctx.current_execution);
+
+    if (state_done(*ctx.current_execution))
+      ctx.current_execution.reset();
+
+    return result;
   } else if (auto native_proc = match<native_procedure>(callable)) {
     assert(closure.empty());
     return track(ctx, native_proc->target(ctx, object_span(arguments)));
