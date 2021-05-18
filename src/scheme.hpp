@@ -1027,9 +1027,7 @@ private:
 inline void
 closure_set(tracked_ptr<closure> const& c, std::size_t i, ptr<> v) { c->set(c.store(), i, v); }
 
-// Like procedure, but when invoked, it calls a C++ function. It is specialised
-// for low arities to avoid having to create an std::vector object to invoke the
-// function. Arity of -1 means any arity.
+// Like procedure, but when invoked, it calls a C++ function.
 struct native_procedure : public leaf_object<native_procedure> {
   static constexpr char const* scheme_name = "insider::native_procedure";
 
