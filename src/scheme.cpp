@@ -504,6 +504,7 @@ context::context()
   constants->void_ = make_tracked<void_type>(*this);
   constants->t = make_tracked<boolean>(*this, true);
   constants->f = make_tracked<boolean>(*this, false);
+  constants->tail_call_tag = make_tracked<tail_call_tag_type>(*this);
 
   internal_module = make_internal_module(*this);
 

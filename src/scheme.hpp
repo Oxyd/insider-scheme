@@ -270,6 +270,14 @@ struct core_form_type : leaf_object<core_form_type> {
   hash() const { return 0; }
 };
 
+// Dummy value used for implementing tail-calls from native procedures.
+struct tail_call_tag_type : leaf_object<tail_call_tag_type> {
+  static constexpr char const* scheme_name = "insider::tail_call_tag_type";
+
+  std::size_t
+  hash() const { return 0; }
+};
+
 class boolean;
 class context;
 class scope;
@@ -493,6 +501,7 @@ public:
     tracked_ptr<insider::null_type> null;
     tracked_ptr<insider::void_type> void_;
     tracked_ptr<boolean>        t, f;     // #t and #f.
+    tracked_ptr<tail_call_tag_type> tail_call_tag;
     tracked_ptr<core_form_type>
       let, letrec_star, set, lambda, if_, box, unbox, box_set, define, define_syntax,
       begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing, expand_quote,

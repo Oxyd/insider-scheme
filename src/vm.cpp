@@ -19,6 +19,8 @@ static constexpr std::size_t root_stack_initial_size = 4096;
 #endif
 
 static constexpr std::size_t frame_preamble_size = 3;
+[[maybe_unused]] static constexpr std::size_t frame_procedure_offset = 1;
+[[maybe_unused]] static constexpr std::size_t frame_base_offset = 2;
 
 // Dynamic-sized stack to store local variables.
 class root_stack : public composite_root_object<root_stack> {
@@ -28,7 +30,7 @@ public:
   root_stack();
 
   ptr<>
-  ref(std::size_t i) { assert(i < size_); assert(data_[i]); return data_[i]; }
+  ref(std::size_t i) { assert(i < size_); return data_[i]; }
 
   object_span
   span(std::size_t begin, std::size_t size) { return {data_.get() + begin, size}; }
@@ -36,7 +38,7 @@ public:
   void
   set(std::size_t i, ptr<> value) {
     assert(i < size_);
-    assert(is_valid(value));
+    assert(!value || is_valid(value));
     data_[i] = value;
   }
 
@@ -184,23 +186,6 @@ get_destination_register(execution_state& state) {
   return dest;
 }
 
-static void
-extend_execution_state(execution_state& state, ptr<procedure> proc,
-                       std::vector<ptr<>> const& closure, std::vector<ptr<>> const& arguments) {
-  root_stack& values = *state.value_stack;
-  std::size_t new_base = push_frame(state, proc, -1);
-
-  state.pc = proc->entry_pc;
-  state.frame_base = new_base;
-
-  for (ptr<> c : closure)
-    values.push(c);
-  for (ptr<> a : arguments)
-    values.push(a);
-
-  values.resize(new_base + proc->locals_size);
-}
-
 namespace {
   class execution_action : public action<execution_action> {
   public:
@@ -243,6 +228,15 @@ namespace {
   private:
     execution_state& state_;
   };
+}
+
+static void
+throw_if_wrong_number_of_args(ptr<procedure> proc, std::size_t num_args) {
+  if (num_args < proc->min_args || (!proc->has_rest && num_args > proc->min_args))
+    throw error{"{}: Wrong number of arguments, expected {}{}, got {}",
+                proc->name ? *proc->name : "<lambda>",
+                proc->has_rest ? "at least " : "",
+                proc->min_args, num_args};
 }
 
 static generic_tracked_ptr
@@ -486,11 +480,7 @@ run(execution_state& state) {
       }
 
       if (auto scheme_proc = match<procedure>(call_target)) {
-        if (num_args < scheme_proc->min_args)
-          throw error{"{}: Wrong number of arguments, expected {}{}, got {}",
-              scheme_proc->name ? *scheme_proc->name : "<lambda>",
-              scheme_proc->has_rest ? "at least " : "",
-              scheme_proc->min_args, num_args};
+        throw_if_wrong_number_of_args(scheme_proc, num_args);
 
         std::size_t closure_size = 0;
         if (closure)
@@ -528,6 +518,7 @@ run(execution_state& state) {
           for (std::size_t i = 0; i < closure_size + args_size; ++i)
             values.set(frame_base + i, values.ref(new_base + i));
 
+          values.set(frame_base - frame_procedure_offset, scheme_proc);
           pc = scheme_proc->entry_pc;
           values.resize(frame_base + scheme_proc->locals_size);
         } else {
@@ -550,25 +541,51 @@ run(execution_state& state) {
         for (std::size_t i = 0; i < num_args; ++i)
           values.push(values.ref(old_base + read_operand(bc, pc)));
 
-        ptr<> result = native_proc->target(state.ctx, values.span(frame_base, num_args));
+        std::size_t saved_pc = pc;
+        ptr<> result;
+        ptr<> next_call;
+        do {
+          result = native_proc->target(state.ctx, values.span(frame_base, num_args));
+          next_call = values.ref(frame_base - frame_procedure_offset);
+          if (auto np = match<native_procedure>(next_call)) {
+            native_proc = np;
+            num_args = values.size() - frame_base;
+          }
+        } while (is<native_procedure>(next_call) && result == state.ctx.constants->tail_call_tag.get());
 
-        values.shrink(num_args + frame_preamble_size);
-        frame_base = old_base;
+        if (is<native_procedure>(next_call)) {
+          values.shrink(num_args + frame_preamble_size);
+          frame_base = old_base;
+          pc = saved_pc;
 
-        if (!is_tail)
-          values.set(frame_base + dest_register, result);
-        else {
-          // tail_call. For Scheme procedures, the callee would perform a ret and
-          // go back to this frame's caller. Since this is a native procedure, we
-          // have to simulate the ret ourselves.
+          if (!is_tail)
+            values.set(frame_base + dest_register, result);
+          else {
+            // tail_call. For Scheme procedures, the callee would perform a ret and
+            // go back to this frame's caller. Since this is a native procedure, we
+            // have to simulate the ret ourselves.
 
-          pop_call_frame(state);
+            pop_call_frame(state);
 
-          if (frame_base == -1)
-            // Same as in ret below: We're returning from the global procedure.
-            return track(state.ctx, result);
+            if (frame_base == -1)
+              // Same as in ret below: We're returning from the global procedure.
+              return track(state.ctx, result);
 
-          values.set(frame_base + get_destination_register(state), result);
+            values.set(frame_base + get_destination_register(state), result);
+          }
+        } else if (is_tail) {
+          // This was a tail call and through native tail calls we ended up
+          // calling a Scheme procedure. We now need to pop the parent frame
+          // (which executed the original tail call) and shift the current frame
+          // back.
+
+          std::size_t this_frame_size = values.size() - frame_base;
+          for (std::size_t i = 0; i < this_frame_size; ++i)
+            values.set(old_base + i, values.ref(frame_base + i));
+
+          values.set(old_base - frame_procedure_offset, values.ref(frame_base - frame_procedure_offset));
+          values.resize(old_base + this_frame_size);
+          frame_base = old_base;
         }
 
         no_gc.force_update();
@@ -700,6 +717,9 @@ run(execution_state& state) {
       values.set(frame_base + read_operand(bc, pc), v->ref(i));
       break;
     }
+
+    default:
+      assert(false); // Invalid opcode
     } // end switch
   }
 
@@ -707,33 +727,131 @@ run(execution_state& state) {
   return {};
 }
 
-generic_tracked_ptr
-call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
-  std::vector<ptr<>> closure;
-  if (auto cls = match<insider::closure>(callable)) {
-    callable = cls->procedure();
-    closure = collect_closure(cls);
+static void
+push_args(context& ctx, root_stack& values, ptr<procedure> proc, std::vector<ptr<>> const& arguments) {
+  std::size_t num_rest = 0;
+  if (proc->has_rest) {
+    num_rest = arguments.size() - proc->min_args;
+    values.change_allocation(values.size() + num_rest + 1);
   }
 
-  if (auto scheme_proc = match<procedure>(callable)) {
-    if (scheme_proc->min_args != arguments.size())
-      throw std::runtime_error{"Wrong number of arguments in function call"};
+  for (ptr<> a : arguments)
+    values.push(a);
 
-    if (!ctx.current_execution)
-      ctx.current_execution = std::make_unique<execution_state>(ctx);
+  if (proc->has_rest) {
+    values.push(ctx.constants->null.get());
 
-    extend_execution_state(*ctx.current_execution, scheme_proc, closure, arguments);
-    generic_tracked_ptr result = run(*ctx.current_execution);
+    for (std::size_t i = 0; i < num_rest; ++i) {
+      ptr<> tail = values.pop();
+      ptr<> head = values.pop();
+      values.push(cons(ctx, head, tail));
+    }
+  }
+}
 
-    if (state_done(*ctx.current_execution))
-      ctx.current_execution.reset();
+static void
+push_scheme_procedure(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  ptr<insider::closure> closure;
+  if (auto cls = match<insider::closure>(callable)) {
+    closure = cls;
+    callable = cls->procedure();
+  }
 
-    return result;
-  } else if (auto native_proc = match<native_procedure>(callable)) {
-    assert(closure.empty());
-    return track(ctx, native_proc->target(ctx, object_span(arguments)));
-  } else
+  ptr<procedure> proc = assume<procedure>(callable);
+
+  throw_if_wrong_number_of_args(proc, arguments.size());
+
+  root_stack& values = *state.value_stack;
+  std::size_t new_base = push_frame(state, proc, -1);
+
+  state.pc = proc->entry_pc;
+  state.frame_base = new_base;
+
+  if (closure)
+    for (ptr<> c : collect_closure(closure))
+      values.push(c);
+
+  push_args(state.ctx, values, proc, arguments);
+
+  values.resize(new_base + proc->locals_size);
+}
+
+static void
+push_native_procedure(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments) {
+  root_stack& values = *state.value_stack;
+  values.change_allocation(values.size() + arguments.size() + frame_preamble_size);
+  values.push(integer_to_ptr(-1)); // Previous PC
+  values.push(integer_to_ptr(state.frame_base));
+  values.push(proc);
+}
+
+generic_tracked_ptr
+call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  if (!is_callable(callable))
     throw std::runtime_error{"Expected a callable"};
+
+  if (!ctx.current_execution)
+    ctx.current_execution = std::make_unique<execution_state>(ctx);
+
+  generic_tracked_ptr result;
+
+  if (auto native_proc = match<native_procedure>(callable)) {
+    push_native_procedure(*ctx.current_execution, native_proc, arguments);
+    result = track(ctx, native_proc->target(ctx, object_span(arguments)));
+    pop_call_frame(*ctx.current_execution);
+  } else {
+    push_scheme_procedure(*ctx.current_execution, callable, arguments);
+    result = run(*ctx.current_execution);
+  }
+
+  if (state_done(*ctx.current_execution))
+    ctx.current_execution.reset();
+
+  return result;
+}
+
+tracked_ptr<tail_call_tag_type>
+tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  if (!is_callable(callable))
+    throw std::runtime_error{"Expected a callable"};
+
+  assert(ctx.current_execution);
+
+  ptr<insider::closure> closure;
+  if (auto cls = match<insider::closure>(callable)) {
+    closure = cls;
+    callable = cls->procedure();
+  }
+
+  if (auto scheme_proc = match<procedure>(callable))
+    throw_if_wrong_number_of_args(scheme_proc, arguments.size());
+
+  root_stack& values = *ctx.current_execution->value_stack;
+  std::size_t frame_base = ctx.current_execution->frame_base;
+  values.set(frame_base - frame_procedure_offset, callable);
+  values.resize(frame_base);
+
+  if (auto scheme_proc = match<procedure>(callable)) {
+    values.change_allocation(frame_base + scheme_proc->locals_size);
+
+    if (closure)
+      for (std::size_t i = 0; i < closure->size(); ++i)
+        values.push(closure->ref(i));
+
+    push_args(ctx, values, scheme_proc, arguments);
+    values.resize(frame_base + scheme_proc->locals_size);
+
+    ctx.current_execution->pc = scheme_proc->entry_pc;
+  } else {
+    assert(!closure);
+    assert(is<native_procedure>(callable));
+
+    values.change_allocation(frame_base + arguments.size());
+    for (ptr<> a : arguments)
+      values.push(a);
+  }
+
+  return ctx.constants->tail_call_tag;
 }
 
 } // namespace insider

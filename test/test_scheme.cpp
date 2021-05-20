@@ -921,7 +921,7 @@ TEST_F(interpreter, scheme_to_native_to_scheme) {
                    [] (context& ctx, ptr<procedure> f, ptr<> arg) {
                      return 2 * expect<integer>(call(ctx, f, {arg})).value();
                    });
-  ptr<> result = eval_module(
+  ptr<> result1 = eval_module(
     R"(
       (import (insider internal))
 
@@ -932,7 +932,52 @@ TEST_F(interpreter, scheme_to_native_to_scheme) {
       (apply-and-double add-3 5)
    )"
   );
-  EXPECT_EQ(expect<integer>(result).value(), 2 * (5 + 3));
+  EXPECT_EQ(expect<integer>(result1).value(), 2 * (5 + 3));
+
+  ptr<> result2 = eval_module(
+    R"(
+      (import (insider internal))
+
+      (define add-3
+        (lambda (x)
+          (+ x 3)))
+
+      (let ((result (apply-and-double add-3 5)))
+        result)
+   )"
+  );
+  EXPECT_EQ(expect<integer>(result2).value(), 2 * (5 + 3));
+}
+
+TEST_F(interpreter, native_tail_calls) {
+  define_procedure(
+    ctx, "f", ctx.internal_module, true,
+    [] (context& ctx, int i, int accum, ptr<> recurse, ptr<> base) {
+      if (i == 0)
+        return tail_call(ctx, base, {to_scheme(ctx, accum)});
+      else
+        return tail_call(ctx, recurse, {to_scheme(ctx, i - 1), to_scheme(ctx, accum + i), recurse, base});
+    }
+  );
+
+  ptr<> result1 = eval_module(
+    R"(
+      (import (insider internal))
+
+      (f 10 0 f (lambda (x) (* 2 x)))
+   )"
+  );
+  EXPECT_EQ(expect<integer>(result1).value(), 2 * 55);
+
+  ptr<> result2 = eval_module(
+    R"(
+      (import (insider internal))
+
+      (let ((result (f 10 0 f (lambda (x) (* 2 x)))))
+        result)
+   )"
+  );
+  EXPECT_EQ(expect<integer>(result2).value(), 2 * 55);
 }
 
 struct compiler : scheme { };
