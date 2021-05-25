@@ -31,6 +31,7 @@ set(scheme_sources
   src/internal_module.cpp
   src/io.cpp
   src/numeric.cpp
+  src/object.cpp
   src/scheme.cpp
   src/vm.cpp
   )

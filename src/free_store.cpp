@@ -32,12 +32,6 @@ init_object_header(std::byte* storage, word_type type, generation gen) {
                           | (static_cast<word_type>(gen) << generation_shift));
 }
 
-std::size_t
-object_size(ptr<> o) {
-  type_descriptor const& t = object_type(o);
-  return t.constant_size ? t.size : t.get_size(o);
-}
-
 static color
 object_color(word_type header) {
   return static_cast<color>((header & color_bits) >> color_shift);
@@ -80,12 +74,6 @@ static void
 set_forwarding_address(ptr<> from, ptr<> target) {
   header_word(from) = reinterpret_cast<word_type>(target.value());
   assert((header_word(from) & alive_bit) == 0);
-}
-
-word_type
-new_type(type_descriptor d) {
-  types().push_back(d);
-  return types().size() - 1;
 }
 
 page_allocator::page
