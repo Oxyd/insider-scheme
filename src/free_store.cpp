@@ -17,7 +17,6 @@ static constexpr std::size_t nursery_reserve_pages = 10;
 static constexpr std::size_t nursery_reserve_bytes = nursery_reserve_pages * page_size;
 static constexpr std::size_t mature_reserve_pages = 10;
 static constexpr std::size_t major_collection_frequency = 32;
-static constexpr std::size_t stack_size = 4 * 1024 * 1024;
 
 enum class color : word_type {
   white = 0,
@@ -207,31 +206,6 @@ large_space::remove_empty() {
                      allocations_.end());
 }
 
-stack_generation::stack_generation()
-  : storage_{std::make_unique<std::byte[]>(stack_size)}
-{ }
-
-std::byte*
-stack_generation::allocate(std::size_t size) {
-  assert(size >= 2 * sizeof(word_type));
-
-  if (size >= stack_size - top_)
-    throw std::runtime_error{"Stack exhausted"};
-
-  std::byte* result = storage_.get() + top_;
-  top_ += size;
-  return result;
-}
-
-void
-stack_generation::deallocate(std::byte* x, std::size_t allocation_size) {
-  if (storage_.get() + top_ != x + allocation_size)
-    throw std::runtime_error{"Deallocating an object not on top of the stack"};
-
-  assert(top_ >= allocation_size);
-  top_ -= allocation_size;
-}
-
 static ptr<>
 move_object(ptr<> o, dense_space& to) {
   type_descriptor const& t = object_type(o);
@@ -267,7 +241,7 @@ free_store::~free_store() {
 static void
 trace(generic_tracked_ptr* roots, std::vector<ptr<>> const& permanent_roots,
       nursery_generation const& nursery_1, nursery_generation const& nursery_2,
-      stack_generation const& stack_gen,
+      stack_cache const& stack_gen,
       generation max_generation) {
   assert(max_generation >= generation::nursery_2);
 
@@ -470,7 +444,7 @@ update_references(large_space const& space) {
 }
 
 static void
-update_references(stack_generation const& stack_gen) {
+update_references(stack_cache const& stack_gen) {
   stack_gen.for_all(update_members);
 }
 

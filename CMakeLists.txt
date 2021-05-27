@@ -25,6 +25,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(scheme_sources
   src/analyser.cpp
   src/bytecode.cpp
+  src/call_stack.cpp
   src/compiler.cpp
   src/expression.cpp
   src/free_store.cpp

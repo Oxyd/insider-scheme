@@ -210,7 +210,7 @@ word_type const composite_root_object<Derived>::type_index = new_type(type_descr
 });
 
 // Object whose size is determined at instantiation time.
-template <typename Derived, typename T>
+template <typename Derived, typename T, bool PermanentRoot = false>
 struct alignas(T) alignas(object) dynamic_size_object : object {
   using element_type = T;
   static constexpr bool is_dynamic_size = true;
@@ -228,8 +228,8 @@ protected:
   }
 };
 
-template <typename Derived, typename T>
-word_type const dynamic_size_object<Derived, T>::type_index = new_type(type_descriptor{
+template <typename Derived, typename T, bool PermanentRoot>
+word_type const dynamic_size_object<Derived, T, PermanentRoot>::type_index = new_type(type_descriptor{
   Derived::scheme_name,
   detail::destroy<Derived>,
   detail::move<Derived>,
@@ -237,7 +237,8 @@ word_type const dynamic_size_object<Derived, T>::type_index = new_type(type_desc
   detail::hash<Derived>,
   false,
   0,
-  detail::size<Derived, T>
+  detail::size<Derived, T>,
+  PermanentRoot
 });
 
 template <typename T>

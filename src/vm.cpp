@@ -129,12 +129,11 @@ root_stack::visit_members(member_visitor const& f) {
 
 execution_state::execution_state(context& ctx)
   : ctx{ctx}
-  , value_stack{make_tracked<root_stack>(ctx)}
 { }
 
 static bool
 state_done(execution_state& state) {
-  return state.frame_base == -1;
+  return !state.current_frame;
 }
 
 static std::vector<ptr<>>
@@ -145,27 +144,6 @@ collect_closure(ptr<closure> cls) {
     result.push_back(cls->ref(i));
 
   return result;
-}
-
-static std::size_t
-push_frame(execution_state& state, ptr<procedure> proc, integer::value_type previous_pc) {
-  root_stack& values = *state.value_stack;
-  std::size_t new_base = values.size() + frame_preamble_size;
-
-  values.change_allocation(new_base + proc->locals_size);
-  values.push(integer_to_ptr(previous_pc));
-  values.push(integer_to_ptr(state.frame_base));
-  values.push(proc);
-
-  return new_base;
-}
-
-static void
-pop_call_frame(execution_state& state) {
-  state.value_stack->resize(state.frame_base);
-  state.value_stack->pop(); // Procedure pointer.
-  state.frame_base = ptr_to_integer(state.value_stack->pop()).value();
-  state.pc = ptr_to_integer(state.value_stack->pop()).value();
 }
 
 static operand
@@ -201,14 +179,14 @@ namespace {
       std::string result;
 
       bool first = true;
-      integer::value_type frame = state_.frame_base;
+      ptr<stack_frame> frame = state_.current_frame.get();
 
-      while (frame != -1) {
+      while (frame) {
         if (!first)
           result += '\n';
 
-        integer::value_type previous_frame = ptr_to_integer(state_.value_stack->ref(frame - 2)).value();
-        ptr<> proc = state_.value_stack->ref(frame - 1);
+        ptr<stack_frame> previous_frame = frame->parent;
+        ptr<> proc = frame->callable;
 
         if (auto scheme_proc = match<procedure>(proc)) {
           auto name = scheme_proc->name;
@@ -244,17 +222,17 @@ run(execution_state& state) {
   std::optional<execution_action> a;
   gc_disabler no_gc{state.ctx.store};
 
-  integer::value_type& frame_base = state.frame_base;
   integer::value_type& pc = state.pc;
+  assert(pc >= 0);
 
-  if (frame_base == frame_preamble_size)
+  if (!state.current_frame->parent)
     // Only create an execution_action if this is the top-level execution.
     a.emplace(state);
 
   while (true) {
     integer::value_type previous_pc = pc;
 
-    root_stack& values = *state.value_stack;
+    ptr<stack_frame> frame = state.current_frame.get();
     bytecode const& bc = state.ctx.program;
 
     opcode opcode = read_opcode(bc, pc);
@@ -281,21 +259,21 @@ run(execution_state& state) {
     case opcode::load_static: {
       operand static_num = read_operand(bc, pc);
       operand dest = read_operand(bc, pc);
-      values.set(frame_base + dest, state.ctx.get_static(static_num));
+      frame->set(dest, state.ctx.get_static(static_num));
       break;
     }
 
     case opcode::load_top_level: {
       operand global_num = read_operand(bc, pc);
       operand dest = read_operand(bc, pc);
-      values.set(frame_base + dest, state.ctx.get_top_level(global_num));
+      frame->set(dest, state.ctx.get_top_level(global_num));
       break;
     }
 
     case opcode::store_top_level: {
       operand reg = read_operand(bc, pc);
       operand global_num = read_operand(bc, pc);
-      state.ctx.set_top_level(global_num, values.ref(frame_base + reg));
+      state.ctx.set_top_level(global_num, frame->ref(reg));
       break;
     }
 
@@ -303,31 +281,31 @@ run(execution_state& state) {
     case opcode::subtract:
     case opcode::multiply:
     case opcode::divide: {
-      ptr<> lhs = values.ref(frame_base + read_operand(bc, pc));
-      ptr<> rhs = values.ref(frame_base + read_operand(bc, pc));
+      ptr<> lhs = frame->ref(read_operand(bc, pc));
+      ptr<> rhs = frame->ref(read_operand(bc, pc));
       operand dest = read_operand(bc, pc);
 
       if (is<integer>(lhs) && is<integer>(rhs) && opcode != opcode::divide) {
         switch (opcode) {
         case opcode::add:
           if (ptr<> result = add_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
-            values.set(frame_base + dest, result);
+            frame->set(dest, result);
           else
-            values.set(frame_base + dest, add(state.ctx, lhs, rhs));
+            frame->set(dest, add(state.ctx, lhs, rhs));
           break;
 
         case opcode::subtract:
           if (ptr<> result = subtract_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
-            values.set(frame_base + dest, result);
+            frame->set(dest, result);
           else
-            values.set(frame_base + dest, subtract(state.ctx, lhs, rhs));
+            frame->set(dest, subtract(state.ctx, lhs, rhs));
           break;
 
         case opcode::multiply:
           if (ptr<> result = multiply_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
-            values.set(frame_base + dest, result);
+            frame->set(dest, result);
           else
-            values.set(frame_base + dest, multiply(state.ctx, lhs, rhs));
+            frame->set(dest, multiply(state.ctx, lhs, rhs));
           break;
 
         default:
@@ -340,16 +318,16 @@ run(execution_state& state) {
 
       switch (opcode) {
       case opcode::add:
-        values.set(frame_base + dest, add(state.ctx, lhs, rhs));
+        frame->set(dest, add(state.ctx, lhs, rhs));
         break;
       case opcode::subtract:
-        values.set(frame_base + dest, subtract(state.ctx, lhs, rhs));
+        frame->set(dest, subtract(state.ctx, lhs, rhs));
         break;
       case opcode::multiply:
-        values.set(frame_base + dest, multiply(state.ctx, lhs, rhs));
+        frame->set(dest, multiply(state.ctx, lhs, rhs));
         break;
       case opcode::divide:
-        values.set(frame_base + dest, truncate_quotient(state.ctx, lhs, rhs));
+        frame->set(dest, truncate_quotient(state.ctx, lhs, rhs));
         break;
       default:
         assert(!"Cannot get here");
@@ -363,8 +341,8 @@ run(execution_state& state) {
     case opcode::greater:
     case opcode::less_or_equal:
     case opcode::greater_or_equal: {
-      ptr<> lhs = values.ref(frame_base + read_operand(bc, pc));
-      ptr<> rhs = values.ref(frame_base + read_operand(bc, pc));
+      ptr<> lhs = frame->ref(read_operand(bc, pc));
+      ptr<> rhs = frame->ref(read_operand(bc, pc));
       operand dest = read_operand(bc, pc);
 
       if (is<integer>(lhs) && is<integer>(rhs)) {
@@ -375,23 +353,23 @@ run(execution_state& state) {
 
         switch (opcode) {
         case opcode::arith_equal:
-          values.set(frame_base + dest, x == y ? t : f);
+          frame->set(dest, x == y ? t : f);
           break;
 
         case opcode::less:
-          values.set(frame_base + dest, x < y ? t : f);
+          frame->set(dest, x < y ? t : f);
           break;
 
         case opcode::greater:
-          values.set(frame_base + dest, x > y ? t : f);
+          frame->set(dest, x > y ? t : f);
           break;
 
         case opcode::less_or_equal:
-          values.set(frame_base + dest, x <= y ? t : f);
+          frame->set(dest, x <= y ? t : f);
           break;
 
         case opcode::greater_or_equal:
-          values.set(frame_base + dest, x >= y ? t : f);
+          frame->set(dest, x >= y ? t : f);
           break;
 
         default:
@@ -403,19 +381,19 @@ run(execution_state& state) {
 
       switch (opcode) {
       case opcode::arith_equal:
-        values.set(frame_base + dest, arith_equal(state.ctx, lhs, rhs));
+        frame->set(dest, arith_equal(state.ctx, lhs, rhs));
         break;
       case opcode::less:
-        values.set(frame_base + dest, less(state.ctx, lhs, rhs));
+        frame->set(dest, less(state.ctx, lhs, rhs));
         break;
       case opcode::greater:
-        values.set(frame_base + dest, greater(state.ctx, lhs, rhs));
+        frame->set(dest, greater(state.ctx, lhs, rhs));
         break;
       case opcode::less_or_equal:
-        values.set(frame_base + dest, less_or_equal(state.ctx, lhs, rhs));
+        frame->set(dest, less_or_equal(state.ctx, lhs, rhs));
         break;
       case opcode::greater_or_equal:
-        values.set(frame_base + dest, greater_or_equal(state.ctx, lhs, rhs));
+        frame->set(dest, greater_or_equal(state.ctx, lhs, rhs));
         break;
       default:
         assert(!"Cannot get here");
@@ -426,7 +404,7 @@ run(execution_state& state) {
     case opcode::set: {
       operand src = read_operand(bc, pc);
       operand dst = read_operand(bc, pc);
-      values.set(frame_base + dst, values.ref(frame_base + src));
+      frame->set(dst, frame->ref(src));
       break;
     }
 
@@ -444,7 +422,7 @@ run(execution_state& state) {
       switch (opcode) {
       case opcode::call:
       case opcode::tail_call:
-        callee = values.ref(frame_base + read_operand(bc, pc));
+        callee = frame->ref(read_operand(bc, pc));
         break;
 
       case opcode::call_top_level:
@@ -461,13 +439,11 @@ run(execution_state& state) {
         assert(false);
       }
 
-      operand dest_register{};
       operand num_args;
-
       if (is_tail)
         num_args = read_operand(bc, pc);
       else {
-        dest_register = read_operand(bc, pc);
+        read_operand(bc, pc); // Destination register
         num_args = read_operand(bc, pc);
       }
 
@@ -490,102 +466,76 @@ run(execution_state& state) {
         if (scheme_proc->has_rest)
           ++args_size;
 
-        std::size_t new_base = push_frame(state, scheme_proc, previous_pc);
+        auto new_frame = make<stack_frame>(state.ctx, scheme_proc->locals_size, scheme_proc, frame, previous_pc);
 
-        for (std::size_t i = 0; i < closure_size; ++i)
-          values.push(closure->ref(i));
+        std::size_t frame_top = 0;
+        for (std::size_t j = 0; j < closure_size; ++j)
+          new_frame->set(frame_top++, closure->ref(j));
 
         std::size_t num_rest = 0;
-        if (scheme_proc->has_rest) {
+        if (scheme_proc->has_rest)
           num_rest = num_args - scheme_proc->min_args;
-          values.change_allocation(values.size() + num_rest + 1);
-        }
 
-        for (std::size_t i = 0; i < num_args; ++i)
-          values.push(values.ref(frame_base + read_operand(bc, pc)));
+        for (std::size_t j = 0; j < scheme_proc->min_args; ++j)
+          new_frame->set(frame_top++, frame->ref(read_operand(bc, pc)));
 
         if (scheme_proc->has_rest) {
-          values.push(state.ctx.constants->null.get());
+          if (num_rest > 0) {
+            ptr<pair> head = cons(state.ctx, frame->ref(read_operand(bc, pc)), state.ctx.constants->null.get());
+            ptr<pair> last = head;
 
-          for (std::size_t i = 0; i < num_rest; ++i) {
-            ptr<> tail = values.pop();
-            ptr<> head = values.pop();
-            values.push(cons(state.ctx, head, tail));
-          }
+            for (std::size_t i = 1; i < num_rest; ++i) {
+              ptr<pair> new_tail = cons(state.ctx, frame->ref(read_operand(bc, pc)), state.ctx.constants->null.get());
+              last->set_cdr(state.ctx.store, new_tail);
+              last = new_tail;
+            }
+
+            new_frame->set(frame_top++, head);
+          } else
+            new_frame->set(frame_top++, state.ctx.constants->null.get());
         }
 
         if (is_tail) {
-          for (std::size_t i = 0; i < closure_size + args_size; ++i)
-            values.set(frame_base + i, values.ref(new_base + i));
-
-          values.set(frame_base - frame_procedure_offset, scheme_proc);
-          pc = scheme_proc->entry_pc;
-          values.resize(frame_base + scheme_proc->locals_size);
-        } else {
-          values.resize(new_base + scheme_proc->locals_size);
-
-          pc = scheme_proc->entry_pc;
-          frame_base = new_base;
+          new_frame->previous_pc = frame->previous_pc;
+          new_frame->parent = frame->parent;
         }
+
+        state.current_frame = track(state.ctx, new_frame);
+        pc = scheme_proc->entry_pc;
       } else if (auto native_proc = match<native_procedure>(call_target)) {
         assert(!closure);
 
-        values.change_allocation(values.size() + num_args + frame_preamble_size);
-        values.push(integer_to_ptr(previous_pc));
-        values.push(integer_to_ptr(frame_base));
-        values.push(call_target);
-
-        integer::value_type old_base = frame_base;
-        frame_base = values.size();
-
+        auto new_frame = make<stack_frame>(state.ctx, num_args, native_proc, frame, previous_pc);
         for (std::size_t i = 0; i < num_args; ++i)
-          values.push(values.ref(old_base + read_operand(bc, pc)));
+          new_frame->set(i, frame->ref(read_operand(bc, pc)));
 
-        std::size_t saved_pc = pc;
+        if (is_tail) {
+          new_frame->previous_pc = frame->previous_pc;
+          new_frame->parent = frame->parent;
+        }
+
+        state.current_frame = track(state.ctx, new_frame);
+
         ptr<> result;
-        ptr<> next_call;
-        do {
-          result = native_proc->target(state.ctx, values.span(frame_base, num_args));
-          next_call = values.ref(frame_base - frame_procedure_offset);
-          if (auto np = match<native_procedure>(next_call)) {
+        do
+        {
+          result = native_proc->target(state.ctx, new_frame->span(0, new_frame->size()));
+          new_frame = state.current_frame.get();
+          if (auto np = match<native_procedure>(new_frame->callable))
             native_proc = np;
-            num_args = values.size() - frame_base;
-          }
-        } while (is<native_procedure>(next_call) && result == state.ctx.constants->tail_call_tag.get());
+        } while (is<native_procedure>(new_frame->callable) && result == state.ctx.constants->tail_call_tag.get());
 
-        if (is<native_procedure>(next_call)) {
-          values.shrink(num_args + frame_preamble_size);
-          frame_base = old_base;
-          pc = saved_pc;
+        if (is<native_procedure>(new_frame->callable)) {
+          // Return from a native call (potentially a different native call than
+          // what we started with, due to native tail-calls).
 
-          if (!is_tail)
-            values.set(frame_base + dest_register, result);
-          else {
-            // tail_call. For Scheme procedures, the callee would perform a ret and
-            // go back to this frame's caller. Since this is a native procedure, we
-            // have to simulate the ret ourselves.
-
-            pop_call_frame(state);
-
-            if (frame_base == -1)
-              // Same as in ret below: We're returning from the global procedure.
-              return track(state.ctx, result);
-
-            values.set(frame_base + get_destination_register(state), result);
-          }
-        } else if (is_tail) {
-          // This was a tail call and through native tail calls we ended up
-          // calling a Scheme procedure. We now need to pop the parent frame
-          // (which executed the original tail call) and shift the current frame
-          // back.
-
-          std::size_t this_frame_size = values.size() - frame_base;
-          for (std::size_t i = 0; i < this_frame_size; ++i)
-            values.set(old_base + i, values.ref(frame_base + i));
-
-          values.set(old_base - frame_procedure_offset, values.ref(frame_base - frame_procedure_offset));
-          values.resize(old_base + this_frame_size);
-          frame_base = old_base;
+          state.pc = new_frame->previous_pc;
+          state.current_frame = track(state.ctx, new_frame->parent);
+          frame = state.current_frame.get();
+          if (frame)
+            frame->set(get_destination_register(state), result);
+          else
+            return track(state.ctx, result);
         }
 
         no_gc.force_update();
@@ -596,21 +546,23 @@ run(execution_state& state) {
 
     case opcode::ret: {
       operand return_reg = read_operand(bc, pc);
-      ptr<> result = values.ref(frame_base + return_reg);
+      ptr<> result = frame->ref(return_reg);
 
-      pop_call_frame(state);
+      state.pc = frame->previous_pc;
+      frame = frame->parent;
+      state.current_frame = track(state.ctx, frame);
 
-      if (frame_base == -1)
+      if (!frame)
         // We are returning from the global procedure, so we return back to the
         // calling C++ code.
         return track(state.ctx, result);
 
-      if (is<native_procedure>(values.ref(frame_base - 1)))
+      if (is<native_procedure>(frame->callable))
         // Return to a native procedure. We'll abandon run() immediately; the
         // native procedure will then return back to a previous run() call.
         return track(state.ctx, result);
 
-      values.set(frame_base + get_destination_register(state), result);
+      frame->set(get_destination_register(state), result);
 
       no_gc.force_update();
       break;
@@ -632,7 +584,7 @@ run(execution_state& state) {
 
       int offset = (opcode == opcode::jump_back || opcode == opcode::jump_back_unless) ? -off : off;
       if (opcode == opcode::jump_unless || opcode == opcode::jump_back_unless) {
-        ptr<> test_value = values.ref(frame_base + condition_reg);
+        ptr<> test_value = frame->ref(condition_reg);
 
         // The only false value in Scheme is #f. So we only jump if the test_value
         // is exactly #f.
@@ -646,40 +598,40 @@ run(execution_state& state) {
     }
 
     case opcode::make_closure: {
-      ptr<procedure> proc = assume<procedure>(values.ref(frame_base + read_operand(bc, pc)));
+      ptr<procedure> proc = assume<procedure>(frame->ref(read_operand(bc, pc)));
       operand dest = read_operand(bc, pc);
       operand num_captures = read_operand(bc, pc);
 
       auto result = make<closure>(state.ctx, proc, num_captures);
       for (std::size_t i = 0; i < num_captures; ++i)
-        result->set(state.ctx.store, i, values.ref(frame_base + read_operand(bc, pc)));
+        result->set(state.ctx.store, i, frame->ref(read_operand(bc, pc)));
 
-      values.set(frame_base + dest, result);
+      frame->set(dest, result);
       break;
     }
 
     case opcode::box: {
-      ptr<> value = values.ref(frame_base + read_operand(bc, pc));
-      values.set(frame_base + read_operand(bc, pc), state.ctx.store.make<box>(value));
+      ptr<> value = frame->ref(read_operand(bc, pc));
+      frame->set(read_operand(bc, pc), state.ctx.store.make<box>(value));
       break;
     }
 
     case opcode::unbox: {
-      auto box = expect<insider::box>(values.ref(frame_base + read_operand(bc, pc)));
-      values.set(frame_base + read_operand(bc, pc), box->get());
+      auto box = expect<insider::box>(frame->ref(read_operand(bc, pc)));
+      frame->set(read_operand(bc, pc), box->get());
       break;
     }
 
     case opcode::box_set: {
-      auto box = expect<insider::box>(values.ref(frame_base + read_operand(bc, pc)));
-      box->set(state.ctx.store, values.ref(frame_base + read_operand(bc,pc)));
+      auto box = expect<insider::box>(frame->ref(read_operand(bc, pc)));
+      box->set(state.ctx.store, frame->ref(read_operand(bc,pc)));
       break;
     }
 
     case opcode::cons: {
-      ptr<> car = values.ref(frame_base + read_operand(bc, pc));
-      ptr<> cdr = values.ref(frame_base + read_operand(bc, pc));
-      values.set(frame_base + read_operand(bc, pc), make<pair>(state.ctx, car, cdr));
+      ptr<> car = frame->ref(read_operand(bc, pc));
+      ptr<> cdr = frame->ref(read_operand(bc, pc));
+      frame->set(read_operand(bc, pc), make<pair>(state.ctx, car, cdr));
       break;
     }
 
@@ -689,16 +641,16 @@ run(execution_state& state) {
 
       auto result = make<vector>(state.ctx, state.ctx, num_elems);
       for (std::size_t i = 0; i < num_elems; ++i)
-        result->set(state.ctx.store, i, values.ref(frame_base + read_operand(bc, pc)));
+        result->set(state.ctx.store, i, frame->ref(read_operand(bc, pc)));
 
-      values.set(frame_base + dest, result);
+      frame->set(dest, result);
       break;
     }
 
     case opcode::vector_set: {
-      ptr<vector> v = expect<vector>(values.ref(frame_base + read_operand(bc, pc)));
-      integer::value_type i = expect<integer>(values.ref(frame_base + read_operand(bc, pc))).value();
-      ptr<> o = values.ref(frame_base + read_operand(bc, pc));
+      ptr<vector> v = expect<vector>(frame->ref(read_operand(bc, pc)));
+      integer::value_type i = expect<integer>(frame->ref(read_operand(bc, pc))).value();
+      ptr<> o = frame->ref(read_operand(bc, pc));
 
       if (i < 0)
         throw std::runtime_error{"vector-set!: Negative index"};
@@ -708,13 +660,13 @@ run(execution_state& state) {
     }
 
     case opcode::vector_ref: {
-      ptr<vector> v = expect<vector>(values.ref(frame_base + read_operand(bc, pc)));
-      integer::value_type i = expect<integer>(values.ref(frame_base + read_operand(bc, pc))).value();
+      ptr<vector> v = expect<vector>(frame->ref(read_operand(bc, pc)));
+      integer::value_type i = expect<integer>(frame->ref(read_operand(bc, pc))).value();
 
       if (i < 0)
         throw std::runtime_error{"vector-ref: Negative index"};
 
-      values.set(frame_base + read_operand(bc, pc), v->ref(i));
+      frame->set(read_operand(bc, pc), v->ref(i));
       break;
     }
 
@@ -727,30 +679,8 @@ run(execution_state& state) {
   return {};
 }
 
-static void
-push_args(context& ctx, root_stack& values, ptr<procedure> proc, std::vector<ptr<>> const& arguments) {
-  std::size_t num_rest = 0;
-  if (proc->has_rest) {
-    num_rest = arguments.size() - proc->min_args;
-    values.change_allocation(values.size() + num_rest + 1);
-  }
-
-  for (ptr<> a : arguments)
-    values.push(a);
-
-  if (proc->has_rest) {
-    values.push(ctx.constants->null.get());
-
-    for (std::size_t i = 0; i < num_rest; ++i) {
-      ptr<> tail = values.pop();
-      ptr<> head = values.pop();
-      values.push(cons(ctx, head, tail));
-    }
-  }
-}
-
-static void
-push_scheme_procedure(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
+static ptr<stack_frame>
+make_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
   ptr<insider::closure> closure;
   if (auto cls = match<insider::closure>(callable)) {
     closure = cls;
@@ -761,28 +691,20 @@ push_scheme_procedure(execution_state& state, ptr<> callable, std::vector<ptr<>>
 
   throw_if_wrong_number_of_args(proc, arguments.size());
 
-  root_stack& values = *state.value_stack;
-  std::size_t new_base = push_frame(state, proc, -1);
+  auto new_frame = make<stack_frame>(state.ctx, proc->locals_size, callable, state.current_frame.get(), state.pc);
 
-  state.pc = proc->entry_pc;
-  state.frame_base = new_base;
-
+  std::size_t new_frame_top = 0;
   if (closure)
     for (ptr<> c : collect_closure(closure))
-      values.push(c);
+      new_frame->set(new_frame_top++, c);
 
-  push_args(state.ctx, values, proc, arguments);
+  for (ptr<> a : arguments)
+    new_frame->set(new_frame_top++, a);
 
-  values.resize(new_base + proc->locals_size);
-}
+  state.current_frame = track(state.ctx, new_frame);
+  state.pc = proc->entry_pc;
 
-static void
-push_native_procedure(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments) {
-  root_stack& values = *state.value_stack;
-  values.change_allocation(values.size() + arguments.size() + frame_preamble_size);
-  values.push(integer_to_ptr(-1)); // Previous PC
-  values.push(integer_to_ptr(state.frame_base));
-  values.push(proc);
+  return new_frame;
 }
 
 generic_tracked_ptr
@@ -796,11 +718,17 @@ call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   generic_tracked_ptr result;
 
   if (auto native_proc = match<native_procedure>(callable)) {
-    push_native_procedure(*ctx.current_execution, native_proc, arguments);
+    auto new_frame = make<stack_frame>(ctx, 0, native_proc,
+                                       ctx.current_execution->current_frame.get(), ctx.current_execution->pc);
+    ctx.current_execution->current_frame = track(ctx, new_frame);
     result = track(ctx, native_proc->target(ctx, object_span(arguments)));
-    pop_call_frame(*ctx.current_execution);
+    ctx.current_execution->current_frame = track(ctx, new_frame->parent);
+    ctx.current_execution->pc = new_frame->previous_pc;
   } else {
-    push_scheme_procedure(*ctx.current_execution, callable, arguments);
+    assert(is_callable(callable));
+
+    auto frame = make_scheme_frame(*ctx.current_execution, callable, arguments);
+    frame->previous_pc = -1;
     result = run(*ctx.current_execution);
   }
 
@@ -826,29 +754,23 @@ tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   if (auto scheme_proc = match<procedure>(callable))
     throw_if_wrong_number_of_args(scheme_proc, arguments.size());
 
-  root_stack& values = *ctx.current_execution->value_stack;
-  std::size_t frame_base = ctx.current_execution->frame_base;
-  values.set(frame_base - frame_procedure_offset, callable);
-  values.resize(frame_base);
+  auto current_frame = ctx.current_execution->current_frame.get();
 
   if (auto scheme_proc = match<procedure>(callable)) {
-    values.change_allocation(frame_base + scheme_proc->locals_size);
-
-    if (closure)
-      for (std::size_t i = 0; i < closure->size(); ++i)
-        values.push(closure->ref(i));
-
-    push_args(ctx, values, scheme_proc, arguments);
-    values.resize(frame_base + scheme_proc->locals_size);
-
+    auto new_frame = make_scheme_frame(*ctx.current_execution, callable, arguments);
+    new_frame->parent = current_frame->parent;
+    new_frame->previous_pc = current_frame->previous_pc;
     ctx.current_execution->pc = scheme_proc->entry_pc;
+    ctx.current_execution->current_frame = track(ctx, new_frame);
   } else {
     assert(!closure);
     assert(is<native_procedure>(callable));
 
-    values.change_allocation(frame_base + arguments.size());
-    for (ptr<> a : arguments)
-      values.push(a);
+    auto new_frame = make<stack_frame>(ctx, arguments.size(), callable, current_frame->parent, current_frame->previous_pc);
+    for (std::size_t i = 0; i < arguments.size(); ++i)
+      new_frame->set(i, arguments[i]);
+
+    ctx.current_execution->current_frame = track(ctx, new_frame);
   }
 
   return ctx.constants->tail_call_tag;

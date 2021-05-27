@@ -1,6 +1,7 @@
 #ifndef INSIDER_FREE_STORE_HPP
 #define INSIDER_FREE_STORE_HPP
 
+#include "call_stack.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
 
@@ -245,42 +246,6 @@ struct mature_generation {
   { }
 };
 
-class stack_generation {
-public:
-  stack_generation();
-
-  stack_generation(stack_generation const&) = delete;
-  void operator = (stack_generation const&) = delete;
-
-  std::byte*
-  allocate(std::size_t);
-
-  void
-  deallocate(std::byte*, std::size_t object_size);
-
-  bool
-  empty() const { return top_ == 0; }
-
-  template <typename F>
-  void
-  for_all(F const& f) const {
-    std::size_t i = 0;
-    while (i < top_) {
-      std::byte* storage = storage_.get() + i;
-      ptr<> o{reinterpret_cast<object*>(storage + sizeof(word_type))};
-      std::size_t size = object_size(o);
-
-      f(o);
-
-      i += size + sizeof(word_type);
-    }
-  }
-
-private:
-  std::unique_ptr<std::byte[]> storage_;
-  std::size_t top_ = 0;
-};
-
 namespace detail {
   template <typename T, typename... Args>
   std::size_t
@@ -299,7 +264,7 @@ namespace detail {
 class free_store {
 public:
   struct generations {
-    stack_generation   stack;
+    stack_cache        stack;
     nursery_generation nursery_1;
     nursery_generation nursery_2;
     mature_generation  mature;

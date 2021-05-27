@@ -2,6 +2,7 @@
 #define INSIDER_NUMERIC_HPP
 
 #include "free_store.hpp"
+#include "integer.hpp"
 #include "object_span.hpp"
 
 #include <cassert>
@@ -18,9 +19,6 @@ class module;
 class port;
 
 namespace detail {
-  constexpr std::size_t short_integer_storage_width = 64;
-  constexpr std::size_t short_integer_value_width = 63;
-
 #if defined __GNUC__ || defined __clang__
   #define INSIDER_SCHEME_LIMB_WIDTH 64
   using limb_type = std::uint64_t;
@@ -31,43 +29,8 @@ namespace detail {
   using double_limb_type = std::uint64_t;
 #endif
 
-  using integer_value_type = std::int64_t;
+  using integer_value_type = integer::value_type;
 }
-
-// A signed, fixed size integer.
-class integer {
-public:
-  using value_type = detail::integer_value_type;
-
-  static constexpr value_type max = (value_type{1} << (detail::short_integer_value_width - 1)) - 1;
-  static constexpr value_type min = -max - 1;
-
-  integer() = default;
-  integer(value_type value) : value_{value} { }
-
-  value_type
-  value() const { return value_; }
-
-  void
-  set_value(value_type v) { value_ = v; }
-
-private:
-  value_type value_ = 0;
-};
-
-inline integer
-ptr_to_integer(ptr<> x) {
-  assert(!is_object_ptr(x));
-  return integer{static_cast<integer::value_type>(tagged_payload(x)) >> 1};
-}
-
-inline ptr<>
-integer_to_ptr(integer i) {
-  return immediate_to_ptr(static_cast<word_type>(i.value() << 1) | 1);
-}
-
-inline std::size_t
-integer_hash(integer i) { return std::hash<integer::value_type>{}(i.value()); }
 
 // An arbitray-length signed magnitude integer. It is made up of 64-bit unsigned
 // limbs. The least-significant limb is stored first.

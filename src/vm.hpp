@@ -1,6 +1,7 @@
 #ifndef INSIDER_VM_HPP
 #define INSIDER_VM_HPP
 
+#include "call_stack.hpp"
 #include "numeric.hpp"
 #include "ptr.hpp"
 
@@ -14,10 +15,9 @@ struct tail_call_tag_type;
 class root_stack;
 
 struct execution_state {
-  context&                ctx;
-  tracked_ptr<root_stack> value_stack;
-  integer::value_type     pc = -1;
-  integer::value_type     frame_base = -1;
+  context&                 ctx;
+  tracked_ptr<stack_frame> current_frame;
+  integer::value_type      pc = -1;
 
   execution_state(context& ctx);
 };
