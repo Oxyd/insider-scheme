@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <type_traits>
+#include <stdexcept>
 
 namespace insider {
 
@@ -72,6 +73,8 @@ static_assert(std::is_trivially_destructible_v<stack_frame>);
 
 class stack_cache {
 public:
+  static constexpr std::size_t allocation_size = 4 * 1024 * 1024;
+
   stack_cache();
 
   stack_cache(stack_cache const&) = delete;
@@ -79,10 +82,28 @@ public:
 
   ptr<stack_frame>
   make(std::size_t num_locals, ptr<> callable, ptr<stack_frame> parent = nullptr,
-       integer::value_type previous_pc = 0);
+       integer::value_type previous_pc = 0) {
+    std::size_t size = sizeof(word_type) + sizeof(stack_frame) + num_locals * sizeof(ptr<>);
+    std::size_t used_stack_size = top_ - storage_.get();
+
+    if (size > allocation_size - used_stack_size)
+      throw std::runtime_error{"Stack exhausted"};
+
+    std::byte* storage = top_;
+    top_ += size;
+
+    init_object_header(storage, stack_frame::type_index, generation::stack);
+    return new (storage + sizeof(word_type)) stack_frame(num_locals, callable, parent, previous_pc);
+  }
 
   void
-  deallocate(ptr<stack_frame>);
+  deallocate(ptr<stack_frame> frame) {
+    if (object_generation(frame) != generation::stack)
+      return;
+
+    assert(reinterpret_cast<std::byte*>(frame.value()) + object_size(frame) == top_);
+    top_ = reinterpret_cast<std::byte*>(frame.value()) - sizeof(word_type);
+  }
 
   void
   shorten(std::byte* new_end_of_stack) { top_ = new_end_of_stack; }

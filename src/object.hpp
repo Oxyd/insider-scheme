@@ -247,6 +247,33 @@ is(generic_tracked_ptr const& x) {
   return is<T>(x.get());
 }
 
+enum class generation : word_type {
+  stack     = 0,
+  nursery_1 = 1,
+  nursery_2 = 2,
+  mature    = 3
+};
+
+inline void
+init_object_header(std::byte* storage, word_type type, generation gen = generation::nursery_1) {
+  new (storage) word_type((type << type_shift)
+                          | alive_bit
+                          | (static_cast<word_type>(gen) << generation_shift));
+}
+
+namespace detail {
+  inline generation
+  get_generation(word_type header) {
+    return static_cast<generation>((header & generation_bits) >> generation_shift);
+  }
+}
+
+inline generation
+object_generation(ptr<> o) { return detail::get_generation(header_word(o)); }
+
+generation
+object_generation(ptr<>);
+
 } // namespace insider
 
 #endif
