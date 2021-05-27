@@ -238,7 +238,7 @@ make_tail_call(stack_cache& stack, ptr<stack_frame> new_frame) {
     for (std::size_t i = 0; i < parent->size(); ++i)
       parent->init(i, new_frame->ref(i));
 
-    stack.shorten(reinterpret_cast<std::byte*>(parent.value()) + object_size(parent));
+    stack.shorten(reinterpret_cast<std::byte*>(parent.value()) + sizeof(stack_frame) + parent->size() * sizeof(ptr<>));
     return parent;
   } else {
     new_frame->parent = parent->parent;

@@ -24,13 +24,6 @@ enum class color : word_type {
   black = 2,
 };
 
-void
-init_object_header(std::byte* storage, word_type type, generation gen) {
-  new (storage) word_type((type << type_shift)
-                          | alive_bit
-                          | (static_cast<word_type>(gen) << generation_shift));
-}
-
 static color
 object_color(word_type header) {
   return static_cast<color>((header & color_bits) >> color_shift);
@@ -49,14 +42,6 @@ is_alive(word_type header) { return header & alive_bit; }
 
 bool
 is_alive(ptr<> o) { return o != nullptr && is_alive(header_word(o)); }
-
-static generation
-get_generation(word_type header) {
-  return static_cast<generation>((header & generation_bits) >> generation_shift);
-}
-
-generation
-object_generation(ptr<> o) { return get_generation(header_word(o)); }
 
 static void
 set_object_generation(ptr<> o, generation gen) {
