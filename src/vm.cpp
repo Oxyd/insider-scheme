@@ -2,6 +2,7 @@
 
 #include "action.hpp"
 #include "converters.hpp"
+#include "free_store.hpp"
 #include "io.hpp"
 #include "numeric.hpp"
 
@@ -215,6 +216,35 @@ throw_if_wrong_number_of_args(ptr<procedure> proc, std::size_t num_args) {
                 proc->name ? *proc->name : "<lambda>",
                 proc->has_rest ? "at least " : "",
                 proc->min_args, num_args};
+}
+
+static ptr<stack_frame>
+make_tail_call(stack_cache& stack, ptr<stack_frame> new_frame) {
+  assert(object_generation(new_frame) == generation::stack);
+  assert(new_frame->parent);
+
+  ptr<stack_frame> parent = new_frame->parent;
+
+  if (object_generation(new_frame->parent) == generation::stack) {
+    parent->callable = new_frame->callable;
+    parent->resize(new_frame->size());
+
+    // parent and new_frame may now be overlapping in the stack. We'll copy all
+    // new_frame's elements from left to right into parent, possibly overwriting
+    // new_frame. That is okay because stack_frame is trivially
+    // destructible. We'll then resize the stack afterward to shorten it so that
+    // it ends right after parent.
+
+    for (std::size_t i = 0; i < parent->size(); ++i)
+      parent->init(i, new_frame->ref(i));
+
+    stack.shorten(reinterpret_cast<std::byte*>(parent.value()) + object_size(parent));
+    return parent;
+  } else {
+    new_frame->parent = parent->parent;
+    new_frame->previous_pc = parent->previous_pc;
+    return new_frame;
+  }
 }
 
 static generic_tracked_ptr
@@ -447,6 +477,7 @@ run(execution_state& state) {
         num_args = read_operand(bc, pc);
       }
 
+      stack_cache& stack = state.ctx.store.stack();
       ptr<> call_target = callee;
       ptr<insider::closure> closure = nullptr;
 
@@ -466,7 +497,7 @@ run(execution_state& state) {
         if (scheme_proc->has_rest)
           ++args_size;
 
-        auto new_frame = make<stack_frame>(state.ctx, scheme_proc->locals_size, scheme_proc, frame, previous_pc);
+        auto new_frame = stack.make(scheme_proc->locals_size, scheme_proc, frame, previous_pc);
 
         std::size_t frame_top = 0;
         for (std::size_t j = 0; j < closure_size; ++j)
@@ -478,6 +509,8 @@ run(execution_state& state) {
 
         for (std::size_t j = 0; j < scheme_proc->min_args; ++j)
           new_frame->set(frame_top++, frame->ref(read_operand(bc, pc)));
+
+        new_frame->set_rest_to_null(frame_top);
 
         if (scheme_proc->has_rest) {
           if (num_rest > 0) {
@@ -495,24 +528,20 @@ run(execution_state& state) {
             new_frame->set(frame_top++, state.ctx.constants->null.get());
         }
 
-        if (is_tail) {
-          new_frame->previous_pc = frame->previous_pc;
-          new_frame->parent = frame->parent;
-        }
+        if (is_tail)
+          new_frame = make_tail_call(stack, new_frame);
 
         state.current_frame = track(state.ctx, new_frame);
         pc = scheme_proc->entry_pc;
       } else if (auto native_proc = match<native_procedure>(call_target)) {
         assert(!closure);
 
-        auto new_frame = make<stack_frame>(state.ctx, num_args, native_proc, frame, previous_pc);
+        auto new_frame = stack.make(num_args, native_proc, frame, previous_pc);
         for (std::size_t i = 0; i < num_args; ++i)
           new_frame->set(i, frame->ref(read_operand(bc, pc)));
 
-        if (is_tail) {
-          new_frame->previous_pc = frame->previous_pc;
-          new_frame->parent = frame->parent;
-        }
+        if (is_tail)
+          new_frame = make_tail_call(stack, new_frame);
 
         state.current_frame = track(state.ctx, new_frame);
 
@@ -532,6 +561,8 @@ run(execution_state& state) {
           state.pc = new_frame->previous_pc;
           state.current_frame = track(state.ctx, new_frame->parent);
           frame = state.current_frame.get();
+          state.ctx.store.stack().deallocate(new_frame);
+
           if (frame)
             frame->set(get_destination_register(state), result);
           else
@@ -548,9 +579,13 @@ run(execution_state& state) {
       operand return_reg = read_operand(bc, pc);
       ptr<> result = frame->ref(return_reg);
 
+      ptr<stack_frame> old_frame = frame;
+
       state.pc = frame->previous_pc;
       frame = frame->parent;
       state.current_frame = track(state.ctx, frame);
+
+      state.ctx.store.stack().deallocate(old_frame);
 
       if (!frame)
         // We are returning from the global procedure, so we return back to the
@@ -691,7 +726,7 @@ make_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> con
 
   throw_if_wrong_number_of_args(proc, arguments.size());
 
-  auto new_frame = make<stack_frame>(state.ctx, proc->locals_size, callable, state.current_frame.get(), state.pc);
+  auto new_frame = state.ctx.store.stack().make(proc->locals_size, callable, state.current_frame.get(), state.pc);
 
   std::size_t new_frame_top = 0;
   if (closure)
@@ -700,6 +735,8 @@ make_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> con
 
   for (ptr<> a : arguments)
     new_frame->set(new_frame_top++, a);
+
+  new_frame->set_rest_to_null(new_frame_top);
 
   state.current_frame = track(state.ctx, new_frame);
   state.pc = proc->entry_pc;
@@ -718,8 +755,8 @@ call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   generic_tracked_ptr result;
 
   if (auto native_proc = match<native_procedure>(callable)) {
-    auto new_frame = make<stack_frame>(ctx, 0, native_proc,
-                                       ctx.current_execution->current_frame.get(), ctx.current_execution->pc);
+    auto new_frame = ctx.store.stack().make(0, native_proc,
+                                            ctx.current_execution->current_frame.get(), ctx.current_execution->pc);
     ctx.current_execution->current_frame = track(ctx, new_frame);
     result = track(ctx, native_proc->target(ctx, object_span(arguments)));
     ctx.current_execution->current_frame = track(ctx, new_frame->parent);
@@ -758,19 +795,18 @@ tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
 
   if (auto scheme_proc = match<procedure>(callable)) {
     auto new_frame = make_scheme_frame(*ctx.current_execution, callable, arguments);
-    new_frame->parent = current_frame->parent;
-    new_frame->previous_pc = current_frame->previous_pc;
+    new_frame = make_tail_call(ctx.store.stack(), new_frame);
     ctx.current_execution->pc = scheme_proc->entry_pc;
     ctx.current_execution->current_frame = track(ctx, new_frame);
   } else {
     assert(!closure);
     assert(is<native_procedure>(callable));
 
-    auto new_frame = make<stack_frame>(ctx, arguments.size(), callable, current_frame->parent, current_frame->previous_pc);
+    auto new_frame = ctx.store.stack().make(arguments.size(), callable, current_frame, current_frame->previous_pc);
     for (std::size_t i = 0; i < arguments.size(); ++i)
       new_frame->set(i, arguments[i]);
 
-    ctx.current_execution->current_frame = track(ctx, new_frame);
+    ctx.current_execution->current_frame = track(ctx, make_tail_call(ctx.store.stack(), new_frame));
   }
 
   return ctx.constants->tail_call_tag;

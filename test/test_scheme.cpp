@@ -179,31 +179,6 @@ struct ccc : composite_object<ccc> {
   hash() const { return 0; }
 };
 
-TEST_F(gc, stack) {
-  bool stack_one{}, stack_two{}, dynamic_one{};
-  ptr<aaa> dyn = make<aaa>(ctx, &dynamic_one);
-  ptr<aaa> a = ctx.store.make_stack<aaa>(&stack_one);
-  ptr<ccc> b = ctx.store.make_stack<ccc>(&stack_two, dyn.value());
-
-  ctx.store.collect_garbage();
-
-  EXPECT_TRUE(stack_one);
-  EXPECT_TRUE(stack_two);
-  EXPECT_TRUE(dynamic_one);
-
-  ctx.store.deallocate_stack(b);
-  ctx.store.collect_garbage();
-
-  EXPECT_TRUE(stack_one);
-  EXPECT_FALSE(stack_two);
-  EXPECT_FALSE(dynamic_one);
-
-  ctx.store.deallocate_stack(a);
-  EXPECT_FALSE(stack_one);
-  EXPECT_FALSE(stack_two);
-  EXPECT_FALSE(dynamic_one);
-}
-
 struct bbb : composite_object<bbb> {
   static constexpr char const* scheme_name = "bbb";
 

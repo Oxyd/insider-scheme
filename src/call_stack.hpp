@@ -7,6 +7,7 @@
 #include "ptr.hpp"
 
 #include <memory>
+#include <type_traits>
 
 namespace insider {
 
@@ -39,6 +40,15 @@ public:
   void
   set(std::size_t i, ptr<> value) { storage_element(i) = value; }
 
+  void
+  init(std::size_t i, ptr<> value) { new (&storage_element(i)) ptr<>(value); }
+
+  void
+  set_rest_to_null(std::size_t from) {
+    for (std::size_t i = from; i < num_locals_; ++i)
+      storage_element(i) = nullptr;
+  }
+
   object_span
   span(std::size_t begin, std::size_t size) { return {&storage_element(begin), size}; }
 
@@ -48,12 +58,17 @@ public:
   std::size_t
   size() const { return num_locals_; }
 
+  void
+  resize(std::size_t new_num_locals) { num_locals_ = new_num_locals; }
+
   std::size_t
   hash() const { return 0; }
 
 private:
   std::size_t num_locals_;
 };
+
+static_assert(std::is_trivially_destructible_v<stack_frame>);
 
 class stack_cache {
 public:
@@ -62,33 +77,36 @@ public:
   stack_cache(stack_cache const&) = delete;
   void operator = (stack_cache const&) = delete;
 
-  std::byte*
-  allocate(std::size_t);
+  ptr<stack_frame>
+  make(std::size_t num_locals, ptr<> callable, ptr<stack_frame> parent = nullptr,
+       integer::value_type previous_pc = 0);
 
   void
-  deallocate(std::byte*, std::size_t object_size);
+  deallocate(ptr<stack_frame>);
+
+  void
+  shorten(std::byte* new_end_of_stack) { top_ = new_end_of_stack; }
 
   bool
-  empty() const { return top_ == 0; }
+  empty() const { return top_ == storage_.get(); }
 
   template <typename F>
   void
   for_all(F const& f) const {
-    std::size_t i = 0;
-    while (i < top_) {
-      std::byte* storage = storage_.get() + i;
+    std::byte* storage = storage_.get();
+    while (storage < top_) {
       ptr<> o{reinterpret_cast<object*>(storage + sizeof(word_type))};
       std::size_t size = object_size(o);
 
       f(o);
 
-      i += size + sizeof(word_type);
+      storage += size + sizeof(word_type);
     }
   }
 
 private:
   std::unique_ptr<std::byte[]> storage_;
-  std::size_t top_ = 0;
+  std::byte* top_;
 };
 
 }

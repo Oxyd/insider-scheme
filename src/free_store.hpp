@@ -289,26 +289,6 @@ public:
     return ptr_cast<T>(result);
   }
 
-  template <typename T, typename... Args>
-  ptr<T>
-  make_stack(Args&&... args) {
-    static_assert(sizeof(T) % sizeof(word_type) == 0);
-
-    std::byte* storage = generations_.stack.allocate(detail::allocation_size<T>(args...) + sizeof(word_type));
-    init_object_header(storage, T::type_index, generation::stack);
-
-    ptr<> result = new (storage + sizeof(word_type)) T(std::forward<Args>(args)...);
-    return ptr_cast<T>(result);
-  }
-
-  void
-  deallocate_stack(ptr<> o) {
-    assert(object_generation(o) == generation::stack);
-    std::size_t size = object_size(o) + sizeof(word_type);
-    object_type(o).destroy(o);
-    generations_.stack.deallocate(reinterpret_cast<std::byte*>(o.value()) - sizeof(word_type), size);
-  }
-
   void
   notify_arc(ptr<> from, ptr<> to) {
     assert(!object_type(from).permanent_root);
@@ -355,6 +335,9 @@ public:
     if (disable_level_ == 0)
       update();
   }
+
+  stack_cache&
+  stack() { return generations_.stack; }
 
 private:
   page_allocator allocator_;

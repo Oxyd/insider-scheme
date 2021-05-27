@@ -1,5 +1,7 @@
 #include "call_stack.hpp"
 
+#include "free_store.hpp"
+
 #include <stdexcept>
 
 namespace insider {
@@ -26,27 +28,31 @@ stack_frame::visit_members(member_visitor const& f) {
 
 stack_cache::stack_cache()
   : storage_{std::make_unique<std::byte[]>(stack_size)}
+  , top_{storage_.get()}
 { }
 
-std::byte*
-stack_cache::allocate(std::size_t size) {
-  assert(size >= 2 * sizeof(word_type));
+ptr<stack_frame>
+stack_cache::make(std::size_t num_locals, ptr<> callable, ptr<stack_frame> parent, integer::value_type previous_pc) {
+  std::size_t size = sizeof(word_type) + sizeof(stack_frame) + num_locals * sizeof(ptr<>);
+  std::size_t used_stack_size = top_ - storage_.get();
 
-  if (size >= stack_size - top_)
+  if (size > stack_size - used_stack_size)
     throw std::runtime_error{"Stack exhausted"};
 
-  std::byte* result = storage_.get() + top_;
+  std::byte* storage = top_;
   top_ += size;
-  return result;
+
+  init_object_header(storage, stack_frame::type_index, generation::stack);
+  return new (storage + sizeof(word_type)) stack_frame(num_locals, callable, parent, previous_pc);
 }
 
 void
-stack_cache::deallocate(std::byte* x, std::size_t allocation_size) {
-  if (storage_.get() + top_ != x + allocation_size)
-    throw std::runtime_error{"Deallocating an object not on top of the stack"};
+stack_cache::deallocate(ptr<stack_frame> frame) {
+  if (object_generation(frame) != generation::stack)
+    return;
 
-  assert(top_ >= allocation_size);
-  top_ -= allocation_size;
+  assert(reinterpret_cast<std::byte*>(frame.value()) + object_size(frame) == top_);
+  top_ = reinterpret_cast<std::byte*>(frame.value()) - sizeof(word_type);
 }
 
 } // namespace insider
