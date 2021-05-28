@@ -209,7 +209,7 @@ namespace {
   };
 }
 
-static void
+inline void
 throw_if_wrong_number_of_args(ptr<procedure> proc, std::size_t num_args) {
   if (num_args < proc->min_args || (!proc->has_rest && num_args > proc->min_args))
     throw error{"{}: Wrong number of arguments, expected {}{}, got {}",
