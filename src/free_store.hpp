@@ -3,6 +3,7 @@
 
 #include "call_stack.hpp"
 #include "object.hpp"
+#include "page_allocator.hpp"
 #include "ptr.hpp"
 
 #include <cassert>
@@ -39,44 +40,40 @@ is_valid(ptr<> o) {
   return !is_object_ptr(o) || is_alive(o);
 }
 
-class page_allocator {
-public:
-  using page = std::unique_ptr<std::byte[]>;
-
-  page
-  allocate();
-
-  void
-  deallocate(page);
-
-  void
-  keep_at_most(std::size_t);
-
-  std::size_t
-  reserve_pages() const { return reserve_.size(); }
-
-  std::size_t
-  allocated_pages() const { return allocated_pages_; }
-
-  std::size_t
-  deallocated_pages() const { return deallocated_pages_; }
-
-  void
-  reset_stats() {
-    allocated_pages_ = 0;
-    deallocated_pages_ = 0;
-  }
-
-private:
-  std::vector<page> reserve_;
-  std::size_t allocated_pages_ = 0;
-  std::size_t deallocated_pages_ = 0;
-};
-
 class dense_space {
   struct page {
-    std::unique_ptr<std::byte[]> storage;
+    page_allocator::page storage;
     std::size_t used = 0;
+
+    template <typename F>
+    void
+    for_all(F const& f) {
+      std::size_t i = 0;
+      while (i < used) {
+        std::byte* object_storage = storage.get() + i;
+        ptr<> o{reinterpret_cast<object*>(object_storage + sizeof(word_type))};
+        std::size_t size = object_size(o);
+
+        f(o);
+
+        i += size + sizeof(word_type);
+      }
+    }
+
+    template <typename F>
+    void
+    for_all(F const& f) const {
+      std::size_t i = 0;
+      while (i < used) {
+        std::byte* object_storage = storage.get() + i;
+        ptr<> o{reinterpret_cast<object*>(object_storage + sizeof(word_type))};
+        std::size_t size = object_size(o);
+
+        f(o);
+
+        i += size + sizeof(word_type);
+      }
+    }
   };
 
 public:
@@ -108,36 +105,19 @@ public:
   template <typename F>
   void
   for_all(F const& f) {
-    for (page const& p : pages_) {
-      std::size_t i = 0;
-      while (i < p.used) {
-        std::byte* storage = p.storage.get() + i;
-        ptr<> o{reinterpret_cast<object*>(storage + sizeof(word_type))};
-        std::size_t size = object_size(o);
-
-        f(o);
-
-        i += size + sizeof(word_type);
-      }
-    }
+    for (page const& p : pages_)
+      p.for_all(f);
   }
 
   template <typename F>
   void
   for_all(F const& f) const {
-    for (page const& p : pages_) {
-      std::size_t i = 0;
-      while (i < p.used) {
-        std::byte* storage = p.storage.get() + i;
-        ptr<> o{reinterpret_cast<object*>(storage + sizeof(word_type))};
-        std::size_t size = object_size(o);
-
-        f(o);
-
-        i += size + sizeof(word_type);
-      }
-    }
+    for (page const& p : pages_)
+      p.for_all(f);
   }
+
+  void
+  take(page_allocator::page, std::size_t used);
 
   page_allocator&
   allocator() { return *allocator_; }
@@ -299,6 +279,9 @@ public:
     }
   }
 
+  void
+  transfer_to_nursery(page_allocator::page, std::size_t used);
+
   generic_tracked_ptr*
   root_list() { return roots_; }
 
@@ -328,9 +311,12 @@ public:
   stack_cache&
   stack() { return generations_.stack; }
 
+  page_allocator&
+  allocator() { return allocator_; }
+
 private:
   page_allocator allocator_;
-  generations    generations_{{},
+  generations    generations_{stack_cache{*this},
                               {allocator_, generation::nursery_1},
                               {allocator_, generation::nursery_2},
                               {allocator_}};

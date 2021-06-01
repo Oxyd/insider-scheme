@@ -5,12 +5,15 @@
 #include "object.hpp"
 #include "object_span.hpp"
 #include "ptr.hpp"
+#include "page_allocator.hpp"
 
 #include <memory>
 #include <type_traits>
 #include <stdexcept>
 
 namespace insider {
+
+class free_store;
 
 class stack_frame : public dynamic_size_object<stack_frame, ptr<>, true> {
 public:
@@ -73,9 +76,8 @@ static_assert(std::is_trivially_destructible_v<stack_frame>);
 
 class stack_cache {
 public:
-  static constexpr std::size_t allocation_size = 4 * 1024 * 1024;
-
-  stack_cache();
+  explicit
+  stack_cache(free_store&);
 
   stack_cache(stack_cache const&) = delete;
   void operator = (stack_cache const&) = delete;
@@ -84,10 +86,9 @@ public:
   make(std::size_t num_locals, ptr<> callable, ptr<stack_frame> parent = nullptr,
        integer::value_type previous_pc = 0) {
     std::size_t size = sizeof(word_type) + sizeof(stack_frame) + num_locals * sizeof(ptr<>);
-    std::size_t used_stack_size = top_ - storage_.get();
 
-    if (size > allocation_size - used_stack_size)
-      throw std::runtime_error{"Stack exhausted"};
+    if (size > page_size - used_size())
+      transfer_to_nursery();
 
     std::byte* storage = top_;
     top_ += size;
@@ -126,8 +127,15 @@ public:
   }
 
 private:
-  std::unique_ptr<std::byte[]> storage_;
-  std::byte* top_;
+  free_store&          store_;
+  page_allocator::page storage_;
+  std::byte*           top_;
+
+  void
+  transfer_to_nursery();
+
+  std::size_t
+  used_size() const { return top_ - storage_.get(); }
 };
 
 }

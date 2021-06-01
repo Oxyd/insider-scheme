@@ -9,7 +9,6 @@
 
 namespace insider {
 
-static constexpr std::size_t page_size = 4096;
 static constexpr std::size_t large_threshold = 256;
 static constexpr std::size_t min_nursery_pages = 1024;
 static constexpr std::size_t min_nursery_size = 2 * min_nursery_pages * page_size;
@@ -58,31 +57,6 @@ static void
 set_forwarding_address(ptr<> from, ptr<> target) {
   header_word(from) = reinterpret_cast<word_type>(target.value());
   assert((header_word(from) & alive_bit) == 0);
-}
-
-page_allocator::page
-page_allocator::allocate() {
-  if (!reserve_.empty()) {
-    page result = std::move(reserve_.back());
-    reserve_.pop_back();
-    return result;
-  }
-
-  ++allocated_pages_;
-  return std::make_unique<std::byte[]>(page_size);
-}
-
-void
-page_allocator::deallocate(page p) {
-  reserve_.emplace_back(std::move(p));
-}
-
-void
-page_allocator::keep_at_most(std::size_t n) {
-  if (reserve_.size() > n) {
-    deallocated_pages_ += reserve_.size() - n;
-    reserve_.resize(n);
-  }
 }
 
 dense_space::dense_space(page_allocator& pa)
@@ -147,6 +121,17 @@ dense_space::clear() {
 bool
 dense_space::has_preallocated_storage(std::size_t size) const {
   return !pages_.empty() && page_size - pages_.back().used >= size;
+}
+
+void
+dense_space::take(page_allocator::page p, std::size_t used) {
+  pages_.emplace_back(page{std::move(p)});
+
+  page& new_page = pages_.back();
+  new_page.used = used;
+  new_page.for_all([] (ptr<> o) { set_object_generation(o, generation::nursery_1); });
+
+  total_used_ += used;
 }
 
 std::byte*
@@ -221,6 +206,12 @@ free_store::~free_store() {
   assert(generations_.mature.large.empty());
   assert(generations_.stack.empty());
 #endif
+}
+
+void
+free_store::transfer_to_nursery(page_allocator::page p, std::size_t used) {
+  generations_.nursery_1.small.take(std::move(p), used);
+  check_nursery_size();
 }
 
 static void

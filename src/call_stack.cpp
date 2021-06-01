@@ -22,9 +22,17 @@ stack_frame::visit_members(member_visitor const& f) {
     f(storage_element(i));
 }
 
-stack_cache::stack_cache()
-  : storage_{std::make_unique<std::byte[]>(allocation_size)}
+stack_cache::stack_cache(free_store& store)
+  : store_{store}
+  , storage_{store_.allocator().allocate()}
   , top_{storage_.get()}
 { }
+
+void
+stack_cache::transfer_to_nursery() {
+  std::size_t size = used_size();
+  store_.transfer_to_nursery(std::move(storage_), size);
+  storage_ = store_.allocator().allocate();
+}
 
 } // namespace insider
