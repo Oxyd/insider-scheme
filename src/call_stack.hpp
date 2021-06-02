@@ -109,6 +109,9 @@ public:
   void
   shorten(std::byte* new_end_of_stack) { top_ = new_end_of_stack; }
 
+  void
+  clear() { top_ = storage_.get(); }
+
   bool
   empty() const { return top_ == storage_.get(); }
 
@@ -126,13 +129,13 @@ public:
     }
   }
 
+  void
+  transfer_to_nursery();
+
 private:
   free_store&          store_;
   page_allocator::page storage_;
   std::byte*           top_;
-
-  void
-  transfer_to_nursery();
 
   std::size_t
   used_size() const { return top_ - storage_.get(); }

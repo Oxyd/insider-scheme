@@ -1128,6 +1128,8 @@ closure::ref(std::size_t i) const {
 void
 closure::set(free_store& store, std::size_t i, ptr<> value) {
   assert(i < size_);
+  assert(value);
+
   storage_element(i) = value;
   store.notify_arc(this, value);
 }

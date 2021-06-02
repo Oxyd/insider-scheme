@@ -10,6 +10,7 @@
 namespace insider {
 
 class context;
+class module;
 struct tail_call_tag_type;
 
 class root_stack;
@@ -37,6 +38,9 @@ call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
 // Intended use is: return tail_call(ctx, f, {args...});
 tracked_ptr<tail_call_tag_type>
 tail_call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
+
+void
+export_vm(context&, module&);
 
 } // namespace insider
 

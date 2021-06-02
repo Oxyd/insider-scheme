@@ -1056,6 +1056,22 @@ struct native_procedure : public leaf_object<native_procedure> {
   }
 };
 
+// Captured part of the call stack.
+class continuation : public composite_object<continuation> {
+public:
+  static constexpr char const* scheme_name = "insider::continuation";
+
+  ptr<stack_frame> frame;
+
+  explicit
+  continuation(ptr<stack_frame> f) : frame{f} { }
+
+  void
+  visit_members(member_visitor const& f) { f(frame); }
+
+  std::size_t
+  hash() const { return frame->hash(); }
+};
 
 template <typename T>
 bool

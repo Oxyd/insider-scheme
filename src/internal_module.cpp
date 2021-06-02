@@ -2,10 +2,7 @@
 
 #include "converters.hpp"
 #include "io.hpp"
-
-#ifdef INSIDER_VM_PROFILER
 #include "vm.hpp"
-#endif
 
 namespace insider {
 
@@ -23,6 +20,7 @@ make_internal_module(context& ctx) {
   result.mark_active();
 
   export_numeric(ctx, result);
+  export_vm(ctx, result);
 
   define_procedure(
     ctx, "write-simple", result, true,

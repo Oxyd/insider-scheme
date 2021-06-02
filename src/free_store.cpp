@@ -194,6 +194,7 @@ free_store::~free_store() {
   assert(!roots_->next());
   assert(!roots_->prev());
 
+  generations_.stack.clear();
   permanent_roots_.clear();
   collect_garbage(true);
 

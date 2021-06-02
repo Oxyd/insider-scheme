@@ -33,6 +33,7 @@ stack_cache::transfer_to_nursery() {
   std::size_t size = used_size();
   store_.transfer_to_nursery(std::move(storage_), size);
   storage_ = store_.allocator().allocate();
+  top_ = storage_.get();
 }
 
 } // namespace insider

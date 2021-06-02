@@ -2603,3 +2603,63 @@ TEST_F(numeric, float_arithmetic) {
                                                        make<floating_point>(ctx, 0.0)))->value));
 #undef ASSERT_FP_EQ
 }
+
+struct continuations : scheme { };
+
+TEST_F(continuations, simple_escape) {
+  std::string product_module = R"(
+    (import (insider internal))
+
+    (define product
+      (lambda (list)
+        (define go
+          (lambda (l return-cont)
+            (if (eq? l '())
+                1
+                (if (= (car l) 0)
+                    (replace-stack! return-cont 0)
+                    (* (car l) (go (cdr l) return-cont))))))
+        (capture-stack
+          (lambda (return-cont)
+            (go list return-cont)))))
+  )";
+
+  auto result1 = eval_module(product_module + "(product '(1 2 0 3))");
+  EXPECT_EQ(expect<integer>(result1).value(), 0);
+
+  auto result2 = eval_module(product_module + "(product '(1 2 3 4))");
+  EXPECT_EQ(expect<integer>(result2).value(), 24);
+}
+
+TEST_F(continuations, return_to_previous_frame) {
+  auto result = eval_module(R"(
+    (import (insider internal))
+
+    (define val 5)
+    (define cont #f)
+    (define result '())
+
+    (define f
+      (lambda ()
+        (capture-stack
+          (lambda (c)
+            (set! cont c)))
+        (> val 0)))
+
+    (define go
+      (lambda ()
+        (let ((r (f)))
+          (set! result (cons r result))
+          (if (> val 0)
+              (begin
+                (set! val 0)
+                (replace-stack! cont #f))
+              #t))))
+
+    (go)
+    result
+  )");
+  ASSERT_TRUE(is_list(result));
+  EXPECT_EQ(expect<boolean>(car(expect<pair>(result))), ctx.constants->f.get());
+  EXPECT_EQ(expect<boolean>(cadr(expect<pair>(result))), ctx.constants->t.get());
+}

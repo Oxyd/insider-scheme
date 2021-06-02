@@ -210,12 +210,17 @@ namespace {
 }
 
 inline void
-throw_if_wrong_number_of_args(ptr<procedure> proc, std::size_t num_args) {
-  if (num_args < proc->min_args || (!proc->has_rest && num_args > proc->min_args))
-    throw error{"{}: Wrong number of arguments, expected {}{}, got {}",
-                proc->name ? *proc->name : "<lambda>",
-                proc->has_rest ? "at least " : "",
-                proc->min_args, num_args};
+throw_if_wrong_number_of_args(ptr<> callable, std::size_t num_args) {
+  if (auto cls = match<closure>(callable))
+    return throw_if_wrong_number_of_args(cls->procedure(), num_args);
+  else {
+    auto proc = assume<procedure>(callable);
+    if (num_args < proc->min_args || (!proc->has_rest && num_args > proc->min_args))
+      throw error{"{}: Wrong number of arguments, expected {}{}, got {}",
+                  proc->name ? *proc->name : "<lambda>",
+                  proc->has_rest ? "at least " : "",
+                  proc->min_args, num_args};
+  }
 }
 
 static ptr<stack_frame>
@@ -775,6 +780,14 @@ call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   return result;
 }
 
+integer::value_type
+find_entry_pc(ptr<> callable) {
+  if (auto cls = match<closure>(callable))
+    return assume<procedure>(cls->procedure())->entry_pc;
+  else
+    return expect<procedure>(callable)->entry_pc;
+}
+
 tracked_ptr<tail_call_tag_type>
 tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   if (!is_callable(callable))
@@ -782,34 +795,42 @@ tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
 
   assert(ctx.current_execution);
 
-  ptr<insider::closure> closure;
-  if (auto cls = match<insider::closure>(callable)) {
-    closure = cls;
-    callable = cls->procedure();
-  }
-
-  if (auto scheme_proc = match<procedure>(callable))
-    throw_if_wrong_number_of_args(scheme_proc, arguments.size());
-
   auto current_frame = ctx.current_execution->current_frame.get();
 
-  if (auto scheme_proc = match<procedure>(callable)) {
-    auto new_frame = make_scheme_frame(*ctx.current_execution, callable, arguments);
-    new_frame = make_tail_call(ctx.store.stack(), new_frame);
-    ctx.current_execution->pc = scheme_proc->entry_pc;
-    ctx.current_execution->current_frame = track(ctx, new_frame);
-  } else {
-    assert(!closure);
-    assert(is<native_procedure>(callable));
-
+  if (auto native_proc = match<native_procedure>(callable)) {
     auto new_frame = ctx.store.stack().make(arguments.size(), callable, current_frame, current_frame->previous_pc);
     for (std::size_t i = 0; i < arguments.size(); ++i)
       new_frame->set(i, arguments[i]);
 
     ctx.current_execution->current_frame = track(ctx, make_tail_call(ctx.store.stack(), new_frame));
+  } else {
+    auto new_frame = make_scheme_frame(*ctx.current_execution, callable, arguments);
+    new_frame = make_tail_call(ctx.store.stack(), new_frame);
+    ctx.current_execution->pc = find_entry_pc(callable);
+    ctx.current_execution->current_frame = track(ctx, new_frame);
   }
 
   return ctx.constants->tail_call_tag;
+}
+
+static tracked_ptr<tail_call_tag_type>
+capture_stack(context& ctx, ptr<> receiver) {
+  ctx.store.stack().transfer_to_nursery();
+  auto cont = make<continuation>(ctx, ctx.current_execution->current_frame.get());
+  return tail_call(ctx, receiver, {cont});
+}
+
+static ptr<>
+replace_stack(context& ctx, ptr<continuation> cont, ptr<> value) {
+  ctx.store.stack().clear(); // Anything that hasn't been captured will be forever inaccessible anyway.
+  ctx.current_execution->current_frame = track(ctx, cont->frame);
+  return value;
+}
+
+void
+export_vm(context& ctx, module& result) {
+  define_procedure(ctx, "capture-stack", result, true, capture_stack);
+  define_procedure(ctx, "replace-stack!", result, true, replace_stack);
 }
 
 } // namespace insider
