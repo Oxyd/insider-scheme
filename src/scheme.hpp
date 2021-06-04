@@ -257,6 +257,35 @@ struct void_type : leaf_object<void_type> {
   hash() const { return 0; }
 };
 
+// Dummy value for identifying parameters.
+struct parameter_tag : leaf_object<parameter_tag> {
+  static constexpr char const* scheme_name = "insider::parameter_tag";
+
+  std::size_t
+  hash() const { return 0; }
+};
+
+// Flat map of parameter_tag's to values.
+class parameter_map : public composite_object<parameter_map> {
+public:
+  static constexpr char const* scheme_name = "insider::parameter_map";
+
+  ptr<>*
+  find_value(ptr<parameter_tag>);
+
+  void
+  add_value(ptr<parameter_tag>, ptr<>);
+
+  void
+  visit_members(member_visitor const&);
+
+  std::size_t
+  hash() const { return 0; }
+
+private:
+  std::vector<std::tuple<ptr<parameter_tag>, ptr<>>> values_;
+};
+
 // Dummy value used to represent core forms.
 struct core_form_type : leaf_object<core_form_type> {
   static constexpr char const* scheme_name = "insider::core_form_type";
@@ -527,6 +556,7 @@ public:
   std::string                      error_backtrace; // Built from actions during stack unwinding.
   bytecode                         program;
   std::unique_ptr<execution_state> current_execution;
+  tracked_ptr<parameter_map>       parameters;
 
 #ifdef INSIDER_VM_PROFILER
   std::vector<std::size_t> instruction_counts;

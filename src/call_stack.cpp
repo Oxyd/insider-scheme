@@ -18,6 +18,8 @@ void
 stack_frame::visit_members(member_visitor const& f) {
   f(parent);
   f(callable);
+  f(parameters);
+
   for (std::size_t i = 0; i < num_locals_; ++i)
     f(storage_element(i));
 }

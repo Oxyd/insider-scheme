@@ -248,6 +248,7 @@ make_tail_call(stack_cache& stack, ptr<stack_frame> new_frame) {
   } else {
     new_frame->parent = parent->parent;
     new_frame->previous_pc = parent->previous_pc;
+    new_frame->parameters = parent->parameters;
     return new_frame;
   }
 }
@@ -788,8 +789,8 @@ find_entry_pc(ptr<> callable) {
     return expect<procedure>(callable)->entry_pc;
 }
 
-tracked_ptr<tail_call_tag_type>
-tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+static ptr<stack_frame>
+make_tail_call_frame(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   if (!is_callable(callable))
     throw std::runtime_error{"Expected a callable"};
 
@@ -810,6 +811,12 @@ tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
     ctx.current_execution->current_frame = track(ctx, new_frame);
   }
 
+  return ctx.current_execution->current_frame.get();
+}
+
+tracked_ptr<tail_call_tag_type>
+tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  make_tail_call_frame(ctx, callable, arguments);
   return ctx.constants->tail_call_tag;
 }
 
@@ -827,10 +834,72 @@ replace_stack(context& ctx, ptr<continuation> cont, ptr<> value) {
   return value;
 }
 
+static ptr<parameter_tag>
+create_parameter_tag(context& ctx, ptr<> initial_value) {
+  auto tag = make<parameter_tag>(ctx);
+  ctx.parameters->add_value(tag, initial_value);
+  return tag;
+}
+
+static ptr<>*
+find_parameter_in_frame(ptr<stack_frame> frame, ptr<parameter_tag> tag) {
+  if (frame->parameters)
+    if (auto value = frame->parameters->find_value(tag))
+      return value;
+  return nullptr;
+}
+
+static ptr<>*
+find_parameter_in_stack(context& ctx, ptr<parameter_tag> tag) {
+  ptr<stack_frame> current_frame = ctx.current_execution->current_frame.get();
+
+  while (current_frame) {
+    if (auto value = find_parameter_in_frame(current_frame, tag))
+      return value;
+
+    current_frame = current_frame->parent;
+  }
+
+  return nullptr;
+}
+
+static ptr<>&
+find_parameter(context& ctx, ptr<parameter_tag> tag) {
+  if (auto value = find_parameter_in_stack(ctx, tag))
+    return *value;
+
+  auto value = ctx.parameters->find_value(tag);
+  assert(value);
+  return *value;
+}
+
+static void
+set_parameter(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
+  find_parameter(ctx, tag) = value;
+}
+
+static void
+add_parameter_value(context& ctx, ptr<stack_frame> frame, ptr<parameter_tag> tag, ptr<> value) {
+  if (!frame->parameters)
+    frame->parameters = make<parameter_map>(ctx);
+  frame->parameters->add_value(tag, value);
+}
+
+static tracked_ptr<tail_call_tag_type>
+call_parameterized(context& ctx, ptr<parameter_tag> tag, ptr<> value, ptr<> callable) {
+  ptr<stack_frame> frame = make_tail_call_frame(ctx, callable, {});
+  add_parameter_value(ctx, frame, tag, value);
+  return ctx.constants->tail_call_tag;
+}
+
 void
 export_vm(context& ctx, module& result) {
   define_procedure(ctx, "capture-stack", result, true, capture_stack);
   define_procedure(ctx, "replace-stack!", result, true, replace_stack);
+  define_procedure(ctx, "create-parameter-tag", result, true, create_parameter_tag);
+  define_procedure(ctx, "find-parameter-value", result, true, find_parameter);
+  define_procedure(ctx, "set-parameter-value!", result, true, set_parameter);
+  define_procedure(ctx, "call-parameterized", result, true, call_parameterized);
 }
 
 } // namespace insider

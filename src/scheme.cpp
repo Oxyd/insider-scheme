@@ -95,6 +95,28 @@ equal(context& ctx, ptr<> x, ptr<> y) {
   return true;
 }
 
+ptr<>*
+parameter_map::find_value(ptr<parameter_tag> tag) {
+  for (auto& [key, value] : values_)
+    if (key == tag)
+      return &value;
+  return nullptr;
+}
+
+void
+parameter_map::add_value(ptr<parameter_tag> tag, ptr<> value) {
+  assert(!find_value(tag));
+  values_.emplace_back(tag, value);
+}
+
+void
+parameter_map::visit_members(member_visitor const& f) {
+  for (auto& [key, value] : values_) {
+    f(key);
+    f(value);
+  }
+}
+
 bool
 is_identifier(ptr<> x) {
   if (!is<syntax>(x))
@@ -506,6 +528,7 @@ context::context()
   constants->f = make_tracked<boolean>(*this, false);
   constants->tail_call_tag = make_tracked<tail_call_tag_type>(*this);
 
+  parameters = make_tracked<parameter_map>(*this);
   internal_module = make_internal_module(*this);
 
   struct {

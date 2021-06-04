@@ -8,12 +8,13 @@
 #include "page_allocator.hpp"
 
 #include <memory>
-#include <type_traits>
 #include <stdexcept>
+#include <type_traits>
 
 namespace insider {
 
 class free_store;
+class parameter_map;
 
 class stack_frame : public dynamic_size_object<stack_frame, ptr<>, true> {
 public:
@@ -22,6 +23,7 @@ public:
   integer::value_type previous_pc = 0;
   ptr<stack_frame>    parent;
   ptr<>               callable;
+  ptr<parameter_map>  parameters;
 
   static std::size_t
   extra_elements(std::size_t num_locals, ptr<>, ptr<stack_frame> = nullptr, integer::value_type = 0) {

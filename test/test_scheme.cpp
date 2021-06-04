@@ -2663,3 +2663,51 @@ TEST_F(continuations, return_to_previous_frame) {
   EXPECT_EQ(expect<boolean>(car(expect<pair>(result))), ctx.constants->f.get());
   EXPECT_EQ(expect<boolean>(cadr(expect<pair>(result))), ctx.constants->t.get());
 }
+
+TEST_F(continuations, top_level_parameter_values) {
+  auto result = eval_module(R"(
+    (import (insider internal))
+
+    (define p (create-parameter-tag 0))
+    (set-parameter-value! p 1)
+    (find-parameter-value p)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 1);
+}
+
+TEST_F(continuations, parameterize_overrides_value) {
+  auto result = eval_module(R"(
+    (import (insider internal))
+
+    (define p (create-parameter-tag 0))
+
+    (define f
+      (lambda ()
+        (call-parameterized p 2
+          (lambda ()
+            (find-parameter-value p)))))
+
+    (set-parameter-value! p 1)
+    (f)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 2);
+}
+
+TEST_F(continuations, parameterization_has_no_effect_outside_frame) {
+  auto result = eval_module(R"(
+    (import (insider internal))
+
+    (define p (create-parameter-tag 0))
+
+    (define f
+      (lambda ()
+        (call-parameterized p 2
+          (lambda ()
+            (find-parameter-value p)))))
+
+    (set-parameter-value! p 1)
+    (f)
+    (find-parameter-value p)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 1);
+}
