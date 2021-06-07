@@ -307,21 +307,6 @@ run(execution_state& state) {
     ptr<stack_frame> frame = state.current_frame.get();
     opcode opcode = reader.read_opcode();
 
-#ifdef INSIDER_VM_PROFILER
-    ++state.ctx.instruction_counts[static_cast<std::size_t>(instr.opcode)];
-
-    struct time_tracker {
-      insider::opcode oc;
-      context&        ctx;
-      std::chrono::high_resolution_clock::time_point begin = std::chrono::high_resolution_clock::now();
-
-      ~time_tracker() {
-        auto end = std::chrono::high_resolution_clock::now();
-        ctx.instruction_times[static_cast<std::size_t>(oc)] += end - begin;
-      }
-    } tracker{opcode, state.ctx};
-#endif
-
     switch (opcode) {
     case opcode::no_operation:
       break;

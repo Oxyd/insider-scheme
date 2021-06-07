@@ -3,7 +3,6 @@ project(insider-scheme)
 
 option(ASAN "Enable address sanitizer" OFF)
 option(UBSAN "Enable UB sanitizer" OFF)
-option(VM_PROFILER "Enable VM profiler" OFF)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_C_FLAGS "-Wall -Wextra -pedantic -fno-omit-frame-pointer")
@@ -68,10 +67,6 @@ set_property(TARGET scheme PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   target_compile_options(scheme PUBLIC -Wsuggest-override)
-endif()
-
-if (VM_PROFILER)
-  target_compile_definitions(scheme PUBLIC INSIDER_VM_PROFILER)
 endif()
 
 add_executable(tests ${test_sources})

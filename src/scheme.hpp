@@ -26,10 +26,6 @@
 #include <variant>
 #include <vector>
 
-#ifdef INSIDER_VM_PROFILER
-#include <chrono>
-#endif
-
 namespace insider {
 
 std::size_t
@@ -557,11 +553,6 @@ public:
   bytecode                         program;
   std::unique_ptr<execution_state> current_execution;
   tracked_ptr<parameter_map>       parameters;
-
-#ifdef INSIDER_VM_PROFILER
-  std::vector<std::size_t> instruction_counts;
-  std::vector<std::chrono::high_resolution_clock::duration> instruction_times;
-#endif
 
   context();
   ~context();
