@@ -253,25 +253,59 @@ make_tail_call(stack_cache& stack, ptr<stack_frame> new_frame) {
   }
 }
 
+namespace {
+  class bytecode_reader {
+  public:
+    explicit
+    bytecode_reader(execution_state& state)
+      : bc_{state.ctx.program}
+      , pc_{state.pc}
+      , previous_pc_{state.pc}
+    { }
+
+    opcode
+    read_opcode() {
+      previous_pc_ = pc_;
+      return insider::read_opcode(bc_, pc_);
+    }
+
+    operand
+    read_operand() { return insider::read_operand(bc_, pc_); }
+
+    integer::value_type
+    previous_pc() const { return previous_pc_; }
+
+    integer::value_type
+    current_pc() const { return pc_; }
+
+    void
+    jump_to(integer::value_type new_pc) { pc_ = new_pc; }
+
+    void
+    jump_offset(integer::value_type offset) { pc_ += offset; }
+
+  private:
+    bytecode const&      bc_;
+    integer::value_type& pc_;
+    integer::value_type  previous_pc_;
+  };
+}
+
 static generic_tracked_ptr
 run(execution_state& state) {
   std::optional<execution_action> a;
   gc_disabler no_gc{state.ctx.store};
-
-  integer::value_type& pc = state.pc;
-  assert(pc >= 0);
 
   if (!state.current_frame->parent)
     // Only create an execution_action if this is the top-level execution.
     a.emplace(state);
 
   while (true) {
-    integer::value_type previous_pc = pc;
+    bytecode_reader reader{state};
+    assert(reader.current_pc() >= 0);
 
     ptr<stack_frame> frame = state.current_frame.get();
-    bytecode const& bc = state.ctx.program;
-
-    opcode opcode = read_opcode(bc, pc);
+    opcode opcode = reader.read_opcode();
 
 #ifdef INSIDER_VM_PROFILER
     ++state.ctx.instruction_counts[static_cast<std::size_t>(instr.opcode)];
@@ -293,22 +327,22 @@ run(execution_state& state) {
       break;
 
     case opcode::load_static: {
-      operand static_num = read_operand(bc, pc);
-      operand dest = read_operand(bc, pc);
+      operand static_num = reader.read_operand();
+      operand dest = reader.read_operand();
       frame->set(dest, state.ctx.get_static(static_num));
       break;
     }
 
     case opcode::load_top_level: {
-      operand global_num = read_operand(bc, pc);
-      operand dest = read_operand(bc, pc);
+      operand global_num = reader.read_operand();
+      operand dest = reader.read_operand();
       frame->set(dest, state.ctx.get_top_level(global_num));
       break;
     }
 
     case opcode::store_top_level: {
-      operand reg = read_operand(bc, pc);
-      operand global_num = read_operand(bc, pc);
+      operand reg = reader.read_operand();
+      operand global_num = reader.read_operand();
       state.ctx.set_top_level(global_num, frame->ref(reg));
       break;
     }
@@ -317,9 +351,9 @@ run(execution_state& state) {
     case opcode::subtract:
     case opcode::multiply:
     case opcode::divide: {
-      ptr<> lhs = frame->ref(read_operand(bc, pc));
-      ptr<> rhs = frame->ref(read_operand(bc, pc));
-      operand dest = read_operand(bc, pc);
+      ptr<> lhs = frame->ref(reader.read_operand());
+      ptr<> rhs = frame->ref(reader.read_operand());
+      operand dest = reader.read_operand();
 
       if (is<integer>(lhs) && is<integer>(rhs) && opcode != opcode::divide) {
         switch (opcode) {
@@ -377,9 +411,9 @@ run(execution_state& state) {
     case opcode::greater:
     case opcode::less_or_equal:
     case opcode::greater_or_equal: {
-      ptr<> lhs = frame->ref(read_operand(bc, pc));
-      ptr<> rhs = frame->ref(read_operand(bc, pc));
-      operand dest = read_operand(bc, pc);
+      ptr<> lhs = frame->ref(reader.read_operand());
+      ptr<> rhs = frame->ref(reader.read_operand());
+      operand dest = reader.read_operand();
 
       if (is<integer>(lhs) && is<integer>(rhs)) {
         integer::value_type x = assume<integer>(lhs).value();
@@ -438,8 +472,8 @@ run(execution_state& state) {
     }
 
     case opcode::set: {
-      operand src = read_operand(bc, pc);
-      operand dst = read_operand(bc, pc);
+      operand src = reader.read_operand();
+      operand dst = reader.read_operand();
       frame->set(dst, frame->ref(src));
       break;
     }
@@ -458,17 +492,17 @@ run(execution_state& state) {
       switch (opcode) {
       case opcode::call:
       case opcode::tail_call:
-        callee = frame->ref(read_operand(bc, pc));
+        callee = frame->ref(reader.read_operand());
         break;
 
       case opcode::call_top_level:
       case opcode::tail_call_top_level:
-        callee = state.ctx.get_top_level(read_operand(bc, pc));
+        callee = state.ctx.get_top_level(reader.read_operand());
         break;
 
       case opcode::call_static:
       case opcode::tail_call_static:
-        callee = state.ctx.get_static(read_operand(bc, pc));
+        callee = state.ctx.get_static(reader.read_operand());
         break;
 
       default:
@@ -477,10 +511,10 @@ run(execution_state& state) {
 
       operand num_args;
       if (is_tail)
-        num_args = read_operand(bc, pc);
+        num_args = reader.read_operand();
       else {
-        read_operand(bc, pc); // Destination register
-        num_args = read_operand(bc, pc);
+        reader.read_operand(); // Destination register
+        num_args = reader.read_operand();
       }
 
       stack_cache& stack = state.ctx.store.stack();
@@ -503,7 +537,7 @@ run(execution_state& state) {
         if (scheme_proc->has_rest)
           ++args_size;
 
-        auto new_frame = stack.make(scheme_proc->locals_size, scheme_proc, frame, previous_pc);
+        auto new_frame = stack.make(scheme_proc->locals_size, scheme_proc, frame, reader.previous_pc());
 
         std::size_t frame_top = 0;
         for (std::size_t j = 0; j < closure_size; ++j)
@@ -514,17 +548,17 @@ run(execution_state& state) {
           num_rest = num_args - scheme_proc->min_args;
 
         for (std::size_t j = 0; j < scheme_proc->min_args; ++j)
-          new_frame->set(frame_top++, frame->ref(read_operand(bc, pc)));
+          new_frame->set(frame_top++, frame->ref(reader.read_operand()));
 
         new_frame->set_rest_to_null(frame_top);
 
         if (scheme_proc->has_rest) {
           if (num_rest > 0) {
-            ptr<pair> head = cons(state.ctx, frame->ref(read_operand(bc, pc)), state.ctx.constants->null.get());
+            ptr<pair> head = cons(state.ctx, frame->ref(reader.read_operand()), state.ctx.constants->null.get());
             ptr<pair> last = head;
 
             for (std::size_t i = 1; i < num_rest; ++i) {
-              ptr<pair> new_tail = cons(state.ctx, frame->ref(read_operand(bc, pc)), state.ctx.constants->null.get());
+              ptr<pair> new_tail = cons(state.ctx, frame->ref(reader.read_operand()), state.ctx.constants->null.get());
               last->set_cdr(state.ctx.store, new_tail);
               last = new_tail;
             }
@@ -538,13 +572,13 @@ run(execution_state& state) {
           new_frame = make_tail_call(stack, new_frame);
 
         state.current_frame = track(state.ctx, new_frame);
-        pc = scheme_proc->entry_pc;
+        reader.jump_to(scheme_proc->entry_pc);
       } else if (auto native_proc = match<native_procedure>(call_target)) {
         assert(!closure);
 
-        auto new_frame = stack.make(num_args, native_proc, frame, previous_pc);
+        auto new_frame = stack.make(num_args, native_proc, frame, reader.previous_pc());
         for (std::size_t i = 0; i < num_args; ++i)
-          new_frame->set(i, frame->ref(read_operand(bc, pc)));
+          new_frame->set(i, frame->ref(reader.read_operand()));
 
         if (is_tail)
           new_frame = make_tail_call(stack, new_frame);
@@ -582,7 +616,7 @@ run(execution_state& state) {
     }
 
     case opcode::ret: {
-      operand return_reg = read_operand(bc, pc);
+      operand return_reg = reader.read_operand();
       ptr<> result = frame->ref(return_reg);
 
       ptr<stack_frame> old_frame = frame;
@@ -617,10 +651,10 @@ run(execution_state& state) {
       operand condition_reg{};
 
       if (opcode == opcode::jump || opcode == opcode::jump_back)
-        off = read_operand(bc, pc);
+        off = reader.read_operand();
       else {
-        condition_reg = read_operand(bc, pc);
-        off = read_operand(bc, pc);
+        condition_reg = reader.read_operand();
+        off = reader.read_operand();
       }
 
       int offset = (opcode == opcode::jump_back || opcode == opcode::jump_back_unless) ? -off : off;
@@ -634,64 +668,64 @@ run(execution_state& state) {
           break;
       }
 
-      pc += offset;
+      reader.jump_offset(offset);
       break;
     }
 
     case opcode::make_closure: {
-      ptr<procedure> proc = assume<procedure>(frame->ref(read_operand(bc, pc)));
-      operand dest = read_operand(bc, pc);
-      operand num_captures = read_operand(bc, pc);
+      ptr<procedure> proc = assume<procedure>(frame->ref(reader.read_operand()));
+      operand dest = reader.read_operand();
+      operand num_captures = reader.read_operand();
 
       auto result = make<closure>(state.ctx, proc, num_captures);
       for (std::size_t i = 0; i < num_captures; ++i)
-        result->set(state.ctx.store, i, frame->ref(read_operand(bc, pc)));
+        result->set(state.ctx.store, i, frame->ref(reader.read_operand()));
 
       frame->set(dest, result);
       break;
     }
 
     case opcode::box: {
-      ptr<> value = frame->ref(read_operand(bc, pc));
-      frame->set(read_operand(bc, pc), state.ctx.store.make<box>(value));
+      ptr<> value = frame->ref(reader.read_operand());
+      frame->set(reader.read_operand(), state.ctx.store.make<box>(value));
       break;
     }
 
     case opcode::unbox: {
-      auto box = expect<insider::box>(frame->ref(read_operand(bc, pc)));
-      frame->set(read_operand(bc, pc), box->get());
+      auto box = expect<insider::box>(frame->ref(reader.read_operand()));
+      frame->set(reader.read_operand(), box->get());
       break;
     }
 
     case opcode::box_set: {
-      auto box = expect<insider::box>(frame->ref(read_operand(bc, pc)));
-      box->set(state.ctx.store, frame->ref(read_operand(bc,pc)));
+      auto box = expect<insider::box>(frame->ref(reader.read_operand()));
+      box->set(state.ctx.store, frame->ref(reader.read_operand()));
       break;
     }
 
     case opcode::cons: {
-      ptr<> car = frame->ref(read_operand(bc, pc));
-      ptr<> cdr = frame->ref(read_operand(bc, pc));
-      frame->set(read_operand(bc, pc), make<pair>(state.ctx, car, cdr));
+      ptr<> car = frame->ref(reader.read_operand());
+      ptr<> cdr = frame->ref(reader.read_operand());
+      frame->set(reader.read_operand(), make<pair>(state.ctx, car, cdr));
       break;
     }
 
     case opcode::make_vector: {
-      operand dest = read_operand(bc, pc);
-      operand num_elems = read_operand(bc, pc);
+      operand dest = reader.read_operand();
+      operand num_elems = reader.read_operand();
 
       auto result = make<vector>(state.ctx, state.ctx, num_elems);
       for (std::size_t i = 0; i < num_elems; ++i)
-        result->set(state.ctx.store, i, frame->ref(read_operand(bc, pc)));
+        result->set(state.ctx.store, i, frame->ref(reader.read_operand()));
 
       frame->set(dest, result);
       break;
     }
 
     case opcode::vector_set: {
-      ptr<vector> v = expect<vector>(frame->ref(read_operand(bc, pc)));
-      integer::value_type i = expect<integer>(frame->ref(read_operand(bc, pc))).value();
-      ptr<> o = frame->ref(read_operand(bc, pc));
+      ptr<vector> v = expect<vector>(frame->ref(reader.read_operand()));
+      integer::value_type i = expect<integer>(frame->ref(reader.read_operand())).value();
+      ptr<> o = frame->ref(reader.read_operand());
 
       if (i < 0)
         throw std::runtime_error{"vector-set!: Negative index"};
@@ -701,13 +735,13 @@ run(execution_state& state) {
     }
 
     case opcode::vector_ref: {
-      ptr<vector> v = expect<vector>(frame->ref(read_operand(bc, pc)));
-      integer::value_type i = expect<integer>(frame->ref(read_operand(bc, pc))).value();
+      ptr<vector> v = expect<vector>(frame->ref(reader.read_operand()));
+      integer::value_type i = expect<integer>(frame->ref(reader.read_operand())).value();
 
       if (i < 0)
         throw std::runtime_error{"vector-ref: Negative index"};
 
-      frame->set(read_operand(bc, pc), v->ref(i));
+      frame->set(reader.read_operand(), v->ref(i));
       break;
     }
 
