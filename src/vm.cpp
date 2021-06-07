@@ -617,7 +617,7 @@ call_native_procedure(instruction_state& istate, ptr<stack_frame> frame, ptr<nat
   return result;
 }
 
-static generic_tracked_ptr
+static ptr<>
 perform_native_return(execution_state& state, ptr<> result) {
   ptr<stack_frame> current_frame = state.current_frame.get();
   if (is<native_procedure>(current_frame->callable)) {
@@ -632,7 +632,7 @@ perform_native_return(execution_state& state, ptr<> result) {
     if (frame)
       frame->set(get_destination_register(state), result);
     else
-      return track(state.ctx, result);
+      return result;
   }
 
   // Otherwise, the native procedure frame was replaced (by means of a tail
@@ -641,7 +641,7 @@ perform_native_return(execution_state& state, ptr<> result) {
   return {};
 }
 
-static generic_tracked_ptr
+static ptr<>
 do_native_call(ptr<native_procedure> proc, instruction_state& istate, bool is_tail) {
   operand num_args = read_num_args(istate, is_tail);
 
@@ -659,7 +659,7 @@ is_tail(opcode opcode) {
                 || opcode == opcode::tail_call_static;
 }
 
-static generic_tracked_ptr
+static ptr<>
 call(opcode opcode, instruction_state& istate) {
   auto [call_target, closure] = read_callee_and_closure(opcode, istate);
 
@@ -858,9 +858,9 @@ run(execution_state& state) {
     case opcode::call_static:
     case opcode::tail_call_top_level:
     case opcode::tail_call_static: {
-      generic_tracked_ptr result = call(opcode, istate);
+      ptr<> result = call(opcode, istate);
       if (result)
-        return result;
+        return track(state.ctx, result);
       no_gc.force_update();
       break;
     }
