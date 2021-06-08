@@ -248,7 +248,7 @@ make_tail_call(stack_cache& stack, ptr<stack_frame> new_frame) {
   } else {
     new_frame->parent = parent->parent;
     new_frame->previous_pc = parent->previous_pc;
-    new_frame->parameters = parent->parameters;
+    new_frame->extra = parent->extra;
     return new_frame;
   }
 }
@@ -1042,10 +1042,45 @@ create_parameter_tag(context& ctx, ptr<> initial_value) {
   return tag;
 }
 
+static ptr<parameter_map>
+get_parameter_map(ptr<stack_frame> frame) {
+  if (ptr<stack_frame_extra_data> e = frame->extra)
+    return e->parameters;
+  else
+    return {};
+}
+
+static ptr<stack_frame_extra_data>
+create_or_get_extra_data(context& ctx, ptr<stack_frame> frame) {
+  if (auto e = frame->extra)
+    return e;
+  else {
+    frame->extra = make<stack_frame_extra_data>(ctx);
+    return frame->extra;
+  }
+}
+
+static ptr<parameter_map>
+create_parameter_map(context& ctx, ptr<stack_frame> frame) {
+  ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, frame);
+
+  assert(!extra->parameters);
+  extra->parameters = make<parameter_map>(ctx);
+  return extra->parameters;
+}
+
+static ptr<parameter_map>
+create_or_get_parameter_map(context& ctx, ptr<stack_frame> frame) {
+  if (auto map = get_parameter_map(frame))
+    return map;
+  else
+    return create_parameter_map(ctx, frame);
+}
+
 static ptr<>*
 find_parameter_in_frame(ptr<stack_frame> frame, ptr<parameter_tag> tag) {
-  if (frame->parameters)
-    if (auto value = frame->parameters->find_value(tag))
+  if (ptr<parameter_map> params = get_parameter_map(frame))
+    if (auto value = params->find_value(tag))
       return value;
   return nullptr;
 }
@@ -1081,9 +1116,7 @@ set_parameter(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
 
 static void
 add_parameter_value(context& ctx, ptr<stack_frame> frame, ptr<parameter_tag> tag, ptr<> value) {
-  if (!frame->parameters)
-    frame->parameters = make<parameter_map>(ctx);
-  frame->parameters->add_value(tag, value);
+  create_or_get_parameter_map(ctx, frame)->add_value(tag, value);
 }
 
 static tracked_ptr<tail_call_tag_type>

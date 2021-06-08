@@ -16,14 +16,29 @@ namespace insider {
 class free_store;
 class parameter_map;
 
+class stack_frame_extra_data : public composite_object<stack_frame_extra_data> {
+public:
+  static constexpr char const* scheme_name = "insider::stack_frame_extra_data";
+
+  ptr<parameter_map>          parameters;
+
+  void
+  visit_members(member_visitor const& f) {
+    f(parameters);
+  }
+
+  std::size_t
+  hash() const { return 0; }
+};
+
 class stack_frame : public dynamic_size_object<stack_frame, ptr<>, true> {
 public:
   static constexpr char const* scheme_name = "insider::stack_frame";
 
-  integer::value_type previous_pc = 0;
-  ptr<stack_frame>    parent;
-  ptr<>               callable;
-  ptr<parameter_map>  parameters;
+  integer::value_type         previous_pc = 0;
+  ptr<stack_frame>            parent;
+  ptr<>                       callable;
+  ptr<stack_frame_extra_data> extra;
 
   static std::size_t
   extra_elements(std::size_t num_locals, ptr<>, ptr<stack_frame> = nullptr, integer::value_type = 0) {
