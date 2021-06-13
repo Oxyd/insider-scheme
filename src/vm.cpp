@@ -603,42 +603,68 @@ make_native_frame(instruction_state& istate, operand num_args, ptr<native_proced
   return new_frame;
 }
 
-static ptr<>
-call_native_procedure(instruction_state& istate, ptr<stack_frame> frame, ptr<native_procedure> proc) {
-  ptr<> result;
-  do
-  {
-    result = proc->target(istate.context(), frame->span(0, frame->size()));
-    frame = istate.execution_state.current_frame.get();
-    if (auto np = match<native_procedure>(frame->callable))
-      proc = np;
-  } while (is<native_procedure>(frame->callable) && result == istate.context().constants->tail_call_tag.get());
-
-  return result;
+static native_continuation_type
+get_native_continuation(ptr<stack_frame> frame) {
+  if (auto e = frame->extra)
+    return e->native_continuation;
+  else
+    return {};
 }
 
 static ptr<>
-perform_native_return(execution_state& state, ptr<> result) {
-  ptr<stack_frame> current_frame = state.current_frame.get();
-  if (is<native_procedure>(current_frame->callable)) {
+call_native_frame_target(context& ctx, ptr<stack_frame> frame, ptr<> scheme_result) {
+  if (native_continuation_type cont = get_native_continuation(frame))
+    return cont(ctx, scheme_result);
+  else
+    return assume<native_procedure>(frame->callable)->target(ctx, frame->span(0, frame->size()));
+}
+
+static void
+pop_frame(execution_state& state) {
+  ptr<stack_frame> old_frame = state.current_frame.get();
+  state.pc = old_frame->previous_pc;
+  state.current_frame = track(state.ctx, old_frame->parent);
+  state.ctx.store.stack().deallocate(old_frame);
+}
+
+static ptr<>
+resume_native_call(execution_state& state, ptr<> scheme_result);
+
+static ptr<>
+return_value_to_caller(execution_state& state, ptr<> result) {
+  if (!state.current_frame)
+    // We are returning from the global procedure, so we return back to the
+    // calling C++ code.
+    return result;
+
+  if (is<native_procedure>(state.current_frame->callable))
+    return resume_native_call(state, result);
+
+  state.current_frame->set(get_destination_register(state), result);
+  return {};
+}
+
+static ptr<>
+pop_native_frame(execution_state& state, ptr<> result) {
+  pop_frame(state);
+  return return_value_to_caller(state, result);
+}
+
+static ptr<>
+call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
+  ptr<> result;
+  do
+    result = call_native_frame_target(state.ctx, state.current_frame.get(), scheme_result);
+  while (is<native_procedure>(state.current_frame->callable) && result == state.ctx.constants->tail_call_tag.get());
+
+  if (is<native_procedure>(state.current_frame->callable))
     // Return from a native call (potentially a different native call than
     // what we started with, due to native tail-calls).
-
-    state.pc = current_frame->previous_pc;
-    state.current_frame = track(state.ctx, current_frame->parent);
-    ptr<stack_frame> frame = state.current_frame.get();
-    state.ctx.store.stack().deallocate(current_frame);
-
-    if (frame)
-      frame->set(get_destination_register(state), result);
-    else
-      return result;
-  }
-
-  // Otherwise, the native procedure frame was replaced (by means of a tail
-  // call) with a Scheme procedure.
-
-  return {};
+    return pop_native_frame(state, result);
+  else
+    // Otherwise, the native procedure frame was replaced (by means of a tail
+    // call) with a Scheme procedure.
+    return {};
 }
 
 static ptr<>
@@ -648,8 +674,7 @@ do_native_call(ptr<native_procedure> proc, instruction_state& istate, bool is_ta
   ptr<stack_frame> new_frame = make_native_frame(istate, num_args, proc, is_tail);
   istate.execution_state.current_frame = track(istate.context(), new_frame);
 
-  ptr<> result = call_native_procedure(istate, new_frame, proc);
-  return perform_native_return(istate.execution_state, result);
+  return call_native_procedure(istate.execution_state);
 }
 
 static bool
@@ -673,30 +698,23 @@ call(opcode opcode, instruction_state& istate) {
     throw error{"Application: Not a procedure: {}", datum_to_string(istate.context(), call_target)};
 }
 
-static generic_tracked_ptr
+static ptr<>
+resume_native_call(execution_state& state, ptr<> scheme_result) {
+  if (native_continuation_type const& nc = get_native_continuation(state.current_frame.get()))
+    return call_native_procedure(state, scheme_result);
+  else
+    // Return to a non-continuable native procedure. We'll abandon run()
+    // immediately; the native procedure will then return back to a previous
+    // run() call.
+    return scheme_result;
+}
+
+static ptr<>
 ret(instruction_state& istate) {
   operand return_reg = istate.reader.read_operand();
   ptr<> result = istate.frame()->ref(return_reg);
-
-  ptr<stack_frame> old_frame = istate.frame();
-
-  istate.execution_state.pc = istate.frame()->previous_pc;
-  istate.execution_state.current_frame = track(istate.context(), istate.frame()->parent);
-
-  istate.context().store.stack().deallocate(old_frame);
-
-  if (!istate.frame())
-    // We are returning from the global procedure, so we return back to the
-    // calling C++ code.
-    return track(istate.context(), result);
-
-  if (is<native_procedure>(istate.frame()->callable))
-    // Return to a native procedure. We'll abandon run() immediately; the
-    // native procedure will then return back to a previous run() call.
-    return track(istate.context(), result);
-
-  istate.frame()->set(get_destination_register(istate.execution_state), result);
-  return {};
+  pop_frame(istate.execution_state);
+  return return_value_to_caller(istate.execution_state, result);
 }
 
 static void
@@ -866,9 +884,9 @@ run(execution_state& state) {
     }
 
     case opcode::ret: {
-      generic_tracked_ptr result = ret(istate);
+      ptr<> result = ret(istate);
       if (result)
-        return result;
+        return track(state.ctx, result);
       no_gc.force_update();
       break;
     }
@@ -951,35 +969,105 @@ make_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> con
   return new_frame;
 }
 
+static generic_tracked_ptr
+call_native(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments) {
+  auto new_frame = state.ctx.store.stack().make(0, proc, state.current_frame.get(), state.pc);
+  state.current_frame = track(state.ctx, new_frame);
+  generic_tracked_ptr result = track(state.ctx, proc->target(state.ctx, object_span(arguments)));
+  state.current_frame = track(state.ctx, new_frame->parent);
+  state.pc = new_frame->previous_pc;
+  return result;
+}
+
+static void
+setup_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  assert(is_callable(callable));
+
+  auto frame = make_scheme_frame(state, callable, arguments);
+  frame->previous_pc = -1;
+}
+
+static generic_tracked_ptr
+call_scheme(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  setup_scheme_frame(state, callable, arguments);
+  return run(state);
+}
+
+namespace {
+  class current_execution_setter {
+  public:
+    explicit
+    current_execution_setter(context& ctx)
+      : ctx_{ctx}
+    {
+      if (!ctx.current_execution)
+        ctx.current_execution = std::make_unique<execution_state>(ctx);
+    }
+
+    ~current_execution_setter() {
+      if (state_done(*ctx_.current_execution))
+        ctx_.current_execution.reset();
+    }
+
+    current_execution_setter(current_execution_setter const&) = delete;
+    void operator = (current_execution_setter const&) = delete;
+
+  private:
+    context& ctx_;
+  };
+}
+
 generic_tracked_ptr
 call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
-  if (!is_callable(callable))
-    throw std::runtime_error{"Expected a callable"};
-
-  if (!ctx.current_execution)
-    ctx.current_execution = std::make_unique<execution_state>(ctx);
+  expect_callable(callable);
+  current_execution_setter ces{ctx};
 
   generic_tracked_ptr result;
-
-  if (auto native_proc = match<native_procedure>(callable)) {
-    auto new_frame = ctx.store.stack().make(0, native_proc,
-                                            ctx.current_execution->current_frame.get(), ctx.current_execution->pc);
-    ctx.current_execution->current_frame = track(ctx, new_frame);
-    result = track(ctx, native_proc->target(ctx, object_span(arguments)));
-    ctx.current_execution->current_frame = track(ctx, new_frame->parent);
-    ctx.current_execution->pc = new_frame->previous_pc;
-  } else {
-    assert(is_callable(callable));
-
-    auto frame = make_scheme_frame(*ctx.current_execution, callable, arguments);
-    frame->previous_pc = -1;
-    result = run(*ctx.current_execution);
-  }
-
-  if (state_done(*ctx.current_execution))
-    ctx.current_execution.reset();
+  if (auto native_proc = match<native_procedure>(callable))
+    result = call_native(*ctx.current_execution, native_proc, arguments);
+  else
+    result = call_scheme(*ctx.current_execution, callable, arguments);
 
   return result;
+}
+
+static generic_tracked_ptr
+call_native_continuable(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments,
+                        native_continuation_type cont) {
+  generic_tracked_ptr result = call_native(state, proc, arguments);
+  return track(state.ctx, cont(state.ctx, result.get()));
+}
+
+static ptr<stack_frame_extra_data>
+create_or_get_extra_data(context& ctx, ptr<stack_frame> frame) {
+  if (auto e = frame->extra)
+    return e;
+  else {
+    frame->extra = make<stack_frame_extra_data>(ctx);
+    return frame->extra;
+  }
+}
+
+static generic_tracked_ptr
+call_scheme_continuable(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments,
+                        native_continuation_type cont) {
+  create_or_get_extra_data(state.ctx, state.current_frame.get())->native_continuation = std::move(cont);
+  setup_scheme_frame(state, callable, arguments);
+  return state.ctx.constants->tail_call_tag;
+}
+
+generic_tracked_ptr
+call_continuable(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments,
+                 native_continuation_type cont) {
+  expect_callable(callable);
+  current_execution_setter ces{ctx};
+
+  if (auto native_proc = match<native_procedure>(callable))
+    call_native_continuable(*ctx.current_execution, native_proc, arguments, std::move(cont));
+  else
+    call_scheme_continuable(*ctx.current_execution, callable, arguments, std::move(cont));
+
+  return ctx.constants->tail_call_tag;
 }
 
 integer::value_type
@@ -1048,16 +1136,6 @@ get_parameter_map(ptr<stack_frame> frame) {
     return e->parameters;
   else
     return {};
-}
-
-static ptr<stack_frame_extra_data>
-create_or_get_extra_data(context& ctx, ptr<stack_frame> frame) {
-  if (auto e = frame->extra)
-    return e;
-  else {
-    frame->extra = make<stack_frame_extra_data>(ctx);
-    return frame->extra;
-  }
 }
 
 static ptr<parameter_map>

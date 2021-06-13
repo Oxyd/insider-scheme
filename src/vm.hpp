@@ -31,6 +31,23 @@ struct execution_state {
 generic_tracked_ptr
 call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
 
+// Add a call frame to the current execution state, and set the continuation for
+// the current frame. When the new frame finishes execution, it will call the
+// given continuation. This allows for continuation jumps in and out of the
+// current native frame.
+//
+// Only makes sense when called from a native procedure which was in turn called
+// from Scheme.
+//
+// Inteded use is:
+// return call_continuable(ctx, f, {args...},
+//                         [=] (ptr<> result) { do something with result })
+//
+// Causes garbage collection.
+generic_tracked_ptr
+call_continuable(context&, ptr<> callable, std::vector<ptr<>> const& arguments,
+                 native_continuation_type cont);
+
 // Pop the current call frame (which must be a native procedure frame), and
 // replace it with a call frame for the given procedure. This is used to
 // implement native procedures tail-calling other procedures.

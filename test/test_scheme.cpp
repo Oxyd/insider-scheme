@@ -2711,3 +2711,102 @@ TEST_F(continuations, parameterization_has_no_effect_outside_frame) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
+
+TEST_F(continuations, call_continuable_works_like_call) {
+  define_procedure(ctx, "f", ctx.internal_module, true,
+                   [] (context& ctx, ptr<> f, ptr<> arg) {
+                     return call_continuable(ctx, f, {arg},
+                                             [] (context& ctx, ptr<> result) {
+                                               return to_scheme(ctx, expect<integer>(result).value() * 2);
+                                             });
+                   });
+
+  auto result = eval("(f (lambda (x) (+ x 1)) 3)");
+  EXPECT_EQ(expect<integer>(result).value(), 8);
+}
+
+TEST_F(continuations, call_continuable_allows_jump_up) {
+  bool continuation_called = false;
+  define_procedure<ptr<>(context&, ptr<>, ptr<>)>(
+    ctx, "f", ctx.internal_module, true,
+    [&] (context& ctx, ptr<> f, ptr<> arg) {
+      return call_continuable(ctx, f, {arg},
+                              [&] (context& ctx, ptr<> result) {
+                                continuation_called = true;
+                                return to_scheme(ctx, expect<integer>(result).value() * 2);
+                              });
+    }
+  );
+  auto result = eval(R"(
+    (capture-stack
+      (lambda (stack)
+        (f (lambda (x) (replace-stack! stack 0)) 3)))
+  )");
+  EXPECT_FALSE(continuation_called);
+  EXPECT_EQ(expect<integer>(result).value(), 0);
+}
+
+TEST_F(continuations, call_continuable_allows_jump_back_in) {
+  unsigned continuation_counter = 0;
+  define_procedure<ptr<>(context&, ptr<>, ptr<>)>(
+    ctx, "f", ctx.internal_module, true,
+    [&] (context& ctx, ptr<> f, ptr<> arg) {
+      return call_continuable(ctx, f, {arg},
+                              [&] (context& ctx, ptr<> result) {
+                                ++continuation_counter;
+                                return to_scheme(ctx, expect<integer>(result).value() * 2);
+                              });
+    }
+  );
+  auto result = eval_module(R"(
+    (import (insider internal))
+
+    (define cont #f)
+    (define result '())
+    (define cont-called? #f)
+
+    (define call-and-append-to-result
+      (lambda ()
+        (let ((r (f (lambda (x)
+                      (if (eq? cont #f)
+                          (capture-stack
+                            (lambda (stack)
+                              (set! cont stack)
+                              (+ x 1)))))
+                    3)))
+          (set! result (cons r result)))))
+
+    (call-and-append-to-result)
+    (if (eq? cont-called? #f)
+        (begin
+          (set! cont-called? #t)
+          (replace-stack! cont 10))
+        result)
+  )");
+  ASSERT_TRUE(is_list(result));
+  auto p = assume<pair>(result);
+  EXPECT_EQ(expect<integer>(car(p)).value(), 20);
+  EXPECT_EQ(expect<integer>(cadr(p)).value(), 8);
+  EXPECT_EQ(continuation_counter, 2);
+}
+
+TEST_F(continuations, call_continuable_can_be_used_twice) {
+  define_procedure(
+    ctx, "f", ctx.internal_module, true,
+    [] (context& ctx, ptr<> f, ptr<> g) {
+      return call_continuable(
+        ctx, f, {to_scheme(ctx, 2)},
+        [g = track(ctx, g)] (context& ctx, ptr<> result) {
+          return call_continuable(
+            ctx, g.get(), {result},
+            [] (context& ctx, ptr<> result) {
+              return to_scheme(ctx, 2 * from_scheme<int>(ctx, result));
+            }
+          ).get();
+        }
+      );
+    }
+  );
+  auto result = eval("(f (lambda (x) (+ x 1)) (lambda (x) (+ x 2)))");
+  EXPECT_EQ(expect<integer>(result).value(), 2 * ((2 + 1) + 2));
+}

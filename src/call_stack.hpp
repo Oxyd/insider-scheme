@@ -7,20 +7,25 @@
 #include "ptr.hpp"
 #include "page_allocator.hpp"
 
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
 
 namespace insider {
 
+class context;
 class free_store;
 class parameter_map;
+
+using native_continuation_type = std::function<ptr<>(context&, ptr<>)>;
 
 class stack_frame_extra_data : public composite_object<stack_frame_extra_data> {
 public:
   static constexpr char const* scheme_name = "insider::stack_frame_extra_data";
 
-  ptr<parameter_map>          parameters;
+  ptr<parameter_map>       parameters;
+  native_continuation_type native_continuation;
 
   void
   visit_members(member_visitor const& f) {
