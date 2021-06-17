@@ -160,6 +160,15 @@ public:
   void
   remove_empty();
 
+  template <typename F>
+  void
+  for_all(F const& f) {
+    for (auto const& storage : allocations_) {
+      ptr<> o{reinterpret_cast<object*>(storage.get() + sizeof(word_type))};
+      f(o);
+    }
+  }
+
 private:
   std::vector<std::unique_ptr<std::byte[]>> allocations_;
   std::size_t bytes_used_ = 0;

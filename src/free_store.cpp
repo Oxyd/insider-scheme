@@ -190,23 +190,20 @@ free_store::free_store()
   : target_nursery_pages_{min_nursery_pages}
 { }
 
+template <typename Space>
+static void
+destroy_all_objects(Space& space) {
+  space.for_all([] (ptr<> o) { object_type(o).destroy(o); });
+}
+
 free_store::~free_store() {
-  assert(!roots_->next());
-  assert(!roots_->prev());
-
   generations_.stack.clear();
-  permanent_roots_.clear();
-  collect_garbage(true);
-
-#ifndef NDEBUG
-  assert(generations_.nursery_1.small.empty());
-  assert(generations_.nursery_1.large.empty());
-  assert(generations_.nursery_2.small.empty());
-  assert(generations_.nursery_2.large.empty());
-  assert(generations_.mature.small.empty());
-  assert(generations_.mature.large.empty());
-  assert(generations_.stack.empty());
-#endif
+  destroy_all_objects(generations_.nursery_1.small);
+  destroy_all_objects(generations_.nursery_1.large);
+  destroy_all_objects(generations_.nursery_2.small);
+  destroy_all_objects(generations_.nursery_2.large);
+  destroy_all_objects(generations_.mature.small);
+  destroy_all_objects(generations_.mature.large);
 }
 
 void
