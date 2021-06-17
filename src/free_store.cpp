@@ -216,7 +216,7 @@ free_store::transfer_to_nursery(page_allocator::page p, std::size_t used) {
 }
 
 static void
-trace(generic_tracked_ptr* roots, std::vector<ptr<>> const& permanent_roots,
+trace(tracked_ptr<>* roots, std::vector<ptr<>> const& permanent_roots,
       nursery_generation const& nursery_1, nursery_generation const& nursery_2,
       stack_cache const& stack_gen,
       generation max_generation) {
@@ -239,7 +239,7 @@ trace(generic_tracked_ptr* roots, std::vector<ptr<>> const& permanent_roots,
     );
   };
 
-  for (generic_tracked_ptr* root = roots; root; root = root->next())
+  for (tracked_ptr<>* root = roots; root; root = root->next())
     if (root->get() && is_object_ptr(root->get())
         && object_generation(root->get()) <= max_generation
         && object_color(root->get()) == color::white) {
@@ -557,7 +557,7 @@ free_store::allocate_object(std::size_t size, word_type type) {
 
 void
 free_store::update_roots() {
-  for (generic_tracked_ptr* p = roots_; p; p = p->next()) {
+  for (tracked_ptr<>* p = roots_; p; p = p->next()) {
     if (p->get() && is_object_ptr(p->get()) && !is_alive(p->get())) {
       p->value_ = forwarding_address(p->get()).value();
       assert(p->value_ != nullptr);
@@ -568,7 +568,7 @@ free_store::update_roots() {
            || object_color(p->get()) == color::white);
   }
 
-  for (generic_weak_ptr* wp = weak_roots_; wp; wp = wp->next()) {
+  for (weak_ptr<>* wp = weak_roots_; wp; wp = wp->next()) {
     if (wp->get() && is_object_ptr(wp->get()) && !is_alive(wp->get()))
       wp->value_ = forwarding_address(wp->get()).value();
   }

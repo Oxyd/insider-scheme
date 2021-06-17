@@ -562,13 +562,13 @@ TEST_F(io, read_string) {
 }
 
 TEST_F(io, read_multiple) {
-  std::vector<generic_tracked_ptr> result1 = read_multiple(ctx, "foo bar baz");
+  std::vector<tracked_ptr<>> result1 = read_multiple(ctx, "foo bar baz");
   ASSERT_EQ(result1.size(), 3);
   EXPECT_EQ(expect<symbol>(result1[0])->value(), "foo");
   EXPECT_EQ(expect<symbol>(result1[1])->value(), "bar");
   EXPECT_EQ(expect<symbol>(result1[2])->value(), "baz");
 
-  std::vector<generic_tracked_ptr> result2 = read_multiple(ctx, "(foo) (bar 2)");
+  std::vector<tracked_ptr<>> result2 = read_multiple(ctx, "(foo) (bar 2)");
   ASSERT_EQ(result2.size(), 2);
   EXPECT_TRUE(is_list(result2[0].get()));
   EXPECT_EQ(list_length(result2[0].get()), 1);

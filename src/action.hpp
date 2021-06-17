@@ -46,7 +46,7 @@ public:
     , args_{std::forward<Args>(args)...}
   { }
 
-  simple_action(context& ctx, generic_tracked_ptr const& irritant, std::string_view format, Args... args)
+  simple_action(context& ctx, tracked_ptr<> const& irritant, std::string_view format, Args... args)
     : base{ctx}
     , format_{format}
     , args_{std::move(args)...}
@@ -70,7 +70,7 @@ public:
 private:
   std::string_view    format_;
   std::tuple<Args...> args_;
-  generic_tracked_ptr         irritant_;
+  tracked_ptr<>         irritant_;
 
   template <std::size_t... Is>
   std::string

@@ -35,10 +35,10 @@ struct variable {
 struct expression;
 
 struct literal_expression {
-  generic_tracked_ptr value;
+  tracked_ptr<> value;
 
   explicit
-  literal_expression(generic_tracked_ptr const& value) : value{value} { }
+  literal_expression(tracked_ptr<> const& value) : value{value} { }
 };
 
 struct local_reference_expression {

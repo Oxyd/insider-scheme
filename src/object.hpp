@@ -243,7 +243,7 @@ word_type const dynamic_size_object<Derived, T, PermanentRoot>::type_index = new
 
 template <typename T>
 bool
-is(generic_tracked_ptr const& x) {
+is(tracked_ptr<> const& x) {
   return is<T>(x.get());
 }
 

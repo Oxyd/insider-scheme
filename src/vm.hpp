@@ -28,7 +28,7 @@ struct execution_state {
 // exist.
 //
 // Causes a garbage collection.
-generic_tracked_ptr
+tracked_ptr<>
 call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
 
 // Add a call frame to the current execution state, and set the continuation for
@@ -44,7 +44,7 @@ call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
 //                         [=] (ptr<> result) { do something with result })
 //
 // Causes garbage collection.
-generic_tracked_ptr
+tracked_ptr<>
 call_continuable(context&, ptr<> callable, std::vector<ptr<>> const& arguments,
                  native_continuation_type cont);
 

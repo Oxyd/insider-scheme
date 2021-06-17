@@ -7,7 +7,8 @@
 
 namespace insider {
 
-class generic_tracked_ptr;
+template <typename = void>
+class tracked_ptr;
 class integer;
 struct object;
 
@@ -227,38 +228,46 @@ namespace detail {
   };
 } // namespace detail
 
+template <typename>
+class tracked_ptr;
+
 // Untyped pointer to a Scheme object, registered with the garbage collector as a GC root.
-class generic_tracked_ptr : public detail::tracked_ptr_base<generic_tracked_ptr> {
+template <>
+class tracked_ptr<> : public detail::tracked_ptr_base<tracked_ptr<>> {
 public:
   using tracked_ptr_base::tracked_ptr_base;
 
-  generic_tracked_ptr&
-  operator = (generic_tracked_ptr const& other) noexcept = default;
+  tracked_ptr<>&
+  operator = (tracked_ptr<> const& other) noexcept = default;
 
 private:
-  friend class detail::tracked_ptr_base<generic_tracked_ptr>;
+  friend class detail::tracked_ptr_base<tracked_ptr<>>;
 
-  static generic_tracked_ptr*
+  static tracked_ptr<>*
   root_list(free_store& fs) noexcept;
 };
 
+template <typename = void>
+class weak_ptr;
+
 // Like generic_ptr, but does not keep an object alive.
-class generic_weak_ptr : public detail::tracked_ptr_base<generic_weak_ptr> {
+template <>
+class weak_ptr<> : public detail::tracked_ptr_base<weak_ptr<>> {
 public:
   using tracked_ptr_base::tracked_ptr_base;
 
-  generic_weak_ptr(generic_weak_ptr const& other) noexcept : tracked_ptr_base{other} { }
+  weak_ptr(weak_ptr<> const& other) noexcept : tracked_ptr_base{other} { }
 
-  generic_weak_ptr&
-  operator = (generic_weak_ptr const& other) noexcept = default;
+  weak_ptr<>&
+  operator = (weak_ptr<> const& other) noexcept = default;
 
-  generic_tracked_ptr
+  tracked_ptr<>
   lock(free_store& fs) const noexcept { return {fs, value_}; }
 
 private:
-  friend class detail::tracked_ptr_base<generic_weak_ptr>;
+  friend class detail::tracked_ptr_base<weak_ptr<>>;
 
-  static generic_weak_ptr*
+  static weak_ptr<>*
   root_list(free_store& fs) noexcept;
 };
 
@@ -276,9 +285,9 @@ operator != (detail::tracked_ptr_base<Derived> const& lhs, detail::tracked_ptr_b
 
 // Typed pointer to a garbage-collectable object.
 template <typename T>
-class tracked_ptr : public generic_tracked_ptr {
+class tracked_ptr : public tracked_ptr<> {
 public:
-  using generic_tracked_ptr::generic_tracked_ptr;
+  using tracked_ptr<>::tracked_ptr;
 
   tracked_ptr&
   operator = (tracked_ptr const& other) noexcept = default;
@@ -290,14 +299,14 @@ public:
   operator -> () const noexcept { return get().value(); }
 
   ptr<T>
-  get() const noexcept { return ptr_cast<T>(generic_tracked_ptr::get()); }
+  get() const noexcept { return ptr_cast<T>(tracked_ptr<>::get()); }
 };
 
 // Typed weak pointer to a garbage-collectable object.
 template <typename T>
-class weak_ptr : public generic_weak_ptr {
+class weak_ptr : public weak_ptr<> {
 public:
-  using generic_weak_ptr::generic_weak_ptr;
+  using weak_ptr<>::weak_ptr;
 
   weak_ptr(tracked_ptr<T> const& other) noexcept
     : weak_ptr{other.store(), other.get()}
@@ -313,7 +322,7 @@ public:
   operator -> () const noexcept { return get(); }
 
   ptr<T>
-  get() const noexcept { return ptr_cast<T>(generic_weak_ptr::get()); }
+  get() const noexcept { return ptr_cast<T>(weak_ptr<>::get()); }
 
   tracked_ptr<T>
   lock() const noexcept { return {*store_, get()}; }

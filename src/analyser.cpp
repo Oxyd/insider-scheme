@@ -446,7 +446,7 @@ parse_definition_pair(parsing_context& pc, ptr<syntax> stx, std::string_view for
 static auto
 parse_let_common(parsing_context& pc, ptr<syntax> stx, std::string_view form_name) {
   source_location loc = stx->location();
-  generic_tracked_ptr datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
+  tracked_ptr<> datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
   if (!datum || list_length(datum.get()) < 3)
     throw syntax_error(stx, "Invalid {} syntax", form_name);
 
@@ -718,7 +718,7 @@ syntax_cadr(ptr<> stx) {
 static std::unique_ptr<expression>
 parse_sequence(parsing_context& pc, ptr<> stx) {
   std::vector<std::unique_ptr<expression>> exprs;
-  for (generic_tracked_ptr datum = track(pc.ctx, stx);
+  for (tracked_ptr<> datum = track(pc.ctx, stx);
        !semisyntax_is<null_type>(datum.get());
        datum = track(pc.ctx, syntax_cdr(datum.get())))
     exprs.push_back(parse(pc, syntax_car(datum.get())));
@@ -1426,7 +1426,7 @@ parse_module_name(context& ctx, ptr<syntax> stx) {
 }
 
 static void
-perform_begin_for_syntax(context& ctx, module& m, protomodule const& parent_pm, generic_tracked_ptr const& body) {
+perform_begin_for_syntax(context& ctx, module& m, protomodule const& parent_pm, tracked_ptr<> const& body) {
   simple_action a(ctx, "Analysing begin-for-syntax");
 
   remove_scope(body.get(), m.scope());

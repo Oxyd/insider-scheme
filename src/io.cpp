@@ -544,16 +544,16 @@ read_syntax(context& ctx, std::string s) {
   return read_syntax(ctx, port);
 }
 
-std::vector<generic_tracked_ptr>
+std::vector<tracked_ptr<>>
 read_multiple(context& ctx, ptr<port> in) {
-  std::vector<generic_tracked_ptr> result;
+  std::vector<tracked_ptr<>> result;
   while (ptr<> elem = read(ctx, in))
     result.push_back(track(ctx, elem));
 
   return result;
 }
 
-std::vector<generic_tracked_ptr>
+std::vector<tracked_ptr<>>
 read_multiple(context& ctx, std::string s) {
   auto port = make<insider::port>(ctx, std::move(s), true, false);
   return read_multiple(ctx, port);

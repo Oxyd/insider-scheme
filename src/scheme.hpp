@@ -33,7 +33,7 @@ hash(ptr<> x);
 
 struct generic_ptr_hash {
   std::size_t
-  operator () (generic_tracked_ptr const& p) const { return hash(p.get()); }
+  operator () (tracked_ptr<> const& p) const { return hash(p.get()); }
 };
 
 bool
@@ -72,7 +72,7 @@ namespace detail {
     }
 
     static tracked_ptr<T>
-    expect(generic_tracked_ptr const& x, std::string_view message) {
+    expect(tracked_ptr<> const& x, std::string_view message) {
       return {x.store(), expect(x.get(), message)};
     }
   };
@@ -88,7 +88,7 @@ namespace detail {
     }
 
     static integer
-    expect(generic_tracked_ptr const& x, std::string_view message) {
+    expect(tracked_ptr<> const& x, std::string_view message) {
       return expect(x.get(), message);
     }
   };
@@ -104,7 +104,7 @@ expect(ptr<> x) {
 
 template <typename T>
 auto
-expect(generic_tracked_ptr const& x) {
+expect(tracked_ptr<> const& x) {
   return detail::expect_helper<T>::expect(x, {});
 }
 
@@ -118,7 +118,7 @@ expect(ptr<> x, std::string_view message) {
 
 template <typename T>
 auto
-expect(generic_tracked_ptr const& x, std::string_view message) {
+expect(tracked_ptr<> const& x, std::string_view message) {
   return detail::expect_helper<T>::expect(x, message);
 }
 
@@ -132,7 +132,7 @@ namespace detail {
     }
 
     static tracked_ptr<T>
-    assume(generic_tracked_ptr const& x) {
+    assume(tracked_ptr<> const& x) {
       assert(is<T>(x));
       return {x.store(), static_cast<T*>(x.get())};
     }
@@ -147,7 +147,7 @@ namespace detail {
     }
 
     static integer
-    assume(generic_tracked_ptr const& x) {
+    assume(tracked_ptr<> const& x) {
       assert(is<integer>(x));
       return ptr_to_integer(x.get());
     }
@@ -165,7 +165,7 @@ assume(ptr<> x) {
 
 template <typename T>
 auto
-assume(generic_tracked_ptr const& x) {
+assume(tracked_ptr<> const& x) {
   return detail::assume_helper<T>::assume(x);
 }
 
@@ -181,7 +181,7 @@ namespace detail {
     }
 
     static tracked_ptr<T>
-    match(generic_tracked_ptr const& x) {
+    match(tracked_ptr<> const& x) {
       return {x.store(), match(x.get())};
     }
   };
@@ -197,7 +197,7 @@ namespace detail {
     }
 
     static std::optional<integer>
-    match(generic_tracked_ptr const& x) {
+    match(tracked_ptr<> const& x) {
       return match(x.get());
     }
   };
@@ -213,7 +213,7 @@ match(ptr<> x) {
 
 template <typename T>
 auto
-match(generic_tracked_ptr const& x) {
+match(tracked_ptr<> const& x) {
   return detail::match_helper<T>::match(x);
 }
 
@@ -223,7 +223,7 @@ public:
   eqv_compare(context& ctx) : ctx_{ctx} { }
 
   bool
-  operator () (generic_tracked_ptr const& x, generic_tracked_ptr const& y) const {
+  operator () (tracked_ptr<> const& x, tracked_ptr<> const& y) const {
     return eqv(ctx_, x.get(), y.get());
   }
 
@@ -232,7 +232,7 @@ private:
 };
 
 template <typename Value>
-using eqv_unordered_map = std::unordered_map<generic_tracked_ptr, Value, generic_ptr_hash, eqv_compare>;
+using eqv_unordered_map = std::unordered_map<tracked_ptr<>, Value, generic_ptr_hash, eqv_compare>;
 
 // The empty list. There should only be exactly one instance of this type per
 // evaluation context.
@@ -469,7 +469,7 @@ define_top_level(context&, std::string const& name, module&, bool export_, ptr<>
 // module's body and return the result of the last expression in its body.
 //
 // Causes garbage collection.
-generic_tracked_ptr
+tracked_ptr<>
 execute(context&, module&);
 
 // Interface for module providers. A module provider is used when a library is
@@ -568,7 +568,7 @@ public:
   intern(std::string const&);
 
   operand
-  intern_static(generic_tracked_ptr const&);
+  intern_static(tracked_ptr<> const&);
 
   ptr<>
   get_static(operand i) const {
@@ -614,9 +614,9 @@ public:
 
 private:
   std::unordered_map<std::string, weak_ptr<symbol>> interned_symbols_;
-  std::vector<generic_tracked_ptr> statics_;
+  std::vector<tracked_ptr<>> statics_;
   eqv_unordered_map<std::size_t> statics_cache_;
-  std::vector<generic_tracked_ptr> top_level_objects_;
+  std::vector<tracked_ptr<>> top_level_objects_;
   std::vector<std::string> top_level_binding_names_;
   std::unordered_map<operand, special_top_level_tag> top_level_tags_;
   std::map<module_name, protomodule> protomodules_;
@@ -637,7 +637,7 @@ make_tracked(context& ctx, Args&&... args) {
   return tracked_ptr<T>{ctx.store, make<T>(ctx, std::forward<Args>(args)...)};
 }
 
-inline generic_tracked_ptr
+inline tracked_ptr<>
 track(context& ctx, ptr<> o) { return {ctx.store, o}; }
 
 template <typename T>
@@ -819,13 +819,13 @@ list_length(ptr<>);
 inline ptr<>
 car(ptr<pair> x) { return x->car(); }
 
-inline generic_tracked_ptr
+inline tracked_ptr<>
 car(tracked_ptr<pair> const& x) { return {x.store(), car(x.get())}; }
 
 inline ptr<>
 cdr(ptr<pair> x) { return x->cdr(); }
 
-inline generic_tracked_ptr
+inline tracked_ptr<>
 cdr(tracked_ptr<pair> const& x) { return {x.store(), cdr(x.get())}; }
 
 inline void
@@ -1104,7 +1104,7 @@ match(ptr<> x);
 
 template <typename T>
 auto
-match(generic_tracked_ptr const& x);
+match(tracked_ptr<> const& x);
 
 bool
 is_callable(ptr<> x);
@@ -1330,7 +1330,7 @@ namespace detail {
   };
 
   template <typename T>
-  struct pointer_like<T, generic_tracked_ptr> {
+  struct pointer_like<T, tracked_ptr<>> {
     using type = tracked_ptr<T>;
   };
 

@@ -282,10 +282,10 @@ public:
   void
   transfer_to_nursery(page_allocator::page, std::size_t used);
 
-  generic_tracked_ptr*
+  tracked_ptr<>*
   root_list() { return roots_; }
 
-  generic_weak_ptr*
+  weak_ptr<>*
   weak_root_list() { return weak_roots_; }
 
   void
@@ -326,10 +326,10 @@ private:
   std::size_t collection_number_ = 0;
 
   // Two doubly-linked lists with head.
-  generic_tracked_ptr* roots_      = &root_head_;
-  generic_tracked_ptr  root_head_;
-  generic_weak_ptr*    weak_roots_ = &weak_head_;
-  generic_weak_ptr     weak_head_;
+  tracked_ptr<>* roots_      = &root_head_;
+  tracked_ptr<>  root_head_;
+  weak_ptr<>*    weak_roots_ = &weak_head_;
+  weak_ptr<>     weak_head_;
 
   std::vector<ptr<>> permanent_roots_;
 
@@ -358,13 +358,13 @@ private:
   request_collection();
 };
 
-inline generic_tracked_ptr*
-generic_tracked_ptr::root_list(free_store& fs) noexcept {
+inline tracked_ptr<>*
+tracked_ptr<>::root_list(free_store& fs) noexcept {
   return fs.root_list();
 }
 
-inline generic_weak_ptr*
-generic_weak_ptr::root_list(free_store& fs) noexcept {
+inline weak_ptr<>*
+weak_ptr<>::root_list(free_store& fs) noexcept {
   return fs.weak_root_list();
 }
 

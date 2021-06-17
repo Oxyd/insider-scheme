@@ -468,14 +468,14 @@ define_top_level(context& ctx, std::string const& name, module& m, bool export_,
   return index;
 }
 
-static generic_tracked_ptr
+static tracked_ptr<>
 run_module(context& ctx, module& m) {
   return call(ctx, m.top_level_procedure(), {});
 }
 
-generic_tracked_ptr
+tracked_ptr<>
 execute(context& ctx, module& mod) {
-  generic_tracked_ptr result = run_module(ctx, mod);
+  tracked_ptr<> result = run_module(ctx, mod);
   mod.mark_active();
 
   return result;
@@ -571,8 +571,8 @@ context::context()
   statics.void_ = intern_static(constants->void_);
   statics.t = intern_static(constants->t);
   statics.f = intern_static(constants->f);
-  statics.zero = intern_static(generic_tracked_ptr{store, integer_to_ptr(0)});
-  statics.one = intern_static(generic_tracked_ptr{store, integer_to_ptr(1)});
+  statics.zero = intern_static(tracked_ptr<>{store, integer_to_ptr(0)});
+  statics.one = intern_static(tracked_ptr<>{store, integer_to_ptr(1)});
 
   output_port = make_tracked<port>(*this, stdout, "<stdout>", false, true, false);
 }
@@ -601,7 +601,7 @@ context::intern(std::string const& s) {
 }
 
 operand
-context::intern_static(generic_tracked_ptr const& x) {
+context::intern_static(tracked_ptr<> const& x) {
   auto it = statics_cache_.find(x);
   if (it == statics_cache_.end()) {
     statics_.push_back(x);

@@ -816,7 +816,7 @@ vector_ref(instruction_state& istate) {
   istate.frame()->set(istate.reader.read_operand(), v->ref(i));
 }
 
-static generic_tracked_ptr
+static tracked_ptr<>
 run(execution_state& state) {
   std::optional<execution_action> a;
   gc_disabler no_gc{state.ctx.store};
@@ -969,11 +969,11 @@ make_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> con
   return new_frame;
 }
 
-static generic_tracked_ptr
+static tracked_ptr<>
 call_native(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments) {
   auto new_frame = state.ctx.store.stack().make(0, proc, state.current_frame.get(), state.pc);
   state.current_frame = track(state.ctx, new_frame);
-  generic_tracked_ptr result = track(state.ctx, proc->target(state.ctx, object_span(arguments)));
+  tracked_ptr<> result = track(state.ctx, proc->target(state.ctx, object_span(arguments)));
   state.current_frame = track(state.ctx, new_frame->parent);
   state.pc = new_frame->previous_pc;
   return result;
@@ -987,7 +987,7 @@ setup_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> co
   frame->previous_pc = -1;
 }
 
-static generic_tracked_ptr
+static tracked_ptr<>
 call_scheme(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
   setup_scheme_frame(state, callable, arguments);
   return run(state);
@@ -1017,12 +1017,12 @@ namespace {
   };
 }
 
-generic_tracked_ptr
+tracked_ptr<>
 call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   expect_callable(callable);
   current_execution_setter ces{ctx};
 
-  generic_tracked_ptr result;
+  tracked_ptr<> result;
   if (auto native_proc = match<native_procedure>(callable))
     result = call_native(*ctx.current_execution, native_proc, arguments);
   else
@@ -1031,10 +1031,10 @@ call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   return result;
 }
 
-static generic_tracked_ptr
+static tracked_ptr<>
 call_native_continuable(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments,
                         native_continuation_type cont) {
-  generic_tracked_ptr result = call_native(state, proc, arguments);
+  tracked_ptr<> result = call_native(state, proc, arguments);
   return track(state.ctx, cont(state.ctx, result.get()));
 }
 
@@ -1048,7 +1048,7 @@ create_or_get_extra_data(context& ctx, ptr<stack_frame> frame) {
   }
 }
 
-static generic_tracked_ptr
+static tracked_ptr<>
 call_scheme_continuable(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments,
                         native_continuation_type cont) {
   create_or_get_extra_data(state.ctx, state.current_frame.get())->native_continuation = std::move(cont);
@@ -1056,7 +1056,7 @@ call_scheme_continuable(execution_state& state, ptr<> callable, std::vector<ptr<
   return state.ctx.constants->tail_call_tag;
 }
 
-generic_tracked_ptr
+tracked_ptr<>
 call_continuable(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments,
                  native_continuation_type cont) {
   expect_callable(callable);
@@ -1201,7 +1201,7 @@ replace_stack(context& ctx, ptr<continuation> cont, ptr<> value) {
   return value;
 }
 
-static generic_tracked_ptr
+static tracked_ptr<>
 call_with_continuation_barrier(context& ctx, bool allow_out, bool allow_in, ptr<> callable) {
   ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, ctx.current_execution->current_frame.get());
   extra->allow_jump_out = allow_out;

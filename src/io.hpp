@@ -28,10 +28,10 @@ ptr<syntax>
 read_syntax(context&, std::string);
 
 // Read multiple S-expressions until the end of the stream or string.
-std::vector<generic_tracked_ptr>
+std::vector<tracked_ptr<>>
 read_multiple(context&, ptr<port>);
 
-std::vector<generic_tracked_ptr>
+std::vector<tracked_ptr<>>
 read_multiple(context&, std::string);
 
 std::vector<tracked_ptr<syntax>>

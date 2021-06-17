@@ -27,9 +27,9 @@ struct to_scheme_converter<ptr<>> {
 };
 
 template <>
-struct to_scheme_converter<generic_tracked_ptr> {
+struct to_scheme_converter<tracked_ptr<>> {
   static ptr<>
-  convert(context&, generic_tracked_ptr const& p) { return p.get(); }
+  convert(context&, tracked_ptr<> const& p) { return p.get(); }
 };
 
 template <typename T>
@@ -85,7 +85,7 @@ from_scheme(context& ctx, ptr<> o) {
 
 template <typename T>
 auto
-from_scheme(context& ctx, generic_tracked_ptr const& x) {
+from_scheme(context& ctx, tracked_ptr<> const& x) {
   return from_scheme<T>(ctx, x.get());
 }
 
@@ -96,8 +96,8 @@ struct from_scheme_converter<ptr<>> {
 };
 
 template <>
-struct from_scheme_converter<generic_tracked_ptr> {
-  static generic_tracked_ptr
+struct from_scheme_converter<tracked_ptr<>> {
+  static tracked_ptr<>
   convert(context& ctx, ptr<> o) { return track(ctx, o); }
 };
 
@@ -302,7 +302,7 @@ public:
   scheme_procedure(tracked_ptr<procedure> const& f) : f_{f} { }
 
   explicit
-  scheme_procedure(generic_tracked_ptr const& f) : f_{expect<procedure>(f)} { }
+  scheme_procedure(tracked_ptr<> const& f) : f_{expect<procedure>(f)} { }
 
   Ret
   operator () (context& ctx, Args&&... args) {
