@@ -1079,7 +1079,7 @@ find_entry_pc(ptr<> callable) {
 }
 
 static ptr<stack_frame>
-make_tail_call_frame(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+make_call_frame(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   if (!is_callable(callable))
     throw std::runtime_error{"Expected a callable"};
 
@@ -1092,21 +1092,54 @@ make_tail_call_frame(context& ctx, ptr<> callable, std::vector<ptr<>> const& arg
     for (std::size_t i = 0; i < arguments.size(); ++i)
       new_frame->set(i, arguments[i]);
 
-    ctx.current_execution->current_frame = track(ctx, make_tail_call(ctx.store.stack(), new_frame));
+    return new_frame;
   } else {
     auto new_frame = make_scheme_frame(*ctx.current_execution, callable, arguments);
-    new_frame = make_tail_call(ctx.store.stack(), new_frame);
-    ctx.current_execution->pc = find_entry_pc(callable);
-    ctx.current_execution->current_frame = track(ctx, new_frame);
+    return new_frame;
   }
+}
 
-  return ctx.current_execution->current_frame.get();
+static ptr<stack_frame>
+make_tail_call_frame(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  return make_tail_call(ctx.store.stack(), make_call_frame(ctx, callable, arguments));
+}
+
+static void
+install_call_frame(context& ctx, ptr<stack_frame> frame) {
+  if (auto native_proc = match<native_procedure>(frame->callable))
+    ctx.current_execution->current_frame = track(ctx, frame);
+  else {
+    ctx.current_execution->pc = find_entry_pc(frame->callable);
+    ctx.current_execution->current_frame = track(ctx, frame);
+  }
 }
 
 tracked_ptr<tail_call_tag_type>
 tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
-  make_tail_call_frame(ctx, callable, arguments);
+  install_call_frame(ctx, make_tail_call_frame(ctx, callable, arguments));
   return ctx.constants->tail_call_tag;
+}
+
+static bool
+is_parent(ptr<stack_frame> frame, ptr<stack_frame> parent) {
+  while (frame)
+    if (frame == parent)
+      return true;
+    else
+      frame = frame->parent;
+
+  return false;
+}
+
+static ptr<stack_frame>
+find_common_frame(ptr<stack_frame> current, ptr<stack_frame> continuation) {
+  while (current)
+    if (is_parent(continuation, current))
+      return current;
+    else
+      current = current->parent;
+
+  return {};
 }
 
 static tracked_ptr<tail_call_tag_type>
@@ -1116,11 +1149,69 @@ capture_stack(context& ctx, ptr<> receiver) {
   return tail_call(ctx, receiver, {cont});
 }
 
+template <typename Pred>
+static bool
+all_frames(ptr<stack_frame> begin, ptr<stack_frame> end, Pred pred) {
+  while (begin != end)
+    if (!pred(begin))
+      return false;
+    else
+      begin = begin->parent;
+
+  return true;
+}
+
+static bool
+allows_jump_out(ptr<stack_frame> f) {
+  return !f->extra || f->extra->allow_jump_out;
+}
+
+static bool
+allows_jump_in(ptr<stack_frame> f) {
+  return !f->extra || f->extra->allow_jump_in;
+}
+
+static bool
+jump_out_allowed(ptr<stack_frame> current, ptr<stack_frame> common) {
+  return all_frames(current, common, allows_jump_out);
+}
+
+static bool
+jump_in_allowed(ptr<stack_frame> cont, ptr<stack_frame> common) {
+  return all_frames(cont, common, allows_jump_in);
+}
+
+static bool
+continuation_jump_allowed(ptr<stack_frame> current, ptr<stack_frame> cont, ptr<stack_frame> common) {
+  return jump_out_allowed(current, common) && jump_in_allowed(cont, common);
+}
+
+static void
+throw_if_jump_not_allowed(context& ctx, ptr<continuation> cont) {
+  ptr<stack_frame> common = find_common_frame(ctx.current_execution->current_frame.get(), cont->frame);
+  if (!continuation_jump_allowed(ctx.current_execution->current_frame.get(), cont->frame, common))
+    throw std::runtime_error{"Continuation jump across barrier not allowed"};
+}
+
 static ptr<>
 replace_stack(context& ctx, ptr<continuation> cont, ptr<> value) {
+  throw_if_jump_not_allowed(ctx, cont);
   ctx.store.stack().clear(); // Anything that hasn't been captured will be forever inaccessible anyway.
   ctx.current_execution->current_frame = track(ctx, cont->frame);
   return value;
+}
+
+static generic_tracked_ptr
+call_with_continuation_barrier(context& ctx, bool allow_out, bool allow_in, ptr<> callable) {
+  ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, ctx.current_execution->current_frame.get());
+  extra->allow_jump_out = allow_out;
+  extra->allow_jump_in = allow_in;
+
+  // Non-tail call even though there is nothing to do after this. This is to
+  // preserve this frame on the stack because it holds information about the
+  // barrier.
+  return call_continuable(ctx, callable, {},
+                          [] (context&, ptr<> result) { return result; });
 }
 
 static ptr<parameter_tag>
@@ -1200,6 +1291,7 @@ add_parameter_value(context& ctx, ptr<stack_frame> frame, ptr<parameter_tag> tag
 static tracked_ptr<tail_call_tag_type>
 call_parameterized(context& ctx, ptr<parameter_tag> tag, ptr<> value, ptr<> callable) {
   ptr<stack_frame> frame = make_tail_call_frame(ctx, callable, {});
+  install_call_frame(ctx, frame);
   add_parameter_value(ctx, frame, tag, value);
   return ctx.constants->tail_call_tag;
 }
@@ -1211,6 +1303,7 @@ export_vm(context& ctx, module& result) {
   define_procedure(ctx, "create-parameter-tag", result, true, create_parameter_tag);
   define_procedure(ctx, "find-parameter-value", result, true, find_parameter);
   define_procedure(ctx, "set-parameter-value!", result, true, set_parameter);
+  define_procedure(ctx, "call-with-continuation-barrier", result, true, call_with_continuation_barrier);
   define_procedure(ctx, "call-parameterized", result, true, call_parameterized);
 }
 

@@ -26,6 +26,8 @@ public:
 
   ptr<parameter_map>       parameters;
   native_continuation_type native_continuation;
+  bool                     allow_jump_out = true;
+  bool                     allow_jump_in  = true;
 
   void
   visit_members(member_visitor const& f) {

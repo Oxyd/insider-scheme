@@ -2664,6 +2664,30 @@ TEST_F(continuations, return_to_previous_frame) {
   EXPECT_EQ(expect<boolean>(cadr(expect<pair>(result))), ctx.constants->t.get());
 }
 
+TEST_F(continuations, jump_to_inner_continuation) {
+  auto result = eval(R"(
+    (+ 1 (capture-stack
+           (lambda (outer)
+             (+ 10
+                (capture-stack
+                  (lambda (inner)
+                    (replace-stack! inner 5)))))))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 16);
+}
+
+TEST_F(continuations, jump_to_outer_continuation) {
+  auto result = eval(R"(
+    (+ 1 (capture-stack
+           (lambda (outer)
+             (+ 10
+                (capture-stack
+                  (lambda (inner)
+                    (replace-stack! outer 5)))))))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 6);
+}
+
 TEST_F(continuations, top_level_parameter_values) {
   auto result = eval_module(R"(
     (import (insider internal))
@@ -2809,4 +2833,47 @@ TEST_F(continuations, call_continuable_can_be_used_twice) {
   );
   auto result = eval("(f (lambda (x) (+ x 1)) (lambda (x) (+ x 2)))");
   EXPECT_EQ(expect<integer>(result).value(), 2 * ((2 + 1) + 2));
+}
+
+TEST_F(continuations, barrier_prevents_jump_out) {
+  EXPECT_THROW(
+    eval(R"(
+      (capture-stack
+        (lambda (out)
+          (call-with-continuation-barrier #f #t
+            (lambda ()
+              (replace-stack! out #f)))))
+    )"),
+    std::runtime_error
+  );
+}
+
+TEST_F(continuations, barrier_does_not_prevent_jumps_within_it) {
+  auto result = eval(R"(
+    (capture-stack
+      (lambda (outer)
+        (call-with-continuation-barrier #f #t
+          (lambda ()
+            (capture-stack
+              (lambda (inner)
+                (replace-stack! inner #t)
+                #f))))))
+  )");
+  EXPECT_EQ(result, ctx.constants->t.get());
+}
+
+TEST_F(continuations, barrier_prevents_jump_in) {
+  EXPECT_THROW(
+    eval(R"(
+      (let ((inner #f))
+        (call-with-continuation-barrier #t #f
+          (lambda ()
+            (capture-stack
+              (lambda (k)
+                (set! inner k)
+                #f))))
+        (inner #t))
+      )"),
+    std::runtime_error
+  );
 }

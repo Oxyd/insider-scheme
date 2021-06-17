@@ -113,6 +113,15 @@ struct from_scheme_converter<tracked_ptr<T>> {
   convert(context& ctx, ptr<> o) { return track(ctx, expect<T>(o)); }
 };
 
+template <>
+struct from_scheme_converter<bool> {
+  static bool
+  convert(context& ctx, ptr<> o) {
+    ptr<boolean> b = expect<boolean>(o);
+    return b == ctx.constants->t.get();
+  }
+};
+
 template <typename T>
 struct from_scheme_converter<T, std::enable_if_t<std::is_integral_v<T>>> {
   static T
