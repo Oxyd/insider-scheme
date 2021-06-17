@@ -48,6 +48,10 @@ tracked_ptr<>
 call_continuable(context&, ptr<> callable, std::vector<ptr<>> const& arguments,
                  native_continuation_type cont);
 
+// Like call, but create a full continuation barrier around the call.
+tracked_ptr<>
+call_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments);
+
 // Pop the current call frame (which must be a native procedure frame), and
 // replace it with a call frame for the given procedure. This is used to
 // implement native procedures tail-calling other procedures.

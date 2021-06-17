@@ -969,27 +969,72 @@ make_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> con
   return new_frame;
 }
 
-static tracked_ptr<>
-call_native(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments) {
-  auto new_frame = state.ctx.store.stack().make(0, proc, state.current_frame.get(), state.pc);
-  state.current_frame = track(state.ctx, new_frame);
-  tracked_ptr<> result = track(state.ctx, proc->target(state.ctx, object_span(arguments)));
-  state.current_frame = track(state.ctx, new_frame->parent);
-  state.pc = new_frame->previous_pc;
-  return result;
+static ptr<stack_frame_extra_data>
+create_or_get_extra_data(context& ctx, ptr<stack_frame> frame) {
+  if (auto e = frame->extra)
+    return e;
+  else {
+    frame->extra = make<stack_frame_extra_data>(ctx);
+    return frame->extra;
+  }
 }
 
 static void
+erect_barrier(context& ctx, ptr<stack_frame> frame, bool allow_out, bool allow_in) {
+  ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, frame);
+  extra->allow_jump_out = allow_out;
+  extra->allow_jump_in = allow_in;
+}
+
+static ptr<stack_frame>
+setup_native_frame(execution_state& state, ptr<native_procedure> proc) {
+  auto frame = state.ctx.store.stack().make(0, proc, state.current_frame.get(), state.pc);
+  state.current_frame = track(state.ctx, frame);
+  return frame;
+}
+
+static tracked_ptr<>
+call_native_in_current_frame(execution_state& state, ptr<native_procedure> proc,
+                             std::vector<ptr<>> const& arguments) {
+  tracked_ptr<> result = track(state.ctx, proc->target(state.ctx, object_span(arguments)));
+  state.pc = state.current_frame->previous_pc;
+  state.current_frame = track(state.ctx, state.current_frame->parent);
+  return result;
+}
+
+static tracked_ptr<>
+call_native(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments) {
+  setup_native_frame(state, proc);
+  return call_native_in_current_frame(state, proc, arguments);
+}
+
+static tracked_ptr<>
+call_native_with_continuation_barrier(execution_state& state, ptr<native_procedure> proc,
+                                      std::vector<ptr<>> const& arguments) {
+  ptr<stack_frame> frame = setup_native_frame(state, proc);
+  erect_barrier(state.ctx, frame, false, false);
+  return call_native_in_current_frame(state, proc, arguments);
+}
+
+static ptr<stack_frame>
 setup_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
   assert(is_callable(callable));
 
   auto frame = make_scheme_frame(state, callable, arguments);
   frame->previous_pc = -1;
+  return frame;
 }
 
 static tracked_ptr<>
 call_scheme(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
   setup_scheme_frame(state, callable, arguments);
+  return run(state);
+}
+
+static tracked_ptr<>
+call_scheme_with_continuation_barrier(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  ptr<stack_frame> frame = setup_scheme_frame(state, callable, arguments);
+  erect_barrier(state.ctx, frame, false, false);
   return run(state);
 }
 
@@ -1031,21 +1076,25 @@ call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   return result;
 }
 
+tracked_ptr<>
+call_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  expect_callable(callable);
+  current_execution_setter ces{ctx};
+
+  tracked_ptr<> result;
+  if (auto native_proc = match<native_procedure>(callable))
+    result = call_native_with_continuation_barrier(*ctx.current_execution, native_proc, arguments);
+  else
+    result = call_scheme_with_continuation_barrier(*ctx.current_execution, callable, arguments);
+
+  return result;
+}
+
 static tracked_ptr<>
 call_native_continuable(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments,
                         native_continuation_type cont) {
   tracked_ptr<> result = call_native(state, proc, arguments);
   return track(state.ctx, cont(state.ctx, result.get()));
-}
-
-static ptr<stack_frame_extra_data>
-create_or_get_extra_data(context& ctx, ptr<stack_frame> frame) {
-  if (auto e = frame->extra)
-    return e;
-  else {
-    frame->extra = make<stack_frame_extra_data>(ctx);
-    return frame->extra;
-  }
 }
 
 static tracked_ptr<>
@@ -1203,9 +1252,7 @@ replace_stack(context& ctx, ptr<continuation> cont, ptr<> value) {
 
 static tracked_ptr<>
 call_with_continuation_barrier(context& ctx, bool allow_out, bool allow_in, ptr<> callable) {
-  ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, ctx.current_execution->current_frame.get());
-  extra->allow_jump_out = allow_out;
-  extra->allow_jump_in = allow_in;
+  erect_barrier(ctx, ctx.current_execution->current_frame.get(), allow_out, allow_in);
 
   // Non-tail call even though there is nothing to do after this. This is to
   // preserve this frame on the stack because it holds information about the
@@ -1303,7 +1350,8 @@ export_vm(context& ctx, module& result) {
   define_procedure(ctx, "create-parameter-tag", result, true, create_parameter_tag);
   define_procedure(ctx, "find-parameter-value", result, true, find_parameter);
   define_procedure(ctx, "set-parameter-value!", result, true, set_parameter);
-  define_procedure(ctx, "call-with-continuation-barrier", result, true, call_with_continuation_barrier);
+  define_procedure(ctx, "call-with-continuation-barrier", result, true,
+                   static_cast<tracked_ptr<> (*)(context&, bool, bool, ptr<>)>(call_with_continuation_barrier));
   define_procedure(ctx, "call-parameterized", result, true, call_parameterized);
 }
 

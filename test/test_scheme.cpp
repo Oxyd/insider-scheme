@@ -2877,3 +2877,21 @@ TEST_F(continuations, barrier_prevents_jump_in) {
     std::runtime_error
   );
 }
+
+TEST_F(continuations, call_with_continuation_barrier_erects_a_barrier) {
+  define_procedure(
+    ctx, "f", ctx.internal_module, true,
+    [] (context& ctx, ptr<> g) {
+      return call_with_continuation_barrier(ctx, g, {});
+    }
+  );
+
+  EXPECT_THROW(
+    eval(R"(
+      (capture-stack
+        (lambda (exit)
+          (f (lambda () (replace-stack! exit 0)))))
+    )"),
+    std::runtime_error
+  );
+}
