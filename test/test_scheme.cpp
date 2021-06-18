@@ -2835,6 +2835,47 @@ TEST_F(continuations, call_continuable_can_be_used_twice) {
   EXPECT_EQ(expect<integer>(result).value(), 2 * ((2 + 1) + 2));
 }
 
+TEST_F(continuations, continuation_jump_goes_to_the_correct_call_continuable_call) {
+  // (define (f g h)
+  //   (h (g)))
+
+  define_procedure(
+    ctx, "f", ctx.internal_module, true,
+    [] (context& ctx, ptr<> g, ptr<> h) {
+      return call_continuable(
+        ctx, g, {},
+        [h = track(ctx, h)] (context& ctx, ptr<>) {
+          return call_continuable(
+            ctx, h.get(), {},
+            [] (context&, ptr<> r) { return r; }
+          ).get();
+        }
+      ).get();
+    }
+  );
+
+  auto result = eval(R"(
+    (let ((in-g #f) (g-count 0) (h-count 0) (jumped? #f))
+      (f
+        (lambda ()
+          (capture-stack
+            (lambda (k)
+              (set! in-g k)))
+          (set! g-count (+ g-count 1)))
+        (lambda ()
+          (set! h-count (+ h-count 1))))
+      (if (eq? jumped? #f)
+          (begin
+            (set! jumped? #t)
+            (replace-stack! in-g 0))
+          (cons g-count (cons h-count '()))))
+  )");
+  auto result_v = list_to_std_vector(result);
+  ASSERT_EQ(result_v.size(), 2);
+  EXPECT_EQ(expect<integer>(result_v[0]).value(), 2);
+  EXPECT_EQ(expect<integer>(result_v[1]).value(), 2);
+}
+
 TEST_F(continuations, barrier_prevents_jump_out) {
   EXPECT_THROW(
     eval(R"(

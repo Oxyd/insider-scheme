@@ -24,10 +24,10 @@ class stack_frame_extra_data : public composite_object<stack_frame_extra_data> {
 public:
   static constexpr char const* scheme_name = "insider::stack_frame_extra_data";
 
-  ptr<parameter_map>       parameters;
-  native_continuation_type native_continuation;
-  bool                     allow_jump_out = true;
-  bool                     allow_jump_in  = true;
+  ptr<parameter_map>                    parameters;
+  std::vector<native_continuation_type> native_continuations;
+  bool                                  allow_jump_out = true;
+  bool                                  allow_jump_in  = true;
 
   void
   visit_members(member_visitor const& f) {
