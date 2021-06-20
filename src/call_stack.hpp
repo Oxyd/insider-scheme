@@ -28,10 +28,14 @@ public:
   std::vector<native_continuation_type> native_continuations;
   bool                                  allow_jump_out = true;
   bool                                  allow_jump_in  = true;
+  ptr<>                                 before_thunk;
+  ptr<>                                 after_thunk;
 
   void
   visit_members(member_visitor const& f) {
     f(parameters);
+    f(before_thunk);
+    f(after_thunk);
   }
 
   std::size_t
@@ -121,12 +125,17 @@ public:
     return new (storage + sizeof(word_type)) stack_frame(num_locals, callable, parent, previous_pc);
   }
 
+  bool
+  is_at_top(ptr<stack_frame> frame) {
+    return reinterpret_cast<std::byte*>(frame.value()) + object_size(frame) == top_;
+  }
+
   void
   deallocate(ptr<stack_frame> frame) {
     if (object_generation(frame) != generation::stack)
       return;
 
-    assert(reinterpret_cast<std::byte*>(frame.value()) + object_size(frame) == top_);
+    assert(is_at_top(frame));
     top_ = reinterpret_cast<std::byte*>(frame.value()) - sizeof(word_type);
   }
 

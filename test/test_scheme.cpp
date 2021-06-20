@@ -2936,3 +2936,163 @@ TEST_F(continuations, call_with_continuation_barrier_erects_a_barrier) {
     std::runtime_error
   );
 }
+
+TEST_F(continuations, dynamic_wind_calls_all_three_thunks_in_order) {
+  auto r = eval_module(R"(
+    (import (insider internal))
+
+    (define result '())
+    (define push!
+      (lambda (x)
+        (set! result (cons x result))))
+
+    (dynamic-wind
+      (lambda () (push! 1))
+      (lambda () (push! 2))
+      (lambda () (push! 3)))
+
+    result
+  )");
+
+  auto result = list_to_std_vector(r);
+  ASSERT_EQ(result.size(), 3);
+  EXPECT_EQ(expect<integer>(result[2]).value(), 1);
+  EXPECT_EQ(expect<integer>(result[1]).value(), 2);
+  EXPECT_EQ(expect<integer>(result[0]).value(), 3);
+}
+
+TEST_F(continuations, dynamic_wind_calls_post_when_jumping_out) {
+  auto result = eval(R"(
+    (let ((result #f))
+      (capture-stack
+        (lambda (exit)
+          (dynamic-wind
+            (lambda () #void)
+            (lambda ()
+              (replace-stack! exit 0))
+            (lambda ()
+              (set! result #t)))))
+      result)
+  )");
+  EXPECT_EQ(result, ctx.constants->t.get());
+}
+
+TEST_F(continuations, dynamic_wind_calls_pre_when_jumping_in) {
+  auto result = eval(R"(
+    (let ((in-count 0) (inside #f) (jumped? #f))
+      (dynamic-wind
+        (lambda ()
+          (set! in-count (+ in-count 1)))
+        (lambda ()
+          (capture-stack
+            (lambda (k)
+              (set! inside k)
+              #void)))
+        (lambda () #void))
+      (if (eq? jumped? #f)
+          (begin
+            (set! jumped? #t)
+            (replace-stack! inside 0))
+          in-count))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 2);
+}
+
+TEST_F(continuations, dynamic_wind_calls_post_after_second_return) {
+  auto result = eval(R"(
+    (let ((out-count 0) (inside #f) (jumped? #f))
+      (dynamic-wind
+        (lambda () #void)
+        (lambda ()
+          (capture-stack
+            (lambda (k)
+              (set! inside k)
+              #void)))
+        (lambda ()
+          (set! out-count (+ out-count 1))))
+      (if (eq? jumped? #f)
+          (begin
+            (set! jumped? #t)
+            (replace-stack! inside 0))
+          out-count))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 2);
+}
+
+TEST_F(continuations, dynamic_winds_can_nest) {
+  auto result = eval(R"(
+    (let ((pre-outer-counter 0) (pre-inner-counter 0) (thunk-outer-counter 0)
+          (post-outer-counter 0) (post-inner-counter 0) (thunk-inner-counter 0)
+          (inner-cont #f) (jumped? #f)
+          (list (lambda l l)))
+      (dynamic-wind
+        (lambda () (set! pre-outer-counter (+ pre-outer-counter 1)))
+        (lambda ()
+          (set! thunk-outer-counter (+ thunk-outer-counter 1))
+          (dynamic-wind
+            (lambda () (set! pre-inner-counter (+ pre-inner-counter 1)))
+            (lambda ()
+              (set! thunk-inner-counter (+ thunk-inner-counter 1))
+              (capture-stack
+                (lambda (k)
+                  (set! inner-cont k))))
+            (lambda () (set! post-inner-counter (+ post-inner-counter 1)))))
+        (lambda () (set! post-outer-counter (+ post-outer-counter 1))))
+      (if (eq? jumped? #f)
+          (begin
+            (set! jumped? #t)
+            (replace-stack! inner-cont 0))
+          (list pre-outer-counter pre-inner-counter
+                thunk-outer-counter thunk-inner-counter
+                post-outer-counter post-inner-counter)))
+  )");
+  auto result_v = list_to_std_vector(result);
+  ASSERT_EQ(result_v.size(), 6);
+  EXPECT_EQ(expect<integer>(result_v[0]).value(), 2);
+  EXPECT_EQ(expect<integer>(result_v[1]).value(), 2);
+  EXPECT_EQ(expect<integer>(result_v[2]).value(), 1);
+  EXPECT_EQ(expect<integer>(result_v[3]).value(), 1);
+  EXPECT_EQ(expect<integer>(result_v[4]).value(), 2);
+  EXPECT_EQ(expect<integer>(result_v[5]).value(), 2);
+}
+
+TEST_F(continuations, dynamic_wind_uses_correct_dynamic_environment) {
+  EXPECT_NO_THROW(
+    eval(R"(
+      (let ((p (create-parameter-tag 0))
+            (inner #f)
+            (jumped-out? #f) (jumped-in? #f))
+        (let ((expect (lambda (value)
+                        (if (eq? (find-parameter-value p) value)
+                            #t
+                            (error "Wrong value" value (find-parameter-value p))))))
+          (capture-stack
+            (lambda (out)
+              (call-parameterized p 1
+                (lambda ()
+                  (dynamic-wind
+                    (lambda () (expect 1))
+                    (lambda ()
+                      (expect 1)
+                      (call-parameterized p 2
+                        (lambda ()
+                          (dynamic-wind
+                            (lambda () (expect 2))
+                            (lambda ()
+                              (expect 2)
+                              (capture-stack
+                                (lambda (in)
+                                  (set! inner in)
+                                  (if (eq? jumped-out? #f)
+                                      (begin
+                                        (set! jumped-out? #t)
+                                        (replace-stack! out #void))))))
+                            (lambda () (expect 2))))))
+                    (lambda () (expect 1)))))))
+          (if (eq? jumped-in? #f)
+              (begin
+                (set! jumped-in? #t)
+                (replace-stack! inner #void)))))
+    )")
+  );
+}

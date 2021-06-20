@@ -16,11 +16,22 @@ struct tail_call_tag_type;
 class root_stack;
 
 struct execution_state {
-  context&                 ctx;
-  tracked_ptr<stack_frame> current_frame;
-  integer::value_type      pc = -1;
+  context&            ctx;
+  integer::value_type pc = -1;
 
   execution_state(context& ctx);
+
+  ptr<stack_frame>
+  current_frame() const { return current_frame_.get(); }
+
+  void
+  set_current_frame(ptr<stack_frame> f);
+
+  void
+  set_current_frame_to_parent();
+
+private:
+  tracked_ptr<stack_frame> current_frame_;
 };
 
 // Add a call frame to the current execution state and run the procedure until

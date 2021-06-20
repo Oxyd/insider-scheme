@@ -132,9 +132,23 @@ execution_state::execution_state(context& ctx)
   : ctx{ctx}
 { }
 
-static bool
-state_done(execution_state& state) {
-  return !state.current_frame;
+void
+execution_state::set_current_frame(ptr<stack_frame> f) {
+  assert(object_generation(f) != generation::stack || ctx.store.stack().is_at_top(f));
+  current_frame_ = track(ctx, f);
+}
+
+void
+execution_state::set_current_frame_to_parent() {
+  assert(current_frame_);
+
+  ptr<stack_frame> old_frame = current_frame_.get();
+  current_frame_ = track(ctx, old_frame->parent);
+  ctx.store.stack().deallocate(old_frame);
+
+  assert(!current_frame_
+         || object_generation(current_frame_.get()) != generation::stack
+         || ctx.store.stack().is_at_top(current_frame_.get()));
 }
 
 static std::vector<ptr<>>
@@ -180,7 +194,7 @@ namespace {
       std::string result;
 
       bool first = true;
-      ptr<stack_frame> frame = state_.current_frame.get();
+      ptr<stack_frame> frame = state_.current_frame();
 
       while (frame) {
         if (!first)
@@ -295,7 +309,7 @@ namespace {
     { }
 
     ptr<stack_frame>
-    frame() const { return execution_state.current_frame.get(); }
+    frame() const { return execution_state.current_frame(); }
 
     insider::context&
     context() { return execution_state.ctx; }
@@ -564,7 +578,7 @@ push_arguments_and_closure(ptr<procedure> proc, ptr<insider::closure> closure, i
 
 static void
 jump_to_procedure(execution_state& state, ptr<procedure> proc, ptr<stack_frame> procedure_frame) {
-  state.current_frame = track(state.ctx, procedure_frame);
+  state.set_current_frame(procedure_frame);
   state.pc = proc->entry_pc;
 }
 
@@ -628,10 +642,9 @@ call_native_frame_target(context& ctx, ptr<stack_frame> frame, ptr<> scheme_resu
 
 static void
 pop_frame(execution_state& state) {
-  ptr<stack_frame> old_frame = state.current_frame.get();
+  ptr<stack_frame> old_frame = state.current_frame();
   state.pc = old_frame->previous_pc;
-  state.current_frame = track(state.ctx, old_frame->parent);
-  state.ctx.store.stack().deallocate(old_frame);
+  state.set_current_frame_to_parent();
 }
 
 static ptr<>
@@ -644,15 +657,15 @@ is_native_frame(ptr<stack_frame> f) {
 
 static ptr<>
 return_value_to_caller(execution_state& state, ptr<> result) {
-  if (!state.current_frame)
+  if (!state.current_frame())
     // We are returning from the global procedure, so we return back to the
     // calling C++ code.
     return result;
 
-  if (is_native_frame(state.current_frame.get()))
+  if (is_native_frame(state.current_frame()))
     return resume_native_call(state, result);
 
-  state.current_frame->set(get_destination_register(state), result);
+  state.current_frame()->set(get_destination_register(state), result);
   return {};
 }
 
@@ -666,10 +679,10 @@ static ptr<>
 call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
   ptr<> result;
   do
-    result = call_native_frame_target(state.ctx, state.current_frame.get(), scheme_result);
-  while (is_native_frame(state.current_frame.get()) && result == state.ctx.constants->tail_call_tag.get());
+    result = call_native_frame_target(state.ctx, state.current_frame(), scheme_result);
+  while (is_native_frame(state.current_frame()) && result == state.ctx.constants->tail_call_tag.get());
 
-  if (is_native_frame(state.current_frame.get()))
+  if (is_native_frame(state.current_frame()))
     // Return from a native call (potentially a different native call than
     // what we started with, due to native tail-calls).
     return pop_native_frame(state, result);
@@ -684,7 +697,7 @@ do_native_call(ptr<native_procedure> proc, instruction_state& istate, bool is_ta
   operand num_args = read_num_args(istate, is_tail);
 
   ptr<stack_frame> new_frame = make_native_frame(istate, num_args, proc, is_tail);
-  istate.execution_state.current_frame = track(istate.context(), new_frame);
+  istate.execution_state.set_current_frame(new_frame);
 
   return call_native_procedure(istate.execution_state);
 }
@@ -712,9 +725,9 @@ call(opcode opcode, instruction_state& istate) {
 
 static ptr<>
 resume_native_call(execution_state& state, ptr<> scheme_result) {
-  discard_later_native_continuations(state.current_frame->extra, state.pc);
+  discard_later_native_continuations(state.current_frame()->extra, state.pc);
 
-  if (native_continuation_type const& nc = find_current_native_continuation(state.current_frame.get()))
+  if (native_continuation_type const& nc = find_current_native_continuation(state.current_frame()))
     return call_native_procedure(state, scheme_result);
   else
     // Return to a non-continuable native procedure. We'll abandon run()
@@ -835,7 +848,7 @@ run(execution_state& state) {
   std::optional<execution_action> a;
   gc_disabler no_gc{state.ctx.store};
 
-  if (!state.current_frame->parent)
+  if (!state.current_frame()->parent)
     // Only create an execution_action if this is the top-level execution.
     a.emplace(state);
 
@@ -965,7 +978,7 @@ make_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> con
 
   throw_if_wrong_number_of_args(proc, arguments.size());
 
-  auto new_frame = state.ctx.store.stack().make(proc->locals_size, callable, state.current_frame.get(), state.pc);
+  auto new_frame = state.ctx.store.stack().make(proc->locals_size, callable, state.current_frame(), state.pc);
 
   std::size_t new_frame_top = 0;
   if (closure)
@@ -977,7 +990,7 @@ make_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> con
 
   new_frame->set_rest_to_null(new_frame_top);
 
-  state.current_frame = track(state.ctx, new_frame);
+  state.set_current_frame(new_frame);
   state.pc = proc->entry_pc;
 
   return new_frame;
@@ -1002,8 +1015,8 @@ erect_barrier(context& ctx, ptr<stack_frame> frame, bool allow_out, bool allow_i
 
 static ptr<stack_frame>
 setup_native_frame(execution_state& state, ptr<native_procedure> proc) {
-  auto frame = state.ctx.store.stack().make(0, proc, state.current_frame.get(), state.pc);
-  state.current_frame = track(state.ctx, frame);
+  auto frame = state.ctx.store.stack().make(0, proc, state.current_frame(), state.pc);
+  state.set_current_frame(frame);
   return frame;
 }
 
@@ -1011,8 +1024,8 @@ static tracked_ptr<>
 call_native_in_current_frame(execution_state& state, ptr<native_procedure> proc,
                              std::vector<ptr<>> const& arguments) {
   tracked_ptr<> result = track(state.ctx, proc->target(state.ctx, object_span(arguments)));
-  state.pc = state.current_frame->previous_pc;
-  state.current_frame = track(state.ctx, state.current_frame->parent);
+  state.pc = state.current_frame()->previous_pc;
+  state.set_current_frame_to_parent();
   return result;
 }
 
@@ -1042,7 +1055,7 @@ static ptr<stack_frame>
 setup_scheme_frame_for_call_from_native(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
   assert(is_callable(callable));
 
-  ptr<stack_frame> parent = state.current_frame.get();
+  ptr<stack_frame> parent = state.current_frame();
   auto frame = make_scheme_frame(state, callable, arguments);
 
   if (parent) {
@@ -1074,12 +1087,14 @@ namespace {
     current_execution_setter(context& ctx)
       : ctx_{ctx}
     {
-      if (!ctx.current_execution)
+      if (!ctx.current_execution) {
         ctx.current_execution = std::make_unique<execution_state>(ctx);
+        created_ = true;
+      }
     }
 
     ~current_execution_setter() {
-      if (state_done(*ctx_.current_execution))
+      if (created_)
         ctx_.current_execution.reset();
     }
 
@@ -1088,13 +1103,23 @@ namespace {
 
   private:
     context& ctx_;
+    bool     created_ = false;
   };
+}
+
+static void
+mark_frame_noncontinuable(ptr<stack_frame> frame) {
+  if (frame)
+    if (ptr<stack_frame_extra_data> e = frame->extra)
+      e->native_continuations.emplace_back();
 }
 
 tracked_ptr<>
 call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   expect_callable(callable);
+
   current_execution_setter ces{ctx};
+  mark_frame_noncontinuable(ctx.current_execution->current_frame());
 
   tracked_ptr<> result;
   if (auto native_proc = match<native_procedure>(callable))
@@ -1108,7 +1133,9 @@ call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
 tracked_ptr<>
 call_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   expect_callable(callable);
+
   current_execution_setter ces{ctx};
+  mark_frame_noncontinuable(ctx.current_execution->current_frame());
 
   tracked_ptr<> result;
   if (auto native_proc = match<native_procedure>(callable))
@@ -1129,7 +1156,7 @@ call_native_continuable(execution_state& state, ptr<native_procedure> proc, std:
 static tracked_ptr<>
 call_scheme_continuable(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments,
                         native_continuation_type cont) {
-  create_or_get_extra_data(state.ctx, state.current_frame.get())->native_continuations.emplace_back(std::move(cont));
+  create_or_get_extra_data(state.ctx, state.current_frame())->native_continuations.emplace_back(std::move(cont));
   setup_scheme_frame_for_call_from_native(state, callable, arguments);
   return state.ctx.constants->tail_call_tag;
 }
@@ -1163,7 +1190,7 @@ make_call_frame(context& ctx, ptr<> callable, std::vector<ptr<>> const& argument
 
   assert(ctx.current_execution);
 
-  auto current_frame = ctx.current_execution->current_frame.get();
+  auto current_frame = ctx.current_execution->current_frame();
 
   if (auto native_proc = match<native_procedure>(callable)) {
     auto new_frame = ctx.store.stack().make(arguments.size(), callable, current_frame, current_frame->previous_pc);
@@ -1185,10 +1212,10 @@ make_tail_call_frame(context& ctx, ptr<> callable, std::vector<ptr<>> const& arg
 static void
 install_call_frame(context& ctx, ptr<stack_frame> frame) {
   if (is_native_frame(frame))
-    ctx.current_execution->current_frame = track(ctx, frame);
+    ctx.current_execution->set_current_frame(frame);
   else {
     ctx.current_execution->pc = find_entry_pc(frame->callable);
-    ctx.current_execution->current_frame = track(ctx, frame);
+    ctx.current_execution->set_current_frame(frame);
   }
 }
 
@@ -1223,7 +1250,7 @@ find_common_frame(ptr<stack_frame> current, ptr<stack_frame> continuation) {
 static tracked_ptr<tail_call_tag_type>
 capture_stack(context& ctx, ptr<> receiver) {
   ctx.store.stack().transfer_to_nursery();
-  auto cont = make<continuation>(ctx, ctx.current_execution->current_frame.get());
+  auto cont = make<continuation>(ctx, ctx.current_execution->current_frame());
   return tail_call(ctx, receiver, {cont});
 }
 
@@ -1265,23 +1292,74 @@ continuation_jump_allowed(ptr<stack_frame> current, ptr<stack_frame> cont, ptr<s
 }
 
 static void
-throw_if_jump_not_allowed(context& ctx, ptr<continuation> cont) {
-  ptr<stack_frame> common = find_common_frame(ctx.current_execution->current_frame.get(), cont->frame);
-  if (!continuation_jump_allowed(ctx.current_execution->current_frame.get(), cont->frame, common))
+throw_if_jump_not_allowed(context& ctx, ptr<continuation> cont, ptr<stack_frame> end) {
+  if (!continuation_jump_allowed(ctx.current_execution->current_frame(), cont->frame, end))
     throw std::runtime_error{"Continuation jump across barrier not allowed"};
 }
 
 static ptr<>
+get_after_thunk(ptr<stack_frame> f) {
+  if (f->extra)
+    return f->extra->after_thunk;
+  else
+    return {};
+}
+
+static ptr<>
+get_before_thunk(ptr<stack_frame> f) {
+  if (f->extra)
+    return f->extra->before_thunk;
+  else
+    return {};
+}
+
+static void
+unwind_stack(execution_state& state, ptr<stack_frame> end) {
+  while (state.current_frame() != end) {
+    if (ptr<> thunk = get_after_thunk(state.current_frame()))
+      call_with_continuation_barrier(state.ctx, thunk, {});
+
+    state.set_current_frame_to_parent();
+  }
+}
+
+static std::vector<ptr<stack_frame>>
+frame_interval_to_vector(ptr<stack_frame> begin, ptr<stack_frame> end) {
+  std::vector<ptr<stack_frame>> result;
+  while (begin != end) {
+    result.push_back(begin);
+    begin = begin->parent;
+  }
+
+  return result;
+}
+
+static void
+rewind_stack(execution_state& state, std::vector<ptr<stack_frame>> continuation_frames) {
+  // The first element of continuation_frames is the frame to become the current
+  // one, so we need to iterate backward.
+
+  for (auto frame = continuation_frames.rbegin(); frame != continuation_frames.rend(); ++frame) {
+    state.set_current_frame(*frame);
+
+    if (ptr<> thunk = get_before_thunk(state.current_frame()))
+      call_with_continuation_barrier(state.ctx, thunk, {});
+  }
+}
+
+static ptr<>
 replace_stack(context& ctx, ptr<continuation> cont, ptr<> value) {
-  throw_if_jump_not_allowed(ctx, cont);
+  ptr<stack_frame> common = find_common_frame(ctx.current_execution->current_frame(), cont->frame);
+  throw_if_jump_not_allowed(ctx, cont, common);
+  unwind_stack(*ctx.current_execution, common);
+  rewind_stack(*ctx.current_execution, frame_interval_to_vector(cont->frame, common));
   ctx.store.stack().clear(); // Anything that hasn't been captured will be forever inaccessible anyway.
-  ctx.current_execution->current_frame = track(ctx, cont->frame);
   return value;
 }
 
 static tracked_ptr<>
 call_with_continuation_barrier(context& ctx, bool allow_out, bool allow_in, ptr<> callable) {
-  erect_barrier(ctx, ctx.current_execution->current_frame.get(), allow_out, allow_in);
+  erect_barrier(ctx, ctx.current_execution->current_frame(), allow_out, allow_in);
 
   // Non-tail call even though there is nothing to do after this. This is to
   // preserve this frame on the stack because it holds information about the
@@ -1332,7 +1410,7 @@ find_parameter_in_frame(ptr<stack_frame> frame, ptr<parameter_tag> tag) {
 
 static ptr<>*
 find_parameter_in_stack(context& ctx, ptr<parameter_tag> tag) {
-  ptr<stack_frame> current_frame = ctx.current_execution->current_frame.get();
+  ptr<stack_frame> current_frame = ctx.current_execution->current_frame();
 
   while (current_frame) {
     if (auto value = find_parameter_in_frame(current_frame, tag))
@@ -1372,6 +1450,28 @@ call_parameterized(context& ctx, ptr<parameter_tag> tag, ptr<> value, ptr<> call
   return ctx.constants->tail_call_tag;
 }
 
+static tracked_ptr<>
+dynamic_wind(context& ctx, tracked_ptr<> before, tracked_ptr<> thunk, tracked_ptr<> after) {
+  ptr<stack_frame_extra_data> e = create_or_get_extra_data(ctx, ctx.current_execution->current_frame());
+  e->before_thunk = before.get();
+  e->after_thunk = after.get();
+
+  return call_continuable(
+    ctx, before.get(), {},
+    [=] (context& ctx, ptr<>) {
+      return call_continuable(
+        ctx, thunk.get(), {},
+        [=] (context& ctx, ptr<> result) {
+          return call_continuable(
+            ctx, after.get(), {},
+            [result = track(ctx, result)] (context&, ptr<>) { return result.get(); }
+          ).get();
+        }
+      ).get();
+    }
+  );
+}
+
 void
 export_vm(context& ctx, module& result) {
   define_procedure(ctx, "capture-stack", result, true, capture_stack);
@@ -1382,6 +1482,7 @@ export_vm(context& ctx, module& result) {
   define_procedure(ctx, "call-with-continuation-barrier", result, true,
                    static_cast<tracked_ptr<> (*)(context&, bool, bool, ptr<>)>(call_with_continuation_barrier));
   define_procedure(ctx, "call-parameterized", result, true, call_parameterized);
+  define_procedure(ctx, "dynamic-wind", result, true, dynamic_wind);
 }
 
 } // namespace insider
