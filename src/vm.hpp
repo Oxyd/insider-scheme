@@ -55,7 +55,7 @@ call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
 //                         [=] (ptr<> result) { do something with result })
 //
 // Causes garbage collection.
-tracked_ptr<>
+tracked_ptr<tail_call_tag_type>
 call_continuable(context&, ptr<> callable, std::vector<ptr<>> const& arguments,
                  native_continuation_type cont);
 

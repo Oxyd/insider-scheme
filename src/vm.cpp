@@ -1161,7 +1161,7 @@ call_scheme_continuable(execution_state& state, ptr<> callable, std::vector<ptr<
   return state.ctx.constants->tail_call_tag;
 }
 
-tracked_ptr<>
+tracked_ptr<tail_call_tag_type>
 call_continuable(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments,
                  native_continuation_type cont) {
   expect_callable(callable);
@@ -1375,40 +1375,39 @@ create_parameter_tag(context& ctx, ptr<> initial_value) {
   return tag;
 }
 
-static ptr<parameter_map>
-get_parameter_map(ptr<stack_frame> frame) {
-  if (ptr<stack_frame_extra_data> e = frame->extra)
-    return e->parameters;
-  else
-    return {};
-}
-
-static ptr<parameter_map>
-create_parameter_map(context& ctx, ptr<stack_frame> frame) {
-  ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, frame);
-
-  assert(!extra->parameters);
-  extra->parameters = make<parameter_map>(ctx);
-  return extra->parameters;
-}
-
-static ptr<parameter_map>
-create_or_get_parameter_map(context& ctx, ptr<stack_frame> frame) {
-  if (auto map = get_parameter_map(frame))
-    return map;
-  else
-    return create_parameter_map(ctx, frame);
-}
-
-static ptr<>*
+static ptr<>
 find_parameter_in_frame(ptr<stack_frame> frame, ptr<parameter_tag> tag) {
-  if (ptr<parameter_map> params = get_parameter_map(frame))
-    if (auto value = params->find_value(tag))
-      return value;
-  return nullptr;
+  if (ptr<stack_frame_extra_data> e = frame->extra)
+    if (ptr<parameter_tag> t = e->parameter_tag; t == tag)
+      return e->parameter_value;
+
+  return {};
 }
 
-static ptr<>*
+static ptr<stack_frame>
+find_stack_frame_for_parameter(ptr<stack_frame> current_frame, ptr<parameter_tag> tag) {
+  ptr<stack_frame> frame = current_frame;
+  while (frame)
+    if (find_parameter_in_frame(frame, tag))
+      return frame;
+    else
+      frame = frame->parent;
+
+  return {};
+}
+
+static void
+set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
+  if (ptr<stack_frame> frame = find_stack_frame_for_parameter(ctx.current_execution->current_frame(), tag)) {
+    assert(frame->extra);
+    assert(frame->extra->parameter_tag == tag);
+
+    frame->extra->parameter_value = value;
+  } else
+    ctx.parameters->find_value(tag) = value;
+}
+
+static ptr<>
 find_parameter_in_stack(context& ctx, ptr<parameter_tag> tag) {
   ptr<stack_frame> current_frame = ctx.current_execution->current_frame();
 
@@ -1419,35 +1418,30 @@ find_parameter_in_stack(context& ctx, ptr<parameter_tag> tag) {
     current_frame = current_frame->parent;
   }
 
-  return nullptr;
+  return {};
 }
 
-static ptr<>&
+static ptr<>
 find_parameter(context& ctx, ptr<parameter_tag> tag) {
   if (auto value = find_parameter_in_stack(ctx, tag))
-    return *value;
-
-  auto value = ctx.parameters->find_value(tag);
-  assert(value);
-  return *value;
-}
-
-static void
-set_parameter(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
-  find_parameter(ctx, tag) = value;
+    return value;
+  else
+    return ctx.parameters->find_value(tag);
 }
 
 static void
 add_parameter_value(context& ctx, ptr<stack_frame> frame, ptr<parameter_tag> tag, ptr<> value) {
-  create_or_get_parameter_map(ctx, frame)->add_value(tag, value);
+  ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, frame);
+
+  assert(!extra->parameter_tag);
+  extra->parameter_tag = tag;
+  extra->parameter_value = value;
 }
 
 static tracked_ptr<tail_call_tag_type>
 call_parameterized(context& ctx, ptr<parameter_tag> tag, ptr<> value, ptr<> callable) {
-  ptr<stack_frame> frame = make_tail_call_frame(ctx, callable, {});
-  install_call_frame(ctx, frame);
-  add_parameter_value(ctx, frame, tag, value);
-  return ctx.constants->tail_call_tag;
+  add_parameter_value(ctx, ctx.current_execution->current_frame(), tag, value);
+  return call_continuable(ctx, callable, {}, [] (context&, ptr<> result) { return result; });
 }
 
 static tracked_ptr<>
@@ -1478,7 +1472,7 @@ export_vm(context& ctx, module& result) {
   define_procedure(ctx, "replace-stack!", result, true, replace_stack);
   define_procedure(ctx, "create-parameter-tag", result, true, create_parameter_tag);
   define_procedure(ctx, "find-parameter-value", result, true, find_parameter);
-  define_procedure(ctx, "set-parameter-value!", result, true, set_parameter);
+  define_procedure(ctx, "set-parameter-value!", result, true, set_parameter_value);
   define_procedure(ctx, "call-with-continuation-barrier", result, true,
                    static_cast<tracked_ptr<> (*)(context&, bool, bool, ptr<>)>(call_with_continuation_barrier));
   define_procedure(ctx, "call-parameterized", result, true, call_parameterized);

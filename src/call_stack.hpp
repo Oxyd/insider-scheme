@@ -16,7 +16,7 @@ namespace insider {
 
 class context;
 class free_store;
-class parameter_map;
+struct parameter_tag;
 
 using native_continuation_type = std::function<ptr<>(context&, ptr<>)>;
 
@@ -24,7 +24,8 @@ class stack_frame_extra_data : public composite_object<stack_frame_extra_data> {
 public:
   static constexpr char const* scheme_name = "insider::stack_frame_extra_data";
 
-  ptr<parameter_map>                    parameters;
+  ptr<insider::parameter_tag>           parameter_tag;
+  ptr<>                                 parameter_value;
   std::vector<native_continuation_type> native_continuations;
   bool                                  allow_jump_out = true;
   bool                                  allow_jump_in  = true;
@@ -33,7 +34,8 @@ public:
 
   void
   visit_members(member_visitor const& f) {
-    f(parameters);
+    f(parameter_tag);
+    f(parameter_value);
     f(before_thunk);
     f(after_thunk);
   }

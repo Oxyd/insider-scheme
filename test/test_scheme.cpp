@@ -2736,6 +2736,18 @@ TEST_F(continuations, parameterization_has_no_effect_outside_frame) {
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
 
+TEST_F(continuations, call_parameterized_can_nest) {
+  auto result = eval(R"(
+    (let ((p (create-parameter-tag 0)))
+      (call-parameterized p 1
+        (lambda ()
+          (call-parameterized p 2
+            (lambda ()
+              (find-parameter-value p))))))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 2);
+}
+
 TEST_F(continuations, call_continuable_works_like_call) {
   define_procedure(ctx, "f", ctx.internal_module, true,
                    [] (context& ctx, ptr<> f, ptr<> arg) {

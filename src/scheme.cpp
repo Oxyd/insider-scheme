@@ -95,17 +95,18 @@ equal(context& ctx, ptr<> x, ptr<> y) {
   return true;
 }
 
-ptr<>*
+ptr<>&
 parameter_map::find_value(ptr<parameter_tag> tag) {
   for (auto& [key, value] : values_)
     if (key == tag)
-      return &value;
-  return nullptr;
+      return value;
+
+  assert(!"Can't happen");
+  return std::get<1>(values_.front());
 }
 
 void
 parameter_map::add_value(ptr<parameter_tag> tag, ptr<> value) {
-  assert(!find_value(tag));
   values_.emplace_back(tag, value);
 }
 
