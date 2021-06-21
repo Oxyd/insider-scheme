@@ -2604,9 +2604,9 @@ TEST_F(numeric, float_arithmetic) {
 #undef ASSERT_FP_EQ
 }
 
-struct continuations : scheme { };
+struct control : scheme { };
 
-TEST_F(continuations, simple_escape) {
+TEST_F(control, simple_escape) {
   std::string product_module = R"(
     (import (insider internal))
 
@@ -2631,7 +2631,7 @@ TEST_F(continuations, simple_escape) {
   EXPECT_EQ(expect<integer>(result2).value(), 24);
 }
 
-TEST_F(continuations, return_to_previous_frame) {
+TEST_F(control, return_to_previous_frame) {
   auto result = eval_module(R"(
     (import (insider internal))
 
@@ -2664,7 +2664,7 @@ TEST_F(continuations, return_to_previous_frame) {
   EXPECT_EQ(expect<boolean>(cadr(expect<pair>(result))), ctx.constants->t.get());
 }
 
-TEST_F(continuations, jump_to_inner_continuation) {
+TEST_F(control, jump_to_inner_continuation) {
   auto result = eval(R"(
     (+ 1 (capture-stack
            (lambda (outer)
@@ -2676,7 +2676,7 @@ TEST_F(continuations, jump_to_inner_continuation) {
   EXPECT_EQ(expect<integer>(result).value(), 16);
 }
 
-TEST_F(continuations, jump_to_outer_continuation) {
+TEST_F(control, jump_to_outer_continuation) {
   auto result = eval(R"(
     (+ 1 (capture-stack
            (lambda (outer)
@@ -2688,7 +2688,7 @@ TEST_F(continuations, jump_to_outer_continuation) {
   EXPECT_EQ(expect<integer>(result).value(), 6);
 }
 
-TEST_F(continuations, top_level_parameter_values) {
+TEST_F(control, top_level_parameter_values) {
   auto result = eval_module(R"(
     (import (insider internal))
 
@@ -2699,7 +2699,7 @@ TEST_F(continuations, top_level_parameter_values) {
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
 
-TEST_F(continuations, parameterize_overrides_value) {
+TEST_F(control, parameterize_overrides_value) {
   auto result = eval_module(R"(
     (import (insider internal))
 
@@ -2717,7 +2717,7 @@ TEST_F(continuations, parameterize_overrides_value) {
   EXPECT_EQ(expect<integer>(result).value(), 2);
 }
 
-TEST_F(continuations, parameterization_has_no_effect_outside_frame) {
+TEST_F(control, parameterization_has_no_effect_outside_frame) {
   auto result = eval_module(R"(
     (import (insider internal))
 
@@ -2736,7 +2736,7 @@ TEST_F(continuations, parameterization_has_no_effect_outside_frame) {
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
 
-TEST_F(continuations, call_parameterized_can_nest) {
+TEST_F(control, call_parameterized_can_nest) {
   auto result = eval(R"(
     (let ((p (create-parameter-tag 0)))
       (call-parameterized p 1
@@ -2748,7 +2748,7 @@ TEST_F(continuations, call_parameterized_can_nest) {
   EXPECT_EQ(expect<integer>(result).value(), 2);
 }
 
-TEST_F(continuations, call_continuable_works_like_call) {
+TEST_F(control, call_continuable_works_like_call) {
   define_procedure(ctx, "f", ctx.internal_module, true,
                    [] (context& ctx, ptr<> f, ptr<> arg) {
                      return call_continuable(ctx, f, {arg},
@@ -2761,7 +2761,7 @@ TEST_F(continuations, call_continuable_works_like_call) {
   EXPECT_EQ(expect<integer>(result).value(), 8);
 }
 
-TEST_F(continuations, call_continuable_allows_jump_up) {
+TEST_F(control, call_continuable_allows_jump_up) {
   bool continuation_called = false;
   define_procedure<ptr<>(context&, ptr<>, ptr<>)>(
     ctx, "f", ctx.internal_module, true,
@@ -2782,7 +2782,7 @@ TEST_F(continuations, call_continuable_allows_jump_up) {
   EXPECT_EQ(expect<integer>(result).value(), 0);
 }
 
-TEST_F(continuations, call_continuable_allows_jump_back_in) {
+TEST_F(control, call_continuable_allows_jump_back_in) {
   unsigned continuation_counter = 0;
   define_procedure<ptr<>(context&, ptr<>, ptr<>)>(
     ctx, "f", ctx.internal_module, true,
@@ -2826,7 +2826,7 @@ TEST_F(continuations, call_continuable_allows_jump_back_in) {
   EXPECT_EQ(continuation_counter, 2);
 }
 
-TEST_F(continuations, call_continuable_can_be_used_twice) {
+TEST_F(control, call_continuable_can_be_used_twice) {
   define_procedure(
     ctx, "f", ctx.internal_module, true,
     [] (context& ctx, ptr<> f, ptr<> g) {
@@ -2847,7 +2847,7 @@ TEST_F(continuations, call_continuable_can_be_used_twice) {
   EXPECT_EQ(expect<integer>(result).value(), 2 * ((2 + 1) + 2));
 }
 
-TEST_F(continuations, continuation_jump_goes_to_the_correct_call_continuable_call) {
+TEST_F(control, continuation_jump_goes_to_the_correct_call_continuable_call) {
   // (define (f g h)
   //   (h (g)))
 
@@ -2888,7 +2888,7 @@ TEST_F(continuations, continuation_jump_goes_to_the_correct_call_continuable_cal
   EXPECT_EQ(expect<integer>(result_v[1]).value(), 2);
 }
 
-TEST_F(continuations, barrier_prevents_jump_out) {
+TEST_F(control, barrier_prevents_jump_out) {
   EXPECT_THROW(
     eval(R"(
       (capture-stack
@@ -2901,7 +2901,7 @@ TEST_F(continuations, barrier_prevents_jump_out) {
   );
 }
 
-TEST_F(continuations, barrier_does_not_prevent_jumps_within_it) {
+TEST_F(control, barrier_does_not_prevent_jumps_within_it) {
   auto result = eval(R"(
     (capture-stack
       (lambda (outer)
@@ -2915,7 +2915,7 @@ TEST_F(continuations, barrier_does_not_prevent_jumps_within_it) {
   EXPECT_EQ(result, ctx.constants->t.get());
 }
 
-TEST_F(continuations, barrier_prevents_jump_in) {
+TEST_F(control, barrier_prevents_jump_in) {
   EXPECT_THROW(
     eval(R"(
       (let ((inner #f))
@@ -2931,7 +2931,7 @@ TEST_F(continuations, barrier_prevents_jump_in) {
   );
 }
 
-TEST_F(continuations, call_with_continuation_barrier_erects_a_barrier) {
+TEST_F(control, call_with_continuation_barrier_erects_a_barrier) {
   define_procedure(
     ctx, "f", ctx.internal_module, true,
     [] (context& ctx, ptr<> g) {
@@ -2949,7 +2949,7 @@ TEST_F(continuations, call_with_continuation_barrier_erects_a_barrier) {
   );
 }
 
-TEST_F(continuations, dynamic_wind_calls_all_three_thunks_in_order) {
+TEST_F(control, dynamic_wind_calls_all_three_thunks_in_order) {
   auto r = eval_module(R"(
     (import (insider internal))
 
@@ -2973,7 +2973,7 @@ TEST_F(continuations, dynamic_wind_calls_all_three_thunks_in_order) {
   EXPECT_EQ(expect<integer>(result[0]).value(), 3);
 }
 
-TEST_F(continuations, dynamic_wind_calls_post_when_jumping_out) {
+TEST_F(control, dynamic_wind_calls_post_when_jumping_out) {
   auto result = eval(R"(
     (let ((result #f))
       (capture-stack
@@ -2989,7 +2989,7 @@ TEST_F(continuations, dynamic_wind_calls_post_when_jumping_out) {
   EXPECT_EQ(result, ctx.constants->t.get());
 }
 
-TEST_F(continuations, dynamic_wind_calls_pre_when_jumping_in) {
+TEST_F(control, dynamic_wind_calls_pre_when_jumping_in) {
   auto result = eval(R"(
     (let ((in-count 0) (inside #f) (jumped? #f))
       (dynamic-wind
@@ -3010,7 +3010,7 @@ TEST_F(continuations, dynamic_wind_calls_pre_when_jumping_in) {
   EXPECT_EQ(expect<integer>(result).value(), 2);
 }
 
-TEST_F(continuations, dynamic_wind_calls_post_after_second_return) {
+TEST_F(control, dynamic_wind_calls_post_after_second_return) {
   auto result = eval(R"(
     (let ((out-count 0) (inside #f) (jumped? #f))
       (dynamic-wind
@@ -3031,7 +3031,7 @@ TEST_F(continuations, dynamic_wind_calls_post_after_second_return) {
   EXPECT_EQ(expect<integer>(result).value(), 2);
 }
 
-TEST_F(continuations, dynamic_winds_can_nest) {
+TEST_F(control, dynamic_winds_can_nest) {
   auto result = eval(R"(
     (let ((pre-outer-counter 0) (pre-inner-counter 0) (thunk-outer-counter 0)
           (post-outer-counter 0) (post-inner-counter 0) (thunk-inner-counter 0)
@@ -3068,7 +3068,7 @@ TEST_F(continuations, dynamic_winds_can_nest) {
   EXPECT_EQ(expect<integer>(result_v[5]).value(), 2);
 }
 
-TEST_F(continuations, dynamic_wind_uses_correct_dynamic_environment) {
+TEST_F(control, dynamic_wind_uses_correct_dynamic_environment) {
   EXPECT_NO_THROW(
     eval(R"(
       (let ((p (create-parameter-tag 0))
