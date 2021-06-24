@@ -3108,3 +3108,56 @@ TEST_F(control, dynamic_wind_uses_correct_dynamic_environment) {
     )")
   );
 }
+
+TEST_F(control, raise_continuable_jumps_to_handler) {
+  auto result = eval(R"(
+    (with-exception-handler
+      (lambda (e)
+        'result-from-handler)
+      (lambda ()
+        (raise-continuable 'ignored)))
+  )");
+  EXPECT_EQ(expect<symbol>(result)->value(), "result-from-handler");
+}
+
+TEST_F(control, with_exception_handler_returns_result_of_thunk) {
+  auto result = eval(R"(
+    (with-exception-handler
+      (lambda (e)
+        'result-from-handler)
+      (lambda ()
+        'result-from-thunk))
+  )");
+  EXPECT_EQ(expect<symbol>(result)->value(), "result-from-thunk");
+}
+
+TEST_F(control, calling_a_handler_restores_the_previous_handler) {
+  auto result = eval(R"(
+    (with-exception-handler
+      (lambda (e)
+        'outer-handler)
+      (lambda ()
+        (with-exception-handler
+          (lambda (e)
+            (raise-continuable e))
+          (lambda ()
+            (raise-continuable 'error)))))
+  )");
+  EXPECT_EQ(expect<symbol>(result)->value(), "outer-handler");
+}
+
+TEST_F(control, with_exception_handler_can_nest_several_times) {
+  auto result = eval(R"(
+    (with-exception-handler
+      (lambda (e) (cons 'outermost-handler e))
+      (lambda ()
+        (with-exception-handler
+          (lambda (e) (raise-continuable (cons 'middle-handler e)))
+          (lambda ()
+            (with-exception-handler
+              (lambda (e) (raise-continuable (cons 'inner-handler e)))
+              (lambda ()
+                (raise-continuable '(raise))))))))
+  )");
+  EXPECT_TRUE(equal(ctx, result, read("(outermost-handler middle-handler inner-handler raise)")));
+}

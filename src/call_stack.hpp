@@ -9,6 +9,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 
@@ -16,6 +17,7 @@ namespace insider {
 
 class context;
 class free_store;
+class stack_frame;
 struct parameter_tag;
 
 using native_continuation_type = std::function<ptr<>(context&, ptr<>)>;
@@ -31,14 +33,11 @@ public:
   bool                                  allow_jump_in  = true;
   ptr<>                                 before_thunk;
   ptr<>                                 after_thunk;
+  ptr<>                                 exception_handler;
+  std::optional<ptr<stack_frame>>       next_exception_handler_frame;
 
   void
-  visit_members(member_visitor const& f) {
-    f(parameter_tag);
-    f(parameter_value);
-    f(before_thunk);
-    f(after_thunk);
-  }
+  visit_members(member_visitor const& f);
 
   std::size_t
   hash() const { return 0; }

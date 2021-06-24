@@ -1351,6 +1351,64 @@ dynamic_wind(context& ctx, tracked_ptr<> before, tracked_ptr<> thunk, tracked_pt
   );
 }
 
+static ptr<stack_frame>
+find_exception_handler_frame(ptr<stack_frame> frame) {
+  while (frame) {
+    if (ptr<stack_frame_extra_data> e = frame->extra) {
+      if (e->exception_handler)
+        return frame;
+      else if (e->next_exception_handler_frame) {
+        frame = *e->next_exception_handler_frame;
+        continue;
+      }
+    }
+
+    frame = frame->parent;
+  }
+
+  return {};
+}
+
+static tracked_ptr<tail_call_tag_type>
+with_exception_handler(context& ctx, ptr<> handler, ptr<> thunk) {
+  call_continuable(ctx, thunk, {},
+                   [] (context&, ptr<> result) { return result; });
+
+  ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, ctx.current_execution->current_frame());
+  extra->exception_handler = handler;
+
+  return ctx.constants->tail_call_tag;
+}
+
+static ptr<>
+get_frame_exception_handler(ptr<stack_frame> frame) {
+  assert(frame->extra);
+  assert(frame->extra->exception_handler);
+  return frame->extra->exception_handler;
+}
+
+static void
+setup_exception_handler_frame(context& ctx, ptr<stack_frame> invocation_frame, ptr<stack_frame> definition_frame) {
+  ptr<stack_frame_extra_data> invocation_extra = create_or_get_extra_data(ctx, invocation_frame);
+  invocation_extra->next_exception_handler_frame = definition_frame->parent;
+}
+
+static tracked_ptr<tail_call_tag_type>
+call_exception_handler(context& ctx, ptr<stack_frame> handler_frame, ptr<> exception) {
+  call_continuable(ctx, get_frame_exception_handler(handler_frame), {exception},
+                   [] (context&, ptr<> result) { return result; });
+  setup_exception_handler_frame(ctx, ctx.current_execution->current_frame(), handler_frame);
+  return ctx.constants->tail_call_tag;
+}
+
+static tracked_ptr<tail_call_tag_type>
+raise_continuable(context& ctx, ptr<> e) {
+  if (ptr<stack_frame> handler_frame = find_exception_handler_frame(ctx.current_execution->current_frame()))
+    return call_exception_handler(ctx, handler_frame, e);
+  else
+    throw std::runtime_error{"No exception handler installed"};
+}
+
 void
 export_vm(context& ctx, module& result) {
   define_procedure(ctx, "capture-stack", result, true, capture_stack);
@@ -1362,6 +1420,8 @@ export_vm(context& ctx, module& result) {
                    static_cast<tracked_ptr<> (*)(context&, bool, bool, ptr<>)>(call_with_continuation_barrier));
   define_procedure(ctx, "call-parameterized", result, true, call_parameterized);
   define_procedure(ctx, "dynamic-wind", result, true, dynamic_wind);
+  define_procedure(ctx, "with-exception-handler", result, true, with_exception_handler);
+  define_procedure(ctx, "raise-continuable", result, true, raise_continuable);
 }
 
 } // namespace insider

@@ -4,6 +4,17 @@
 
 namespace insider {
 
+void
+stack_frame_extra_data::visit_members(member_visitor const &f) {
+  f(parameter_tag);
+  f(parameter_value);
+  f(before_thunk);
+  f(after_thunk);
+  f(exception_handler);
+  if (next_exception_handler_frame)
+    f(*next_exception_handler_frame);
+}
+
 stack_frame::stack_frame(stack_frame&& other)
   : previous_pc{other.previous_pc}
   , parent{other.parent}
