@@ -4,6 +4,7 @@
 #include "compiler.hpp"
 #include "converters.hpp"
 #include "io.hpp"
+#include "list_iterator.hpp"
 #include "numeric.hpp"
 #include "vm.hpp"
 

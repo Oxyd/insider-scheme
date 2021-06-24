@@ -2,6 +2,7 @@
 #define INSIDER_BYTECODE_HPP
 
 #include "numeric.hpp"
+#include "operand.hpp"
 
 #include <array>
 #include <climits>
@@ -18,8 +19,6 @@
 #include <fmt/format.h>
 
 namespace insider {
-
-using operand = std::uint16_t;
 
 // This enum defines the numeric opcode values.
 enum class opcode : std::uint16_t {

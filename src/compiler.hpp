@@ -2,9 +2,17 @@
 #define INSIDER_COMPILER_HPP
 
 #include "bytecode.hpp"
-#include "scheme.hpp"
+#include "ptr.hpp"
+
+#include <vector>
 
 namespace insider {
+
+class procedure;
+class syntax;
+
+class module;
+class protomodule;
 
 // Translate a single expression into bytecode. The resulting procedure will
 // take no arguments and will return the value of the expression. The module is

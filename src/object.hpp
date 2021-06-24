@@ -3,10 +3,16 @@
 
 #include "ptr.hpp"
 
+#include <fmt/format.h>
+
 #include <cstdint>
+#include <optional>
+#include <stdexcept>
 #include <string>
 
 namespace insider {
+
+class context;
 
 using word_type = std::uint64_t;
 using member_visitor = std::function<void(ptr<>&)>;
@@ -116,6 +122,20 @@ template <>
 inline std::string
 type_name<integer>() {
   return integer_type_name;
+}
+
+// Is a given object an instance of the given Scheme type?
+template <typename T>
+bool
+is(ptr<> x) {
+  assert(x);
+  return is_object_ptr(x) && object_type_index(x) == T::type_index;
+}
+
+template <>
+inline bool
+is<integer>(ptr<> x) {
+  return is_fixnum(x);
 }
 
 namespace detail {

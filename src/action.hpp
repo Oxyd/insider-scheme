@@ -1,6 +1,7 @@
 #ifndef INSIDER_ACTION_HPP
 #define INSIDER_ACTION_HPP
 
+#include "context.hpp"
 #include "io.hpp"
 
 #include <fmt/format.h>

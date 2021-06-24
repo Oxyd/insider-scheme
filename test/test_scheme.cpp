@@ -4,7 +4,7 @@
 #include "compiler.hpp"
 #include "converters.hpp"
 #include "io.hpp"
-#include "scheme.hpp"
+#include "port.hpp"
 #include "vm.hpp"
 
 #include <cmath>

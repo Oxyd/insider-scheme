@@ -18,7 +18,7 @@ namespace insider {
 class context;
 class free_store;
 class stack_frame;
-struct parameter_tag;
+class parameter_tag;
 
 using native_continuation_type = std::function<ptr<>(context&, ptr<>)>;
 

@@ -18,20 +18,6 @@ namespace insider {
 
 using word_type = std::uint64_t;
 
-// Is a given object an instance of the given Scheme type?
-template <typename T>
-bool
-is(ptr<> x) {
-  assert(x);
-  return is_object_ptr(x) && object_type_index(x) == T::type_index;
-}
-
-template <>
-inline bool
-is<integer>(ptr<> x) {
-  return is_fixnum(x);
-}
-
 bool
 is_alive(ptr<>);
 

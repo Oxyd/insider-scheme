@@ -2,6 +2,7 @@
 
 #include "action.hpp"
 #include "analyser.hpp"
+#include "basic_types.hpp"
 
 #include <fmt/format.h>
 

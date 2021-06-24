@@ -2,7 +2,6 @@
 #define INSIDER_ANALYSER_HPP
 
 #include "expression.hpp"
-#include "scheme.hpp"
 
 #include <memory>
 #include <optional>

@@ -1,13 +1,18 @@
 #ifndef INSIDER_IO_HPP
 #define INSIDER_IO_HPP
 
-#include "scheme.hpp"
+#include "ptr.hpp"
 
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace insider {
+
+class context;
+class port;
+class source_location;
+class syntax;
 
 struct parse_error : std::runtime_error {
   parse_error(std::string const& message, source_location const&);

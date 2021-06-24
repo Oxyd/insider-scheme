@@ -1,8 +1,9 @@
 #ifndef INSIDER_CONVERTERS_HPP
 #define INSIDER_CONVERTERS_HPP
 
-#include "numeric.hpp"
-#include "scheme.hpp"
+#include "basic_types.hpp"
+#include "context.hpp"
+#include "integer.hpp"
 #include "vm.hpp"
 
 #include <fmt/format.h>

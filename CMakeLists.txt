@@ -23,16 +23,24 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(scheme_sources
   src/analyser.cpp
+  src/basic_types.cpp
   src/bytecode.cpp
   src/call_stack.cpp
+  src/compare.cpp
   src/compiler.cpp
+  src/context.cpp
   src/expression.cpp
   src/free_store.cpp
+  src/input_stream.cpp
   src/internal_module.cpp
   src/io.cpp
+  src/module.cpp
   src/numeric.cpp
   src/object.cpp
-  src/scheme.cpp
+  src/port.cpp
+  src/scope.cpp
+  src/source_location.cpp
+  src/syntax.cpp
   src/vm.cpp
   )
 

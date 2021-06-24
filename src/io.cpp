@@ -1,6 +1,11 @@
 #include "io.hpp"
 
+#include "basic_types.hpp"
+#include "context.hpp"
+#include "input_stream.hpp"
 #include "numeric.hpp"
+#include "port.hpp"
+#include "source_location.hpp"
 
 #include <fmt/format.h>
 
