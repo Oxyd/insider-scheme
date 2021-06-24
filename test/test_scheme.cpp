@@ -3,6 +3,7 @@
 #include "bytecode.hpp"
 #include "compiler.hpp"
 #include "converters.hpp"
+#include "error.hpp"
 #include "io.hpp"
 #include "port.hpp"
 #include "vm.hpp"
@@ -3160,4 +3161,34 @@ TEST_F(control, with_exception_handler_can_nest_several_times) {
                 (raise-continuable '(raise))))))))
   )");
   EXPECT_TRUE(equal(ctx, result, read("(outermost-handler middle-handler inner-handler raise)")));
+}
+
+TEST_F(control, raise_continuable_goes_directly_to_builtin_handler_if_no_with_exception_handler) {
+  try {
+    eval("(raise-continuable 'exception)");
+  } catch (scheme_exception& e) {
+    EXPECT_EQ(expect<symbol>(e.object)->value(), "exception");
+    SUCCEED();
+    return;
+  }
+
+  FAIL();
+}
+
+TEST_F(control, exception_from_handler_goes_to_builtin_handler_if_no_other_handler) {
+  try {
+    eval(R"(
+      (with-exception-handler
+        (lambda (e)
+          (raise-continuable e))
+        (lambda ()
+          (raise-continuable 'exception)))
+    )");
+  } catch (scheme_exception& e) {
+    EXPECT_EQ(expect<symbol>(e.object)->value(), "exception");
+    SUCCEED();
+    return;
+  }
+
+  FAIL();
 }

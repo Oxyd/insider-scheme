@@ -2,6 +2,7 @@
 
 #include "action.hpp"
 #include "converters.hpp"
+#include "error.hpp"
 #include "free_store.hpp"
 #include "io.hpp"
 #include "numeric.hpp"
@@ -1401,12 +1402,17 @@ call_exception_handler(context& ctx, ptr<stack_frame> handler_frame, ptr<> excep
   return ctx.constants->tail_call_tag;
 }
 
+[[noreturn]] static void
+builtin_exception_handler(context& ctx, ptr<> e) {
+  throw scheme_exception{ctx, e};
+}
+
 static tracked_ptr<tail_call_tag_type>
 raise_continuable(context& ctx, ptr<> e) {
   if (ptr<stack_frame> handler_frame = find_exception_handler_frame(ctx.current_execution->current_frame()))
     return call_exception_handler(ctx, handler_frame, e);
   else
-    throw std::runtime_error{"No exception handler installed"};
+    builtin_exception_handler(ctx, e);
 }
 
 void

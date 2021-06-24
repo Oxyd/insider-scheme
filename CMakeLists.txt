@@ -29,6 +29,7 @@ set(scheme_sources
   src/compare.cpp
   src/compiler.cpp
   src/context.cpp
+  src/error.cpp
   src/expression.cpp
   src/free_store.cpp
   src/input_stream.cpp
