@@ -1395,9 +1395,25 @@ setup_exception_handler_frame(context& ctx, ptr<stack_frame> invocation_frame, p
 }
 
 static tracked_ptr<tail_call_tag_type>
-call_exception_handler(context& ctx, ptr<stack_frame> handler_frame, ptr<> exception) {
+call_continuable_exception_handler(context& ctx, ptr<stack_frame> handler_frame, ptr<> exception) {
   call_continuable(ctx, get_frame_exception_handler(handler_frame), {exception},
                    [] (context&, ptr<> result) { return result; });
+  setup_exception_handler_frame(ctx, ctx.current_execution->current_frame(), handler_frame);
+  return ctx.constants->tail_call_tag;
+}
+
+static tracked_ptr<tail_call_tag_type>
+raise_from(context& ctx, ptr<> e, ptr<stack_frame> frame);
+
+static tracked_ptr<tail_call_tag_type>
+call_noncontinuable_exception_handler(context& ctx, ptr<stack_frame> handler_frame, ptr<> exception) {
+  call_continuable(ctx, get_frame_exception_handler(handler_frame), {exception},
+                   [exception = track(ctx, exception),
+                    handler_frame = track(ctx, handler_frame)] (context& ctx, ptr<>) {
+                     return raise_from(ctx,
+                                       make<uncaught_exception>(ctx, exception.get()),
+                                       handler_frame->parent).get();
+                   });
   setup_exception_handler_frame(ctx, ctx.current_execution->current_frame(), handler_frame);
   return ctx.constants->tail_call_tag;
 }
@@ -1408,9 +1424,22 @@ builtin_exception_handler(context& ctx, ptr<> e) {
 }
 
 static tracked_ptr<tail_call_tag_type>
+raise_from(context& ctx, ptr<> e, ptr<stack_frame> frame) {
+  if (ptr<stack_frame> handler_frame = find_exception_handler_frame(frame))
+    return call_noncontinuable_exception_handler(ctx, handler_frame, e);
+  else
+    builtin_exception_handler(ctx, e);
+}
+
+static tracked_ptr<tail_call_tag_type>
+raise(context& ctx, ptr<> e) {
+  return raise_from(ctx, e, ctx.current_execution->current_frame());
+}
+
+static tracked_ptr<tail_call_tag_type>
 raise_continuable(context& ctx, ptr<> e) {
   if (ptr<stack_frame> handler_frame = find_exception_handler_frame(ctx.current_execution->current_frame()))
-    return call_exception_handler(ctx, handler_frame, e);
+    return call_continuable_exception_handler(ctx, handler_frame, e);
   else
     builtin_exception_handler(ctx, e);
 }
@@ -1428,6 +1457,7 @@ export_vm(context& ctx, module& result) {
   define_procedure(ctx, "dynamic-wind", result, true, dynamic_wind);
   define_procedure(ctx, "with-exception-handler", result, true, with_exception_handler);
   define_procedure(ctx, "raise-continuable", result, true, raise_continuable);
+  define_procedure(ctx, "raise", result, true, raise);
 }
 
 } // namespace insider

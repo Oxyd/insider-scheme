@@ -328,4 +328,14 @@ transformer::visit_members(member_visitor const& f) {
   f(callable_);
 }
 
+void
+uncaught_exception::visit_members(member_visitor const& f) {
+  f(inner_exception);
+}
+
+std::size_t
+uncaught_exception::hash() const {
+  return insider::hash(inner_exception);
+}
+
 } // namespace insider

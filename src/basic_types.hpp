@@ -493,6 +493,24 @@ public:
   }
 };
 
+class uncaught_exception : public composite_object<uncaught_exception> {
+public:
+  static constexpr char const* scheme_name = "insider::uncaught_exception";
+
+  ptr<> inner_exception;
+
+  explicit
+  uncaught_exception(ptr<> e)
+    : inner_exception{e}
+  { }
+
+  void
+  visit_members(member_visitor const& f);
+
+  std::size_t
+  hash() const;
+};
+
 } // namespace insider
 
 #endif

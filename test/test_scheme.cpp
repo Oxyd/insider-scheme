@@ -3192,3 +3192,52 @@ TEST_F(control, exception_from_handler_goes_to_builtin_handler_if_no_other_handl
 
   FAIL();
 }
+
+TEST_F(control, raise_goes_to_exception_handler) {
+  auto result = eval(R"(
+    (capture-stack
+      (lambda (exit)
+        (with-exception-handler
+          (lambda (e)
+            (replace-stack! exit e))
+          (lambda ()
+            (raise 'error)))))
+  )");
+  EXPECT_EQ(expect<symbol>(result)->value(), "error");
+}
+
+TEST_F(control, raise_raises_another_error_when_handler_returns) {
+  auto result = eval(R"(
+    (capture-stack
+      (lambda (exit)
+        (with-exception-handler
+          (lambda (e)
+            (replace-stack! exit e))
+          (lambda ()
+            (with-exception-handler
+              (lambda (e)
+                'unhandled)
+              (lambda ()
+                (raise 'error)))))))
+  )");
+  EXPECT_EQ(expect<symbol>(expect<uncaught_exception>(result)->inner_exception)->value(), "error");
+}
+
+TEST_F(control, raise_goes_to_builtin_error_handler_when_handler_returns) {
+  try {
+    eval(R"(
+      (with-exception-handler
+        (lambda (e)
+          'unhandled)
+        (lambda ()
+          (raise 'error)))
+    )");
+  } catch (scheme_exception& e) {
+    auto ue = expect<uncaught_exception>(e.object);
+    EXPECT_EQ(expect<symbol>(ue->inner_exception)->value(), "error");
+    SUCCEED();
+    return;
+  }
+
+  FAIL();
+}
