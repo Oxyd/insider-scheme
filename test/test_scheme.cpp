@@ -3241,3 +3241,42 @@ TEST_F(control, raise_goes_to_builtin_error_handler_when_handler_returns) {
 
   FAIL();
 }
+
+TEST_F(control, cxx_exception_becomes_scheme_exception) {
+  define_procedure(ctx, "f", ctx.internal_module, true,
+                   [] { throw std::runtime_error{"foo"}; });
+  auto result = eval(R"(
+    (capture-stack
+      (lambda (return)
+        (with-exception-handler
+          (lambda (e)
+            (replace-stack! return e))
+          (lambda ()
+            (f)))))
+  )");
+
+  ASSERT_TRUE(is<cxx_exception>(result));
+  try {
+    assume<cxx_exception>(result)->rethrow();
+  } catch (std::runtime_error& e) {
+    EXPECT_EQ(e.what(), std::string{"foo"});
+    SUCCEED();
+    return;
+  }
+
+  FAIL();
+}
+
+TEST_F(control, cxx_exception_passes_through_if_not_handled) {
+  define_procedure(ctx, "f", ctx.internal_module, true,
+                   [] { throw std::runtime_error{"foo"}; });
+  try {
+    eval("(f)");
+  } catch (std::runtime_error& e) {
+    EXPECT_EQ(e.what(), std::string{"foo"});
+    SUCCEED();
+    return;
+  }
+
+  FAIL();
+}

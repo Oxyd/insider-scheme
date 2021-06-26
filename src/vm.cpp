@@ -730,6 +730,122 @@ vector_ref(instruction_state& istate) {
 }
 
 static tracked_ptr<>
+do_instruction(execution_state& state, gc_disabler& no_gc) {
+  instruction_state istate{state};
+  bytecode_reader& reader = istate.reader;
+  ptr<stack_frame> frame = istate.frame();
+
+  opcode opcode = istate.reader.read_opcode();
+
+  switch (opcode) {
+  case opcode::no_operation:
+    break;
+
+  case opcode::load_static:
+    load_static(istate);
+    break;
+
+  case opcode::load_top_level:
+    load_top_level(istate);
+    break;
+
+  case opcode::store_top_level:
+    store_top_level(istate);
+    break;
+
+  case opcode::add:
+  case opcode::subtract:
+  case opcode::multiply:
+  case opcode::divide:
+    arithmetic(opcode, istate);
+    break;
+
+  case opcode::arith_equal:
+  case opcode::less:
+  case opcode::greater:
+  case opcode::less_or_equal:
+  case opcode::greater_or_equal:
+    relational(opcode, istate);
+    break;
+
+  case opcode::set: {
+    operand src = reader.read_operand();
+    operand dst = reader.read_operand();
+    frame->set(dst, frame->ref(src));
+    break;
+  }
+
+  case opcode::tail_call:
+  case opcode::call:
+  case opcode::call_top_level:
+  case opcode::call_static:
+  case opcode::tail_call_top_level:
+  case opcode::tail_call_static: {
+    ptr<> result = call(opcode, istate);
+    if (result)
+      return track(state.ctx, result);
+    no_gc.force_update();
+    break;
+  }
+
+  case opcode::ret: {
+    ptr<> result = ret(istate);
+    if (result)
+      return track(state.ctx, result);
+    no_gc.force_update();
+    break;
+  }
+
+  case opcode::jump:
+  case opcode::jump_back:
+  case opcode::jump_unless:
+  case opcode::jump_back_unless:
+    jump(opcode, istate);
+    break;
+
+  case opcode::make_closure:
+    make_closure(istate);
+    break;
+
+  case opcode::box:
+    make_box(istate);
+    break;
+
+  case opcode::unbox:
+    unbox(istate);
+    break;
+
+  case opcode::box_set:
+    box_set(istate);
+    break;
+
+  case opcode::cons:
+    cons(istate);
+    break;
+
+  case opcode::make_vector:
+    make_vector(istate);
+    break;
+
+  case opcode::vector_set:
+    vector_set(istate);
+    break;
+
+  case opcode::vector_ref:
+    vector_ref(istate);
+    break;
+
+  default:
+    assert(false); // Invalid opcode
+  } // end switch
+
+  return {};
+}
+
+static tracked_ptr<tail_call_tag_type>
+raise(context& ctx, ptr<> e);
+
+static tracked_ptr<>
 run(execution_state& state) {
   std::optional<execution_action> a;
   gc_disabler no_gc{state.ctx.store};
@@ -738,115 +854,16 @@ run(execution_state& state) {
     // Only create an execution_action if this is the top-level execution.
     a.emplace(state);
 
-  while (true) {
-    instruction_state istate{state};
-    bytecode_reader& reader = istate.reader;
-    ptr<stack_frame> frame = istate.frame();
-
-    opcode opcode = istate.reader.read_opcode();
-
-    switch (opcode) {
-    case opcode::no_operation:
-      break;
-
-    case opcode::load_static:
-      load_static(istate);
-      break;
-
-    case opcode::load_top_level:
-      load_top_level(istate);
-      break;
-
-    case opcode::store_top_level:
-      store_top_level(istate);
-      break;
-
-    case opcode::add:
-    case opcode::subtract:
-    case opcode::multiply:
-    case opcode::divide:
-      arithmetic(opcode, istate);
-      break;
-
-    case opcode::arith_equal:
-    case opcode::less:
-    case opcode::greater:
-    case opcode::less_or_equal:
-    case opcode::greater_or_equal:
-      relational(opcode, istate);
-      break;
-
-    case opcode::set: {
-      operand src = reader.read_operand();
-      operand dst = reader.read_operand();
-      frame->set(dst, frame->ref(src));
-      break;
-    }
-
-    case opcode::tail_call:
-    case opcode::call:
-    case opcode::call_top_level:
-    case opcode::call_static:
-    case opcode::tail_call_top_level:
-    case opcode::tail_call_static: {
-      ptr<> result = call(opcode, istate);
+  while (true)
+    try {
+      auto result = do_instruction(state, no_gc);
       if (result)
-        return track(state.ctx, result);
-      no_gc.force_update();
-      break;
+        return result;
+    } catch (scheme_exception& e) {
+      throw e;
+    } catch (...) {
+      raise(state.ctx, make<cxx_exception>(state.ctx, std::current_exception()));
     }
-
-    case opcode::ret: {
-      ptr<> result = ret(istate);
-      if (result)
-        return track(state.ctx, result);
-      no_gc.force_update();
-      break;
-    }
-
-    case opcode::jump:
-    case opcode::jump_back:
-    case opcode::jump_unless:
-    case opcode::jump_back_unless:
-      jump(opcode, istate);
-      break;
-
-    case opcode::make_closure:
-      make_closure(istate);
-      break;
-
-    case opcode::box:
-      make_box(istate);
-      break;
-
-    case opcode::unbox:
-      unbox(istate);
-      break;
-
-    case opcode::box_set:
-      box_set(istate);
-      break;
-
-    case opcode::cons:
-      cons(istate);
-      break;
-
-    case opcode::make_vector:
-      make_vector(istate);
-      break;
-
-    case opcode::vector_set:
-      vector_set(istate);
-      break;
-
-    case opcode::vector_ref:
-      vector_ref(istate);
-      break;
-
-    default:
-      assert(false); // Invalid opcode
-    } // end switch
-  }
 
   assert(false); // The only way the loop above will exit is via return.
   return {};
@@ -1420,7 +1437,10 @@ call_noncontinuable_exception_handler(context& ctx, ptr<stack_frame> handler_fra
 
 [[noreturn]] static void
 builtin_exception_handler(context& ctx, ptr<> e) {
-  throw scheme_exception{ctx, e};
+  if (auto cxx_e = match<cxx_exception>(e))
+    cxx_e->rethrow();
+  else
+    throw scheme_exception{ctx, e};
 }
 
 static tracked_ptr<tail_call_tag_type>
