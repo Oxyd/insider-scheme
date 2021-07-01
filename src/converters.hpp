@@ -308,7 +308,7 @@ public:
   Ret
   operator () (context& ctx, Args&&... args) {
     std::vector<ptr<>> arguments{{to_scheme(ctx, std::forward<Args>(args))...}};
-    return from_scheme<Ret>(ctx, call(ctx, f_.get(), arguments));
+    return from_scheme<Ret>(ctx, call_with_continuation_barrier(ctx, f_.get(), arguments));
   }
 
 private:

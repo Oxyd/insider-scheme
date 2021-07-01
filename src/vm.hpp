@@ -34,14 +34,6 @@ private:
   tracked_ptr<stack_frame> current_frame_;
 };
 
-// Add a call frame to the current execution state and run the procedure until
-// it returns. Creates a new top-level execution state if one does not already
-// exist.
-//
-// Causes a garbage collection.
-tracked_ptr<>
-call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
-
 // Add a call frame to the current execution state, and set the continuation for
 // the current frame. When the new frame finishes execution, it will call the
 // given continuation. This allows for continuation jumps in and out of the
@@ -59,7 +51,10 @@ tracked_ptr<tail_call_tag_type>
 call_continuable(context&, ptr<> callable, std::vector<ptr<>> const& arguments,
                  native_continuation_type cont);
 
-// Like call, but create a full continuation barrier around the call.
+// Add a call frame to the current execution state and run the procedure until
+// it returns. Creates a new top-level execution state if one does not already
+// exist. A full continuation barrier is installed around the call frame unless
+// it's the root frame.
 tracked_ptr<>
 call_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments);
 

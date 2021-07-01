@@ -209,8 +209,11 @@ call_transformer(context& ctx, ptr<transformer> t, tracked_ptr<syntax> const& st
                                             true);
   add_scope(ctx.store, stx.get(), use_site_scope.get());
 
-  ptr<syntax> result = copy_syntax(ctx, expect<syntax>(call(ctx, t->callable(), {stx.get()}).get(),
-                                                       "Syntax transformer didn't return a syntax"));
+  ptr<syntax> result = copy_syntax(
+    ctx,
+    expect<syntax>(call_with_continuation_barrier(ctx, t->callable(), {stx.get()}).get(),
+                   "Syntax transformer didn't return a syntax")
+  );
 
   flip_scope(ctx.store, result, introduced_env.get());
   return track(ctx, result);
@@ -247,7 +250,7 @@ static ptr<>
 eval_transformer(context& ctx, module& m, ptr<syntax> datum) {
   simple_action a(ctx, datum, "Evaluating transformer");
   auto proc = compile_expression(ctx, datum, m);
-  return call(ctx, proc, {}).get();
+  return call_with_continuation_barrier(ctx, proc, {}).get();
 }
 
 static std::unique_ptr<expression>

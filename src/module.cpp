@@ -213,7 +213,7 @@ define_top_level(context& ctx, std::string const& name, module& m, bool export_,
 
 static tracked_ptr<>
 run_module(context& ctx, module& m) {
-  return call(ctx, m.top_level_procedure(), {});
+  return call_with_continuation_barrier(ctx, m.top_level_procedure(), {});
 }
 
 tracked_ptr<>

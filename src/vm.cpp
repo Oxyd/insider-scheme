@@ -942,7 +942,8 @@ static tracked_ptr<>
 call_native_with_continuation_barrier(execution_state& state, ptr<native_procedure> proc,
                                       std::vector<ptr<>> const& arguments) {
   ptr<stack_frame> frame = setup_native_frame(state, proc);
-  erect_barrier(state.ctx, frame, false, false);
+  if (frame->parent)
+    erect_barrier(state.ctx, frame, false, false);
   return call_native_in_current_frame(state, proc, arguments);
 }
 
@@ -971,15 +972,10 @@ setup_scheme_frame_for_call_from_native(execution_state& state, ptr<> callable, 
 }
 
 static tracked_ptr<>
-call_scheme_from_native(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
-  setup_scheme_frame_for_call_from_native(state, callable, arguments);
-  return run(state);
-}
-
-static tracked_ptr<>
 call_scheme_with_continuation_barrier(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
   ptr<stack_frame> frame = setup_scheme_frame_for_call_from_native(state, callable, arguments);
-  erect_barrier(state.ctx, frame, false, false);
+  if (frame->parent)
+    erect_barrier(state.ctx, frame, false, false);
   return run(state);
 }
 
@@ -1015,22 +1011,6 @@ mark_frame_noncontinuable(ptr<stack_frame> frame) {
   if (frame)
     if (ptr<stack_frame_extra_data> e = frame->extra)
       e->native_continuations.emplace_back();
-}
-
-tracked_ptr<>
-call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
-  expect_callable(callable);
-
-  current_execution_setter ces{ctx};
-  mark_frame_noncontinuable(ctx.current_execution->current_frame());
-
-  tracked_ptr<> result;
-  if (auto native_proc = match<native_procedure>(callable))
-    result = call_native(*ctx.current_execution, native_proc, arguments);
-  else
-    result = call_scheme_from_native(*ctx.current_execution, callable, arguments);
-
-  return result;
 }
 
 tracked_ptr<>

@@ -25,7 +25,7 @@ struct scheme : testing::Test {
     module m{ctx};
     import_all_exported(ctx, m, ctx.internal_module);
     auto f = compile_expression(ctx, read_syntax(ctx, expr), m);
-    return call(ctx, f, {}).get();
+    return call_with_continuation_barrier(ctx, f, {}).get();
   }
 
   ptr<>
@@ -743,7 +743,7 @@ TEST_F(interpreter, exec_arithmetic) {
     5,
     0
   );
-  auto result = call(ctx, proc, {});
+  auto result = call_with_continuation_barrier(ctx, proc, {});
   EXPECT_EQ(assume<integer>(result).value(), 18);
 }
 
@@ -785,7 +785,7 @@ TEST_F(interpreter, exec_calls) {
     9,
     0
   );
-  auto result = call(ctx, global, {});
+  auto result = call_with_continuation_barrier(ctx, global, {});
 
   auto native_f = [] (int x, int y) { return 2 * x + y; };
   EXPECT_EQ(assume<integer>(result).value(),
@@ -821,7 +821,7 @@ TEST_F(interpreter, exec_tail_calls) {
     3,
     0
   );
-  auto result = call(ctx, global, {});
+  auto result = call_with_continuation_barrier(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(), 12);
 }
 
@@ -851,7 +851,7 @@ TEST_F(interpreter, exec_loop) {
     6,
     0
   );
-  auto result = call(ctx, global, {});
+  auto result = call_with_continuation_barrier(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(), 45);
 }
 
@@ -876,7 +876,7 @@ TEST_F(interpreter, exec_native_call) {
     5,
     0
   );
-  auto result = call(ctx, global, {});
+  auto result = call_with_continuation_barrier(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(),
             2 * 10 + 3 * 20 + 5 * 30);
 }
@@ -901,7 +901,7 @@ TEST_F(interpreter, exec_closure_ref) {
                    instruction{opcode::ret,          operand{0}}}),
     5, 0
   );
-  auto result = call(ctx, global, {});
+  auto result = call_with_continuation_barrier(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(), 5 + 3);
 }
 
@@ -921,7 +921,7 @@ TEST_F(interpreter, exec_cons) {
                    instruction{opcode::ret,         operand{0}}}),
     5, 0
   );
-  auto result = call(ctx, global, {});
+  auto result = call_with_continuation_barrier(ctx, global, {});
   EXPECT_TRUE(equal(ctx, result.get(), read("(1 2 3)")));
 }
 
@@ -939,14 +939,14 @@ TEST_F(interpreter, exec_make_vector) {
     4, 0
   );
 
-  auto result = call(ctx, global, {});
+  auto result = call_with_continuation_barrier(ctx, global, {});
   EXPECT_TRUE(equal(ctx, result.get(), read("#(1 2 3)")));
 }
 
 TEST_F(interpreter, scheme_to_native_to_scheme) {
   define_procedure(ctx, "apply-and-double", ctx.internal_module, true,
                    [] (context& ctx, ptr<procedure> f, ptr<> arg) {
-                     return 2 * expect<integer>(call(ctx, f, {arg})).value();
+                     return 2 * expect<integer>(call_with_continuation_barrier(ctx, f, {arg})).value();
                    });
   ptr<> result1 = eval_module(
     R"(
@@ -1329,7 +1329,7 @@ TEST_F(compiler, compile_module) {
                                                     "(f 3)"
                                                     "(let ((x 2))"
                                                     "  (f x))"));
-  call(ctx, m.top_level_procedure(), {});
+  call_with_continuation_barrier(ctx, m.top_level_procedure(), {});
   EXPECT_EQ(sum, 5);
 }
 
@@ -1605,7 +1605,7 @@ TEST_F(compiler, quasisyntax) {
 
 TEST_F(compiler, call_from_native) {
   auto f = expect<procedure>(eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"));
-  ptr<> result = call(ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})}).get();
+  ptr<> result = call_with_continuation_barrier(ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})}).get();
   EXPECT_EQ(expect<integer>(result).value(), 2 * 5 + 3 * 4);
 
   scheme_procedure<int(int, int)> g{track(ctx, eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"))};
