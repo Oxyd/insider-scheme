@@ -233,6 +233,9 @@
                   (cons (car new) result))))))
 
 (define (disassemble f . rest)
+  (when (closure? f)
+    (set! f (closure-procedure f)))
+
   (let ((recurse-to-top-levels? (and (not (null? rest)) (car rest))))
     (let loop ((done '())
                (to-do (list (list #f #f f))))
