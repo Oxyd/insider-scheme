@@ -46,7 +46,17 @@ set(scheme_sources
   )
 
 set(test_sources
-  test/test_scheme.cpp
+  test/bytecode.cpp
+  test/compiler.cpp
+  test/control.cpp
+  test/gc.cpp
+  test/interpreter.cpp
+  test/io.cpp
+  test/macros.cpp
+  test/modules.cpp
+  test/numeric.cpp
+  test/procedures.cpp
+  test/types.cpp
   )
 
 set(program_sources
