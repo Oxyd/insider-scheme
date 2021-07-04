@@ -9,8 +9,9 @@ namespace insider {
 
 template <typename = void>
 class tracked_ptr;
+
 class integer;
-struct object;
+class object;
 
 // Non-tracked pointer to a Scheme object, including to immediate values such as
 // fixnums. ptr<> is a pointer to any object, ptr<T> is a pointer to an object

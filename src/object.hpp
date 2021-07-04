@@ -31,7 +31,8 @@ struct type_descriptor {
 };
 
 // Base for any garbage-collectable Scheme object.
-struct alignas(sizeof(word_type)) object {
+class alignas(sizeof(word_type)) object {
+public:
   static constexpr bool is_dynamic_size = false;
 };
 

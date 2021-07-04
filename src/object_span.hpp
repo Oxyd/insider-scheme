@@ -1,6 +1,8 @@
 #ifndef INSIDER_OBJECT_SPAN_HPP
 #define INSIDER_OBJECT_SPAN_HPP
 
+#include "ptr.hpp"
+
 #include <cstddef>
 #include <vector>
 
