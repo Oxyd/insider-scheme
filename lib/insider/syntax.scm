@@ -282,12 +282,13 @@
                   level))
         match))
 
+ (define (match-level-null? level)
+   (any (lambda (binding)
+          (null? (cdr binding)))
+        level))
+
  (define (match-null? match)
-   (any (lambda (level)
-          (any (lambda (binding)
-                 (null? (cdr binding)))
-               level))
-        match))
+   (any match-level-null? match))
 
  (define (match-car match)
    (map (lambda (level)
@@ -303,51 +304,105 @@
                level))
         match))
 
- (define (expand-repeatedly/list template match ellipsis literals)
-   (let loop ((m (filter-match match (all-template-variables template ellipsis literals)))
-              (accum '()))
-     (cond ((match-null? m)
-            (reverse accum))
-           (else
-            (loop (match-cdr m)
-                  (cons (expand-template template (match-car m) ellipsis literals)
-                        accum))))))
+ (define (expand-repeatedly/list template match current-level variable-levels ellipsis literals)
+   (let ((vars (all-template-variables template ellipsis literals)))
+     (let loop ((m (filter-match match vars))
+                (accum '()))
+       (cond ((match-null? m)
+              (reverse accum))
+             (else
+              (loop (match-cdr m)
+                    (cons (expand-template template (match-car m) current-level variable-levels ellipsis literals)
+                          accum)))))))
 
  (define (wrap-expansion template expansion)
    (if (syntax? template)
        (datum->syntax template expansion)
        expansion))
 
- (define (expand-template template match ellipsis literals)
-   (define (car* x)
-     (if (null? x)
-         '()
-         (car x)))
+ (define (car* x)
+   (if (null? x)
+       '()
+       (car x)))
 
-   (define (cdr* x)
-     (if (null? x)
-         '()
-         (cdr x)))
+ (define (cdr* x)
+   (if (null? x)
+       '()
+       (cdr x)))
 
+ (define (find-binding-at-current-match-level identifier match)
+   (assq identifier (car* match)))
+
+ (define (expand-template template match current-level variable-levels ellipsis literals)
    (cond ((syntax-pair? template)
           (if (ellipsis? (syntax-car template) ellipsis)
-              (expand-template (syntax-cadr template) match #f literals)
+              (expand-template (syntax-cadr template) match variable-levels #f literals)
               (wrap-expansion template
                               (if (followed-by-ellipsis? template ellipsis)
-                                  (append (expand-repeatedly/list (syntax-car template) (cdr* match) ellipsis literals)
-                                          (expand-template (syntax-cddr template) match ellipsis literals))
-                                  (cons (expand-template (syntax-car template) match ellipsis literals)
-                                        (expand-template (syntax-cdr template) match ellipsis literals))))))
+                                  (append (expand-repeatedly/list (syntax-car template)
+                                                                  (cdr* match)
+                                                                  (+ current-level 1)
+                                                                  variable-levels
+                                                                  ellipsis
+                                                                  literals)
+                                          (expand-template (syntax-cddr template)
+                                                           match
+                                                           current-level
+                                                           variable-levels
+                                                           ellipsis
+                                                           literals))
+                                  (cons (expand-template (syntax-car template)
+                                                         match
+                                                         current-level
+                                                         variable-levels
+                                                         ellipsis
+                                                         literals)
+                                        (expand-template (syntax-cdr template)
+                                                         match
+                                                         current-level
+                                                         variable-levels
+                                                         ellipsis
+                                                         literals))))))
          ((syntax-vector? template)
           (wrap-expansion template
-                          (list->vector (expand-template (vector->list (syntax-expression template)) match ellipsis literals))))
+                          (list->vector (expand-template (vector->list (syntax-expression template))
+                                                         match
+                                                         variable-levels
+                                                         ellipsis
+                                                         literals))))
          ((identifier? template)
-          (cond ((assq (syntax-expression template) (car* match)) => cdr)
-                (else template)))
+          (let ((id (syntax-expression template)))
+            (cond ((assq id variable-levels)
+                   => (lambda (variable-level)
+                        (when (> (cdr variable-level) current-level)
+                          (error "Not enough ellipses following template" id))
+                        (when (< (cdr variable-level) current-level)
+                          (error "Too many ellipses following template" id))
+                        (cdr (assq id (car* match)))))
+                  (else template))))
          (else template)))
 
+ (define (get-variable-names level)
+   (map car level))
+
+ (define (assign-level-to-variables level variables)
+   (map (lambda (v) (cons v level)) variables))
+
+ (define (make-variable-levels match)
+   (define (go level-index level)
+     (if (null? level)
+         '()
+         (append (assign-level-to-variables level-index (get-variable-names (car level)))
+                 (go (+ level-index 1) (cdr level)))))
+   (go 0 match))
+
  (define (expand-template* template match ellipsis literals-stx)
-   (expand-template template match (syntax->datum ellipsis) (syntax->list literals-stx))))
+   (expand-template template
+                    match
+                    0
+                    (make-variable-levels match)
+                    (syntax->datum ellipsis)
+                    (syntax->list literals-stx))))
 
 (define-syntax syntax-match*
   (lambda (stx)
