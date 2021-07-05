@@ -37,6 +37,9 @@ read_library_name(context&, ptr<port>);
 sequence_expression
 analyse_module(context&, module&, protomodule const&);
 
+void
+export_analyser(context&, module&);
+
 } // namespace insider
 
 #endif

@@ -310,7 +310,7 @@
             (reverse accum))
            (else
             (loop (match-cdr m)
-                  (cons (expand template (match-car m) ellipsis literals)
+                  (cons (expand-template template (match-car m) ellipsis literals)
                         accum))))))
 
  (define (wrap-expansion template expansion)
@@ -318,7 +318,7 @@
        (datum->syntax template expansion)
        expansion))
 
- (define (expand template match ellipsis literals)
+ (define (expand-template template match ellipsis literals)
    (define (car* x)
      (if (null? x)
          '()
@@ -331,23 +331,23 @@
 
    (cond ((syntax-pair? template)
           (if (ellipsis? (syntax-car template) ellipsis)
-              (expand (syntax-cadr template) match #f literals)
+              (expand-template (syntax-cadr template) match #f literals)
               (wrap-expansion template
                               (if (followed-by-ellipsis? template ellipsis)
                                   (append (expand-repeatedly/list (syntax-car template) (cdr* match) ellipsis literals)
-                                          (expand (syntax-cddr template) match ellipsis literals))
-                                  (cons (expand (syntax-car template) match ellipsis literals)
-                                        (expand (syntax-cdr template) match ellipsis literals))))))
+                                          (expand-template (syntax-cddr template) match ellipsis literals))
+                                  (cons (expand-template (syntax-car template) match ellipsis literals)
+                                        (expand-template (syntax-cdr template) match ellipsis literals))))))
          ((syntax-vector? template)
           (wrap-expansion template
-                          (list->vector (expand (vector->list (syntax-expression template)) match ellipsis literals))))
+                          (list->vector (expand-template (vector->list (syntax-expression template)) match ellipsis literals))))
          ((identifier? template)
           (cond ((assq (syntax-expression template) (car* match)) => cdr)
                 (else template)))
          (else template)))
 
- (define (expand* template match ellipsis literals-stx)
-   (expand template match (syntax->datum ellipsis) (syntax->list literals-stx))))
+ (define (expand-template* template match ellipsis literals-stx)
+   (expand-template template match (syntax->datum ellipsis) (syntax->list literals-stx))))
 
 (define-syntax syntax-match*
   (lambda (stx)
@@ -391,7 +391,7 @@
                  (let ((match (match-clause* (syntax-cdr (syntax-car pattern)) (syntax-cdr value)
                                              #'#,ellipsis #'#,literals)))
                    (if match
-                       (expand* (syntax-car template) match #'#,ellipsis #'#,literals)
+                       (expand-template* (syntax-car template) match #'#,ellipsis #'#,literals)
                        (loop (syntax-cdr pattern) (syntax-cdr template))))))))
       (_
        #'(syntax-error "Invalid syntax-rules syntax")))))

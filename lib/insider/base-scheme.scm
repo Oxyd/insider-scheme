@@ -21,6 +21,7 @@
         type eq? eqv? equal? pair? symbol? identifier? null? not when unless cond else => case
         do or and
         plain-procedure? native-procedure? closure? procedure? scheme-procedure?
+        expand full-expand
         make-record-type make-record-instance record-set! record-ref record-type)
 
 (begin-for-syntax
@@ -342,3 +343,11 @@
   (or (null? x)
       (and (syntax? x)
            (null? (syntax-expression x)))))
+
+(define (full-expand stx)
+  (let* ((stx* (expand stx))
+         (e (syntax-expression stx*)))
+    (cond ((pair? e)
+           (datum->syntax stx (map full-expand (syntax->list stx*))))
+          (else
+           (expand stx)))))

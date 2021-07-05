@@ -1,5 +1,6 @@
 #include "internal_module.hpp"
 
+#include "analyser.hpp"
 #include "converters.hpp"
 #include "io.hpp"
 #include "port.hpp"
@@ -24,6 +25,7 @@ make_internal_module(context& ctx) {
   export_numeric(ctx, result);
   export_vm(ctx, result);
   export_records(ctx, result);
+  export_analyser(ctx, result);
 
   define_procedure(
     ctx, "write-simple", result, true,

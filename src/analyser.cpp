@@ -1659,4 +1659,9 @@ analyse_module(context& ctx, module& m, protomodule const& pm) {
   return result;
 }
 
+void
+export_analyser(context& ctx, module& result) {
+  define_procedure(ctx, "expand", result, true, expand);
+}
+
 } // namespace insider
