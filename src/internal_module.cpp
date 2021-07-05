@@ -3,6 +3,7 @@
 #include "converters.hpp"
 #include "io.hpp"
 #include "port.hpp"
+#include "records.hpp"
 #include "vm.hpp"
 
 namespace insider {
@@ -22,6 +23,7 @@ make_internal_module(context& ctx) {
 
   export_numeric(ctx, result);
   export_vm(ctx, result);
+  export_records(ctx, result);
 
   define_procedure(
     ctx, "write-simple", result, true,

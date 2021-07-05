@@ -39,6 +39,7 @@ set(scheme_sources
   src/numeric.cpp
   src/object.cpp
   src/port.cpp
+  src/records.cpp
   src/scope.cpp
   src/source_location.cpp
   src/syntax.cpp
@@ -56,6 +57,7 @@ set(test_sources
   test/test_modules.cpp
   test/test_numeric.cpp
   test/test_procedures.cpp
+  test/test_records.cpp
   test/test_types.cpp
   )
 

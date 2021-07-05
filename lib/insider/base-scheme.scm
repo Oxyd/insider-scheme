@@ -20,7 +20,8 @@
         syntax->list syntax->datum datum->syntax free-identifier=? bound-identifier=? unwrap-syntax
         type eq? eqv? equal? pair? symbol? identifier? null? not when unless cond else => case
         do or and
-        plain-procedure? native-procedure? closure? procedure? scheme-procedure?)
+        plain-procedure? native-procedure? closure? procedure? scheme-procedure?
+        make-record-type make-record-instance record-set! record-ref record-type)
 
 (begin-for-syntax
  (%define pair?
