@@ -646,15 +646,15 @@ parse_if(parsing_context& pc, ptr<syntax> stx) {
     throw syntax_error(stx, "Invalid if syntax");
   ptr<pair> list = assume<pair>(datum);
 
-  ptr<syntax> test_expr = expect<syntax>(cadr(list));
-  ptr<syntax> then_expr = expect<syntax>(caddr(list));
-  ptr<syntax> else_expr = nullptr;
+  tracked_ptr<syntax> test_expr = track(pc.ctx, expect<syntax>(cadr(list)));
+  tracked_ptr<syntax> then_expr = track(pc.ctx, expect<syntax>(caddr(list)));
+  tracked_ptr<syntax> else_expr;
   if (cdddr(list) != pc.ctx.constants->null.get())
-    else_expr = expect<syntax>(cadddr(list));
+    else_expr = track(pc.ctx, expect<syntax>(cadddr(list)));
 
-  return make_expression<if_expression>(parse(pc, test_expr),
-                                        parse(pc, then_expr),
-                                        else_expr ? parse(pc, else_expr) : nullptr);
+  return make_expression<if_expression>(parse(pc, test_expr.get()),
+                                        parse(pc, then_expr.get()),
+                                        else_expr ? parse(pc, else_expr.get()) : nullptr);
 }
 
 static std::unique_ptr<expression>
