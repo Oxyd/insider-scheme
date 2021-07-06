@@ -66,7 +66,6 @@ context::context()
     {constants->quasiquote,        "quasiquote"},
     {constants->unquote,           "unquote"},
     {constants->unquote_splicing,  "unquote-splicing"},
-    {constants->expand_quote,      "expand-quote"},
     {constants->syntax,            "syntax"},
     {constants->quasisyntax,       "quasisyntax"},
     {constants->unsyntax,          "unsyntax"},

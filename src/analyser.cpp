@@ -1195,8 +1195,6 @@ parse(parsing_context& pc, ptr<syntax> s) {
         return parse_quasiquote(pc, stx);
       else if (form == pc.ctx.constants->quasisyntax.get())
         return parse_quasisyntax(pc, stx);
-      else if (form == pc.ctx.constants->expand_quote.get())
-        return make_expression<literal_expression>(expand(pc.ctx, track(pc.ctx, syntax_cadr(stx)))); // GC
       else if (form == pc.ctx.constants->begin_for_syntax.get())
         throw syntax_error{stx, "begin-for-syntax not at top level"};
       else if (form == pc.ctx.constants->syntax_trap.get())

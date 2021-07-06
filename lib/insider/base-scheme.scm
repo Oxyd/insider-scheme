@@ -6,7 +6,7 @@
 
 (export define let let* let-syntax letrec-syntax set! lambda if box unbox box-set!
         define-syntax begin begin-for-syntax
-        quote quasiquote unquote unquote-splicing expand-quote syntax-trap syntax-error error
+        quote quasiquote unquote unquote-splicing syntax-trap syntax-error error
         + - * / = < > >= <= gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         set-verbose-collection!
         write-simple display newline append list->vector vector->list vector-append
