@@ -12,7 +12,7 @@
         write-simple display newline append list->vector vector->list vector-append
         vector vector? make-vector vector-length vector-ref vector-set!
         cons car caar caadr cdr cadr cdar caddr cadddr cddr cdddr cddddr set-car! set-cdr!
-        assq assv assoc memq memv member length any
+        assq assv assoc memq memv member length any all
         make-string string-length string-append number->string datum->string symbol->string
         list reverse map filter identity
         syntax quasisyntax unsyntax unsyntax-splicing syntax?
@@ -315,6 +315,13 @@
         #f
         (let ((value (pred (car elem))))
           (or value (loop (cdr elem)))))))
+
+(define (all pred lst)
+  (let loop ((elem lst))
+    (if (null? elem)
+        #t
+        (and (pred (car elem))
+             (loop (cdr elem))))))
 
 (define (plain-procedure? x)
   (eq? (type x) 'insider::procedure))
