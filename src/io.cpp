@@ -43,10 +43,10 @@ namespace {
   struct backquote { };
   struct comma { };
   struct comma_at { };
-  struct hash_quote { };
-  struct hash_backquote { };
-  struct hash_comma { };
-  struct hash_comma_at { };
+  struct octothorpe_quote { };
+  struct octothorpe_backquote { };
+  struct octothorpe_comma { };
+  struct octothorpe_comma_at { };
 
   struct token {
     using value_type = std::variant<
@@ -63,10 +63,10 @@ namespace {
       backquote,
       comma,
       comma_at,
-      hash_quote,
-      hash_backquote,
-      hash_comma,
-      hash_comma_at
+      octothorpe_quote,
+      octothorpe_backquote,
+      octothorpe_comma,
+      octothorpe_comma_at
     >;
 
     value_type      value;
@@ -265,6 +265,104 @@ read_string_literal(context& ctx, input_stream& stream) {
 }
 
 static token
+read_token_after_comma(input_stream& stream, source_location loc) {
+  std::optional<char> c = stream.peek_char();
+  if (c && *c == '@') {
+    stream.read_char();
+    return {comma_at{}, loc};
+  }
+  else
+    return {comma{}, loc};
+}
+
+static token
+read_token_after_period(context& ctx, input_stream& stream, source_location loc) {
+  std::optional<char> c = stream.peek_char();
+  if (!c)
+    throw parse_error{"Unexpected end of input", stream.current_location()};
+
+  if (delimiter(*c))
+    return {dot{}, loc};
+  else {
+    stream.put_back('.');
+
+    if (digit(*c))
+      return read_numeric_literal(ctx, stream);
+    else
+      return read_identifier(stream);
+  }
+}
+
+static token
+read_identifier_after_plus_or_minus(context& ctx, input_stream& stream, source_location loc) {
+  token id = read_identifier(stream);
+  std::string const& id_value = std::get<identifier>(id.value).value;
+
+  // Infinities and NaNs look like identifiers, but they're numbers.
+
+  std::string value;
+  std::locale c_locale{"C"};
+  std::transform(id_value.begin(), id_value.end(), std::back_inserter(value),
+                 [&] (char c) { return std::tolower(c, c_locale); });
+
+  if (value == "+inf.0")
+    return {generic_literal{make<floating_point>(ctx, floating_point::positive_infinity)}, loc};
+  else if (value == "-inf.0")
+    return {generic_literal{make<floating_point>(ctx, floating_point::negative_infinity)}, loc};
+  else if (value == "+nan.0")
+    return {generic_literal{make<floating_point>(ctx, floating_point::positive_nan)}, loc};
+  else if (value == "-nan.0")
+    return {generic_literal{make<floating_point>(ctx, floating_point::negative_nan)}, loc};
+
+  return id;
+}
+
+static token
+read_token_after_plus_or_minus(context& ctx, char initial, input_stream& stream, source_location loc) {
+  // This can begin either a number (like -2) or a symbol (like + -- the
+  // addition function).
+
+  std::optional<char> c = stream.peek_char();
+  if (!c)
+    return {identifier{std::string(1, initial)}, loc};
+
+  stream.put_back(initial);
+  if (digit(*c) || *c == '.')
+    return read_numeric_literal(ctx, stream);
+  else
+    return read_identifier_after_plus_or_minus(ctx, stream, loc);
+}
+
+static token
+read_token_after_octothorpe(context& ctx, input_stream& stream, source_location loc) {
+  std::optional<char> c = stream.peek_char();
+  if (!c)
+    throw parse_error{"Unexpected end of input", stream.current_location()};
+  else if (*c == '\'') {
+    stream.read_char();
+    return {octothorpe_quote{}, loc};
+  } else if (*c == '`') {
+    stream.read_char();
+    return {octothorpe_backquote{}, loc};
+  } else if (*c == ',') {
+    stream.read_char();
+    c = stream.peek_char();
+    if (c == '@') {
+      stream.read_char();
+      return {octothorpe_comma_at{}, loc};
+    } else
+      return {octothorpe_comma{}, loc};
+  } else if (*c == '$') {
+    stream.put_back('#');
+    return read_identifier(stream);
+  }
+  else if (*c == '(')
+    return {hash_left_paren{}, loc};
+  else
+    return read_special_literal(ctx, stream);
+}
+
+static token
 read_token(context& ctx, input_stream& stream) {
   skip_whitespace(stream);
 
@@ -273,109 +371,26 @@ read_token(context& ctx, input_stream& stream) {
   if (!c)
     return {end{}, loc};
 
-  if (*c == '(') {
+  if (*c == '(')
     return {left_paren{}, loc};
-  } else if (*c == ')') {
+  else if (*c == ')')
     return {right_paren{}, loc};
-  }
-  else if (*c == '\'') {
+  else if (*c == '\'')
     return {quote{}, loc};
-  }
-  else if (*c == '`') {
+  else if (*c == '`')
     return {backquote{}, loc};
-  }
-  else if (*c == ',') {
-    c = stream.peek_char();
-    if (c && *c == '@') {
-      stream.read_char();
-      return {comma_at{}, loc};
-    }
-    else
-      return {comma{}, loc};
-  }
-  else if (*c == '.') {
-    c = stream.peek_char();
-    if (!c)
-      throw parse_error{"Unexpected end of input", stream.current_location()};
-
-    if (delimiter(*c))
-      return {dot{}, loc};
-    else {
-      stream.put_back('.');
-
-      if (digit(*c))
-        return read_numeric_literal(ctx, stream);
-      else
-        return read_identifier(stream);
-    }
-  }
-  else if (*c == '+' || *c == '-') {
-    // This can begin either a number (like -2) or a symbol (like + -- the
-    // addition function).
-
-    char initial = *c;
-
-    c = stream.peek_char();
-    if (!c)
-      return {identifier{std::string(1, initial)}, loc};
-
-    stream.put_back(initial);
-    if (digit(*c) || *c == '.')
-      return read_numeric_literal(ctx, stream);
-    else {
-      token id = read_identifier(stream);
-      std::string const& id_value = std::get<identifier>(id.value).value;
-
-      // Infinities and NaNs look like identifiers, but they're numbers.
-
-      std::string value;
-      std::locale c_locale{"C"};
-      std::transform(id_value.begin(), id_value.end(), std::back_inserter(value),
-                     [&] (char c) { return std::tolower(c, c_locale); });
-
-      if (value == "+inf.0")
-        return {generic_literal{make<floating_point>(ctx, floating_point::positive_infinity)}, loc};
-      else if (value == "-inf.0")
-        return {generic_literal{make<floating_point>(ctx, floating_point::negative_infinity)}, loc};
-      else if (value == "+nan.0")
-        return {generic_literal{make<floating_point>(ctx, floating_point::positive_nan)}, loc};
-      else if (value == "-nan.0")
-        return {generic_literal{make<floating_point>(ctx, floating_point::negative_nan)}, loc};
-
-      return id;
-    }
-  }
+  else if (*c == ',')
+    return read_token_after_comma(stream, loc);
+  else if (*c == '.')
+    return read_token_after_period(ctx, stream, loc);
+  else if (*c == '+' || *c == '-')
+    return read_token_after_plus_or_minus(ctx, *c, stream, loc);
   else if (digit(*c)) {
     stream.put_back(*c);
     return read_numeric_literal(ctx, stream);
   }
-  else if (*c == '#') {
-    c = stream.peek_char();
-    if (!c)
-      throw parse_error{"Unexpected end of input", stream.current_location()};
-    else if (*c == '\'') {
-      stream.read_char();
-      return {hash_quote{}, loc};
-    } else if (*c == '`') {
-      stream.read_char();
-      return {hash_backquote{}, loc};
-    } else if (*c == ',') {
-      stream.read_char();
-      c = stream.peek_char();
-      if (c == '@') {
-        stream.read_char();
-        return {hash_comma_at{}, loc};
-      } else
-        return {hash_comma{}, loc};
-    } else if (*c == '$') {
-      stream.put_back('#');
-      return read_identifier(stream);
-    }
-    else if (*c == '(')
-      return {hash_left_paren{}, loc};
-    else
-      return read_special_literal(ctx, stream);
-  }
+  else if (*c == '#')
+    return read_token_after_octothorpe(ctx, stream, loc);
   else if (*c == '"')
     return read_string_literal(ctx, stream);
   else {
@@ -487,19 +502,19 @@ read(context& ctx, token first_token, input_stream& stream, bool read_syntax) {
     return read_vector(ctx, stream, read_syntax);
   else if (std::holds_alternative<quote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "'", "quote", read_syntax);
-  else if (std::holds_alternative<hash_quote>(first_token.value))
+  else if (std::holds_alternative<octothorpe_quote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#'", "syntax", read_syntax);
   else if (std::holds_alternative<backquote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "`", "quasiquote", read_syntax);
-  else if (std::holds_alternative<hash_backquote>(first_token.value))
+  else if (std::holds_alternative<octothorpe_backquote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#`", "quasisyntax", read_syntax);
   else if (std::holds_alternative<comma>(first_token.value))
     return read_shortcut(ctx, stream, first_token, ",", "unquote", read_syntax);
-  else if (std::holds_alternative<hash_comma>(first_token.value))
+  else if (std::holds_alternative<octothorpe_comma>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#,", "unsyntax", read_syntax);
   else if (std::holds_alternative<comma_at>(first_token.value))
     return read_shortcut(ctx, stream, first_token, ",@", "unquote-splicing", read_syntax);
-  else if (std::holds_alternative<hash_comma_at>(first_token.value))
+  else if (std::holds_alternative<octothorpe_comma_at>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#,@", "unsyntax-splicing", read_syntax);
   else if (generic_literal* lit = std::get_if<generic_literal>(&first_token.value))
     return lit->value;
