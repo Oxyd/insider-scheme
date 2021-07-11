@@ -19,9 +19,6 @@ public:
   std::size_t
   num_fields() const { return num_fields_; }
 
-  std::size_t
-  hash() const { return 0; }
-
 private:
   std::size_t num_fields_;
 };
@@ -50,9 +47,6 @@ public:
 
   std::size_t
   size() const;
-
-  std::size_t
-  hash() const { return type_->hash(); }
 
 private:
   ptr<record_type> type_;

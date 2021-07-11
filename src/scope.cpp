@@ -109,11 +109,6 @@ scope::visit_members(member_visitor const& f) {
   }
 }
 
-std::size_t
-scope::hash() const {
-  return bindings_.size();
-}
-
 bool
 scope::is_redefinition(ptr<syntax> id, value_type const& intended_value) const {
   for (binding const& b : bindings_)

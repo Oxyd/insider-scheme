@@ -14,9 +14,6 @@ namespace insider {
 class null_type : public leaf_object<null_type> {
 public:
   static constexpr char const* scheme_name = "insider::null_type";
-
-  std::size_t
-  hash() const { return 0; }
 };
 
 // The empty value. Like null_type, there should only be exactly one instance
@@ -25,18 +22,12 @@ public:
 class void_type : public leaf_object<void_type> {
 public:
   static constexpr char const* scheme_name = "insider::void_type";
-
-  std::size_t
-  hash() const { return 0; }
 };
 
 // Dummy value for identifying parameters.
 class parameter_tag : public leaf_object<parameter_tag> {
 public:
   static constexpr char const* scheme_name = "insider::parameter_tag";
-
-  std::size_t
-  hash() const { return 0; }
 };
 
 // Dummy value used to represent core forms.
@@ -48,18 +39,12 @@ public:
 
   explicit
   core_form_type(std::string n) : name{std::move(n)} { }
-
-  std::size_t
-  hash() const { return 0; }
 };
 
 // Dummy value used for implementing tail-calls from native procedures.
 class tail_call_tag_type : public leaf_object<tail_call_tag_type> {
 public:
   static constexpr char const* scheme_name = "insider::tail_call_tag_type";
-
-  std::size_t
-  hash() const { return 0; }
 };
 
 // A boolean value.
@@ -73,9 +58,6 @@ public:
   bool
   value() const { return value_; }
 
-  std::size_t
-  hash() const { return value_; }
-
 private:
   bool value_;
 };
@@ -84,18 +66,19 @@ private:
 class character : public leaf_object<character> {
 public:
   static constexpr char const* scheme_name = "insider::character";
+  using value_type = char;
 
   explicit
-  character(char c) : value_{c} { }
+  character(value_type c) : value_{c} { }
 
-  char
+  value_type
   value() const { return value_; }
 
   std::size_t
-  hash() const { return value_; }
+  hash() const { return std::hash<value_type>{}(value_); }
 
 private:
-  char value_;
+  value_type value_;
 };
 
 // Fixed-length string. TODO: Support Unicode.
@@ -120,11 +103,11 @@ public:
   std::size_t
   size() const { return size_; }
 
-  void
-  visit_members(member_visitor const&) { }
-
   std::size_t
   hash() const;
+
+  void
+  visit_members(member_visitor const&) { }
 
 private:
   std::size_t size_;
@@ -155,9 +138,6 @@ public:
 
   void
   visit_members(member_visitor const& f) { f(car_); f(cdr_); }
-
-  std::size_t
-  hash() const { return 3 * insider::hash(car_) ^ insider::hash(cdr_); }
 
 private:
   ptr<> car_;
@@ -273,9 +253,6 @@ public:
   std::size_t
   size() const { return size_; }
 
-  std::size_t
-  hash() const;
-
 private:
   std::size_t size_;
 };
@@ -320,9 +297,6 @@ public:
   std::string
   value() const { return value_; }
 
-  std::size_t
-  hash() const { return std::hash<std::string>{}(value_); }
-
 private:
   std::string value_;
 };
@@ -343,9 +317,6 @@ public:
 
   void
   visit_members(member_visitor const& f) { f(value_); }
-
-  std::size_t
-  hash() const { return insider::hash(value_); }
 
 private:
   ptr<> value_;
@@ -369,9 +340,6 @@ public:
 
   procedure(integer::value_type entry_pc, std::size_t bytecode_size, unsigned locals_size,
             unsigned min_args, bool has_rest = false, std::optional<std::string> name = {});
-
-  std::size_t
-  hash() const;
 };
 
 ptr<procedure>
@@ -407,9 +375,6 @@ public:
   void
   visit_members(member_visitor const&);
 
-  std::size_t
-  hash() const { return insider::hash(procedure_) ^ size_; }
-
 private:
   ptr<insider::procedure> procedure_;
   std::size_t size_;
@@ -431,11 +396,6 @@ struct native_procedure : public leaf_object<native_procedure> {
     : target{std::move(f)}
     , name{name}
   { }
-
-  std::size_t
-  hash() const {
-    return std::hash<std::string_view>{}(name);
-  }
 };
 
 // Captured part of the call stack.
@@ -450,9 +410,6 @@ public:
 
   void
   visit_members(member_visitor const& f) { f(frame); }
-
-  std::size_t
-  hash() const { return frame->hash(); }
 };
 
 template <typename T>
@@ -474,7 +431,7 @@ ptr<>
 expect_callable(ptr<> x);
 
 // Wrapper for C++ values that don't contain references to any Scheme objects.
-template <typename T, typename Hash = std::hash<T>>
+template <typename T>
 class opaque_value : public leaf_object<opaque_value<T>> {
 public:
   static constexpr char const* scheme_name = "insider::opaque_value";
@@ -486,11 +443,6 @@ public:
   opaque_value(Args&&... args)
     : value(std::forward<Args>(args)...)
   { }
-
-  std::size_t
-  hash() const {
-    return Hash{}(value);
-  }
 };
 
 class uncaught_exception : public composite_object<uncaught_exception> {
@@ -506,9 +458,6 @@ public:
 
   void
   visit_members(member_visitor const& f);
-
-  std::size_t
-  hash() const;
 };
 
 } // namespace insider

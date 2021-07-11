@@ -331,6 +331,8 @@ private:
   unsigned disable_level_ = 0;
   std::optional<generation> requested_collection_level_;
 
+  hash_generator next_hash_;
+
   // Allocate storage of the given payload size for an object of the given
   // type. size does not include the size of the header. The object is not
   // constructed in the storage.

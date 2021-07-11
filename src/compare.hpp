@@ -9,12 +9,21 @@ namespace insider {
 
 class context;
 
+// Get the object's hash value. Two distinct objects may have different hash
+// values, even if they both represent the same value. I.e. this hash
+// corresponds to the eq? predicate.
 std::size_t
 hash(ptr<> x);
 
-struct generic_ptr_hash {
+// Get the object's hash value that is acceptable for the eqv?
+// predicate. I.e. if two values are eqv? to each other, they have the same
+// hasheqv value.
+std::size_t
+hasheqv(ptr<>);
+
+struct generic_ptr_hasheqv {
   std::size_t
-  operator () (tracked_ptr<> const& p) const { return hash(p.get()); }
+  operator () (tracked_ptr<> const& p) const { return hasheqv(p.get()); }
 };
 
 bool

@@ -33,9 +33,6 @@ public:
   [[noreturn]] void
   rethrow() const { std::rethrow_exception(exception_); }
 
-  std::size_t
-  hash() const  { return 0; }
-
 private:
   std::exception_ptr exception_;
 };

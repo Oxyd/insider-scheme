@@ -38,9 +38,6 @@ public:
 
   void
   visit_members(member_visitor const& f);
-
-  std::size_t
-  hash() const { return 0; }
 };
 
 class stack_frame : public dynamic_size_object<stack_frame, ptr<>, true> {
@@ -94,9 +91,6 @@ public:
   void
   resize(std::size_t new_num_locals) { num_locals_ = new_num_locals; }
 
-  std::size_t
-  hash() const { return 0; }
-
 private:
   std::size_t num_locals_;
 };
@@ -122,7 +116,7 @@ public:
     std::byte* storage = top_;
     top_ += size;
 
-    init_object_header(storage, stack_frame::type_index, generation::stack);
+    init_object_header(storage, stack_frame::type_index, next_hash_(), generation::stack);
     return new (storage + sizeof(word_type)) stack_frame(num_locals, callable, parent, previous_pc);
   }
 
@@ -170,6 +164,7 @@ private:
   free_store&          store_;
   page_allocator::page storage_;
   std::byte*           top_;
+  hash_generator       next_hash_;
 
   std::size_t
   used_size() const { return top_ - storage_.get(); }

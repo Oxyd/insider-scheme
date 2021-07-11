@@ -75,9 +75,6 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  std::size_t
-  hash() const;
-
 private:
   std::vector<binding> bindings_;
   std::string          description_;

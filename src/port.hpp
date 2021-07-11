@@ -44,9 +44,6 @@ public:
   std::string const&
   name() const { return name_; }
 
-  std::size_t
-  hash() const;
-
 private:
   struct string_buffer {
     std::string data;

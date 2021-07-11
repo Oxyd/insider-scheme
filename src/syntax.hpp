@@ -72,9 +72,6 @@ public:
   void
   visit_members(member_visitor const&);
 
-  std::size_t
-  hash() const { return insider::hash(expression_) ^ std::hash<std::string>{}(format_location(location_)); }
-
 private:
   ptr<>           expression_;
   source_location location_;
@@ -168,9 +165,6 @@ public:
 
   void
   visit_members(member_visitor const&);
-
-  std::size_t
-  hash() const { return insider::hash(callable_); }
 
 private:
   insider::ptr<> callable_;

@@ -122,15 +122,6 @@ port::rewind() {
     std::rewind(std::get<FILE*>(buffer_));
 }
 
-std::size_t
-port::hash() const {
-  if (FILE* const* fp = std::get_if<FILE*>(&buffer_))
-    return reinterpret_cast<std::size_t>(*fp);
-
-  string_buffer const& sb = std::get<string_buffer>(buffer_);
-  return std::hash<std::string>{}(sb.data) ^ sb.read_index;
-}
-
 void
 port::destroy() {
   if (should_close_)

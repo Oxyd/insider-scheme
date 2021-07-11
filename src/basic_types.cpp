@@ -178,16 +178,6 @@ vector::set(free_store& store, std::size_t i, ptr<> value) {
   store.notify_arc(this, value);
 }
 
-std::size_t
-vector::hash() const {
-  std::size_t result = 0;
-
-  for (std::size_t i = 0; i < size_; ++i)
-    result = insider::hash(storage_element(i)) + (result << 6) + (result << 16) - result;
-
-  return result;
-}
-
 ptr<vector>
 make_vector(context& ctx, std::vector<ptr<>> const& elems) {
   auto result = make<vector>(ctx, ctx, elems.size());
@@ -262,11 +252,6 @@ procedure::procedure(integer::value_type entry_pc, std::size_t bytecode_size, un
   , name{std::move(name)}
 { }
 
-std::size_t
-procedure::hash() const {
-  return std::hash<std::uint64_t>{}(entry_pc);
-}
-
 ptr<procedure>
 make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
                unsigned min_args, bool has_rest, std::optional<std::string> name) {
@@ -331,11 +316,6 @@ transformer::visit_members(member_visitor const& f) {
 void
 uncaught_exception::visit_members(member_visitor const& f) {
   f(inner_exception);
-}
-
-std::size_t
-uncaught_exception::hash() const {
-  return insider::hash(inner_exception);
 }
 
 } // namespace insider

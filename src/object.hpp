@@ -22,7 +22,6 @@ struct type_descriptor {
   void (*destroy)(ptr<>);
   ptr<> (*move)(ptr<>, std::byte*);
   void (*visit_members)(ptr<>, member_visitor const&);
-  std::size_t (*hash)(ptr<>);
 
   bool constant_size;
   std::size_t size = 0;
@@ -38,17 +37,23 @@ public:
 
 // Object header word:
 //
-// Bits:   63 ..  5    ..      3   ..   1       0
-// Fields: | type | generation | colour | alive |
+// Bits:   63    ..    32 ..  5    ..      3   ..   1       0
+// Fields: | hash code | type | generation | colour | alive |
 
 static constexpr word_type alive_shift = 0;
 static constexpr word_type color_shift = 1;
 static constexpr word_type generation_shift = 3;
 static constexpr word_type type_shift = 5;
+static constexpr word_type hash_shift = 32;
+static constexpr word_type hash_width = 32;
 
 static constexpr word_type alive_bit = 1 << alive_shift;
 static constexpr word_type color_bits = (1 << color_shift) | (1 << (color_shift + 1));
 static constexpr word_type generation_bits = (1 << generation_shift) | (1 << (generation_shift + 1));
+static constexpr word_type type_bits = static_cast<uint32_t>(-1) & ~((1 << type_shift) - 1);
+
+inline word_type
+clamp_hash(word_type h) { return h & ((static_cast<word_type>(1) << hash_width) - 1); }
 
 inline std::vector<type_descriptor>&
 types() {
@@ -74,7 +79,7 @@ header_word(ptr<> o) {
 }
 
 inline word_type
-type_index(word_type header) { return header >> type_shift; }
+type_index(word_type header) { return (header & type_bits) >> type_shift; }
 
 inline word_type
 object_type_index(ptr<> o) { return type_index(header_word(o)); }
@@ -87,6 +92,9 @@ object_type(word_type header) { return types()[type_index(header)]; }
 
 inline type_descriptor const&
 object_type(ptr<> o) { return object_type(header_word(o)); }
+
+inline word_type
+object_hash(ptr<> o) { return header_word(o) >> hash_shift; }
 
 inline word_type
 tagged_payload(ptr<> o) {
@@ -161,12 +169,6 @@ namespace detail {
     static_cast<T*>(o.value())->visit_members(f);
   }
 
-  template <typename T>
-  std::size_t
-  hash(ptr<> o) {
-    return static_cast<T const*>(o.value())->hash();
-  }
-
   template <typename T, typename U>
   std::size_t
   size(ptr<> o) {
@@ -186,7 +188,6 @@ word_type const leaf_object<Derived>::type_index = new_type(type_descriptor{
   detail::destroy<Derived>,
   detail::move<Derived>,
   [] (ptr<>, member_visitor const&) { },
-  detail::hash<Derived>,
   true,
   detail::round_to_words(sizeof(Derived)),
   nullptr
@@ -204,7 +205,6 @@ word_type const composite_object<Derived>::type_index = new_type(type_descriptor
   detail::destroy<Derived>,
   detail::move<Derived>,
   detail::visit_members<Derived>,
-  detail::hash<Derived>,
   true,
   detail::round_to_words(sizeof(Derived)),
   nullptr
@@ -223,7 +223,6 @@ word_type const composite_root_object<Derived>::type_index = new_type(type_descr
   detail::destroy<Derived>,
   detail::move<Derived>,
   detail::visit_members<Derived>,
-  detail::hash<Derived>,
   true,
   detail::round_to_words(sizeof(Derived)),
   nullptr,
@@ -255,7 +254,6 @@ word_type const dynamic_size_object<Derived, T, PermanentRoot>::type_index = new
   detail::destroy<Derived>,
   detail::move<Derived>,
   detail::visit_members<Derived>,
-  detail::hash<Derived>,
   false,
   0,
   detail::size<Derived, T>,
@@ -276,10 +274,11 @@ enum class generation : word_type {
 };
 
 inline void
-init_object_header(std::byte* storage, word_type type, generation gen = generation::nursery_1) {
+init_object_header(std::byte* storage, word_type type, word_type hash, generation gen = generation::nursery_1) {
   new (storage) word_type((type << type_shift)
                           | alive_bit
-                          | (static_cast<word_type>(gen) << generation_shift));
+                          | (static_cast<word_type>(gen) << generation_shift)
+                          | (hash << hash_shift));
 }
 
 namespace detail {
@@ -294,6 +293,15 @@ object_generation(ptr<> o) { return detail::get_generation(header_word(o)); }
 
 generation
 object_generation(ptr<>);
+
+class hash_generator {
+public:
+  word_type
+  operator () () { return clamp_hash(next_hash_++); }
+
+private:
+  word_type next_hash_ = 0;
+};
 
 } // namespace insider
 

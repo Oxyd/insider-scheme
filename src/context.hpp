@@ -15,7 +15,7 @@
 namespace insider {
 
 template <typename Value>
-using eqv_unordered_map = std::unordered_map<tracked_ptr<>, Value, generic_ptr_hash, eqv_compare>;
+using eqv_unordered_map = std::unordered_map<tracked_ptr<>, Value, generic_ptr_hasheqv, eqv_compare>;
 
 class parameter_tag;
 
@@ -32,9 +32,6 @@ public:
 
   void
   visit_members(member_visitor const&);
-
-  std::size_t
-  hash() const { return 0; }
 
 private:
   std::vector<std::tuple<ptr<parameter_tag>, ptr<>>> values_;

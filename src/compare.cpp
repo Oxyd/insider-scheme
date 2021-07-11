@@ -12,7 +12,25 @@ hash(ptr<> x) {
   if (auto i = match<integer>(x))
     return integer_hash(*i);
   else
-    return object_type(x).hash(x);
+    return object_hash(x);
+}
+
+std::size_t
+hasheqv(ptr<> x) {
+  if (auto i = match<integer>(x))
+    return integer_hash(*i);
+  else if (auto bi = match<big_integer>(x))
+    return bi->hash();
+  else if (auto f = match<fraction>(x))
+    return f->hash();
+  else if (auto fp = match<floating_point>(x))
+    return fp->hash();
+  else if (auto c = match<character>(x))
+    return c->hash();
+  else if (auto s = match<string>(x))
+    return s->hash();
+  else
+    return object_hash(x);
 }
 
 bool
@@ -31,6 +49,9 @@ eqv(context& ctx, ptr<> x, ptr<> y) {
 
   if (auto lhs = match<character>(x))
     return lhs->value() == assume<character>(x)->value();
+
+  if (is<string>(x) && is<string>(y))
+    return assume<string>(x)->value() == assume<string>(y)->value();
 
   return false;
 }

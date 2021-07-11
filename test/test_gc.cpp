@@ -19,9 +19,6 @@ namespace {
       if (alive)
         *alive = false;
     }
-
-    std::size_t
-    hash() const { return 0; }
   };
 }
 
@@ -74,9 +71,6 @@ struct ccc : composite_object<ccc> {
   visit_members(member_visitor const& f) {
     f(ref);
   }
-
-  std::size_t
-  hash() const { return 0; }
 };
 
 struct bbb : composite_object<bbb> {
@@ -112,9 +106,6 @@ struct bbb : composite_object<bbb> {
     child_ = new_child;
     fs.notify_arc(this, new_child);
   }
-
-  std::size_t
-  hash() const { return 0; }
 
 private:
   ptr<bbb> child_ = nullptr;
@@ -180,4 +171,30 @@ TEST_F(gc, weak_ptr) {
 
   tracked_ptr<aaa> b = w.lock();
   EXPECT_FALSE(b);
+}
+
+TEST_F(gc, distinct_objects_have_distinct_hashes) {
+  auto a = make<character>(ctx, 'a');
+  auto b = make<character>(ctx, 'a');
+  EXPECT_NE(object_hash(a), object_hash(b));
+}
+
+TEST_F(gc, objects_retain_hash_values_through_gc) {
+  auto a = make_tracked<character>(ctx, 'a');
+  auto b = make_tracked<character>(ctx, 'b');
+
+  void* old_a_addr = a.get().value();
+  void* old_b_addr = b.get().value();
+  word_type old_a_hash = object_hash(a.get());
+  word_type old_b_hash = object_hash(b.get());
+
+  ctx.store.collect_garbage(true);
+
+  void* new_a_addr = a.get().value();
+  void* new_b_addr = b.get().value();
+
+  EXPECT_NE(old_a_addr, new_a_addr);
+  EXPECT_NE(old_b_addr, new_b_addr);
+  EXPECT_EQ(object_hash(a.get()), old_a_hash);
+  EXPECT_EQ(object_hash(b.get()), old_b_hash);
 }

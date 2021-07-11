@@ -182,7 +182,7 @@ move_object(ptr<> o, dense_space& to) {
   std::size_t size = sizeof(word_type) + object_size(o);
   std::byte* storage = to.allocate(size);
 
-  init_object_header(storage, object_type_index(o));
+  init_object_header(storage, object_type_index(o), object_hash(o));
   return t.move(o, storage + sizeof(word_type));
 }
 
@@ -547,7 +547,7 @@ free_store::allocate_object(std::size_t size, word_type type) {
 
   check_nursery_size();
 
-  init_object_header(storage, type, generation::nursery_1);
+  init_object_header(storage, type, next_hash_(), generation::nursery_1);
   std::byte* object_storage = storage + sizeof(word_type);
   return object_storage;
 }
