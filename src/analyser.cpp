@@ -1639,7 +1639,7 @@ read_library_name(context& ctx, ptr<port> in) {
 
     return {};
   }
-  catch (parse_error const&) {
+  catch (read_error const&) {
     // The file probably isn't a library at all. That is not an error.
     return {};
   }

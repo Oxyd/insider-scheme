@@ -86,8 +86,8 @@ namespace {
   };
 } // anonymous namespace
 
-parse_error::parse_error(std::string const& message, source_location const& loc)
-  : std::runtime_error{fmt::format("{}: Parse error: {}", format_location(loc), message)}
+read_error::read_error(std::string const& message, source_location const& loc)
+  : std::runtime_error{fmt::format("{}: Read error: {}", format_location(loc), message)}
 { }
 
 static bool
@@ -170,7 +170,7 @@ read_character(context& ctx, input_stream& stream) {
     else if (auto it = character_names.find(literal); it != character_names.end())
       return {generic_literal{make<character>(ctx, it->second)}, loc};
     else
-      throw parse_error{fmt::format("Unknown character literal #\\{}", literal), loc};
+      throw read_error{fmt::format("Unknown character literal #\\{}", literal), loc};
   }
   else {
     stream.read_char();
@@ -190,7 +190,7 @@ static token
 read_special_literal(context& ctx, input_stream& stream) {
   std::optional<char> c = stream.peek_char();
   if (!c)
-    throw parse_error{"Unexpected end of input", stream.current_location()};
+    throw read_error{"Unexpected end of input", stream.current_location()};
 
   source_location loc = stream.current_location();
 
@@ -201,7 +201,7 @@ read_special_literal(context& ctx, input_stream& stream) {
     std::string literal = read_until_delimiter(stream);
 
     if (literal != "t" && literal != "f" && literal != "true" && literal != "false")
-      throw parse_error{fmt::format("Invalid literal: {}", literal), loc};
+      throw read_error{fmt::format("Invalid literal: {}", literal), loc};
 
     if (c == 't')
       return {boolean_literal{true}, loc};
@@ -212,7 +212,7 @@ read_special_literal(context& ctx, input_stream& stream) {
   case 'v': {
     std::string literal = read_until_delimiter(stream);
     if (literal != "void")
-      throw parse_error{fmt::format("Invalid literal: {}", literal), loc};
+      throw read_error{fmt::format("Invalid literal: {}", literal), loc};
 
     return {void_literal{}, loc};
   }
@@ -223,7 +223,7 @@ read_special_literal(context& ctx, input_stream& stream) {
   }
 
   default:
-    throw parse_error{"Unimplemented", loc};
+    throw read_error{"Unimplemented", loc};
   }
 }
 
@@ -247,7 +247,7 @@ read_string_literal(context& ctx, input_stream& stream) {
   while (true) {
     std::optional<char> c = stream.read_char();
     if (!c)
-      throw parse_error{"Unexpected end of input", stream.current_location()};
+      throw read_error{"Unexpected end of input", stream.current_location()};
 
     if (*c == '"')
       break;
@@ -255,7 +255,7 @@ read_string_literal(context& ctx, input_stream& stream) {
     if (*c == '\\') {
       std::optional<char> escape = stream.read_char();
       if (!escape)
-        throw parse_error{"Unexpected end of input", stream.current_location()};
+        throw read_error{"Unexpected end of input", stream.current_location()};
 
       switch (*escape) {
       case 'a': result += '\a'; break;
@@ -266,7 +266,7 @@ read_string_literal(context& ctx, input_stream& stream) {
       case '|': result += '|'; break;
       default:
         // XXX: Support \ at end of line and \xXXXX.
-        throw parse_error{fmt::format("Unrecognised escape sequence \\{}", *escape), loc};
+        throw read_error{fmt::format("Unrecognised escape sequence \\{}", *escape), loc};
       }
     }
     else
@@ -291,7 +291,7 @@ static token
 read_token_after_period(context& ctx, input_stream& stream, source_location loc) {
   std::optional<char> c = stream.peek_char();
   if (!c)
-    throw parse_error{"Unexpected end of input", stream.current_location()};
+    throw read_error{"Unexpected end of input", stream.current_location()};
 
   if (delimiter(*c))
     return {dot{}, loc};
@@ -364,21 +364,21 @@ read_datum_label(input_stream& stream, source_location loc) {
 
   std::optional<char> c = stream.read_char();
   if (!c)
-    throw parse_error{"Unexpected end of input", stream.current_location()};
+    throw read_error{"Unexpected end of input", stream.current_location()};
 
   if (*c == '=')
     return {datum_label_definition{std::move(label)}, loc};
   else if (*c == '#')
     return {datum_label_reference{std::move(label)}, loc};
   else
-    throw parse_error{"Unexpected character after datum label", stream.current_location()};
+    throw read_error{"Unexpected character after datum label", stream.current_location()};
 }
 
 static token
 read_token_after_octothorpe(context& ctx, input_stream& stream, source_location loc) {
   std::optional<char> c = stream.peek_char();
   if (!c)
-    throw parse_error{"Unexpected end of input", stream.current_location()};
+    throw read_error{"Unexpected end of input", stream.current_location()};
   else if (*c == '\'') {
     stream.read_char();
     return {octothorpe_quote{}, loc};
@@ -461,7 +461,7 @@ find_datum_label_reference(datum_labels const& labels, std::string const& label,
     assert(it->second);
     return it->second.get();
   } else
-    throw parse_error{fmt::format("Unknown datum label: {}", label), ref_location};
+    throw read_error{fmt::format("Unknown datum label: {}", label), ref_location};
 }
 
 static ptr<>
@@ -494,9 +494,9 @@ read_list(context& ctx, input_stream& stream, bool read_syntax, datum_labels& la
           std::optional<std::string> const& defining_label) {
   token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t.value))
-    throw parse_error{"Unterminated list", t.location};
+    throw read_error{"Unterminated list", t.location};
   else if (std::holds_alternative<dot>(t.value))
-    throw parse_error{"Unexpected . token", t.location};
+    throw read_error{"Unexpected . token", t.location};
   else if (std::holds_alternative<right_paren>(t.value))
     return ctx.constants->null.get();
 
@@ -520,7 +520,7 @@ read_list(context& ctx, input_stream& stream, bool read_syntax, datum_labels& la
   }
 
   if (std::holds_alternative<end>(t.value))
-    throw parse_error{"Unterminated list", t.location};
+    throw read_error{"Unterminated list", t.location};
   else if (std::holds_alternative<dot>(t.value)) {
     t = read_token(ctx, stream);
     ptr<> cdr = read_and_wrap(ctx, t, stream, read_syntax, labels);
@@ -528,7 +528,7 @@ read_list(context& ctx, input_stream& stream, bool read_syntax, datum_labels& la
 
     t = read_token(ctx, stream);
     if (!std::holds_alternative<right_paren>(t.value))
-      throw parse_error{"Too many elements after .", t.location};
+      throw read_error{"Too many elements after .", t.location};
   }
 
   assert(std::holds_alternative<right_paren>(t.value));
@@ -548,7 +548,7 @@ read_vector_elements(context& ctx, input_stream& stream, bool read_syntax, datum
   }
 
   if (std::holds_alternative<end>(t.value))
-    throw parse_error{"Unterminated vector", t.location};
+    throw read_error{"Unterminated vector", t.location};
 
   return elements;
 }
@@ -617,7 +617,7 @@ read_shortcut(context& ctx, input_stream& stream, token shortcut_token,
               std::optional<std::string> const& defining_label) {
   token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t.value))
-    throw parse_error{fmt::format("Expected token after {}", shortcut), t.location};
+    throw read_error{fmt::format("Expected token after {}", shortcut), t.location};
 
   ptr<pair> result = cons(ctx,
                           wrap(ctx, ctx.intern(expansion), shortcut_token.location, read_syntax),
@@ -676,16 +676,16 @@ read(context& ctx, token first_token, input_stream& stream, bool read_syntax,
   else if (std::holds_alternative<void_literal>(first_token.value))
     return define_label_for_atomic_value(ctx, ctx.constants->void_.get(), labels, defining_label);
   else if (std::holds_alternative<dot>(first_token.value))
-    throw parse_error{"Unexpected . token", first_token.location};
+    throw read_error{"Unexpected . token", first_token.location};
   else if (std::holds_alternative<right_paren>(first_token.value))
-    throw parse_error{"Unexpected ) token", first_token.location};
+    throw read_error{"Unexpected ) token", first_token.location};
   else if (datum_label_definition* dldef = std::get_if<datum_label_definition>(&first_token.value))
     return read(ctx, read_token(ctx, stream), stream, read_syntax, labels, dldef->label);
   else if (datum_label_reference* dlref = std::get_if<datum_label_reference>(&first_token.value))
     return find_datum_label_reference(labels, dlref->label, first_token.location);
 
   assert(false); // Unimplemented token
-  throw parse_error{"Unimplemented token", first_token.location};
+  throw read_error{"Unimplemented token", first_token.location};
 }
 
 ptr<>

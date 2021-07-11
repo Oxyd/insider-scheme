@@ -51,9 +51,9 @@ TEST_F(io, read_list) {
   EXPECT_EQ(expect<integer>(car(sublist_1)).value(), 2);
   EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(sublist_1)))).value(), 3);
 
-  EXPECT_THROW(read("("), parse_error);
-  EXPECT_THROW(read("(1 2"), parse_error);
-  EXPECT_THROW(read("(()"), parse_error);
+  EXPECT_THROW(read("("), read_error);
+  EXPECT_THROW(read("(1 2"), read_error);
+  EXPECT_THROW(read("(()"), read_error);
 }
 
 TEST_F(io, read_vector) {
@@ -71,8 +71,8 @@ TEST_F(io, read_vector) {
   EXPECT_TRUE(is<vector>(v3->ref(0)));
   EXPECT_TRUE(is<symbol>(v3->ref(1)));
 
-  EXPECT_THROW(read("#("), parse_error);
-  EXPECT_THROW(read("#(1 2"), parse_error);
+  EXPECT_THROW(read("#("), read_error);
+  EXPECT_THROW(read("#(1 2"), read_error);
 }
 
 TEST_F(io, read_symbol) {
@@ -116,13 +116,13 @@ TEST_F(io, read_string) {
   char const* msvc_workaround2 = R"("foo\"bar\"baz")";
   EXPECT_EQ(expect<string>(read(msvc_workaround2))->value(), "foo\"bar\"baz");
 
-  EXPECT_THROW(read(R"("unterminated)"), parse_error);
+  EXPECT_THROW(read(R"("unterminated)"), read_error);
   char const* msvc_workaround3 = R"("\invalid escape")";
-  EXPECT_THROW(read(msvc_workaround3), parse_error);
+  EXPECT_THROW(read(msvc_workaround3), read_error);
   char const* msvc_workaround4 = R"("\)";
-  EXPECT_THROW(read(msvc_workaround4), parse_error);
+  EXPECT_THROW(read(msvc_workaround4), read_error);
   char const* msvc_workaround5 = R"("\")";
-  EXPECT_THROW(read(msvc_workaround5), parse_error);
+  EXPECT_THROW(read(msvc_workaround5), read_error);
 }
 
 TEST_F(io, read_multiple) {

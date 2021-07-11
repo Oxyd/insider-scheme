@@ -14,8 +14,8 @@ class port;
 class source_location;
 class syntax;
 
-struct parse_error : std::runtime_error {
-  parse_error(std::string const& message, source_location const&);
+struct read_error : std::runtime_error {
+  read_error(std::string const& message, source_location const&);
 };
 
 // Read a single S-expression from the given input stream. Returns a null
