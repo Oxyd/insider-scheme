@@ -1,11 +1,10 @@
-#ifndef INSIDER_IO_HPP
-#define INSIDER_IO_HPP
+#ifndef INSIDER_READ_HPP
+#define INSIDER_READ_HPP
 
 #include "ptr.hpp"
 
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 namespace insider {
 
@@ -45,18 +44,6 @@ read_syntax_multiple(context&, ptr<port>);
 std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context&, std::string);
 
-// Write a representation of the given datum to the given output port. This does
-// not check for cycles in the datum, so if it is a cyclic data structure, this
-// will result in an infinite loop.
-void
-write_simple(context& ctx, ptr<>, ptr<port>);
-
-void
-display(context& ctx, ptr<>, ptr<port>);
-
-std::string
-datum_to_string(context& ctx, ptr<>);
-
-} // namespace game::csm
+} // namespace insider
 
 #endif

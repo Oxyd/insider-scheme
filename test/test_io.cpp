@@ -2,9 +2,10 @@
 #include "scheme_fixture.hpp"
 
 #include "basic_types.hpp"
-#include "io.hpp"
 #include "numeric.hpp"
 #include "port.hpp"
+#include "read.hpp"
+#include "write.hpp"
 
 using namespace insider;
 

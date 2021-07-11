@@ -34,16 +34,17 @@ set(scheme_sources
   src/free_store.cpp
   src/input_stream.cpp
   src/internal_module.cpp
-  src/io.cpp
   src/module.cpp
   src/numeric.cpp
   src/object.cpp
   src/port.cpp
+  src/read.cpp
   src/records.cpp
   src/scope.cpp
   src/source_location.cpp
   src/syntax.cpp
   src/vm.cpp
+  src/write.cpp
   )
 
 set(test_sources
