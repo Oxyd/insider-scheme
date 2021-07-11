@@ -68,8 +68,6 @@ output_primitive(context& ctx, ptr<> datum, ptr<port> out, bool display) {
     out->write_char(' ');
     write_simple(ctx, syntax_to_datum(ctx, stx), out);
     out->write_string(">");
-  } else if (auto env = match<scope>(datum)) {
-    out->write_string(fmt::format("#env@{}", static_cast<void*>(env.value())));
   } else if (auto proc = match<procedure>(datum)) {
     if (proc->name)
       out->write_string(fmt::format("<procedure {}>", *proc->name));
