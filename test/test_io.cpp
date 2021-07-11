@@ -254,3 +254,46 @@ TEST_F(io, read_write_float) {
   EXPECT_EQ(to_string(ctx, make_float(floating_point::positive_nan)), "+nan.0");
   EXPECT_EQ(to_string(ctx, make_float(floating_point::negative_nan)), "-nan.0");
 }
+
+TEST_F(io, read_datum_label) {
+  EXPECT_EQ(expect<integer>(read("#0=2")).value(), 2);
+}
+
+TEST_F(io, read_datum_reference_to_atomic_value) {
+  auto result = expect<pair>(read("(1 #0=2 3 #0#)"));
+  EXPECT_TRUE(equal(ctx, result, read("(1 2 3 2)")));
+}
+
+TEST_F(io, read_datum_reference_in_pair) {
+  auto result = expect<pair>(read("#0=(head . #0#)"));
+  EXPECT_EQ(expect<symbol>(result->car())->value(), "head");
+  EXPECT_EQ(result->cdr(), result);
+}
+
+TEST_F(io, read_datum_reference_in_vector) {
+  auto result = expect<vector>(read("#0=#(1 2 #0# 3)"));
+  EXPECT_EQ(expect<integer>(result->ref(0)).value(), 1);
+  EXPECT_EQ(expect<integer>(result->ref(1)).value(), 2);
+  EXPECT_EQ(expect<vector>(result->ref(2)), result);
+  EXPECT_EQ(expect<integer>(result->ref(3)).value(), 3);
+}
+
+TEST_F(io, multiple_datum_references) {
+  auto result = expect<pair>(read("#0=(0 . #1=(1 #0# . #1#))"));
+  EXPECT_EQ(expect<integer>(result->car()).value(), 0);
+  EXPECT_EQ(expect<integer>(cadr(result)).value(), 1);
+  EXPECT_EQ(caddr(result), result);
+  EXPECT_EQ(cadddr(result), cadr(result));
+}
+
+TEST_F(io, datum_label_to_atomic_shortcut) {
+  auto result = expect<pair>(read("(#0='foo #0#)"));
+  EXPECT_TRUE(equal(ctx, car(result), read("(quote foo)")));
+  EXPECT_EQ(cadr(result), car(result));
+}
+
+TEST_F(io, datum_label_to_nonatomic_shortcut) {
+  auto result = expect<pair>(read("#0='(#0#)"));
+  EXPECT_EQ(expect<symbol>(car(result))->value(), "quote");
+  EXPECT_EQ(car(expect<pair>(cadr(result))), result);
+}
