@@ -21,7 +21,10 @@ hash(ptr<> x);
 std::size_t
 hasheqv(ptr<>);
 
-struct generic_ptr_hasheqv {
+struct ptr_hasheqv {
+  std::size_t
+  operator () (ptr<> p) { return hasheqv(p); }
+
   std::size_t
   operator () (tracked_ptr<> const& p) const { return hasheqv(p.get()); }
 };
@@ -45,6 +48,9 @@ public:
 private:
   context& ctx_;
 };
+
+template <typename Value>
+using eqv_unordered_map = std::unordered_map<tracked_ptr<>, Value, ptr_hasheqv, eqv_compare>;
 
 } // namespace insider
 

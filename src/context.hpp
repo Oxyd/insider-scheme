@@ -14,9 +14,6 @@
 
 namespace insider {
 
-template <typename Value>
-using eqv_unordered_map = std::unordered_map<tracked_ptr<>, Value, generic_ptr_hasheqv, eqv_compare>;
-
 class parameter_tag;
 
 // Flat map of parameter_tag's to values.
