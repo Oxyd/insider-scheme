@@ -39,7 +39,7 @@ write_char(ptr<character> c, ptr<port> out) {
 }
 
 static void
-output_primitive(context& ctx, ptr<> datum, ptr<port> out, bool display) {
+write_primitive(context& ctx, ptr<> datum, ptr<port> out) {
   if (datum == ctx.constants->null.get())
     out->write_string("()");
   else if (datum == ctx.constants->void_.get())
@@ -48,21 +48,11 @@ output_primitive(context& ctx, ptr<> datum, ptr<port> out, bool display) {
     out->write_string("#t");
   else if (datum == ctx.constants->f.get())
     out->write_string("#f");
+  else if (is_number(datum))
+    write_number(ctx, datum, out);
   else if (auto sym = match<symbol>(datum))
     out->write_string(sym->value());
-  else if (auto str = match<string>(datum)) {
-    if (display)
-      out->write_string(str->value());
-    else
-      write_string(str, out);
-  } else if (auto c = match<character>(datum)) {
-    if (display)
-      out->write_char(c->value());
-    else
-      write_char(c, out);
-  } else if (is_number(datum)) {
-    write_number(ctx, datum, out);
-  } else if (auto stx = match<syntax>(datum)) {
+  else if (auto stx = match<syntax>(datum)) {
     out->write_string("#<syntax ");
     out->write_string(format_location(stx->location()));
     out->write_char(' ');
@@ -80,7 +70,28 @@ output_primitive(context& ctx, ptr<> datum, ptr<port> out, bool display) {
 }
 
 static void
-output_simple(context& ctx, ptr<> datum, ptr<port> out, bool display) {
+write_atomic(context& ctx, ptr<> datum, ptr<port> out) {
+  if (auto str = match<string>(datum))
+    write_string(str, out);
+  else if (auto c = match<character>(datum))
+    write_char(c, out);
+  else
+    write_primitive(ctx, datum, out);
+}
+
+static void
+display_atomic(context& ctx, ptr<> datum, ptr<port> out) {
+  if (auto str = match<string>(datum))
+    out->write_string(str->value());
+  else if (auto c = match<character>(datum))
+    out->write_char(c->value());
+  else
+    write_primitive(ctx, datum, out);
+}
+
+template <auto OutputAtomic>
+static void
+output_simple(context& ctx, ptr<> datum, ptr<port> out) {
   struct record {
     ptr<>       datum;
     std::size_t written = 0;
@@ -140,7 +151,7 @@ output_simple(context& ctx, ptr<> datum, ptr<port> out, bool display) {
       stack.push_back({vec->ref(index)});
     }
     else {
-      output_primitive(ctx, top.datum, out, display);
+      OutputAtomic(ctx, top.datum, out);
       stack.pop_back();
     }
   }
@@ -148,12 +159,12 @@ output_simple(context& ctx, ptr<> datum, ptr<port> out, bool display) {
 
 void
 write_simple(context& ctx, ptr<> datum, ptr<port> out) {
-  output_simple(ctx, datum, out, false);
+  output_simple<write_atomic>(ctx, datum, out);
 }
 
 void
 display(context& ctx, ptr<> datum, ptr<port> out) {
-  output_simple(ctx, datum, out, true);
+  output_simple<display_atomic>(ctx, datum, out);
 }
 
 std::string
