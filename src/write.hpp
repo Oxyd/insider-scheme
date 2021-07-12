@@ -14,6 +14,11 @@ class port;
 class source_location;
 class syntax;
 
+// Write a representation of the given datum to the given output port. This will
+// use datum labels if and only if the datum contains a cyclic data structure.
+void
+write(context&, ptr<>, ptr<port>);
+
 // Write a representation of the given datum to the given output port. This does
 // not check for cycles in the datum, so if it is a cyclic data structure, this
 // will result in an infinite loop.

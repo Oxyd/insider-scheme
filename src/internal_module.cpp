@@ -28,6 +28,13 @@ make_internal_module(context& ctx) {
   export_analyser(ctx, result);
 
   define_procedure(
+    ctx, "write", result, true,
+    [] (context& ctx, ptr<> datum) {
+      write(ctx, datum, ctx.output_port.get());
+    }
+  );
+
+  define_procedure(
     ctx, "write-simple", result, true,
     [] (context& ctx, ptr<> datum) {
       write_simple(ctx, datum, ctx.output_port.get());

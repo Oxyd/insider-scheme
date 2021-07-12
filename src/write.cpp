@@ -123,6 +123,7 @@ namespace {
 
   struct find_shared_result {
     output_datum_labels labels;
+    bool                has_cycle;
   };
 }
 
@@ -135,31 +136,62 @@ static find_shared_result
 find_shared(ptr<> datum) {
   output_datum_labels labels;
   eq_unordered_set<ptr<>> seen;
-  std::vector<ptr<>> stack{datum};
+  eq_unordered_set<ptr<>> open;
+  bool cycle = false;
+
+  struct record {
+    ptr<> datum;
+    bool entered = false;
+  };
+  std::vector<record> stack{{datum}};
+
+  auto enter = [&] (record& current) {
+    current.entered = true;
+    open.emplace(current.datum);
+  };
+
+  auto leave = [&] (record& current) {
+    open.erase(current.datum);
+  };
 
   while (!stack.empty()) {
-    ptr<> current = stack.back();
-    stack.pop_back();
+    record& current = stack.back();
 
-    if (is_shareable(current)) {
-      if (seen.count(current)) {
-        labels.mark_shared(current);
+    if (current.entered) {
+      leave(current);
+      stack.pop_back();
+      continue;
+    }
+
+    if (is_shareable(current.datum)) {
+      if (seen.count(current.datum)) {
+        labels.mark_shared(current.datum);
+
+        if (open.count(current.datum))
+          cycle = true;
+
+        stack.pop_back();
         continue;
       }
 
-      seen.emplace(current);
+      seen.emplace(current.datum);
     }
 
-    if (auto p = match<pair>(current)) {
-      stack.push_back(car(p));
-      stack.push_back(cdr(p));
-    } else if (auto v = match<vector>(current)) {
+    if (auto p = match<pair>(current.datum)) {
+      enter(current);
+
+      stack.push_back({car(p)});
+      stack.push_back({cdr(p)});
+    } else if (auto v = match<vector>(current.datum)) {
+      enter(current);
+
       for (std::size_t i = 0; i < v->size(); ++i)
-        stack.push_back(v->ref(i));
-    }
+        stack.push_back({v->ref(i)});
+    } else
+      stack.pop_back();
   }
 
-  return {std::move(labels)};
+  return {std::move(labels), cycle};
 }
 
 template <auto OutputAtomic>
@@ -237,6 +269,15 @@ output(context& ctx, ptr<> datum, ptr<port> out, output_datum_labels labels) {
       stack.pop_back();
     }
   }
+}
+
+void
+write(context& ctx, ptr<> datum, ptr<port> out) {
+  find_shared_result fsr = find_shared(datum);
+  if (fsr.has_cycle)
+    output<write_atomic>(ctx, datum, out, std::move(fsr.labels));
+  else
+    output<write_atomic>(ctx, datum, out, {});
 }
 
 void

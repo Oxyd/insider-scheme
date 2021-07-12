@@ -151,30 +151,30 @@ TEST_F(io, read_comments) {
 }
 
 static std::string
-to_string(context& ctx, ptr<> datum) {
+to_string_simple(context& ctx, ptr<> datum) {
   auto out = make<port>(ctx, std::string{}, false, true);
   write_simple(ctx, datum, out);
   return out->get_string();
 }
 
 TEST_F(io, write) {
-  EXPECT_EQ(to_string(ctx, read("(1 2 3)")), "(1 2 3)");
+  EXPECT_EQ(to_string_simple(ctx, read("(1 2 3)")), "(1 2 3)");
 
   auto p1 = make<pair>(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}));
-  EXPECT_EQ(to_string(ctx, p1), "(1 . 2)");
+  EXPECT_EQ(to_string_simple(ctx, p1), "(1 . 2)");
 
   auto p2 = make<pair>(ctx, integer_to_ptr(integer{0}), p1);
-  EXPECT_EQ(to_string(ctx, p2), "(0 1 . 2)");
+  EXPECT_EQ(to_string_simple(ctx, p2), "(0 1 . 2)");
 
   auto v = make<vector>(ctx, ctx, 3);
   v->set(ctx.store, 0, make<character>(ctx, 'r'));
   v->set(ctx.store, 1, p2);
   v->set(ctx.store, 2, make_string(ctx, "foobar"));
-  EXPECT_EQ(to_string(ctx, v), R"(#(#\r (0 1 . 2) "foobar"))");
+  EXPECT_EQ(to_string_simple(ctx, v), R"(#(#\r (0 1 . 2) "foobar"))");
 
   auto s = make_string(ctx, R"(one "two" three \ four)");
   char const* msvc_workaround1 = R"("one \"two\" three \\ four")";
-  EXPECT_EQ(to_string(ctx, s), msvc_workaround1);
+  EXPECT_EQ(to_string_simple(ctx, s), msvc_workaround1);
 
   auto l = make_list(
     ctx,
@@ -187,7 +187,7 @@ TEST_F(io, write) {
     make<character>(ctx, 'c'),
     integer_to_ptr(integer{-13})
   );
-  EXPECT_EQ(to_string(ctx, l), R"((() #void #t #f symbol "string" #\c -13))");
+  EXPECT_EQ(to_string_simple(ctx, l), R"((() #void #t #f symbol "string" #\c -13))");
 }
 
 TEST_F(io, read_bignum) {
@@ -205,9 +205,9 @@ TEST_F(io, read_bignum) {
 }
 
 TEST_F(io, write_bignum) {
-  EXPECT_EQ(to_string(ctx, make_big(ctx, 0, 1)), "18446744073709551616");
-  EXPECT_EQ(to_string(ctx, make_big_negative(ctx, 0, 1)), "-18446744073709551616");
-  EXPECT_EQ(to_string(ctx, make_big(ctx,
+  EXPECT_EQ(to_string_simple(ctx, make_big(ctx, 0, 1)), "18446744073709551616");
+  EXPECT_EQ(to_string_simple(ctx, make_big_negative(ctx, 0, 1)), "-18446744073709551616");
+  EXPECT_EQ(to_string_simple(ctx, make_big(ctx,
                                     17938764184775092447ull,
                                     4633044886490317294ull,
                                     11636559762171942713ull,
@@ -224,8 +224,8 @@ TEST_F(io, read_write_fraction) {
   EXPECT_TRUE(num_equal(read("0/5"), integer_to_ptr(integer{0})));
   EXPECT_TRUE(num_equal(read("6/3"), integer_to_ptr(integer{2})));
 
-  EXPECT_EQ(to_string(ctx, make_fraction(1, 2)), "1/2");
-  EXPECT_EQ(to_string(ctx, make_fraction(-1, 2)), "-1/2");
+  EXPECT_EQ(to_string_simple(ctx, make_fraction(1, 2)), "1/2");
+  EXPECT_EQ(to_string_simple(ctx, make_fraction(-1, 2)), "-1/2");
 }
 
 TEST_F(io, read_write_float) {
@@ -245,15 +245,15 @@ TEST_F(io, read_write_float) {
   EXPECT_TRUE(std::isnan(expect<floating_point>(read("+NaN.0"))->value));
   EXPECT_TRUE(std::isnan(expect<floating_point>(read("-nan.0"))->value));
 
-  EXPECT_EQ(to_string(ctx, make_float(0.0)), "0.0");
-  EXPECT_EQ(to_string(ctx, make_float(0.1)), "0.1");
-  EXPECT_EQ(to_string(ctx, make_float(-0.1)), "-0.1");
-  EXPECT_EQ(to_string(ctx, make_float(1.0)), "1.0");
-  EXPECT_EQ(to_string(ctx, make_float(123456789.0)), "123456789.0");
-  EXPECT_EQ(to_string(ctx, make_float(floating_point::positive_infinity)), "+inf.0");
-  EXPECT_EQ(to_string(ctx, make_float(floating_point::negative_infinity)), "-inf.0");
-  EXPECT_EQ(to_string(ctx, make_float(floating_point::positive_nan)), "+nan.0");
-  EXPECT_EQ(to_string(ctx, make_float(floating_point::negative_nan)), "-nan.0");
+  EXPECT_EQ(to_string_simple(ctx, make_float(0.0)), "0.0");
+  EXPECT_EQ(to_string_simple(ctx, make_float(0.1)), "0.1");
+  EXPECT_EQ(to_string_simple(ctx, make_float(-0.1)), "-0.1");
+  EXPECT_EQ(to_string_simple(ctx, make_float(1.0)), "1.0");
+  EXPECT_EQ(to_string_simple(ctx, make_float(123456789.0)), "123456789.0");
+  EXPECT_EQ(to_string_simple(ctx, make_float(floating_point::positive_infinity)), "+inf.0");
+  EXPECT_EQ(to_string_simple(ctx, make_float(floating_point::negative_infinity)), "-inf.0");
+  EXPECT_EQ(to_string_simple(ctx, make_float(floating_point::positive_nan)), "+nan.0");
+  EXPECT_EQ(to_string_simple(ctx, make_float(floating_point::negative_nan)), "-nan.0");
 }
 
 TEST_F(io, read_datum_label) {
@@ -329,4 +329,26 @@ TEST_F(io, write_shared_simple_vector) {
 
 TEST_F(io, write_shared_infinite_vector) {
   EXPECT_READ_WRITE_EQ("#0=#(1 2 #0#)");
+}
+
+#undef EXPECT_READ_WRITE_EQ
+
+static std::string
+to_string(context& ctx, ptr<> datum) {
+  auto out = make<port>(ctx, std::string{}, false, true);
+  write(ctx, datum, out);
+  return out->get_string();
+}
+
+static std::string
+read_write(context& ctx, std::string const& expr) {
+  return to_string(ctx, read(ctx, expr));
+}
+
+TEST_F(io, write_doesnt_use_labels_when_no_cycles) {
+  EXPECT_EQ(read_write(ctx, "(#0=1 #0#)"), "(1 1)");
+}
+
+TEST_F(io, write_uses_labels_when_cycles_are_present) {
+  EXPECT_EQ(read_write(ctx, "#0=(1 . #0#)"), "#0=(1 . #0#)");
 }
