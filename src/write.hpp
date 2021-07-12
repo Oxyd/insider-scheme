@@ -20,6 +20,12 @@ class syntax;
 void
 write_simple(context& ctx, ptr<>, ptr<port>);
 
+// Write a representation of the given datum to the given output port. This will
+// use datum labels for all pairs and vectors that appear more than once in the
+// output.
+void
+write_shared(context&, ptr<>, ptr<port>);
+
 void
 display(context& ctx, ptr<>, ptr<port>);
 

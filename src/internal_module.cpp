@@ -35,6 +35,13 @@ make_internal_module(context& ctx) {
   );
 
   define_procedure(
+    ctx, "write-shared", result, true,
+    [] (context& ctx, ptr<> datum) {
+      write_shared(ctx, datum, ctx.output_port.get());
+    }
+  );
+
+  define_procedure(
     ctx, "display", result, true,
     [] (context& ctx, ptr<> datum) {
       display(ctx, datum, ctx.output_port.get());

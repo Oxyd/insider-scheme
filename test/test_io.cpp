@@ -279,6 +279,13 @@ TEST_F(io, read_datum_reference_in_vector) {
   EXPECT_EQ(expect<integer>(result->ref(3)).value(), 3);
 }
 
+TEST_F(io, read_datum_reference_to_vector) {
+  auto result = expect<pair>(read("(#0=#(1 2 3) #0#)"));
+  EXPECT_TRUE(equal(ctx, expect<vector>(car(result)), read("#(1 2 3)")));
+  EXPECT_TRUE(equal(ctx, expect<vector>(cadr(result)), read("#(1 2 3)")));
+  EXPECT_EQ(expect<vector>(cadr(result)), car(result));
+}
+
 TEST_F(io, multiple_datum_references) {
   auto result = expect<pair>(read("#0=(0 . #1=(1 #0# . #1#))"));
   EXPECT_EQ(expect<integer>(result->car()).value(), 0);
@@ -297,4 +304,29 @@ TEST_F(io, datum_label_to_nonatomic_shortcut) {
   auto result = expect<pair>(read("#0='(#0#)"));
   EXPECT_EQ(expect<symbol>(car(result))->value(), "quote");
   EXPECT_EQ(car(expect<pair>(cadr(result))), result);
+}
+
+static std::string
+to_string_shared(context& ctx, ptr<> datum) {
+  auto out = make<port>(ctx, std::string{}, false, true);
+  write_shared(ctx, datum, out);
+  return out->get_string();
+}
+
+#define EXPECT_READ_WRITE_EQ(s) EXPECT_EQ(to_string_shared(ctx, read(s)), s)
+
+TEST_F(io, write_shared_simple_list) {
+  EXPECT_READ_WRITE_EQ("(#0=(1 2) #0#)");
+}
+
+TEST_F(io, write_shared_infinite_list) {
+  EXPECT_READ_WRITE_EQ("#0=(1 2 . #0#)");
+}
+
+TEST_F(io, write_shared_simple_vector) {
+  EXPECT_READ_WRITE_EQ("(#0=#(1 2 3) #0#)");
+}
+
+TEST_F(io, write_shared_infinite_vector) {
+  EXPECT_READ_WRITE_EQ("#0=#(1 2 #0#)");
 }

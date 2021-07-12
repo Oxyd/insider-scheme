@@ -4,6 +4,8 @@
 #include "ptr.hpp"
 
 #include <cstdint>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace insider {
 
@@ -21,9 +23,17 @@ hash(ptr<> x);
 std::size_t
 hasheqv(ptr<>);
 
+struct ptr_hash {
+  std::size_t
+  operator () (ptr<> p) const { return hash(p); }
+
+  std::size_t
+  operator () (tracked_ptr<> const& p) const { return hash(p.get()); }
+};
+
 struct ptr_hasheqv {
   std::size_t
-  operator () (ptr<> p) { return hasheqv(p); }
+  operator () (ptr<> p) const { return hasheqv(p); }
 
   std::size_t
   operator () (tracked_ptr<> const& p) const { return hasheqv(p.get()); }
@@ -49,8 +59,14 @@ private:
   context& ctx_;
 };
 
-template <typename Value>
-using eqv_unordered_map = std::unordered_map<tracked_ptr<>, Value, ptr_hasheqv, eqv_compare>;
+template <typename Key, typename Value>
+using eq_unordered_map = std::unordered_map<Key, Value, ptr_hash>;
+
+template <typename Key>
+using eq_unordered_set = std::unordered_set<Key, ptr_hash>;
+
+template <typename Key, typename Value>
+using eqv_unordered_map = std::unordered_map<Key, Value, ptr_hasheqv, eqv_compare>;
 
 } // namespace insider
 

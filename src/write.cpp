@@ -1,6 +1,7 @@
 #include "write.hpp"
 
 #include "basic_types.hpp"
+#include "compare.hpp"
 #include "context.hpp"
 #include "numeric.hpp"
 #include "port.hpp"
@@ -89,9 +90,81 @@ display_atomic(context& ctx, ptr<> datum, ptr<port> out) {
     write_primitive(ctx, datum, out);
 }
 
+namespace {
+  class output_datum_labels {
+  public:
+    bool
+    is_shared(ptr<> x) const { return labels_.count(x); }
+
+    void
+    mark_shared(ptr<> x) { labels_.emplace(x, std::optional<std::size_t>{}); }
+
+    bool
+    has_label(ptr<> x) const {
+      if (auto it = labels_.find(x); it != labels_.end())
+        return it->second.has_value();
+      else
+        return false;
+    }
+
+    std::size_t
+    get_or_assign_label(ptr<> x) {
+      auto& l = labels_[x];
+      if (!l)
+        l.emplace(next_label_++);
+
+      return *l;
+    }
+
+  private:
+    eq_unordered_map<ptr<>, std::optional<std::size_t>> labels_;
+    std::size_t next_label_ = 0;
+  };
+
+  struct find_shared_result {
+    output_datum_labels labels;
+  };
+}
+
+static bool
+is_shareable(ptr<> x) {
+  return is<pair>(x) || is<vector>(x);
+}
+
+static find_shared_result
+find_shared(ptr<> datum) {
+  output_datum_labels labels;
+  eq_unordered_set<ptr<>> seen;
+  std::vector<ptr<>> stack{datum};
+
+  while (!stack.empty()) {
+    ptr<> current = stack.back();
+    stack.pop_back();
+
+    if (is_shareable(current)) {
+      if (seen.count(current)) {
+        labels.mark_shared(current);
+        continue;
+      }
+
+      seen.emplace(current);
+    }
+
+    if (auto p = match<pair>(current)) {
+      stack.push_back(car(p));
+      stack.push_back(cdr(p));
+    } else if (auto v = match<vector>(current)) {
+      for (std::size_t i = 0; i < v->size(); ++i)
+        stack.push_back(v->ref(i));
+    }
+  }
+
+  return {std::move(labels)};
+}
+
 template <auto OutputAtomic>
 static void
-output_simple(context& ctx, ptr<> datum, ptr<port> out) {
+output(context& ctx, ptr<> datum, ptr<port> out, output_datum_labels labels) {
   struct record {
     ptr<>       datum;
     std::size_t written = 0;
@@ -101,6 +174,15 @@ output_simple(context& ctx, ptr<> datum, ptr<port> out) {
 
   while (!stack.empty()) {
     record& top = stack.back();
+
+    if (top.written == 0 && labels.is_shared(top.datum)) {
+      if (labels.has_label(top.datum)) {
+        out->write_string(fmt::format("#{}#", labels.get_or_assign_label(top.datum)));
+        stack.pop_back();
+        continue;
+      } else
+        out->write_string(fmt::format("#{}=", labels.get_or_assign_label(top.datum)));
+    }
 
     if (auto pair = match<insider::pair>(top.datum)) {
       switch (top.written) {
@@ -114,7 +196,7 @@ output_simple(context& ctx, ptr<> datum, ptr<port> out) {
       case 1:
         ++top.written;
 
-        if (is<insider::pair>(cdr(pair))) {
+        if (is<insider::pair>(cdr(pair)) && !labels.is_shared(cdr(pair))) {
           out->write_char(' ');
           stack.push_back({cdr(pair), 0, true});
         } else if (cdr(pair) == ctx.constants->null.get()) {
@@ -159,12 +241,18 @@ output_simple(context& ctx, ptr<> datum, ptr<port> out) {
 
 void
 write_simple(context& ctx, ptr<> datum, ptr<port> out) {
-  output_simple<write_atomic>(ctx, datum, out);
+  output<write_atomic>(ctx, datum, out, {});
+}
+
+void
+write_shared(context& ctx, ptr<> datum, ptr<port> out) {
+  find_shared_result fsr = find_shared(datum);
+  output<write_atomic>(ctx, datum, out, std::move(fsr.labels));
 }
 
 void
 display(context& ctx, ptr<> datum, ptr<port> out) {
-  output_simple<display_atomic>(ctx, datum, out);
+  output<display_atomic>(ctx, datum, out, {});
 }
 
 std::string

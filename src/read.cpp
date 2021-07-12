@@ -596,8 +596,10 @@ read_vector(context& ctx, input_stream& stream, bool read_syntax, datum_labels& 
   for (std::size_t i = 0; i < elements.size(); ++i)
     result->set(ctx.store, i, elements[i]);
 
-  if (defining_label)
+  if (defining_label) {
     replace_value(ctx, result, dummy_vector, result);
+    labels[*defining_label] = track(ctx, result);
+  }
 
   return result;
 }
