@@ -77,6 +77,11 @@ TEST_F(procedures, equal) {
   EXPECT_FALSE(equal(ctx, make_string(ctx, "foo"), make_string(ctx, "bar")));
 }
 
+TEST_F(procedures, equal_on_infinite_data_structures) {
+  EXPECT_TRUE(equal(ctx, read("#1=(a b . #1#)"), read("#2=(a b a b . #2#)")));
+  EXPECT_FALSE(equal(ctx, read("#1=(a b . #1#)"), read("#2=(a b a . #2#)")));
+}
+
 TEST_F(procedures, append) {
   auto r1 = eval("(append '(a1 a2 a3) '(b1 b2 b3) '(c1 c2) '(d1) '() '(f1 f2))");
   EXPECT_TRUE(equal(ctx, r1, read("(a1 a2 a3 b1 b2 b3 c1 c2 d1 f1 f2)")));
