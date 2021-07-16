@@ -680,3 +680,21 @@ TEST_F(control, cxx_exception_passes_through_if_not_handled) {
 
   FAIL();
 }
+
+TEST_F(control, apply_with_single_argument) {
+  auto result = eval("(apply + '(1 2 3))");
+  EXPECT_EQ(expect<integer>(result).value(), 6);
+}
+
+TEST_F(control, apply_with_multiple_arguments) {
+  auto result = eval(R"(
+    (let ((f (lambda (a b c d e)
+               (+ (* 2 a)
+                  (* 3 b)
+                  (* 5 c)
+                  (* 7 d)
+                  (* 11 e)))))
+      (apply f 1 2 '(3 4 5)))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 106);
+}

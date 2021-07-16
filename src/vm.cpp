@@ -1444,6 +1444,23 @@ raise_continuable(context& ctx, ptr<> e) {
     builtin_exception_handler(ctx, e);
 }
 
+static ptr<tail_call_tag_type>
+apply(context& ctx, object_span args) {
+  if (args.size() < 2)
+    throw std::runtime_error{"apply: Expected at least 2 arguments"};
+
+  ptr<> f = args[0];
+
+  std::vector<ptr<>> args_vector;
+  for (std::size_t i = 1; i < args.size() - 1; ++i)
+    args_vector.push_back(args[i]);
+
+  std::vector<ptr<>> tail_args_vector = list_to_std_vector(args.back());
+  args_vector.insert(args_vector.end(), tail_args_vector.begin(), tail_args_vector.end());
+
+  return tail_call(ctx, f, args_vector).get();
+}
+
 void
 export_vm(context& ctx, module& result) {
   define_procedure(ctx, "capture-stack", result, true, capture_stack);
@@ -1458,6 +1475,7 @@ export_vm(context& ctx, module& result) {
   define_procedure(ctx, "with-exception-handler", result, true, with_exception_handler);
   define_procedure(ctx, "raise-continuable", result, true, raise_continuable);
   define_procedure(ctx, "raise", result, true, raise);
+  define_raw_procedure(ctx, "apply", result, true, apply);
 }
 
 } // namespace insider
