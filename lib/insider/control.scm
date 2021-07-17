@@ -2,14 +2,15 @@
 (import (insider base-scheme)
         (insider syntax)
         (only (insider internal) capture-stack replace-stack!
-              create-parameter-tag  find-parameter-value set-parameter-value! call-parameterized))
-(export call-with-current-continuation call/cc make-parameter parameterize)
+              create-parameter-tag  find-parameter-value set-parameter-value! call-parameterized
+              apply values call-with-values))
+(export call-with-current-continuation call/cc make-parameter parameterize apply values call-with-values)
 
 (define (call-with-current-continuation f)
   (capture-stack
    (lambda (stack)
-     (f (lambda (value)
-          (replace-stack! stack value))))))
+     (f (lambda vals
+          (replace-stack! stack (apply values vals)))))))
 
 (define call/cc call-with-current-continuation)
 

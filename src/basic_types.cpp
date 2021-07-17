@@ -318,4 +318,17 @@ uncaught_exception::visit_members(member_visitor const& f) {
   f(inner_exception);
 }
 
+values_tuple::values_tuple(object_span values)
+  : size_{values.size()}
+{
+  for (std::size_t i = 0; i < size_; ++i)
+    storage_element(i) = values[i];
+}
+
+void
+values_tuple::visit_members(member_visitor const& f) {
+  for (std::size_t i = 0; i < size_; ++i)
+    f(storage_element(i));
+}
+
 } // namespace insider

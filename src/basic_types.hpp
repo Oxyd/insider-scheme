@@ -460,6 +460,29 @@ public:
   visit_members(member_visitor const& f);
 };
 
+class values_tuple : public dynamic_size_object<values_tuple, ptr<>> {
+public:
+  static constexpr char const* scheme_name = "insider::values_tuple";
+
+  static std::size_t
+  extra_elements(object_span values) { return values.size(); }
+
+  explicit
+  values_tuple(object_span values);
+
+  ptr<>
+  ref(std::size_t i) const { return storage_element(i); }
+
+  std::size_t
+  size() const { return size_; }
+
+  void
+  visit_members(member_visitor const& f);
+
+private:
+  std::size_t size_;
+};
+
 } // namespace insider
 
 #endif

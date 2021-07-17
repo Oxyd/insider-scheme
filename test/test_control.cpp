@@ -698,3 +698,59 @@ TEST_F(control, apply_with_multiple_arguments) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 106);
 }
+
+TEST_F(control, call_with_values_single_value) {
+  auto result = eval(R"(
+    (call-with-values
+      (lambda () 4)
+      (lambda (x) x))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 4);
+}
+
+TEST_F(control, call_with_values_multiple_values) {
+  auto result = eval(R"(
+    (call-with-values
+      (lambda () (values 3 4))
+      (lambda (x y) (+ x y)))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 7);
+}
+
+TEST_F(control, call_with_values_zero_values) {
+  auto result = eval(R"(
+    (call-with-values
+      (lambda () (values))
+      (lambda () 8))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 8);
+}
+
+TEST_F(control, values_with_single_value_is_identity) {
+  auto result = eval("(values 2)");
+  EXPECT_EQ(expect<integer>(result).value(), 2);
+}
+
+TEST_F(control, multiple_values_delivered_from_continuation_jump) {
+  auto result = eval(R"(
+    (call-with-values
+      (lambda ()
+        (capture-stack
+          (lambda (k)
+            (replace-stack! k (values 2 3)))))
+      (lambda (x y)
+        (+ x y)))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 5);
+}
+
+TEST_F(control, turn_list_to_multiple_values) {
+  auto result = eval(R"(
+    (call-with-values
+      (lambda ()
+        (apply values '(1 2 3)))
+      (lambda (x y z)
+        (+ x y z)))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 6);
+}

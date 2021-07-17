@@ -1461,6 +1461,36 @@ apply(context& ctx, object_span args) {
   return tail_call(ctx, f, args_vector).get();
 }
 
+static std::vector<ptr<>>
+unpack_values(ptr<> v) {
+  if (auto values = match<values_tuple>(v)) {
+    std::vector<ptr<>> result(values->size());
+    for (std::size_t i = 0; i < values->size(); ++i)
+      result[i] = values->ref(i);
+
+    return result;
+  } else
+    return {v};
+}
+
+static tracked_ptr<tail_call_tag_type>
+call_with_values(context& ctx, ptr<> producer, ptr<> consumer) {
+  return call_continuable(
+    ctx, producer, {},
+    [consumer = track(ctx, consumer)] (context& ctx, ptr<> producer_result) {
+      return tail_call(ctx, consumer.get(), unpack_values(producer_result)).get();
+    }
+  );
+}
+
+static ptr<>
+values(context& ctx, object_span args) {
+  if (args.size() == 1)
+    return args[0];
+  else
+    return make<values_tuple>(ctx, args);
+}
+
 void
 export_vm(context& ctx, module& result) {
   define_procedure(ctx, "capture-stack", result, true, capture_stack);
@@ -1476,6 +1506,8 @@ export_vm(context& ctx, module& result) {
   define_procedure(ctx, "raise-continuable", result, true, raise_continuable);
   define_procedure(ctx, "raise", result, true, raise);
   define_raw_procedure(ctx, "apply", result, true, apply);
+  define_procedure(ctx, "call-with-values", result, true, call_with_values);
+  define_raw_procedure(ctx, "values", result, true, values);
 }
 
 } // namespace insider
