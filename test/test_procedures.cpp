@@ -1,6 +1,7 @@
 #include "scheme_fixture.hpp"
 
 #include "basic_types.hpp"
+#include "string.hpp"
 
 using namespace insider;
 

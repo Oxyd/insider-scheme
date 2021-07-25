@@ -1,10 +1,12 @@
 #include "read.hpp"
 
 #include "basic_types.hpp"
+#include "character.hpp"
 #include "input_stream.hpp"
 #include "numeric.hpp"
 #include "port.hpp"
 #include "source_location.hpp"
+#include "string.hpp"
 
 #include <fmt/format.h>
 

@@ -1,9 +1,12 @@
 #include "compare.hpp"
 
 #include "basic_types.hpp"
+#include "character.hpp"
+#include "character.hpp"
 #include "context.hpp"
 #include "numeric.hpp"
 #include "object_conversions.hpp"
+#include "string.hpp"
 
 #include <algorithm>
 #include <unordered_map>

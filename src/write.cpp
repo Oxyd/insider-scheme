@@ -1,11 +1,13 @@
 #include "write.hpp"
 
 #include "basic_types.hpp"
+#include "character.hpp"
 #include "compare.hpp"
 #include "context.hpp"
 #include "numeric.hpp"
 #include "port.hpp"
 #include "source_location.hpp"
+#include "string.hpp"
 
 #include <fmt/format.h>
 

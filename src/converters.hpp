@@ -4,6 +4,7 @@
 #include "basic_types.hpp"
 #include "context.hpp"
 #include "integer.hpp"
+#include "string.hpp"
 #include "vm.hpp"
 
 #include <fmt/format.h>

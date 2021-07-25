@@ -1,6 +1,7 @@
 #include "internal_module.hpp"
 
 #include "analyser.hpp"
+#include "character.hpp"
 #include "converters.hpp"
 #include "port.hpp"
 #include "records.hpp"

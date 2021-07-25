@@ -42,6 +42,7 @@ set(scheme_sources
   src/records.cpp
   src/scope.cpp
   src/source_location.cpp
+  src/string.cpp
   src/syntax.cpp
   src/vm.cpp
   src/write.cpp

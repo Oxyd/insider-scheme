@@ -62,60 +62,6 @@ private:
   bool value_;
 };
 
-// Character. TODO: Support Unicode.
-class character : public leaf_object<character> {
-public:
-  static constexpr char const* scheme_name = "insider::character";
-  using value_type = char;
-
-  explicit
-  character(value_type c) : value_{c} { }
-
-  value_type
-  value() const { return value_; }
-
-  std::size_t
-  hash() const { return std::hash<value_type>{}(value_); }
-
-private:
-  value_type value_;
-};
-
-// Fixed-length string. TODO: Support Unicode.
-class string : public dynamic_size_object<string, char> {
-public:
-  static constexpr char const* scheme_name = "insider::string";
-
-  static std::size_t
-  extra_elements(std::size_t size) { return size; }
-
-  explicit
-  string(std::size_t size) : size_{size} { }
-
-  string(string&& other);
-
-  void
-  set(std::size_t i, char c);
-
-  std::string
-  value() const;
-
-  std::size_t
-  size() const { return size_; }
-
-  std::size_t
-  hash() const;
-
-  void
-  visit_members(member_visitor const&) { }
-
-private:
-  std::size_t size_;
-};
-
-ptr<string>
-make_string(context&, std::string_view value);
-
 // A cons pair containing two other Scheme values, car and cdr.
 class pair : public composite_object<pair> {
 public:

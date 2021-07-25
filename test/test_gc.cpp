@@ -1,5 +1,7 @@
 #include "scheme_fixture.hpp"
 
+#include "character.hpp"
+
 using namespace insider;
 
 struct gc : scheme_fixture { };
