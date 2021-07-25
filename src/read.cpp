@@ -174,9 +174,12 @@ read_character(context& ctx, input_stream& stream) {
     while (stream.peek_char() && hexdigit(*stream.peek_char()))
       literal += *stream.read_char();
 
-    return {generic_literal{make<character>(ctx,
-                                            static_cast<char>(expect<integer>(read_integer(ctx, literal, 16)).value()))},
-            loc};
+    if (!literal.empty())
+      return {generic_literal{make<character>(ctx,
+                                              static_cast<char>(expect<integer>(read_integer(ctx, literal, 16)).value()))},
+              loc};
+    else
+      return {generic_literal{make<character>(ctx, 'x')}, loc};
   }
 }
 

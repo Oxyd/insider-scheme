@@ -109,6 +109,7 @@ TEST_F(io, read_char) {
   EXPECT_EQ(expect<character>(read(R"(#\x6d)"))->value(), 'm');
   EXPECT_EQ(expect<character>(read(R"(#\x6D)"))->value(), 'm');
   EXPECT_EQ(expect<character>(read(R"(#\x4d)"))->value(), 'M');
+  EXPECT_EQ(expect<character>(read(R"(#\x)"))->value(), 'x');
 }
 
 TEST_F(io, read_string) {
