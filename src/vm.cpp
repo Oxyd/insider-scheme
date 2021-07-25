@@ -123,12 +123,19 @@ throw_if_wrong_number_of_args(ptr<> callable, std::size_t num_args) {
   }
 }
 
+static void
+clear_native_continuations(ptr<stack_frame> frame) {
+  if (auto e = frame->extra)
+    e->native_continuations.clear();
+}
+
 static ptr<stack_frame>
 make_tail_call(stack_cache& stack, ptr<stack_frame> new_frame) {
   assert(object_generation(new_frame) == generation::stack);
   assert(new_frame->parent);
 
   ptr<stack_frame> parent = new_frame->parent;
+  clear_native_continuations(parent);
 
   if (object_generation(new_frame->parent) == generation::stack) {
     parent->callable = new_frame->callable;

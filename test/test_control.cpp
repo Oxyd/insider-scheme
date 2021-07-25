@@ -754,3 +754,33 @@ TEST_F(control, turn_list_to_multiple_values) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 6);
 }
+
+TEST_F(control, continuation_jump_to_native_tail_call) {
+  define_procedure(ctx, "call-two", ctx.internal_module, true,
+                   [] (context& ctx, ptr<> f, ptr<> g) {
+                     return call_continuable(
+                       ctx, f, {},
+                       [g = track(ctx, g)] (context& ctx, ptr<> result) {
+                         return tail_call(ctx, g.get(), {result}).get();
+                       }
+                     );
+                   });
+
+  define_procedure(ctx, "f", ctx.internal_module, true,
+                   [] (ptr<> value) {
+                     return value;
+                   });
+
+  auto result = eval_module(R"(
+    (import (insider internal))
+
+    (call-two
+      (lambda ()
+        (capture-stack
+          (lambda (k)
+            (replace-stack! k 4))))
+      (lambda (x)
+        (f x)))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 4);
+}
