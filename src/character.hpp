@@ -5,11 +5,10 @@
 
 namespace insider {
 
-// Character. TODO: Support Unicode.
 class character : public leaf_object<character> {
 public:
   static constexpr char const* scheme_name = "insider::character";
-  using value_type = char;
+  using value_type = char32_t;
 
   explicit
   character(value_type c) : value_{c} { }
