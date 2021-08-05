@@ -1,6 +1,7 @@
 #ifndef INSIDER_OBJECT_CONVERSIONS_HPP
 #define INSIDER_OBJECT_CONVERSIONS_HPP
 
+#include "character.hpp"
 #include "integer.hpp"
 #include "object.hpp"
 
@@ -41,21 +42,27 @@ namespace detail {
     }
   };
 
-  template <>
-  struct expect_helper<integer> {
-    static integer
+  template <typename ImmediateT, auto Converter>
+  struct immediate_expect_helper {
+    static ImmediateT
     expect(ptr<> x, std::string_view message) {
-      if (is<integer>(x))
-        return ptr_to_integer(x);
+      if (is<ImmediateT>(x))
+        return Converter(x);
       else
-        throw !message.empty() ? error{message} : make_type_error<integer>(x);
+        throw !message.empty() ? error{message} : make_type_error<ImmediateT>(x);
     }
 
-    static integer
-    expect(tracked_ptr<> const& x, std::string_view message) {
+    static ImmediateT
+    expect(tracked_ptr<> x, std::string_view message) {
       return expect(x.get(), message);
     }
   };
+
+  template <>
+  struct expect_helper<integer> : immediate_expect_helper<integer, ptr_to_integer> { };
+
+  template <>
+  struct expect_helper<character> : immediate_expect_helper<character, ptr_to_character> { };
 }
 
 // Expect an object to be of given type and return the apropriate typed pointer
@@ -102,20 +109,26 @@ namespace detail {
     }
   };
 
-  template <>
-  struct assume_helper<integer> {
-    static integer
+  template <typename ImmediateT, auto Converter>
+  struct immediate_assume_helper {
+    static ImmediateT
     assume(ptr<> x) {
-      assert(is<integer>(x));
-      return ptr_to_integer(x);
+      assert(is<ImmediateT>(x));
+      return Converter(x);
     }
 
-    static integer
+    static ImmediateT
     assume(tracked_ptr<> const& x) {
-      assert(is<integer>(x));
-      return ptr_to_integer(x.get());
+      assert(is<ImmediateT>(x));
+      return Converter(x.get());
     }
   };
+
+  template <>
+  struct assume_helper<integer> : immediate_assume_helper<integer, ptr_to_integer> { };
+
+  template <>
+  struct assume_helper<character> : immediate_assume_helper<character, ptr_to_character> { };
 }
 
 // Assert that an object is of a given type and return the appropriate typed
@@ -150,21 +163,22 @@ namespace detail {
     }
   };
 
-  template <>
-  struct match_helper<integer> {
-    static std::optional<integer>
+  template <typename ImmediateT, auto Converter>
+  struct immediate_match_helper {
+    static std::optional<ImmediateT>
     match(ptr<> x) {
-      if (is<integer>(x))
-        return ptr_to_integer(x);
+      if (is<ImmediateT>(x))
+        return Converter(x);
       else
         return std::nullopt;
     }
-
-    static std::optional<integer>
-    match(tracked_ptr<> const& x) {
-      return match(x.get());
-    }
   };
+
+  template <>
+  struct match_helper<integer> : immediate_match_helper<integer, ptr_to_integer> { };
+
+  template <>
+  struct match_helper<character> : immediate_match_helper<character, ptr_to_character> { };
 }
 
 // If an object is of the given type, return the typed pointer to it; otherwise,

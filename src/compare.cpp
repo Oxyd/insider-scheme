@@ -18,6 +18,8 @@ std::size_t
 hash(ptr<> x) {
   if (auto i = match<integer>(x))
     return integer_hash(*i);
+  else if (auto c = match<character>(x))
+    return character_hash(*c);
   else
     return object_hash(x);
 }
@@ -55,7 +57,7 @@ eqv(context& ctx, ptr<> x, ptr<> y) {
     return false;
 
   if (auto lhs = match<character>(x))
-    return lhs->value() == assume<character>(x)->value();
+    return lhs->value() == assume<character>(x).value();
 
   if (is<string>(x) && is<string>(y))
     return assume<string>(x)->value() == assume<string>(y)->value();

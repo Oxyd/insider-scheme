@@ -98,18 +98,18 @@ TEST_F(io, read_symbol) {
 }
 
 TEST_F(io, read_char) {
-  EXPECT_EQ(expect<character>(read(R"(#\a)"))->value(), 'a');
-  EXPECT_EQ(expect<character>(read(R"(#\A)"))->value(), 'A');
-  EXPECT_EQ(expect<character>(read(R"(#\4)"))->value(), '4');
-  EXPECT_EQ(expect<character>(read(R"(#\\)"))->value(), '\\');
-  EXPECT_EQ(expect<character>(read(R"(#\()"))->value(), '(');
-  EXPECT_EQ(expect<character>(read(R"(#\ )"))->value(), ' ');
-  EXPECT_EQ(expect<character>(read(R"(#\space)"))->value(), ' ');
-  EXPECT_EQ(expect<character>(read(R"(#\x63)"))->value(), 'c');
-  EXPECT_EQ(expect<character>(read(R"(#\x6d)"))->value(), 'm');
-  EXPECT_EQ(expect<character>(read(R"(#\x6D)"))->value(), 'm');
-  EXPECT_EQ(expect<character>(read(R"(#\x4d)"))->value(), 'M');
-  EXPECT_EQ(expect<character>(read(R"(#\x)"))->value(), 'x');
+  EXPECT_EQ(expect<character>(read(R"(#\a)")).value(), 'a');
+  EXPECT_EQ(expect<character>(read(R"(#\A)")).value(), 'A');
+  EXPECT_EQ(expect<character>(read(R"(#\4)")).value(), '4');
+  EXPECT_EQ(expect<character>(read(R"(#\\)")).value(), '\\');
+  EXPECT_EQ(expect<character>(read(R"(#\()")).value(), '(');
+  EXPECT_EQ(expect<character>(read(R"(#\ )")).value(), ' ');
+  EXPECT_EQ(expect<character>(read(R"(#\space)")).value(), ' ');
+  EXPECT_EQ(expect<character>(read(R"(#\x63)")).value(), 'c');
+  EXPECT_EQ(expect<character>(read(R"(#\x6d)")).value(), 'm');
+  EXPECT_EQ(expect<character>(read(R"(#\x6D)")).value(), 'm');
+  EXPECT_EQ(expect<character>(read(R"(#\x4d)")).value(), 'M');
+  EXPECT_EQ(expect<character>(read(R"(#\x)")).value(), 'x');
 }
 
 TEST_F(io, read_string) {
@@ -170,7 +170,7 @@ TEST_F(io, write) {
   EXPECT_EQ(to_string_simple(ctx, p2), "(0 1 . 2)");
 
   auto v = make<vector>(ctx, ctx, 3);
-  v->set(ctx.store, 0, make<character>(ctx, 'r'));
+  v->set(ctx.store, 0, character_to_ptr(character{'r'}));
   v->set(ctx.store, 1, p2);
   v->set(ctx.store, 2, make_string(ctx, "foobar"));
   EXPECT_EQ(to_string_simple(ctx, v), R"(#(#\r (0 1 . 2) "foobar"))");
@@ -187,7 +187,7 @@ TEST_F(io, write) {
     ctx.constants->f.get(),
     ctx.intern("symbol"),
     make_string(ctx, "string"),
-    make<character>(ctx, 'c'),
+    character_to_ptr(character{'c'}),
     integer_to_ptr(integer{-13})
   );
   EXPECT_EQ(to_string_simple(ctx, l), R"((() #void #t #f symbol "string" #\c -13))");

@@ -33,7 +33,7 @@ private:
 
 inline integer
 ptr_to_integer(ptr<> x) {
-  assert(!is_object_ptr(x));
+  assert(is_fixnum(x));
   return integer{static_cast<integer::value_type>(tagged_payload(x)) >> 1};
 }
 

@@ -36,9 +36,9 @@ write_string(ptr<string> s, ptr<port> out) {
 }
 
 static void
-write_char(ptr<character> c, ptr<port> out) {
+write_char(character c, ptr<port> out) {
   out->write_string(R"(#\)");
-  out->write_char(c->value());
+  out->write_char(c.value());
 }
 
 static void
@@ -77,7 +77,7 @@ write_atomic(context& ctx, ptr<> datum, ptr<port> out) {
   if (auto str = match<string>(datum))
     write_string(str, out);
   else if (auto c = match<character>(datum))
-    write_char(c, out);
+    write_char(*c, out);
   else
     write_primitive(ctx, datum, out);
 }

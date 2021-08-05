@@ -12,7 +12,9 @@
 
 namespace insider {
 
+class character;
 class context;
+class integer;
 
 using word_type = std::uint64_t;
 using member_visitor = std::function<void(ptr<>&)>;
@@ -64,13 +66,25 @@ types() {
 word_type
 new_type(type_descriptor);
 
+// Pointer tagging:
+// ... xxx1 -- integer
+// ... xx10 -- character
+// ... xx00 -- pointer
+
 inline bool
 is_object_ptr(ptr<> o) {
-  return !(reinterpret_cast<word_type>(o.value()) & 1);
+  return (reinterpret_cast<word_type>(o.value()) & 0b11) == 0b00;
 }
 
 inline bool
-is_fixnum(ptr<> o) { return !is_object_ptr(o); }
+is_fixnum(ptr<> o) {
+  return (reinterpret_cast<word_type>(o.value()) & 0b01) == 0b01;
+}
+
+inline bool
+is_character(ptr<> o) {
+  return (reinterpret_cast<word_type>(o.value()) & 0b11) == 0b10;
+}
 
 inline word_type&
 header_word(ptr<> o) {
@@ -104,11 +118,12 @@ tagged_payload(ptr<> o) {
 
 inline ptr<>
 immediate_to_ptr(word_type w) noexcept {
-  assert(w & 1);
+  assert(w & 0b11);
   return ptr<>{reinterpret_cast<object*>(w)};
 }
 
 constexpr char const* integer_type_name = "insider::fixnum";
+constexpr char const* character_type_name = "insider::character";
 
 inline std::string
 object_type_name(ptr<> o) {
@@ -133,6 +148,12 @@ type_name<integer>() {
   return integer_type_name;
 }
 
+template <>
+inline std::string
+type_name<character>() {
+  return character_type_name;
+}
+
 // Is a given object an instance of the given Scheme type?
 template <typename T>
 bool
@@ -145,6 +166,12 @@ template <>
 inline bool
 is<integer>(ptr<> x) {
   return is_fixnum(x);
+}
+
+template <>
+inline bool
+is<character>(ptr<> x) {
+  return is_character(x);
 }
 
 namespace detail {

@@ -176,14 +176,14 @@ TEST_F(gc, weak_ptr) {
 }
 
 TEST_F(gc, distinct_objects_have_distinct_hashes) {
-  auto a = make<character>(ctx, 'a');
-  auto b = make<character>(ctx, 'a');
+  auto a = make<pair>(ctx, ctx.constants->null.get(), ctx.constants->null.get());
+  auto b = make<pair>(ctx, ctx.constants->null.get(), ctx.constants->null.get());
   EXPECT_NE(object_hash(a), object_hash(b));
 }
 
 TEST_F(gc, objects_retain_hash_values_through_gc) {
-  auto a = make_tracked<character>(ctx, 'a');
-  auto b = make_tracked<character>(ctx, 'b');
+  auto a = make_tracked<symbol>(ctx, "a");
+  auto b = make_tracked<symbol>(ctx, "b");
 
   void* old_a_addr = a.get().value();
   void* old_b_addr = b.get().value();

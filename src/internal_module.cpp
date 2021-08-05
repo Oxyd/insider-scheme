@@ -122,9 +122,9 @@ make_internal_module(context& ctx) {
       auto result = make<string>(ctx, length);
 
       if (args.size() == 2) {
-        ptr<character> fill = expect<character>(args[1]);
+        character fill = expect<character>(args[1]);
         for (std::size_t i = 0; i < static_cast<std::size_t>(length); ++i)
-          result->set(i, fill->value());
+          result->set(i, fill.value());
       }
 
       return result;

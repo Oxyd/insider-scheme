@@ -141,7 +141,7 @@ read_numeric_literal(context& ctx, input_stream& stream) {
 
 static token
 read_character(context& ctx, input_stream& stream) {
-  static std::unordered_map<std::string, char> const character_names{
+  static std::unordered_map<std::string, char32_t> const character_names{
     {"alarm",     '\x07'},
     {"backspace", '\x08'},
     {"delete",    '\x7F'},
@@ -154,15 +154,17 @@ read_character(context& ctx, input_stream& stream) {
   };
 
   if (stream.peek_char() != 'x') {
+    // TODO: Convert from UTF-8
+
     source_location loc = stream.current_location();
     if (!std::isalpha(*stream.peek_char(), std::locale{"C"}))
-      return {generic_literal{make<character>(ctx, *stream.read_char())}, loc};
+      return {generic_literal{character_to_ptr(character{static_cast<character::value_type>(*stream.read_char())})}, loc};
 
     std::string literal = read_until_delimiter(stream);
     if (literal.size() == 1)
-      return {generic_literal{make<character>(ctx, literal[0])}, loc};
+      return {generic_literal{character_to_ptr(character{static_cast<character::value_type>(literal[0])})}, loc};
     else if (auto it = character_names.find(literal); it != character_names.end())
-      return {generic_literal{make<character>(ctx, it->second)}, loc};
+      return {generic_literal{character_to_ptr(character{it->second})}, loc};
     else
       throw read_error{fmt::format("Unknown character literal #\\{}", literal), loc};
   }
@@ -175,11 +177,10 @@ read_character(context& ctx, input_stream& stream) {
       literal += *stream.read_char();
 
     if (!literal.empty())
-      return {generic_literal{make<character>(ctx,
-                                              static_cast<char>(expect<integer>(read_integer(ctx, literal, 16)).value()))},
+      return {generic_literal{character_to_ptr(character{static_cast<character::value_type>(expect<integer>(read_integer(ctx, literal, 16)).value())})},
               loc};
     else
-      return {generic_literal{make<character>(ctx, 'x')}, loc};
+      return {generic_literal{character_to_ptr(character{'x'})}, loc};
   }
 }
 
