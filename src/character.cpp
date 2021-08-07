@@ -43,4 +43,9 @@ is_lower_case(character c) {
   return has_category(c, code_point_category::lower_case);
 }
 
+bool
+is_white_space(character c) {
+  return has_category(c, code_point_category::white_space);
+}
+
 } // namespace insider

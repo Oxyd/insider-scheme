@@ -44,3 +44,10 @@ TEST_F(character_fixture, is_lower_or_upper_case) {
   EXPECT_FALSE(is_lower_case(character{U'か'}));
   EXPECT_FALSE(is_upper_case(character{U'か'}));
 }
+
+TEST_F(character_fixture, is_whitespace) {
+  EXPECT_TRUE(is_white_space(character{' '}));
+  EXPECT_TRUE(is_white_space(character{'\t'}));
+  EXPECT_TRUE(is_white_space(character{0x2029})); // PARAGRAPH SEPARATOR
+  EXPECT_FALSE(is_white_space(character{'a'}));
+}

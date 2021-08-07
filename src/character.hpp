@@ -52,6 +52,9 @@ is_upper_case(character);
 bool
 is_lower_case(character);
 
+bool
+is_white_space(character);
+
 } // namespace insider
 
 #endif

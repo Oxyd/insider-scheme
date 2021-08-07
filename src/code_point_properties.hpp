@@ -12,6 +12,7 @@ namespace code_point_category {
   static constexpr std::uint32_t lower_case = 1 << 1;
   static constexpr std::uint32_t upper_case = 1 << 2;
   static constexpr std::uint32_t alphabetic = 1 << 3;
+  static constexpr std::uint32_t white_space = 1 << 4;
 }
 
 struct code_point_properties {

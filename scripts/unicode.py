@@ -234,13 +234,15 @@ class CodePointCategory(Enum):
     LowerCase = 1
     UpperCase = 2
     Alphabetic = 3
+    WhiteSpace = 4
 
 
 def format_category(c):
     return {CodePointCategory.Numeric: 'code_point_category::numeric',
             CodePointCategory.LowerCase: 'code_point_category::lower_case',
             CodePointCategory.UpperCase: 'code_point_category::upper_case',
-            CodePointCategory.Alphabetic: 'code_point_category::alphabetic'}[c]
+            CodePointCategory.Alphabetic: 'code_point_category::alphabetic',
+            CodePointCategory.WhiteSpace: 'code_point_category::white_space'}[c]
 
 
 def format_categories(c):
@@ -257,10 +259,18 @@ def format_properties(prop):
     return '{' + '{}, {}, {}'.format(prop.code_point, format_categories(prop.categories), prop.numeric_value) + '}'
 
 
-def numeric(c):
+def is_numeric(c):
     return (c.decimal_value != ''
             and c.digit_value != ''
             and c.numeric_value != '')
+
+
+def is_white_space(cp, property_list):
+    return cp in property_list and 'White_Space' in property_list[cp]
+
+
+def is_alphabetic(cp, derived_core_properties):
+    return cp in derived_core_properties and 'Alphabetic' in derived_core_properties[cp]
 
 
 def make_alphabetic_properties(code_point, character, derived_properties):
@@ -273,17 +283,18 @@ def make_alphabetic_properties(code_point, character, derived_properties):
     return CodePointProperties(code_point, categories, 0)
 
 
-def build_properties(codepoints, derived_core_properties):
+def build_properties(codepoints, property_list, derived_core_properties):
     properties = []
 
     for cp, c in codepoints.items():
-        if numeric(c):
+        if is_numeric(c):
             properties.append(CodePointProperties(cp, {CodePointCategory.Numeric}, int(c.decimal_value)))
 
-        elif cp in derived_core_properties:
-            derived_prop = derived_core_properties[cp]
-            if 'Alphabetic' in derived_prop:
-                properties.append(make_alphabetic_properties(cp, c, derived_prop))
+        elif is_white_space(cp, property_list):
+            properties.append(CodePointProperties(cp, {CodePointCategory.WhiteSpace}, 0))
+
+        elif is_alphabetic(cp, derived_core_properties):
+            properties.append(make_alphabetic_properties(cp, c, derived_core_properties[cp]))
 
     return properties
 
@@ -318,6 +329,7 @@ def output_code_point_table(props, out):
 def main():
     parser = argparse.ArgumentParser(description='Build code_point_properties_table.inc')
     parser.add_argument('data', type=str, help='path to UnicodeData.txt')
+    parser.add_argument('prop_list', type=str, help='path to PropList.txt')
     parser.add_argument('derived_core_properties', type=str, help='path to DerivedCoreProperties.txt')
     parser.add_argument('src', type=str, help='path to the src directory')
 
@@ -326,11 +338,14 @@ def main():
     print('Reading {}...'.format(args.data))
     chars = read_characters(args.data)
 
+    print('Reading {}...'.format(args.prop_list))
+    prop_list = read_property_list(args.prop_list)
+
     print('Reading {}...'.format(args.derived_core_properties))
     derived_core_properties = read_property_list(args.derived_core_properties)
 
     print('Analysing properties...')
-    props = build_properties(chars, derived_core_properties)
+    props = build_properties(chars, prop_list, derived_core_properties)
 
     print('Building perfect hash function...')
     h = build_perfect_hash(list_codepoints(props))
