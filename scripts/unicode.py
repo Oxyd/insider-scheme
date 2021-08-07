@@ -231,22 +231,30 @@ def build_perfect_hash(data):
 
 class CodePointCategory(Enum):
     Numeric = 0
-    Alphabetic = 1
+    LowerCase = 1
+    UpperCase = 2
+    Alphabetic = 3
 
 
 def format_category(c):
     return {CodePointCategory.Numeric: 'code_point_category::numeric',
+            CodePointCategory.LowerCase: 'code_point_category::lower_case',
+            CodePointCategory.UpperCase: 'code_point_category::upper_case',
             CodePointCategory.Alphabetic: 'code_point_category::alphabetic'}[c]
+
+
+def format_categories(c):
+    return ' | '.join(format_category(cat) for cat in c)
 
 
 CodePointProperties = namedtuple(
     'CodePointProperties',
-    ['code_point', 'category', 'numeric_value']
+    ['code_point', 'categories', 'numeric_value']
 )
 
 
 def format_properties(prop):
-    return '{' + '{}, {}, {}'.format(prop.code_point, format_category(prop.category), prop.numeric_value) + '}'
+    return '{' + '{}, {}, {}'.format(prop.code_point, format_categories(prop.categories), prop.numeric_value) + '}'
 
 
 def numeric(c):
@@ -255,17 +263,27 @@ def numeric(c):
             and c.numeric_value != '')
 
 
+def make_alphabetic_properties(code_point, character, derived_properties):
+    categories = {CodePointCategory.Alphabetic}
+    if 'Lowercase' in derived_properties:
+        categories.add(CodePointCategory.LowerCase)
+    if 'Uppercase' in derived_properties:
+        categories.add(CodePointCategory.UpperCase)
+
+    return CodePointProperties(code_point, categories, 0)
+
+
 def build_properties(codepoints, derived_core_properties):
     properties = []
 
     for cp, c in codepoints.items():
         if numeric(c):
-            properties.append(CodePointProperties(cp, CodePointCategory.Numeric, int(c.decimal_value)))
+            properties.append(CodePointProperties(cp, {CodePointCategory.Numeric}, int(c.decimal_value)))
 
         elif cp in derived_core_properties:
             derived_prop = derived_core_properties[cp]
             if 'Alphabetic' in derived_prop:
-                properties.append(CodePointProperties(cp, CodePointCategory.Alphabetic, 0))
+                properties.append(make_alphabetic_properties(cp, c, derived_prop))
 
     return properties
 

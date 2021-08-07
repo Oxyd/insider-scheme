@@ -31,3 +31,16 @@ TEST_F(character_fixture, is_alphabetic) {
   EXPECT_FALSE(is_alphabetic(character{' '}));
   EXPECT_TRUE(is_alphabetic(character{U'ř'}));
 }
+
+TEST_F(character_fixture, is_lower_or_upper_case) {
+  EXPECT_TRUE(is_lower_case(character{'a'}));
+  EXPECT_FALSE(is_upper_case(character{'a'}));
+  EXPECT_FALSE(is_lower_case(character{'A'}));
+  EXPECT_TRUE(is_upper_case(character{'A'}));
+  EXPECT_FALSE(is_lower_case(character{'0'}));
+  EXPECT_FALSE(is_upper_case(character{'0'}));
+
+  EXPECT_TRUE(is_alphabetic(character{U'か'}));
+  EXPECT_FALSE(is_lower_case(character{U'か'}));
+  EXPECT_FALSE(is_upper_case(character{U'か'}));
+}

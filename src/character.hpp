@@ -46,6 +46,12 @@ digit_value(context&, character);
 bool
 is_alphabetic(character);
 
+bool
+is_upper_case(character);
+
+bool
+is_lower_case(character);
+
 } // namespace insider
 
 #endif
