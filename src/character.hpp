@@ -43,6 +43,9 @@ is_numeric(character);
 ptr<>
 digit_value(context&, character);
 
+bool
+is_alphabetic(character);
+
 } // namespace insider
 
 #endif

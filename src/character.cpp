@@ -23,4 +23,12 @@ digit_value(context& ctx, character c) {
   return ctx.constants->f.get();
 }
 
+bool
+is_alphabetic(character c) {
+  if (auto prop = find_properties(c.value()))
+    return prop->category == code_point_category::alphabetic;
+  else
+    return false;
+}
+
 } // namespace insider

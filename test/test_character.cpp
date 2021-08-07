@@ -24,3 +24,10 @@ TEST_F(character_fixture, digit_value) {
   EXPECT_EQ(expect<integer>(digit_value(ctx, character{123638})).value(), 6);
   EXPECT_EQ(digit_value(ctx, character{'a'}), ctx.constants->f.get());
 }
+
+TEST_F(character_fixture, is_alphabetic) {
+  EXPECT_TRUE(is_alphabetic(character{'a'}));
+  EXPECT_FALSE(is_alphabetic(character{';'}));
+  EXPECT_FALSE(is_alphabetic(character{' '}));
+  EXPECT_TRUE(is_alphabetic(character{U'ř'}));
+}

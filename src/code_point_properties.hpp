@@ -2,12 +2,14 @@
 #define INSIDER_CODE_POINT_PROPERTIES_HPP
 
 #include <array>
+#include <cstdint>
 #include <optional>
 
 namespace insider {
 
-enum class code_point_category {
-  numeric = 0
+enum class code_point_category : std::uint32_t {
+  numeric = 0,
+  alphabetic = 1
 };
 
 struct code_point_properties {

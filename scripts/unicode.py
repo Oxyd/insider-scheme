@@ -5,6 +5,7 @@ from enum import Enum
 import random
 import argparse
 from pathlib import Path
+import re
 
 Character = namedtuple(
     'Character',
@@ -49,12 +50,41 @@ def read_characters(data_path):
     return result
 
 
+single_character_property_re = re.compile(r'([0-9A-F]+) *; ([a-zA-Z_]+) #.*')
+range_character_property_re = re.compile(r'([0-9A-F]+)\.\.([0-9A-F]+) *; ([a-zA-Z_]+) #.*')
+
+def read_property_list(path):
+    result = {}
+
+    def add_property(cp, prop):
+        if cp not in result:
+            result[cp] = []
+        result[cp].append(prop)
+
+
+    with open(path, 'r') as f:
+        for line in f:
+            single_match = single_character_property_re.match(line)
+            if single_match:
+                add_property(int(single_match.group(1), 16), single_match.group(2))
+            else:
+                range_match = range_character_property_re.match(line)
+                if range_match:
+                    begin = int(range_match.group(1), 16)
+                    end = int(range_match.group(2), 16)
+                    prop = range_match.group(3)
+                    for cp in range(begin, end + 1):
+                        add_property(cp, prop)
+
+    return result
+
+
 class HashFunction:
     int_max = 2**64
     p = 18015766095129967273
 
     def __init__(self, a, b, n):
-        self.a = (a % HashFunction.p) + 1
+        self.a = a
         self.b = b % HashFunction.p
         self.n = n
 
@@ -69,8 +99,8 @@ class HashFunction:
 
 
 def make_random_hash_fn(n):
-    return HashFunction(random.randrange(HashFunction.int_max),
-                        random.randrange(HashFunction.int_max),
+    return HashFunction(random.randint(1, HashFunction.p - 1),
+                        random.randint(0, HashFunction.p - 1),
                         n)
 
 
@@ -181,6 +211,9 @@ def build_perfect_hash(data):
 
 
     while True:
+        if attempts == 0:
+            print('Graph size =', n)
+
         r = build_graph(data, n)
         if not r:
             increase_n()
@@ -198,10 +231,12 @@ def build_perfect_hash(data):
 
 class CodePointCategory(Enum):
     Numeric = 0
+    Alphabetic = 1
 
 
 def format_category(c):
-    return {CodePointCategory.Numeric: 'code_point_category::numeric'}[c]
+    return {CodePointCategory.Numeric: 'code_point_category::numeric',
+            CodePointCategory.Alphabetic: 'code_point_category::alphabetic'}[c]
 
 
 CodePointProperties = namedtuple(
@@ -220,12 +255,17 @@ def numeric(c):
             and c.numeric_value != '')
 
 
-def build_properties(codepoints):
+def build_properties(codepoints, derived_core_properties):
     properties = []
 
     for cp, c in codepoints.items():
         if numeric(c):
             properties.append(CodePointProperties(cp, CodePointCategory.Numeric, int(c.decimal_value)))
+
+        elif cp in derived_core_properties:
+            derived_prop = derived_core_properties[cp]
+            if 'Alphabetic' in derived_prop:
+                properties.append(CodePointProperties(cp, CodePointCategory.Alphabetic, 0))
 
     return properties
 
@@ -260,13 +300,24 @@ def output_code_point_table(props, out):
 def main():
     parser = argparse.ArgumentParser(description='Build code_point_properties_table.inc')
     parser.add_argument('data', type=str, help='path to UnicodeData.txt')
+    parser.add_argument('derived_core_properties', type=str, help='path to DerivedCoreProperties.txt')
     parser.add_argument('src', type=str, help='path to the src directory')
 
     args = parser.parse_args()
 
+    print('Reading {}...'.format(args.data))
     chars = read_characters(args.data)
-    props = build_properties(chars)
+
+    print('Reading {}...'.format(args.derived_core_properties))
+    derived_core_properties = read_property_list(args.derived_core_properties)
+
+    print('Analysing properties...')
+    props = build_properties(chars, derived_core_properties)
+
+    print('Building perfect hash function...')
     h = build_perfect_hash(list_codepoints(props))
+
+    print('Writing result...')
 
     with open(Path(args.src) / 'code_point_properties_forward.inc', 'w') as out:
         print('extern std::array<code_point_properties, {}> const code_points;'.format(len(props)), file=out)
