@@ -37,6 +37,9 @@ character_to_ptr(character c) {
 inline std::size_t
 character_hash(character c) { return std::hash<character::value_type>{}(c.value()); }
 
+bool
+is_numeric(character);
+
 } // namespace insider
 
 #endif

@@ -26,6 +26,8 @@ set(scheme_sources
   src/basic_types.cpp
   src/bytecode.cpp
   src/call_stack.cpp
+  src/character.cpp
+  src/code_point_properties.cpp
   src/compare.cpp
   src/compiler.cpp
   src/context.cpp
@@ -50,6 +52,7 @@ set(scheme_sources
 
 set(test_sources
   test/test_bytecode.cpp
+  test/test_character.cpp
   test/test_compiler.cpp
   test/test_control.cpp
   test/test_gc.cpp
