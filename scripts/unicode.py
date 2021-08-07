@@ -326,6 +326,10 @@ def output_code_point_table(props, out):
     print('}};', file=out)
 
 
+def output_generated_file_header(out):
+    print('// Do not edit. This is a generated file. See scripts/unicode.py.', file=out)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Build code_point_properties_table.inc')
     parser.add_argument('data', type=str, help='path to UnicodeData.txt')
@@ -353,9 +357,11 @@ def main():
     print('Writing result...')
 
     with open(Path(args.src) / 'code_point_properties_forward.inc', 'w') as out:
+        output_generated_file_header(out)
         print('extern std::array<code_point_properties, {}> const code_points;'.format(len(props)), file=out)
 
     with open(Path(args.src) / 'code_point_properties_table.inc', 'w') as out:
+        output_generated_file_header(out)
         output_code_point_table(props, out)
         output_perfect_hash_function(h, out)
 
