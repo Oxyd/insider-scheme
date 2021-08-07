@@ -18,3 +18,9 @@ TEST_F(character_fixture, codepoint_hash) {
   for (std::size_t i = 0; i < code_points.size(); ++i)
     EXPECT_EQ(codepoint_hash(code_points[i].code_point), i);
 }
+
+TEST_F(character_fixture, digit_value) {
+  EXPECT_EQ(expect<integer>(digit_value(ctx, character{'8'})).value(), 8);
+  EXPECT_EQ(expect<integer>(digit_value(ctx, character{123638})).value(), 6);
+  EXPECT_EQ(digit_value(ctx, character{'a'}), ctx.constants->f.get());
+}

@@ -206,12 +206,12 @@ def format_category(c):
 
 CodePointProperties = namedtuple(
     'CodePointProperties',
-    ['code_point', 'category']
+    ['code_point', 'category', 'numeric_value']
 )
 
 
 def format_properties(prop):
-    return '{' + '{}, {}'.format(prop.code_point, format_category(prop.category)) + '}'
+    return '{' + '{}, {}, {}'.format(prop.code_point, format_category(prop.category), prop.numeric_value) + '}'
 
 
 def numeric(c):
@@ -225,7 +225,7 @@ def build_properties(codepoints):
 
     for cp, c in codepoints.items():
         if numeric(c):
-            properties.append(CodePointProperties(cp, CodePointCategory.Numeric))
+            properties.append(CodePointProperties(cp, CodePointCategory.Numeric, int(c.decimal_value)))
 
     return properties
 

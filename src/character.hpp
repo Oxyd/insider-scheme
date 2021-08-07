@@ -40,6 +40,9 @@ character_hash(character c) { return std::hash<character::value_type>{}(c.value(
 bool
 is_numeric(character);
 
+ptr<>
+digit_value(context&, character);
+
 } // namespace insider
 
 #endif

@@ -13,6 +13,7 @@ enum class code_point_category {
 struct code_point_properties {
   char32_t            code_point;
   code_point_category category;
+  int                 digit_value;
 };
 
 std::optional<code_point_properties>
