@@ -4,6 +4,7 @@ from collections import namedtuple
 from enum import Enum
 import random
 import argparse
+from pathlib import Path
 
 Character = namedtuple(
     'Character',
@@ -50,12 +51,11 @@ def read_characters(data_path):
 
 class HashFunction:
     int_max = 2**64
+    p = 18015766095129967273
 
-    def __init__(self, a, b, c, d, n):
-        self.a = a
-        self.b = b
-        self.c = c
-        self.d = d
+    def __init__(self, a, b, n):
+        self.a = (a % HashFunction.p) + 1
+        self.b = b % HashFunction.p
         self.n = n
 
     def __call__(self, x):
@@ -65,13 +65,11 @@ class HashFunction:
         def mul(x, y):
             return (x * y) % HashFunction.int_max
 
-        return add(mul(x, add(mul(x, add(mul(x, self.a), self.b)), self.c)), self.d) % self.n
+        return (add(mul(self.a, x), self.b) % self.p) % self.n
 
 
 def make_random_hash_fn(n):
     return HashFunction(random.randrange(HashFunction.int_max),
-                        random.randrange(HashFunction.int_max),
-                        random.randrange(HashFunction.int_max),
                         random.randrange(HashFunction.int_max),
                         n)
 
@@ -232,21 +230,50 @@ def build_properties(codepoints):
     return properties
 
 
+def list_codepoints(props):
+    return [p.code_point for p in props]
+
+
+def output_universal_hash_function(f, name, out):
+    print('constexpr hash_function ' + name + '{' + '{}ull, {}ull, {}'.format(f.a, f.b, f.n) + '};', file=out)
+
+
+def output_g(g, out):
+    print('constexpr std::array<std::uint32_t, {}> g{{{{'.format(len(g)), file=out)
+    print(',\n'.join('  ' + str(value) for value in g), file=out)
+    print('}};', file=out)
+
+
+def output_perfect_hash_function(h, out):
+    print('constexpr std::uint64_t p = {}ull;'.format(HashFunction.p), file=out)
+    output_universal_hash_function(h.f1, 'f1', out)
+    output_universal_hash_function(h.f2, 'f2', out)
+    output_g(h.g, out)
+
+
+def output_code_point_table(props, out):
+    print('constexpr std::array<code_point_properties, {}> code_points{{{{'.format(len(props)), file=out)
+    print(',\n'.join('  ' + format_properties(p) for p in props), file=out)
+    print('}};', file=out)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Build code_point_properties_table.inc')
     parser.add_argument('data', type=str, help='path to UnicodeData.txt')
-    parser.add_argument('output', type=str, help='output file path')
+    parser.add_argument('src', type=str, help='path to the src directory')
 
     args = parser.parse_args()
 
     chars = read_characters(args.data)
     props = build_properties(chars)
+    h = build_perfect_hash(list_codepoints(props))
 
-    with open(args.output, 'w') as out:
-        print('std::array<code_point_properties, {}> code_points{{{{'.format(len(props)), file=out)
-        print(',\n'.join('  ' + format_properties(p) for p in props), file=out)
-        print('}};', file=out)
+    with open(Path(args.src) / 'code_point_properties_forward.inc', 'w') as out:
+        print('extern std::array<code_point_properties, {}> const code_points;'.format(len(props)), file=out)
 
+    with open(Path(args.src) / 'code_point_properties_table.inc', 'w') as out:
+        output_code_point_table(props, out)
+        output_perfect_hash_function(h, out)
 
 if __name__ == '__main__':
     main()
