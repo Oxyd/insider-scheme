@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from collections import namedtuple
-from enum import Enum
+from enum import IntEnum
 import random
 import argparse
 from pathlib import Path
@@ -229,7 +229,7 @@ def build_perfect_hash(data):
         return PerfectHashFunction(f1, f2, g, len(data))
 
 
-class CodePointCategory(Enum):
+class CodePointCategory(IntEnum):
     Numeric = 0
     LowerCase = 1
     UpperCase = 2
@@ -246,7 +246,7 @@ def format_category(c):
 
 
 def format_categories(c):
-    return ' | '.join(format_category(cat) for cat in c)
+    return ' | '.join(format_category(cat) for cat in sorted(c))
 
 
 CodePointProperties = namedtuple(
@@ -331,6 +331,8 @@ def output_generated_file_header(out):
 
 
 def main():
+    random.seed(a=0)
+
     parser = argparse.ArgumentParser(description='Build code_point_properties_table.inc')
     parser.add_argument('data', type=str, help='path to UnicodeData.txt')
     parser.add_argument('prop_list', type=str, help='path to PropList.txt')
