@@ -15,6 +15,11 @@ Character = namedtuple(
      'simple_uppercase', 'simple_lowercase', 'simple_titlecase']
 )
 
+UnicodeDatabase = namedtuple(
+    'UnicodeDatabase',
+    ['code_points', 'property_list', 'derived_core_properties', 'case_folding']
+)
+
 def parse_character(s):
     c = Character._make(s.split(';'))
     return (int(c.code_point, 16), c)
@@ -310,8 +315,9 @@ def is_alphabetic(cp, derived_core_properties):
     return cp in derived_core_properties and 'Alphabetic' in derived_core_properties[cp]
 
 
-def make_alphabetic_properties(code_point, character, derived_properties, case_folding):
+def make_alphabetic_properties(code_point, character, db):
     categories = {CodePointCategory.Alphabetic}
+    derived_properties = db.derived_core_properties[code_point]
     if 'Lowercase' in derived_properties:
         categories.add(CodePointCategory.LowerCase)
     if 'Uppercase' in derived_properties:
@@ -321,18 +327,18 @@ def make_alphabetic_properties(code_point, character, derived_properties, case_f
     downcase_cp = int(character.simple_lowercase, 16) if character.simple_lowercase != '' else None
 
     case_folding_cp = code_point
-    if code_point in case_folding:
-        case_folding_cp = case_folding[code_point].common
+    if code_point in db.case_folding:
+        case_folding_cp = db.case_folding[code_point].common
 
     return CodePointProperties(code_point, categories, 0, upcase_cp, downcase_cp, case_folding_cp)
 
 
-def build_properties(codepoints, property_list, derived_core_properties, case_folding):
+def build_properties(db):
     properties = []
 
-    for cp, c in codepoints.items():
-        assert c.simple_uppercase == '' or is_alphabetic(cp, derived_core_properties)
-        assert c.simple_lowercase == '' or is_alphabetic(cp, derived_core_properties)
+    for cp, c in db.code_points.items():
+        assert c.simple_uppercase == '' or is_alphabetic(cp, db.derived_core_properties)
+        assert c.simple_lowercase == '' or is_alphabetic(cp, db.derived_core_properties)
 
         if is_numeric(c):
             properties.append(CodePointProperties(cp,
@@ -342,7 +348,7 @@ def build_properties(codepoints, property_list, derived_core_properties, case_fo
                                                   None,
                                                   cp))
 
-        elif is_white_space(cp, property_list):
+        elif is_white_space(cp, db.property_list):
             properties.append(CodePointProperties(cp,
                                                   {CodePointCategory.WhiteSpace},
                                                   0,
@@ -350,8 +356,8 @@ def build_properties(codepoints, property_list, derived_core_properties, case_fo
                                                   None,
                                                   cp))
 
-        elif is_alphabetic(cp, derived_core_properties):
-            properties.append(make_alphabetic_properties(cp, c, derived_core_properties[cp], case_folding))
+        elif is_alphabetic(cp, db.derived_core_properties):
+            properties.append(make_alphabetic_properties(cp, c, db))
 
     return properties
 
@@ -387,32 +393,40 @@ def output_generated_file_header(out):
     print('// Do not edit. This is a generated file. See scripts/unicode.py.', file=out)
 
 
+def read_database(dir_path):
+    unicode_data_path = dir_path / 'UnicodeData.txt'
+    prop_list_path = dir_path / 'PropList.txt'
+    derived_core_properties_path = dir_path / 'DerivedCoreProperties.txt'
+    case_folding_path = dir_path / 'CaseFolding.txt'
+
+    print('Reading {}...'.format(unicode_data_path))
+    code_points = read_characters(unicode_data_path)
+
+    print('Reading {}...'.format(prop_list_path))
+    prop_list = read_property_list(prop_list_path)
+
+    print('Reading {}...'.format(derived_core_properties_path))
+    derived_core_properties = read_property_list(derived_core_properties_path)
+
+    print('Reading {}...'.format(case_folding_path))
+    case_folding = read_case_folding(case_folding_path)
+
+    return UnicodeDatabase(code_points, prop_list, derived_core_properties, case_folding)
+
+
 def main():
     random.seed(a=0)
 
     parser = argparse.ArgumentParser(description='Build code_point_properties_table.inc')
-    parser.add_argument('data', type=str, help='path to UnicodeData.txt')
-    parser.add_argument('prop_list', type=str, help='path to PropList.txt')
-    parser.add_argument('derived_core_properties', type=str, help='path to DerivedCoreProperties.txt')
-    parser.add_argument('case_folding', type=str, help='path to CaseFolding.txt')
+    parser.add_argument('data_dir', type=str, help='path to directory with Unicode database files')
     parser.add_argument('src', type=str, help='path to the src directory')
 
     args = parser.parse_args()
 
-    print('Reading {}...'.format(args.data))
-    chars = read_characters(args.data)
-
-    print('Reading {}...'.format(args.prop_list))
-    prop_list = read_property_list(args.prop_list)
-
-    print('Reading {}...'.format(args.derived_core_properties))
-    derived_core_properties = read_property_list(args.derived_core_properties)
-
-    print('Reading {}...'.format(args.case_folding))
-    case_folding = read_case_folding(args.case_folding)
+    db = read_database(Path(args.data_dir))
 
     print('Analysing properties...')
-    props = build_properties(chars, prop_list, derived_core_properties, case_folding)
+    props = build_properties(db)
 
     print('Building perfect hash function...')
     h = build_perfect_hash(list_codepoints(props))
