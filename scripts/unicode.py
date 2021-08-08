@@ -79,6 +79,28 @@ def read_property_list(path):
     return result
 
 
+CharacterCaseFolding = namedtuple(
+    'CharacterCaseFolding',
+    ['common']
+)
+
+case_folding_re = re.compile(r'([0-9A-F]+); ([CFST]); ([0-9A-F ]+);')
+
+def read_case_folding(path):
+    result = {}
+
+    with open(path, 'r') as f:
+        for line in f:
+            m = case_folding_re.match(line)
+            if m:
+                if m.group(2) == 'C':
+                    cp = int(m.group(1), 16)
+                    common = int(m.group(3), 16)
+                    result[cp] = CharacterCaseFolding(common)
+
+    return result
+
+
 class HashFunction:
     int_max = 2**64
     p = 18015766095129967273
@@ -251,12 +273,27 @@ def format_categories(c):
 
 CodePointProperties = namedtuple(
     'CodePointProperties',
-    ['code_point', 'categories', 'numeric_value']
+    ['code_point', 'categories', 'numeric_value',
+     'simple_uppercase', 'simple_lowercase', 'simple_case_folding']
 )
 
 
+def format_maybe_none(x):
+    if x is None:
+        return 0
+    else:
+        return x
+
+
 def format_properties(prop):
-    return '{' + '{}, {}, {}'.format(prop.code_point, format_categories(prop.categories), prop.numeric_value) + '}'
+    return ('{'
+            + '{}, {}, {}, {}, {}, {}'.format(prop.code_point,
+                                              format_categories(prop.categories),
+                                              prop.numeric_value,
+                                              format_maybe_none(prop.simple_uppercase),
+                                              format_maybe_none(prop.simple_lowercase),
+                                              prop.simple_case_folding)
+            + '}')
 
 
 def is_numeric(c):
@@ -273,28 +310,48 @@ def is_alphabetic(cp, derived_core_properties):
     return cp in derived_core_properties and 'Alphabetic' in derived_core_properties[cp]
 
 
-def make_alphabetic_properties(code_point, character, derived_properties):
+def make_alphabetic_properties(code_point, character, derived_properties, case_folding):
     categories = {CodePointCategory.Alphabetic}
     if 'Lowercase' in derived_properties:
         categories.add(CodePointCategory.LowerCase)
     if 'Uppercase' in derived_properties:
         categories.add(CodePointCategory.UpperCase)
 
-    return CodePointProperties(code_point, categories, 0)
+    upcase_cp = int(character.simple_uppercase, 16) if character.simple_uppercase != '' else None
+    downcase_cp = int(character.simple_lowercase, 16) if character.simple_lowercase != '' else None
+
+    case_folding_cp = code_point
+    if code_point in case_folding:
+        case_folding_cp = case_folding[code_point].common
+
+    return CodePointProperties(code_point, categories, 0, upcase_cp, downcase_cp, case_folding_cp)
 
 
-def build_properties(codepoints, property_list, derived_core_properties):
+def build_properties(codepoints, property_list, derived_core_properties, case_folding):
     properties = []
 
     for cp, c in codepoints.items():
+        assert c.simple_uppercase == '' or is_alphabetic(cp, derived_core_properties)
+        assert c.simple_lowercase == '' or is_alphabetic(cp, derived_core_properties)
+
         if is_numeric(c):
-            properties.append(CodePointProperties(cp, {CodePointCategory.Numeric}, int(c.decimal_value)))
+            properties.append(CodePointProperties(cp,
+                                                  {CodePointCategory.Numeric},
+                                                  int(c.decimal_value),
+                                                  None,
+                                                  None,
+                                                  cp))
 
         elif is_white_space(cp, property_list):
-            properties.append(CodePointProperties(cp, {CodePointCategory.WhiteSpace}, 0))
+            properties.append(CodePointProperties(cp,
+                                                  {CodePointCategory.WhiteSpace},
+                                                  0,
+                                                  None,
+                                                  None,
+                                                  cp))
 
         elif is_alphabetic(cp, derived_core_properties):
-            properties.append(make_alphabetic_properties(cp, c, derived_core_properties[cp]))
+            properties.append(make_alphabetic_properties(cp, c, derived_core_properties[cp], case_folding))
 
     return properties
 
@@ -337,6 +394,7 @@ def main():
     parser.add_argument('data', type=str, help='path to UnicodeData.txt')
     parser.add_argument('prop_list', type=str, help='path to PropList.txt')
     parser.add_argument('derived_core_properties', type=str, help='path to DerivedCoreProperties.txt')
+    parser.add_argument('case_folding', type=str, help='path to CaseFolding.txt')
     parser.add_argument('src', type=str, help='path to the src directory')
 
     args = parser.parse_args()
@@ -350,8 +408,11 @@ def main():
     print('Reading {}...'.format(args.derived_core_properties))
     derived_core_properties = read_property_list(args.derived_core_properties)
 
+    print('Reading {}...'.format(args.case_folding))
+    case_folding = read_case_folding(args.case_folding)
+
     print('Analysing properties...')
-    props = build_properties(chars, prop_list, derived_core_properties)
+    props = build_properties(chars, prop_list, derived_core_properties, case_folding)
 
     print('Building perfect hash function...')
     h = build_perfect_hash(list_codepoints(props))

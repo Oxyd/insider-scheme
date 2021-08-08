@@ -51,3 +51,24 @@ TEST_F(character_fixture, is_whitespace) {
   EXPECT_TRUE(is_white_space(character{0x2029})); // PARAGRAPH SEPARATOR
   EXPECT_FALSE(is_white_space(character{'a'}));
 }
+
+TEST_F(character_fixture, upcase) {
+  EXPECT_EQ(upcase(character{'a'}).value(), 'A');
+  EXPECT_EQ(upcase(character{'A'}).value(), 'A');
+  EXPECT_EQ(upcase(character{'5'}).value(), '5');
+  EXPECT_EQ(upcase(character{U'か'}).value(), U'か');
+}
+
+TEST_F(character_fixture, downcase) {
+  EXPECT_EQ(downcase(character{'A'}).value(), 'a');
+  EXPECT_EQ(downcase(character{'a'}).value(), 'a');
+  EXPECT_EQ(downcase(character{'5'}).value(), '5');
+  EXPECT_EQ(downcase(character{U'か'}).value(), U'か');
+}
+
+TEST_F(character_fixture, foldcase) {
+  EXPECT_EQ(foldcase(character{'a'}).value(), 'a');
+  EXPECT_EQ(foldcase(character{'A'}).value(), 'a');
+  EXPECT_EQ(foldcase(character{U'Á'}).value(), U'á');
+  EXPECT_EQ(foldcase(character{U'ſ'}).value(), 's');
+}

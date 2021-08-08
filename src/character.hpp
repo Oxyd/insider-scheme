@@ -55,6 +55,15 @@ is_lower_case(character);
 bool
 is_white_space(character);
 
+character
+upcase(character);
+
+character
+downcase(character);
+
+character
+foldcase(character);
+
 } // namespace insider
 
 #endif

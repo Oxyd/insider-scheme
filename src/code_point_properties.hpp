@@ -19,6 +19,9 @@ struct code_point_properties {
   char32_t      code_point;
   std::uint32_t category;
   int           digit_value;
+  char32_t      simple_uppercase;
+  char32_t      simple_lowercase;
+  char32_t      simple_case_folding;
 };
 
 inline bool

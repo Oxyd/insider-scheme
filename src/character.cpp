@@ -48,4 +48,28 @@ is_white_space(character c) {
   return has_category(c, code_point_category::white_space);
 }
 
+template <auto Prop>
+character
+find_property_value(character c) {
+  if (auto prop = find_properties(c.value()))
+    if ((*prop).*Prop != 0)
+      return character{(*prop).*Prop};
+  return c;
+}
+
+character
+upcase(character c) {
+  return find_property_value<&code_point_properties::simple_uppercase>(c);
+}
+
+character
+downcase(character c) {
+  return find_property_value<&code_point_properties::simple_lowercase>(c);
+}
+
+character
+foldcase(character c) {
+  return find_property_value<&code_point_properties::simple_case_folding>(c);
+}
+
 } // namespace insider
