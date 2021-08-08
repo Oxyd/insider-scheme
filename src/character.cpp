@@ -5,6 +5,8 @@
 #include "context.hpp"
 #include "integer.hpp"
 
+#include <stdexcept>
+
 namespace insider {
 
 static bool
@@ -70,6 +72,14 @@ downcase(character c) {
 character
 foldcase(character c) {
   return find_property_value<&code_point_properties::simple_case_folding>(c);
+}
+
+std::vector<std::uint8_t>
+to_utf8_copy(character c) {
+  std::vector<std::uint8_t> result;
+  result.reserve(4);
+  to_utf8(c, [&] (std::uint8_t x) { result.push_back(x); });
+  return result;
 }
 
 } // namespace insider

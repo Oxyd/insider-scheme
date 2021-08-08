@@ -72,3 +72,10 @@ TEST_F(character_fixture, foldcase) {
   EXPECT_EQ(foldcase(character{U'Á'}).value(), U'á');
   EXPECT_EQ(foldcase(character{U'ſ'}).value(), 's');
 }
+
+TEST_F(character_fixture, to_utf8) {
+  EXPECT_EQ(to_utf8_copy(character{'a'}), std::vector<std::uint8_t>{'a'});
+  EXPECT_EQ(to_utf8_copy(character{U'á'}), (std::vector<std::uint8_t>{0xc3, 0xa1}));
+  EXPECT_EQ(to_utf8_copy(character{0x831}), (std::vector<std::uint8_t>{0xe0, 0xa0, 0xb1}));
+  EXPECT_EQ(to_utf8_copy(character{0x10345}), (std::vector<std::uint8_t>{0xf0, 0x90, 0x8d, 0x85}));
+}

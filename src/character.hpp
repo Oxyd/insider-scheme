@@ -3,6 +3,9 @@
 
 #include "object.hpp"
 
+#include <cstdint>
+#include <vector>
+
 namespace insider {
 
 // Unicode codepoint
@@ -63,6 +66,31 @@ downcase(character);
 
 character
 foldcase(character);
+
+template <typename F>
+void
+to_utf8(character c, F const& f) {
+  char32_t value = c.value();
+  if (value <= 0x7F)
+    f(static_cast<std::uint8_t>(value));
+  else if (value < 0x7FF) {
+    f(static_cast<std::uint8_t>((value >> 6) | 0b11000000));
+    f(static_cast<std::uint8_t>((value & 0b111111) | 0b10000000));
+  } else if (value < 0xFFFF) {
+    f(static_cast<std::uint8_t>((value >> 12) | 0b11100000));
+    f(static_cast<std::uint8_t>(((value >> 6) & 0b111111) | 0b10000000));
+    f(static_cast<std::uint8_t>((value & 0b111111) | 0b10000000));
+  } else if (value < 0x10FFFF) {
+    f(static_cast<std::uint8_t>((value >> 18) | 0b11110000));
+    f(static_cast<std::uint8_t>(((value >> 12) & 0b111111) | 0b10000000));
+    f(static_cast<std::uint8_t>(((value >> 6) & 0b111111) | 0b10000000));
+    f(static_cast<std::uint8_t>((value & 0b111111) | 0b10000000));
+  } else
+    throw std::runtime_error{"Invalid value for UTF-8"};
+}
+
+std::vector<std::uint8_t>
+to_utf8_copy(character);
 
 } // namespace insider
 
