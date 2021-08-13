@@ -63,6 +63,7 @@ set(test_sources
   test/test_numeric.cpp
   test/test_procedures.cpp
   test/test_records.cpp
+  test/test_string.cpp
   test/test_types.cpp
   )
 

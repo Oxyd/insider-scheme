@@ -85,12 +85,3 @@ TEST_F(types, opaque_value) {
   auto result = eval("(make-value)");
   EXPECT_EQ(expect<opaque_value<int>>(result)->value, 7);
 }
-
-TEST_F(types, string_eqv) {
-  auto s1 = make_string(ctx, "foo");
-  auto s2 = make_string(ctx, "foo");
-  EXPECT_FALSE(s1 == s2);
-  EXPECT_TRUE(eqv(ctx, s1, s2));
-  EXPECT_NE(object_hash(s1), object_hash(s2));
-  EXPECT_EQ(hasheqv(s1), hasheqv(s2));
-}
