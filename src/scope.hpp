@@ -13,7 +13,7 @@ class scope;
 class symbol;
 class syntax;
 class transformer;
-class variable;
+struct variable;
 
 using scope_set = std::vector<ptr<scope>>;
 

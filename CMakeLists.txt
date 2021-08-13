@@ -14,6 +14,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STRE
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+  add_compile_options("/MP")
+  add_compile_options("/utf-8")
   add_definitions(-DUNICODE -D_UNICODE)
 endif()
 

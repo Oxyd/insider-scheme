@@ -14,6 +14,10 @@
 #include <unordered_set>
 #include <vector>
 
+#ifdef small
+#undef small
+#endif
+
 namespace insider {
 
 using word_type = std::uint64_t;

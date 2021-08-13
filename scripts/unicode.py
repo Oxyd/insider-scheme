@@ -384,7 +384,7 @@ def output_perfect_hash_function(h, out):
 
 
 def output_code_point_table(props, out):
-    print('constexpr std::array<code_point_properties, {}> code_points{{{{'.format(len(props)), file=out)
+    print('std::array<code_point_properties, {}> const code_points{{{{'.format(len(props)), file=out)
     print(',\n'.join('  ' + format_properties(p) for p in props), file=out)
     print('}};', file=out)
 

@@ -61,8 +61,8 @@ TEST_F(control, return_to_previous_frame) {
     result
   )");
   ASSERT_TRUE(is_list(result));
-  EXPECT_EQ(expect<boolean>(car(expect<pair>(result))), ctx.constants->f.get());
-  EXPECT_EQ(expect<boolean>(cadr(expect<pair>(result))), ctx.constants->t.get());
+  EXPECT_EQ(expect<insider::boolean>(car(expect<pair>(result))), ctx.constants->f.get());
+  EXPECT_EQ(expect<insider::boolean>(cadr(expect<pair>(result))), ctx.constants->t.get());
 }
 
 TEST_F(control, jump_to_inner_continuation) {

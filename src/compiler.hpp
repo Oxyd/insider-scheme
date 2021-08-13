@@ -12,7 +12,7 @@ class procedure;
 class syntax;
 
 class module;
-class protomodule;
+struct protomodule;
 
 // Translate a single expression into bytecode. The resulting procedure will
 // take no arguments and will return the value of the expression. The module is

@@ -11,7 +11,7 @@ namespace insider {
 
 class context;
 class module;
-struct tail_call_tag_type;
+class tail_call_tag_type;
 
 class root_stack;
 
