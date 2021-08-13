@@ -5,6 +5,8 @@
 #include "context.hpp"
 #include "integer.hpp"
 
+#include <fmt/format.h>
+
 #include <stdexcept>
 
 namespace insider {
@@ -80,6 +82,20 @@ to_utf8_copy(character c) {
   result.reserve(4);
   to_utf8(c, [&] (std::uint8_t x) { result.push_back(x); });
   return result;
+}
+
+std::size_t
+utf8_code_point_byte_length(std::uint8_t first_byte) {
+  if ((first_byte & 0b1000'0000) == 0)
+    return 1;
+  else if ((first_byte & 0b1110'0000) == 0b1100'0000)
+    return 2;
+  else if ((first_byte & 0b1111'0000) == 0b1110'0000)
+    return 3;
+  else if ((first_byte & 0b1111'1000) == 0b1111'0000)
+    return 4;
+  else
+    throw std::runtime_error{fmt::format("Invalid initial byte in UTF-8 encoding: {}", first_byte)};
 }
 
 } // namespace insider

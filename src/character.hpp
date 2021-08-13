@@ -92,6 +92,9 @@ to_utf8(character c, F const& f) {
 std::vector<std::uint8_t>
 to_utf8_copy(character);
 
+std::size_t
+utf8_code_point_byte_length(std::uint8_t first_byte);
+
 } // namespace insider
 
 #endif
