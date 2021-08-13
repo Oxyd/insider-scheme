@@ -88,3 +88,23 @@ TEST_F(character_fixture, utf8_code_point_byte_length) {
   EXPECT_THROW(utf8_code_point_byte_length(0b1000'0000), std::runtime_error);
   EXPECT_THROW(utf8_code_point_byte_length(0b1111'1111), std::runtime_error);
 }
+
+TEST_F(character_fixture, from_utf8) {
+  using namespace std::literals;
+
+  from_utf8_result r1 = from_utf8(u8"a"sv);
+  EXPECT_EQ(r1.code_point, U'a');
+  EXPECT_EQ(r1.length, 1);
+
+  from_utf8_result r2 = from_utf8(u8"á"sv);
+  EXPECT_EQ(r2.code_point, U'á');
+  EXPECT_EQ(r2.length, 2);
+
+  from_utf8_result r3 = from_utf8(u8"࠱"sv);
+  EXPECT_EQ(r3.code_point, U'࠱');
+  EXPECT_EQ(r3.length, 3);
+
+  from_utf8_result r4 = from_utf8(u8"𐍅"sv);
+  EXPECT_EQ(r4.code_point, U'𐍅');
+  EXPECT_EQ(r4.length, 4);
+}
