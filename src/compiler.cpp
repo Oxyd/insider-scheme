@@ -119,14 +119,14 @@ namespace {
     procedure_context*             parent = nullptr;
     register_allocator             registers;
     variable_bindings              bindings;
-    std::vector<insider::bytecode> bytecode;  // Stack of bytecodes to facilitate compiling ifs.
+    std::vector<insider::bytecode> bytecode_stack;  // Stack of bytecodes to facilitate compiling ifs.
     insider::module&               module;
 
     procedure_context(procedure_context* parent, insider::module& m)
       : parent{parent}
       , module{m}
     {
-      bytecode.emplace_back();
+      bytecode_stack.emplace_back();
     }
   };
 }
@@ -320,7 +320,7 @@ compile_fold(context& ctx, procedure_context& proc, std::vector<std::unique_ptr<
 
   operand previous = *arg_registers.front();
   for (auto operand = arg_registers.begin() + 1; operand != arg_registers.end(); ++operand) {
-    encode_instruction(proc.bytecode.back(), instruction{op, previous, **operand, *result.get(proc)});
+    encode_instruction(proc.bytecode_stack.back(), instruction{op, previous, **operand, *result.get(proc)});
     previous = *result.get(proc);
   }
 }
@@ -393,7 +393,7 @@ compile_vector_set(context& ctx, procedure_context& proc, application_expression
   for (std::size_t i = 0; i < 3; ++i)
     arg_registers[i] = compile_expression_to_register(ctx, proc, *stx.arguments[i], false);
 
-  encode_instruction(proc.bytecode.back(),
+  encode_instruction(proc.bytecode_stack.back(),
                      instruction{opcode::vector_set, *arg_registers[0], *arg_registers[1], *arg_registers[2]});
 
   compile_static_reference(proc, ctx.statics.void_, result);
@@ -408,7 +408,7 @@ compile_vector_ref(context& ctx, procedure_context& proc, application_expression
   shared_register i_reg = compile_expression_to_register(ctx, proc, *stx.arguments[1], false);
 
   if (result.result_used())
-    encode_instruction(proc.bytecode.back(),
+    encode_instruction(proc.bytecode_stack.back(),
                        instruction{opcode::vector_ref, *v_reg, *i_reg, *result.get(proc)});
 }
 
@@ -430,7 +430,7 @@ compile_local_set(context& ctx, procedure_context& proc, local_set_expression co
   assert(dest);
 
   shared_register value = compile_expression_to_register(ctx, proc, *stx.expression, false);
-  encode_instruction(proc.bytecode.back(), instruction{opcode::set, *value, *dest});
+  encode_instruction(proc.bytecode_stack.back(), instruction{opcode::set, *value, *dest});
 
   compile_static_reference(proc, ctx.statics.void_, result);
 }
@@ -439,7 +439,7 @@ static void
 compile_top_level_set(context& ctx, procedure_context& proc, top_level_set_expression const& stx,
                       result_register& result) {
   shared_register value = compile_expression_to_register(ctx, proc, *stx.expression, false);
-  encode_instruction(proc.bytecode.back(), instruction{opcode::store_top_level, *value, stx.location});
+  encode_instruction(proc.bytecode_stack.back(), instruction{opcode::store_top_level, *value, stx.location});
 
   compile_static_reference(proc, ctx.statics.void_, result);
 }
@@ -447,7 +447,7 @@ compile_top_level_set(context& ctx, procedure_context& proc, top_level_set_expre
 static ptr<procedure>
 make_procedure(context& ctx, procedure_context const& pc, unsigned min_args, bool has_rest,
                std::optional<std::string> name) {
-  return make_procedure(ctx, pc.bytecode.back(), pc.registers.locals_used(), min_args, has_rest, std::move(name));
+  return make_procedure(ctx, pc.bytecode_stack.back(), pc.registers.locals_used(), min_args, has_rest, std::move(name));
 }
 
 static void
@@ -466,9 +466,9 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_expression const&
   result_register body_result;
   compile_sequence(ctx, proc, stx.body, true, body_result);
   if (body_result.has_result())
-    encode_instruction(proc.bytecode.back(), instruction{opcode::ret, *body_result.get(proc)});
+    encode_instruction(proc.bytecode_stack.back(), instruction{opcode::ret, *body_result.get(proc)});
 
-  assert(proc.bytecode.size() == 1);
+  assert(proc.bytecode_stack.size() == 1);
   auto p = track(ctx, make_procedure(ctx, proc, stx.parameters.size() - (stx.has_rest ? 1 : 0),
                                      stx.has_rest, stx.name));
 
@@ -478,7 +478,7 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_expression const&
     for (std::shared_ptr<variable> const& var : stx.free_variables)
       make_closure.operands.push_back(*parent.bindings.lookup(var));
 
-    encode_instruction(parent.bytecode.back(), std::move(make_closure));
+    encode_instruction(parent.bytecode_stack.back(), std::move(make_closure));
   }
   else
     compile_static_reference(parent, ctx.intern_static(p), result);
@@ -499,7 +499,7 @@ compile_if(context& ctx, procedure_context& proc, if_expression const& stx, bool
   // is possible that one or both will exit with a tail-call and as such, they
   // won't have any value to return to the if.
 
-  proc.bytecode.emplace_back();
+  proc.bytecode_stack.emplace_back();
   compile_expression(ctx, proc, *stx.consequent, tail, result);
   std::size_t skip_num{};
 
@@ -508,36 +508,36 @@ compile_if(context& ctx, procedure_context& proc, if_expression const& stx, bool
     // else-branch. If the test condition was false, we'll jump right after this
     // jump, skipping it. Again, we'll have to backpatch the actual offset.
 
-    proc.bytecode.emplace_back();
+    proc.bytecode_stack.emplace_back();
     compile_expression(ctx, proc, *stx.alternative, tail, result);
 
-    bytecode else_bc = std::move(proc.bytecode.back());
-    proc.bytecode.pop_back();
+    bytecode else_bc = std::move(proc.bytecode_stack.back());
+    proc.bytecode_stack.pop_back();
 
-    encode_instruction(proc.bytecode.back(), instruction{opcode::jump, to_operand(else_bc.size())});
-    skip_num = proc.bytecode.back().size();
-    proc.bytecode.back().insert(proc.bytecode.back().end(), else_bc.begin(), else_bc.end());
+    encode_instruction(proc.bytecode_stack.back(), instruction{opcode::jump, to_operand(else_bc.size())});
+    skip_num = proc.bytecode_stack.back().size();
+    proc.bytecode_stack.back().insert(proc.bytecode_stack.back().end(), else_bc.begin(), else_bc.end());
   } else {
     // No else branch -- we'll set the result to #void. First, if we landed here
     // because we executed the then-branch, we'll have to skip this branch. We
     // need to be mindful that the then-branch might have been compiled into a
     // tail-call and so may not have produced a meaningful result register.
 
-    proc.bytecode.emplace_back();
+    proc.bytecode_stack.emplace_back();
     compile_static_reference(proc, ctx.statics.void_, result);
 
-    bytecode else_bc = std::move(proc.bytecode.back());
-    proc.bytecode.pop_back();
+    bytecode else_bc = std::move(proc.bytecode_stack.back());
+    proc.bytecode_stack.pop_back();
 
-    encode_instruction(proc.bytecode.back(), instruction{opcode::jump, to_operand(else_bc.size())});
-    skip_num = proc.bytecode.back().size();
-    proc.bytecode.back().insert(proc.bytecode.back().end(), else_bc.begin(), else_bc.end());
+    encode_instruction(proc.bytecode_stack.back(), instruction{opcode::jump, to_operand(else_bc.size())});
+    skip_num = proc.bytecode_stack.back().size();
+    proc.bytecode_stack.back().insert(proc.bytecode_stack.back().end(), else_bc.begin(), else_bc.end());
   }
 
-  bytecode then_bc = std::move(proc.bytecode.back());
-  proc.bytecode.pop_back();
-  encode_instruction(proc.bytecode.back(), instruction{opcode::jump_unless, *test_value, to_operand(skip_num)});
-  proc.bytecode.back().insert(proc.bytecode.back().end(), then_bc.begin(), then_bc.end());
+  bytecode then_bc = std::move(proc.bytecode_stack.back());
+  proc.bytecode_stack.pop_back();
+  encode_instruction(proc.bytecode_stack.back(), instruction{opcode::jump_unless, *test_value, to_operand(skip_num)});
+  proc.bytecode_stack.back().insert(proc.bytecode_stack.back().end(), then_bc.begin(), then_bc.end());
 }
 
 static void
@@ -592,7 +592,7 @@ compile_application(context& ctx, procedure_context& proc, application_expressio
   for (shared_register const& arg : arg_registers)
     instr.operands.push_back(*arg);
 
-  encode_instruction(proc.bytecode.back(), instr);
+  encode_instruction(proc.bytecode_stack.back(), instr);
 }
 
 static void
@@ -608,7 +608,7 @@ compile_local_reference(procedure_context& proc, local_reference_expression cons
   else {
     shared_register result_reg = result.get(proc);
     if (var_reg != result_reg)
-      encode_instruction(proc.bytecode.back(), instruction{opcode::set, *var_reg, *result_reg});
+      encode_instruction(proc.bytecode_stack.back(), instruction{opcode::set, *var_reg, *result_reg});
   }
 }
 
@@ -617,7 +617,7 @@ compile_static_reference(procedure_context& proc, operand location, result_regis
   if (!result.result_used())
     return;
 
-  encode_instruction(proc.bytecode.back(), instruction{opcode::load_static, location, *result.get(proc)});
+  encode_instruction(proc.bytecode_stack.back(), instruction{opcode::load_static, location, *result.get(proc)});
 }
 
 static void
@@ -625,7 +625,7 @@ compile_global_reference(procedure_context& proc, operand global_num, result_reg
   if (!result.result_used())
     return;
 
-  encode_instruction(proc.bytecode.back(), instruction{opcode::load_top_level, global_num, *result.get(proc)});
+  encode_instruction(proc.bytecode_stack.back(), instruction{opcode::load_top_level, global_num, *result.get(proc)});
 }
 
 static void
@@ -636,20 +636,20 @@ compile_global_reference(procedure_context& proc, top_level_reference_expression
 static void
 compile_box(context& ctx, procedure_context& proc, box_expression const& stx, result_register& result) {
   shared_register value = compile_expression_to_register(ctx, proc, *stx.expression, false);
-  encode_instruction(proc.bytecode.back(), instruction{opcode::box, *value, *result.get(proc)});
+  encode_instruction(proc.bytecode_stack.back(), instruction{opcode::box, *value, *result.get(proc)});
 }
 
 static void
 compile_unbox(context& ctx, procedure_context& proc, unbox_expression const& stx, result_register& result) {
   shared_register box = compile_expression_to_register(ctx, proc, *stx.box_expr, false);
-  encode_instruction(proc.bytecode.back(), instruction{opcode::unbox, *box, *result.get(proc)});
+  encode_instruction(proc.bytecode_stack.back(), instruction{opcode::unbox, *box, *result.get(proc)});
 }
 
 static void
 compile_box_set(context& ctx, procedure_context& proc, box_set_expression const& stx, result_register& result) {
   shared_register box = compile_expression_to_register(ctx, proc, *stx.box_expr, false);
   shared_register value = compile_expression_to_register(ctx, proc, *stx.value_expr, false);
-  encode_instruction(proc.bytecode.back(), instruction{opcode::box_set, *box, *value});
+  encode_instruction(proc.bytecode_stack.back(), instruction{opcode::box_set, *box, *value});
   compile_static_reference(proc, ctx.statics.void_, result);
 }
 
@@ -657,7 +657,7 @@ static void
 compile_cons(context& ctx, procedure_context& proc, cons_expression const& stx, result_register& result) {
   shared_register car = compile_expression_to_register(ctx, proc, *stx.car, false);
   shared_register cdr = compile_expression_to_register(ctx, proc, *stx.cdr, false);
-  encode_instruction(proc.bytecode.back(), instruction{opcode::cons, *car, *cdr, *result.get(proc)});
+  encode_instruction(proc.bytecode_stack.back(), instruction{opcode::cons, *car, *cdr, *result.get(proc)});
 }
 
 static void
@@ -671,7 +671,7 @@ compile_make_vector(context& ctx, procedure_context& proc, make_vector_expressio
   for (shared_register const& elem : exprs)
     make_vec.operands.push_back(*elem);
 
-  encode_instruction(proc.bytecode.back(), make_vec);
+  encode_instruction(proc.bytecode_stack.back(), make_vec);
 }
 
 // Translate an expression and return the register where the result is stored.
@@ -736,9 +736,9 @@ compile_expression(context& ctx, ptr<syntax> datum, module& mod) {
   procedure_context proc{nullptr, mod};
   shared_register result = compile_expression_to_register(ctx, proc, *stx, true);
   if (result)
-    encode_instruction(proc.bytecode.back(), instruction{opcode::ret, *result});
+    encode_instruction(proc.bytecode_stack.back(), instruction{opcode::ret, *result});
 
-  assert(proc.bytecode.size() == 1);
+  assert(proc.bytecode_stack.size() == 1);
   return make_procedure(ctx, proc, 0, false, std::nullopt);
 }
 
@@ -760,9 +760,9 @@ compile_module_body(context& ctx, module& m, protomodule const& pm) {
   result_register result;
   compile_sequence(ctx, proc, body, true, result);
   if (result.has_result())
-    encode_instruction(proc.bytecode.back(), instruction{opcode::ret, *result.get(proc)});
+    encode_instruction(proc.bytecode_stack.back(), instruction{opcode::ret, *result.get(proc)});
 
-  assert(proc.bytecode.size() == 1);
+  assert(proc.bytecode_stack.size() == 1);
   m.set_top_level_procedure(track(ctx, make_procedure(ctx, proc, 0, false, std::nullopt)));
 }
 
