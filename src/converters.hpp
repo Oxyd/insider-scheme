@@ -73,7 +73,7 @@ struct to_scheme_converter<bool> {
 template <>
 struct to_scheme_converter<std::string> {
   static ptr<>
-  convert(context& ctx, std::string const& s) { return make_string(ctx, s); }
+  convert(context& ctx, std::string const& s) { return make<string>(ctx, s); }
 };
 
 template <typename T, typename Enable = void>

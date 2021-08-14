@@ -271,7 +271,7 @@ read_string_literal(context& ctx, input_stream& stream) {
       result += *c;
   }
 
-  return {generic_literal{make_string(ctx, result)}, loc};
+  return {generic_literal{make<string>(ctx, result)}, loc};
 }
 
 static token

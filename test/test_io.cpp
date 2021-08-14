@@ -172,10 +172,10 @@ TEST_F(io, write) {
   auto v = make<vector>(ctx, ctx, 3);
   v->set(ctx.store, 0, character_to_ptr(character{'r'}));
   v->set(ctx.store, 1, p2);
-  v->set(ctx.store, 2, make_string(ctx, "foobar"));
+  v->set(ctx.store, 2, make<string>(ctx, "foobar"));
   EXPECT_EQ(to_string_simple(ctx, v), R"(#(#\r (0 1 . 2) "foobar"))");
 
-  auto s = make_string(ctx, R"(one "two" three \ four)");
+  auto s = make<string>(ctx, R"(one "two" three \ four)");
   char const* msvc_workaround1 = R"("one \"two\" three \\ four")";
   EXPECT_EQ(to_string_simple(ctx, s), msvc_workaround1);
 
@@ -186,7 +186,7 @@ TEST_F(io, write) {
     ctx.constants->t.get(),
     ctx.constants->f.get(),
     ctx.intern("symbol"),
-    make_string(ctx, "string"),
+    make<string>(ctx, "string"),
     character_to_ptr(character{'c'}),
     integer_to_ptr(integer{-13})
   );

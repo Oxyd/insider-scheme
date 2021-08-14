@@ -143,7 +143,7 @@ make_internal_module(context& ctx) {
                          std::string result;
                          for (ptr<> s : args)
                            result += expect<string>(s)->value();
-                         return make_string(ctx, result);
+                         return make<string>(ctx, result);
                        });
 
   define_procedure(
@@ -165,7 +165,7 @@ make_internal_module(context& ctx) {
   define_procedure(
     ctx, "symbol->string", result, true,
     [] (context& ctx, ptr<> datum) {
-      return make_string(ctx, expect<symbol>(datum)->value());
+      return make<string>(ctx, expect<symbol>(datum)->value());
     }
   );
 
@@ -271,7 +271,7 @@ make_internal_module(context& ctx) {
     ctx, "procedure-name", result, true,
     [] (context& ctx, ptr<procedure> f) -> ptr<> {
       if (f->name)
-        return make_string(ctx, *f->name);
+        return make<string>(ctx, *f->name);
       else
         return ctx.constants->f.get();
     }
@@ -304,7 +304,7 @@ make_internal_module(context& ctx) {
   define_procedure(
     ctx, "top-level-name", result, true,
     [] (context& ctx, operand op) {
-      return make_string(ctx, ctx.get_top_level_name(op));
+      return make<string>(ctx, ctx.get_top_level_name(op));
     }
   );
 

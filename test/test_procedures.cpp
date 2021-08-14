@@ -74,8 +74,8 @@ TEST_F(procedures, equal) {
   EXPECT_TRUE(equal(ctx, read("'(1 2)"), read("(quote (1 2))")));
   EXPECT_FALSE(equal(ctx, read("'(1 2)"), read("'(1 3)")));
   EXPECT_FALSE(equal(ctx, read("'(1 2)"), read("'(1 2 3)")));
-  EXPECT_TRUE(equal(ctx, make_string(ctx, "foo"), make_string(ctx, "foo")));
-  EXPECT_FALSE(equal(ctx, make_string(ctx, "foo"), make_string(ctx, "bar")));
+  EXPECT_TRUE(equal(ctx, make<string>(ctx, "foo"), make<string>(ctx, "foo")));
+  EXPECT_FALSE(equal(ctx, make<string>(ctx, "foo"), make<string>(ctx, "bar")));
 }
 
 TEST_F(procedures, equal_on_infinite_data_structures) {

@@ -3,42 +3,38 @@
 
 #include "object.hpp"
 
+#include <string>
+
 namespace insider {
 
-// Fixed-length string. TODO: Support Unicode.
-class string : public dynamic_size_object<string, char> {
+class string : public leaf_object<string> {
 public:
   static constexpr char const* scheme_name = "insider::string";
 
-  static std::size_t
-  extra_elements(std::size_t size) { return size; }
+  explicit
+  string(std::size_t size) : data_(size, '\0') {}
 
   explicit
-  string(std::size_t size) : size_{size} { }
-
-  string(string&& other);
+  string(std::string value) : data_{std::move(value)} { }
 
   void
   set(std::size_t i, char c);
 
-  std::string
-  value() const;
+  character
+  ref(std::size_t) const;
+
+  std::string const&
+  value() const { return data_; }
 
   std::size_t
-  size() const { return size_; }
+  size() const { return data_.size(); }
 
   std::size_t
   hash() const;
 
-  void
-  visit_members(member_visitor const&) { }
-
 private:
-  std::size_t size_;
+  std::string data_;
 };
-
-ptr<string>
-make_string(context&, std::string_view value);
 
 } // namespace insider
 
