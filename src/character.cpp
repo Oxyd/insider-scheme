@@ -76,11 +76,11 @@ foldcase(character c) {
   return find_property_value<&code_point_properties::simple_case_folding>(c);
 }
 
-std::vector<std::uint8_t>
+std::string
 to_utf8_copy(character c) {
-  std::vector<std::uint8_t> result;
+  std::string result;
   result.reserve(4);
-  to_utf8(c, [&] (std::uint8_t x) { result.push_back(x); });
+  to_utf8(c, [&] (char x) { result.push_back(x); });
   return result;
 }
 

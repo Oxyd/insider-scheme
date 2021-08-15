@@ -73,24 +73,24 @@ void
 to_utf8(character c, F const& f) {
   char32_t value = c.value();
   if (value <= 0x7F)
-    f(static_cast<std::uint8_t>(value));
+    f(static_cast<char>(value));
   else if (value < 0x7FF) {
-    f(static_cast<std::uint8_t>((value >> 6) | 0b11000000));
-    f(static_cast<std::uint8_t>((value & 0b111111) | 0b10000000));
+    f(static_cast<char>((value >> 6) | 0b11000000));
+    f(static_cast<char>((value & 0b111111) | 0b10000000));
   } else if (value < 0xFFFF) {
-    f(static_cast<std::uint8_t>((value >> 12) | 0b11100000));
-    f(static_cast<std::uint8_t>(((value >> 6) & 0b111111) | 0b10000000));
-    f(static_cast<std::uint8_t>((value & 0b111111) | 0b10000000));
+    f(static_cast<char>((value >> 12) | 0b11100000));
+    f(static_cast<char>(((value >> 6) & 0b111111) | 0b10000000));
+    f(static_cast<char>((value & 0b111111) | 0b10000000));
   } else if (value < 0x10FFFF) {
-    f(static_cast<std::uint8_t>((value >> 18) | 0b11110000));
-    f(static_cast<std::uint8_t>(((value >> 12) & 0b111111) | 0b10000000));
-    f(static_cast<std::uint8_t>(((value >> 6) & 0b111111) | 0b10000000));
-    f(static_cast<std::uint8_t>((value & 0b111111) | 0b10000000));
+    f(static_cast<char>((value >> 18) | 0b11110000));
+    f(static_cast<char>(((value >> 12) & 0b111111) | 0b10000000));
+    f(static_cast<char>(((value >> 6) & 0b111111) | 0b10000000));
+    f(static_cast<char>((value & 0b111111) | 0b10000000));
   } else
     throw std::runtime_error{"Invalid value for UTF-8"};
 }
 
-std::vector<std::uint8_t>
+std::string
 to_utf8_copy(character);
 
 std::size_t
