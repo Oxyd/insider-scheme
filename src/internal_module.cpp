@@ -124,7 +124,7 @@ make_internal_module(context& ctx) {
       if (args.size() == 2) {
         character fill = expect<character>(args[1]);
         for (std::size_t i = 0; i < static_cast<std::size_t>(length); ++i)
-          result->set(i, fill.value());
+          result->set(i, fill);
       }
 
       return result;
@@ -134,7 +134,7 @@ make_internal_module(context& ctx) {
   define_procedure(
     ctx, "string-length", result, true,
     [] (ptr<string> s) {
-      return integer{static_cast<integer::value_type>(s->size())};
+      return integer{static_cast<integer::value_type>(s->length())};
     }
   );
 

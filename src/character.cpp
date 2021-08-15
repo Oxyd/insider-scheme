@@ -76,6 +76,20 @@ foldcase(character c) {
   return find_property_value<&code_point_properties::simple_case_folding>(c);
 }
 
+std::size_t
+utf32_code_point_byte_length(char32_t c) {
+  if (c <= 0x7F)
+    return 1;
+  else if (c <= 0x7FF)
+    return 2;
+  else if (c <= 0xFFFF)
+    return 3;
+  else if (c <= 0x10FFFF)
+    return 4;
+  else
+    throw std::runtime_error{"Invalid code point"};
+}
+
 std::string
 to_utf8_copy(character c) {
   std::string result;
@@ -85,7 +99,7 @@ to_utf8_copy(character c) {
 }
 
 std::size_t
-utf8_code_point_byte_length(std::uint8_t first_byte) {
+utf8_code_point_byte_length(char first_byte) {
   if ((first_byte & 0b1000'0000) == 0)
     return 1;
   else if ((first_byte & 0b1110'0000) == 0b1100'0000)
@@ -95,7 +109,8 @@ utf8_code_point_byte_length(std::uint8_t first_byte) {
   else if ((first_byte & 0b1111'1000) == 0b1111'0000)
     return 4;
   else
-    throw std::runtime_error{fmt::format("Invalid initial byte in UTF-8 encoding: {}", first_byte)};
+    throw std::runtime_error{fmt::format("Invalid initial byte in UTF-8 encoding: {}",
+                                         static_cast<uint32_t>(first_byte))};
 }
 
 } // namespace insider

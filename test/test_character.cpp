@@ -82,11 +82,11 @@ TEST_F(character_fixture, to_utf8) {
 
 TEST_F(character_fixture, utf8_code_point_byte_length) {
   EXPECT_EQ(utf8_code_point_byte_length(static_cast<std::uint8_t>('a')), 1);
-  EXPECT_EQ(utf8_code_point_byte_length(0xc3), 2);
-  EXPECT_EQ(utf8_code_point_byte_length(0xe0), 3);
-  EXPECT_EQ(utf8_code_point_byte_length(0xf0), 4);
-  EXPECT_THROW(utf8_code_point_byte_length(0b1000'0000), std::runtime_error);
-  EXPECT_THROW(utf8_code_point_byte_length(0b1111'1111), std::runtime_error);
+  EXPECT_EQ(utf8_code_point_byte_length('\xc3'), 2);
+  EXPECT_EQ(utf8_code_point_byte_length('\xe0'), 3);
+  EXPECT_EQ(utf8_code_point_byte_length('\xf0'), 4);
+  EXPECT_THROW(utf8_code_point_byte_length('\x80'), std::runtime_error);
+  EXPECT_THROW(utf8_code_point_byte_length('\xff'), std::runtime_error);
 }
 
 TEST_F(character_fixture, from_utf8) {

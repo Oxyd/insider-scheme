@@ -68,9 +68,13 @@ downcase(character);
 character
 foldcase(character);
 
+// The length in bytes of a code-point after conversion to UTF-8.
+std::size_t
+utf32_code_point_byte_length(char32_t);
+
 template <typename F>
 void
-to_utf8(character c, F const& f) {
+to_utf8(character c, F&& f) {
   char32_t value = c.value();
   if (value <= 0x7F)
     f(static_cast<char>(value));
@@ -94,7 +98,7 @@ std::string
 to_utf8_copy(character);
 
 std::size_t
-utf8_code_point_byte_length(std::uint8_t first_byte);
+utf8_code_point_byte_length(char first_byte);
 
 struct from_utf8_result {
   char32_t    code_point;
