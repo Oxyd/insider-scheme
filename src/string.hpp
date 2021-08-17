@@ -37,6 +37,9 @@ private:
   std::string data_;
 };
 
+inline bool
+string_equal(ptr<string> x , ptr<string> y) { return x->value() == y->value(); }
+
 } // namespace insider
 
 #endif

@@ -62,3 +62,9 @@ TEST_F(string_fixture, string_length) {
   EXPECT_EQ(make<string>(ctx, u8"か")->length(), 1);
   EXPECT_EQ(make<string>(ctx, u8"áかa")->length(), 3);
 }
+
+TEST_F(string_fixture, string_equal) {
+  EXPECT_TRUE(string_equal(make<string>(ctx, "aaa"), make<string>(ctx, "aaa")));
+  EXPECT_FALSE(string_equal(make<string>(ctx, "aaa"), make<string>(ctx, "aa")));
+  EXPECT_FALSE(string_equal(make<string>(ctx, "aaa"), make<string>(ctx, "aba")));
+}
