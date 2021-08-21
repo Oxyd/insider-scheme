@@ -17,7 +17,7 @@ Character = namedtuple(
 
 UnicodeDatabase = namedtuple(
     'UnicodeDatabase',
-    ['code_points', 'property_list', 'derived_core_properties', 'case_folding']
+    ['code_points', 'property_list', 'derived_core_properties', 'case_folding', 'special_casing']
 )
 
 def parse_character(s):
@@ -80,6 +80,56 @@ def read_property_list(path):
                     prop = range_match.group(3)
                     for cp in range(begin, end + 1):
                         add_property(cp, prop)
+
+    return result
+
+
+SpecialCasing = namedtuple(
+    'SpecialCasing',
+    ['code_point', 'upper', 'conditions']
+)
+
+
+def parse_single_code_point(s):
+    return int(s, 16)
+
+
+def parse_code_point_list(s):
+    return [parse_single_code_point(cp) for cp in s.split()]
+
+
+def filter_comments(elements):
+    if elements[-1].strip().startswith('#'):
+        return elements[: len(elements) - 1]
+    else:
+        return elements
+
+
+def parse_special_casing_line(line):
+    elements = filter_comments(line.split(';'))
+
+    if len(elements) == 4:
+        conditions = []
+    else:
+        assert len(elements) == 5
+        conditions = elements[4].strip()
+
+    return SpecialCasing(parse_single_code_point(elements[0]),
+                         parse_code_point_list(elements[3]),
+                         conditions)
+
+
+def read_special_casing(path):
+    result = {}
+
+    with open(path, 'r') as f:
+        for line in f:
+            if len(line.strip()) == 0 or line.startswith('#'):
+                continue
+
+            casing = parse_special_casing_line(line)
+            if len(casing.conditions) == 0:
+                result[casing.code_point] = casing
 
     return result
 
@@ -279,7 +329,7 @@ def format_categories(c):
 CodePointProperties = namedtuple(
     'CodePointProperties',
     ['code_point', 'categories', 'numeric_value',
-     'simple_uppercase', 'simple_lowercase', 'simple_case_folding']
+     'simple_uppercase', 'simple_lowercase', 'simple_case_folding', 'complex_uppercase']
 )
 
 
@@ -290,14 +340,19 @@ def format_maybe_none(x):
         return x
 
 
+def format_code_point_list(l):
+    return ''.join('\\x{:x}'.format(c) for c in l)
+
+
 def format_properties(prop):
     return ('{'
-            + '{}, {}, {}, {}, {}, {}'.format(prop.code_point,
-                                              format_categories(prop.categories),
-                                              prop.numeric_value,
-                                              format_maybe_none(prop.simple_uppercase),
-                                              format_maybe_none(prop.simple_lowercase),
-                                              prop.simple_case_folding)
+            + '{}, {}, {}, {}, {}, {}, U"{}"'.format(prop.code_point,
+                                                     format_categories(prop.categories),
+                                                     prop.numeric_value,
+                                                     format_maybe_none(prop.simple_uppercase),
+                                                     format_maybe_none(prop.simple_lowercase),
+                                                     prop.simple_case_folding,
+                                                     format_code_point_list(prop.complex_uppercase))
             + '}')
 
 
@@ -323,14 +378,26 @@ def make_alphabetic_properties(code_point, character, db):
     if 'Uppercase' in derived_properties:
         categories.add(CodePointCategory.UpperCase)
 
-    upcase_cp = int(character.simple_uppercase, 16) if character.simple_uppercase != '' else None
-    downcase_cp = int(character.simple_lowercase, 16) if character.simple_lowercase != '' else None
+    upcase_cp = int(character.simple_uppercase, 16) if character.simple_uppercase != '' else code_point
+    downcase_cp = int(character.simple_lowercase, 16) if character.simple_lowercase != '' else code_point
 
     case_folding_cp = code_point
     if code_point in db.case_folding:
         case_folding_cp = db.case_folding[code_point].common
 
-    return CodePointProperties(code_point, categories, 0, upcase_cp, downcase_cp, case_folding_cp)
+    complex_uppercase = [upcase_cp]
+
+    if code_point in db.special_casing:
+        sc = db.special_casing[code_point]
+        complex_uppercase = sc.upper
+
+    return CodePointProperties(code_point,
+                               categories,
+                               0, # numeric_value
+                               upcase_cp,
+                               downcase_cp,
+                               case_folding_cp,
+                               complex_uppercase)
 
 
 def build_properties(db):
@@ -346,7 +413,8 @@ def build_properties(db):
                                                   int(c.decimal_value),
                                                   None,
                                                   None,
-                                                  cp))
+                                                  cp,
+                                                  [cp]))
 
         elif is_white_space(cp, db.property_list):
             properties.append(CodePointProperties(cp,
@@ -354,7 +422,8 @@ def build_properties(db):
                                                   0,
                                                   None,
                                                   None,
-                                                  cp))
+                                                  cp,
+                                                  [cp]))
 
         elif is_alphabetic(cp, db.derived_core_properties):
             properties.append(make_alphabetic_properties(cp, c, db))
@@ -398,6 +467,7 @@ def read_database(dir_path):
     prop_list_path = dir_path / 'PropList.txt'
     derived_core_properties_path = dir_path / 'DerivedCoreProperties.txt'
     case_folding_path = dir_path / 'CaseFolding.txt'
+    special_casing_path = dir_path / 'SpecialCasing.txt'
 
     print('Reading {}...'.format(unicode_data_path))
     code_points = read_characters(unicode_data_path)
@@ -411,7 +481,10 @@ def read_database(dir_path):
     print('Reading {}...'.format(case_folding_path))
     case_folding = read_case_folding(case_folding_path)
 
-    return UnicodeDatabase(code_points, prop_list, derived_core_properties, case_folding)
+    print('Reading {}...'.format(special_casing_path))
+    special_casing = read_special_casing(special_casing_path)
+
+    return UnicodeDatabase(code_points, prop_list, derived_core_properties, case_folding, special_casing)
 
 
 def main():

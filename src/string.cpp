@@ -1,5 +1,6 @@
 #include "string.hpp"
 
+#include "code_point_properties.hpp"
 #include "context.hpp"
 
 namespace insider {
@@ -61,6 +62,51 @@ string::hash() const {
     result = ((result << 5) + result) + c;
 
   return result;
+}
+
+static void
+append(std::string& data, character c) {
+  to_utf8(c, [&] (char byte) { data.push_back(byte); });
+}
+
+template <typename F>
+void
+for_each_code_point(std::string const& data, F&& f) {
+  std::size_t i = 0;
+  while (i < data.length()) {
+    auto result = from_utf8(data.begin() + i, data.end());
+    f(result.code_point);
+    i += result.length;
+  }
+}
+
+ptr<string>
+upcase(context& ctx, ptr<string> s) {
+  std::string const& old_data = s->value();
+  std::string new_data;
+  new_data.reserve(old_data.length());
+  for_each_code_point(old_data, [&] (char32_t cp) {
+    if (auto prop = find_properties(cp))
+      for (char32_t const* upcase_cp = prop->complex_uppercase; *upcase_cp; ++upcase_cp)
+        append(new_data, character{*upcase_cp});
+    else
+      append(new_data, character{cp});
+  });
+  return make<string>(ctx, std::move(new_data));
+}
+
+ptr<string>
+downcase(context& ctx, ptr<string> s) {
+  // Note: In Unicode version 13, there are no language-independent downcasing
+  // mappings that differ from the simple mappings.
+
+  std::string const& old_data = s->value();
+  std::string new_data;
+  new_data.reserve(old_data.length());
+  for_each_code_point(old_data, [&] (char32_t cp) {
+    append(new_data, downcase(character{cp}));
+  });
+  return make<string>(ctx, std::move(new_data));
 }
 
 } // namespace insider

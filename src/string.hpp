@@ -40,6 +40,12 @@ private:
 inline bool
 string_equal(ptr<string> x , ptr<string> y) { return x->value() == y->value(); }
 
+ptr<string>
+upcase(context&, ptr<string>);
+
+ptr<string>
+downcase(context&, ptr<string>);
+
 } // namespace insider
 
 #endif

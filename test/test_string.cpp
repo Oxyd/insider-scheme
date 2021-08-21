@@ -68,3 +68,22 @@ TEST_F(string_fixture, string_equal) {
   EXPECT_FALSE(string_equal(make<string>(ctx, "aaa"), make<string>(ctx, "aa")));
   EXPECT_FALSE(string_equal(make<string>(ctx, "aaa"), make<string>(ctx, "aba")));
 }
+
+TEST_F(string_fixture, string_upcase_simple) {
+  EXPECT_EQ(upcase(ctx, make<string>(ctx, "aaa"))->value(), "AAA");
+  EXPECT_EQ(upcase(ctx, make<string>(ctx, "aAa"))->value(), "AAA");
+  EXPECT_EQ(upcase(ctx, make<string>(ctx, "000"))->value(), "000");
+  EXPECT_EQ(upcase(ctx, make<string>(ctx, u8"ááá"))->value(), u8"ÁÁÁ");
+}
+
+TEST_F(string_fixture, string_upcase_complex) {
+  EXPECT_EQ(upcase(ctx, make<string>(ctx, u8"eﬃcient"))->value(), "EFFICIENT");
+  EXPECT_EQ(upcase(ctx, make<string>(ctx, u8"scheiße"))->value(), "SCHEISSE");
+}
+
+TEST_F(string_fixture, string_downcase_simple) {
+  EXPECT_EQ(downcase(ctx, make<string>(ctx, "AAA"))->value(), "aaa");
+  EXPECT_EQ(downcase(ctx, make<string>(ctx, "aAa"))->value(), "aaa");
+  EXPECT_EQ(downcase(ctx, make<string>(ctx, "000"))->value(), "000");
+  EXPECT_EQ(downcase(ctx, make<string>(ctx, u8"ÁÁÁ"))->value(), u8"ááá");
+}
