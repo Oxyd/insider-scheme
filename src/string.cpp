@@ -231,4 +231,21 @@ downcase(context& ctx, ptr<string> s) {
   return make<string>(ctx, std::move(new_data));
 }
 
+ptr<string>
+foldcase(context& ctx, ptr<string> s) {
+  std::string const& old_data = s->value();
+  std::string new_data;
+  new_data.reserve(old_data.length());
+
+  for_each_code_point(old_data, [&] (char32_t cp) {
+    if (auto prop = find_properties(cp))
+      for (char32_t const* c = prop->complex_case_folding; *c; ++c)
+        append(new_data, character{*c});
+    else
+      append(new_data, character{cp});
+  });
+
+  return make<string>(ctx, std::move(new_data));
+}
+
 } // namespace insider

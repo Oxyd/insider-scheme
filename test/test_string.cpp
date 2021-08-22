@@ -93,3 +93,8 @@ TEST_F(string_fixture, sigma) {
   EXPECT_EQ(downcase(ctx, make<string>(ctx, u8"ὈΔΥΣΣΕΎΣ"))->value(), u8"ὀδυσσεύς");
   EXPECT_EQ(downcase(ctx, make<string>(ctx, u8"Σ"))->value(), u8"σ");
 }
+
+TEST_F(string_fixture, string_foldcase) {
+  EXPECT_EQ(foldcase(ctx, make<string>(ctx, u8"scheiße"))->value(), u8"scheisse");
+  EXPECT_EQ(foldcase(ctx, make<string>(ctx, u8"ꮜꮝꮞ"))->value(), u8"ᏌᏍᏎ");
+}

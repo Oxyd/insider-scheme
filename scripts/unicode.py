@@ -134,24 +134,35 @@ def read_special_casing(path):
     return result
 
 
-CharacterCaseFolding = namedtuple(
-    'CharacterCaseFolding',
-    ['common']
-)
+
+class CharacterCaseFolding:
+    def __init__(self):
+        self.common = None
+        self.full = []
+
 
 case_folding_re = re.compile(r'([0-9A-F]+); ([CFST]); ([0-9A-F ]+);')
 
 def read_case_folding(path):
     result = {}
 
+    def add_common(cp, common):
+        result.setdefault(cp, CharacterCaseFolding()).common = common
+
+    def add_full(cp, full):
+        result.setdefault(cp, CharacterCaseFolding()).full = full
+
     with open(path, 'r') as f:
         for line in f:
             m = case_folding_re.match(line)
             if m:
+                cp = parse_single_code_point(m.group(1))
+
                 if m.group(2) == 'C':
-                    cp = int(m.group(1), 16)
-                    common = int(m.group(3), 16)
-                    result[cp] = CharacterCaseFolding(common)
+                    add_common(cp, parse_single_code_point(m.group(3)))
+
+                elif m.group(2) == 'F':
+                    add_full(cp, parse_code_point_list(m.group(3)))
 
     return result
 
@@ -333,7 +344,7 @@ def format_attributes(c):
 CodePointProperties = namedtuple(
     'CodePointProperties',
     ['code_point', 'attributes', 'numeric_value',
-     'simple_uppercase', 'simple_lowercase', 'simple_case_folding', 'complex_uppercase']
+     'simple_uppercase', 'simple_lowercase', 'simple_case_folding', 'complex_uppercase', 'complex_case_folding']
 )
 
 
@@ -350,13 +361,14 @@ def format_code_point_list(l):
 
 def format_properties(prop):
     return ('{'
-            + '{}, {}, {}, {}, {}, {}, U"{}"'.format(prop.code_point,
-                                                     format_attributes(prop.attributes),
-                                                     prop.numeric_value,
-                                                     format_maybe_none(prop.simple_uppercase),
-                                                     format_maybe_none(prop.simple_lowercase),
-                                                     prop.simple_case_folding,
-                                                     format_code_point_list(prop.complex_uppercase))
+            + '{}, {}, {}, {}, {}, {}, U"{}", U"{}"'.format(prop.code_point,
+                                                            format_attributes(prop.attributes),
+                                                            prop.numeric_value,
+                                                            format_maybe_none(prop.simple_uppercase),
+                                                            format_maybe_none(prop.simple_lowercase),
+                                                            prop.simple_case_folding,
+                                                            format_code_point_list(prop.complex_uppercase),
+                                                            format_code_point_list(prop.complex_case_folding))
             + '}')
 
 
@@ -388,9 +400,16 @@ def make_alphabetic_properties(code_point, character, db):
     upcase_cp = int(character.simple_uppercase, 16) if character.simple_uppercase != '' else code_point
     downcase_cp = int(character.simple_lowercase, 16) if character.simple_lowercase != '' else code_point
 
-    case_folding_cp = code_point
+    simple_case_folding_cp = code_point
+    complex_case_folding = [code_point]
     if code_point in db.case_folding:
-        case_folding_cp = db.case_folding[code_point].common
+        if db.case_folding[code_point].common is not None:
+            simple_case_folding_cp = db.case_folding[code_point].common
+
+        if len(db.case_folding[code_point].full) > 0:
+            complex_case_folding = db.case_folding[code_point].full
+        else:
+            complex_case_folding = [simple_case_folding_cp]
 
     complex_uppercase = [upcase_cp]
 
@@ -403,8 +422,9 @@ def make_alphabetic_properties(code_point, character, db):
                                0, # numeric_value
                                upcase_cp,
                                downcase_cp,
-                               case_folding_cp,
-                               complex_uppercase)
+                               simple_case_folding_cp,
+                               complex_uppercase,
+                               complex_case_folding)
 
 
 def build_properties(db):
@@ -425,6 +445,7 @@ def build_properties(db):
                                         None,
                                         None,
                                         cp,
+                                        [cp],
                                         [cp])
 
         elif is_white_space(cp, db.property_list):
@@ -434,6 +455,7 @@ def build_properties(db):
                                         None,
                                         None,
                                         cp,
+                                        [cp],
                                         [cp])
 
         elif is_alphabetic(cp, db.derived_core_properties):
@@ -441,7 +463,7 @@ def build_properties(db):
 
         if 'Case_Ignorable' in db.derived_core_properties.get(cp, []):
             if props is None:
-                props = CodePointProperties(cp, {CodePointAttribute.CaseIgnorable}, 0, None, None, cp, [cp])
+                props = CodePointProperties(cp, {CodePointAttribute.CaseIgnorable}, 0, None, None, cp, [cp], [cp])
             else:
                 props.attributes.add(CodePointAttribute.CaseIgnorable)
 

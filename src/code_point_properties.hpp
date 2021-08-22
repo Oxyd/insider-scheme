@@ -25,6 +25,7 @@ struct code_point_properties {
   char32_t        simple_lowercase;
   char32_t        simple_case_folding;
   char32_t const* complex_uppercase;
+  char32_t const* complex_case_folding;
 };
 
 inline bool

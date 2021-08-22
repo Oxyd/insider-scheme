@@ -46,6 +46,9 @@ upcase(context&, ptr<string>);
 ptr<string>
 downcase(context&, ptr<string>);
 
+ptr<string>
+foldcase(context&, ptr<string>);
+
 } // namespace insider
 
 #endif
