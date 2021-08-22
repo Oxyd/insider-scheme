@@ -88,9 +88,6 @@ namespace {
     code_point_iterator&
     operator ++ ();
 
-    code_point_iterator
-    operator ++ (int);
-
     bool
     operator == (code_point_iterator other) const;
 
@@ -121,13 +118,6 @@ code_point_iterator&
 code_point_iterator::operator ++ () {
   read_value();
   return *this;
-}
-
-code_point_iterator
-code_point_iterator::operator ++ (int) {
-  code_point_iterator result{*this};
-  ++*this;
-  return result;
 }
 
 bool
