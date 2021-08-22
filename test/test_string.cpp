@@ -87,3 +87,9 @@ TEST_F(string_fixture, string_downcase_simple) {
   EXPECT_EQ(downcase(ctx, make<string>(ctx, "000"))->value(), "000");
   EXPECT_EQ(downcase(ctx, make<string>(ctx, u8"ÁÁÁ"))->value(), u8"ááá");
 }
+
+TEST_F(string_fixture, sigma) {
+  EXPECT_EQ(upcase(ctx, make<string>(ctx, u8"Ὀδυσσεύς"))->value(), u8"ὈΔΥΣΣΕΎΣ");
+  EXPECT_EQ(downcase(ctx, make<string>(ctx, u8"ὈΔΥΣΣΕΎΣ"))->value(), u8"ὀδυσσεύς");
+  EXPECT_EQ(downcase(ctx, make<string>(ctx, u8"Σ"))->value(), u8"σ");
+}

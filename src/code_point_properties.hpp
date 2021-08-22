@@ -8,11 +8,13 @@
 namespace insider {
 
 namespace code_point_category {
-  static constexpr std::uint32_t numeric    = 1 << 0;
-  static constexpr std::uint32_t lower_case = 1 << 1;
-  static constexpr std::uint32_t upper_case = 1 << 2;
-  static constexpr std::uint32_t alphabetic = 1 << 3;
-  static constexpr std::uint32_t white_space = 1 << 4;
+  static constexpr std::uint32_t numeric        = 1 << 0;
+  static constexpr std::uint32_t lower_case     = 1 << 1;
+  static constexpr std::uint32_t upper_case     = 1 << 2;
+  static constexpr std::uint32_t alphabetic     = 1 << 3;
+  static constexpr std::uint32_t white_space    = 1 << 4;
+  static constexpr std::uint32_t cased_letter   = 1 << 5;
+  static constexpr std::uint32_t case_ignorable = 1 << 6;
 }
 
 struct code_point_properties {
@@ -37,6 +39,10 @@ std::size_t
 codepoint_hash(char32_t);
 
 #include "code_point_properties_forward.inc"
+
+constexpr char32_t uppercase_sigma = 0x3a3;
+constexpr char32_t lowercase_medial_sigma = 0x3c3;
+constexpr char32_t lowercase_final_sigma = 0x3c2;
 
 } // namespace insider
 

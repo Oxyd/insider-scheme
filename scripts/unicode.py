@@ -312,6 +312,8 @@ class CodePointCategory(IntEnum):
     UpperCase = 2
     Alphabetic = 3
     WhiteSpace = 4
+    CasedLetter = 5
+    CaseIgnorable = 6
 
 
 def format_category(c):
@@ -319,7 +321,9 @@ def format_category(c):
             CodePointCategory.LowerCase: 'code_point_category::lower_case',
             CodePointCategory.UpperCase: 'code_point_category::upper_case',
             CodePointCategory.Alphabetic: 'code_point_category::alphabetic',
-            CodePointCategory.WhiteSpace: 'code_point_category::white_space'}[c]
+            CodePointCategory.WhiteSpace: 'code_point_category::white_space',
+            CodePointCategory.CasedLetter: 'code_point_category::cased_letter',
+            CodePointCategory.CaseIgnorable: 'code_point_category::case_ignorable'}[c]
 
 
 def format_categories(c):
@@ -378,6 +382,9 @@ def make_alphabetic_properties(code_point, character, db):
     if 'Uppercase' in derived_properties:
         categories.add(CodePointCategory.UpperCase)
 
+    if 'Lowercase' in derived_properties or 'Uppercase' in derived_properties or character.general_category == 'Lt':
+        categories.add(CodePointCategory.CasedLetter)
+
     upcase_cp = int(character.simple_uppercase, 16) if character.simple_uppercase != '' else code_point
     downcase_cp = int(character.simple_lowercase, 16) if character.simple_lowercase != '' else code_point
 
@@ -406,27 +413,40 @@ def build_properties(db):
     for cp, c in db.code_points.items():
         assert c.simple_uppercase == '' or is_alphabetic(cp, db.derived_core_properties)
         assert c.simple_lowercase == '' or is_alphabetic(cp, db.derived_core_properties)
+        assert c.general_category != 'Lt' or is_alphabetic(cp, db.derived_core_properties)
+        assert cp not in db.case_folding or is_alphabetic(cp, db.derived_core_properties)
+        assert cp not in db.special_casing or is_alphabetic(cp, db.derived_core_properties)
 
+        props = None
         if is_numeric(c):
-            properties.append(CodePointProperties(cp,
-                                                  {CodePointCategory.Numeric},
-                                                  int(c.decimal_value),
-                                                  None,
-                                                  None,
-                                                  cp,
-                                                  [cp]))
+            props = CodePointProperties(cp,
+                                        {CodePointCategory.Numeric},
+                                        int(c.decimal_value),
+                                        None,
+                                        None,
+                                        cp,
+                                        [cp])
 
         elif is_white_space(cp, db.property_list):
-            properties.append(CodePointProperties(cp,
-                                                  {CodePointCategory.WhiteSpace},
-                                                  0,
-                                                  None,
-                                                  None,
-                                                  cp,
-                                                  [cp]))
+            props = CodePointProperties(cp,
+                                        {CodePointCategory.WhiteSpace},
+                                        0,
+                                        None,
+                                        None,
+                                        cp,
+                                        [cp])
 
         elif is_alphabetic(cp, db.derived_core_properties):
-            properties.append(make_alphabetic_properties(cp, c, db))
+            props = make_alphabetic_properties(cp, c, db)
+
+        if 'Case_Ignorable' in db.derived_core_properties.get(cp, []):
+            if props is None:
+                props = CodePointProperties(cp, {CodePointCategory.CaseIgnorable}, 0, None, None, cp, [cp])
+            else:
+                props.categories.add(CodePointCategory.CaseIgnorable)
+
+        if props is not None:
+            properties.append(props)
 
     return properties
 
