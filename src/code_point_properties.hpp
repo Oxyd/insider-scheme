@@ -7,7 +7,7 @@
 
 namespace insider {
 
-namespace code_point_category {
+namespace code_point_attribute {
   static constexpr std::uint32_t numeric        = 1 << 0;
   static constexpr std::uint32_t lower_case     = 1 << 1;
   static constexpr std::uint32_t upper_case     = 1 << 2;
@@ -19,7 +19,7 @@ namespace code_point_category {
 
 struct code_point_properties {
   char32_t        code_point;
-  std::uint32_t   category;
+  std::uint32_t   attributes;
   int             digit_value;
   char32_t        simple_uppercase;
   char32_t        simple_lowercase;
@@ -28,8 +28,8 @@ struct code_point_properties {
 };
 
 inline bool
-has_category(code_point_properties prop, std::uint32_t c) {
-  return (prop.category & c) != 0;
+has_attribute(code_point_properties prop, std::uint32_t c) {
+  return (prop.attributes & c) != 0;
 }
 
 std::optional<code_point_properties>

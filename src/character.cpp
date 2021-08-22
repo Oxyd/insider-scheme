@@ -12,44 +12,44 @@
 namespace insider {
 
 static bool
-has_category(character c, std::uint32_t category) {
+has_attribute(character c, std::uint32_t attribute) {
   if (auto prop = find_properties(c.value()))
-    return has_category(*prop, category);
+    return has_attribute(*prop, attribute);
   else
     return false;
 }
 
 bool
 is_numeric(character c) {
-  return has_category(c, code_point_category::numeric);
+  return has_attribute(c, code_point_attribute::numeric);
 }
 
 ptr<>
 digit_value(context& ctx, character c) {
   if (auto prop = find_properties(c.value()))
-    if (has_category(*prop, code_point_category::numeric))
+    if (has_attribute(*prop, code_point_attribute::numeric))
       return integer_to_ptr(integer{prop->digit_value});
   return ctx.constants->f.get();
 }
 
 bool
 is_alphabetic(character c) {
-  return has_category(c, code_point_category::alphabetic);
+  return has_attribute(c, code_point_attribute::alphabetic);
 }
 
 bool
 is_upper_case(character c) {
-  return has_category(c, code_point_category::upper_case);
+  return has_attribute(c, code_point_attribute::upper_case);
 }
 
 bool
 is_lower_case(character c) {
-  return has_category(c, code_point_category::lower_case);
+  return has_attribute(c, code_point_attribute::lower_case);
 }
 
 bool
 is_white_space(character c) {
-  return has_category(c, code_point_category::white_space);
+  return has_attribute(c, code_point_attribute::white_space);
 }
 
 template <auto Prop>

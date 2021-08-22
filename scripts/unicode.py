@@ -306,7 +306,7 @@ def build_perfect_hash(data):
         return PerfectHashFunction(f1, f2, g, len(data))
 
 
-class CodePointCategory(IntEnum):
+class CodePointAttribute(IntEnum):
     Numeric = 0
     LowerCase = 1
     UpperCase = 2
@@ -316,23 +316,23 @@ class CodePointCategory(IntEnum):
     CaseIgnorable = 6
 
 
-def format_category(c):
-    return {CodePointCategory.Numeric: 'code_point_category::numeric',
-            CodePointCategory.LowerCase: 'code_point_category::lower_case',
-            CodePointCategory.UpperCase: 'code_point_category::upper_case',
-            CodePointCategory.Alphabetic: 'code_point_category::alphabetic',
-            CodePointCategory.WhiteSpace: 'code_point_category::white_space',
-            CodePointCategory.CasedLetter: 'code_point_category::cased_letter',
-            CodePointCategory.CaseIgnorable: 'code_point_category::case_ignorable'}[c]
+def format_attribute(c):
+    return {CodePointAttribute.Numeric: 'code_point_attribute::numeric',
+            CodePointAttribute.LowerCase: 'code_point_attribute::lower_case',
+            CodePointAttribute.UpperCase: 'code_point_attribute::upper_case',
+            CodePointAttribute.Alphabetic: 'code_point_attribute::alphabetic',
+            CodePointAttribute.WhiteSpace: 'code_point_attribute::white_space',
+            CodePointAttribute.CasedLetter: 'code_point_attribute::cased_letter',
+            CodePointAttribute.CaseIgnorable: 'code_point_attribute::case_ignorable'}[c]
 
 
-def format_categories(c):
-    return ' | '.join(format_category(cat) for cat in sorted(c))
+def format_attributes(c):
+    return ' | '.join(format_attribute(a) for a in sorted(c))
 
 
 CodePointProperties = namedtuple(
     'CodePointProperties',
-    ['code_point', 'categories', 'numeric_value',
+    ['code_point', 'attributes', 'numeric_value',
      'simple_uppercase', 'simple_lowercase', 'simple_case_folding', 'complex_uppercase']
 )
 
@@ -351,7 +351,7 @@ def format_code_point_list(l):
 def format_properties(prop):
     return ('{'
             + '{}, {}, {}, {}, {}, {}, U"{}"'.format(prop.code_point,
-                                                     format_categories(prop.categories),
+                                                     format_attributes(prop.attributes),
                                                      prop.numeric_value,
                                                      format_maybe_none(prop.simple_uppercase),
                                                      format_maybe_none(prop.simple_lowercase),
@@ -375,15 +375,15 @@ def is_alphabetic(cp, derived_core_properties):
 
 
 def make_alphabetic_properties(code_point, character, db):
-    categories = {CodePointCategory.Alphabetic}
+    attributes = {CodePointAttribute.Alphabetic}
     derived_properties = db.derived_core_properties[code_point]
     if 'Lowercase' in derived_properties:
-        categories.add(CodePointCategory.LowerCase)
+        attributes.add(CodePointAttribute.LowerCase)
     if 'Uppercase' in derived_properties:
-        categories.add(CodePointCategory.UpperCase)
+        attributes.add(CodePointAttribute.UpperCase)
 
     if 'Lowercase' in derived_properties or 'Uppercase' in derived_properties or character.general_category == 'Lt':
-        categories.add(CodePointCategory.CasedLetter)
+        attributes.add(CodePointAttribute.CasedLetter)
 
     upcase_cp = int(character.simple_uppercase, 16) if character.simple_uppercase != '' else code_point
     downcase_cp = int(character.simple_lowercase, 16) if character.simple_lowercase != '' else code_point
@@ -399,7 +399,7 @@ def make_alphabetic_properties(code_point, character, db):
         complex_uppercase = sc.upper
 
     return CodePointProperties(code_point,
-                               categories,
+                               attributes,
                                0, # numeric_value
                                upcase_cp,
                                downcase_cp,
@@ -420,7 +420,7 @@ def build_properties(db):
         props = None
         if is_numeric(c):
             props = CodePointProperties(cp,
-                                        {CodePointCategory.Numeric},
+                                        {CodePointAttribute.Numeric},
                                         int(c.decimal_value),
                                         None,
                                         None,
@@ -429,7 +429,7 @@ def build_properties(db):
 
         elif is_white_space(cp, db.property_list):
             props = CodePointProperties(cp,
-                                        {CodePointCategory.WhiteSpace},
+                                        {CodePointAttribute.WhiteSpace},
                                         0,
                                         None,
                                         None,
@@ -441,9 +441,9 @@ def build_properties(db):
 
         if 'Case_Ignorable' in db.derived_core_properties.get(cp, []):
             if props is None:
-                props = CodePointProperties(cp, {CodePointCategory.CaseIgnorable}, 0, None, None, cp, [cp])
+                props = CodePointProperties(cp, {CodePointAttribute.CaseIgnorable}, 0, None, None, cp, [cp])
             else:
-                props.categories.add(CodePointCategory.CaseIgnorable)
+                props.attributes.add(CodePointAttribute.CaseIgnorable)
 
         if props is not None:
             properties.append(props)

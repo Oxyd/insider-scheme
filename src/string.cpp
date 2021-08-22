@@ -182,9 +182,9 @@ upcase(context& ctx, ptr<string> s) {
 static void
 update_is_preceded_by_cased_letter(bool& is_preceded_by_cased_letter, char32_t cp) {
   if (auto prop = find_properties(cp)) {
-    if (has_category(*prop, code_point_category::cased_letter))
+    if (has_attribute(*prop, code_point_attribute::cased_letter))
       is_preceded_by_cased_letter = true;
-    else if (!has_category(*prop, code_point_category::case_ignorable))
+    else if (!has_attribute(*prop, code_point_attribute::case_ignorable))
       is_preceded_by_cased_letter = false;
 
     // Else it's a case-ignorable letter, so the value of
@@ -198,9 +198,9 @@ static bool
 is_followed_by_cased_letter(char const* begin, char const* end) {
   for (auto it = code_point_iterator{begin, end}, e = code_point_iterator{end, end}; it != e; ++it)
     if (auto prop = find_properties(*it)) {
-      if (has_category(*prop, code_point_category::cased_letter))
+      if (has_attribute(*prop, code_point_attribute::cased_letter))
         return true;
-      else if (!has_category(*prop, code_point_category::case_ignorable))
+      else if (!has_attribute(*prop, code_point_attribute::case_ignorable))
         return false;
     }
 
