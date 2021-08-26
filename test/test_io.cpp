@@ -172,6 +172,12 @@ TEST_F(io, read_block_comment) {
   EXPECT_TRUE(equal(ctx, read("(1 #| outer #| nested |# |# 2 3)"), read("(1 2 3)")));
 }
 
+TEST_F(io, case_folding) {
+  EXPECT_TRUE(equal(ctx, read("#!fold-case fOO"), read("foo")));
+  EXPECT_TRUE(equal(ctx, read("(#!fold-case FOO #!no-fold-case BAR)"), read("(foo BAR)")));
+  EXPECT_EQ(expect<char32_t>(read(R"(#!fold-case #\NEWLINE)")), '\n');
+}
+
 static std::string
 to_string_simple(context& ctx, ptr<> datum) {
   auto out = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());

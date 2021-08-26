@@ -48,6 +48,9 @@ downcase(context&, ptr<string>);
 ptr<string>
 foldcase(context&, ptr<string>);
 
+std::u32string
+foldcase(std::u32string const&);
+
 } // namespace insider
 
 #endif

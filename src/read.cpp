@@ -165,10 +165,15 @@ read_character(context& ctx, input_stream& stream) {
     std::u32string literal = *c + read_until_delimiter(stream);
     if (literal.size() == 1)
       return {generic_literal{character_to_ptr(literal[0])}, loc};
-    else if (auto it = character_names.find(literal); it != character_names.end())
-      return {generic_literal{character_to_ptr(it->second)}, loc};
-    else
-      throw read_error{fmt::format("Unknown character literal #\\{}", to_utf8(literal)), loc};
+    else {
+      if (stream.fold_case())
+        literal = foldcase(literal);
+
+      if (auto it = character_names.find(literal); it != character_names.end())
+        return {generic_literal{character_to_ptr(it->second)}, loc};
+      else
+        throw read_error{fmt::format("Unknown character literal #\\{}", to_utf8(literal)), loc};
+    }
   }
   else {
     source_location loc = stream.current_location();
@@ -233,6 +238,9 @@ read_identifier(input_stream& stream) {
   std::u32string value;
   while (stream.peek_character() && !delimiter(*stream.peek_character()))
     value += *stream.read_character();
+
+  if (stream.fold_case())
+    value = foldcase(value);
 
   return {identifier{to_utf8(value)}, loc};
 }
@@ -428,6 +436,22 @@ read_block_comment(context& ctx, input_stream& stream) {
 }
 
 static token
+read_directive(context& ctx, input_stream& stream) {
+  consume(stream, '!');
+
+  source_location loc = stream.current_location();
+  std::u32string directive = read_until_delimiter(stream);
+  if (directive == U"fold-case")
+    stream.enable_fold_case();
+  else if (directive == U"no-fold-case")
+    stream.disable_fold_case();
+  else
+    throw read_error{fmt::format("Invalid directive: {}", to_utf8(directive)), loc};
+
+  return read_token(ctx, stream);
+}
+
+static token
 read_token_after_octothorpe(context& ctx, input_stream& stream, source_location loc) {
   std::optional<char32_t> c = stream.peek_character();
   if (!c)
@@ -458,6 +482,8 @@ read_token_after_octothorpe(context& ctx, input_stream& stream, source_location 
     return read_datum_comment(ctx, stream);
   else if (*c == '|')
     return read_block_comment(ctx, stream);
+  else if (*c == '!')
+    return read_directive(ctx, stream);
   else
     return read_special_literal(ctx, stream);
 }

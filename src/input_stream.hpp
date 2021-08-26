@@ -31,10 +31,20 @@ public:
   source_location
   current_location() const;
 
+  bool
+  fold_case() const { return fold_case_; }
+
+  void
+  enable_fold_case() { fold_case_ = true; }
+
+  void
+  disable_fold_case() { fold_case_ = false; }
+
 private:
   insider::ptr<textual_input_port> port_;
   unsigned                         line_   = 1;
   unsigned                         column_ = 1;
+  bool                             fold_case_ = false;
 };
 
 } // namespace insider

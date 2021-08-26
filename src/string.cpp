@@ -248,4 +248,20 @@ foldcase(context& ctx, ptr<string> s) {
   return make<string>(ctx, std::move(new_data));
 }
 
+std::u32string
+foldcase(std::u32string const& s) {
+  std::u32string result;
+  result.reserve(s.length());
+
+  for (char32_t cp : s) {
+    if (auto prop = find_properties(cp))
+      for (char32_t const* c = prop->complex_case_folding; *c; ++c)
+        result.push_back(*c);
+    else
+      result.push_back(cp);
+  }
+
+  return result;
+}
+
 } // namespace insider
