@@ -9,70 +9,46 @@
 
 namespace insider {
 
-// Unicode codepoint
-class character {
-public:
-  using value_type = char32_t;
-
-  explicit
-  character(value_type c) : value_{c} { }
-
-  explicit
-  character(char c) : value_{static_cast<value_type>(c)} { }
-
-  explicit
-  character(int value) : value_{static_cast<value_type>(value)} { }
-
-  value_type
-  value() const { return value_; }
-
-  std::size_t
-  hash() const { return std::hash<value_type>{}(value_); }
-
-private:
-  value_type value_;
-};
-
-inline character
+inline char32_t
 ptr_to_character(ptr<> x) {
   assert(is_character(x));
-  return character{static_cast<character::value_type>(tagged_payload(x) >> 2)};
+  return static_cast<char32_t>(tagged_payload(x) >> 2);
 }
 
 inline ptr<>
-character_to_ptr(character c) {
-  return immediate_to_ptr((static_cast<word_type>(c.value()) << 2) | 0b10);
+character_to_ptr(char32_t c) {
+  return immediate_to_ptr((static_cast<word_type>(c) << 2) | 0b10);
 }
 
 inline std::size_t
-character_hash(character c) { return std::hash<character::value_type>{}(c.value()); }
+character_hash(char32_t c) { return std::hash<char32_t>{}(c); }
 
 bool
-is_numeric(character);
+is_numeric(char32_t);
 
 ptr<>
-digit_value(context&, character);
+digit_value(context&, char32_t);
 
 bool
-is_alphabetic(character);
+is_alphabetic(char32_t);
 
 bool
-is_upper_case(character);
+is_upper_case(char32_t);
 
 bool
-is_lower_case(character);
+is_lower_case(char32_t);
 
 bool
-is_white_space(character);
+is_white_space(char32_t);
 
-character
-upcase(character);
+char32_t
+upcase(char32_t);
 
-character
-downcase(character);
+char32_t
+downcase(char32_t);
 
-character
-foldcase(character);
+char32_t
+foldcase(char32_t);
 
 // The length in bytes of a code-point after conversion to UTF-8.
 std::size_t
@@ -80,8 +56,7 @@ utf32_code_point_byte_length(char32_t);
 
 template <typename F>
 void
-to_utf8(character c, F&& f) {
-  char32_t value = c.value();
+to_utf8(char32_t value, F&& f) {
   if (value <= 0x7F)
     f(static_cast<char>(value));
   else if (value < 0x7FF) {
@@ -101,7 +76,7 @@ to_utf8(character c, F&& f) {
 }
 
 std::string
-to_utf8(character);
+to_utf8(char32_t);
 
 std::string
 to_utf8(std::u32string const&);

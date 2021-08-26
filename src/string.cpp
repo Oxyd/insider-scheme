@@ -24,10 +24,10 @@ nth_code_point(std::string const& data, std::size_t n) {
 }
 
 void
-string::set(std::size_t i, character c) {
+string::set(std::size_t i, char32_t c) {
   std::size_t byte_index = nth_code_point(data_, i);
   std::size_t old_length = utf8_code_point_byte_length(data_[byte_index]);
-  std::size_t new_length = utf32_code_point_byte_length(c.value());
+  std::size_t new_length = utf32_code_point_byte_length(c);
 
   if (new_length < old_length)
     data_.erase(byte_index, old_length - new_length);
@@ -37,10 +37,10 @@ string::set(std::size_t i, character c) {
   to_utf8(c, [&] (char byte) mutable { data_[byte_index++] = byte; });
 }
 
-character
+char32_t
 string::ref(std::size_t i) const {
   std::size_t byte_index = nth_code_point(data_, i);
-  return character{from_utf8(data_.begin() + byte_index, data_.end()).code_point};
+  return from_utf8(data_.begin() + byte_index, data_.end()).code_point;
 }
 
 std::size_t
@@ -67,7 +67,7 @@ string::hash() const {
 }
 
 static void
-append(std::string& data, character c) {
+append(std::string& data, char32_t c) {
   to_utf8(c, [&] (char byte) { data.push_back(byte); });
 }
 
@@ -162,9 +162,9 @@ upcase(context& ctx, ptr<string> s) {
   for_each_code_point(old_data, [&] (char32_t cp) {
     if (auto prop = find_properties(cp))
       for (char32_t const* upcase_cp = prop->complex_uppercase; *upcase_cp; ++upcase_cp)
-        append(new_data, character{*upcase_cp});
+        append(new_data, *upcase_cp);
     else
-      append(new_data, character{cp});
+      append(new_data, cp);
   });
   return make<string>(ctx, std::move(new_data));
 }
@@ -219,13 +219,13 @@ downcase(context& ctx, ptr<string> s) {
   for (auto cp = code_points_begin(old_data), e = code_points_end(old_data); cp != e; ++cp)
     if (*cp != uppercase_sigma) {
       update_is_preceded_by_cased_letter(is_preceded_by_cased_letter, *cp);
-      append(new_data, downcase(character{*cp}));
+      append(new_data, downcase(*cp));
     } else {
       if (is_preceded_by_cased_letter
           && !is_followed_by_cased_letter(cp.base(), old_data.data() + old_data.length()))
-        append(new_data, character{lowercase_final_sigma});
+        append(new_data, lowercase_final_sigma);
       else
-        append(new_data, character{lowercase_medial_sigma});
+        append(new_data, lowercase_medial_sigma);
     }
 
   return make<string>(ctx, std::move(new_data));
@@ -240,9 +240,9 @@ foldcase(context& ctx, ptr<string> s) {
   for_each_code_point(old_data, [&] (char32_t cp) {
     if (auto prop = find_properties(cp))
       for (char32_t const* c = prop->complex_case_folding; *c; ++c)
-        append(new_data, character{*c});
+        append(new_data, *c);
     else
-      append(new_data, character{cp});
+      append(new_data, cp);
   });
 
   return make<string>(ctx, std::move(new_data));

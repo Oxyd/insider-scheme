@@ -12,7 +12,6 @@
 
 namespace insider {
 
-class character;
 class context;
 class integer;
 
@@ -150,7 +149,7 @@ type_name<integer>() {
 
 template <>
 inline std::string
-type_name<character>() {
+type_name<char32_t>() {
   return character_type_name;
 }
 
@@ -170,7 +169,7 @@ is<integer>(ptr<> x) {
 
 template <>
 inline bool
-is<character>(ptr<> x) {
+is<char32_t>(ptr<> x) {
   return is_character(x);
 }
 

@@ -100,14 +100,14 @@ delimiter(char32_t c) {
 
 static void
 skip_whitespace(input_stream& stream) {
-  std::optional<character> c = stream.peek_char();
+  std::optional<char32_t> c = stream.peek_char();
 
-  while (c && (whitespace(c->value()) || c->value() == ';')) {
-    while (c && whitespace(c->value()))
+  while (c && (whitespace(*c) || *c == ';')) {
+    while (c && whitespace(*c))
       c = stream.advance_and_peek_char();
 
-    if (c->value() == ';')
-      while ((c = stream.read_char()) && c->value() != '\n')
+    if (*c == ';')
+      while ((c = stream.read_char()) && *c != '\n')
         ;
 
     c = stream.peek_char();
@@ -117,8 +117,8 @@ skip_whitespace(input_stream& stream) {
 static std::u32string
 read_until_delimiter(input_stream& stream) {
   std::u32string result;
-  while (stream.peek_char() && !delimiter(stream.peek_char()->value()))
-    result += stream.read_char()->value();
+  while (stream.peek_char() && !delimiter(*stream.peek_char()))
+    result += *stream.read_char();
 
   return result;
 }
@@ -153,20 +153,20 @@ read_character(context& ctx, input_stream& stream) {
     {U"tab",       '\x09'}
   };
 
-  std::optional<character> c = stream.read_char();
+  std::optional<char32_t> c = stream.read_char();
   if (!c)
     throw read_error{"Unexpected end of input", stream.current_location()};
 
-  if (c->value() != 'x') {
+  if (*c != 'x') {
     source_location loc = stream.current_location();
     if (!is_alphabetic(*c))
       return {generic_literal{character_to_ptr(*c)}, loc};
 
-    std::u32string literal = c->value() + read_until_delimiter(stream);
+    std::u32string literal = *c + read_until_delimiter(stream);
     if (literal.size() == 1)
-      return {generic_literal{character_to_ptr(character{literal[0]})}, loc};
+      return {generic_literal{character_to_ptr(literal[0])}, loc};
     else if (auto it = character_names.find(literal); it != character_names.end())
-      return {generic_literal{character_to_ptr(character{it->second})}, loc};
+      return {generic_literal{character_to_ptr(it->second)}, loc};
     else
       throw read_error{fmt::format("Unknown character literal #\\{}", to_utf8(literal)), loc};
   }
@@ -174,27 +174,27 @@ read_character(context& ctx, input_stream& stream) {
     source_location loc = stream.current_location();
 
     std::u32string literal;
-    while (stream.peek_char() && hexdigit(stream.peek_char()->value()))
-      literal += stream.read_char()->value();
+    while (stream.peek_char() && hexdigit(*stream.peek_char()))
+      literal += *stream.read_char();
 
     if (!literal.empty()) {
       auto value = expect<integer>(read_integer(ctx, literal, 16));
-      auto c = static_cast<character::value_type>(value.value());
-      return {generic_literal{character_to_ptr(character{c})}, loc};
+      auto c = static_cast<char32_t>(value.value());
+      return {generic_literal{character_to_ptr(c)}, loc};
     } else
-      return {generic_literal{character_to_ptr(character{'x'})}, loc};
+      return {generic_literal{character_to_ptr('x')}, loc};
   }
 }
 
 static token
 read_special_literal(context& ctx, input_stream& stream) {
-  std::optional<character> c = stream.peek_char();
+  std::optional<char32_t> c = stream.peek_char();
   if (!c)
     throw read_error{"Unexpected end of input", stream.current_location()};
 
   source_location loc = stream.current_location();
 
-  switch (c->value()) {
+  switch (*c) {
   case 't':
   case 'f': {
     // These can be either #t or #f, or #true or #false.
@@ -203,7 +203,7 @@ read_special_literal(context& ctx, input_stream& stream) {
     if (literal != U"t" && literal != U"f" && literal != U"true" && literal != U"false")
       throw read_error{fmt::format("Invalid literal: {}", to_utf8(literal)), loc};
 
-    if (c->value() == 't')
+    if (*c == 't')
       return {boolean_literal{true}, loc};
     else
       return {boolean_literal{false}, loc};
@@ -231,8 +231,8 @@ static token
 read_identifier(input_stream& stream) {
   source_location loc = stream.current_location();
   std::u32string value;
-  while (stream.peek_char() && !delimiter(stream.peek_char()->value()))
-    value += stream.read_char()->value();
+  while (stream.peek_char() && !delimiter(*stream.peek_char()))
+    value += *stream.read_char();
 
   return {identifier{to_utf8(value)}, loc};
 }
@@ -245,19 +245,19 @@ read_string_literal(context& ctx, input_stream& stream) {
 
   std::string result;
   while (true) {
-    std::optional<character> c = stream.read_char();
+    std::optional<char32_t> c = stream.read_char();
     if (!c)
       throw read_error{"Unexpected end of input", stream.current_location()};
 
-    if (c->value() == '"')
+    if (*c == '"')
       break;
 
-    if (c->value() == '\\') {
-      std::optional<character> escape = stream.read_char();
+    if (*c == '\\') {
+      std::optional<char32_t> escape = stream.read_char();
       if (!escape)
         throw read_error{"Unexpected end of input", stream.current_location()};
 
-      switch (escape->value()) {
+      switch (*escape) {
       case 'a': result += '\a'; break;
       case 'n': result += '\n'; break;
       case 'r': result += '\r'; break;
@@ -278,8 +278,8 @@ read_string_literal(context& ctx, input_stream& stream) {
 
 static token
 read_token_after_comma(input_stream& stream, source_location loc) {
-  std::optional<character> c = stream.peek_char();
-  if (c && c->value() == '@') {
+  std::optional<char32_t> c = stream.peek_char();
+  if (c && *c == '@') {
     stream.read_char();
     return {comma_at{}, loc};
   }
@@ -289,16 +289,16 @@ read_token_after_comma(input_stream& stream, source_location loc) {
 
 static token
 read_token_after_period(context& ctx, input_stream& stream, source_location loc) {
-  std::optional<character> c = stream.peek_char();
+  std::optional<char32_t> c = stream.peek_char();
   if (!c)
     throw read_error{"Unexpected end of input", stream.current_location()};
 
-  if (delimiter(c->value()))
+  if (delimiter(*c))
     return {dot{}, loc};
   else {
-    stream.put_back(character{U'.'});
+    stream.put_back(U'.');
 
-    if (digit(c->value()))
+    if (digit(*c))
       return read_numeric_literal(ctx, stream);
     else
       return read_identifier(stream);
@@ -334,12 +334,12 @@ read_token_after_plus_or_minus(context& ctx, char32_t initial, input_stream& str
   // This can begin either a number (like -2) or a symbol (like + -- the
   // addition function).
 
-  std::optional<character> c = stream.peek_char();
+  std::optional<char32_t> c = stream.peek_char();
   if (!c)
     return {identifier{std::string(1, initial)}, loc};
 
-  stream.put_back(character{initial});
-  if (digit(c->value()) || c->value() == '.')
+  stream.put_back(initial);
+  if (digit(*c) || *c == '.')
     return read_numeric_literal(ctx, stream);
   else
     return read_identifier_after_plus_or_minus(ctx, stream, loc);
@@ -349,8 +349,8 @@ static std::string
 read_datum_label_value(input_stream& stream) {
   std::string result;
 
-  std::optional<character> c = stream.peek_char();
-  while (c && digit(c->value())) {
+  std::optional<char32_t> c = stream.peek_char();
+  while (c && digit(*c)) {
     to_utf8(*stream.read_char(), [&] (char byte) { result.push_back(byte); });
     c = stream.peek_char();
   }
@@ -362,13 +362,13 @@ static token
 read_datum_label(input_stream& stream, source_location loc) {
   std::string label = read_datum_label_value(stream);
 
-  std::optional<character> c = stream.read_char();
+  std::optional<char32_t> c = stream.read_char();
   if (!c)
     throw read_error{"Unexpected end of input", stream.current_location()};
 
-  if (c->value() == '=')
+  if (*c == '=')
     return {datum_label_definition{std::move(label)}, loc};
-  else if (c->value() == '#')
+  else if (*c == '#')
     return {datum_label_reference{std::move(label)}, loc};
   else
     throw read_error{"Unexpected character after datum label", stream.current_location()};
@@ -376,30 +376,30 @@ read_datum_label(input_stream& stream, source_location loc) {
 
 static token
 read_token_after_octothorpe(context& ctx, input_stream& stream, source_location loc) {
-  std::optional<character> c = stream.peek_char();
+  std::optional<char32_t> c = stream.peek_char();
   if (!c)
     throw read_error{"Unexpected end of input", stream.current_location()};
-  else if (c->value() == '\'') {
+  else if (*c == '\'') {
     stream.read_char();
     return {octothorpe_quote{}, loc};
-  } else if (c->value() == '`') {
+  } else if (*c == '`') {
     stream.read_char();
     return {octothorpe_backquote{}, loc};
-  } else if (c->value() == ',') {
+  } else if (*c == ',') {
     stream.read_char();
     c = stream.peek_char();
-    if (c->value() == '@') {
+    if (*c == '@') {
       stream.read_char();
       return {octothorpe_comma_at{}, loc};
     } else
       return {octothorpe_comma{}, loc};
-  } else if (c->value() == '$') {
-    stream.put_back(character{'#'});
+  } else if (*c == '$') {
+    stream.put_back('#');
     return read_identifier(stream);
   }
-  else if (c->value() == '(')
+  else if (*c == '(')
     return {hash_left_paren{}, loc};
-  else if (digit(c->value()))
+  else if (digit(*c))
     return read_datum_label(stream, loc);
   else
     return read_special_literal(ctx, stream);
@@ -410,31 +410,31 @@ read_token(context& ctx, input_stream& stream) {
   skip_whitespace(stream);
 
   source_location loc = stream.current_location();
-  std::optional<character> c = stream.read_char();
+  std::optional<char32_t> c = stream.read_char();
   if (!c)
     return {end{}, loc};
 
-  if (c->value() == '(')
+  if (*c == '(')
     return {left_paren{}, loc};
-  else if (c->value() == ')')
+  else if (*c == ')')
     return {right_paren{}, loc};
-  else if (c->value() == '\'')
+  else if (*c == '\'')
     return {quote{}, loc};
-  else if (c->value() == '`')
+  else if (*c == '`')
     return {backquote{}, loc};
-  else if (c->value() == ',')
+  else if (*c == ',')
     return read_token_after_comma(stream, loc);
-  else if (c->value() == '.')
+  else if (*c == '.')
     return read_token_after_period(ctx, stream, loc);
-  else if (c->value() == '+' || c->value() == '-')
-    return read_token_after_plus_or_minus(ctx, c->value(), stream, loc);
-  else if (digit(c->value())) {
+  else if (*c == '+' || *c == '-')
+    return read_token_after_plus_or_minus(ctx, *c, stream, loc);
+  else if (digit(*c)) {
     stream.put_back(*c);
     return read_numeric_literal(ctx, stream);
   }
-  else if (c->value() == '#')
+  else if (*c == '#')
     return read_token_after_octothorpe(ctx, stream, loc);
-  else if (c->value() == '"')
+  else if (*c == '"')
     return read_string_literal(ctx, stream);
   else {
     stream.put_back(*c);

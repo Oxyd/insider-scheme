@@ -1,7 +1,6 @@
 #ifndef INSIDER_STRING_HPP
 #define INSIDER_STRING_HPP
 
-#include "character.hpp"
 #include "object.hpp"
 
 #include <string>
@@ -19,9 +18,9 @@ public:
   string(std::string value) : data_{std::move(value)} { }
 
   void
-  set(std::size_t i, character c);
+  set(std::size_t i, char32_t c);
 
-  character
+  char32_t
   ref(std::size_t) const;
 
   std::string const&

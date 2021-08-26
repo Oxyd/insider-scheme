@@ -12,67 +12,67 @@
 namespace insider {
 
 static bool
-has_attribute(character c, std::uint32_t attribute) {
-  if (auto prop = find_properties(c.value()))
+has_attribute(char32_t c, std::uint32_t attribute) {
+  if (auto prop = find_properties(c))
     return has_attribute(*prop, attribute);
   else
     return false;
 }
 
 bool
-is_numeric(character c) {
+is_numeric(char32_t c) {
   return has_attribute(c, code_point_attribute::numeric);
 }
 
 ptr<>
-digit_value(context& ctx, character c) {
-  if (auto prop = find_properties(c.value()))
+digit_value(context& ctx, char32_t c) {
+  if (auto prop = find_properties(c))
     if (has_attribute(*prop, code_point_attribute::numeric))
       return integer_to_ptr(integer{prop->digit_value});
   return ctx.constants->f.get();
 }
 
 bool
-is_alphabetic(character c) {
+is_alphabetic(char32_t c) {
   return has_attribute(c, code_point_attribute::alphabetic);
 }
 
 bool
-is_upper_case(character c) {
+is_upper_case(char32_t c) {
   return has_attribute(c, code_point_attribute::upper_case);
 }
 
 bool
-is_lower_case(character c) {
+is_lower_case(char32_t c) {
   return has_attribute(c, code_point_attribute::lower_case);
 }
 
 bool
-is_white_space(character c) {
+is_white_space(char32_t c) {
   return has_attribute(c, code_point_attribute::white_space);
 }
 
 template <auto Prop>
-character
-find_property_value(character c) {
-  if (auto prop = find_properties(c.value()))
+char32_t
+find_property_value(char32_t c) {
+  if (auto prop = find_properties(c))
     if ((*prop).*Prop != 0)
-      return character{(*prop).*Prop};
+      return (*prop).*Prop;
   return c;
 }
 
-character
-upcase(character c) {
+char32_t
+upcase(char32_t c) {
   return find_property_value<&code_point_properties::simple_uppercase>(c);
 }
 
-character
-downcase(character c) {
+char32_t
+downcase(char32_t c) {
   return find_property_value<&code_point_properties::simple_lowercase>(c);
 }
 
-character
-foldcase(character c) {
+char32_t
+foldcase(char32_t c) {
   return find_property_value<&code_point_properties::simple_case_folding>(c);
 }
 
@@ -91,7 +91,7 @@ utf32_code_point_byte_length(char32_t c) {
 }
 
 std::string
-to_utf8(character c) {
+to_utf8(char32_t c) {
   std::string result;
   result.reserve(4);
   to_utf8(c, [&] (char x) { result.push_back(x); });
@@ -103,7 +103,7 @@ to_utf8(std::u32string const& s) {
   std::string result;
   result.reserve(s.length());
   for (char32_t c : s)
-    to_utf8(character{c}, [&] (char byte) { result.push_back(byte); });
+    to_utf8(c, [&] (char byte) { result.push_back(byte); });
   return result;
 }
 

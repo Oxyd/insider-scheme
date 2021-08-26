@@ -18,7 +18,7 @@ std::size_t
 hash(ptr<> x) {
   if (auto i = match<integer>(x))
     return integer_hash(*i);
-  else if (auto c = match<character>(x))
+  else if (auto c = match<char32_t>(x))
     return character_hash(*c);
   else
     return object_hash(x);
@@ -34,8 +34,8 @@ hasheqv(ptr<> x) {
     return f->hash();
   else if (auto fp = match<floating_point>(x))
     return fp->hash();
-  else if (auto c = match<character>(x))
-    return c->hash();
+  else if (auto c = match<char32_t>(x))
+    return character_hash(*c);
   else if (auto s = match<string>(x))
     return s->hash();
   else
@@ -56,8 +56,8 @@ eqv(context& ctx, ptr<> x, ptr<> y) {
   if (object_type_index(x) != object_type_index(y))
     return false;
 
-  if (auto lhs = match<character>(x))
-    return lhs->value() == assume<character>(x).value();
+  if (auto lhs = match<char32_t>(x))
+    return lhs == assume<char32_t>(x);
 
   if (is<string>(x) && is<string>(y))
     return assume<string>(x)->value() == assume<string>(y)->value();

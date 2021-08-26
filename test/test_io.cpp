@@ -100,20 +100,20 @@ TEST_F(io, read_symbol) {
 }
 
 TEST_F(io, read_char) {
-  EXPECT_EQ(expect<character>(read(R"(#\a)")).value(), 'a');
-  EXPECT_EQ(expect<character>(read(R"(#\A)")).value(), 'A');
-  EXPECT_EQ(expect<character>(read(R"(#\4)")).value(), '4');
-  EXPECT_EQ(expect<character>(read(R"(#\\)")).value(), '\\');
-  EXPECT_EQ(expect<character>(read(R"(#\()")).value(), '(');
-  EXPECT_EQ(expect<character>(read(R"(#\ )")).value(), ' ');
-  EXPECT_EQ(expect<character>(read(R"(#\space)")).value(), ' ');
-  EXPECT_EQ(expect<character>(read(R"(#\x63)")).value(), 'c');
-  EXPECT_EQ(expect<character>(read(R"(#\x6d)")).value(), 'm');
-  EXPECT_EQ(expect<character>(read(R"(#\x6D)")).value(), 'm');
-  EXPECT_EQ(expect<character>(read(R"(#\x4d)")).value(), 'M');
-  EXPECT_EQ(expect<character>(read(R"(#\x)")).value(), 'x');
-  EXPECT_EQ(expect<character>(read(u8R"(#\ž)")).value(), U'ž');
-  EXPECT_EQ(expect<character>(read(R"(#\x17e)")).value(), U'ž');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\a)")), 'a');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\A)")), 'A');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\4)")), '4');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\\)")), '\\');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\()")), '(');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\ )")), ' ');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\space)")), ' ');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\x63)")), 'c');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\x6d)")), 'm');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\x6D)")), 'm');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\x4d)")), 'M');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\x)")), 'x');
+  EXPECT_EQ(expect<char32_t>(read(u8R"(#\ž)")), U'ž');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\x17e)")), U'ž');
 }
 
 TEST_F(io, read_string) {
@@ -177,7 +177,7 @@ TEST_F(io, write) {
   EXPECT_EQ(to_string_simple(ctx, p2), "(0 1 . 2)");
 
   auto v = make<vector>(ctx, ctx, 3);
-  v->set(ctx.store, 0, character_to_ptr(character{'r'}));
+  v->set(ctx.store, 0, character_to_ptr('r'));
   v->set(ctx.store, 1, p2);
   v->set(ctx.store, 2, make<string>(ctx, "foobar"));
   EXPECT_EQ(to_string_simple(ctx, v), R"(#(#\r (0 1 . 2) "foobar"))");
@@ -194,7 +194,7 @@ TEST_F(io, write) {
     ctx.constants->f.get(),
     ctx.intern("symbol"),
     make<string>(ctx, "string"),
-    character_to_ptr(character{'c'}),
+    character_to_ptr('c'),
     integer_to_ptr(integer{-13})
   );
   EXPECT_EQ(to_string_simple(ctx, l), R"((() #void #t #f symbol "string" #\c -13))");

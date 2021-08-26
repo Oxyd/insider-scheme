@@ -8,10 +8,10 @@ using namespace insider;
 struct character_fixture : scheme_fixture { };
 
 TEST_F(character_fixture, is_numeric) {
-  EXPECT_TRUE(is_numeric(character{'4'}));
-  EXPECT_FALSE(is_numeric(character{'f'}));
-  EXPECT_TRUE(is_numeric(character{1633})); // ARABIC-INDIC DIGIT ONE
-  EXPECT_TRUE(is_numeric(character{123638})); // WANCHO DIGIT SIX
+  EXPECT_TRUE(is_numeric('4'));
+  EXPECT_FALSE(is_numeric('f'));
+  EXPECT_TRUE(is_numeric(1633)); // ARABIC-INDIC DIGIT ONE
+  EXPECT_TRUE(is_numeric(123638)); // WANCHO DIGIT SIX
 }
 
 TEST_F(character_fixture, codepoint_hash) {
@@ -20,64 +20,64 @@ TEST_F(character_fixture, codepoint_hash) {
 }
 
 TEST_F(character_fixture, digit_value) {
-  EXPECT_EQ(expect<integer>(digit_value(ctx, character{'8'})).value(), 8);
-  EXPECT_EQ(expect<integer>(digit_value(ctx, character{123638})).value(), 6);
-  EXPECT_EQ(digit_value(ctx, character{'a'}), ctx.constants->f.get());
+  EXPECT_EQ(expect<integer>(digit_value(ctx, '8')).value(), 8);
+  EXPECT_EQ(expect<integer>(digit_value(ctx, 123638)).value(), 6);
+  EXPECT_EQ(digit_value(ctx, 'a'), ctx.constants->f.get());
 }
 
 TEST_F(character_fixture, is_alphabetic) {
-  EXPECT_TRUE(is_alphabetic(character{'a'}));
-  EXPECT_FALSE(is_alphabetic(character{';'}));
-  EXPECT_FALSE(is_alphabetic(character{' '}));
-  EXPECT_TRUE(is_alphabetic(character{U'ř'}));
+  EXPECT_TRUE(is_alphabetic('a'));
+  EXPECT_FALSE(is_alphabetic(';'));
+  EXPECT_FALSE(is_alphabetic(' '));
+  EXPECT_TRUE(is_alphabetic(U'ř'));
 }
 
 TEST_F(character_fixture, is_lower_or_upper_case) {
-  EXPECT_TRUE(is_lower_case(character{'a'}));
-  EXPECT_FALSE(is_upper_case(character{'a'}));
-  EXPECT_FALSE(is_lower_case(character{'A'}));
-  EXPECT_TRUE(is_upper_case(character{'A'}));
-  EXPECT_FALSE(is_lower_case(character{'0'}));
-  EXPECT_FALSE(is_upper_case(character{'0'}));
+  EXPECT_TRUE(is_lower_case('a'));
+  EXPECT_FALSE(is_upper_case('a'));
+  EXPECT_FALSE(is_lower_case('A'));
+  EXPECT_TRUE(is_upper_case('A'));
+  EXPECT_FALSE(is_lower_case('0'));
+  EXPECT_FALSE(is_upper_case('0'));
 
-  EXPECT_TRUE(is_alphabetic(character{U'か'}));
-  EXPECT_FALSE(is_lower_case(character{U'か'}));
-  EXPECT_FALSE(is_upper_case(character{U'か'}));
+  EXPECT_TRUE(is_alphabetic(U'か'));
+  EXPECT_FALSE(is_lower_case(U'か'));
+  EXPECT_FALSE(is_upper_case(U'か'));
 }
 
 TEST_F(character_fixture, is_whitespace) {
-  EXPECT_TRUE(is_white_space(character{' '}));
-  EXPECT_TRUE(is_white_space(character{'\t'}));
-  EXPECT_TRUE(is_white_space(character{0x2029})); // PARAGRAPH SEPARATOR
-  EXPECT_FALSE(is_white_space(character{'a'}));
+  EXPECT_TRUE(is_white_space(' '));
+  EXPECT_TRUE(is_white_space('\t'));
+  EXPECT_TRUE(is_white_space(0x2029)); // PARAGRAPH SEPARATOR
+  EXPECT_FALSE(is_white_space('a'));
 }
 
 TEST_F(character_fixture, upcase) {
-  EXPECT_EQ(upcase(character{'a'}).value(), 'A');
-  EXPECT_EQ(upcase(character{'A'}).value(), 'A');
-  EXPECT_EQ(upcase(character{'5'}).value(), '5');
-  EXPECT_EQ(upcase(character{U'か'}).value(), U'か');
+  EXPECT_EQ(upcase('a'), 'A');
+  EXPECT_EQ(upcase('A'), 'A');
+  EXPECT_EQ(upcase('5'), '5');
+  EXPECT_EQ(upcase(U'か'), U'か');
 }
 
 TEST_F(character_fixture, downcase) {
-  EXPECT_EQ(downcase(character{'A'}).value(), 'a');
-  EXPECT_EQ(downcase(character{'a'}).value(), 'a');
-  EXPECT_EQ(downcase(character{'5'}).value(), '5');
-  EXPECT_EQ(downcase(character{U'か'}).value(), U'か');
+  EXPECT_EQ(downcase('A'), 'a');
+  EXPECT_EQ(downcase('a'), 'a');
+  EXPECT_EQ(downcase('5'), '5');
+  EXPECT_EQ(downcase(U'か'), U'か');
 }
 
 TEST_F(character_fixture, foldcase) {
-  EXPECT_EQ(foldcase(character{'a'}).value(), 'a');
-  EXPECT_EQ(foldcase(character{'A'}).value(), 'a');
-  EXPECT_EQ(foldcase(character{U'Á'}).value(), U'á');
-  EXPECT_EQ(foldcase(character{U'ſ'}).value(), 's');
+  EXPECT_EQ(foldcase('a'), 'a');
+  EXPECT_EQ(foldcase('A'), 'a');
+  EXPECT_EQ(foldcase(U'Á'), U'á');
+  EXPECT_EQ(foldcase(U'ſ'), 's');
 }
 
 TEST_F(character_fixture, to_utf8) {
-  EXPECT_EQ(to_utf8(character{'a'}), "a");
-  EXPECT_EQ(to_utf8(character{U'á'}), "\xc3\xa1");
-  EXPECT_EQ(to_utf8(character{0x831}), "\xe0\xa0\xb1");
-  EXPECT_EQ(to_utf8(character{0x10345}), "\xf0\x90\x8d\x85");
+  EXPECT_EQ(to_utf8('a'), "a");
+  EXPECT_EQ(to_utf8(U'á'), "\xc3\xa1");
+  EXPECT_EQ(to_utf8(0x831), "\xe0\xa0\xb1");
+  EXPECT_EQ(to_utf8(0x10345), "\xf0\x90\x8d\x85");
 }
 
 TEST_F(character_fixture, utf8_code_point_byte_length) {

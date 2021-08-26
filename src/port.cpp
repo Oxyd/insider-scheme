@@ -70,7 +70,7 @@ textual_input_port::textual_input_port(std::unique_ptr<port_source> source, std:
   , name_{std::move(name)}
 { }
 
-std::optional<character>
+std::optional<char32_t>
 textual_input_port::peek_character() {
   if (!put_back_buffer_.empty())
     return put_back_buffer_.back();
@@ -81,10 +81,10 @@ textual_input_port::peek_character() {
     return decode_read_buffer();
 }
 
-std::optional<character>
+std::optional<char32_t>
 textual_input_port::read_character() {
   if (!put_back_buffer_.empty()) {
-    character c = put_back_buffer_.back();
+    char32_t c = put_back_buffer_.back();
     put_back_buffer_.pop_back();
     return c;
   }
@@ -96,7 +96,7 @@ textual_input_port::read_character() {
 }
 
 void
-textual_input_port::put_back(character c) {
+textual_input_port::put_back(char32_t c) {
   put_back_buffer_.push_back(c);
 }
 
@@ -132,14 +132,14 @@ textual_input_port::fill_read_buffer() {
   return true;
 }
 
-character
+char32_t
 textual_input_port::decode_read_buffer() {
-  return character{from_utf8(read_buffer_.begin(), read_buffer_.begin() + read_buffer_length_).code_point};
+  return from_utf8(read_buffer_.begin(), read_buffer_.begin() + read_buffer_length_).code_point;
 }
 
-character
+char32_t
 textual_input_port::flush_read_buffer() {
-  character result = decode_read_buffer();
+  char32_t result = decode_read_buffer();
   read_buffer_length_ = 0;
   return result;
 }
@@ -180,7 +180,7 @@ textual_output_port::textual_output_port(std::unique_ptr<port_sink> sink)
 { }
 
 void
-textual_output_port::write(character c) {
+textual_output_port::write(char32_t c) {
   to_utf8(c, [&] (char byte) { sink_->write(byte); });
 }
 

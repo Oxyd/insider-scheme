@@ -169,8 +169,8 @@ floating_point::hash() const {
 }
 
 static bool
-digit(character c) {
-  return c.value() >= '0' && c.value() <= '9';
+digit(char32_t c) {
+  return c >= '0' && c <= '9';
 }
 
 static unsigned
@@ -1454,11 +1454,11 @@ read_integer(context& ctx, std::u32string const& digits, unsigned base) {
 
 static std::u32string
 read_digits(input_stream& stream) {
-  std::optional<character> c = stream.peek_char();
+  std::optional<char32_t> c = stream.peek_char();
 
   std::u32string result;
   while (c && digit(*c)) {
-    result += static_cast<char>(c->value());
+    result += static_cast<char>(*c);
     c = stream.advance_and_peek_char();
   }
 
@@ -1486,17 +1486,17 @@ string_to_double(std::string const& s) {
 
 ptr<>
 read_number(context& ctx, input_stream& stream) {
-  std::optional<character> c = stream.peek_char();
+  std::optional<char32_t> c = stream.peek_char();
   bool negative = false;
   assert(c);
-  if (c->value() == '-' || c->value() == '+') {
-    negative = c->value() == '-';
+  if (*c == '-' || *c == '+') {
+    negative = *c == '-';
     stream.read_char();
   }
 
   std::u32string literal = read_digits(stream);
   c = stream.peek_char();
-  if (c->value() == '/') {
+  if (*c == '/') {
     stream.read_char();
 
     ptr<> num = read_integer(ctx, literal);
@@ -1507,14 +1507,14 @@ read_number(context& ctx, input_stream& stream) {
                                                   num,
                                                   read_integer(ctx, read_digits(stream))));
   }
-  else if (c->value() == '.' || c->value() == 'e' || c->value() == 'E') {
-    literal += c->value();
+  else if (*c == '.' || *c == 'e' || *c == 'E') {
+    literal += *c;
     stream.read_char();
     literal += read_digits(stream);
 
     c = stream.peek_char();
-    if (c->value() == 'e' || c->value() == 'E') {
-      literal += c->value();
+    if (*c == 'e' || *c == 'E') {
+      literal += *c;
       stream.read_char();
       literal += read_digits(stream);
     }
@@ -1545,30 +1545,30 @@ write_small_magnitude(std::string& buffer, T n) {
 static void
 write_small(integer value, ptr<textual_output_port> out) {
   if (value.value() == 0) {
-    out->write(character{'0'});
+    out->write('0');
     return;
   }
 
   if (value.value() < 0)
-    out->write(character{'-'});
+    out->write('-');
 
   std::string buffer;
   integer::value_type n = value.value() >= 0 ? value.value() : -value.value();
   write_small_magnitude(buffer, n);
 
   for (auto c = buffer.rbegin(), e = buffer.rend(); c != e; ++c)
-    out->write(character{static_cast<character::value_type>(*c)});
+    out->write(static_cast<char32_t>(*c));
 }
 
 static void
 write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out) {
   if (value->zero()) {
-    out->write(character{'0'});
+    out->write('0');
     return;
   }
 
   if (!value->positive())
-    out->write(character{'-'});
+    out->write('-');
 
   std::string buffer;
   limb_type remainder;
@@ -1580,13 +1580,13 @@ write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out) {
   write_small_magnitude(buffer, value->front());
 
   for (auto c = buffer.rbegin(), e = buffer.rend(); c != e; ++c)
-    out->write(character{static_cast<character::value_type>(*c)});
+    out->write(static_cast<char32_t>(*c));
 }
 
 static void
 write_fraction(context& ctx, ptr<fraction> value, ptr<textual_output_port> out) {
   write_number(ctx, value->numerator(), out);
-  out->write(character{'/'});
+  out->write('/');
   write_number(ctx, value->denominator(), out);
 }
 
@@ -1603,9 +1603,9 @@ write_float(ptr<floating_point> value, ptr<textual_output_port> out) {
     return;
   } else if (std::isnan(value->value)) {
     if (std::signbit(value->value))
-      out->write(character{'-'});
+      out->write('-');
     else
-      out->write(character{'+'});
+      out->write('+');
 
     out->write("nan.0");
     return;

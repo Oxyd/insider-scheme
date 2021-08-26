@@ -1,7 +1,6 @@
 #ifndef INSIDER_INPUT_STREAM_HPP
 #define INSIDER_INPUT_STREAM_HPP
 
-#include "character.hpp"
 #include "ptr.hpp"
 #include "source_location.hpp"
 
@@ -17,16 +16,16 @@ public:
   explicit
   input_stream(insider::ptr<textual_input_port>);
 
-  std::optional<character>
+  std::optional<char32_t>
   peek_char();
 
-  std::optional<character>
+  std::optional<char32_t>
   read_char();
 
   void
-  put_back(character);
+  put_back(char32_t);
 
-  std::optional<character>
+  std::optional<char32_t>
   advance_and_peek_char();
 
   source_location

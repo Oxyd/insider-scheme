@@ -1,7 +1,6 @@
 #include "write.hpp"
 
 #include "basic_types.hpp"
-#include "character.hpp"
 #include "compare.hpp"
 #include "context.hpp"
 #include "numeric.hpp"
@@ -24,19 +23,19 @@ namespace insider {
 
 static void
 write_string(ptr<string> s, ptr<textual_output_port> out) {
-  out->write(character{'"'});
+  out->write('"');
   for (char c : s->value())
     if (c == '"')
       out->write(R"(\")");
     else if (c == '\\')
       out->write(R"(\\)");
     else
-      out->write(character{c});
-  out->write(character{'"'});
+      out->write(c);
+  out->write('"');
 }
 
 static void
-write_char(character c, ptr<textual_output_port> out) {
+write_char(char32_t c, ptr<textual_output_port> out) {
   out->write(R"(#\)");
   out->write(c);
 }
@@ -58,7 +57,7 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   else if (auto stx = match<syntax>(datum)) {
     out->write("#<syntax ");
     out->write(format_location(stx->location()));
-    out->write(character{' '});
+    out->write(' ');
     write_simple(ctx, syntax_to_datum(ctx, stx), out);
     out->write(">");
   } else if (auto proc = match<procedure>(datum)) {
@@ -76,7 +75,7 @@ static void
 write_atomic(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   if (auto str = match<string>(datum))
     write_string(str, out);
-  else if (auto c = match<character>(datum))
+  else if (auto c = match<char32_t>(datum))
     write_char(*c, out);
   else
     write_primitive(ctx, datum, out);
@@ -86,7 +85,7 @@ static void
 display_atomic(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   if (auto str = match<string>(datum))
     out->write(str->value());
-  else if (auto c = match<character>(datum))
+  else if (auto c = match<char32_t>(datum))
     out->write(*c);
   else
     write_primitive(ctx, datum, out);
@@ -222,7 +221,7 @@ output(context& ctx, ptr<> datum, ptr<textual_output_port> out, output_datum_lab
       switch (top.written) {
       case 0:
         if (!top.omit_parens)
-          out->write(character{'('});
+          out->write('(');
         ++top.written;
         stack.push_back({car(pair)});
         break;
@@ -231,11 +230,11 @@ output(context& ctx, ptr<> datum, ptr<textual_output_port> out, output_datum_lab
         ++top.written;
 
         if (is<insider::pair>(cdr(pair)) && !labels.is_shared(cdr(pair))) {
-          out->write(character{' '});
+          out->write(' ');
           stack.push_back({cdr(pair), 0, true});
         } else if (cdr(pair) == ctx.constants->null.get()) {
           if (!top.omit_parens)
-            out->write(character{')'});
+            out->write(')');
           stack.pop_back();
         } else {
           out->write(" . ");
@@ -245,7 +244,7 @@ output(context& ctx, ptr<> datum, ptr<textual_output_port> out, output_datum_lab
 
       case 2:
         if (!top.omit_parens)
-          out->write(character{')'});
+          out->write(')');
         stack.pop_back();
       }
     }
@@ -255,13 +254,13 @@ output(context& ctx, ptr<> datum, ptr<textual_output_port> out, output_datum_lab
       }
 
       if (top.written == vec->size()) {
-        out->write(character{')'});
+        out->write(')');
         stack.pop_back();
         continue;
       }
 
       if (top.written != 0 && top.written != vec->size())
-        out->write(character{' '});
+        out->write(' ');
 
       std::size_t index = top.written++;
       stack.push_back({vec->ref(index)});

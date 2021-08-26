@@ -1,7 +1,6 @@
 #include "internal_module.hpp"
 
 #include "analyser.hpp"
-#include "character.hpp"
 #include "converters.hpp"
 #include "port.hpp"
 #include "records.hpp"
@@ -58,7 +57,7 @@ make_internal_module(context& ctx) {
 
   define_procedure(
     ctx, "newline", result, true,
-    [] (context& ctx) { ctx.output_port->write(character{'\n'}); }
+    [] (context& ctx) { ctx.output_port->write('\n'); }
   );
 
   define_raw_procedure(ctx, "append", result, true, append);
@@ -122,7 +121,7 @@ make_internal_module(context& ctx) {
       auto result = make<string>(ctx, length);
 
       if (args.size() == 2) {
-        character fill = expect<character>(args[1]);
+        char32_t fill = expect<char32_t>(args[1]);
         for (std::size_t i = 0; i < static_cast<std::size_t>(length); ++i)
           result->set(i, fill);
       }

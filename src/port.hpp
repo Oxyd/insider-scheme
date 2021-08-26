@@ -1,7 +1,6 @@
 #ifndef INSIDER_PORT_HPP
 #define INSIDER_PORT_HPP
 
-#include "character.hpp"
 #include "object.hpp"
 
 #include <array>
@@ -72,14 +71,14 @@ public:
 
   textual_input_port(std::unique_ptr<port_source>, std::string name);
 
-  std::optional<character>
+  std::optional<char32_t>
   peek_character();
 
-  std::optional<character>
+  std::optional<char32_t>
   read_character();
 
   void
-  put_back(character);
+  put_back(char32_t);
 
   void
   rewind();
@@ -89,7 +88,7 @@ public:
 
 private:
   std::unique_ptr<port_source> source_;
-  std::vector<character>       put_back_buffer_;
+  std::vector<char32_t>        put_back_buffer_;
   std::array<char, 4>          read_buffer_;
   std::size_t                  read_buffer_length_ = 0;
   std::string                  name_;
@@ -100,10 +99,10 @@ private:
   bool
   fill_read_buffer();
 
-  character
+  char32_t
   decode_read_buffer();
 
-  character
+  char32_t
   flush_read_buffer();
 };
 
@@ -157,7 +156,7 @@ public:
   textual_output_port(std::unique_ptr<port_sink>);
 
   void
-  write(character);
+  write(char32_t);
 
   void
   write(std::string const&);

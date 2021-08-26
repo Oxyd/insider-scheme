@@ -62,7 +62,7 @@ namespace detail {
   struct expect_helper<integer> : immediate_expect_helper<integer, ptr_to_integer> { };
 
   template <>
-  struct expect_helper<character> : immediate_expect_helper<character, ptr_to_character> { };
+  struct expect_helper<char32_t> : immediate_expect_helper<char32_t, ptr_to_character> { };
 }
 
 // Expect an object to be of given type and return the apropriate typed pointer
@@ -128,7 +128,7 @@ namespace detail {
   struct assume_helper<integer> : immediate_assume_helper<integer, ptr_to_integer> { };
 
   template <>
-  struct assume_helper<character> : immediate_assume_helper<character, ptr_to_character> { };
+  struct assume_helper<char32_t> : immediate_assume_helper<char32_t, ptr_to_character> { };
 }
 
 // Assert that an object is of a given type and return the appropriate typed
@@ -178,7 +178,7 @@ namespace detail {
   struct match_helper<integer> : immediate_match_helper<integer, ptr_to_integer> { };
 
   template <>
-  struct match_helper<character> : immediate_match_helper<character, ptr_to_character> { };
+  struct match_helper<char32_t> : immediate_match_helper<char32_t, ptr_to_character> { };
 }
 
 // If an object is of the given type, return the typed pointer to it; otherwise,

@@ -10,15 +10,15 @@ input_stream::input_stream(insider::ptr<textual_input_port> p)
   : port_{p}
 { }
 
-std::optional<character>
+std::optional<char32_t>
 input_stream::peek_char() {
   return port_->peek_character();
 }
 
-std::optional<character>
+std::optional<char32_t>
 input_stream::read_char() {
   if (auto c = port_->read_character()) {
-    if (c->value() == '\n') {
+    if (*c == '\n') {
       ++line_;
       column_ = 1;
     } else
@@ -30,8 +30,8 @@ input_stream::read_char() {
 }
 
 void
-input_stream::put_back(character c) {
-  if (c.value() == '\n') {
+input_stream::put_back(char32_t c) {
+  if (c == '\n') {
     assert(line_ > 1);
     --line_;
     column_ = 1;
@@ -43,7 +43,7 @@ input_stream::put_back(character c) {
   port_->put_back(c);
 }
 
-std::optional<character>
+std::optional<char32_t>
 input_stream::advance_and_peek_char() {
   read_char();
   return peek_char();
