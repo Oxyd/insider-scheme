@@ -375,6 +375,24 @@ read_datum_label(input_stream& stream, source_location loc) {
 }
 
 static token
+read_token(context& ctx, input_stream& stream);
+
+using datum_labels = std::unordered_map<std::string, tracked_ptr<>>;
+
+static ptr<>
+read(context& ctx, token first_token, input_stream& stream, bool read_syntax,
+     datum_labels& labels, std::optional<std::string> defining_label = {});
+
+static token
+read_datum_comment(context& ctx, input_stream& stream) {
+  stream.read_character(); // Consume ;
+  datum_labels labels;
+  read(ctx, read_token(ctx, stream), stream, false, labels); // Discard
+
+  return read_token(ctx, stream);
+}
+
+static token
 read_token_after_octothorpe(context& ctx, input_stream& stream, source_location loc) {
   std::optional<char32_t> c = stream.peek_character();
   if (!c)
@@ -401,6 +419,8 @@ read_token_after_octothorpe(context& ctx, input_stream& stream, source_location 
     return {hash_left_paren{}, loc};
   else if (digit(*c))
     return read_datum_label(stream, loc);
+  else if (*c == ';')
+    return read_datum_comment(ctx, stream);
   else
     return read_special_literal(ctx, stream);
 }
@@ -453,8 +473,6 @@ wrap(context& ctx, ptr<> value, source_location const& loc, bool read_syntax) {
     return value;
 }
 
-using datum_labels = std::unordered_map<std::string, tracked_ptr<>>;
-
 static ptr<>
 find_datum_label_reference(datum_labels const& labels, std::string const& label, source_location ref_location) {
   if (auto it = labels.find(label); it != labels.end()) {
@@ -463,10 +481,6 @@ find_datum_label_reference(datum_labels const& labels, std::string const& label,
   } else
     throw read_error{fmt::format("Unknown datum label: {}", label), ref_location};
 }
-
-static ptr<>
-read(context& ctx, token first_token, input_stream& stream, bool read_syntax,
-     datum_labels& labels, std::optional<std::string> defining_label = {});
 
 static ptr<>
 read_and_wrap(context& ctx, token first_token, input_stream& stream, bool read_syntax, datum_labels& labels) {

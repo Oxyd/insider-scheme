@@ -160,6 +160,13 @@ TEST_F(io, read_comments) {
   EXPECT_EQ(expect<string>(read(R"("foo;bar;baz" ; string)"))->value(), "foo;bar;baz");
 }
 
+TEST_F(io, read_datum_comment) {
+  EXPECT_TRUE(equal(ctx, read("(1 #;(+ 2 3) 4)"), read("(1 4)")));
+  EXPECT_TRUE(equal(ctx, read("(1 #;   (+ 2 3) 4)"), read("(1 4)")));
+  EXPECT_TRUE(equal(ctx, read("(1 #;(+ #;(+ 4 5) 3) 4)"), read("(1 4)")));
+  EXPECT_TRUE(equal(ctx, read("(1 #;2 4)"), read("(1 4)")));
+}
+
 static std::string
 to_string_simple(context& ctx, ptr<> datum) {
   auto out = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
