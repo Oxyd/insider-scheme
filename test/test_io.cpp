@@ -89,6 +89,8 @@ TEST_F(io, read_symbol) {
   EXPECT_EQ(read("..."), ctx.intern("..."));
   EXPECT_EQ(read(".!"), ctx.intern(".!"));
   EXPECT_EQ(read(".dot"), ctx.intern(".dot"));
+  EXPECT_EQ(read(u8"bác"), ctx.intern(u8"bác"));
+  EXPECT_EQ(read(u8"žbluňk"), ctx.intern(u8"žbluňk"));
 
   ptr<> l = read("(one two three)");
   ASSERT_TRUE(is_list(l));
@@ -110,6 +112,8 @@ TEST_F(io, read_char) {
   EXPECT_EQ(expect<character>(read(R"(#\x6D)")).value(), 'm');
   EXPECT_EQ(expect<character>(read(R"(#\x4d)")).value(), 'M');
   EXPECT_EQ(expect<character>(read(R"(#\x)")).value(), 'x');
+  EXPECT_EQ(expect<character>(read(u8R"(#\ž)")).value(), U'ž');
+  EXPECT_EQ(expect<character>(read(R"(#\x17e)")).value(), U'ž');
 }
 
 TEST_F(io, read_string) {
@@ -127,6 +131,9 @@ TEST_F(io, read_string) {
   EXPECT_THROW(read(msvc_workaround4), read_error);
   char const* msvc_workaround5 = R"("\")";
   EXPECT_THROW(read(msvc_workaround5), read_error);
+
+  char const* msvc_workaround6 = u8R"("příšerně žluťoučký kůň úpěl ďábelské ódy")";
+  EXPECT_EQ(expect<string>(read(msvc_workaround6))->value(), u8"příšerně žluťoučký kůň úpěl ďábelské ódy");
 }
 
 TEST_F(io, read_multiple) {
