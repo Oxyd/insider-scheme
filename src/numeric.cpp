@@ -1454,12 +1454,12 @@ read_integer(context& ctx, std::u32string const& digits, unsigned base) {
 
 static std::u32string
 read_digits(input_stream& stream) {
-  std::optional<char32_t> c = stream.peek_char();
+  std::optional<char32_t> c = stream.peek_character();
 
   std::u32string result;
   while (c && digit(*c)) {
     result += static_cast<char>(*c);
-    c = stream.advance_and_peek_char();
+    c = stream.advance_and_peek_character();
   }
 
   return result;
@@ -1486,18 +1486,18 @@ string_to_double(std::string const& s) {
 
 ptr<>
 read_number(context& ctx, input_stream& stream) {
-  std::optional<char32_t> c = stream.peek_char();
+  std::optional<char32_t> c = stream.peek_character();
   bool negative = false;
   assert(c);
   if (*c == '-' || *c == '+') {
     negative = *c == '-';
-    stream.read_char();
+    stream.read_character();
   }
 
   std::u32string literal = read_digits(stream);
-  c = stream.peek_char();
+  c = stream.peek_character();
   if (*c == '/') {
-    stream.read_char();
+    stream.read_character();
 
     ptr<> num = read_integer(ctx, literal);
     if (negative)
@@ -1509,13 +1509,13 @@ read_number(context& ctx, input_stream& stream) {
   }
   else if (*c == '.' || *c == 'e' || *c == 'E') {
     literal += *c;
-    stream.read_char();
+    stream.read_character();
     literal += read_digits(stream);
 
-    c = stream.peek_char();
+    c = stream.peek_character();
     if (*c == 'e' || *c == 'E') {
       literal += *c;
-      stream.read_char();
+      stream.read_character();
       literal += read_digits(stream);
     }
 

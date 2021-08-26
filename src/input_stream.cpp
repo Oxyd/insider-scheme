@@ -11,12 +11,12 @@ input_stream::input_stream(insider::ptr<textual_input_port> p)
 { }
 
 std::optional<char32_t>
-input_stream::peek_char() {
+input_stream::peek_character() {
   return port_->peek_character();
 }
 
 std::optional<char32_t>
-input_stream::read_char() {
+input_stream::read_character() {
   if (auto c = port_->read_character()) {
     if (*c == '\n') {
       ++line_;
@@ -44,9 +44,9 @@ input_stream::put_back(char32_t c) {
 }
 
 std::optional<char32_t>
-input_stream::advance_and_peek_char() {
-  read_char();
-  return peek_char();
+input_stream::advance_and_peek_character() {
+  read_character();
+  return peek_character();
 }
 
 source_location

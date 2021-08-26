@@ -17,16 +17,16 @@ public:
   input_stream(insider::ptr<textual_input_port>);
 
   std::optional<char32_t>
-  peek_char();
+  peek_character();
 
   std::optional<char32_t>
-  read_char();
+  read_character();
 
   void
   put_back(char32_t);
 
   std::optional<char32_t>
-  advance_and_peek_char();
+  advance_and_peek_character();
 
   source_location
   current_location() const;
