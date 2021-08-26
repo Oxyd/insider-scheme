@@ -167,6 +167,11 @@ TEST_F(io, read_datum_comment) {
   EXPECT_TRUE(equal(ctx, read("(1 #;2 4)"), read("(1 4)")));
 }
 
+TEST_F(io, read_block_comment) {
+  EXPECT_TRUE(equal(ctx, read("(1 #| rest of the list |# 2 3)"), read("(1 2 3)")));
+  EXPECT_TRUE(equal(ctx, read("(1 #| outer #| nested |# |# 2 3)"), read("(1 2 3)")));
+}
+
 static std::string
 to_string_simple(context& ctx, ptr<> datum) {
   auto out = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());

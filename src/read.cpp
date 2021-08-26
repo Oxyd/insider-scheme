@@ -383,11 +383,46 @@ static ptr<>
 read(context& ctx, token first_token, input_stream& stream, bool read_syntax,
      datum_labels& labels, std::optional<std::string> defining_label = {});
 
+static char32_t
+require_char(input_stream& stream) {
+  std::optional<char32_t> result = stream.read_character();
+  if (!result)
+    throw read_error{"Unexpected end of input", stream.current_location()};
+  return *result;
+}
+
+static void
+consume(input_stream& stream, char32_t expected) {
+  char32_t c = require_char(stream);
+  assert(c == expected);
+}
+
 static token
 read_datum_comment(context& ctx, input_stream& stream) {
-  stream.read_character(); // Consume ;
+  consume(stream, ';');
   datum_labels labels;
   read(ctx, read_token(ctx, stream), stream, false, labels); // Discard
+
+  return read_token(ctx, stream);
+}
+
+static token
+read_block_comment(context& ctx, input_stream& stream) {
+  consume(stream, '|');
+
+  unsigned nesting_level = 1;
+  while (nesting_level > 0) {
+    char32_t c = require_char(stream);
+    if (c == '|') {
+      char32_t next = require_char(stream);
+      if (next == '#')
+        --nesting_level;
+    } else if (c == '#') {
+      char32_t next = require_char(stream);
+      if (next == '|')
+        ++nesting_level;
+    }
+  }
 
   return read_token(ctx, stream);
 }
@@ -421,6 +456,8 @@ read_token_after_octothorpe(context& ctx, input_stream& stream, source_location 
     return read_datum_label(stream, loc);
   else if (*c == ';')
     return read_datum_comment(ctx, stream);
+  else if (*c == '|')
+    return read_block_comment(ctx, stream);
   else
     return read_special_literal(ctx, stream);
 }
