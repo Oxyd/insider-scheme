@@ -77,7 +77,11 @@ main(int argc, char** argv) {
       return 1;
     }
 
-    auto in = insider::make_tracked<insider::port>(ctx, f, std::move(program_path), true, false);
+    auto in = insider::make_tracked<insider::textual_input_port>(
+      ctx,
+      std::make_unique<insider::file_port_source>(f),
+      std::move(program_path)
+    );
     auto mod = insider::compile_main_module(ctx, insider::read_syntax_multiple(ctx, in.get()));
 
     insider::simple_action a{ctx, "Executing program"};

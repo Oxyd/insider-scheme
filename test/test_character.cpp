@@ -74,10 +74,10 @@ TEST_F(character_fixture, foldcase) {
 }
 
 TEST_F(character_fixture, to_utf8) {
-  EXPECT_EQ(to_utf8_copy(character{'a'}), "a");
-  EXPECT_EQ(to_utf8_copy(character{U'á'}), "\xc3\xa1");
-  EXPECT_EQ(to_utf8_copy(character{0x831}), "\xe0\xa0\xb1");
-  EXPECT_EQ(to_utf8_copy(character{0x10345}), "\xf0\x90\x8d\x85");
+  EXPECT_EQ(to_utf8(character{'a'}), "a");
+  EXPECT_EQ(to_utf8(character{U'á'}), "\xc3\xa1");
+  EXPECT_EQ(to_utf8(character{0x831}), "\xe0\xa0\xb1");
+  EXPECT_EQ(to_utf8(character{0x10345}), "\xf0\x90\x8d\x85");
 }
 
 TEST_F(character_fixture, utf8_code_point_byte_length) {

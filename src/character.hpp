@@ -17,6 +17,12 @@ public:
   explicit
   character(value_type c) : value_{c} { }
 
+  explicit
+  character(char c) : value_{static_cast<value_type>(c)} { }
+
+  explicit
+  character(int value) : value_{static_cast<value_type>(value)} { }
+
   value_type
   value() const { return value_; }
 
@@ -30,7 +36,7 @@ private:
 inline character
 ptr_to_character(ptr<> x) {
   assert(is_character(x));
-  return character{static_cast<character::value_type>(tagged_payload(x)) >> 2};
+  return character{static_cast<character::value_type>(tagged_payload(x) >> 2)};
 }
 
 inline ptr<>
@@ -95,7 +101,10 @@ to_utf8(character c, F&& f) {
 }
 
 std::string
-to_utf8_copy(character);
+to_utf8(character);
+
+std::string
+to_utf8(std::u32string const&);
 
 std::size_t
 utf8_code_point_byte_length(char first_byte);

@@ -91,10 +91,19 @@ utf32_code_point_byte_length(char32_t c) {
 }
 
 std::string
-to_utf8_copy(character c) {
+to_utf8(character c) {
   std::string result;
   result.reserve(4);
   to_utf8(c, [&] (char x) { result.push_back(x); });
+  return result;
+}
+
+std::string
+to_utf8(std::u32string const& s) {
+  std::string result;
+  result.reserve(s.length());
+  for (char32_t c : s)
+    to_utf8(character{c}, [&] (char byte) { result.push_back(byte); });
   return result;
 }
 

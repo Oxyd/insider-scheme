@@ -58,7 +58,7 @@ make_internal_module(context& ctx) {
 
   define_procedure(
     ctx, "newline", result, true,
-    [] (context& ctx) { ctx.output_port->write_char('\n'); }
+    [] (context& ctx) { ctx.output_port->write(character{'\n'}); }
   );
 
   define_raw_procedure(ctx, "append", result, true, append);

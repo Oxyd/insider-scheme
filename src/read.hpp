@@ -9,9 +9,9 @@
 namespace insider {
 
 class context;
-class port;
 class source_location;
 class syntax;
+class textual_input_port;
 
 struct read_error : std::runtime_error {
   read_error(std::string const& message, source_location const&);
@@ -20,26 +20,26 @@ struct read_error : std::runtime_error {
 // Read a single S-expression from the given input stream. Returns a null
 // pointer if there is no expression in the stream.
 ptr<>
-read(context&, ptr<port>);
+read(context&, ptr<textual_input_port>);
 
 ptr<>
 read(context&, std::string);
 
 ptr<syntax>
-read_syntax(context&, ptr<port>);
+read_syntax(context&, ptr<textual_input_port>);
 
 ptr<syntax>
 read_syntax(context&, std::string);
 
 // Read multiple S-expressions until the end of the stream or string.
 std::vector<tracked_ptr<>>
-read_multiple(context&, ptr<port>);
+read_multiple(context&, ptr<textual_input_port>);
 
 std::vector<tracked_ptr<>>
 read_multiple(context&, std::string);
 
 std::vector<tracked_ptr<syntax>>
-read_syntax_multiple(context&, ptr<port>);
+read_syntax_multiple(context&, ptr<textual_input_port>);
 
 std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context&, std::string);

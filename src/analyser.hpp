@@ -11,6 +11,8 @@
 
 namespace insider {
 
+class textual_input_port;
+
 // The analyser expects a Scheme datum (or a list of data) that represents a
 // program, and turns it into an internal representation, defined in syntax.hpp.
 
@@ -31,7 +33,7 @@ protomodule
 read_library(context&, std::vector<tracked_ptr<syntax>> const& contents);
 
 std::optional<module_name>
-read_library_name(context&, ptr<port>);
+read_library_name(context&, ptr<textual_input_port>);
 
 // Analyse a protomodule's body in the given module.
 sequence_expression

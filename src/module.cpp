@@ -244,7 +244,7 @@ filesystem_module_provider::find_module(context& ctx, module_name const& name) {
   for (auto const& candidate : candidates) {
     FILE* f = open_file(candidate.c_str(), _T("r"));
     if (f) {
-      auto in = make<port>(ctx, f, candidate.string(), true, false);
+      auto in = make<textual_input_port>(ctx, std::make_unique<file_port_source>(f), candidate.string());
       std::optional<module_name> candidate_name = read_library_name(ctx, in);
       if (candidate_name == name) {
         in->rewind();

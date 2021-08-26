@@ -40,7 +40,7 @@ class core_form_type;
 class integer;
 class module;
 class null_type;
-class port;
+class textual_output_port;
 class procedure;
 class scope;
 class symbol;
@@ -94,7 +94,7 @@ public:
   free_store                       store;
   std::unique_ptr<constants>       constants;
   statics_list                     statics;
-  tracked_ptr<port>                output_port;
+  tracked_ptr<textual_output_port> output_port;
   module                           internal_module; // (insider internal)
   std::string                      error_backtrace; // Built from actions during stack unwinding.
   bytecode                         program;

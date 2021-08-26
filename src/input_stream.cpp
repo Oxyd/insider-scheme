@@ -6,19 +6,19 @@
 
 namespace insider {
 
-input_stream::input_stream(insider::ptr<port> p)
+input_stream::input_stream(insider::ptr<textual_input_port> p)
   : port_{p}
 { }
 
-std::optional<char>
+std::optional<character>
 input_stream::peek_char() {
-  return port_->peek_char();
+  return port_->peek_character();
 }
 
-std::optional<char>
+std::optional<character>
 input_stream::read_char() {
-  if (auto c = port_->read_char()) {
-    if (*c == '\n') {
+  if (auto c = port_->read_character()) {
+    if (c->value() == '\n') {
       ++line_;
       column_ = 1;
     } else
@@ -30,8 +30,8 @@ input_stream::read_char() {
 }
 
 void
-input_stream::put_back(char c) {
-  if (c == '\n') {
+input_stream::put_back(character c) {
+  if (c.value() == '\n') {
     assert(line_ > 1);
     --line_;
     column_ = 1;
@@ -43,7 +43,7 @@ input_stream::put_back(char c) {
   port_->put_back(c);
 }
 
-std::optional<char>
+std::optional<character>
 input_stream::advance_and_peek_char() {
   read_char();
   return peek_char();

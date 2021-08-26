@@ -155,7 +155,7 @@ TEST_F(io, read_comments) {
 
 static std::string
 to_string_simple(context& ctx, ptr<> datum) {
-  auto out = make<port>(ctx, std::string{}, false, true);
+  auto out = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
   write_simple(ctx, datum, out);
   return out->get_string();
 }
@@ -311,7 +311,7 @@ TEST_F(io, datum_label_to_nonatomic_shortcut) {
 
 static std::string
 to_string_shared(context& ctx, ptr<> datum) {
-  auto out = make<port>(ctx, std::string{}, false, true);
+  auto out = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
   write_shared(ctx, datum, out);
   return out->get_string();
 }
@@ -338,7 +338,7 @@ TEST_F(io, write_shared_infinite_vector) {
 
 static std::string
 to_string(context& ctx, ptr<> datum) {
-  auto out = make<port>(ctx, std::string{}, false, true);
+  auto out = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
   write(ctx, datum, out);
   return out->get_string();
 }

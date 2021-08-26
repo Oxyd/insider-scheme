@@ -169,12 +169,12 @@ floating_point::hash() const {
 }
 
 static bool
-digit(char c) {
-  return c >= '0' && c <= '9';
+digit(character c) {
+  return c.value() >= '0' && c.value() <= '9';
 }
 
 static unsigned
-digit_value(char c) {
+digit_value(char32_t c) {
   if (c >= '0' && c <= '9')
     return c - '0';
   else if (c >= 'a' && c <= 'f')
@@ -1438,10 +1438,10 @@ export_native(context& ctx, module& m, std::string const& name,
 }
 
 ptr<>
-read_integer(context& ctx, std::string const& digits, unsigned base) {
+read_integer(context& ctx, std::u32string const& digits, unsigned base) {
   ptr<> result = integer_to_ptr(integer{0});
 
-  for (char c : digits) {
+  for (char32_t c : digits) {
     result = mul_magnitude_by_limb_destructive(ctx, result, base);
     result = add_magnitude_to_limb_destructive(ctx, result, digit_value(c));
   }
@@ -1452,13 +1452,13 @@ read_integer(context& ctx, std::string const& digits, unsigned base) {
   return result;
 }
 
-static std::string
+static std::u32string
 read_digits(input_stream& stream) {
-  std::optional<char> c = stream.peek_char();
+  std::optional<character> c = stream.peek_char();
 
-  std::string result;
+  std::u32string result;
   while (c && digit(*c)) {
-    result += *c;
+    result += static_cast<char>(c->value());
     c = stream.advance_and_peek_char();
   }
 
@@ -1486,17 +1486,17 @@ string_to_double(std::string const& s) {
 
 ptr<>
 read_number(context& ctx, input_stream& stream) {
-  std::optional<char> c = stream.peek_char();
+  std::optional<character> c = stream.peek_char();
   bool negative = false;
   assert(c);
-  if (c == '-' || c == '+') {
-    negative = c == '-';
+  if (c->value() == '-' || c->value() == '+') {
+    negative = c->value() == '-';
     stream.read_char();
   }
 
-  std::string literal = read_digits(stream);
+  std::u32string literal = read_digits(stream);
   c = stream.peek_char();
-  if (c == '/') {
+  if (c->value() == '/') {
     stream.read_char();
 
     ptr<> num = read_integer(ctx, literal);
@@ -1507,19 +1507,19 @@ read_number(context& ctx, input_stream& stream) {
                                                   num,
                                                   read_integer(ctx, read_digits(stream))));
   }
-  else if (c == '.' || c == 'e' || c == 'E') {
-    literal += *c;
+  else if (c->value() == '.' || c->value() == 'e' || c->value() == 'E') {
+    literal += c->value();
     stream.read_char();
     literal += read_digits(stream);
 
     c = stream.peek_char();
-    if (c == 'e' || c == 'E') {
-      literal += *c;
+    if (c->value() == 'e' || c->value() == 'E') {
+      literal += c->value();
       stream.read_char();
       literal += read_digits(stream);
     }
 
-    double value = string_to_double(literal);
+    double value = string_to_double(to_utf8(literal));
     if (negative)
       value = -value;
 
@@ -1543,32 +1543,32 @@ write_small_magnitude(std::string& buffer, T n) {
 }
 
 static void
-write_small(integer value, ptr<port> out) {
+write_small(integer value, ptr<textual_output_port> out) {
   if (value.value() == 0) {
-    out->write_char('0');
+    out->write(character{'0'});
     return;
   }
 
   if (value.value() < 0)
-    out->write_char('-');
+    out->write(character{'-'});
 
   std::string buffer;
   integer::value_type n = value.value() >= 0 ? value.value() : -value.value();
   write_small_magnitude(buffer, n);
 
-  std::reverse(buffer.begin(), buffer.end());
-  out->write_string(buffer);
+  for (auto c = buffer.rbegin(), e = buffer.rend(); c != e; ++c)
+    out->write(character{static_cast<character::value_type>(*c)});
 }
 
 static void
-write_big(context& ctx, ptr<big_integer> value, ptr<port> out) {
+write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out) {
   if (value->zero()) {
-    out->write_char('0');
+    out->write(character{'0'});
     return;
   }
 
   if (!value->positive())
-    out->write_char('-');
+    out->write(character{'-'});
 
   std::string buffer;
   limb_type remainder;
@@ -1579,35 +1579,35 @@ write_big(context& ctx, ptr<big_integer> value, ptr<port> out) {
 
   write_small_magnitude(buffer, value->front());
 
-  std::reverse(buffer.begin(), buffer.end());
-  out->write_string(buffer);
+  for (auto c = buffer.rbegin(), e = buffer.rend(); c != e; ++c)
+    out->write(character{static_cast<character::value_type>(*c)});
 }
 
 static void
-write_fraction(context& ctx, ptr<fraction> value, ptr<port> out) {
+write_fraction(context& ctx, ptr<fraction> value, ptr<textual_output_port> out) {
   write_number(ctx, value->numerator(), out);
-  out->write_char('/');
+  out->write(character{'/'});
   write_number(ctx, value->denominator(), out);
 }
 
 static void
-write_float(ptr<floating_point> value, ptr<port> out) {
+write_float(ptr<floating_point> value, ptr<textual_output_port> out) {
   // Same as with string_to_double: std::to_chars would be the ideal way to implement this, but we'll go with an
   // std::ostringstream in its absence.
 
   if (value->value == floating_point::positive_infinity) {
-    out->write_string("+inf.0");
+    out->write("+inf.0");
     return;
   } else if (value->value == floating_point::negative_infinity) {
-    out->write_string("-inf.0");
+    out->write("-inf.0");
     return;
   } else if (std::isnan(value->value)) {
     if (std::signbit(value->value))
-      out->write_char('-');
+      out->write(character{'-'});
     else
-      out->write_char('+');
+      out->write(character{'+'});
 
-    out->write_string("nan.0");
+    out->write("nan.0");
     return;
   }
 
@@ -1622,11 +1622,11 @@ write_float(ptr<floating_point> value, ptr<port> out) {
   std::string::size_type dot = result.find('.');
   std::string::size_type last_nonzero = result.find_last_not_of('0');
   std::string::size_type end = std::max(dot + 1, last_nonzero);
-  out->write_string(result.substr(0, end + 1));
+  out->write(result.substr(0, end + 1));
 }
 
 void
-write_number(context& ctx, ptr<> value, ptr<port> out) {
+write_number(context& ctx, ptr<> value, ptr<textual_output_port> out) {
   if (auto s = match<integer>(value))
     write_small(*s, out);
   else if (auto b = match<big_integer>(value))

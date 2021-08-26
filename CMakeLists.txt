@@ -67,6 +67,7 @@ set(test_sources
   test/test_records.cpp
   test/test_string.cpp
   test/test_types.cpp
+  test/test_port.cpp
   )
 
 set(program_sources

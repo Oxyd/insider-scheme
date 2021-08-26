@@ -1,132 +1,194 @@
 #include "port.hpp"
 
+#include "context.hpp"
+
+#include <fmt/format.h>
+
 namespace insider {
 
-port::port(FILE* f, std::string name, bool input, bool output, bool should_close)
-  : buffer_{f}
-  , input_{input}
-  , output_{output}
+file_port_source::file_port_source(FILE* f, bool should_close)
+  : f_{f}
   , should_close_{should_close}
+{ }
+
+file_port_source::~file_port_source() {
+  if (should_close_)
+    std::fclose(f_);
+}
+
+std::optional<std::uint8_t>
+file_port_source::read() {
+  int byte = std::getc(f_);
+  if (byte != EOF)
+    return byte;
+  else
+    return {};
+}
+
+std::optional<std::uint8_t>
+file_port_source::peek() {
+  int byte = std::getc(f_);
+  if (byte == EOF)
+    return {};
+
+  std::ungetc(byte, f_);
+  return byte;
+}
+
+void
+file_port_source::rewind() {
+  std::rewind(f_);
+}
+
+string_port_source::string_port_source(std::string data)
+  : data_{std::move(data)}
+{ }
+
+std::optional<std::uint8_t>
+string_port_source::read() {
+  if (position_ == data_.length())
+    return {};
+  else
+    return data_[position_++];
+}
+
+std::optional<std::uint8_t>
+string_port_source::peek() {
+  if (position_ == data_.length())
+    return {};
+  else
+    return data_[position_];
+}
+
+void
+string_port_source::rewind() {
+  position_ = 0;
+}
+
+textual_input_port::textual_input_port(std::unique_ptr<port_source> source, std::string name)
+  : source_{std::move(source)}
   , name_{std::move(name)}
 { }
 
-port::port(std::string buffer, bool input, bool output)
-  : buffer_{string_buffer{std::move(buffer)}}
-  , input_{input}
-  , output_{output}
-{ }
-
-port::port(port&& other)
-  : buffer_(std::move(other.buffer_))
-  , put_back_buffer_(std::move(other.put_back_buffer_))
-  , input_{other.input_}
-  , output_{other.output_}
-  , should_close_{other.should_close_}
-{
-  other.should_close_ = false;
-}
-
-port::~port() {
-  destroy();
-}
-
-void
-port::write_string(std::string const& s) {
-  if (!output_)
-    throw std::runtime_error{"Writing to non-writeable port"};
-
-  if (FILE** f = std::get_if<FILE*>(&buffer_))
-    std::fputs(s.c_str(), *f);
-  else
-    std::get<string_buffer>(buffer_).data += s;
-}
-
-void
-port::write_char(char c) {
-  if (!output_)
-    throw std::runtime_error{"Writing to non-writeable port"};
-
-  if (FILE** f = std::get_if<FILE*>(&buffer_))
-    std::fputc(c, *f);
-  else
-    std::get<string_buffer>(buffer_).data += c;
-}
-
-std::optional<char>
-port::peek_char() {
+std::optional<character>
+textual_input_port::peek_character() {
   if (!put_back_buffer_.empty())
     return put_back_buffer_.back();
 
-  if (FILE** f = std::get_if<FILE*>(&buffer_)) {
-    int c = std::getc(*f);
-    if (c == EOF)
-      return {};
-
-    std::ungetc(c, *f);
-    return c;
-  }
-  else {
-    string_buffer const& buf = std::get<string_buffer>(buffer_);
-    if (buf.read_index == buf.data.size())
-      return {};
-    else
-      return buf.data[buf.read_index];
-  }
+  if (!fill_read_buffer())
+    return {};
+  else
+    return decode_read_buffer();
 }
 
-std::optional<char>
-port::read_char() {
+std::optional<character>
+textual_input_port::read_character() {
   if (!put_back_buffer_.empty()) {
-    char result = put_back_buffer_.back();
+    character c = put_back_buffer_.back();
     put_back_buffer_.pop_back();
-    return result;
+    return c;
   }
 
-  if (FILE** f = std::get_if<FILE*>(&buffer_)) {
-    int c = std::getc(*f);
-    if (c == EOF)
-      return {};
-    else
-      return c;
-  }
-  else {
-    string_buffer& buf = std::get<string_buffer>(buffer_);
-    if (buf.read_index == buf.data.size())
-      return {};
-    else
-      return buf.data[buf.read_index++];
-  }
+  if (!fill_read_buffer())
+    return {};
+  else
+    return flush_read_buffer();
 }
 
 void
-port::put_back(char c) {
-  if (!input_)
-    throw std::runtime_error{"Not an input port"};
-
+textual_input_port::put_back(character c) {
   put_back_buffer_.push_back(c);
 }
 
+void
+textual_input_port::rewind() {
+  source_->rewind();
+  put_back_buffer_.clear();
+  read_buffer_length_ = 0;
+}
+
+bool
+textual_input_port::read_byte() {
+  if (auto maybe_byte = source_->read()) {
+    read_buffer_[read_buffer_length_++] = *maybe_byte;
+    return true;
+  } else
+    return false;
+}
+
+bool
+textual_input_port::fill_read_buffer() {
+  if (read_buffer_length_ != 0)
+    return true;
+
+  if (!read_byte())
+    return false;
+
+  std::size_t required = utf8_code_point_byte_length(read_buffer_[0]);
+  while (read_buffer_length_ < required)
+    if (!read_byte())
+      return false;
+
+  return true;
+}
+
+character
+textual_input_port::decode_read_buffer() {
+  return character{from_utf8(read_buffer_.begin(), read_buffer_.begin() + read_buffer_length_).code_point};
+}
+
+character
+textual_input_port::flush_read_buffer() {
+  character result = decode_read_buffer();
+  read_buffer_length_ = 0;
+  return result;
+}
+
+ptr<textual_input_port>
+make_string_input_port(context& ctx, std::string data) {
+  return make<textual_input_port>(ctx, std::make_unique<string_port_source>(std::move(data)),
+                                  "<memory buffer>");
+}
+
 std::string
-port::get_string() const {
-  if (string_buffer const* sb = std::get_if<string_buffer>(&buffer_))
-    return sb->data;
-  else
-    throw std::runtime_error{"Not a string port"};
+port_sink::get_string() const {
+  throw std::runtime_error{"Not a string port"};
 }
 
-void
-port::rewind() {
-  if (string_buffer* sb = std::get_if<string_buffer>(&buffer_))
-    sb->read_index = 0;
-  else
-    std::rewind(std::get<FILE*>(buffer_));
-}
+file_port_sink::file_port_sink(FILE* f, bool should_close)
+  : f_{f}
+  , should_close_{should_close}
+{ }
 
-void
-port::destroy() {
+file_port_sink::~file_port_sink() {
   if (should_close_)
-    if (FILE** f = std::get_if<FILE*>(&buffer_))
-      std::fclose(*f);
+    std::fclose(f_);
+}
+
+void
+file_port_sink::write(std::uint8_t byte) {
+  std::fputc(byte, f_);
+}
+
+void
+string_port_sink::write(std::uint8_t byte) {
+  data_.push_back(byte);
+}
+
+textual_output_port::textual_output_port(std::unique_ptr<port_sink> sink)
+  : sink_{std::move(sink)}
+{ }
+
+void
+textual_output_port::write(character c) {
+  to_utf8(c, [&] (char byte) { sink_->write(byte); });
+}
+
+void
+textual_output_port::write(std::string const& s) {
+  for (char c : s)
+    sink_->write(c);
 }
 
 } // namespace insider
+

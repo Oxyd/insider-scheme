@@ -1632,7 +1632,7 @@ read_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents) {
 }
 
 std::optional<module_name>
-read_library_name(context& ctx, ptr<port> in) {
+read_library_name(context& ctx, ptr<textual_input_port> in) {
   try {
     ptr<syntax> first_datum = read_syntax(ctx, in);
     if (is_directive(first_datum, "library"))

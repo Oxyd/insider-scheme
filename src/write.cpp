@@ -23,57 +23,57 @@
 namespace insider {
 
 static void
-write_string(ptr<string> s, ptr<port> out) {
-  out->write_char('"');
+write_string(ptr<string> s, ptr<textual_output_port> out) {
+  out->write(character{'"'});
   for (char c : s->value())
     if (c == '"')
-      out->write_string(R"(\")");
+      out->write(R"(\")");
     else if (c == '\\')
-      out->write_string(R"(\\)");
+      out->write(R"(\\)");
     else
-      out->write_char(c);
-  out->write_char('"');
+      out->write(character{c});
+  out->write(character{'"'});
 }
 
 static void
-write_char(character c, ptr<port> out) {
-  out->write_string(R"(#\)");
-  out->write_char(c.value());
+write_char(character c, ptr<textual_output_port> out) {
+  out->write(R"(#\)");
+  out->write(c);
 }
 
 static void
-write_primitive(context& ctx, ptr<> datum, ptr<port> out) {
+write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   if (datum == ctx.constants->null.get())
-    out->write_string("()");
+    out->write("()");
   else if (datum == ctx.constants->void_.get())
-    out->write_string("#void");
+    out->write("#void");
   else if (datum == ctx.constants->t.get())
-    out->write_string("#t");
+    out->write("#t");
   else if (datum == ctx.constants->f.get())
-    out->write_string("#f");
+    out->write("#f");
   else if (is_number(datum))
     write_number(ctx, datum, out);
   else if (auto sym = match<symbol>(datum))
-    out->write_string(sym->value());
+    out->write(sym->value());
   else if (auto stx = match<syntax>(datum)) {
-    out->write_string("#<syntax ");
-    out->write_string(format_location(stx->location()));
-    out->write_char(' ');
+    out->write("#<syntax ");
+    out->write(format_location(stx->location()));
+    out->write(character{' '});
     write_simple(ctx, syntax_to_datum(ctx, stx), out);
-    out->write_string(">");
+    out->write(">");
   } else if (auto proc = match<procedure>(datum)) {
     if (proc->name)
-      out->write_string(fmt::format("<procedure {}>", *proc->name));
+      out->write(fmt::format("<procedure {}>", *proc->name));
     else
-      out->write_string("<lambda>");
+      out->write("<lambda>");
   } else if (auto core = match<core_form_type>(datum)) {
-    out->write_string(fmt::format("<core form {}>", core->name));
+    out->write(fmt::format("<core form {}>", core->name));
   } else
-    out->write_string(fmt::format("<{}>", object_type_name(datum)));
+    out->write(fmt::format("<{}>", object_type_name(datum)));
 }
 
 static void
-write_atomic(context& ctx, ptr<> datum, ptr<port> out) {
+write_atomic(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   if (auto str = match<string>(datum))
     write_string(str, out);
   else if (auto c = match<character>(datum))
@@ -83,11 +83,11 @@ write_atomic(context& ctx, ptr<> datum, ptr<port> out) {
 }
 
 static void
-display_atomic(context& ctx, ptr<> datum, ptr<port> out) {
+display_atomic(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   if (auto str = match<string>(datum))
-    out->write_string(str->value());
+    out->write(str->value());
   else if (auto c = match<character>(datum))
-    out->write_char(c->value());
+    out->write(*c);
   else
     write_primitive(ctx, datum, out);
 }
@@ -198,7 +198,7 @@ find_shared(ptr<> datum) {
 
 template <auto OutputAtomic>
 static void
-output(context& ctx, ptr<> datum, ptr<port> out, output_datum_labels labels) {
+output(context& ctx, ptr<> datum, ptr<textual_output_port> out, output_datum_labels labels) {
   struct record {
     ptr<>       datum;
     std::size_t written = 0;
@@ -211,18 +211,18 @@ output(context& ctx, ptr<> datum, ptr<port> out, output_datum_labels labels) {
 
     if (top.written == 0 && labels.is_shared(top.datum)) {
       if (labels.has_label(top.datum)) {
-        out->write_string(fmt::format("#{}#", labels.get_or_assign_label(top.datum)));
+        out->write(fmt::format("#{}#", labels.get_or_assign_label(top.datum)));
         stack.pop_back();
         continue;
       } else
-        out->write_string(fmt::format("#{}=", labels.get_or_assign_label(top.datum)));
+        out->write(fmt::format("#{}=", labels.get_or_assign_label(top.datum)));
     }
 
     if (auto pair = match<insider::pair>(top.datum)) {
       switch (top.written) {
       case 0:
         if (!top.omit_parens)
-          out->write_char('(');
+          out->write(character{'('});
         ++top.written;
         stack.push_back({car(pair)});
         break;
@@ -231,37 +231,37 @@ output(context& ctx, ptr<> datum, ptr<port> out, output_datum_labels labels) {
         ++top.written;
 
         if (is<insider::pair>(cdr(pair)) && !labels.is_shared(cdr(pair))) {
-          out->write_char(' ');
+          out->write(character{' '});
           stack.push_back({cdr(pair), 0, true});
         } else if (cdr(pair) == ctx.constants->null.get()) {
           if (!top.omit_parens)
-            out->write_char(')');
+            out->write(character{')'});
           stack.pop_back();
         } else {
-          out->write_string(" . ");
+          out->write(" . ");
           stack.push_back({cdr(pair)});
         }
         break;
 
       case 2:
         if (!top.omit_parens)
-          out->write_char(')');
+          out->write(character{')'});
         stack.pop_back();
       }
     }
     else if (auto vec = match<vector>(top.datum)) {
       if (top.written == 0) {
-        out->write_string("#(");
+        out->write("#(");
       }
 
       if (top.written == vec->size()) {
-        out->write_char(')');
+        out->write(character{')'});
         stack.pop_back();
         continue;
       }
 
       if (top.written != 0 && top.written != vec->size())
-        out->write_char(' ');
+        out->write(character{' '});
 
       std::size_t index = top.written++;
       stack.push_back({vec->ref(index)});
@@ -274,7 +274,7 @@ output(context& ctx, ptr<> datum, ptr<port> out, output_datum_labels labels) {
 }
 
 void
-write(context& ctx, ptr<> datum, ptr<port> out) {
+write(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   find_shared_result fsr = find_shared(datum);
   if (fsr.has_cycle)
     output<write_atomic>(ctx, datum, out, std::move(fsr.labels));
@@ -283,24 +283,24 @@ write(context& ctx, ptr<> datum, ptr<port> out) {
 }
 
 void
-write_simple(context& ctx, ptr<> datum, ptr<port> out) {
+write_simple(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   output<write_atomic>(ctx, datum, out, {});
 }
 
 void
-write_shared(context& ctx, ptr<> datum, ptr<port> out) {
+write_shared(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   find_shared_result fsr = find_shared(datum);
   output<write_atomic>(ctx, datum, out, std::move(fsr.labels));
 }
 
 void
-display(context& ctx, ptr<> datum, ptr<port> out) {
+display(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   output<display_atomic>(ctx, datum, out, {});
 }
 
 std::string
 datum_to_string(context& ctx, ptr<> datum) {
-  auto p = make<port>(ctx, "", false, true);
+  auto p = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
   write_simple(ctx, datum, p);
   return p->get_string();
 }

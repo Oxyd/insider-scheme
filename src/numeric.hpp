@@ -16,7 +16,7 @@ class boolean;
 class context;
 class input_stream;
 class module;
-class port;
+class textual_output_port;
 
 namespace detail {
 #if defined __GNUC__ || defined __clang__
@@ -300,13 +300,13 @@ ptr<>
 gcd(context&, ptr<>, ptr<>);
 
 ptr<>
-read_integer(context& ctx, std::string const& digits, unsigned base = 10);
+read_integer(context& ctx, std::u32string const& digits, unsigned base = 10);
 
 ptr<>
 read_number(context&, input_stream&);
 
 void
-write_number(context&, ptr<> value, ptr<port> out);
+write_number(context&, ptr<> value, ptr<textual_output_port> out);
 
 void
 export_numeric(context&, module&);

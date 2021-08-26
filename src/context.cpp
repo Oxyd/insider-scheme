@@ -92,7 +92,7 @@ context::context()
   statics.zero = intern_static(tracked_ptr<>{store, integer_to_ptr(0)});
   statics.one = intern_static(tracked_ptr<>{store, integer_to_ptr(1)});
 
-  output_port = make_tracked<port>(*this, stdout, "<stdout>", false, true, false);
+  output_port = make_tracked<textual_output_port>(*this, std::make_unique<file_port_sink>(stdout, false));
 }
 
 context::~context() {
