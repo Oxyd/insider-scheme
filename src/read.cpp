@@ -554,9 +554,6 @@ read_token_after_octothorpe(context& ctx, input_stream& stream, source_location 
       return {octothorpe_comma_at{}, loc};
     } else
       return {octothorpe_comma{}, loc};
-  } else if (*c == '$') {
-    stream.put_back('#');
-    return read_identifier(stream);
   }
   else if (*c == '(')
     return {hash_left_paren{}, loc};
