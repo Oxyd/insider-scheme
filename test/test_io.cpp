@@ -99,6 +99,17 @@ TEST_F(io, read_symbol) {
   EXPECT_EQ(expect<symbol>(car(expect<pair>(cdr(expect<pair>(cdr(expect<pair>(l)))))))->value(), "three");
 }
 
+TEST_F(io, read_verbatim_symbol) {
+  EXPECT_EQ(read("|foo|"), ctx.intern("foo"));
+  EXPECT_THROW(read("|foo"), read_error);
+  EXPECT_EQ(read("|foo bar|"), ctx.intern("foo bar"));
+  EXPECT_EQ(read(R"(|foo\x20;bar|)"), ctx.intern("foo bar"));
+  EXPECT_EQ(read(R"(|H\x65;llo|)"), ctx.intern("Hello"));
+  EXPECT_EQ(read(R"(|\x3BB;|)"), ctx.intern(u8"λ"));
+  EXPECT_EQ(read(R"(|\t\t|)"), read(R"(|\x9;\x9;|)"));
+  EXPECT_EQ(read(R"(||)"), ctx.intern(""));
+}
+
 TEST_F(io, read_char) {
   EXPECT_EQ(expect<char32_t>(read(R"(#\a)")), 'a');
   EXPECT_EQ(expect<char32_t>(read(R"(#\A)")), 'A');

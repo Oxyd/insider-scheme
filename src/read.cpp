@@ -295,33 +295,69 @@ read_hex_escape(context& ctx, input_stream& stream) {
   return read_character_from_hexdigits(ctx, digits);
 }
 
-static std::optional<char32_t>
-read_string_escape(context& ctx, input_stream& stream) {
+static char32_t
+read_common_escape(context& ctx, input_stream& stream) {
   source_location loc = stream.current_location();
   char32_t escape = require_char(stream);
+
   switch (escape) {
   case 'a': return '\a';
+  case 'b': return '\b';
   case 'n': return '\n';
   case 'r': return '\r';
+  case 't': return '\t';
   case '"': return '"';
   case '\\': return '\\';
   case '|': return '|';
   case 'x': return read_hex_escape(ctx, stream);
-  case '\n':
-    skip_intraline_whitespace(stream);
-    return {};
   default:
-    if (intraline_whitespace(escape)) {
-      skip_intraline_whitespace(stream);
-      if (std::optional<char32_t> after_whitespace = stream.read_character())
-        if (*after_whitespace == '\n') {
-          skip_intraline_whitespace(stream);
-          return {};
-        }
-    }
-
     throw read_error{fmt::format("Unrecognised escape sequence \\{}", to_utf8(escape)), loc};
   }
+}
+
+static std::optional<char32_t>
+read_string_escape(context& ctx, input_stream& stream) {
+  source_location loc = stream.current_location();
+  char32_t escape = require_char(stream);
+  if (escape == '\n') {
+    skip_intraline_whitespace(stream);
+    return {};
+  } else if (intraline_whitespace(escape)) {
+    skip_intraline_whitespace(stream);
+    if (std::optional<char32_t> after_whitespace = stream.read_character())
+      if (*after_whitespace == '\n') {
+        skip_intraline_whitespace(stream);
+        return {};
+      }
+
+    throw read_error{fmt::format("Unrecognised escape sequence \\{}", to_utf8(escape)), loc};
+  } else {
+    stream.put_back(escape);
+    return read_common_escape(ctx, stream);
+  }
+}
+
+static token
+read_verbatim_identifier(context& ctx, input_stream& stream) {
+  // The opening | was consumed before calling this function.
+
+  source_location loc = stream.current_location();
+  std::u32string value;
+
+  std::optional<char32_t> c = stream.read_character();
+  while (c && *c != '|') {
+    if (*c == '\\')
+      value += read_common_escape(ctx, stream);
+    else
+      value += *c;
+
+    c = stream.read_character();
+  }
+
+  if (!c)
+    throw read_error{"Unexpected end of input", stream.current_location()};
+
+  return {identifier{to_utf8(value)}, loc};
 }
 
 static token
@@ -567,6 +603,8 @@ read_token(context& ctx, input_stream& stream) {
     return read_token_after_octothorpe(ctx, stream, loc);
   else if (*c == '"')
     return read_string_literal(ctx, stream);
+  else if (*c == '|')
+    return read_verbatim_identifier(ctx, stream);
   else {
     stream.put_back(*c);
     return read_identifier(stream);
