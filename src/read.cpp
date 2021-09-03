@@ -90,6 +90,11 @@ whitespace(char32_t c) {
 }
 
 static bool
+intraline_whitespace(char32_t c) {
+  return c == ' ' || c == '\t';
+}
+
+static bool
 delimiter(char32_t c) {
   return whitespace(c)
          || c == '(' || c == ')'
@@ -112,6 +117,13 @@ skip_whitespace(input_stream& stream) {
 
     c = stream.peek_character();
   }
+}
+
+static void
+skip_intraline_whitespace(input_stream& stream) {
+  std::optional<char32_t> c = stream.peek_character();
+  while (c && intraline_whitespace(*c))
+    c = stream.advance_and_peek_character();
 }
 
 static std::u32string
@@ -137,6 +149,20 @@ static token
 read_numeric_literal(context& ctx, input_stream& stream) {
   source_location loc = stream.current_location();
   return {generic_literal{read_number(ctx, stream)}, loc};
+}
+
+static std::u32string
+read_hexdigits(input_stream& stream) {
+  std::u32string result;
+  while (stream.peek_character() && hexdigit(*stream.peek_character()))
+    result += *stream.read_character();
+  return result;
+}
+
+static char32_t
+read_character_from_hexdigits(context& ctx, std::u32string const& digits) {
+  auto value = expect<integer>(read_integer(ctx, digits, 16));
+  return static_cast<char32_t>(value.value());
 }
 
 static token
@@ -177,16 +203,11 @@ read_character(context& ctx, input_stream& stream) {
   }
   else {
     source_location loc = stream.current_location();
+    std::u32string digits = read_hexdigits(stream);
 
-    std::u32string literal;
-    while (stream.peek_character() && hexdigit(*stream.peek_character()))
-      literal += *stream.read_character();
-
-    if (!literal.empty()) {
-      auto value = expect<integer>(read_integer(ctx, literal, 16));
-      auto c = static_cast<char32_t>(value.value());
-      return {generic_literal{character_to_ptr(c)}, loc};
-    } else
+    if (!digits.empty())
+      return {generic_literal{character_to_ptr(read_character_from_hexdigits(ctx, digits))}, loc};
+    else
       return {generic_literal{character_to_ptr('x')}, loc};
   }
 }
@@ -232,6 +253,28 @@ read_special_literal(context& ctx, input_stream& stream) {
   }
 }
 
+static char32_t
+require_char(input_stream& stream) {
+  std::optional<char32_t> result = stream.read_character();
+  if (!result)
+    throw read_error{"Unexpected end of input", stream.current_location()};
+  return *result;
+}
+
+static void
+consume(input_stream& stream, char32_t expected) {
+  char32_t c = require_char(stream);
+  assert(c == expected);
+}
+
+static void
+expect(input_stream& stream, char32_t expected) {
+  source_location loc = stream.current_location();
+  char32_t c = require_char(stream);
+  if (c != expected)
+    throw read_error{fmt::format("Unexpected character: {}, expected {}", to_utf8(c), to_utf8(expected)), loc};
+}
+
 static token
 read_identifier(input_stream& stream) {
   source_location loc = stream.current_location();
@@ -245,6 +288,42 @@ read_identifier(input_stream& stream) {
   return {identifier{to_utf8(value)}, loc};
 }
 
+static char32_t
+read_hex_escape(context& ctx, input_stream& stream) {
+  std::u32string digits = read_hexdigits(stream);
+  expect(stream, ';');
+  return read_character_from_hexdigits(ctx, digits);
+}
+
+static std::optional<char32_t>
+read_string_escape(context& ctx, input_stream& stream) {
+  source_location loc = stream.current_location();
+  char32_t escape = require_char(stream);
+  switch (escape) {
+  case 'a': return '\a';
+  case 'n': return '\n';
+  case 'r': return '\r';
+  case '"': return '"';
+  case '\\': return '\\';
+  case '|': return '|';
+  case 'x': return read_hex_escape(ctx, stream);
+  case '\n':
+    skip_intraline_whitespace(stream);
+    return {};
+  default:
+    if (intraline_whitespace(escape)) {
+      skip_intraline_whitespace(stream);
+      if (std::optional<char32_t> after_whitespace = stream.read_character())
+        if (*after_whitespace == '\n') {
+          skip_intraline_whitespace(stream);
+          return {};
+        }
+    }
+
+    throw read_error{fmt::format("Unrecognised escape sequence \\{}", to_utf8(escape)), loc};
+  }
+}
+
 static token
 read_string_literal(context& ctx, input_stream& stream) {
   // The opening " was consumed before calling this function.
@@ -253,32 +332,15 @@ read_string_literal(context& ctx, input_stream& stream) {
 
   std::string result;
   while (true) {
-    std::optional<char32_t> c = stream.read_character();
-    if (!c)
-      throw read_error{"Unexpected end of input", stream.current_location()};
-
-    if (*c == '"')
+    char32_t c = require_char(stream);
+    if (c == '"')
       break;
 
-    if (*c == '\\') {
-      std::optional<char32_t> escape = stream.read_character();
-      if (!escape)
-        throw read_error{"Unexpected end of input", stream.current_location()};
-
-      switch (*escape) {
-      case 'a': result += '\a'; break;
-      case 'n': result += '\n'; break;
-      case 'r': result += '\r'; break;
-      case '"': result += '"'; break;
-      case '\\': result += '\\'; break;
-      case '|': result += '|'; break;
-      default:
-        // XXX: Support \ at end of line and \xXXXX.
-        throw read_error{fmt::format("Unrecognised escape sequence \\{}", to_utf8(*escape)), loc};
-      }
-    }
-    else
-      to_utf8(*c, [&] (char byte) { result.push_back(byte); });
+    if (c == '\\') {
+      if (auto escape = read_string_escape(ctx, stream))
+        to_utf8(*escape, [&] (char byte) { result.push_back(byte); });
+    } else
+      to_utf8(c, [&] (char byte) { result.push_back(byte); });
   }
 
   return {generic_literal{make<string>(ctx, std::move(result))}, loc};
@@ -390,20 +452,6 @@ using datum_labels = std::unordered_map<std::string, tracked_ptr<>>;
 static ptr<>
 read(context& ctx, token first_token, input_stream& stream, bool read_syntax,
      datum_labels& labels, std::optional<std::string> defining_label = {});
-
-static char32_t
-require_char(input_stream& stream) {
-  std::optional<char32_t> result = stream.read_character();
-  if (!result)
-    throw read_error{"Unexpected end of input", stream.current_location()};
-  return *result;
-}
-
-static void
-consume(input_stream& stream, char32_t expected) {
-  char32_t c = require_char(stream);
-  assert(c == expected);
-}
 
 static token
 read_datum_comment(context& ctx, input_stream& stream) {

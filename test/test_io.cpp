@@ -134,6 +134,28 @@ TEST_F(io, read_string) {
 
   char const* msvc_workaround6 = u8R"("příšerně žluťoučký kůň úpěl ďábelské ódy")";
   EXPECT_EQ(expect<string>(read(msvc_workaround6))->value(), u8"příšerně žluťoučký kůň úpěl ďábelské ódy");
+
+  char const* msvc_workaround7 = R"("foo\x20;bar")";
+  EXPECT_EQ(expect<string>(read(msvc_workaround7))->value(), "foo bar");
+
+  char const* msvc_workaround8 = R"("foo\x20bar")";
+  EXPECT_THROW(read(msvc_workaround8), read_error);
+
+  char const* msvc_workaround9 = R"("foo\)" "\n"
+                                 R"(bar")";
+  EXPECT_EQ(expect<string>(read(msvc_workaround9))->value(), "foobar");
+
+  char const* msvc_workaround10 = R"("foo\    )" "\n"
+                                  R"(bar")";
+  EXPECT_EQ(expect<string>(read(msvc_workaround10))->value(), "foobar");
+
+  char const* msvc_workaround11 = R"("foo\)" "\n"
+                                  R"(    bar")";
+  EXPECT_EQ(expect<string>(read(msvc_workaround11))->value(), "foobar");
+
+  char const* msvc_workaround12 = R"("foo\   )" "\n"
+                                  R"(    bar")";
+  EXPECT_EQ(expect<string>(read(msvc_workaround12))->value(), "foobar");
 }
 
 TEST_F(io, read_multiple) {
