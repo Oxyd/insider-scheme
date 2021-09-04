@@ -279,6 +279,15 @@ match_core_form(parsing_context& pc, ptr<syntax> stx) {
   return {};
 }
 
+static void
+expand_begin(parsing_context& pc, ptr<> stx, std::vector<tracked_ptr<syntax>>& stack) {
+  std::vector<tracked_ptr<syntax>> subforms;
+  for (ptr<> e : in_list{cdr(assume<pair>(stx))})
+    subforms.push_back(track(pc.ctx, expect<syntax>(e)));
+
+  std::copy(subforms.rbegin(), subforms.rend(), std::back_inserter(stack));
+}
+
 // Process the beginning of a body by adding new transformer and variable
 // definitions to the environment and expanding the heads of each form in the
 // list. Also checks that the list is followed by at least one expression and
@@ -351,11 +360,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
         continue;
       }
       else if (form == pc.ctx.constants->begin.get()) {
-        std::vector<tracked_ptr<syntax>> subforms;
-        for (ptr<> e : in_list{cdr(assume<pair>(p))})
-          subforms.push_back(track(pc.ctx, expect<syntax>(e)));
-
-        std::copy(subforms.rbegin(), subforms.rend(), std::back_inserter(stack));
+        expand_begin(pc, p, stack);
         continue;
       }
     }
@@ -1488,11 +1493,7 @@ expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
           m.scope()->add(pc.ctx.store, name, std::make_shared<variable>(identifier_name(name), index));
         }
         else if (form == pc.ctx.constants->begin.get()) {
-          std::vector<tracked_ptr<syntax>> subforms;
-          for (ptr<> e : in_list{cdr(p)})
-            subforms.push_back(track(pc.ctx, expect<syntax>(e)));
-
-          std::copy(subforms.rbegin(), subforms.rend(), std::back_inserter(stack));
+          expand_begin(pc, p, stack);
           continue;
         }
         else if (form == pc.ctx.constants->begin_for_syntax.get()) {
