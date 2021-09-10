@@ -71,6 +71,12 @@ public:
 
   textual_input_port(std::unique_ptr<port_source>, std::string name);
 
+  bool
+  open() const { return static_cast<bool>(source_); }
+
+  void
+  close() { source_.reset(); }
+
   std::optional<char32_t>
   peek_character();
 
@@ -155,6 +161,12 @@ public:
   explicit
   textual_output_port(std::unique_ptr<port_sink>);
 
+  bool
+  open() const { return static_cast<bool>(sink_); }
+
+  void
+  close() { sink_.reset(); }
+
   void
   write(char32_t);
 
@@ -162,10 +174,52 @@ public:
   write(std::string const&);
 
   std::string
-  get_string() const { return sink_->get_string(); }
+  get_string() const { return sink_ ? sink_->get_string() : ""; }
 
 private:
   std::unique_ptr<port_sink> sink_;
+};
+
+template <typename PortPtr>
+class unique_port_handle {
+public:
+  unique_port_handle() = default;
+
+  explicit
+  unique_port_handle(PortPtr p) : ptr_{std::move(p)} { }
+
+  unique_port_handle(unique_port_handle&& other)
+    : ptr_{std::move(other.ptr_)}
+  {
+    other.ptr_.reset();
+  }
+
+  ~unique_port_handle() { if (ptr_) ptr_->close(); }
+
+  unique_port_handle&
+  operator = (unique_port_handle&& other) {
+    if (this == &other)
+      return *this;
+
+    if (ptr_)
+      ptr_->close();
+
+    ptr_ = std::move(other.ptr_);
+    other.ptr_.reset();
+    return *this;
+  }
+
+  PortPtr
+  operator * () const { return ptr_; }
+
+  auto
+  operator -> () const { return ptr_.operator -> (); }
+
+  PortPtr
+  get() const { return ptr_; }
+
+private:
+  PortPtr ptr_;
 };
 
 } // namespace insider

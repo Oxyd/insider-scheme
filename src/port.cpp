@@ -72,6 +72,9 @@ textual_input_port::textual_input_port(std::unique_ptr<port_source> source, std:
 
 std::optional<char32_t>
 textual_input_port::peek_character() {
+  if (!source_)
+    return {};
+
   if (!put_back_buffer_.empty())
     return put_back_buffer_.back();
 
@@ -83,6 +86,9 @@ textual_input_port::peek_character() {
 
 std::optional<char32_t>
 textual_input_port::read_character() {
+  if (!source_)
+    return {};
+
   if (!put_back_buffer_.empty()) {
     char32_t c = put_back_buffer_.back();
     put_back_buffer_.pop_back();
@@ -102,7 +108,8 @@ textual_input_port::put_back(char32_t c) {
 
 void
 textual_input_port::rewind() {
-  source_->rewind();
+  if (source_)
+    source_->rewind();
   put_back_buffer_.clear();
   read_buffer_length_ = 0;
 }
@@ -181,13 +188,15 @@ textual_output_port::textual_output_port(std::unique_ptr<port_sink> sink)
 
 void
 textual_output_port::write(char32_t c) {
-  to_utf8(c, [&] (char byte) { sink_->write(byte); });
+  if (sink_)
+    to_utf8(c, [&] (char byte) { sink_->write(byte); });
 }
 
 void
 textual_output_port::write(std::string const& s) {
-  for (char c : s)
-    sink_->write(c);
+  if (sink_)
+    for (char c : s)
+      sink_->write(c);
 }
 
 } // namespace insider

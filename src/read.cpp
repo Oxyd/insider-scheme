@@ -859,7 +859,8 @@ read(context& ctx, ptr<textual_input_port> stream) {
 
 ptr<>
 read(context& ctx, std::string s) {
-  return read(ctx, make_string_input_port(ctx, std::move(s)));
+  unique_port_handle<ptr<textual_input_port>> h{make_string_input_port(ctx, std::move(s))};
+  return read(ctx, *h);
 }
 
 static ptr<syntax>
@@ -879,7 +880,8 @@ read_syntax(context& ctx, ptr<textual_input_port> stream) {
 
 ptr<syntax>
 read_syntax(context& ctx, std::string s) {
-  return read_syntax(ctx, make_string_input_port(ctx, std::move(s)));
+  unique_port_handle<ptr<textual_input_port>> h{make_string_input_port(ctx, std::move(s))};
+  return read_syntax(ctx, *h);
 }
 
 std::vector<tracked_ptr<>>
@@ -893,7 +895,8 @@ read_multiple(context& ctx, ptr<textual_input_port> in) {
 
 std::vector<tracked_ptr<>>
 read_multiple(context& ctx, std::string s) {
-  return read_multiple(ctx, make_string_input_port(ctx, std::move(s)));
+  unique_port_handle<ptr<textual_input_port>> h{make_string_input_port(ctx, std::move(s))};
+  return read_multiple(ctx, *h);
 }
 
 std::vector<tracked_ptr<syntax>>
@@ -908,7 +911,8 @@ read_syntax_multiple(context& ctx, ptr<textual_input_port> p) {
 
 std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context& ctx, std::string s) {
-  return read_syntax_multiple(ctx, make_string_input_port(ctx, std::move(s)));
+  unique_port_handle<ptr<textual_input_port>> h{make_string_input_port(ctx, std::move(s))};
+  return read_syntax_multiple(ctx, *h);
 }
 
 } // namespace insider

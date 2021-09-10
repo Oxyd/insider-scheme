@@ -16,6 +16,17 @@ struct port_fixture : scheme_fixture {
   }
 };
 
+TEST_F(port_fixture, fresh_port_is_open) {
+  auto p = make_string_input_port("");
+  EXPECT_TRUE(p->open());
+}
+
+TEST_F(port_fixture, closed_port_is_not_open) {
+  auto p = make_string_input_port("");
+  p->close();
+  EXPECT_FALSE(p->open());
+}
+
 TEST_F(port_fixture, empty_port_is_empty) {
   auto p = make_string_input_port("");
   EXPECT_FALSE(p->peek_character());
@@ -94,6 +105,20 @@ TEST_F(port_fixture, rewind) {
   EXPECT_EQ(p->read_character(), 'c');
 }
 
+TEST_F(port_fixture, cant_peek_or_read_from_closed_port) {
+  auto p = make_string_input_port("abc");
+  p->close();
+  EXPECT_FALSE(p->peek_character());
+  EXPECT_FALSE(p->read_character());
+}
+
+TEST_F(port_fixture, cant_read_from_closed_port_after_put_back) {
+  auto p = make_string_input_port("abc");
+  p->close();
+  p->put_back('d');
+  EXPECT_FALSE(p->read_character());
+}
+
 TEST_F(port_fixture, write_character) {
   auto p = make_string_output_port();
   p->write(U'a');
@@ -112,4 +137,32 @@ TEST_F(port_fixture, write_sequence_of_characters) {
   p->write(U'á');
   p->write(U'a');
   EXPECT_EQ(p->get_string(), u8"aáa");
+}
+
+TEST_F(port_fixture, fresh_output_port_is_open) {
+  auto p = make_string_output_port();
+  EXPECT_TRUE(p->open());
+}
+
+TEST_F(port_fixture, closed_output_port_is_not_open) {
+  auto p = make_string_output_port();
+  p->close();
+  EXPECT_FALSE(p->open());
+}
+
+TEST_F(port_fixture, writing_to_closed_port_does_not_do_anything) {
+  auto p = make_string_output_port();
+  p->close();
+  p->write("abc");
+  EXPECT_EQ(p->get_string(), "");
+}
+
+TEST_F(port_fixture, unique_port_handle_closes_port_when_out_of_scope) {
+  ptr<textual_input_port> p;
+  {
+    unique_port_handle<ptr<textual_input_port>> h{make_string_input_port("")};
+    p = h.get();
+    EXPECT_TRUE(p->open());
+  }
+  EXPECT_FALSE(p->open());
 }
