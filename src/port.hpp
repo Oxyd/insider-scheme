@@ -4,6 +4,7 @@
 #include "object.hpp"
 
 #include <array>
+#include <filesystem>
 #include <memory>
 #include <variant>
 #include <vector>
@@ -114,6 +115,9 @@ private:
 
 ptr<textual_input_port>
 make_string_input_port(context&, std::string);
+
+ptr<textual_input_port>
+open_file_for_text_input(context&, std::filesystem::path const&);
 
 class port_sink {
 public:

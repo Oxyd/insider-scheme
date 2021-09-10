@@ -5,6 +5,8 @@
 #include "basic_types.hpp"
 #include "internal_module.hpp"
 #include "port.hpp"
+#include "read.hpp"
+#include "source_code_provider.hpp"
 #include "vm.hpp"
 
 namespace insider {
@@ -191,6 +193,21 @@ context::load_library_module(std::vector<tracked_ptr<syntax>> const& data) {
     throw std::runtime_error{fmt::format("Module {} already loaded", module_name_to_string(*pm.name))};
 }
 
+static std::optional<source_file>
+find_module_in_provider(context& ctx, source_code_provider& provider, module_name const& name) {
+  std::filesystem::path path = module_name_to_path(name);
+  std::array<std::filesystem::path, 2> candidates{path.replace_extension(".sld"),
+                                                  path.replace_extension(".scm")};
+  for (auto const& candidate : candidates)
+    if (auto source = provider.find_file(ctx, candidate))
+      if (read_library_name(ctx, *source->port) == name) {
+        source->port->rewind();
+        return source;
+      }
+
+  return std::nullopt;
+}
+
 module*
 context::find_module(module_name const& name) {
   using namespace std::literals;
@@ -204,9 +221,9 @@ context::find_module(module_name const& name) {
 
   auto pm = protomodules_.find(name);
   if (pm == protomodules_.end()) {
-    for (std::unique_ptr<module_provider> const& provider : module_providers_)
-      if (std::optional<std::vector<tracked_ptr<syntax>>> lib = provider->find_module(*this, name)) {
-        load_library_module(*lib);
+    for (std::unique_ptr<source_code_provider> const& provider : source_providers_)
+      if (auto source = find_module_in_provider(*this, *provider, name)) {
+        load_library_module(read_syntax_multiple(*this, *source->port));
 
         pm = protomodules_.find(name);
         assert(pm != protomodules_.end());
@@ -227,13 +244,13 @@ context::find_module(module_name const& name) {
 }
 
 void
-context::prepend_module_provider(std::unique_ptr<module_provider> provider) {
-  module_providers_.insert(module_providers_.begin(), std::move(provider));
+context::prepend_source_code_provider(std::unique_ptr<source_code_provider> provider) {
+  source_providers_.insert(source_providers_.begin(), std::move(provider));
 }
 
 void
-context::append_module_provider(std::unique_ptr<module_provider> provider) {
-  module_providers_.push_back(std::move(provider));
+context::append_source_code_provider(std::unique_ptr<source_code_provider> provider) {
+  source_providers_.push_back(std::move(provider));
 }
 
 } // namespace insider

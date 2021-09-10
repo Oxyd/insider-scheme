@@ -45,6 +45,7 @@ set(scheme_sources
   src/read.cpp
   src/records.cpp
   src/scope.cpp
+  src/source_code_provider.cpp
   src/source_location.cpp
   src/string.cpp
   src/syntax.cpp

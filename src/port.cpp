@@ -4,6 +4,14 @@
 
 #include <fmt/format.h>
 
+#include <cstdio>
+
+#ifdef WIN32
+#include <tchar.h>
+#else
+#define _T(x) x
+#endif
+
 namespace insider {
 
 file_port_source::file_port_source(FILE* f, bool should_close)
@@ -155,6 +163,24 @@ ptr<textual_input_port>
 make_string_input_port(context& ctx, std::string data) {
   return make<textual_input_port>(ctx, std::make_unique<string_port_source>(std::move(data)),
                                   "<memory buffer>");
+}
+
+static FILE*
+open_file(std::filesystem::path const& path, std::filesystem::path::value_type const* mode) {
+#ifndef WIN32
+  return std::fopen(path.c_str(), mode);
+#else
+  return _wfopen(path.c_str(), mode);
+#endif
+}
+
+ptr<textual_input_port>
+open_file_for_text_input(context& ctx, std::filesystem::path const& path) {
+  FILE* f = open_file(path, _T("r"));
+  if (f)
+    return make<textual_input_port>(ctx, std::make_unique<file_port_source>(f), path.string());
+  else
+    return {};
 }
 
 std::string

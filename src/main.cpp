@@ -3,6 +3,7 @@
 #include "context.hpp"
 #include "port.hpp"
 #include "read.hpp"
+#include "source_code_provider.hpp"
 #include "vm.hpp"
 
 #include <fmt/format.h>
@@ -50,7 +51,7 @@ main(int argc, char** argv) {
         }
 
         if (flag == "-I")
-          ctx.append_module_provider(std::make_unique<insider::filesystem_module_provider>(argument));
+          ctx.append_source_code_provider(std::make_unique<insider::filesystem_source_code_provider>(argument));
         else {
           print_usage(argv[0]);
           return 1;

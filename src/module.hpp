@@ -87,37 +87,6 @@ define_top_level(context&, std::string const& name, module&, bool export_, ptr<>
 tracked_ptr<>
 execute(context&, module&);
 
-// Interface for module providers. A module provider is used when a library is
-// requested that isn't currently known in the given context. The registered
-// providers are then tried in order until one of them successfully provides the
-// library.
-class module_provider {
-public:
-  virtual
-  ~module_provider() = default;
-
-  // Try to provide the module with the given name. This function must only
-  // return either nullopt or a library with the specified name.
-  virtual std::optional<std::vector<tracked_ptr<syntax>>>
-  find_module(context&, module_name const&) = 0;
-};
-
-// Module provider that looks for files within a given directory and its
-// subdirectories for libraries. Library (foo bar baz) must be located in a file
-// called foo/bar/baz.{sld,scm} relative to the directory given to this
-// provider.
-class filesystem_module_provider : public module_provider {
-public:
-  explicit
-  filesystem_module_provider(std::filesystem::path root) : root_{std::move(root)} { }
-
-  std::optional<std::vector<tracked_ptr<syntax>>>
-  find_module(context&, module_name const&) override;
-
-private:
-  std::filesystem::path root_;
-};
-
 } // namespace insider
 
 #endif

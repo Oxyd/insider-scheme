@@ -50,6 +50,8 @@ class void_type;
 
 class execution_state;
 
+class source_code_provider;
+
 // SOME top-level values are tagged to let the compiler understand them and
 // optimise them.
 enum class special_top_level_tag {
@@ -154,10 +156,10 @@ public:
   find_module(module_name const&);
 
   void
-  prepend_module_provider(std::unique_ptr<module_provider>);
+  prepend_source_code_provider(std::unique_ptr<source_code_provider>);
 
   void
-  append_module_provider(std::unique_ptr<module_provider>);
+  append_source_code_provider(std::unique_ptr<source_code_provider>);
 
 private:
   std::unordered_map<std::string, weak_ptr<symbol>> interned_symbols_;
@@ -168,7 +170,7 @@ private:
   std::unordered_map<operand, special_top_level_tag> top_level_tags_;
   std::map<module_name, protomodule> protomodules_;
   std::map<module_name, std::unique_ptr<module>> modules_;
-  std::vector<std::unique_ptr<module_provider>> module_providers_;
+  std::vector<std::unique_ptr<source_code_provider>> source_providers_;
 };
 
 // Create an instance of an object using the context's free store.

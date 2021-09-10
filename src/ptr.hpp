@@ -32,6 +32,9 @@ public:
   operator bool () const { return value_ != nullptr; }
 
   void
+  reset() { value_ = nullptr; }
+
+  void
   reset(ptr<> new_value) { value_ = new_value.value_; }
 
   object*

@@ -8,12 +8,6 @@
 #include "read.hpp"
 #include "vm.hpp"
 
-#ifdef WIN32
-#include <tchar.h>
-#else
-#define _T(x) x
-#endif
-
 namespace insider {
 
 module::module(context& ctx)
@@ -222,38 +216,6 @@ execute(context& ctx, module& mod) {
   mod.mark_active();
 
   return result;
-}
-
-static FILE*
-open_file(std::filesystem::path const& path, std::filesystem::path::value_type const* mode) {
-#ifndef WIN32
-  return std::fopen(path.c_str(), mode);
-#else
-  return _wfopen(path.c_str(), mode);
-#endif
-}
-
-std::optional<std::vector<tracked_ptr<syntax>>>
-filesystem_module_provider::find_module(context& ctx, module_name const& name) {
-  std::filesystem::path p = root_;
-  for (std::string const& element : name)
-    p /= element;
-
-  std::vector<std::filesystem::path> candidates{p.replace_extension(".sld"),
-                                                p.replace_extension(".scm")};
-  for (auto const& candidate : candidates) {
-    FILE* f = open_file(candidate.c_str(), _T("r"));
-    if (f) {
-      unique_port_handle<ptr<textual_input_port>> in{make<textual_input_port>(ctx, std::make_unique<file_port_source>(f), candidate.string())};
-      std::optional<module_name> candidate_name = read_library_name(ctx, *in);
-      if (candidate_name == name) {
-        in->rewind();
-        return read_syntax_multiple(ctx, *in);
-      }
-    }
-  }
-
-  return std::nullopt;
 }
 
 } // namespace insider
