@@ -7,6 +7,7 @@
 
 #include <filesystem>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace insider {
@@ -37,7 +38,7 @@ public:
   find_file(context&, std::filesystem::path const&) = 0;
 };
 
-// Module provider that looks for files within a given directory and its
+// Source code provider that looks for files within a given directory and its
 // subdirectories for libraries.
 class filesystem_source_code_provider : public source_code_provider {
 public:
@@ -49,6 +50,25 @@ public:
 
 private:
   std::filesystem::path root_;
+};
+
+// Source code provider that implements a key-value store of source
+// files. Useful for tests.
+class virtual_filesystem_source_code_provider : public source_code_provider {
+public:
+  void
+  add(std::filesystem::path const&, std::string);
+
+  std::optional<source_file>
+  find_file(context&, std::filesystem::path const&) override;
+
+private:
+  struct hash {
+    std::size_t
+    operator () (std::filesystem::path const& p) const { return std::filesystem::hash_value(p); }
+  };
+
+  std::unordered_map<std::filesystem::path, std::string, hash> files_;
 };
 
 std::filesystem::path

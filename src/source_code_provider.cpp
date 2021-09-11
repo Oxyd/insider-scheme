@@ -12,6 +12,19 @@ filesystem_source_code_provider::find_file(context& ctx, std::filesystem::path c
     return std::nullopt;
 }
 
+void
+virtual_filesystem_source_code_provider::add(std::filesystem::path const& path, std::string data) {
+  files_.emplace(path.lexically_normal(), std::move(data));
+}
+
+std::optional<source_file>
+virtual_filesystem_source_code_provider::find_file(context& ctx, std::filesystem::path const& path) {
+  if (auto f = files_.find(path.lexically_normal()); f != files_.end())
+    return source_file{unique_port_handle{make_string_input_port(ctx, f->second)}, this, path};
+  else
+    return std::nullopt;
+}
+
 std::filesystem::path
 module_name_to_path(module_name const& name) {
   std::filesystem::path result;
