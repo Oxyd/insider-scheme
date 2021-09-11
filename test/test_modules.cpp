@@ -221,3 +221,24 @@ TEST_F(modules, find_module_file) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 4);
 }
+
+TEST_F(modules, find_define_library_style_module) {
+  auto provider = std::make_unique<virtual_filesystem_source_code_provider>();
+  provider->add(
+    "foo.scm",
+    R"(
+      (define-library (foo)
+        (import (insider internal))
+        (export value)
+        (begin
+          (define value 4)))
+    )"
+  );
+  ctx.append_source_code_provider(std::move(provider));
+
+  auto result = eval_module(R"(
+    (import (foo))
+    value
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 4);
+}

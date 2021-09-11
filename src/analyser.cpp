@@ -1596,28 +1596,37 @@ read_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& contents)
   return result;
 }
 
-protomodule
-read_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents) {
-  if (contents.empty())
-    throw error("Empty library body");
+static void
+process_library_import(context& ctx, protomodule& result, ptr<syntax> stx) {
+  for (ptr<> set : in_list{syntax_to_list(ctx, syntax_cdr(stx))})
+    result.imports.push_back(parse_import_set(ctx, assume<syntax>(set)));
+}
 
+static void
+process_library_export(context& ctx, protomodule& result, ptr<syntax> stx) {
+  for (ptr<> name : in_list{syntax_to_list(ctx, syntax_cdr(stx))})
+    result.exports.push_back(syntax_expect<symbol>(assume<syntax>(name))->value());
+}
+
+static protomodule
+read_plain_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents) {
   protomodule result;
   auto current = contents.begin();
-  if (is_directive(current++->get(), "library"))
-    result.name = parse_module_name(ctx, syntax_cadr(contents.front().get()));
-  else
-    throw error("Missing library declaration");
+
+  assert(current != contents.end());
+  assert(is_directive(current->get(), "library"));
+
+  result.name = parse_module_name(ctx, syntax_cadr(current->get()));
+  ++current;
 
   while (true) {
     if (is_directive(current->get(), "import")) {
-      for (ptr<> set : in_list{syntax_to_list(ctx, syntax_cdr(current->get()))})
-        result.imports.push_back(parse_import_set(ctx, assume<syntax>(set)));
+      process_library_import(ctx, result, current->get());
       ++current;
       continue;
     }
     else if (is_directive(current->get(), "export")) {
-      for (ptr<> name : in_list{syntax_to_list(ctx, syntax_cdr(current->get()))})
-        result.exports.push_back(syntax_expect<symbol>(assume<syntax>(name))->value());
+      process_library_export(ctx, result, current->get());
       ++current;
       continue;
     }
@@ -1632,14 +1641,71 @@ read_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents) {
   return result;
 }
 
+static void
+process_library_body(context& ctx, protomodule& result, ptr<syntax> stx) {
+  auto body = syntax_to_list(ctx, stx);
+  result.body.reserve(result.body.size() + list_length(body) - 1);
+
+  if (body != ctx.constants->null.get())
+    body = cdr(assume<pair>(body));
+
+  while (body != ctx.constants->null.get()) {
+    result.body.push_back(track(ctx, expect<syntax>(car(assume<pair>(body)))));
+    body = cdr(assume<pair>(body));
+  }
+}
+
+static protomodule
+read_define_library(context& ctx, tracked_ptr<syntax> form) {
+  protomodule result;
+
+  auto subforms = assume<pair>(syntax_to_list(ctx, form.get()));
+  assert(semisyntax_assume<symbol>(car(subforms))->value() == "define-library");
+
+  if (cdr(subforms) == ctx.constants->null.get())
+    throw syntax_error{form.get(), "Invalid define-library syntax"};
+
+  result.name = parse_module_name(ctx, syntax_cadr(subforms));
+
+  auto contents = cddr(subforms);
+  while (contents != ctx.constants->null.get()) {
+    auto current = expect<syntax>(car(assume<pair>(contents)));
+    if (is_directive(current, "import"))
+      process_library_import(ctx, result, current);
+    else if (is_directive(current, "export"))
+      process_library_export(ctx, result, current);
+    else if (is_directive(current, "begin"))
+      process_library_body(ctx, result, current);
+    else
+      throw syntax_error{current, "Invalid library declaration"};
+
+    contents = cdr(assume<pair>(contents));
+  }
+
+  return result;
+}
+
+protomodule
+read_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents) {
+  if (contents.empty())
+    throw error("Empty library body");
+
+  if (is_directive(contents.front().get(), "library"))
+    return read_plain_library(ctx, contents);
+  else if (is_directive(contents.front().get(), "define-library"))
+    return read_define_library(ctx, contents.front());
+  else
+    throw syntax_error{contents.front().get(), "Invalid library definition"};
+}
+
 std::optional<module_name>
 read_library_name(context& ctx, ptr<textual_input_port> in) {
   try {
     ptr<syntax> first_datum = read_syntax(ctx, in);
-    if (is_directive(first_datum, "library"))
+    if (is_directive(first_datum, "library") || is_directive(first_datum, "define-library"))
       return parse_module_name(ctx, syntax_cadr(first_datum));
-
-    return {};
+    else
+      return {};
   }
   catch (read_error const&) {
     // The file probably isn't a library at all. That is not an error.
