@@ -165,7 +165,6 @@ private:
   std::vector<tracked_ptr<>> top_level_objects_;
   std::vector<std::string> top_level_binding_names_;
   std::unordered_map<operand, special_top_level_tag> top_level_tags_;
-  std::map<module_name, protomodule> protomodules_;
   std::map<module_name, std::unique_ptr<module>> modules_;
   std::vector<std::unique_ptr<source_code_provider>> source_providers_;
 };
