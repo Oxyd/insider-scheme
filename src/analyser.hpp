@@ -2,6 +2,7 @@
 #define INSIDER_ANALYSER_HPP
 
 #include "expression.hpp"
+#include "source_file_origin.hpp"
 
 #include <memory>
 #include <optional>
@@ -30,7 +31,8 @@ read_main_module(context&, std::vector<tracked_ptr<syntax>> const& contents);
 
 // Interpret the given list of data as a library.
 protomodule
-read_library(context&, std::vector<tracked_ptr<syntax>> const& contents);
+read_library(context&, std::vector<tracked_ptr<syntax>> const& contents,
+             source_file_origin const&);
 
 std::optional<module_name>
 read_library_name(context&, ptr<textual_input_port>);

@@ -4,6 +4,7 @@
 #include "expression.hpp"
 #include "port.hpp"
 #include "ptr.hpp"
+#include "source_file_origin.hpp"
 
 #include <filesystem>
 #include <optional>
@@ -15,12 +16,9 @@ namespace insider {
 class context;
 class syntax;
 
-class source_code_provider;
-
 struct source_file {
   unique_port_handle<ptr<textual_input_port>> port;
-  source_code_provider* provider;
-  std::filesystem::path path;
+  source_file_origin origin;
 };
 
 // Interface for source code providers. A source code provider is used when a
@@ -73,6 +71,9 @@ private:
 
 std::filesystem::path
 module_name_to_path(module_name const&);
+
+std::optional<source_file>
+find_source_relative(context&, source_file_origin, std::filesystem::path const&);
 
 } // namespace insider
 

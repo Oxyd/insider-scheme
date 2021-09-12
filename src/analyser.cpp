@@ -6,6 +6,7 @@
 #include "list_iterator.hpp"
 #include "numeric.hpp"
 #include "read.hpp"
+#include "source_code_provider.hpp"
 #include "vm.hpp"
 #include "write.hpp"
 
@@ -1655,8 +1656,26 @@ process_library_body(context& ctx, protomodule& result, ptr<syntax> stx) {
   }
 }
 
+static void
+perform_library_include(context& ctx, protomodule& result, source_file_origin const& origin,
+                        source_location const& loc, std::string const& name) {
+  if (auto source = find_source_relative(ctx, origin, name)) {
+    auto body = read_syntax_multiple(ctx, source->port.get());
+    result.body.reserve(result.body.size() + body.size());
+    std::copy(body.begin(), body.end(), std::back_inserter(result.body));
+  } else
+    throw syntax_error{loc, fmt::format("File {} not found", name)};
+}
+
+static void
+process_library_include(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> stx) {
+  for (auto filenames = syntax_cdr(stx); filenames != ctx.constants->null.get(); filenames = syntax_cdr(filenames))
+    perform_library_include(ctx, result, origin, stx->location(),
+                            syntax_expect<string>(syntax_car(filenames))->value());
+}
+
 static protomodule
-read_define_library(context& ctx, tracked_ptr<syntax> form) {
+read_define_library(context& ctx, tracked_ptr<syntax> form, source_file_origin const& origin) {
   protomodule result;
 
   auto subforms = assume<pair>(syntax_to_list(ctx, form.get()));
@@ -1676,6 +1695,8 @@ read_define_library(context& ctx, tracked_ptr<syntax> form) {
       process_library_export(ctx, result, current);
     else if (is_directive(current, "begin"))
       process_library_body(ctx, result, current);
+    else if (is_directive(current, "include"))
+      process_library_include(ctx, result, origin, current);
     else
       throw syntax_error{current, "Invalid library declaration"};
 
@@ -1686,14 +1707,14 @@ read_define_library(context& ctx, tracked_ptr<syntax> form) {
 }
 
 protomodule
-read_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents) {
+read_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents, source_file_origin const& origin) {
   if (contents.empty())
     throw error("Empty library body");
 
   if (is_directive(contents.front().get(), "library"))
     return read_plain_library(ctx, contents);
   else if (is_directive(contents.front().get(), "define-library"))
-    return read_define_library(ctx, contents.front());
+    return read_define_library(ctx, contents.front(), origin);
   else
     throw syntax_error{contents.front().get(), "Invalid library definition"};
 }

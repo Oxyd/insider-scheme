@@ -17,7 +17,7 @@ struct modules : scheme_fixture {
   }
 
   void
-  add_library(std::filesystem::path const& name, std::string body) {
+  add_source_file(std::filesystem::path const& name, std::string body) {
     vfs_provider->add(name, std::move(body));
   }
 };
@@ -29,7 +29,7 @@ TEST_F(modules, module_activation) {
     [&] (int value) { trace.push_back(value); }
   );
 
-  add_library(
+  add_source_file(
     "foo.scm",
     R"(
       (library (foo))
@@ -40,7 +40,7 @@ TEST_F(modules, module_activation) {
   );
   EXPECT_TRUE(trace.empty());
 
-  add_library(
+  add_source_file(
     "bar.scm",
     R"(
       (library (bar))
@@ -62,7 +62,7 @@ TEST_F(modules, module_activation) {
 }
 
 TEST_F(modules, module_variable_export) {
-  add_library(
+  add_source_file(
     "foo.scm",
     R"(
       (library (foo))
@@ -92,7 +92,7 @@ TEST_F(modules, module_variable_export) {
 }
 
 TEST_F(modules, module_syntax_export) {
-  add_library(
+  add_source_file(
     "foo.scm",
     R"(
       (library (foo))
@@ -114,7 +114,7 @@ TEST_F(modules, module_syntax_export) {
   )");
   EXPECT_EQ(expect<integer>(result1).value(), 6);
 
-  add_library(
+  add_source_file(
     "bar.scm",
     R"(
       (library (bar))
@@ -144,7 +144,7 @@ TEST_F(modules, module_syntax_export) {
 }
 
 TEST_F(modules, import_specifiers) {
-  add_library(
+  add_source_file(
     "foo.scm",
     R"(
       (library (foo))
@@ -234,7 +234,7 @@ TEST_F(modules, begin_for_syntax) {
 }
 
 TEST_F(modules, find_module_file) {
-  add_library(
+  add_source_file(
     "foo.scm",
     R"(
       (library (foo))
@@ -252,7 +252,7 @@ TEST_F(modules, find_module_file) {
 }
 
 TEST_F(modules, find_define_library_style_module) {
-  add_library(
+  add_source_file(
     "foo.scm",
     R"(
       (define-library (foo)
@@ -268,4 +268,66 @@ TEST_F(modules, find_define_library_style_module) {
     value
   )");
   EXPECT_EQ(expect<integer>(result).value(), 4);
+}
+
+TEST_F(modules, include_in_define_library) {
+  add_source_file(
+    "foo.sld",
+    R"(
+      (define-library (foo)
+        (import (insider internal))
+        (export value)
+        (include "foo.scm"))
+    )"
+  );
+  add_source_file("foo.scm",
+                  "(define value 4)");
+
+  auto result = eval_module(R"(
+    (import (foo))
+    value
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 4);
+}
+
+TEST_F(modules, include_multiple_files_in_one_directive_in_define_library) {
+  add_source_file(
+    "foo.sld",
+    R"(
+      (define-library (foo)
+        (import (insider internal))
+        (export one two)
+        (include "one.scm" "two.scm"))
+    )"
+  );
+  add_source_file("one.scm", "(define one 1)");
+  add_source_file("two.scm", "(define two 2)");
+
+  auto result = eval_module(R"(
+    (import (insider internal) (foo))
+    (+ one two)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 3);
+}
+
+TEST_F(modules, mix_begin_and_include_in_define_library) {
+  add_source_file(
+    "foo.sld",
+    R"(
+      (define-library (foo)
+        (import (insider internal))
+        (export result)
+        (begin
+          (define result '(begin)))
+        (include "include.scm"))
+    )"
+  );
+  add_source_file("include.scm",
+                  "(set! result (cons 'include result))");
+
+  auto result = eval_module(R"(
+    (import (insider internal) (foo))
+    result
+  )");
+  EXPECT_TRUE(equal(ctx, result, read("(include begin)")));
 }
