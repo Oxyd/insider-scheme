@@ -2,28 +2,11 @@
 #define INSIDER_OBJECT_CONVERSIONS_HPP
 
 #include "character.hpp"
+#include "error.hpp"
 #include "integer.hpp"
 #include "object.hpp"
 
 namespace insider {
-
-class error : public std::runtime_error {
-public:
-  // Format an error message using fmtlib and append the action stack to it.
-  template <typename... Args>
-  error(std::string_view fmt, Args&&... args)
-    : std::runtime_error{fmt::format(fmt, std::forward<Args>(args)...)}
-  { }
-};
-
-std::string
-format_error(context& ctx, std::runtime_error const&);
-
-template <typename Expected>
-error
-make_type_error(ptr<> actual) {
-  throw error{"Invalid type: expected {}, got {}", type_name<Expected>(), object_type_name(actual)};
-}
 
 namespace detail {
   template <typename T>

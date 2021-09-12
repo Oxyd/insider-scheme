@@ -7,6 +7,7 @@
 #include "numeric.hpp"
 #include "read.hpp"
 #include "source_code_provider.hpp"
+#include "syntax_list.hpp"
 #include "vm.hpp"
 #include "write.hpp"
 
@@ -26,19 +27,6 @@
 #endif
 
 namespace insider {
-
-class syntax_error : public error {
-public:
-  template <typename... Args>
-  syntax_error(ptr<syntax> stx, std::string_view fmt, Args&&... args)
-    : error{"{}: {}", format_location(stx->location()), fmt::format(fmt, std::forward<Args>(args)...)}
-  { }
-
-  template <typename... Args>
-  syntax_error(source_location const& loc, std::string_view fmt, Args&&... args)
-    : error{"{}: {}", format_location(loc), fmt::format(fmt, std::forward<Args>(args)...)}
-  { }
-};
 
 static std::string
 syntax_to_string(context& ctx, ptr<syntax> stx) {
@@ -709,21 +697,6 @@ parse_box_set(parsing_context& pc, ptr<syntax> stx) {
 
   return make_expression<box_set_expression>(parse(pc, expect<syntax>(cadr(assume<pair>(datum)))),
                                              parse(pc, expect<syntax>(caddr(assume<pair>(datum)))));
-}
-
-static ptr<syntax>
-syntax_car(ptr<> stx) {
-  return expect<syntax>(car(semisyntax_expect<pair>(stx)));
-}
-
-static ptr<>
-syntax_cdr(ptr<> stx) {
-  return cdr(semisyntax_expect<pair>(stx));
-}
-
-static ptr<syntax>
-syntax_cadr(ptr<> stx) {
-  return expect<syntax>(car(semisyntax_expect<pair>(syntax_cdr(stx))));
 }
 
 static std::unique_ptr<expression>
@@ -1671,9 +1644,9 @@ perform_library_include(context& ctx, protomodule& result, source_file_origin co
 template <auto Reader>
 static void
 process_library_include(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> stx) {
-  for (auto filenames = syntax_cdr(stx); filenames != ctx.constants->null.get(); filenames = syntax_cdr(filenames))
+  for (ptr<syntax> filename : in_syntax_list{syntax_cdr(stx), stx})
     perform_library_include<Reader>(ctx, result, origin, stx->location(),
-                                    syntax_expect<string>(syntax_car(filenames))->value());
+                                    syntax_expect<string>(filename)->value());
 }
 
 static void
@@ -1682,8 +1655,8 @@ process_library_declaration(context& ctx, protomodule& result, source_file_origi
 static void
 process_include_library_declarations(context& ctx, protomodule& result,
                                      source_file_origin const& origin, ptr<syntax> stx) {
-  for (auto filenames = syntax_cdr(stx); filenames != ctx.constants->null.get(); filenames = syntax_cdr(filenames)) {
-    std::string filename = syntax_expect<string>(syntax_car(filenames))->value();
+  for (ptr<syntax> filename_stx : in_syntax_list{syntax_cdr(stx), stx}) {
+    std::string filename = syntax_expect<string>(filename_stx)->value();
     if (auto source = find_source_relative(ctx, origin, filename)) {
       auto contents = read_syntax_multiple(ctx, source->port.get());
       for (tracked_ptr<syntax> const& s : contents)
@@ -1718,16 +1691,14 @@ static protomodule
 read_define_library(context& ctx, tracked_ptr<syntax> form, source_file_origin const& origin) {
   protomodule result;
 
-  auto subforms = assume<pair>(syntax_to_list(ctx, form.get()));
-  assert(semisyntax_assume<symbol>(car(subforms))->value() == "define-library");
-
-  if (cdr(subforms) == ctx.constants->null.get())
+  assert(syntax_assume<symbol>(syntax_car(form.get()))->value() == "define-library");
+  if (syntax_cdr(form.get()) == ctx.constants->null.get())
     throw syntax_error{form.get(), "Invalid define-library syntax"};
 
-  result.name = parse_module_name(ctx, syntax_cadr(subforms));
+  result.name = parse_module_name(ctx, syntax_cadr(form.get()));
 
-  for (auto contents = cddr(subforms); contents != ctx.constants->null.get(); contents = cdr(assume<pair>(contents)))
-    process_library_declaration(ctx, result, origin, syntax_car(contents));
+  for (ptr<syntax> decl : in_syntax_list{syntax_cddr(form.get()), form.get()})
+    process_library_declaration(ctx, result, origin, decl);
 
   return result;
 }

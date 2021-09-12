@@ -2,6 +2,7 @@
 #define INSIDER_SYNTAX_HPP
 
 #include "compare.hpp"
+#include "error.hpp"
 #include "expression.hpp"
 #include "object.hpp"
 #include "object_conversions.hpp"
@@ -168,6 +169,19 @@ public:
 
 private:
   insider::ptr<> callable_;
+};
+
+class syntax_error : public error {
+public:
+  template <typename... Args>
+  syntax_error(ptr<syntax> stx, std::string_view fmt, Args&&... args)
+    : error{"{}: {}", format_location(stx->location()), fmt::format(fmt, std::forward<Args>(args)...)}
+  { }
+
+  template <typename... Args>
+  syntax_error(source_location const& loc, std::string_view fmt, Args&&... args)
+    : error{"{}: {}", format_location(loc), fmt::format(fmt, std::forward<Args>(args)...)}
+  { }
 };
 
 } // namespace insider
