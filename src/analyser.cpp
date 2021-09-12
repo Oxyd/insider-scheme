@@ -1656,22 +1656,24 @@ process_library_body(context& ctx, protomodule& result, ptr<syntax> stx) {
   }
 }
 
+template <auto Reader>
 static void
 perform_library_include(context& ctx, protomodule& result, source_file_origin const& origin,
                         source_location const& loc, std::string const& name) {
   if (auto source = find_source_relative(ctx, origin, name)) {
-    auto body = read_syntax_multiple(ctx, source->port.get());
+    auto body = Reader(ctx, source->port.get());
     result.body.reserve(result.body.size() + body.size());
     std::copy(body.begin(), body.end(), std::back_inserter(result.body));
   } else
     throw syntax_error{loc, fmt::format("File {} not found", name)};
 }
 
+template <auto Reader>
 static void
 process_library_include(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> stx) {
   for (auto filenames = syntax_cdr(stx); filenames != ctx.constants->null.get(); filenames = syntax_cdr(filenames))
-    perform_library_include(ctx, result, origin, stx->location(),
-                            syntax_expect<string>(syntax_car(filenames))->value());
+    perform_library_include<Reader>(ctx, result, origin, stx->location(),
+                                    syntax_expect<string>(syntax_car(filenames))->value());
 }
 
 static protomodule
@@ -1696,7 +1698,11 @@ read_define_library(context& ctx, tracked_ptr<syntax> form, source_file_origin c
     else if (is_directive(current, "begin"))
       process_library_body(ctx, result, current);
     else if (is_directive(current, "include"))
-      process_library_include(ctx, result, origin, current);
+      process_library_include<
+        static_cast<std::vector<tracked_ptr<syntax>> (*)(context&, ptr<textual_input_port>)>(read_syntax_multiple)
+      >(ctx, result, origin, current);
+    else if (is_directive(current, "include-ci"))
+      process_library_include<read_syntax_multiple_ci>(ctx, result, origin, current);
     else
       throw syntax_error{current, "Invalid library declaration"};
 

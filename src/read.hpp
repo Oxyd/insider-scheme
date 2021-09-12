@@ -42,6 +42,9 @@ std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context&, ptr<textual_input_port>);
 
 std::vector<tracked_ptr<syntax>>
+read_syntax_multiple_ci(context&, ptr<textual_input_port>);
+
+std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context&, std::string);
 
 } // namespace insider

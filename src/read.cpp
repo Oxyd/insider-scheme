@@ -899,14 +899,26 @@ read_multiple(context& ctx, std::string s) {
   return read_multiple(ctx, *h);
 }
 
-std::vector<tracked_ptr<syntax>>
-read_syntax_multiple(context& ctx, ptr<textual_input_port> p) {
-  input_stream in{p};
+static std::vector<tracked_ptr<syntax>>
+read_syntax_multiple(context& ctx, input_stream& stream) {
   std::vector<tracked_ptr<syntax>> result;
-  while (ptr<syntax> elem = read_syntax(ctx, in))
+  while (ptr<syntax> elem = read_syntax(ctx, stream))
     result.push_back(track(ctx, elem));
 
   return result;
+}
+
+std::vector<tracked_ptr<syntax>>
+read_syntax_multiple(context& ctx, ptr<textual_input_port> p) {
+  input_stream in{p};
+  return read_syntax_multiple(ctx, in);
+}
+
+std::vector<tracked_ptr<syntax>>
+read_syntax_multiple_ci(context& ctx, ptr<textual_input_port> p) {
+  input_stream in{p};
+  in.enable_fold_case();
+  return read_syntax_multiple(ctx, in);
 }
 
 std::vector<tracked_ptr<syntax>>

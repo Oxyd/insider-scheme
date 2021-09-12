@@ -331,3 +331,23 @@ TEST_F(modules, mix_begin_and_include_in_define_library) {
   )");
   EXPECT_TRUE(equal(ctx, result, read("(include begin)")));
 }
+
+TEST_F(modules, include_ci_in_define_library) {
+  add_source_file(
+    "foo.sld",
+    R"(
+      (define-library (foo)
+        (import (insider internal))
+        (export value)
+        (include-ci "foo.scm"))
+    )"
+  );
+  add_source_file("foo.scm",
+                  "(DEFINE VALUE 4)");
+
+  auto result = eval_module(R"(
+    (import (foo))
+    value
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 4);
+}
