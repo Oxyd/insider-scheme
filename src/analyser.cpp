@@ -1696,6 +1696,8 @@ process_include_library_declarations(context& ctx, protomodule& result,
 
 static void
 process_library_declaration(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> form) {
+  static constexpr std::vector<tracked_ptr<syntax>> (*read_syntax_multiple)(context&, ptr<textual_input_port>) = &insider::read_syntax_multiple;
+
   if (is_directive(form, "import"))
     process_library_import(ctx, result, form);
   else if (is_directive(form, "export"))
@@ -1703,9 +1705,7 @@ process_library_declaration(context& ctx, protomodule& result, source_file_origi
   else if (is_directive(form, "begin"))
     process_library_body(ctx, result, form);
   else if (is_directive(form, "include"))
-    process_library_include<
-      static_cast<std::vector<tracked_ptr<syntax>> (*)(context&, ptr<textual_input_port>)>(read_syntax_multiple)
-    >(ctx, result, origin, form);
+    process_library_include<read_syntax_multiple>(ctx, result, origin, form);
   else if (is_directive(form, "include-ci"))
     process_library_include<read_syntax_multiple_ci>(ctx, result, origin, form);
   else if (is_directive(form, "include-library-declarations"))
