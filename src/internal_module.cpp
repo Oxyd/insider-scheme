@@ -243,6 +243,14 @@ make_internal_module(context& ctx) {
                      return x_scopes == y_scopes;
                    });
 
+  define_procedure(ctx, "features", result, true,
+                   [] (context& ctx) { return ctx.features(); });
+
+  define_procedure(ctx, "known-module?", result, true,
+                   [] (context& ctx, ptr<syntax> name) {
+                     return ctx.knows_module(parse_module_name(ctx, name));
+                   });
+
   define_procedure(
     ctx, "procedure-bytecode", result, true,
     [] (context& ctx, ptr<procedure> f) {

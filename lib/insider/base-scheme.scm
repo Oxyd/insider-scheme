@@ -22,7 +22,8 @@
         do or and
         plain-procedure? native-procedure? closure? procedure? scheme-procedure?
         expand full-expand
-        make-record-type make-record-instance record-set! record-ref record-type)
+        make-record-type make-record-instance record-set! record-ref record-type
+        features known-module?)
 
 (begin-for-syntax
  (%define pair?

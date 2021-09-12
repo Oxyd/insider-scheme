@@ -25,6 +25,9 @@ class textual_input_port;
 std::unique_ptr<expression>
 analyse(context&, ptr<syntax> stx, module&);
 
+module_name
+parse_module_name(context&, ptr<syntax>);
+
 // Interpret the given list of data as a main (program) module.
 protomodule
 read_main_module(context&, std::vector<tracked_ptr<syntax>> const& contents);

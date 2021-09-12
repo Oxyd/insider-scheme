@@ -1387,7 +1387,7 @@ is_directive(ptr<syntax> datum, std::string const& directive) {
          && syntax_assume<symbol>(expect<syntax>(car(syntax_assume<pair>(datum))))->value() == directive;
 }
 
-static module_name
+module_name
 parse_module_name(context& ctx, ptr<syntax> stx) {
   module_name result;
 
