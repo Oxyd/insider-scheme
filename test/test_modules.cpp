@@ -7,7 +7,20 @@
 
 using namespace insider;
 
-struct modules : scheme_fixture { };
+struct modules : scheme_fixture {
+  virtual_filesystem_source_code_provider* vfs_provider = nullptr;
+
+  modules() {
+    auto provider = std::make_unique<virtual_filesystem_source_code_provider>();
+    vfs_provider = provider.get();
+    ctx.append_source_code_provider(std::move(provider));
+  }
+
+  void
+  add_library(std::filesystem::path const& name, std::string body) {
+    vfs_provider->add(name, std::move(body));
+  }
+};
 
 TEST_F(modules, module_activation) {
   std::vector<int> trace;
@@ -16,21 +29,27 @@ TEST_F(modules, module_activation) {
     [&] (int value) { trace.push_back(value); }
   );
 
-  add_library(R"(
-    (library (foo))
-    (import (insider internal))
+  add_library(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
 
-    (leave-mark 1)
-  )");
+      (leave-mark 1)
+    )"
+  );
   EXPECT_TRUE(trace.empty());
 
-  add_library(R"(
-    (library (bar))
-    (import (insider internal))
-    (import (foo))
+  add_library(
+    "bar.scm",
+    R"(
+      (library (bar))
+      (import (insider internal))
+      (import (foo))
 
-    (leave-mark 2)
-  )");
+      (leave-mark 2)
+    )"
+  );
   EXPECT_TRUE(trace.empty());
 
   eval_module(R"(
@@ -43,19 +62,22 @@ TEST_F(modules, module_activation) {
 }
 
 TEST_F(modules, module_variable_export) {
-  add_library(R"(
-    (library (foo))
-    (import (insider internal))
-    (export foo)
-    (export exported)
+  add_library(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export foo)
+      (export exported)
 
-    (define foo
-      (lambda (x)
-        (* 2 x)))
+      (define foo
+        (lambda (x)
+          (* 2 x)))
 
-    (define exported 2)
-    (define not-exported 3)
-  )");
+      (define exported 2)
+      (define not-exported 3)
+    )"
+  );
 
   auto result = eval_module(R"(
     (import (foo))
@@ -70,16 +92,19 @@ TEST_F(modules, module_variable_export) {
 }
 
 TEST_F(modules, module_syntax_export) {
-  add_library(R"(
-    (library (foo))
-    (import (insider internal))
-    (export double)
+  add_library(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export double)
 
-    (define-syntax double
-      (lambda (stx)
-        (let ((value (cadr (syntax->list stx))))
-          #`(* 2 #,value))))
-  )");
+      (define-syntax double
+        (lambda (stx)
+          (let ((value (cadr (syntax->list stx))))
+            #`(* 2 #,value))))
+    )"
+  );
 
   auto result1 = eval_module(R"(
     (import (foo))
@@ -89,16 +114,19 @@ TEST_F(modules, module_syntax_export) {
   )");
   EXPECT_EQ(expect<integer>(result1).value(), 6);
 
-  add_library(R"(
-    (library (bar))
-    (import (insider internal))
-    (export get-var)
+  add_library(
+    "bar.scm",
+    R"(
+      (library (bar))
+      (import (insider internal))
+      (export get-var)
 
-    (define var 7)
-    (define-syntax get-var
-      (lambda (stx)
-        #'var))
-  )");
+      (define var 7)
+      (define-syntax get-var
+        (lambda (stx)
+          #'var))
+    )"
+  );
   auto result2 = eval_module(R"(
     (import (bar))
     (import (insider internal))
@@ -116,16 +144,19 @@ TEST_F(modules, module_syntax_export) {
 }
 
 TEST_F(modules, import_specifiers) {
-  add_library(R"(
-    (library (foo))
-    (import (insider internal))
-    (export a b c d e)
-    (define a 1)
-    (define b 2)
-    (define c 3)
-    (define d 4)
-    (define e 5)
-  )");
+  add_library(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export a b c d e)
+      (define a 1)
+      (define b 2)
+      (define c 3)
+      (define d 4)
+      (define e 5)
+    )"
+  );
 
   auto result1 = eval_module(R"(
     (import (insider internal)
@@ -203,8 +234,7 @@ TEST_F(modules, begin_for_syntax) {
 }
 
 TEST_F(modules, find_module_file) {
-  auto provider = std::make_unique<virtual_filesystem_source_code_provider>();
-  provider->add(
+  add_library(
     "foo.scm",
     R"(
       (library (foo))
@@ -213,7 +243,6 @@ TEST_F(modules, find_module_file) {
       (define value 4)
     )"
   );
-  ctx.append_source_code_provider(std::move(provider));
 
   auto result = eval_module(R"(
     (import (foo))
@@ -223,8 +252,7 @@ TEST_F(modules, find_module_file) {
 }
 
 TEST_F(modules, find_define_library_style_module) {
-  auto provider = std::make_unique<virtual_filesystem_source_code_provider>();
-  provider->add(
+  add_library(
     "foo.scm",
     R"(
       (define-library (foo)
@@ -234,7 +262,6 @@ TEST_F(modules, find_define_library_style_module) {
           (define value 4)))
     )"
   );
-  ctx.append_source_code_provider(std::move(provider));
 
   auto result = eval_module(R"(
     (import (foo))

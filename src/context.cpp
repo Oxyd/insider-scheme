@@ -181,18 +181,6 @@ context::find_tag(operand i) const {
     return {};
 }
 
-void
-context::load_library_module(std::vector<tracked_ptr<syntax>> const& data) {
-  protomodule pm = read_library(*this, data);
-  assert(pm.name);
-
-  module_name name = *pm.name;
-  bool inserted = protomodules_.emplace(name, std::move(pm)).second;
-
-  if (!inserted)
-    throw std::runtime_error{fmt::format("Module {} already loaded", module_name_to_string(*pm.name))};
-}
-
 static std::optional<source_file>
 find_module_in_provider(context& ctx, source_code_provider& provider, module_name const& name) {
   std::filesystem::path path = module_name_to_path(name);
@@ -208,6 +196,16 @@ find_module_in_provider(context& ctx, source_code_provider& provider, module_nam
   return std::nullopt;
 }
 
+static protomodule
+find_protomodule(context& ctx, module_name const& name,
+                 std::vector<std::unique_ptr<source_code_provider>> const& providers) {
+  for (std::unique_ptr<source_code_provider> const& provider : providers)
+    if (auto source = find_module_in_provider(ctx, *provider, name))
+      return read_library(ctx, read_syntax_multiple(ctx, *source->port));
+
+  throw std::runtime_error{fmt::format("Unknown module {}", module_name_to_string(name))};
+}
+
 module*
 context::find_module(module_name const& name) {
   using namespace std::literals;
@@ -219,25 +217,8 @@ context::find_module(module_name const& name) {
   if (mod_it != modules_.end())
     return mod_it->second.get();
 
-  auto pm = protomodules_.find(name);
-  if (pm == protomodules_.end()) {
-    for (std::unique_ptr<source_code_provider> const& provider : source_providers_)
-      if (auto source = find_module_in_provider(*this, *provider, name)) {
-        load_library_module(read_syntax_multiple(*this, *source->port));
-
-        pm = protomodules_.find(name);
-        assert(pm != protomodules_.end());
-
-        break;
-      }
-
-    if (pm == protomodules_.end())
-      throw std::runtime_error{fmt::format("Unknown module {}", module_name_to_string(name))};
-  }
-
-  simple_action a(*this, "Analysing module {}", pm->second.name ? module_name_to_string(*pm->second.name) : "<unknown>");
-  std::unique_ptr<module> m = instantiate(*this, pm->second);
-  protomodules_.erase(pm);
+  simple_action a(*this, "Analysing module {}", module_name_to_string(name));
+  std::unique_ptr<module> m = instantiate(*this, find_protomodule(*this, name, source_providers_));
 
   mod_it = modules_.emplace(name, std::move(m)).first;
   return mod_it->second.get();

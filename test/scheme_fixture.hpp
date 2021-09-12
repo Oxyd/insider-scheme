@@ -32,11 +32,6 @@ struct scheme_fixture : testing::Test {
     return execute(ctx, m).get();
   }
 
-  void
-  add_library(std::string const& body) {
-    ctx.load_library_module(read_syntax_multiple(ctx, body));
-  }
-
   bool
   num_equal(insider::ptr<> lhs, insider::ptr<> rhs) {
     return arith_equal(ctx, lhs, rhs) == ctx.constants->t.get();

@@ -149,9 +149,6 @@ public:
   std::optional<special_top_level_tag>
   find_tag(operand) const;
 
-  void
-  load_library_module(std::vector<tracked_ptr<syntax>> const&);
-
   module*
   find_module(module_name const&);
 
