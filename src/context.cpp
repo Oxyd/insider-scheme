@@ -206,22 +206,26 @@ find_protomodule(context& ctx, module_name const& name,
   throw std::runtime_error{fmt::format("Unknown module {}", module_name_to_string(name))};
 }
 
+static module*
+load_module(context& ctx,
+            std::map<module_name, std::unique_ptr<module>>& modules,
+            module_name const& name,
+            std::vector<std::unique_ptr<source_code_provider>> const& providers) {
+  simple_action a(ctx, "Analysing module {}", module_name_to_string(name));
+  std::unique_ptr<module> m = instantiate(ctx, find_protomodule(ctx, name, providers));
+  return modules.emplace(name, std::move(m)).first->second.get();
+}
+
 module*
 context::find_module(module_name const& name) {
   using namespace std::literals;
 
   if (name == std::vector{"insider"s, "internal"s})
     return &internal_module;
-
-  auto mod_it = modules_.find(name);
-  if (mod_it != modules_.end())
+  else if (auto mod_it = modules_.find(name); mod_it != modules_.end())
     return mod_it->second.get();
-
-  simple_action a(*this, "Analysing module {}", module_name_to_string(name));
-  std::unique_ptr<module> m = instantiate(*this, find_protomodule(*this, name, source_providers_));
-
-  mod_it = modules_.emplace(name, std::move(m)).first;
-  return mod_it->second.get();
+  else
+    return load_module(*this, modules_, name, source_providers_);
 }
 
 void
