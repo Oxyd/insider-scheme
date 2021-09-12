@@ -173,6 +173,9 @@ make_list_from_vector(context& ctx, std::vector<ptr<>> const& values) {
 ptr<>
 append(context&, object_span);
 
+bool
+memq(ptr<> element, ptr<> list);
+
 // An array of a fixed, dynamic size. Elements are allocated as a part of this
 // object, which requires cooperation from the allocator. From the C++ point of
 // view, there is an array of ptr<> allocated right after the vector object.

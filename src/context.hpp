@@ -149,6 +149,9 @@ public:
   std::optional<special_top_level_tag>
   find_tag(operand) const;
 
+  bool
+  knows_module(module_name const&);
+
   module*
   find_module(module_name const&);
 
@@ -157,6 +160,12 @@ public:
 
   void
   append_source_code_provider(std::unique_ptr<source_code_provider>);
+
+  void
+  add_feature(std::string const&);
+
+  ptr<>
+  features() const { return features_.get(); }
 
 private:
   std::unordered_map<std::string, weak_ptr<symbol>> interned_symbols_;
@@ -167,6 +176,7 @@ private:
   std::unordered_map<operand, special_top_level_tag> top_level_tags_;
   std::map<module_name, std::unique_ptr<module>> modules_;
   std::vector<std::unique_ptr<source_code_provider>> source_providers_;
+  tracked_ptr<> features_;
 };
 
 // Create an instance of an object using the context's free store.

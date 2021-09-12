@@ -4,6 +4,7 @@
 #include "analyser.hpp"
 #include "basic_types.hpp"
 #include "internal_module.hpp"
+#include "list_iterator.hpp"
 #include "port.hpp"
 #include "read.hpp"
 #include "source_code_provider.hpp"
@@ -95,6 +96,11 @@ context::context()
   statics.one = intern_static(tracked_ptr<>{store, integer_to_ptr(1)});
 
   output_port = make_tracked<textual_output_port>(*this, std::make_unique<file_port_sink>(stdout, false));
+
+  features_ = track(*this,
+                    make_list(*this,
+                              intern("r7rs"),
+                              intern("full-unicode")));
 }
 
 context::~context() {
@@ -196,6 +202,15 @@ find_module_in_provider(context& ctx, source_code_provider& provider, module_nam
   return std::nullopt;
 }
 
+static bool
+has_protomodule(context& ctx, module_name const& name,
+                std::vector<std::unique_ptr<source_code_provider>> const& providers) {
+  for (std::unique_ptr<source_code_provider> const& provider : providers)
+    if (find_module_in_provider(ctx, *provider, name))
+      return true;
+  return false;
+}
+
 static protomodule
 find_protomodule(context& ctx, module_name const& name,
                  std::vector<std::unique_ptr<source_code_provider>> const& providers) {
@@ -214,6 +229,18 @@ load_module(context& ctx,
   simple_action a(ctx, "Analysing module {}", module_name_to_string(name));
   std::unique_ptr<module> m = instantiate(ctx, find_protomodule(ctx, name, providers));
   return modules.emplace(name, std::move(m)).first->second.get();
+}
+
+bool
+context::knows_module(module_name const& name) {
+  using namespace std::literals;
+
+  if (name == std::vector{"insider"s, "internal"s})
+    return true;
+  else if (auto mod_it = modules_.find(name); mod_it != modules_.end())
+    return true;
+  else
+    return has_protomodule(*this, name, source_providers_);
 }
 
 module*
@@ -236,6 +263,13 @@ context::prepend_source_code_provider(std::unique_ptr<source_code_provider> prov
 void
 context::append_source_code_provider(std::unique_ptr<source_code_provider> provider) {
   source_providers_.push_back(std::move(provider));
+}
+
+void
+context::add_feature(std::string const& f) {
+  auto f_sym = intern(f);
+  if (!memq(f_sym, features_.get()))
+    features_ = track(*this, cons(*this, f_sym, features_.get()));
 }
 
 } // namespace insider

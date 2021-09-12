@@ -7,6 +7,7 @@
 #include "numeric.hpp"
 #include "read.hpp"
 #include "source_code_provider.hpp"
+#include "syntax.hpp"
 #include "syntax_list.hpp"
 #include "vm.hpp"
 #include "write.hpp"
@@ -1667,6 +1668,72 @@ process_include_library_declarations(context& ctx, protomodule& result,
   }
 }
 
+static bool
+eval_cond_expand_condition(context& ctx, ptr<syntax> condition);
+
+static bool
+eval_cond_expand_disjunction(context& ctx, ptr<> elements, source_location const& loc) {
+  for (ptr<syntax> cond : in_syntax_list{elements, loc})
+    if (eval_cond_expand_condition(ctx, cond))
+      return true;
+  return false;
+}
+
+static bool
+eval_cond_expand_conjunction(context& ctx, ptr<> elements, source_location const& loc) {
+  for (ptr<syntax> cond : in_syntax_list{elements, loc})
+    if (!eval_cond_expand_condition(ctx, cond))
+      return false;
+  return true;
+}
+
+static bool
+eval_cond_expand_condition(context& ctx, ptr<syntax> condition) {
+  if (auto feature = syntax_match<symbol>(condition)) {
+    if (feature == ctx.intern("else"))
+      return true;
+    else
+      return memq(feature, ctx.features());
+  } else if (is_directive(condition, "library"))
+    return ctx.knows_module(parse_module_name(ctx, syntax_cadr(condition)));
+  else if (is_directive(condition, "not"))
+    return !eval_cond_expand_condition(ctx, syntax_cadr(condition));
+  else if (is_directive(condition, "or"))
+    return eval_cond_expand_disjunction(ctx, syntax_cdr(condition), condition->location());
+  else if (is_directive(condition, "and"))
+    return eval_cond_expand_conjunction(ctx, syntax_cdr(condition), condition->location());
+  else
+    throw syntax_error{condition, "Invalid cond-expand condition"};
+}
+
+static void
+process_library_declarations(context& ctx, protomodule& result, source_file_origin const& origin,
+                             ptr<> list, source_location const& loc) {
+  for (ptr<syntax> decl : in_syntax_list{list, loc})
+    process_library_declaration(ctx, result, origin, decl);
+}
+
+static bool
+process_cond_expand_clause(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> stx) {
+  auto condition = syntax_car(stx);
+  auto body = syntax_cdr(stx);
+
+  if (eval_cond_expand_condition(ctx, condition)) {
+    process_library_declarations(ctx, result, origin, body, stx->location());
+    return true;
+  } else
+    return false;
+}
+
+static void
+process_cond_expand(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> stx) {
+  for (ptr<syntax> clause : in_syntax_list{syntax_cdr(stx), stx}) {
+    bool taken = process_cond_expand_clause(ctx, result, origin, clause);
+    if (taken)
+      break;
+  }
+}
+
 static void
 process_library_declaration(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> form) {
   static constexpr std::vector<tracked_ptr<syntax>> (*read_syntax_multiple)(context&, ptr<textual_input_port>) = &insider::read_syntax_multiple;
@@ -1683,6 +1750,8 @@ process_library_declaration(context& ctx, protomodule& result, source_file_origi
     process_library_include<read_syntax_multiple_ci>(ctx, result, origin, form);
   else if (is_directive(form, "include-library-declarations"))
     process_include_library_declarations(ctx, result, origin, form);
+  else if (is_directive(form, "cond-expand"))
+    process_cond_expand(ctx, result, origin, form);
   else
     throw syntax_error{form, "Invalid library declaration"};
 }

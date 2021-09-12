@@ -372,3 +372,121 @@ TEST_F(modules, include_library_declarations) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 4);
 }
+
+TEST_F(modules, cond_expand_in_define_library_basic) {
+  ctx.add_feature("one");
+  add_source_file(
+    "foo.sld",
+    R"(
+      (define-library (foo)
+        (import (insider internal))
+        (export value)
+        (cond-expand
+          (one (include "one.scm"))
+          (two (include "two.scm"))))
+    )"
+  );
+
+  add_source_file("one.scm", "(define value 4)");
+
+  auto result = eval_module(R"(
+    (import (foo))
+    value
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 4);
+}
+
+TEST_F(modules, cond_expand_in_define_library_else) {
+  add_source_file(
+    "foo.sld",
+    R"(
+      (define-library (foo)
+        (import (insider internal))
+        (export value)
+        (cond-expand
+          (one (include "one.scm"))
+          (else (include "two.scm"))))
+    )"
+  );
+
+  add_source_file("two.scm", "(define value 6)");
+
+  auto result = eval_module(R"(
+    (import (foo))
+    value
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 6);
+}
+
+TEST_F(modules, cond_expand_in_define_library_test_for_library) {
+  add_source_file(
+    "foo.sld",
+    R"(
+      (define-library (foo)
+        (import (insider internal))
+        (export first second)
+        (cond-expand
+          ((library (bar))
+           (begin
+             (define first #t)))
+          (else
+           (begin
+             (define second #f))))
+        (cond-expand
+          ((library (baz))
+           (begin
+             (define second #t)))
+          (else
+           (begin
+             (define second #f)))))
+    )"
+  );
+  add_source_file(
+    "bar.sld",
+    R"(
+      (define-library (bar))
+    )"
+  );
+
+  auto result = eval_module(R"(
+    (import (insider internal) (foo))
+    (cons first second)
+  )");
+  EXPECT_TRUE(equal(ctx, result, read("(#t . #f)")));
+}
+
+TEST_F(modules, cond_expand_in_define_library_boolean_conditionals) {
+  ctx.add_feature("one");
+  add_source_file(
+    "foo.sld",
+    R"(
+      (define-library (foo)
+        (import (insider internal))
+        (export first second third)
+
+        (cond-expand
+          ((not one)
+           (begin (define first #f)))
+          (else
+           (begin (define first #t))))
+
+        (cond-expand
+          ((or one two)
+           (begin (define second #t)))
+          (else
+           (begin (define second #f))))
+
+        (cond-expand
+          ((and one two)
+           (begin (define third #f)))
+          (else
+           (begin (define third #t)))))
+    )"
+  );
+
+  auto result = eval_module(R"(
+    (import (insider internal) (foo))
+    ((lambda l l) first second third)
+  )");
+  EXPECT_TRUE(equal(ctx, result, read("(#t #t #t)")));
+}

@@ -96,6 +96,14 @@ append(context& ctx, object_span xs) {
   return new_head;
 }
 
+bool
+memq(ptr<> element, ptr<> list) {
+  for (ptr<> f : in_list{list})
+    if (f == element)
+      return true;
+  return false;
+}
+
 vector::vector(context& ctx, std::size_t size)
   : size_{size}
 {
