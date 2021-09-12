@@ -1676,6 +1676,44 @@ process_library_include(context& ctx, protomodule& result, source_file_origin co
                                     syntax_expect<string>(syntax_car(filenames))->value());
 }
 
+static void
+process_library_declaration(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> form);
+
+static void
+process_include_library_declarations(context& ctx, protomodule& result,
+                                     source_file_origin const& origin, ptr<syntax> stx) {
+  for (auto filenames = syntax_cdr(stx); filenames != ctx.constants->null.get(); filenames = syntax_cdr(filenames)) {
+    std::string filename = syntax_expect<string>(syntax_car(filenames))->value();
+    if (auto source = find_source_relative(ctx, origin, filename)) {
+      auto contents = read_syntax_multiple(ctx, source->port.get());
+      for (tracked_ptr<syntax> const& s : contents)
+        process_library_declaration(ctx, result, source->origin, s.get());
+    }
+    else
+      throw syntax_error{stx, fmt::format("File {} not found", filename)};
+  }
+}
+
+static void
+process_library_declaration(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> form) {
+  if (is_directive(form, "import"))
+    process_library_import(ctx, result, form);
+  else if (is_directive(form, "export"))
+    process_library_export(ctx, result, form);
+  else if (is_directive(form, "begin"))
+    process_library_body(ctx, result, form);
+  else if (is_directive(form, "include"))
+    process_library_include<
+      static_cast<std::vector<tracked_ptr<syntax>> (*)(context&, ptr<textual_input_port>)>(read_syntax_multiple)
+    >(ctx, result, origin, form);
+  else if (is_directive(form, "include-ci"))
+    process_library_include<read_syntax_multiple_ci>(ctx, result, origin, form);
+  else if (is_directive(form, "include-library-declarations"))
+    process_include_library_declarations(ctx, result, origin, form);
+  else
+    throw syntax_error{form, "Invalid library declaration"};
+}
+
 static protomodule
 read_define_library(context& ctx, tracked_ptr<syntax> form, source_file_origin const& origin) {
   protomodule result;
@@ -1688,26 +1726,8 @@ read_define_library(context& ctx, tracked_ptr<syntax> form, source_file_origin c
 
   result.name = parse_module_name(ctx, syntax_cadr(subforms));
 
-  auto contents = cddr(subforms);
-  while (contents != ctx.constants->null.get()) {
-    auto current = expect<syntax>(car(assume<pair>(contents)));
-    if (is_directive(current, "import"))
-      process_library_import(ctx, result, current);
-    else if (is_directive(current, "export"))
-      process_library_export(ctx, result, current);
-    else if (is_directive(current, "begin"))
-      process_library_body(ctx, result, current);
-    else if (is_directive(current, "include"))
-      process_library_include<
-        static_cast<std::vector<tracked_ptr<syntax>> (*)(context&, ptr<textual_input_port>)>(read_syntax_multiple)
-      >(ctx, result, origin, current);
-    else if (is_directive(current, "include-ci"))
-      process_library_include<read_syntax_multiple_ci>(ctx, result, origin, current);
-    else
-      throw syntax_error{current, "Invalid library declaration"};
-
-    contents = cdr(assume<pair>(contents));
-  }
+  for (auto contents = cddr(subforms); contents != ctx.constants->null.get(); contents = cdr(assume<pair>(contents)))
+    process_library_declaration(ctx, result, origin, syntax_car(contents));
 
   return result;
 }

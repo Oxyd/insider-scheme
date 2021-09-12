@@ -351,3 +351,24 @@ TEST_F(modules, include_ci_in_define_library) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 4);
 }
+
+TEST_F(modules, include_library_declarations) {
+  add_source_file(
+    "foo.sld",
+    R"(
+      (define-library (foo)
+        (import (insider internal))
+        (include-library-declarations "exports.scm")
+        (begin
+          (define value 4)))
+    )"
+  );
+  add_source_file("exports.scm",
+                  "(export value)");
+
+  auto result = eval_module(R"(
+    (import (foo))
+    value
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 4);
+}
