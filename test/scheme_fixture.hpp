@@ -6,12 +6,20 @@
 #include "context.hpp"
 #include "numeric.hpp"
 #include "read.hpp"
+#include "source_code_provider.hpp"
 #include "vm.hpp"
 
 #include <gtest/gtest.h>
 
 struct scheme_fixture : testing::Test {
   insider::context ctx;
+  insider::virtual_filesystem_source_code_provider* vfs_provider = nullptr;
+
+  scheme_fixture() {
+    auto provider = std::make_unique<insider::virtual_filesystem_source_code_provider>();
+    vfs_provider = provider.get();
+    ctx.append_source_code_provider(std::move(provider));
+  }
 
   insider::ptr<>
   read(std::string const& expr) {
@@ -30,6 +38,11 @@ struct scheme_fixture : testing::Test {
   eval_module(std::string const& expr) {
     insider::module m = compile_main_module(ctx, read_syntax_multiple(ctx, expr));
     return execute(ctx, m).get();
+  }
+
+  void
+  add_source_file(std::filesystem::path const& name, std::string body) {
+    vfs_provider->add(name, std::move(body));
   }
 
   bool

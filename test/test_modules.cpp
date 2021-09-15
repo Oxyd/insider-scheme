@@ -1,26 +1,12 @@
 #include "scheme_fixture.hpp"
 
 #include "converters.hpp"
-#include "source_code_provider.hpp"
 
 #include <memory>
 
 using namespace insider;
 
-struct modules : scheme_fixture {
-  virtual_filesystem_source_code_provider* vfs_provider = nullptr;
-
-  modules() {
-    auto provider = std::make_unique<virtual_filesystem_source_code_provider>();
-    vfs_provider = provider.get();
-    ctx.append_source_code_provider(std::move(provider));
-  }
-
-  void
-  add_source_file(std::filesystem::path const& name, std::string body) {
-    vfs_provider->add(name, std::move(body));
-  }
-};
+struct modules : scheme_fixture { };
 
 TEST_F(modules, module_activation) {
   std::vector<int> trace;

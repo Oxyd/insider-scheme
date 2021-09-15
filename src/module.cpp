@@ -10,8 +10,10 @@
 
 namespace insider {
 
-module::module(context& ctx)
-  : env_{make_tracked<insider::scope>(ctx, "module top-level")}
+module::module(context& ctx, std::optional<module_name> const& name)
+  : env_{make_tracked<insider::scope>(ctx,
+                                      fmt::format("{} module top-level",
+                                                  name ? module_name_to_string(*name) : "<unnamed module>"))}
 { }
 
 auto
@@ -140,22 +142,9 @@ perform_imports(context& ctx, module& m, import_set const& set) {
     execute(ctx, *set.source);
 }
 
-std::string
-module_name_to_string(module_name const& name) {
-  std::string result = "(";
-  for (auto it = name.begin(); it != name.end(); ++it) {
-    if (it != name.begin())
-      result += " ";
-    result += *it;
-  }
-  result += ")";
-
-  return result;
-}
-
 std::unique_ptr<module>
 instantiate(context& ctx, protomodule const& pm) {
-  auto result = std::make_unique<module>(ctx);
+  auto result = std::make_unique<module>(ctx, pm.name);
 
   perform_imports(ctx, *result, pm);
   compile_module_body(ctx, *result, pm);

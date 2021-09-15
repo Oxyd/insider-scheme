@@ -8,6 +8,7 @@
 
 namespace insider {
 
+class expression;
 class procedure;
 class syntax;
 
@@ -20,6 +21,9 @@ struct protomodule;
 // definition.
 ptr<procedure>
 compile_expression(context&, ptr<syntax> datum, module&);
+
+ptr<procedure>
+compile_syntax(context&, std::unique_ptr<expression>, module&);
 
 // Interpret a list of expressions and import declarations as a main module and
 // create the module.

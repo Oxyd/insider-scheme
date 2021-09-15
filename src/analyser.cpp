@@ -236,11 +236,14 @@ expand(context& ctx, tracked_ptr<syntax> stx) {
   return stx;
 }
 
+static std::unique_ptr<expression>
+analyse_transformer(context&, ptr<syntax>, module&);
+
 // Causes a garbage collection.
 static ptr<>
 eval_transformer(context& ctx, module& m, ptr<syntax> datum) {
   simple_action a(ctx, datum, "Evaluating transformer");
-  auto proc = compile_expression(ctx, datum, m);
+  auto proc = compile_syntax(ctx, analyse_transformer(ctx, datum, m), m);
   return call_with_continuation_barrier(ctx, proc, {}).get();
 }
 
@@ -1371,6 +1374,12 @@ analyse_internal(parsing_context& pc, ptr<syntax> stx) {
   box_set_variables(result.get());
   analyse_free_variables(result.get());
   return result;
+}
+
+static std::unique_ptr<expression>
+analyse_transformer(context& ctx, ptr<syntax> transformer_stx, module& m) {
+  parsing_context pc{ctx, m, {}};
+  return analyse_internal(pc, transformer_stx);
 }
 
 std::unique_ptr<expression>

@@ -1,6 +1,7 @@
 #ifndef INSIDER_MODULE_HPP
 #define INSIDER_MODULE_HPP
 
+#include "module_name.hpp"
 #include "syntax.hpp"
 
 #include <filesystem>
@@ -17,7 +18,7 @@ public:
   using binding_type = insider::scope::value_type;
 
   explicit
-  module(context&);
+  module(context&, std::optional<module_name> const& = {});
 
   std::optional<binding_type>
   find(ptr<symbol>) const;
@@ -55,9 +56,6 @@ private:
   tracked_ptr<procedure>          proc_;
   bool                            active_ = false;
 };
-
-std::string
-module_name_to_string(module_name const& name);
 
 // Turn a protomodule into a module. First instantiate all uninstantiated
 // dependencies of the protomodule, then compile its body.

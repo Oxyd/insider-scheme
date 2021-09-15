@@ -39,6 +39,7 @@ set(scheme_sources
   src/input_stream.cpp
   src/internal_module.cpp
   src/module.cpp
+  src/module_name.cpp
   src/numeric.cpp
   src/object.cpp
   src/port.cpp

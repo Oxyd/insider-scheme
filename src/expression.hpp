@@ -3,6 +3,7 @@
 
 #include "bytecode.hpp"
 #include "free_store.hpp"
+#include "module_name.hpp"
 
 #include <memory>
 #include <string>
@@ -242,8 +243,6 @@ struct expression {
     : value{std::move(value)}
   { }
 };
-
-using module_name = std::vector<std::string>;
 
 struct import_specifier {
   struct only {

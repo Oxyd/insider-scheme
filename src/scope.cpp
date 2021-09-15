@@ -119,26 +119,45 @@ scope::is_redefinition(ptr<syntax> id, value_type const& intended_value) const {
   return false;
 }
 
+static std::string
+format_scope_set(scope_set const& set) {
+  std::string result;
+  bool first = true;
+  for (ptr<scope> s : set) {
+    if (!first)
+      result += ", ";
+
+    result += s->description();
+    first = false;
+  }
+
+  return result;
+}
+
 std::optional<scope::value_type>
 lookup(ptr<symbol> name, scope_set const& envs) {
   std::optional<scope::value_type> result;
   scope_set maximal_scope_set;
-  bool ambiguous = false;
+  std::optional<scope_set> ambiguous_other_candidate_set;
 
   for (ptr<scope> e : envs)
     for (scope::binding const& b : e->find_candidates(name, envs)) {
       scope_set const& binding_set = std::get<ptr<syntax>>(b)->scopes();
 
       if (scope_sets_subseteq(maximal_scope_set, binding_set)) {
-        ambiguous = false;
+        ambiguous_other_candidate_set = std::nullopt;
         maximal_scope_set = binding_set;
         result = std::get<scope::value_type>(b);
       } else if (!scope_sets_subseteq(binding_set, maximal_scope_set))
-        ambiguous = true;
+        ambiguous_other_candidate_set = binding_set;
     }
 
-  if (ambiguous)
-    throw error{fmt::format("Ambiguous reference to {}", name->value())};
+  if (ambiguous_other_candidate_set)
+    throw error{fmt::format("Ambiguous reference to {} ({}). 1st candidate scopes: {}; 2nd candidate scopes: {}",
+                            name->value(),
+                            format_scope_set(envs),
+                            format_scope_set(maximal_scope_set),
+                            format_scope_set(*ambiguous_other_candidate_set))};
 
   return result;
 }

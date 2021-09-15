@@ -306,3 +306,28 @@ TEST_F(macros, bound_identifier_eq) {
   EXPECT_EQ(cadr(result1), ctx.constants->f.get());
   EXPECT_EQ(caddr(result1), ctx.constants->f.get());
 }
+
+TEST_F(macros, exported_transformer_producing_another_transformer) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export make-transformer)
+
+      (define-syntax make-transformer
+        (lambda (stx)
+          (let ((name (car (cdr (syntax->list stx)))))
+            #`(define-syntax #,name
+                (lambda (stx)
+                  #'#t)))))
+    )"
+  );
+
+  auto result = eval_module(R"(
+    (import (insider internal) (foo))
+    (make-transformer x)
+    (x)
+  )");
+  EXPECT_EQ(result, ctx.constants->t.get());
+}

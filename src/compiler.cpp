@@ -731,10 +731,13 @@ compile_sequence(context& ctx, procedure_context& proc, sequence_expression cons
 
 ptr<procedure>
 compile_expression(context& ctx, ptr<syntax> datum, module& mod) {
-  auto stx = analyse(ctx, datum, mod);
+  return compile_syntax(ctx, analyse(ctx, datum, mod), mod);
+}
 
+ptr<procedure>
+compile_syntax(context& ctx, std::unique_ptr<expression> e, module& mod) {
   procedure_context proc{nullptr, mod};
-  shared_register result = compile_expression_to_register(ctx, proc, *stx, true);
+  shared_register result = compile_expression_to_register(ctx, proc, *e, true);
   if (result)
     encode_instruction(proc.bytecode_stack.back(), instruction{opcode::ret, *result});
 
