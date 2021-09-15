@@ -1,8 +1,10 @@
 (library (insider cond-expand))
 (import (insider base-scheme) (insider syntax))
-(export cond-expand)
+(export cond-expand library)
 
 (begin-for-syntax
+ (define-auxiliary-syntax library)
+
  (define (condition-matches? condition)
    (syntax-match condition (else and or library)
      (else
