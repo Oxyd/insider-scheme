@@ -945,12 +945,21 @@ call_native(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<
   return call_native_in_current_frame(state, proc, arguments);
 }
 
+static void
+set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value);
+
 static tracked_ptr<>
 call_native_with_continuation_barrier(execution_state& state, ptr<native_procedure> proc,
-                                      std::vector<ptr<>> const& arguments) {
+                                      std::vector<ptr<>> const& arguments,
+                                      ptr<parameter_tag> parameter, ptr<> parameter_value) {
   ptr<stack_frame> frame = setup_native_frame(state, proc);
+
   if (frame->parent)
     erect_barrier(state.ctx, frame, false, false);
+
+  if (parameter)
+    set_parameter_value(state.ctx, parameter, parameter_value);
+
   return call_native_in_current_frame(state, proc, arguments);
 }
 
@@ -979,10 +988,15 @@ setup_scheme_frame_for_call_from_native(execution_state& state, ptr<> callable, 
 }
 
 static tracked_ptr<>
-call_scheme_with_continuation_barrier(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
+call_scheme_with_continuation_barrier(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments,
+                                      ptr<parameter_tag> parameter, ptr<> parameter_value) {
   ptr<stack_frame> frame = setup_scheme_frame_for_call_from_native(state, callable, arguments);
   if (frame->parent)
     erect_barrier(state.ctx, frame, false, false);
+
+  if (parameter)
+    set_parameter_value(state.ctx, parameter, parameter_value);
+
   return run(state);
 }
 
@@ -1021,7 +1035,8 @@ mark_frame_noncontinuable(ptr<stack_frame> frame) {
 }
 
 tracked_ptr<>
-call_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+call_parameterized_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments,
+                                             ptr<parameter_tag> tag, ptr<> parameter_value) {
   expect_callable(callable);
 
   current_execution_setter ces{ctx};
@@ -1029,11 +1044,18 @@ call_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> 
 
   tracked_ptr<> result;
   if (auto native_proc = match<native_procedure>(callable))
-    result = call_native_with_continuation_barrier(*ctx.current_execution, native_proc, arguments);
+    result = call_native_with_continuation_barrier(*ctx.current_execution, native_proc, arguments,
+                                                   tag, parameter_value);
   else
-    result = call_scheme_with_continuation_barrier(*ctx.current_execution, callable, arguments);
+    result = call_scheme_with_continuation_barrier(*ctx.current_execution, callable, arguments,
+                                                   tag, parameter_value);
 
   return result;
+}
+
+tracked_ptr<>
+call_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  return call_parameterized_with_continuation_barrier(ctx, callable, arguments, {}, {});
 }
 
 static tracked_ptr<>
@@ -1258,7 +1280,7 @@ call_with_continuation_barrier(context& ctx, bool allow_out, bool allow_in, ptr<
                           [] (context&, ptr<> result) { return result; });
 }
 
-static ptr<parameter_tag>
+ptr<parameter_tag>
 create_parameter_tag(context& ctx, ptr<> initial_value) {
   auto tag = make<parameter_tag>(ctx);
   ctx.parameters->add_value(tag, initial_value);
@@ -1298,7 +1320,7 @@ set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
 }
 
 static ptr<>
-find_parameter_in_stack(context& ctx, ptr<parameter_tag> tag) {
+find_parameter_value_in_stack(context& ctx, ptr<parameter_tag> tag) {
   ptr<stack_frame> current_frame = ctx.current_execution->current_frame();
 
   while (current_frame) {
@@ -1311,9 +1333,9 @@ find_parameter_in_stack(context& ctx, ptr<parameter_tag> tag) {
   return {};
 }
 
-static ptr<>
-find_parameter(context& ctx, ptr<parameter_tag> tag) {
-  if (auto value = find_parameter_in_stack(ctx, tag))
+ptr<>
+find_parameter_value(context& ctx, ptr<parameter_tag> tag) {
+  if (auto value = find_parameter_value_in_stack(ctx, tag))
     return value;
   else
     return ctx.parameters->find_value(tag);
@@ -1503,7 +1525,7 @@ export_vm(context& ctx, module& result) {
   define_procedure(ctx, "capture-stack", result, true, capture_stack);
   define_procedure(ctx, "replace-stack!", result, true, replace_stack);
   define_procedure(ctx, "create-parameter-tag", result, true, create_parameter_tag);
-  define_procedure(ctx, "find-parameter-value", result, true, find_parameter);
+  define_procedure(ctx, "find-parameter-value", result, true, find_parameter_value);
   define_procedure(ctx, "set-parameter-value!", result, true, set_parameter_value);
   define_procedure(ctx, "call-with-continuation-barrier", result, true,
                    static_cast<tracked_ptr<> (*)(context&, bool, bool, ptr<>)>(call_with_continuation_barrier));

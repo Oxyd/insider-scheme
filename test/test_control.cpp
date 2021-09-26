@@ -784,3 +784,37 @@ TEST_F(control, continuation_jump_to_native_tail_call) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 4);
 }
+
+TEST_F(control, call_parameterized_with_continuation_barrier_sets_parameter_in_scheme_frame) {
+  auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
+  define_top_level(ctx, "p", ctx.internal_module, true, tag.get());
+
+  auto get_value = eval(R"(
+    (lambda ()
+      (find-parameter-value p))
+  )");
+
+  auto result1 = call_with_continuation_barrier(ctx, get_value, {});
+  EXPECT_EQ(expect<integer>(result1).value(), 0);
+
+  auto result2 = call_parameterized_with_continuation_barrier(ctx, get_value, {}, tag.get(), integer_to_ptr(4));
+  EXPECT_EQ(expect<integer>(result2).value(), 4);
+}
+
+TEST_F(control, call_parameterized_with_continuation_brrier_sets_parameter_in_native_frame) {
+  auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
+  define_top_level(ctx, "p", ctx.internal_module, true, tag.get());
+
+  auto get_value = make_tracked<native_procedure>(
+    ctx,
+    [&] (context& ctx, object_span) {
+      return find_parameter_value(ctx, tag.get());
+    }
+  );
+
+  auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
+  EXPECT_EQ(expect<integer>(result1).value(), 0);
+
+  auto result2 = call_parameterized_with_continuation_barrier(ctx, get_value.get(), {}, tag.get(), integer_to_ptr(4));
+  EXPECT_EQ(expect<integer>(result2).value(), 4);
+}

@@ -58,6 +58,19 @@ call_continuable(context&, ptr<> callable, std::vector<ptr<>> const& arguments,
 tracked_ptr<>
 call_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments);
 
+// Like call_with_continuation_barrier but also sets a parameter in the created
+// call frame.
+tracked_ptr<>
+call_parameterized_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments,
+                                             ptr<parameter_tag>, ptr<> parameter_value);
+
+// Make a new parameter tag and set its top-level value in the context.
+ptr<parameter_tag>
+create_parameter_tag(context& ctx, ptr<> initial_value);
+
+ptr<>
+find_parameter_value(context&, ptr<parameter_tag>);
+
 // Pop the current call frame (which must be a native procedure frame), and
 // replace it with a call frame for the given procedure. This is used to
 // implement native procedures tail-calling other procedures.
