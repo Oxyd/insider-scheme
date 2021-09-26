@@ -72,21 +72,7 @@ main(int argc, char** argv) {
       return 1;
     }
 
-    FILE* f = std::fopen(program_path.c_str(), "r");
-    if (!f) {
-      fmt::print(stderr, "Can't open input file {}: {}\n", program_path, strerror(errno));
-      return 1;
-    }
-
-    insider::unique_port_handle<insider::tracked_ptr<insider::textual_input_port>> in{
-      insider::make_tracked<insider::textual_input_port>(
-        ctx,
-        std::make_unique<insider::file_port_source>(f),
-        std::move(program_path)
-      )
-    };
-    auto mod = insider::compile_main_module(ctx, insider::read_syntax_multiple(ctx, in.get().get()));
-
+    auto mod = insider::compile_main_module(ctx, program_path);
     insider::simple_action a{ctx, "Executing program"};
     insider::execute(ctx, mod);
     return 0;

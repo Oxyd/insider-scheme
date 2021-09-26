@@ -32,10 +32,8 @@ TEST_F(compiler, compile_let) {
   int product = a * b;
   EXPECT_EQ(expect<integer>(result).value(), sum - product);
 
-  EXPECT_THROW(compile_expression(ctx, read_syntax(ctx, "(let ((a 2)))"), ctx.internal_module),
-               std::runtime_error);
-  EXPECT_THROW(compile_expression(ctx, read_syntax(ctx, "(let foo)"), ctx.internal_module),
-               std::runtime_error);
+  EXPECT_THROW(eval("(let ((a 2)))"), std::runtime_error);
+  EXPECT_THROW(eval("(let foo)"), std::runtime_error);
 }
 
 TEST_F(compiler, let_shadowing) {
@@ -321,13 +319,12 @@ TEST_F(compiler, compile_module) {
                            })
   );
 
-  auto m = compile_main_module(ctx,
-                               read_syntax_multiple(ctx,
-                                                    "(import (insider internal))"
-                                                    "(f 3)"
-                                                    "(let ((x 2))"
-                                                    "  (f x))"));
-  call_with_continuation_barrier(ctx, m.top_level_procedure(), {});
+  eval_module(R"(
+    (import (insider internal))
+    (f 3)
+    (let ((x 2))
+      (f x))
+  )");
   EXPECT_EQ(sum, 5);
 }
 

@@ -30,13 +30,18 @@ struct scheme_fixture : testing::Test {
   eval(std::string const& expr) {
     insider::module m{ctx};
     import_all_exported(ctx, m, ctx.internal_module);
-    auto f = compile_expression(ctx, read_syntax(ctx, expr), m);
+
+    insider::null_source_code_provider provider;
+    auto f = compile_expression(ctx, read_syntax(ctx, expr), m,
+                                {&provider, "<unit test expression>"});
     return call_with_continuation_barrier(ctx, f, {}).get();
   }
 
   insider::ptr<>
   eval_module(std::string const& expr) {
-    insider::module m = compile_main_module(ctx, read_syntax_multiple(ctx, expr));
+    insider::null_source_code_provider provider;
+    insider::module m = compile_main_module(ctx, read_syntax_multiple(ctx, expr),
+                                            {&provider, "<unit test main module>"});
     return execute(ctx, m).get();
   }
 

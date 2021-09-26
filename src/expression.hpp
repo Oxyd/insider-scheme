@@ -4,6 +4,7 @@
 #include "bytecode.hpp"
 #include "free_store.hpp"
 #include "module_name.hpp"
+#include "source_file_origin.hpp"
 
 #include <memory>
 #include <string>
@@ -324,15 +325,21 @@ struct protomodule {
   std::vector<import_specifier>    imports;
   std::vector<std::string>         exports;
   std::vector<tracked_ptr<syntax>> body;
+  source_file_origin               origin;
 
-  protomodule() = default;
+  explicit
+  protomodule(source_file_origin origin)
+    : origin{std::move(origin)}
+  { }
 
   protomodule(std::optional<module_name> name, std::vector<import_specifier> imports,
-              std::vector<std::string> exports, std::vector<tracked_ptr<syntax>> body)
+              std::vector<std::string> exports, std::vector<tracked_ptr<syntax>> body,
+              source_file_origin origin)
     : name{std::move(name)}
     , imports{std::move(imports)}
     , exports{std::move(exports)}
     , body{std::move(body)}
+    , origin{std::move(origin)}
   { }
 };
 

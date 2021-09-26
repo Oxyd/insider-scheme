@@ -3,6 +3,7 @@
 
 #include "bytecode.hpp"
 #include "ptr.hpp"
+#include "source_file_origin.hpp"
 
 #include <vector>
 
@@ -20,7 +21,7 @@ struct protomodule;
 // modified by adding a top-level binding if the datum is a top-level
 // definition.
 ptr<procedure>
-compile_expression(context&, ptr<syntax> datum, module&);
+compile_expression(context&, ptr<syntax> datum, module&, source_file_origin const&);
 
 ptr<procedure>
 compile_syntax(context&, std::unique_ptr<expression>, module&);
@@ -28,7 +29,10 @@ compile_syntax(context&, std::unique_ptr<expression>, module&);
 // Interpret a list of expressions and import declarations as a main module and
 // create the module.
 module
-compile_main_module(context&, std::vector<tracked_ptr<syntax>> const& data);
+compile_main_module(context&, std::vector<tracked_ptr<syntax>> const& data, source_file_origin const&);
+
+module
+compile_main_module(context&, std::filesystem::path const&);
 
 // Translate a protomodule's body.
 void

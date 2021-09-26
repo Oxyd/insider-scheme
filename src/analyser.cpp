@@ -36,8 +36,9 @@ syntax_to_string(context& ctx, ptr<syntax> stx) {
 
 namespace {
   struct parsing_context {
-    context&         ctx;
-    insider::module& module;
+    context&                  ctx;
+    insider::module&          module;
+    source_file_origin const& origin;
     std::vector<std::vector<std::shared_ptr<variable>>> environment;
   };
 
@@ -237,14 +238,14 @@ expand(context& ctx, tracked_ptr<syntax> stx) {
 }
 
 static std::unique_ptr<expression>
-analyse_transformer(context&, ptr<syntax>, module&);
+analyse_transformer(parsing_context&, ptr<syntax>);
 
 // Causes a garbage collection.
 static ptr<>
-eval_transformer(context& ctx, module& m, ptr<syntax> datum) {
-  simple_action a(ctx, datum, "Evaluating transformer");
-  auto proc = compile_syntax(ctx, analyse_transformer(ctx, datum, m), m);
-  return call_with_continuation_barrier(ctx, proc, {}).get();
+eval_transformer(parsing_context& pc, ptr<syntax> datum) {
+  simple_action a(pc.ctx, datum, "Evaluating transformer");
+  auto proc = compile_syntax(pc.ctx, analyse_transformer(pc, datum), pc.module);
+  return call_with_continuation_barrier(pc.ctx, proc, {}).get();
 }
 
 static std::unique_ptr<expression>
@@ -328,7 +329,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
         auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p)))));
         remove_use_site_scopes(name.get());
 
-        auto transformer_proc = eval_transformer(pc.ctx, pc.module, expect<syntax>(caddr(assume<pair>(p)))); // GC
+        auto transformer_proc = eval_transformer(pc, expect<syntax>(caddr(assume<pair>(p)))); // GC
         auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
         outside_scope->add(pc.ctx.store, name.get(), transformer);
 
@@ -551,7 +552,7 @@ parse_let_syntax(parsing_context& pc, ptr<syntax> stx) {
   for (definition_pair const& dp : definitions) {
     add_scope(pc.ctx.store, dp.id.get(), subscope.get());
 
-    auto transformer_proc = eval_transformer(pc.ctx, pc.module, dp.expression.get()); // GC
+    auto transformer_proc = eval_transformer(pc, dp.expression.get()); // GC
     auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
     subscope->add(pc.ctx.store, dp.id.get(), transformer);
   }
@@ -576,7 +577,7 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
     add_scope(pc.ctx.store, dp.id.get(), subscope.get());
 
     add_scope(pc.ctx.store, dp.expression.get(), subscope.get());
-    auto transformer_proc = eval_transformer(pc.ctx, pc.module, dp.expression.get()); // GC
+    auto transformer_proc = eval_transformer(pc, dp.expression.get()); // GC
     auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
     subscope->add(pc.ctx.store, dp.id.get(), transformer);
   }
@@ -1377,14 +1378,14 @@ analyse_internal(parsing_context& pc, ptr<syntax> stx) {
 }
 
 static std::unique_ptr<expression>
-analyse_transformer(context& ctx, ptr<syntax> transformer_stx, module& m) {
-  parsing_context pc{ctx, m, {}};
-  return analyse_internal(pc, transformer_stx);
+analyse_transformer(parsing_context& pc, ptr<syntax> transformer_stx) {
+  parsing_context transformer_pc{pc.ctx, pc.module, pc.origin, {}};
+  return analyse_internal(transformer_pc, transformer_stx);
 }
 
 std::unique_ptr<expression>
-analyse(context& ctx, ptr<syntax> stx, module& m) {
-  parsing_context pc{ctx, m, {}};
+analyse(context& ctx, ptr<syntax> stx, module& m, source_file_origin const& origin) {
+  parsing_context pc{ctx, m, origin, {}};
   add_scope(ctx.store, stx, m.scope());
   return analyse_internal(pc, stx);
 }
@@ -1418,15 +1419,16 @@ parse_module_name(context& ctx, ptr<syntax> stx) {
 }
 
 static void
-perform_begin_for_syntax(context& ctx, module& m, protomodule const& parent_pm, tracked_ptr<> const& body) {
-  simple_action a(ctx, "Analysing begin-for-syntax");
+perform_begin_for_syntax(parsing_context& pc, protomodule const& parent_pm, tracked_ptr<> const& body) {
+  simple_action a(pc.ctx, "Analysing begin-for-syntax");
 
-  remove_scope(body.get(), m.scope());
+  remove_scope(body.get(), pc.module.scope());
   protomodule pm{parent_pm.name, parent_pm.imports, {},
-                 from_scheme<std::vector<tracked_ptr<syntax>>>(ctx, syntax_to_list(ctx, body.get()))};
-  auto submodule = instantiate(ctx, pm);
-  execute(ctx, *submodule);
-  import_all_top_level(ctx, m, *submodule);
+                 from_scheme<std::vector<tracked_ptr<syntax>>>(pc.ctx, syntax_to_list(pc.ctx, body.get())),
+                 pc.origin};
+  auto submodule = instantiate(pc.ctx, pm);
+  execute(pc.ctx, *submodule);
+  import_all_top_level(pc.ctx, pc.module, *submodule);
 }
 
 // Gather syntax and top-level variable definitions, expand top-level macro
@@ -1460,7 +1462,7 @@ expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
           auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(p))));
           remove_use_site_scopes(name.get());
 
-          auto transformer_proc = eval_transformer(pc.ctx, m, expect<syntax>(caddr(p))); // GC
+          auto transformer_proc = eval_transformer(pc, expect<syntax>(caddr(p))); // GC
           auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
           m.scope()->add(pc.ctx.store, name.get(), transformer);
 
@@ -1481,7 +1483,7 @@ expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
           continue;
         }
         else if (form == pc.ctx.constants->begin_for_syntax.get()) {
-          perform_begin_for_syntax(pc.ctx, m, pm, track(pc.ctx, cdr(p)));
+          perform_begin_for_syntax(pc, pm, track(pc.ctx, cdr(p)));
           continue;
         }
       }
@@ -1555,8 +1557,9 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
 }
 
 protomodule
-read_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& contents) {
-  protomodule result;
+read_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& contents,
+                 source_file_origin const& origin) {
+  protomodule result{origin};
 
   auto stx = contents.begin();
   while (stx != contents.end()) {
@@ -1593,8 +1596,8 @@ process_library_export(context& ctx, protomodule& result, ptr<syntax> stx) {
 }
 
 static protomodule
-read_plain_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents) {
-  protomodule result;
+read_plain_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents, source_file_origin origin) {
+  protomodule result{std::move(origin)};
   auto current = contents.begin();
 
   assert(current != contents.end());
@@ -1767,7 +1770,7 @@ process_library_declaration(context& ctx, protomodule& result, source_file_origi
 
 static protomodule
 read_define_library(context& ctx, tracked_ptr<syntax> form, source_file_origin const& origin) {
-  protomodule result;
+  protomodule result{origin};
 
   assert(syntax_assume<symbol>(syntax_car(form.get()))->value() == "define-library");
   if (syntax_cdr(form.get()) == ctx.constants->null.get())
@@ -1787,9 +1790,9 @@ read_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents, sou
     throw error("Empty library body");
 
   if (is_directive(contents.front().get(), "library"))
-    return read_plain_library(ctx, contents);
+    return read_plain_library(ctx, contents, std::move(origin));
   else if (is_directive(contents.front().get(), "define-library"))
-    return read_define_library(ctx, contents.front(), origin);
+    return read_define_library(ctx, contents.front(), std::move(origin));
   else
     throw syntax_error{contents.front().get(), "Invalid library definition"};
 }
@@ -1811,7 +1814,7 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
 
 sequence_expression
 analyse_module(context& ctx, module& m, protomodule const& pm) {
-  parsing_context pc{ctx, m, {}};
+  parsing_context pc{ctx, m, pm.origin, {}};
   std::vector<tracked_ptr<syntax>> body = expand_top_level(pc, m, pm);
 
   sequence_expression result;

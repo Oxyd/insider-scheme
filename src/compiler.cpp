@@ -3,6 +3,8 @@
 #include "action.hpp"
 #include "analyser.hpp"
 #include "basic_types.hpp"
+#include "read.hpp"
+#include "source_code_provider.hpp"
 
 #include <fmt/format.h>
 
@@ -730,8 +732,8 @@ compile_sequence(context& ctx, procedure_context& proc, sequence_expression cons
 }
 
 ptr<procedure>
-compile_expression(context& ctx, ptr<syntax> datum, module& mod) {
-  return compile_syntax(ctx, analyse(ctx, datum, mod), mod);
+compile_expression(context& ctx, ptr<syntax> datum, module& mod, source_file_origin const& origin) {
+  return compile_syntax(ctx, analyse(ctx, datum, mod, origin), mod);
 }
 
 ptr<procedure>
@@ -746,13 +748,22 @@ compile_syntax(context& ctx, std::unique_ptr<expression> e, module& mod) {
 }
 
 module
-compile_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& data) {
+compile_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& data, source_file_origin const& origin) {
   simple_action a(ctx, "Analysing main module");
-  protomodule pm = read_main_module(ctx, data);
+  protomodule pm = read_main_module(ctx, data, origin);
   module result{ctx};
   perform_imports(ctx, result, pm);
   compile_module_body(ctx, result, pm);
   return result;
+}
+
+module
+compile_main_module(context& ctx, std::filesystem::path const& path) {
+  filesystem_source_code_provider provider{"."};
+  if (auto file = provider.find_file(ctx, path))
+    return compile_main_module(ctx, insider::read_syntax_multiple(ctx, file->port.get()), file->origin);
+  else
+    throw std::runtime_error{fmt::format("Can't open input file {}", path.string())};
 }
 
 void

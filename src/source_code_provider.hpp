@@ -69,6 +69,13 @@ private:
   std::unordered_map<std::filesystem::path, std::string, hash> files_;
 };
 
+// Doesn't provide anything.
+class null_source_code_provider : public source_code_provider {
+public:
+  std::optional<source_file>
+  find_file(context&, std::filesystem::path const&) override { return std::nullopt; }
+};
+
 std::filesystem::path
 module_name_to_path(module_name const&);
 
