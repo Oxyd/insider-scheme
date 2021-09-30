@@ -1,6 +1,6 @@
 #include "scheme_fixture.hpp"
 
-#include "converters.hpp"
+#include "define_procedure.hpp"
 #include "numeric.hpp"
 
 using namespace insider;
@@ -602,7 +602,4 @@ TEST_F(compiler, call_from_native) {
   auto f = expect<procedure>(eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"));
   ptr<> result = call_with_continuation_barrier(ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})}).get();
   EXPECT_EQ(expect<integer>(result).value(), 2 * 5 + 3 * 4);
-
-  scheme_procedure<int(int, int)> g{track(ctx, eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"))};
-  EXPECT_EQ(g(ctx, 5, 4), 2 * 5 + 3 * 4);
 }

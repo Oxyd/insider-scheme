@@ -1,7 +1,7 @@
 #include "scheme_fixture.hpp"
 
 #include "basic_types.hpp"
-#include "converters.hpp"
+#include "define_procedure.hpp"
 
 using namespace insider;
 

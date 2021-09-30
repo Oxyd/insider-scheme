@@ -1,7 +1,7 @@
 #include "internal_module.hpp"
 
 #include "analyser.hpp"
-#include "converters.hpp"
+#include "define_procedure.hpp"
 #include "port.hpp"
 #include "records.hpp"
 #include "vm.hpp"

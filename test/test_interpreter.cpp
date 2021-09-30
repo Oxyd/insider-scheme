@@ -1,6 +1,6 @@
 #include "scheme_fixture.hpp"
 
-#include "converters.hpp"
+#include "define_procedure.hpp"
 
 using namespace insider;
 

@@ -1,7 +1,9 @@
 #include "scheme_fixture.hpp"
 
-#include "converters.hpp"
+#include "define_procedure.hpp"
 #include "error.hpp"
+#include "from_scheme.hpp"
+#include "to_scheme.hpp"
 
 using namespace insider;
 
