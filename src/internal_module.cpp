@@ -26,39 +26,7 @@ make_internal_module(context& ctx) {
   export_vm(ctx, result);
   export_records(ctx, result);
   export_analyser(ctx, result);
-
-  define_procedure(
-    ctx, "write", result, true,
-    [] (context& ctx, ptr<> datum) {
-      write(ctx, datum, ctx.output_port.get());
-    }
-  );
-
-  define_procedure(
-    ctx, "write-simple", result, true,
-    [] (context& ctx, ptr<> datum) {
-      write_simple(ctx, datum, ctx.output_port.get());
-    }
-  );
-
-  define_procedure(
-    ctx, "write-shared", result, true,
-    [] (context& ctx, ptr<> datum) {
-      write_shared(ctx, datum, ctx.output_port.get());
-    }
-  );
-
-  define_procedure(
-    ctx, "display", result, true,
-    [] (context& ctx, ptr<> datum) {
-      display(ctx, datum, ctx.output_port.get());
-    }
-  );
-
-  define_procedure(
-    ctx, "newline", result, true,
-    [] (context& ctx) { ctx.output_port->write('\n'); }
-  );
+  export_write(ctx, result);
 
   define_raw_procedure(ctx, "append", result, true, append);
   define_procedure(ctx, "list->vector", result, true, list_to_vector);

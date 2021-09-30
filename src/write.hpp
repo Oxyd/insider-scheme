@@ -10,6 +10,7 @@
 namespace insider {
 
 class context;
+class module;
 class source_location;
 class syntax;
 class textual_output_port;
@@ -36,6 +37,9 @@ display(context& ctx, ptr<>, ptr<textual_output_port>);
 
 std::string
 datum_to_string(context& ctx, ptr<>);
+
+void
+export_write(context&, module&);
 
 } // namespace game::csm
 

@@ -3,6 +3,7 @@
 #include "basic_types.hpp"
 #include "compare.hpp"
 #include "context.hpp"
+#include "converters.hpp"
 #include "numeric.hpp"
 #include "port.hpp"
 #include "source_location.hpp"
@@ -302,6 +303,42 @@ datum_to_string(context& ctx, ptr<> datum) {
   auto p = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
   write_simple(ctx, datum, p);
   return p->get_string();
+}
+
+void
+export_write(context& ctx, module& result) {
+  define_procedure(
+    ctx, "write", result, true,
+    [] (context& ctx, ptr<> datum) {
+      write(ctx, datum, ctx.output_port.get());
+    }
+  );
+
+  define_procedure(
+    ctx, "write-simple", result, true,
+    [] (context& ctx, ptr<> datum) {
+      write_simple(ctx, datum, ctx.output_port.get());
+    }
+  );
+
+  define_procedure(
+    ctx, "write-shared", result, true,
+    [] (context& ctx, ptr<> datum) {
+      write_shared(ctx, datum, ctx.output_port.get());
+    }
+  );
+
+  define_procedure(
+    ctx, "display", result, true,
+    [] (context& ctx, ptr<> datum) {
+      display(ctx, datum, ctx.output_port.get());
+    }
+  );
+
+  define_procedure(
+    ctx, "newline", result, true,
+    [] (context& ctx) { ctx.output_port->write('\n'); }
+  );
 }
 
 } // namespace insider
