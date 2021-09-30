@@ -71,6 +71,22 @@ create_parameter_tag(context& ctx, ptr<> initial_value);
 ptr<>
 find_parameter_value(context&, ptr<parameter_tag>);
 
+class parameterize {
+public:
+  parameterize(context&, ptr<parameter_tag>, ptr<> value);
+  parameterize(parameterize const&) = delete;
+  ~parameterize();
+
+  void
+  operator = (parameterize const&) = delete;
+
+private:
+  context&                   ctx_;
+  tracked_ptr<stack_frame>   frame_;
+  tracked_ptr<parameter_tag> tag_;
+  tracked_ptr<>              original_value_;
+};
+
 // Pop the current call frame (which must be a native procedure frame), and
 // replace it with a call frame for the given procedure. This is used to
 // implement native procedures tail-calling other procedures.

@@ -129,12 +129,18 @@ clear_native_continuations(ptr<stack_frame> frame) {
     e->native_continuations.clear();
 }
 
+static bool
+is_dummy_frame(ptr<stack_frame> f) {
+  return !f->callable;
+}
+
 static ptr<stack_frame>
 make_tail_call(stack_cache& stack, ptr<stack_frame> new_frame) {
   assert(object_generation(new_frame) == generation::stack);
   assert(new_frame->parent);
 
   ptr<stack_frame> parent = new_frame->parent;
+  assert(!is_dummy_frame(parent));
   clear_native_continuations(parent);
 
   if (object_generation(new_frame->parent) == generation::stack) {
@@ -545,7 +551,7 @@ resume_native_call(execution_state& state, ptr<> scheme_result);
 
 static bool
 is_native_frame(ptr<stack_frame> f) {
-  return is<native_procedure>(f->callable);
+  return is_dummy_frame(f) || is<native_procedure>(f->callable);
 }
 
 static ptr<>
@@ -1348,6 +1354,44 @@ add_parameter_value(context& ctx, ptr<stack_frame> frame, ptr<parameter_tag> tag
   assert(!extra->parameter_tag);
   extra->parameter_tag = tag;
   extra->parameter_value = value;
+}
+
+static ptr<stack_frame>
+push_dummy_frame(context& ctx) {
+  auto new_frame = ctx.store.stack().make(0, {}, ctx.current_execution->current_frame());
+  ctx.current_execution->set_current_frame(new_frame);
+  return new_frame;
+}
+
+static tracked_ptr<stack_frame>
+create_parameterization_frame(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
+  auto frame = push_dummy_frame(ctx);
+  add_parameter_value(ctx, frame, tag, value);
+  return track(ctx, frame);
+}
+
+parameterize::parameterize(context& ctx, ptr<parameter_tag> tag, ptr<> new_value)
+  : ctx_{ctx}
+{
+  if (ctx.current_execution)
+    frame_ = create_parameterization_frame(ctx, tag, new_value);
+  else {
+    tag_ = track(ctx, tag);
+    ptr<>& value = ctx.parameters->find_value(tag);
+    original_value_ = track(ctx, value);
+    value = new_value;
+  }
+}
+
+parameterize::~parameterize() {
+  if (frame_) {
+    assert(ctx_.current_execution);
+    assert(ctx_.current_execution->current_frame() == frame_.get());
+    ctx_.current_execution->set_current_frame_to_parent();
+  } else {
+    assert(!ctx_.current_execution);
+    ctx_.parameters->find_value(tag_.get()) = original_value_.get();
+  }
 }
 
 static tracked_ptr<tail_call_tag_type>
