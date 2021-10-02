@@ -89,8 +89,8 @@ TEST_F(io, read_symbol) {
   EXPECT_EQ(read("..."), ctx.intern("..."));
   EXPECT_EQ(read(".!"), ctx.intern(".!"));
   EXPECT_EQ(read(".dot"), ctx.intern(".dot"));
-  EXPECT_EQ(read(u8"bác"), ctx.intern(u8"bác"));
-  EXPECT_EQ(read(u8"žbluňk"), ctx.intern(u8"žbluňk"));
+  EXPECT_EQ(read("bác"), ctx.intern("bác"));
+  EXPECT_EQ(read("žbluňk"), ctx.intern("žbluňk"));
 
   ptr<> l = read("(one two three)");
   ASSERT_TRUE(is_list(l));
@@ -105,7 +105,7 @@ TEST_F(io, read_verbatim_symbol) {
   EXPECT_EQ(read("|foo bar|"), ctx.intern("foo bar"));
   EXPECT_EQ(read(R"(|foo\x20;bar|)"), ctx.intern("foo bar"));
   EXPECT_EQ(read(R"(|H\x65;llo|)"), ctx.intern("Hello"));
-  EXPECT_EQ(read(R"(|\x3BB;|)"), ctx.intern(u8"λ"));
+  EXPECT_EQ(read(R"(|\x3BB;|)"), ctx.intern("λ"));
   EXPECT_EQ(read(R"(|\t\t|)"), read(R"(|\x9;\x9;|)"));
   EXPECT_EQ(read(R"(||)"), ctx.intern(""));
 }
@@ -123,7 +123,7 @@ TEST_F(io, read_char) {
   EXPECT_EQ(expect<char32_t>(read(R"(#\x6D)")), 'm');
   EXPECT_EQ(expect<char32_t>(read(R"(#\x4d)")), 'M');
   EXPECT_EQ(expect<char32_t>(read(R"(#\x)")), 'x');
-  EXPECT_EQ(expect<char32_t>(read(u8R"(#\ž)")), U'ž');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\ž)")), U'ž');
   EXPECT_EQ(expect<char32_t>(read(R"(#\x17e)")), U'ž');
 }
 
@@ -143,8 +143,8 @@ TEST_F(io, read_string) {
   char const* msvc_workaround5 = R"("\")";
   EXPECT_THROW(read(msvc_workaround5), read_error);
 
-  char const* msvc_workaround6 = u8R"("příšerně žluťoučký kůň úpěl ďábelské ódy")";
-  EXPECT_EQ(expect<string>(read(msvc_workaround6))->value(), u8"příšerně žluťoučký kůň úpěl ďábelské ódy");
+  char const* msvc_workaround6 = R"("příšerně žluťoučký kůň úpěl ďábelské ódy")";
+  EXPECT_EQ(expect<string>(read(msvc_workaround6))->value(), "příšerně žluťoučký kůň úpěl ďábelské ódy");
 
   char const* msvc_workaround7 = R"("foo\x20;bar")";
   EXPECT_EQ(expect<string>(read(msvc_workaround7))->value(), "foo bar");

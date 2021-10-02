@@ -56,14 +56,14 @@ TEST_F(port_fixture, read_sequence_of_characters) {
 }
 
 TEST_F(port_fixture, read_non_ascii_character) {
-  auto p = make_string_input_port(u8"á");
+  auto p = make_string_input_port("á");
   EXPECT_EQ(p->peek_character(), U'á');
   EXPECT_EQ(p->read_character(), U'á');
   EXPECT_FALSE(p->peek_character());
 }
 
 TEST_F(port_fixture, read_sequence_of_non_ascii_characters) {
-  auto p = make_string_input_port(u8"příšerně žluťoučký kůň");
+  auto p = make_string_input_port("příšerně žluťoučký kůň");
   EXPECT_EQ(p->read_character(), U'p');
   EXPECT_EQ(p->read_character(), U'ř');
   EXPECT_EQ(p->read_character(), U'í');
@@ -128,7 +128,7 @@ TEST_F(port_fixture, write_character) {
 TEST_F(port_fixture, write_non_ascii_character) {
   auto p = make_string_output_port();
   p->write(U'á');
-  EXPECT_EQ(p->get_string(), u8"á");
+  EXPECT_EQ(p->get_string(), "á");
 }
 
 TEST_F(port_fixture, write_sequence_of_characters) {
@@ -136,7 +136,7 @@ TEST_F(port_fixture, write_sequence_of_characters) {
   p->write(U'a');
   p->write(U'á');
   p->write(U'a');
-  EXPECT_EQ(p->get_string(), u8"aáa");
+  EXPECT_EQ(p->get_string(), "aáa");
 }
 
 TEST_F(port_fixture, fresh_output_port_is_open) {
