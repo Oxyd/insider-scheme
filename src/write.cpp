@@ -317,6 +317,7 @@ get_default_port(context& ctx) {
 
 void
 export_write(context& ctx, module& result) {
+  define_top_level(ctx, "current-output-port-tag", result, true, ctx.constants->current_output_port_tag.get());
   define_procedure(ctx, "write", result, true, write, get_default_port);
   define_procedure(ctx, "write-simple", result, true, write_simple, get_default_port);
   define_procedure(ctx, "write-shared", result, true, write_shared, get_default_port);

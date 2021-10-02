@@ -4,7 +4,8 @@
         (only (insider internal) capture-stack replace-stack!
               create-parameter-tag  find-parameter-value set-parameter-value! call-parameterized
               apply values call-with-values))
-(export call-with-current-continuation call/cc make-parameter parameterize apply values call-with-values)
+(export call-with-current-continuation call/cc make-parameter
+        make-parameter-from-tag parameterize apply values call-with-values)
 
 (define (call-with-current-continuation f)
   (capture-stack
@@ -14,23 +15,29 @@
 
 (define call/cc call-with-current-continuation)
 
+(define (make-parameter-from-tag tag . args)
+  (let ((converter (if (null? args)
+                       (lambda (x) x)
+                       (car args))))
+    (lambda args
+      (cond ((null? args)
+             (find-parameter-value tag))
+            ((eq? (car args) 'get-tag)
+             tag)
+            ((eq? (car args) 'get-converter)
+             converter)
+            ((eq? (car args) 'set-value)
+             (let ((value (cadr args)))
+               (set-parameter-value! tag (converter value))))
+            (else
+             (error "Invalid parameter procedure call"))))))
+
 (define (make-parameter init . args)
   (let ((converter (if (null? args)
                        (lambda (x) x)
                        (car args))))
     (let ((tag (create-parameter-tag (converter init))))
-      (lambda args
-        (cond ((null? args)
-               (find-parameter-value tag))
-              ((eq? (car args) 'get-tag)
-               tag)
-              ((eq? (car args) 'get-converter)
-               converter)
-              ((eq? (car args) 'set-value)
-               (let ((value (cadr args)))
-                 (set-parameter-value! tag (converter value))))
-              (else
-               (error "Invalid parameter procedure call")))))))
+      (make-parameter-from-tag tag converter))))
 
 (define-syntax do-call-parameterized
   (syntax-rules ()

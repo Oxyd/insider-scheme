@@ -47,6 +47,9 @@ context::context()
   constants->tail_call_tag = make_tracked<tail_call_tag_type>(*this);
 
   parameters = make_tracked<parameter_map>(*this);
+
+  init_write(*this);
+
   internal_module = make_internal_module(*this);
 
   struct {
@@ -99,8 +102,6 @@ context::context()
                     make_list(*this,
                               intern("r7rs"),
                               intern("full-unicode")));
-
-  init_write(*this);
 }
 
 context::~context() {
