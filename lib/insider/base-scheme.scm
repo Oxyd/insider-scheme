@@ -9,7 +9,9 @@
         quote quasiquote unquote unquote-splicing syntax-trap syntax-error error
         + - * / = < > >= <= gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
         set-verbose-collection!
-        write write-simple write-shared display newline append list->vector vector->list vector-append
+        write write-simple write-shared display newline
+        open-output-file close close-input-port close-output-port
+        append list->vector vector->list vector-append
         vector vector? make-vector vector-length vector-ref vector-set!
         cons car caar caadr cdr cadr cdar caddr cadddr cddr cdddr cddddr set-car! set-cdr!
         assq assv assoc memq memv member length any all

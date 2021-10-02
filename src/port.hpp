@@ -11,6 +11,8 @@
 
 namespace insider {
 
+class module;
+
 class port_source {
 public:
   virtual
@@ -225,6 +227,9 @@ public:
 private:
   PortPtr ptr_;
 };
+
+void
+export_port(context&, module&);
 
 } // namespace insider
 

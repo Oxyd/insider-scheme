@@ -81,6 +81,7 @@ public:
       begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing,
       syntax, quasisyntax, unsyntax, unsyntax_splicing, syntax_trap, syntax_error,
       let_syntax, letrec_syntax;
+    tracked_ptr<parameter_tag> current_output_port_tag;
   };
 
   struct statics_list {
@@ -96,7 +97,6 @@ public:
   free_store                       store;
   std::unique_ptr<constants>       constants;
   statics_list                     statics;
-  tracked_ptr<textual_output_port> output_port;
   module                           internal_module; // (insider internal)
   std::string                      error_backtrace; // Built from actions during stack unwinding.
   bytecode                         program;

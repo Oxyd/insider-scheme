@@ -1647,7 +1647,7 @@ static void
 perform_library_include(context& ctx, protomodule& result, source_file_origin const& origin,
                         source_location const& loc, std::string const& name) {
   if (auto source = find_source_relative(ctx, origin, name)) {
-    auto body = Reader(ctx, source->port.get());
+    auto body = Reader(ctx, source->port.get().get());
     result.body.reserve(result.body.size() + body.size());
     std::copy(body.begin(), body.end(), std::back_inserter(result.body));
   } else
@@ -1671,7 +1671,7 @@ process_include_library_declarations(context& ctx, protomodule& result,
   for (ptr<syntax> filename_stx : in_syntax_list{syntax_cdr(stx), stx}) {
     std::string filename = syntax_expect<string>(filename_stx)->value();
     if (auto source = find_source_relative(ctx, origin, filename)) {
-      auto contents = read_syntax_multiple(ctx, source->port.get());
+      auto contents = read_syntax_multiple(ctx, source->port.get().get());
       for (tracked_ptr<syntax> const& s : contents)
         process_library_declaration(ctx, result, source->origin, s.get());
     }

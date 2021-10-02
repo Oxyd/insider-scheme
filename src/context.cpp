@@ -95,12 +95,12 @@ context::context()
   statics.zero = intern_static(tracked_ptr<>{store, integer_to_ptr(0)});
   statics.one = intern_static(tracked_ptr<>{store, integer_to_ptr(1)});
 
-  output_port = make_tracked<textual_output_port>(*this, std::make_unique<file_port_sink>(stdout, false));
-
   features_ = track(*this,
                     make_list(*this,
                               intern("r7rs"),
                               intern("full-unicode")));
+
+  init_write(*this);
 }
 
 context::~context() {
@@ -194,7 +194,7 @@ find_module_in_provider(context& ctx, source_code_provider& provider, module_nam
                                                   path.replace_extension(".scm")};
   for (auto const& candidate : candidates)
     if (auto source = provider.find_file(ctx, candidate))
-      if (read_library_name(ctx, *source->port) == name) {
+      if (read_library_name(ctx, source->port.get().get()) == name) {
         source->port->rewind();
         return source;
       }
@@ -216,7 +216,7 @@ find_protomodule(context& ctx, module_name const& name,
                  std::vector<std::unique_ptr<source_code_provider>> const& providers) {
   for (std::unique_ptr<source_code_provider> const& provider : providers)
     if (auto source = find_module_in_provider(ctx, *provider, name))
-      return read_library(ctx, read_syntax_multiple(ctx, *source->port), source->origin);
+      return read_library(ctx, read_syntax_multiple(ctx, source->port.get().get()), source->origin);
 
   throw std::runtime_error{fmt::format("Unknown module {}", module_name_to_string(name))};
 }

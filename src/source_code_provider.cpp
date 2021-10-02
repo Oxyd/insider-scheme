@@ -1,5 +1,6 @@
 #include "source_code_provider.hpp"
 
+#include "context.hpp"
 #include "port.hpp"
 
 namespace insider {
@@ -7,7 +8,7 @@ namespace insider {
 std::optional<source_file>
 filesystem_source_code_provider::find_file(context& ctx, std::filesystem::path const& path) {
   if (auto port = open_file_for_text_input(ctx, root_ / path))
-    return source_file{unique_port_handle{port}, {this, path}};
+    return source_file{unique_port_handle{track(ctx, port)}, {this, path}};
   else
     return std::nullopt;
 }
@@ -20,7 +21,7 @@ virtual_filesystem_source_code_provider::add(std::filesystem::path const& path, 
 std::optional<source_file>
 virtual_filesystem_source_code_provider::find_file(context& ctx, std::filesystem::path const& path) {
   if (auto f = files_.find(path.lexically_normal()); f != files_.end())
-    return source_file{unique_port_handle{make_string_input_port(ctx, f->second)},
+    return source_file{unique_port_handle{track(ctx, make_string_input_port(ctx, f->second))},
                        {this, path}};
   else
     return std::nullopt;

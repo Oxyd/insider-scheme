@@ -17,7 +17,7 @@ class context;
 class syntax;
 
 struct source_file {
-  unique_port_handle<ptr<textual_input_port>> port;
+  unique_port_handle<tracked_ptr<textual_input_port>> port;
   source_file_origin origin;
 };
 

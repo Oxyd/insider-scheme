@@ -305,40 +305,29 @@ datum_to_string(context& ctx, ptr<> datum) {
   return p->get_string();
 }
 
+static void
+newline(ptr<textual_output_port> out) {
+  out->write(U'\n');
+}
+
+static ptr<textual_output_port>
+get_default_port(context& ctx) {
+  return expect<textual_output_port>(find_parameter_value(ctx, ctx.constants->current_output_port_tag.get()));
+}
+
 void
 export_write(context& ctx, module& result) {
-  define_procedure(
-    ctx, "write", result, true,
-    [] (context& ctx, ptr<> datum) {
-      write(ctx, datum, ctx.output_port.get());
-    }
-  );
+  define_procedure(ctx, "write", result, true, write, get_default_port);
+  define_procedure(ctx, "write-simple", result, true, write_simple, get_default_port);
+  define_procedure(ctx, "write-shared", result, true, write_shared, get_default_port);
+  define_procedure(ctx, "display", result, true, display, get_default_port);
+  define_procedure(ctx, "newline", result, true, newline, get_default_port);
+}
 
-  define_procedure(
-    ctx, "write-simple", result, true,
-    [] (context& ctx, ptr<> datum) {
-      write_simple(ctx, datum, ctx.output_port.get());
-    }
-  );
-
-  define_procedure(
-    ctx, "write-shared", result, true,
-    [] (context& ctx, ptr<> datum) {
-      write_shared(ctx, datum, ctx.output_port.get());
-    }
-  );
-
-  define_procedure(
-    ctx, "display", result, true,
-    [] (context& ctx, ptr<> datum) {
-      display(ctx, datum, ctx.output_port.get());
-    }
-  );
-
-  define_procedure(
-    ctx, "newline", result, true,
-    [] (context& ctx) { ctx.output_port->write('\n'); }
-  );
+void
+init_write(context& ctx) {
+  auto default_output_port = make_tracked<textual_output_port>(ctx, std::make_unique<file_port_sink>(stdout, false));
+  ctx.constants->current_output_port_tag = track(ctx, create_parameter_tag(ctx, default_output_port.get()));
 }
 
 } // namespace insider

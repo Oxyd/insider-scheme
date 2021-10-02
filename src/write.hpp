@@ -41,6 +41,9 @@ datum_to_string(context& ctx, ptr<>);
 void
 export_write(context&, module&);
 
+void
+init_write(context&);
+
 } // namespace game::csm
 
 #endif

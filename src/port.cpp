@@ -1,6 +1,7 @@
 #include "port.hpp"
 
 #include "context.hpp"
+#include "define_procedure.hpp"
 
 #include <fmt/format.h>
 
@@ -223,6 +224,32 @@ textual_output_port::write(std::string const& s) {
   if (sink_)
     for (char c : s)
       sink_->write(c);
+}
+
+static ptr<textual_output_port>
+open_output_file(context& ctx, std::string const& path) {
+  if (std::FILE* f = std::fopen(path.c_str(), "w"))
+    return make<textual_output_port>(ctx, std::make_unique<file_port_sink>(f));
+  else
+    throw std::runtime_error{fmt::format("Can't open {} for writing: {}", path, strerror(errno))};
+}
+
+static void
+close(ptr<> port) {
+  if (auto tip = match<textual_input_port>(port))
+    tip->close();
+  else if (auto top = match<textual_output_port>(port))
+    top->close();
+  else
+    throw std::runtime_error{"Expected a port"};
+}
+
+void
+export_port(context& ctx, module& result) {
+  define_procedure(ctx, "open-output-file", result, true, open_output_file);
+  define_procedure(ctx, "close", result, true, close);
+  define_procedure(ctx, "close-output-port", result, true, close);
+  define_procedure(ctx, "close-input-port", result, true, close);
 }
 
 } // namespace insider

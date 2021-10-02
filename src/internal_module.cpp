@@ -27,6 +27,7 @@ make_internal_module(context& ctx) {
   export_records(ctx, result);
   export_analyser(ctx, result);
   export_write(ctx, result);
+  export_port(ctx, result);
 
   define_raw_procedure(ctx, "append", result, true, append);
   define_procedure(ctx, "list->vector", result, true, list_to_vector);

@@ -761,7 +761,7 @@ module
 compile_main_module(context& ctx, std::filesystem::path const& path) {
   filesystem_source_code_provider provider{"."};
   if (auto file = provider.find_file(ctx, path))
-    return compile_main_module(ctx, insider::read_syntax_multiple(ctx, file->port.get()), file->origin);
+    return compile_main_module(ctx, insider::read_syntax_multiple(ctx, file->port.get().get()), file->origin);
   else
     throw std::runtime_error{fmt::format("Can't open input file {}", path.string())};
 }
