@@ -43,7 +43,7 @@ public:
     if (semisyntax_is<pair>(x))
       current_ = semisyntax_assume<pair>(x);
     else if (!is<null_type>(x))
-      throw syntax_error{location_, "Expected list"};
+      throw make_syntax_error(location_, "Expected list");
   }
 
   reference
@@ -63,7 +63,7 @@ public:
     else if (is<null_type>(next))
       current_ = {};
     else
-      throw syntax_error{location_, "Expected list"};
+      throw make_syntax_error(location_, "Expected list");
 
     return *this;
   }

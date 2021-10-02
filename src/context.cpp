@@ -172,7 +172,7 @@ context::get_top_level_name(operand i) const {
   if (i < top_level_binding_names_.size())
     return top_level_binding_names_[i];
   else
-    throw error{"Invalid global operand {}", i};
+    throw make_error("Invalid global operand {}", i);
 }
 
 void

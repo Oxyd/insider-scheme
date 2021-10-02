@@ -79,13 +79,13 @@ make_internal_module(context& ctx) {
     ctx, "make-string", result, true,
     [] (context& ctx, object_span args) {
       if (args.size() < 1)
-        throw error{"make-string: Expected at least 1 argument"};
+        throw std::runtime_error{"make-string: Expected at least 1 argument"};
       if (args.size() > 2)
-        throw error{"make-string: Expected at most 2 arguments"};
+        throw std::runtime_error{"make-string: Expected at most 2 arguments"};
 
       integer::value_type length = expect<integer>(args[0]).value();
       if (length < 0)
-        throw error{"make-string: Length cannot be negative"};
+        throw std::runtime_error{"make-string: Length cannot be negative"};
 
       auto result = make<string>(ctx, length);
 
@@ -118,7 +118,7 @@ make_internal_module(context& ctx) {
     ctx, "number->string", result, true,
     [] (context& ctx, ptr<> num) {
       if (!is_number(num))
-        throw error{"Not a number: {}", datum_to_string(ctx, num)};
+        throw make_error("Not a number: {}", datum_to_string(ctx, num));
       return datum_to_string(ctx, num);
     }
   );
@@ -141,13 +141,13 @@ make_internal_module(context& ctx) {
   define_raw_procedure(ctx, "error", result, true,
                        [] (context& ctx, object_span args) -> ptr<> {
                          if (args.size() < 1)
-                           throw error{"Expected at least 1 argument"};
+                           throw std::runtime_error("Expected at least 1 argument");
 
                          std::string msg = expect<string>(args[0])->value();
                          for (std::size_t i = 1; i < args.size(); ++i)
                            msg += " " + datum_to_string(ctx, args[i]);
 
-                         throw error{msg};
+                         throw std::runtime_error{msg};
                        });
 
   define_procedure(
@@ -179,7 +179,7 @@ make_internal_module(context& ctx) {
   define_procedure(ctx, "free-identifier=?", result, true,
                    [] (ptr<syntax> x, ptr<syntax> y) {
                      if (!is_identifier(x) || !is_identifier(y))
-                       throw error{"Expected two identifiers"};
+                       throw std::runtime_error{"Expected two identifiers"};
 
                      auto x_binding = lookup(x);
                      auto y_binding = lookup(y);
@@ -195,7 +195,7 @@ make_internal_module(context& ctx) {
   define_procedure(ctx, "bound-identifier=?", result, true,
                    [] (ptr<syntax> x, ptr<syntax> y) {
                      if (!is_identifier(x) || !is_identifier(y))
-                       throw error{"Expected two identifiers"};
+                       throw std::runtime_error{"Expected two identifiers"};
 
                      if (x->expression() != y->expression())
                        return false;

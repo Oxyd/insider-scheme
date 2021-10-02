@@ -116,10 +116,10 @@ throw_if_wrong_number_of_args(ptr<> callable, std::size_t num_args) {
   else {
     auto proc = assume<procedure>(callable);
     if (num_args < proc->min_args || (!proc->has_rest && num_args > proc->min_args))
-      throw error{"{}: Wrong number of arguments, expected {}{}, got {}",
-                  proc->name ? *proc->name : "<lambda>",
-                  proc->has_rest ? "at least " : "",
-                  proc->min_args, num_args};
+      throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
+                       proc->name ? *proc->name : "<lambda>",
+                       proc->has_rest ? "at least " : "",
+                       proc->min_args, num_args);
   }
 }
 
@@ -619,7 +619,7 @@ call(opcode opcode, instruction_state& istate) {
     assert(!closure);
     return do_native_call(native_proc, istate, is_tail(opcode));
   } else
-    throw error{"Application: Not a procedure: {}", datum_to_string(istate.context(), call_target)};
+    throw make_error("Application: Not a procedure: {}", datum_to_string(istate.context(), call_target));
 }
 
 static ptr<>

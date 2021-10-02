@@ -16,7 +16,7 @@ namespace detail {
       if (is<T>(x))
         return ptr_cast<T>(x);
       else
-        throw !message.empty() ? error{message} : make_type_error<T>(x);
+        throw !message.empty() ? std::runtime_error{std::string(message)} : make_type_error<T>(x);
     }
 
     static tracked_ptr<T>
@@ -32,7 +32,7 @@ namespace detail {
       if (is<ImmediateT>(x))
         return Converter(x);
       else
-        throw !message.empty() ? error{message} : make_type_error<ImmediateT>(x);
+        throw !message.empty() ? std::runtime_error{std::string(message)} : make_type_error<ImmediateT>(x);
     }
 
     static ImmediateT

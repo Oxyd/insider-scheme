@@ -171,18 +171,17 @@ private:
   insider::ptr<> callable_;
 };
 
-class syntax_error : public error {
-public:
-  template <typename... Args>
-  syntax_error(ptr<syntax> stx, std::string_view fmt, Args&&... args)
-    : error{"{}: {}", format_location(stx->location()), fmt::format(fmt, std::forward<Args>(args)...)}
-  { }
+template <typename... Args>
+std::runtime_error
+make_syntax_error(ptr<syntax> stx, std::string_view fmt, Args&&... args) {
+  return make_error("{}: {}", format_location(stx->location()), fmt::format(fmt, std::forward<Args>(args)...));
+}
 
-  template <typename... Args>
-  syntax_error(source_location const& loc, std::string_view fmt, Args&&... args)
-    : error{"{}: {}", format_location(loc), fmt::format(fmt, std::forward<Args>(args)...)}
-  { }
-};
+template <typename... Args>
+std::runtime_error
+make_syntax_error(source_location const& loc, std::string_view fmt, Args&&... args) {
+  return make_error("{}: {}", format_location(loc), fmt::format(fmt, std::forward<Args>(args)...));
+}
 
 } // namespace insider
 

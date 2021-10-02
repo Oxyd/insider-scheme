@@ -536,13 +536,13 @@ TEST_F(compiler, quasiquote) {
 }
 
 TEST_F(compiler, unbound_vars) {
-  EXPECT_THROW(eval("foo"), error);
-  EXPECT_THROW(eval_module("foo"), error);
+  EXPECT_THROW(eval("foo"), std::runtime_error);
+  EXPECT_THROW(eval_module("foo"), std::runtime_error);
   EXPECT_THROW(eval_module(R"((import (insider internal))
                               (define-syntax foo (lambda (stx) #'bar))
                               (foo))"),
-               error);
-  EXPECT_THROW(eval("(let-syntax ((foo (lambda (stx) #'bar))) (foo))"), error);
+               std::runtime_error);
+  EXPECT_THROW(eval("(let-syntax ((foo (lambda (stx) #'bar))) (foo))"), std::runtime_error);
 }
 
 static bool

@@ -1144,13 +1144,13 @@ bitwise_two(ptr<> lhs, ptr<> rhs) {
     integer::value_type value = Small(x, y);
 
     if (overflow(value))
-      throw error{"Overflow in arithmetic-shift"};
+      throw std::runtime_error("Overflow in arithmetic-shift");
 
     return integer_to_ptr(integer{value});
   }
 
   default:
-    throw error{"Only fixnums are supported"};
+    throw std::runtime_error("Only fixnums are supported");
   }
 
   assert(false);
@@ -1195,7 +1195,7 @@ bitwise_not(context&, ptr<> x) {
   if (auto value = match<integer>(x))
     return integer_to_ptr(integer{~value->value()});
   else
-    throw error{"Only fixnums are supported"};
+    throw std::runtime_error{"Only fixnums are supported"};
 }
 
 using primitive_relational_type = ptr<boolean>(context&, ptr<>, ptr<>);

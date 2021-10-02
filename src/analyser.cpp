@@ -93,7 +93,7 @@ lookup_variable(parsing_context& pc, ptr<syntax> id) {
       if (is_in_scope(pc, *var))
         return *var;
       else
-        throw syntax_error{id, "{}: Not in scope", identifier_name(id)};
+        throw make_syntax_error(id, "{}: Not in scope", identifier_name(id));
     } else
       return {};
   }
@@ -114,7 +114,7 @@ lookup_core(parsing_context& pc, ptr<syntax> id) {
 static ptr<syntax>
 expect_id(context& ctx, ptr<syntax> x) {
   if (!is_identifier(x))
-    throw syntax_error{x, "Expected identifier, got {}", syntax_to_string(ctx, x)};
+    throw make_syntax_error(x, "Expected identifier, got {}", syntax_to_string(ctx, x));
 
   return x;
 }
@@ -307,7 +307,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
 
   ptr<> list = syntax_to_list(pc.ctx, data);
   if (!list)
-    throw syntax_error{loc, "Expected list of expressions"};
+    throw make_syntax_error(loc, "Expected list of expressions");
 
   std::vector<tracked_ptr<syntax>> stack;
   for (ptr<> e : in_list{list})
@@ -324,7 +324,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
 
       if (form == pc.ctx.constants->define_syntax.get()) {
         if (seen_expression)
-          throw syntax_error(expr.get(), "define-syntax after a nondefinition");
+          throw make_syntax_error(expr.get(), "define-syntax after a nondefinition");
 
         auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p)))));
         remove_use_site_scopes(name.get());
@@ -337,7 +337,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
       }
       else if (form == pc.ctx.constants->define.get()) {
         if (seen_expression)
-          throw syntax_error(expr.get(), "define after a nondefinition");
+          throw make_syntax_error(expr.get(), "define after a nondefinition");
 
         auto id = expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p))));
         remove_use_site_scopes(id);
@@ -365,9 +365,9 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
 
   if (!seen_expression) {
     if (!result.forms.empty())
-      throw syntax_error(loc, "No expression after a sequence of internal definitions");
+      throw make_syntax_error(loc, "No expression after a sequence of internal definitions");
     else
-      throw syntax_error(loc, "Empty body");
+      throw make_syntax_error(loc, "Empty body");
   }
 
   return result;
@@ -437,12 +437,12 @@ parse_definition_pair(parsing_context& pc, ptr<syntax> stx, std::string_view for
 
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (!datum || datum == pc.ctx.constants->null.get())
-    throw syntax_error{stx, "Invalid {} syntax: Expected a list, got {}", form_name, syntax_to_string(pc.ctx, stx)};
+    throw make_syntax_error(stx, "Invalid {} syntax: Expected a list, got {}", form_name, syntax_to_string(pc.ctx, stx));
 
   auto id = expect_id(pc.ctx, expect<syntax>(car(assume<pair>(datum))));
 
   if (cdr(assume<pair>(datum)) == pc.ctx.constants->null.get())
-    throw syntax_error(stx, "Invalid {} syntax: No expression for {}", form_name, identifier_name(id));
+    throw make_syntax_error(stx, "Invalid {} syntax: No expression for {}", form_name, identifier_name(id));
 
   return {track(pc.ctx, id), track(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))))};
 }
@@ -452,18 +452,18 @@ parse_let_common(parsing_context& pc, ptr<syntax> stx, std::string_view form_nam
   source_location loc = stx->location();
   tracked_ptr<> datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
   if (!datum || list_length(datum.get()) < 3)
-    throw syntax_error(stx, "Invalid {} syntax", form_name);
+    throw make_syntax_error(stx, "Invalid {} syntax", form_name);
 
   ptr<syntax> bindings_stx = expect<syntax>(cadr(assume<pair>(datum.get())));
   ptr<> bindings = syntax_to_list(pc.ctx, bindings_stx);
   if (!bindings)
-    throw syntax_error(bindings_stx, "Invalid {} syntax in binding definitions", form_name);
+    throw make_syntax_error(bindings_stx, "Invalid {} syntax in binding definitions", form_name);
 
   std::vector<definition_pair> definitions;
   while (bindings != pc.ctx.constants->null.get()) {
     auto binding = expect<syntax>(car(assume<pair>(bindings)));
     if (!syntax_is<pair>(binding))
-      throw syntax_error(binding, "Invalid {} syntax in binding definitions", form_name);
+      throw make_syntax_error(binding, "Invalid {} syntax in binding definitions", form_name);
 
     definitions.push_back(parse_definition_pair(pc, binding, form_name));
     bindings = cdr(assume<pair>(bindings));
@@ -594,7 +594,7 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
 
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (!datum || cdr(assume<pair>(datum)) == pc.ctx.constants->null.get())
-    throw syntax_error(stx, "Invalid lambda syntax");
+    throw make_syntax_error(stx, "Invalid lambda syntax");
 
   ptr<syntax> param_stx = expect<syntax>(cadr(assume<pair>(datum)));
   ptr<> param_names = param_stx;
@@ -623,8 +623,8 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
       break;
     }
     else
-      throw syntax_error{param_stx, "Unexpected value in lambda parameters: {}",
-                         datum_to_string(pc.ctx, param_names)};
+      throw make_syntax_error(param_stx, "Unexpected value in lambda parameters: {}",
+                              datum_to_string(pc.ctx, param_names));
   }
 
   ptr<> body = cddr(assume<pair>(datum));
@@ -643,7 +643,7 @@ parse_if(parsing_context& pc, ptr<syntax> stx) {
 
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 3 && list_length(datum) != 4)
-    throw syntax_error(stx, "Invalid if syntax");
+    throw make_syntax_error(stx, "Invalid if syntax");
   ptr<pair> list = assume<pair>(datum);
 
   tracked_ptr<syntax> test_expr = track(pc.ctx, expect<syntax>(cadr(list)));
@@ -663,7 +663,7 @@ parse_application(parsing_context& pc, ptr<syntax> stx) {
 
   auto datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
   if (!datum)
-    throw syntax_error(stx, "Invalid function call syntax");
+    throw make_syntax_error(stx, "Invalid function call syntax");
 
   std::vector<std::unique_ptr<expression>> arguments;
   auto arg_expr = track(pc.ctx, cdr(assume<pair>(datum.get())));
@@ -680,7 +680,7 @@ static std::unique_ptr<expression>
 parse_box(parsing_context& pc, ptr<syntax> stx) {
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 2)
-    throw syntax_error(stx, "Invalid box syntax");
+    throw make_syntax_error(stx, "Invalid box syntax");
 
   return make_expression<box_expression>(parse(pc, expect<syntax>(cadr(assume<pair>(datum)))));
 }
@@ -689,7 +689,7 @@ static std::unique_ptr<expression>
 parse_unbox(parsing_context& pc, ptr<syntax> stx) {
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 2)
-    throw syntax_error(stx, "Invalid unbox syntax");
+    throw make_syntax_error(stx, "Invalid unbox syntax");
 
   return make_expression<unbox_expression>(parse(pc, expect<syntax>(cadr(assume<pair>(datum)))));
 }
@@ -698,7 +698,7 @@ static std::unique_ptr<expression>
 parse_box_set(parsing_context& pc, ptr<syntax> stx) {
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 3)
-    throw syntax_error(stx, "Invalid box-set! syntax");
+    throw make_syntax_error(stx, "Invalid box-set! syntax");
 
   return make_expression<box_set_expression>(parse(pc, expect<syntax>(cadr(assume<pair>(datum)))),
                                              parse(pc, expect<syntax>(caddr(assume<pair>(datum)))));
@@ -720,7 +720,7 @@ parse_reference(parsing_context& pc, ptr<syntax> id) {
   auto var = lookup_variable(pc, id);
 
   if (!var)
-    throw syntax_error(id, "Identifier {} not bound to a variable", identifier_name(id));
+    throw make_syntax_error(id, "Identifier {} not bound to a variable", identifier_name(id));
 
   if (!var->global)
     return make_expression<local_reference_expression>(std::move(var));
@@ -739,14 +739,14 @@ parse_define_or_set(parsing_context& pc, ptr<syntax> stx, std::string const& for
 
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (!datum || list_length(datum) != 3)
-    throw syntax_error(stx, "Invalid {} syntax", form_name);
+    throw make_syntax_error(stx, "Invalid {} syntax", form_name);
 
   auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(datum)))));
   ptr<syntax> expr = expect<syntax>(caddr(assume<pair>(datum)));
 
   auto var = lookup_variable(pc, name.get());
   if (!var)
-    throw syntax_error(name.get(), "Identifier {} not bound to a variable", identifier_name(name.get()));
+    throw make_syntax_error(name.get(), "Identifier {} not bound to a variable", identifier_name(name.get()));
 
   auto initialiser = parse(pc, expr);
   if (auto l = std::get_if<lambda_expression>(&initialiser->value))
@@ -770,7 +770,7 @@ parse_syntax_trap(parsing_context& pc, ptr<syntax> stx) {
 
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (!datum)
-    throw syntax_error{stx, "Invalid syntax-trap syntax"};
+    throw make_syntax_error(stx, "Invalid syntax-trap syntax");
 
   return parse(pc, expect<syntax>(cadr(assume<pair>(datum))));
 }
@@ -779,13 +779,13 @@ static std::unique_ptr<expression>
 parse_syntax_error(parsing_context& pc, ptr<syntax> stx) {
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (!datum || list_length(datum) < 2)
-    throw syntax_error{stx, "Invalid syntax-error syntax, how ironic"};
+    throw make_syntax_error(stx, "Invalid syntax-error syntax, how ironic");
 
   std::string result_msg = syntax_expect<string>(expect<syntax>(cadr(assume<pair>(datum))))->value();
   for (ptr<> irritant : in_list{cddr(assume<pair>(datum))})
     result_msg += " " + syntax_to_string(pc.ctx, expect<syntax>(irritant));
 
-  throw error{result_msg};
+  throw std::runtime_error{result_msg};
 }
 
 namespace {
@@ -1038,7 +1038,7 @@ process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl
     std::unique_ptr<expression> tail;
     if (cp->last) {
       if (is_splice(cp->last->cdr))
-        throw syntax_error(tpl->stx.get(), fmt::format("Invalid use of {}", Traits::splicing_form_name));
+        throw make_syntax_error(tpl->stx.get(), fmt::format("Invalid use of {}", Traits::splicing_form_name));
 
       if (is_splice(cp->last->car))
         tail = make_application(pc.ctx, "append",
@@ -1181,19 +1181,19 @@ parse(parsing_context& pc, ptr<syntax> s) {
       else if (form == pc.ctx.constants->quasisyntax.get())
         return parse_quasisyntax(pc, stx);
       else if (form == pc.ctx.constants->begin_for_syntax.get())
-        throw syntax_error{stx, "begin-for-syntax not at top level"};
+        throw make_syntax_error(stx, "begin-for-syntax not at top level");
       else if (form == pc.ctx.constants->syntax_trap.get())
         return parse_syntax_trap(pc, stx);
       else if (form == pc.ctx.constants->syntax_error.get())
         return parse_syntax_error(pc, stx);
       else if (form == pc.ctx.constants->unquote.get())
-        throw syntax_error{stx, "invalid use of unquote"};
+        throw make_syntax_error(stx, "invalid use of unquote");
       else if (form == pc.ctx.constants->unquote_splicing.get())
-        throw syntax_error{stx, "invalid use of unquote-splicing"};
+        throw make_syntax_error(stx, "invalid use of unquote-splicing");
       else if (form == pc.ctx.constants->unsyntax.get())
-        throw syntax_error{stx, "invalid use of unsyntax"};
+        throw make_syntax_error(stx, "invalid use of unsyntax");
       else if (form == pc.ctx.constants->unsyntax_splicing.get())
-        throw syntax_error{stx, "invalid use of unsyntax-splicing"};
+        throw make_syntax_error(stx, "invalid use of unsyntax-splicing");
       else if (form == pc.ctx.constants->let_syntax.get())
         return parse_let_syntax(pc, stx);
       else if (form == pc.ctx.constants->letrec_syntax.get())
@@ -1403,7 +1403,7 @@ parse_module_name(context& ctx, ptr<syntax> stx) {
 
   ptr<> datum = syntax_to_list(ctx, stx);
   if (!datum)
-    throw syntax_error{stx, "Invalid module name"};
+    throw make_syntax_error(stx, "Invalid module name");
 
   for (ptr<> elem : in_list{datum}) {
     ptr<syntax> e = expect<syntax>(elem);
@@ -1412,7 +1412,7 @@ parse_module_name(context& ctx, ptr<syntax> stx) {
     else if (auto i = syntax_match<integer>(e))
       result.push_back(std::to_string(i->value()));
     else
-      throw syntax_error(e, "Invalid module name");
+      throw make_syntax_error(e, "Invalid module name");
   }
 
   return result;
@@ -1454,7 +1454,7 @@ expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
 
     if (auto lst = track(pc.ctx, syntax_to_list(pc.ctx, stx.get()))) {
       if (lst == pc.ctx.constants->null)
-        throw syntax_error{stx.get(), "Empty application"};
+        throw make_syntax_error(stx.get(), "Empty application");
 
       ptr<pair> p = assume<pair>(lst.get());
       if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
@@ -1470,7 +1470,7 @@ expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
         }
         else if (form == pc.ctx.constants->define.get()) {
           if (list_length(lst.get()) != 3)
-            throw syntax_error(stx.get(), "Invalid define syntax");
+            throw make_syntax_error(stx.get(), "Invalid define syntax");
 
           auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
           remove_use_site_scopes(name);
@@ -1499,7 +1499,7 @@ static import_specifier
 parse_import_set(context& ctx, ptr<syntax> stx) {
   ptr<> spec = syntax_to_list(ctx, stx);
   if (!spec)
-    throw syntax_error(stx, "import: Expected a non-empty list");
+    throw make_syntax_error(stx, "import: Expected a non-empty list");
 
   auto p = assume<pair>(spec);
 
@@ -1536,7 +1536,7 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
       for (ptr<> name_pair_stx : in_list{cddr(p)}) {
         ptr<> name_pair = syntax_to_list(ctx, expect<syntax>(name_pair_stx));
         if (list_length(name_pair) != 2)
-          throw syntax_error(expect<syntax>(name_pair_stx), "import: rename: Expected a list of length 2");
+          throw make_syntax_error(expect<syntax>(name_pair_stx), "import: rename: Expected a list of length 2");
 
         auto np = assume<pair>(name_pair);
 
@@ -1566,7 +1566,7 @@ read_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& contents,
     if (is_directive(stx->get(), "import")) {
       ptr<> directive = syntax_to_list(ctx, cdr(syntax_assume<pair>(stx->get())));
       if (!directive)
-        throw syntax_error{stx->get(), "Invalid import directive"};
+        throw make_syntax_error(stx->get(), "Invalid import directive");
 
       for (ptr<> set : in_list{directive})
         result.imports.push_back(parse_import_set(ctx, expect<syntax>(set)));
@@ -1651,7 +1651,7 @@ perform_library_include(context& ctx, protomodule& result, source_file_origin co
     result.body.reserve(result.body.size() + body.size());
     std::copy(body.begin(), body.end(), std::back_inserter(result.body));
   } else
-    throw syntax_error{loc, fmt::format("File {} not found", name)};
+    throw make_syntax_error(loc, fmt::format("File {} not found", name));
 }
 
 template <auto Reader>
@@ -1676,7 +1676,7 @@ process_include_library_declarations(context& ctx, protomodule& result,
         process_library_declaration(ctx, result, source->origin, s.get());
     }
     else
-      throw syntax_error{stx, fmt::format("File {} not found", filename)};
+      throw make_syntax_error(stx, fmt::format("File {} not found", filename));
   }
 }
 
@@ -1715,7 +1715,7 @@ eval_cond_expand_condition(context& ctx, ptr<syntax> condition) {
   else if (is_directive(condition, "and"))
     return eval_cond_expand_conjunction(ctx, syntax_cdr(condition), condition->location());
   else
-    throw syntax_error{condition, "Invalid cond-expand condition"};
+    throw make_syntax_error(condition, "Invalid cond-expand condition");
 }
 
 static void
@@ -1765,7 +1765,7 @@ process_library_declaration(context& ctx, protomodule& result, source_file_origi
   else if (is_directive(form, "cond-expand"))
     process_cond_expand(ctx, result, origin, form);
   else
-    throw syntax_error{form, "Invalid library declaration"};
+    throw make_syntax_error(form, "Invalid library declaration");
 }
 
 static protomodule
@@ -1774,7 +1774,7 @@ read_define_library(context& ctx, tracked_ptr<syntax> form, source_file_origin c
 
   assert(syntax_assume<symbol>(syntax_car(form.get()))->value() == "define-library");
   if (syntax_cdr(form.get()) == ctx.constants->null.get())
-    throw syntax_error{form.get(), "Invalid define-library syntax"};
+    throw make_syntax_error(form.get(), "Invalid define-library syntax");
 
   result.name = parse_module_name(ctx, syntax_cadr(form.get()));
 
@@ -1787,14 +1787,14 @@ read_define_library(context& ctx, tracked_ptr<syntax> form, source_file_origin c
 protomodule
 read_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents, source_file_origin const& origin) {
   if (contents.empty())
-    throw error("Empty library body");
+    throw std::runtime_error("Empty library body");
 
   if (is_directive(contents.front().get(), "library"))
     return read_plain_library(ctx, contents, std::move(origin));
   else if (is_directive(contents.front().get(), "define-library"))
     return read_define_library(ctx, contents.front(), std::move(origin));
   else
-    throw syntax_error{contents.front().get(), "Invalid library definition"};
+    throw make_syntax_error(contents.front().get(), "Invalid library definition");
 }
 
 std::optional<module_name>

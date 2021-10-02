@@ -153,11 +153,11 @@ lookup(ptr<symbol> name, scope_set const& envs) {
     }
 
   if (ambiguous_other_candidate_set)
-    throw error{fmt::format("Ambiguous reference to {} ({}). 1st candidate scopes: {}; 2nd candidate scopes: {}",
-                            name->value(),
-                            format_scope_set(envs),
-                            format_scope_set(maximal_scope_set),
-                            format_scope_set(*ambiguous_other_candidate_set))};
+    throw make_error("Ambiguous reference to {} ({}). 1st candidate scopes: {}; 2nd candidate scopes: {}",
+                     name->value(),
+                     format_scope_set(envs),
+                     format_scope_set(maximal_scope_set),
+                     format_scope_set(*ambiguous_other_candidate_set));
 
   return result;
 }
