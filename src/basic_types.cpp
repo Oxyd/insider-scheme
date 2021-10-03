@@ -309,6 +309,7 @@ export_basic_types(context& ctx, module& result) {
   define_procedure(ctx, "error-irritants", result, true, &error::irritants);
   define_procedure(ctx, "uncaught-exception-inner-exception", result, true,
                    [] (ptr<uncaught_exception> e) { return e->inner_exception; });
+  define_procedure(ctx, "file-error-message", result, true, &file_error::message);
 }
 
 } // namespace insider

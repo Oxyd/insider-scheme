@@ -433,6 +433,20 @@ private:
   ptr<>       irritants_;
 };
 
+class file_error : public leaf_object<file_error> {
+public:
+  static constexpr char const* scheme_name = "insider::file_error";
+
+  explicit
+  file_error(std::string msg) : message_{std::move(msg)} { }
+
+  std::string
+  message() const { return message_; }
+
+private:
+  std::string message_;
+};
+
 class values_tuple : public dynamic_size_object<values_tuple, ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::values_tuple";

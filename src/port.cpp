@@ -231,7 +231,7 @@ open_output_file(context& ctx, std::string const& path) {
   if (std::FILE* f = std::fopen(path.c_str(), "w"))
     return make<textual_output_port>(ctx, std::make_unique<file_port_sink>(f));
   else
-    throw std::runtime_error{fmt::format("Can't open {} for writing: {}", path, strerror(errno))};
+    throw make<file_error>(ctx, fmt::format("Can't open {} for writing: {}", path, strerror(errno)));
 }
 
 static void
