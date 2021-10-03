@@ -244,12 +244,19 @@ close(ptr<> port) {
     throw std::runtime_error{"Expected a port"};
 }
 
+static ptr<textual_output_port>
+open_output_string(context& ctx) {
+  return make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
+}
+
 void
 export_port(context& ctx, module& result) {
   define_procedure(ctx, "open-output-file", result, true, open_output_file);
   define_procedure(ctx, "close", result, true, close);
   define_procedure(ctx, "close-output-port", result, true, close);
   define_procedure(ctx, "close-input-port", result, true, close);
+  define_procedure(ctx, "open-output-string", result, true, open_output_string);
+  define_procedure(ctx, "get-output-string", result, true, &textual_output_port::get_string);
 }
 
 } // namespace insider

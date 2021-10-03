@@ -1,6 +1,7 @@
 #include "scheme_fixture.hpp"
 
 #include "port.hpp"
+#include "string.hpp"
 
 using namespace insider;
 
@@ -165,4 +166,15 @@ TEST_F(port_fixture, unique_port_handle_closes_port_when_out_of_scope) {
     EXPECT_TRUE(p->open());
   }
   EXPECT_FALSE(p->open());
+}
+
+TEST_F(port_fixture, open_output_string_creates_string_port) {
+  auto result = eval(R"(
+    (let ((p (open-output-string)))
+      (display "hello" p)
+      (display " " p)
+      (display "world" p)
+      (get-output-string p))
+  )");
+  EXPECT_EQ(expect<string>(result)->value(), "hello world");
 }
