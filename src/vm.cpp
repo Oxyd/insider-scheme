@@ -872,6 +872,10 @@ run(execution_state& state) {
       auto result = do_instruction(state, no_gc);
       if (result)
         return result;
+    } catch (ptr<> e) {
+      raise(state.ctx, e);
+    } catch (tracked_ptr<> e) {
+      raise(state.ctx, e.get());
     } catch (scheme_exception& e) {
       throw e;
     } catch (...) {

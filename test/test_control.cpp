@@ -669,6 +669,23 @@ TEST_F(control, cxx_exception_becomes_scheme_exception) {
   FAIL();
 }
 
+TEST_F(control, throwing_scheme_exception_raises_it_in_vm) {
+  define_procedure(ctx, "f", ctx.internal_module, true,
+                   [] (context& ctx) {
+                     throw make<error>(ctx, make<string>(ctx, "hi"), ctx.constants->null.get());
+                   });
+  auto result = eval(R"(
+    (capture-stack
+      (lambda (return)
+        (with-exception-handler
+          (lambda (e)
+            (replace-stack! return e))
+          (lambda ()
+            (f)))))
+  )");
+  EXPECT_TRUE(is<error>(result));
+}
+
 TEST_F(control, cxx_exception_passes_through_if_not_handled) {
   define_procedure(ctx, "f", ctx.internal_module, true,
                    [] { throw std::runtime_error{"foo"}; });
