@@ -68,6 +68,10 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
       out->write("<lambda>");
   } else if (auto core = match<core_form_type>(datum)) {
     out->write(fmt::format("<core form {}>", core->name));
+  } else if (auto e = match<error>(datum)) {
+    out->write(fmt::format("<error: {}>", e->message(ctx)->value()));
+  } else if (auto fe = match<file_error>(datum)) {
+    out->write(fmt::format("<file error: {}>", fe->message()));
   } else
     out->write(fmt::format("<{}>", object_type_name(datum)));
 }
