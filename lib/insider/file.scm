@@ -1,10 +1,12 @@
 (library (insider file))
 (import (insider base-scheme) (insider control)
         (only (insider internal)
-              read write write-simple write-shared display newline
+              read read-syntax read-syntax-multiple read-syntax-multiple-ci
+              write write-simple write-shared display newline
               open-input-file open-output-file close close-input-port close-output-port
               current-input-port-tag current-output-port-tag))
-(export read write write-simple write-shared display newline
+(export read read-syntax read-syntax-multiple read-syntax-multiple-ci
+        write write-simple write-shared display newline
         open-input-file open-output-file close close-input-port close-output-port
         current-input-file current-output-file call-with-port
         call-with-input-file with-input-from-file

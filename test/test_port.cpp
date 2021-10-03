@@ -188,3 +188,11 @@ TEST_F(port_fixture, open_input_string_can_be_read) {
   )");
   EXPECT_TRUE(equal(ctx, result, read("(foo . bar)")));
 }
+
+TEST_F(port_fixture, read_syntax_reads_syntax) {
+  auto result = eval(R"(
+    (let ((p (open-input-string "foo")))
+      (read-syntax p))
+  )");
+  EXPECT_EQ(expect<symbol>(expect<syntax>(result)->expression())->value(), "foo");
+}

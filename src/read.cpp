@@ -939,6 +939,21 @@ export_read(context& ctx, module& result) {
   define_procedure(ctx, "read", result, true,
                    static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read),
                    get_default_port);
+  define_procedure(ctx, "read-syntax", result, true,
+                   static_cast<ptr<syntax> (*)(context&, ptr<textual_input_port>)>(read_syntax),
+                   get_default_port);
+  define_procedure(ctx, "read-syntax-multiple", result, true,
+                   [] (context& ctx, ptr<textual_input_port> p) {
+                     return make_list_from_vector(ctx, read_syntax_multiple(ctx, p),
+                                                  [] (tracked_ptr<syntax> s) { return s.get(); });
+                   },
+                   get_default_port);
+  define_procedure(ctx, "read-syntax-multiple-ci", result, true,
+                   [] (context& ctx, ptr<textual_input_port> p) {
+                     return make_list_from_vector(ctx, read_syntax_multiple_ci(ctx, p),
+                                                  [] (tracked_ptr<syntax> s) { return s.get(); });
+                   },
+                   get_default_port);
 }
 
 void
