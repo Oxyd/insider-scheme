@@ -49,9 +49,6 @@ std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context&, std::string);
 
 void
-export_read(context&, module&);
-
-void
 init_read(context&);
 
 } // namespace insider

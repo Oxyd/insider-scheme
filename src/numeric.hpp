@@ -308,9 +308,6 @@ read_number(context&, input_stream&);
 void
 write_number(context&, ptr<> value, ptr<textual_output_port> out);
 
-void
-export_numeric(context&, module&);
-
 } // namespace insider
 
 #endif

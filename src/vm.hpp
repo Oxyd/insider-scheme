@@ -95,9 +95,6 @@ private:
 tracked_ptr<tail_call_tag_type>
 tail_call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
 
-void
-export_vm(context&, module&);
-
 } // namespace insider
 
 #endif

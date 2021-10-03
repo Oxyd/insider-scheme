@@ -228,9 +228,6 @@ private:
   PortPtr ptr_;
 };
 
-void
-export_port(context&, module&);
-
 } // namespace insider
 
 #endif

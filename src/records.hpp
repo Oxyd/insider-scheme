@@ -55,9 +55,6 @@ private:
 ptr<record_instance>
 make_instance(context&, ptr<record_type>);
 
-void
-export_records(context&, module&);
-
 } // namespace insider
 
 #endif

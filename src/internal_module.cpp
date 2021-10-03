@@ -2,13 +2,33 @@
 
 #include "analyser.hpp"
 #include "define_procedure.hpp"
-#include "port.hpp"
-#include "read.hpp"
-#include "records.hpp"
-#include "vm.hpp"
 #include "write.hpp"
 
 namespace insider {
+
+void
+export_numeric(context&, module&);
+
+void
+export_vm(context&, module&);
+
+void
+export_records(context&, module&);
+
+void
+export_write(context&, module&);
+
+void
+export_analyser(context&, module&);
+
+void
+export_port(context&, module&);
+
+void
+export_basic_types(context&, module&);
+
+void
+export_read(context&, module&);
 
 static ptr<symbol>
 type(context& ctx, ptr<> o) {

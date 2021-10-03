@@ -470,9 +470,6 @@ private:
   std::size_t size_;
 };
 
-void
-export_basic_types(context&, module&);
-
 } // namespace insider
 
 #endif
