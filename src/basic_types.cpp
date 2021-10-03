@@ -1,5 +1,6 @@
 #include "basic_types.hpp"
 
+#include "define_procedure.hpp"
 #include "list_iterator.hpp"
 
 namespace insider {
@@ -281,6 +282,12 @@ uncaught_exception::visit_members(member_visitor const& f) {
   f(inner_exception);
 }
 
+void
+error::visit_members(member_visitor const& f) {
+  f(message_);
+  f(irritants_);
+}
+
 values_tuple::values_tuple(object_span values)
   : size_{values.size()}
 {
@@ -292,6 +299,16 @@ void
 values_tuple::visit_members(member_visitor const& f) {
   for (std::size_t i = 0; i < size_; ++i)
     f(storage_element(i));
+}
+
+void
+export_basic_types(context& ctx, module& result) {
+  define_procedure(ctx, "make-error", result, true,
+                   [] (context& ctx, ptr<string> m, ptr<> i) { return make<error>(ctx, m, i); });
+  define_procedure(ctx, "error-message", result, true, &error::message);
+  define_procedure(ctx, "error-irritants", result, true, &error::irritants);
+  define_procedure(ctx, "uncaught-exception-inner-exception", result, true,
+                   [] (ptr<uncaught_exception> e) { return e->inner_exception; });
 }
 
 } // namespace insider

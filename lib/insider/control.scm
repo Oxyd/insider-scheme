@@ -1,6 +1,7 @@
 (library (insider control))
 (import (insider base-scheme)
         (insider syntax)
+        (insider error)
         (only (insider internal) capture-stack replace-stack!
               create-parameter-tag  find-parameter-value set-parameter-value! call-parameterized
               apply values call-with-values))

@@ -28,6 +28,7 @@ make_internal_module(context& ctx) {
   export_analyser(ctx, result);
   export_write(ctx, result);
   export_port(ctx, result);
+  export_basic_types(ctx, result);
 
   define_raw_procedure(ctx, "append", result, true, append);
   define_procedure(ctx, "list->vector", result, true, list_to_vector);
@@ -138,17 +139,6 @@ make_internal_module(context& ctx) {
   );
 
   define_procedure(ctx, "type", result, true, type);
-  define_raw_procedure(ctx, "error", result, true,
-                       [] (context& ctx, object_span args) -> ptr<> {
-                         if (args.size() < 1)
-                           throw std::runtime_error("Expected at least 1 argument");
-
-                         std::string msg = expect<string>(args[0])->value();
-                         for (std::size_t i = 1; i < args.size(); ++i)
-                           msg += " " + datum_to_string(ctx, args[i]);
-
-                         throw std::runtime_error{msg};
-                       });
 
   define_procedure(
     ctx, "eq?", result, true,

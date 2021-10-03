@@ -480,7 +480,7 @@ TEST_F(control, dynamic_wind_uses_correct_dynamic_environment) {
         (let ((expect (lambda (value)
                         (if (eq? (find-parameter-value p) value)
                             #t
-                            (error "Wrong value" value (find-parameter-value p))))))
+                            (raise (make-error "Wrong value" (cons value (cons (find-parameter-value p) '()))))))))
           (capture-stack
             (lambda (out)
               (call-parameterized p 1

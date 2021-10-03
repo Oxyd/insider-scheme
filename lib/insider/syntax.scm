@@ -1,5 +1,5 @@
 (library (insider syntax))
-(import (insider base-scheme))
+(import (insider base-scheme) (insider error))
 (export syntax-match syntax-rules)
 
 (begin-for-syntax

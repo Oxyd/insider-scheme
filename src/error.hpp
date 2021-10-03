@@ -10,6 +10,8 @@
 namespace insider {
 
 class context;
+class module;
+class string;
 
 template <typename... Args>
 std::runtime_error

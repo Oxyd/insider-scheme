@@ -409,6 +409,30 @@ public:
   visit_members(member_visitor const& f);
 };
 
+// Scheme error object, as created by error.
+class error : public composite_object<error> {
+public:
+  static constexpr char const* scheme_name = "insider::error";
+
+  error(ptr<string> message, ptr<> irritants)
+    : message_{message}
+    , irritants_{irritants}
+  { }
+
+  ptr<string>
+  message(context&) const { return message_; }
+
+  ptr<>
+  irritants(context&) const { return irritants_; }
+
+  void
+  visit_members(member_visitor const&);
+
+private:
+  ptr<string> message_;
+  ptr<>       irritants_;
+};
+
 class values_tuple : public dynamic_size_object<values_tuple, ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::values_tuple";
@@ -431,6 +455,9 @@ public:
 private:
   std::size_t size_;
 };
+
+void
+export_basic_types(context&, module&);
 
 } // namespace insider
 
