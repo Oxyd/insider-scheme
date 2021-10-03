@@ -178,3 +178,13 @@ TEST_F(port_fixture, open_output_string_creates_string_port) {
   )");
   EXPECT_EQ(expect<string>(result)->value(), "hello world");
 }
+
+TEST_F(port_fixture, open_input_string_can_be_read) {
+  auto result = eval(R"(
+    (let ((p (open-input-string "foo bar")))
+      (let ((x (read p)))
+        (let ((y (read p)))
+          (cons x y))))
+  )");
+  EXPECT_TRUE(equal(ctx, result, read("(foo . bar)")));
+}

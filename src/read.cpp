@@ -2,6 +2,7 @@
 
 #include "basic_types.hpp"
 #include "character.hpp"
+#include "define_procedure.hpp"
 #include "input_stream.hpp"
 #include "numeric.hpp"
 #include "port.hpp"
@@ -925,6 +926,25 @@ std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context& ctx, std::string s) {
   unique_port_handle<ptr<textual_input_port>> h{make_string_input_port(ctx, std::move(s))};
   return read_syntax_multiple(ctx, *h);
+}
+
+static ptr<textual_input_port>
+get_default_port(context& ctx) {
+  return expect<textual_input_port>(find_parameter_value(ctx, ctx.constants->current_input_port_tag.get()));
+}
+
+void
+export_read(context& ctx, module& result) {
+  define_top_level(ctx, "current-input-port-tag", result, true, ctx.constants->current_input_port_tag.get());
+  define_procedure(ctx, "read", result, true,
+                   static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read),
+                   get_default_port);
+}
+
+void
+init_read(context& ctx) {
+  auto default_input_port = make_tracked<textual_input_port>(ctx, std::make_unique<file_port_source>(stdin, false), "<stdin>");
+  ctx.constants->current_input_port_tag = track(ctx, create_parameter_tag(ctx, default_input_port.get()));
 }
 
 } // namespace insider

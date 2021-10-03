@@ -9,6 +9,7 @@
 namespace insider {
 
 class context;
+class module;
 class source_location;
 class syntax;
 class textual_input_port;
@@ -46,6 +47,12 @@ read_syntax_multiple_ci(context&, ptr<textual_input_port>);
 
 std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context&, std::string);
+
+void
+export_read(context&, module&);
+
+void
+init_read(context&);
 
 } // namespace insider
 

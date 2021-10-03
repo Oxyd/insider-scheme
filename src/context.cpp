@@ -48,6 +48,7 @@ context::context()
 
   parameters = make_tracked<parameter_map>(*this);
 
+  init_read(*this);
   init_write(*this);
 
   internal_module = make_internal_module(*this);

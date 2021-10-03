@@ -3,6 +3,7 @@
 #include "analyser.hpp"
 #include "define_procedure.hpp"
 #include "port.hpp"
+#include "read.hpp"
 #include "records.hpp"
 #include "vm.hpp"
 #include "write.hpp"
@@ -29,6 +30,7 @@ make_internal_module(context& ctx) {
   export_write(ctx, result);
   export_port(ctx, result);
   export_basic_types(ctx, result);
+  export_read(ctx, result);
 
   define_raw_procedure(ctx, "append", result, true, append);
   define_procedure(ctx, "list->vector", result, true, list_to_vector);

@@ -81,6 +81,7 @@ public:
       begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing,
       syntax, quasisyntax, unsyntax, unsyntax_splicing, syntax_trap, syntax_error,
       let_syntax, letrec_syntax;
+    tracked_ptr<parameter_tag> current_input_port_tag;
     tracked_ptr<parameter_tag> current_output_port_tag;
   };
 

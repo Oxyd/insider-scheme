@@ -6,6 +6,8 @@
 #include "ptr.hpp"
 #include "string.hpp"
 
+#include <filesystem>
+
 namespace insider {
 
 template <typename T, typename Enable = void>
@@ -66,6 +68,12 @@ template <>
 struct from_scheme_converter<std::string> {
   static std::string
   convert(context&, ptr<> o) { return expect<string>(o)->value(); }
+};
+
+template <>
+struct from_scheme_converter<std::filesystem::path> {
+  static std::string
+  convert(context&, ptr<> o) { return std::filesystem::path{expect<string>(o)->value()}; }
 };
 
 template <typename T>
