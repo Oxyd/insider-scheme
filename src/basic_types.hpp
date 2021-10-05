@@ -161,9 +161,10 @@ make_list_from_vector(context& ctx, Container const& values, Converter const& co
   return head;
 }
 
-inline ptr<>
-make_list_from_vector(context& ctx, std::vector<ptr<>> const& values) {
-  return make_list_from_vector(ctx, values, [] (ptr<> x) { return x; });
+template <typename T>
+ptr<>
+make_list_from_vector(context& ctx, std::vector<T> const& values) {
+  return make_list_from_vector(ctx, values, [] (T x) { return x; });
 }
 
 // Concatenate a number of lists. If there are 0 lists, return the empty

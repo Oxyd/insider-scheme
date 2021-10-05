@@ -50,6 +50,7 @@ context::context()
 
   init_read(*this);
   init_write(*this);
+  init_analyser(*this);
 
   internal_module = make_internal_module(*this);
 

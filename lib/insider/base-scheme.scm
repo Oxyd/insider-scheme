@@ -14,9 +14,10 @@
         cons car caar caadr cdr cadr cdar caddr cadddr cddr cdddr cddddr set-car! set-cdr!
         assq assv assoc memq memv member length any all
         make-string string-length string-append number->string datum->string symbol->string
-        list reverse map filter identity
+        list reverse map for-each filter identity
         syntax quasisyntax unsyntax unsyntax-splicing syntax?
-        syntax-expression define-auxiliary-syntax syntax-null? syntax-car syntax-cdr syntax-cadr syntax-cddr
+        syntax-expression syntax-scopes syntax-add-scope!
+        define-auxiliary-syntax syntax-null? syntax-car syntax-cdr syntax-cadr syntax-cddr
         syntax->list syntax->datum datum->syntax free-identifier=? bound-identifier=? unwrap-syntax
         type eq? eqv? equal? pair? symbol? identifier? null? not when unless cond else => case
         do or and
@@ -245,6 +246,14 @@
                                           (car binding*)
                                           (caddr binding*))))
                                   bindings))))))))))
+
+(define (for-each f . lists)
+  (let loop ((ls lists))
+    (cond ((any null? ls)
+           #void)
+          (else
+           (apply f (map car ls))
+           (loop (map cdr ls))))))
 
 (define (filter pred list)
   (reverse

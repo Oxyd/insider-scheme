@@ -224,6 +224,13 @@ public:
   PortPtr
   get() const { return ptr_; }
 
+  PortPtr
+  release() {
+    PortPtr result = std::move(ptr_);
+    ptr_.reset();
+    return result;
+  }
+
 private:
   PortPtr ptr_;
 };

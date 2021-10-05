@@ -1428,6 +1428,8 @@ analyse_transformer(parsing_context& pc, ptr<syntax> transformer_stx) {
 
 std::unique_ptr<expression>
 analyse(context& ctx, ptr<syntax> stx, module& m, source_file_origin const& origin) {
+  parameterize origin_param{ctx, ctx.constants->current_source_file_origin_tag.get(),
+                            make<opaque_value<source_file_origin>>(ctx, origin)};
   parsing_context pc{ctx, m, origin, {}, {}};
   add_scope(ctx.store, stx, m.scope());
   return analyse_internal(pc, stx);
@@ -1859,7 +1861,10 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
 
 sequence_expression
 analyse_module(context& ctx, module& m, protomodule const& pm) {
+  parameterize origin_param{ctx, ctx.constants->current_source_file_origin_tag.get(),
+                            make<opaque_value<source_file_origin>>(ctx, pm.origin)};
   parsing_context pc{ctx, m, pm.origin, {}, {}};
+
   std::vector<tracked_ptr<syntax>> body = expand_top_level(pc, m, pm);
 
   sequence_expression result;
@@ -1875,6 +1880,13 @@ export_analyser(context& ctx, module& result) {
                    [] (context& ctx, tracked_ptr<syntax> stx) {
                      return expand(ctx, stx, nullptr);
                    });
+  define_top_level(ctx, "current-source-file-origin-tag", result, true,
+                   ctx.constants->current_source_file_origin_tag.get());
+}
+
+void
+init_analyser(context& ctx) {
+  ctx.constants->current_source_file_origin_tag = track(ctx, create_parameter_tag(ctx, ctx.constants->f.get()));
 }
 
 } // namespace insider

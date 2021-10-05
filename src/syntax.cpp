@@ -1,6 +1,7 @@
 #include "syntax.hpp"
 
 #include "basic_types.hpp"
+#include "define_procedure.hpp"
 #include "object_conversions.hpp"
 #include "ptr.hpp"
 
@@ -135,6 +136,69 @@ copy_syntax_helper(context& ctx, ptr<> o) {
 ptr<syntax>
 copy_syntax(context& ctx, ptr<syntax> stx) {
   return assume<syntax>(copy_syntax_helper(ctx, stx));
+}
+
+void
+export_syntax(context& ctx, module& result) {
+  define_procedure(ctx, "syntax-expression", result, true, &syntax::expression);
+  define_procedure(ctx, "syntax-scopes", result, true,
+                   [] (context& ctx, ptr<syntax> s) {
+                     return make_list_from_vector(ctx, s->scopes());
+                   });
+  define_procedure(ctx, "syntax-add-scope!", result, true,
+                   [] (context& ctx, ptr<syntax> stx, ptr<scope> s) {
+                     stx->add_scope(ctx.store, s);
+                   });
+
+  define_procedure(ctx, "syntax->datum", result, true, syntax_to_datum);
+  define_procedure(ctx, "syntax->list", result, true,
+                   [] (context& ctx, ptr<> stx) -> ptr<> {
+                     if (ptr<> r = syntax_to_list(ctx, stx))
+                       return r;
+                     else
+                       return ctx.constants->f.get();
+                   });
+
+  define_procedure(ctx, "datum->syntax", result, true,
+                   [] (context& ctx, ptr<syntax> s, ptr<> datum) {
+                     return datum_to_syntax(ctx, s, datum);
+                   });
+
+  define_procedure(ctx, "free-identifier=?", result, true,
+                   [] (ptr<syntax> x, ptr<syntax> y) {
+                     if (!is_identifier(x) || !is_identifier(y))
+                       throw std::runtime_error{"Expected two identifiers"};
+
+                     auto x_binding = lookup(x);
+                     auto y_binding = lookup(y);
+
+                     if (x_binding && y_binding)
+                       return *x_binding == *y_binding;
+                     else if (!x_binding && !y_binding)
+                       return identifier_name(x) == identifier_name(y);
+                     else
+                       return false;
+                   });
+
+  define_procedure(ctx, "bound-identifier=?", result, true,
+                   [] (ptr<syntax> x, ptr<syntax> y) {
+                     if (!is_identifier(x) || !is_identifier(y))
+                       throw std::runtime_error{"Expected two identifiers"};
+
+                     if (x->expression() != y->expression())
+                       return false;
+
+                     scope_set x_scopes = x->scopes();
+                     scope_set y_scopes = y->scopes();
+
+                     if (x_scopes.size() != y_scopes.size())
+                       return false;
+
+                     std::sort(x_scopes.begin(), x_scopes.end());
+                     std::sort(y_scopes.begin(), y_scopes.end());
+
+                     return x_scopes == y_scopes;
+                   });
 }
 
 } // namespace insider

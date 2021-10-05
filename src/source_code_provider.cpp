@@ -1,6 +1,7 @@
 #include "source_code_provider.hpp"
 
 #include "context.hpp"
+#include "define_procedure.hpp"
 #include "port.hpp"
 
 namespace insider {
@@ -38,6 +39,18 @@ module_name_to_path(module_name const& name) {
 std::optional<source_file>
 find_source_relative(context& ctx, source_file_origin origin, std::filesystem::path const& path) {
   return origin.provider->find_file(ctx, origin.path.replace_filename(path));
+}
+
+void
+export_source_code_provider(context& ctx, module& result) {
+  define_procedure(ctx, "open-source-file-relative", result, true,
+                   [] (context& ctx, ptr<opaque_value<source_file_origin>> origin,
+                       std::filesystem::path const& path) -> ptr<> {
+                     if (auto f = find_source_relative(ctx, origin->value, path))
+                       return f->port.release().get();
+                     else
+                       return ctx.constants->f.get();
+                   });
 }
 
 } // namespace insider

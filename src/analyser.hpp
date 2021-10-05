@@ -44,6 +44,9 @@ read_library_name(context&, ptr<textual_input_port>);
 sequence_expression
 analyse_module(context&, module&, protomodule const&);
 
+void
+init_analyser(context&);
+
 } // namespace insider
 
 #endif
