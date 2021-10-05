@@ -153,7 +153,10 @@ lookup(ptr<symbol> name, scope_set const& envs) {
     }
 
   if (ambiguous_other_candidate_set)
-    throw make_error("Ambiguous reference to {} ({}). 1st candidate scopes: {}; 2nd candidate scopes: {}",
+    throw make_error("Ambiguous reference to {}\n"
+                     "  Reference scopes:     {};\n"
+                     "  1st candidate scopes: {};\n"
+                     "  2nd candidate scopes: {}.",
                      name->value(),
                      format_scope_set(envs),
                      format_scope_set(maximal_scope_set),

@@ -331,3 +331,22 @@ TEST_F(macros, exported_transformer_producing_another_transformer) {
   )");
   EXPECT_EQ(result, ctx.constants->t.get());
 }
+
+TEST_F(macros, internal_definition_shadowing_macro_introduced_binding) {
+  auto result = eval_module(R"(
+    (import (insider internal))
+
+    (define-syntax bind-to-0
+      (lambda (stx)
+        (let ((exprs (syntax->list stx)))
+          (let ((name (car (cdr exprs)))
+                (body (cdr (cdr exprs))))
+            #`(let ((#,name 0))
+                #,@body)))))
+
+    (bind-to-0 x
+      (define x 1)
+      x)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 1);
+}

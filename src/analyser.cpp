@@ -40,6 +40,8 @@ namespace {
     insider::module&          module;
     source_file_origin const& origin;
     std::vector<std::vector<std::shared_ptr<variable>>> environment;
+    std::vector<std::vector<tracked_ptr<scope>>> use_site_scopes;
+    bool record_use_site_scopes = false;
   };
 
   class environment_extender {
@@ -57,6 +59,30 @@ namespace {
 
     environment_extender(environment_extender const&) = delete;
     void operator = (environment_extender const&) = delete;
+
+  private:
+    parsing_context& pc_;
+  };
+
+  class internal_definition_context_guard {
+  public:
+    explicit
+    internal_definition_context_guard(parsing_context& pc)
+      : pc_{pc}
+    {
+      assert(!pc_.record_use_site_scopes);
+
+      pc_.use_site_scopes.emplace_back();
+      pc_.record_use_site_scopes = true;
+    }
+
+    ~internal_definition_context_guard() {
+      pc_.use_site_scopes.pop_back();
+      pc_.record_use_site_scopes = false;
+    }
+
+    internal_definition_context_guard(internal_definition_context_guard const&) = delete;
+    void operator = (internal_definition_context_guard const&) = delete;
 
   private:
     parsing_context& pc_;
@@ -172,13 +198,18 @@ remove_scope(ptr<> expr, ptr<scope> e) {
 }
 
 static void
-remove_use_site_scopes(ptr<syntax> expr) {
+remove_use_site_scopes(ptr<syntax> expr, std::vector<tracked_ptr<scope>> const& use_site_scopes) {
   assert(is_identifier(expr));
 
   std::vector<ptr<scope>> to_remove;
   std::copy_if(expr->scopes().begin(), expr->scopes().end(),
                std::back_inserter(to_remove),
-               [] (ptr<scope> s) { return s->is_use_site(); });
+               [&] (ptr<scope> s) {
+                 return std::find_if(use_site_scopes.begin(), use_site_scopes.end(),
+                                     [&] (tracked_ptr<scope> const& uss) {
+                                       return uss.get() == s;
+                                     }) != use_site_scopes.end();
+               });
 
   for (ptr<scope> s : to_remove)
     expr->remove_scope(s);
@@ -190,16 +221,19 @@ flip_scope(free_store& fs, ptr<> expr, ptr<scope> e) {
 }
 
 static tracked_ptr<syntax>
-call_transformer(context& ctx, ptr<transformer> t, tracked_ptr<syntax> const& stx) {
+call_transformer(context& ctx, ptr<transformer> t, tracked_ptr<syntax> const& stx,
+                 std::vector<tracked_ptr<scope>>* use_site_scopes) {
   auto introduced_env = make_tracked<scope>(ctx, fmt::format("introduced environment for syntax expansion at {}",
                                                              format_location(stx->location())));
   add_scope(ctx.store, stx.get(), introduced_env.get());
 
   auto use_site_scope = make_tracked<scope>(ctx,
                                             fmt::format("use-site scope for syntax expansion at {}",
-                                                        format_location(stx->location())),
-                                            true);
+                                                        format_location(stx->location())));
   add_scope(ctx.store, stx.get(), use_site_scope.get());
+
+  if (use_site_scopes)
+    use_site_scopes->push_back(use_site_scope);
 
   ptr<syntax> result = copy_syntax(
     ctx,
@@ -216,7 +250,7 @@ call_transformer(context& ctx, ptr<transformer> t, tracked_ptr<syntax> const& st
 //
 // Causes a garbage collection.
 static tracked_ptr<syntax>
-expand(context& ctx, tracked_ptr<syntax> stx) {
+expand(context& ctx, tracked_ptr<syntax> stx, std::vector<tracked_ptr<scope>>* use_site_scopes) {
   simple_action a(ctx, stx, "Expanding macro use");
 
   bool expanded;
@@ -227,7 +261,7 @@ expand(context& ctx, tracked_ptr<syntax> stx) {
       ptr<syntax> head = expect<syntax>(car(lst));
       if (is_identifier(head)) {
         if (ptr<transformer> t = lookup_transformer(head)) {
-          stx = call_transformer(ctx, t, stx);
+          stx = call_transformer(ctx, t, stx, use_site_scopes);
           expanded = true;
         }
       }
@@ -235,6 +269,19 @@ expand(context& ctx, tracked_ptr<syntax> stx) {
   } while (expanded);
 
   return stx;
+}
+
+static tracked_ptr<syntax>
+expand(parsing_context& pc, tracked_ptr<syntax> stx) {
+  if (pc.record_use_site_scopes) {
+    std::vector<tracked_ptr<scope>> use_site_scopes;
+    tracked_ptr<syntax> result = expand(pc.ctx, stx, &use_site_scopes);
+    pc.use_site_scopes.back().insert(pc.use_site_scopes.back().end(),
+                                     std::move_iterator{use_site_scopes.begin()},
+                                     std::move_iterator{use_site_scopes.end()});
+    return result;
+  } else
+    return expand(pc.ctx, stx, nullptr);
 }
 
 static std::unique_ptr<expression>
@@ -299,6 +346,8 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
   environment_extender internal_env{pc, {}};
   auto& internal_vars = pc.environment.back();
 
+  internal_definition_context_guard idc{pc};
+
   ptr<> list = syntax_to_list(pc.ctx, data);
   if (!list)
     throw make_syntax_error(loc, "Expected list of expressions");
@@ -310,7 +359,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
 
   bool seen_expression = false;
   while (!stack.empty()) {
-    tracked_ptr<syntax> expr = expand(pc.ctx, stack.back()); // GC
+    tracked_ptr<syntax> expr = expand(pc, stack.back()); // GC
     stack.pop_back();
 
     if (auto p = syntax_to_list(pc.ctx, expr.get())) {
@@ -321,7 +370,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
           throw make_syntax_error(expr.get(), "define-syntax after a nondefinition");
 
         auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p)))));
-        remove_use_site_scopes(name.get());
+        remove_use_site_scopes(name.get(), pc.use_site_scopes.back());
 
         auto transformer_proc = eval_transformer(pc, expect<syntax>(caddr(assume<pair>(p)))); // GC
         auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
@@ -334,7 +383,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
           throw make_syntax_error(expr.get(), "define after a nondefinition");
 
         auto id = expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p))));
-        remove_use_site_scopes(id);
+        remove_use_site_scopes(id, pc.use_site_scopes.back());
 
         auto init = expect<syntax>(caddr(assume<pair>(p)));
         auto var = std::make_shared<variable>(identifier_name(id));
@@ -1139,7 +1188,7 @@ parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
 
 static std::unique_ptr<expression>
 parse(parsing_context& pc, ptr<syntax> s) {
-  ptr<syntax> stx = expand(pc.ctx, track(pc.ctx, s)).get(); // GC
+  ptr<syntax> stx = expand(pc, track(pc.ctx, s)).get(); // GC
 
   if (syntax_is<symbol>(stx))
     return parse_reference(pc, stx);
@@ -1373,13 +1422,13 @@ analyse_internal(parsing_context& pc, ptr<syntax> stx) {
 
 static std::unique_ptr<expression>
 analyse_transformer(parsing_context& pc, ptr<syntax> transformer_stx) {
-  parsing_context transformer_pc{pc.ctx, pc.module, pc.origin, {}};
+  parsing_context transformer_pc{pc.ctx, pc.module, pc.origin, {}, {}};
   return analyse_internal(transformer_pc, transformer_stx);
 }
 
 std::unique_ptr<expression>
 analyse(context& ctx, ptr<syntax> stx, module& m, source_file_origin const& origin) {
-  parsing_context pc{ctx, m, origin, {}};
+  parsing_context pc{ctx, m, origin, {}, {}};
   add_scope(ctx.store, stx, m.scope());
   return analyse_internal(pc, stx);
 }
@@ -1437,13 +1486,15 @@ expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
   for (tracked_ptr<syntax> e : pm.body)
     add_scope(pc.ctx.store, e.get(), m.scope());
 
+  internal_definition_context_guard idc{pc};
+
   std::vector<tracked_ptr<syntax>> stack;
   stack.reserve(pm.body.size());
   std::copy(pm.body.rbegin(), pm.body.rend(), std::back_inserter(stack));
 
   std::vector<tracked_ptr<syntax>> result;
   while (!stack.empty()) {
-    tracked_ptr<syntax> stx = expand(pc.ctx, stack.back()); // GC
+    tracked_ptr<syntax> stx = expand(pc, stack.back()); // GC
     stack.pop_back();
 
     if (auto lst = track(pc.ctx, syntax_to_list(pc.ctx, stx.get()))) {
@@ -1454,7 +1505,7 @@ expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
       if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
         if (form == pc.ctx.constants->define_syntax.get()) {
           auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(p))));
-          remove_use_site_scopes(name.get());
+          remove_use_site_scopes(name.get(), pc.use_site_scopes.back());
 
           auto transformer_proc = eval_transformer(pc, expect<syntax>(caddr(p))); // GC
           auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
@@ -1467,7 +1518,7 @@ expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
             throw make_syntax_error(stx.get(), "Invalid define syntax");
 
           auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
-          remove_use_site_scopes(name);
+          remove_use_site_scopes(name, pc.use_site_scopes.back());
 
           auto index = pc.ctx.add_top_level(pc.ctx.constants->void_.get(), identifier_name(name));
           m.scope()->add(pc.ctx.store, name, std::make_shared<variable>(identifier_name(name), index));
@@ -1808,7 +1859,7 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
 
 sequence_expression
 analyse_module(context& ctx, module& m, protomodule const& pm) {
-  parsing_context pc{ctx, m, pm.origin, {}};
+  parsing_context pc{ctx, m, pm.origin, {}, {}};
   std::vector<tracked_ptr<syntax>> body = expand_top_level(pc, m, pm);
 
   sequence_expression result;
@@ -1820,7 +1871,10 @@ analyse_module(context& ctx, module& m, protomodule const& pm) {
 
 void
 export_analyser(context& ctx, module& result) {
-  define_procedure(ctx, "expand", result, true, expand);
+  define_procedure(ctx, "expand", result, true,
+                   [] (context& ctx, tracked_ptr<syntax> stx) {
+                     return expand(ctx, stx, nullptr);
+                   });
 }
 
 } // namespace insider
