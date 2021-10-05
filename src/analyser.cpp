@@ -296,14 +296,8 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
   auto outside_scope = make_tracked<scope>(pc.ctx, fmt::format("outside edge scope at {}", format_location(loc)));
   add_scope(pc.ctx.store, data, outside_scope.get());
 
-  std::vector<std::shared_ptr<variable>>& internal_vars = pc.environment.emplace_back();
-  struct env_guard {
-    parsing_context& pc;
-
-    ~env_guard() {
-      pc.environment.pop_back();
-    }
-  } guard{pc};
+  environment_extender internal_env{pc, {}};
+  auto& internal_vars = pc.environment.back();
 
   ptr<> list = syntax_to_list(pc.ctx, data);
   if (!list)
