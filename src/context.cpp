@@ -230,8 +230,11 @@ load_module(context& ctx,
             module_name const& name,
             std::vector<std::unique_ptr<source_code_provider>> const& providers) {
   simple_action a(ctx, "Analysing module {}", module_name_to_string(name));
+  modules.emplace(name, nullptr);
   std::unique_ptr<module> m = instantiate(ctx, find_protomodule(ctx, name, providers));
-  return modules.emplace(name, std::move(m)).first->second.get();
+  module* result = m.get();
+  modules.find(name)->second = std::move(m);
+  return result;
 }
 
 bool
@@ -252,9 +255,13 @@ context::find_module(module_name const& name) {
 
   if (name == std::vector{"insider"s, "internal"s})
     return &internal_module;
-  else if (auto mod_it = modules_.find(name); mod_it != modules_.end())
+  else if (auto mod_it = modules_.find(name); mod_it != modules_.end()) {
+    if (!mod_it->second)
+      throw std::runtime_error{fmt::format("Module {} depends on itself",
+                                           module_name_to_string(name))};
+
     return mod_it->second.get();
-  else
+  } else
     return load_module(*this, modules_, name, source_providers_);
 }
 

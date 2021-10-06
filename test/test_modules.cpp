@@ -496,3 +496,28 @@ TEST_F(modules, empty_module_body) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 8);
 }
+
+TEST_F(modules, circular_import) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (bar))
+    )"
+  );
+  add_source_file(
+    "bar.scm",
+    R"(
+      (library (bar))
+      (import (foo))
+    )"
+  );
+
+  EXPECT_THROW(
+    eval_module(R"(
+      (import (foo) (bar))
+      #f
+    )"),
+    std::runtime_error
+  );
+}
