@@ -476,3 +476,23 @@ TEST_F(modules, cond_expand_in_define_library_boolean_conditionals) {
   )");
   EXPECT_TRUE(equal(ctx, result, read("(#t #t #t)")));
 }
+
+TEST_F(modules, empty_module_body) {
+  add_source_file(
+    "reexporter.scm",
+    R"(
+      (library (reexporter))
+      (import (insider internal))
+      (export define lambda *)
+    )"
+  );
+
+  auto result = eval_module(R"(
+    (import (reexporter))
+    (define f
+      (lambda (x)
+        (* 2 x)))
+    (f 4)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 8);
+}

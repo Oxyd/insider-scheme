@@ -1653,20 +1653,15 @@ read_plain_library(context& ctx, std::vector<tracked_ptr<syntax>> const& content
   result.name = parse_module_name(ctx, syntax_cadr(current->get()));
   ++current;
 
-  while (true) {
+  while (current != contents.end())
     if (is_directive(current->get(), "import")) {
       process_library_import(ctx, result, current->get());
       ++current;
-      continue;
-    }
-    else if (is_directive(current->get(), "export")) {
+    } else if (is_directive(current->get(), "export")) {
       process_library_export(ctx, result, current->get());
       ++current;
-      continue;
-    }
-    else
+    } else
       break;
-  }
 
   result.body.reserve(contents.end() - current);
   for (; current != contents.end(); ++current)
