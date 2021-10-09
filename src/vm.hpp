@@ -10,7 +10,7 @@
 namespace insider {
 
 class context;
-class module;
+class module_;
 class tail_call_tag_type;
 
 class root_stack;

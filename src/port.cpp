@@ -228,15 +228,15 @@ textual_output_port::write(std::string const& s) {
 
 static ptr<textual_input_port>
 open_input_file(context& ctx, std::filesystem::path const& path) {
-  if (std::FILE* f = std::fopen(path.c_str(), "r"))
-    return make<textual_input_port>(ctx, std::make_unique<file_port_source>(f), path.filename());
+  if (std::FILE* f = open_file(path, _T("r")))
+    return make<textual_input_port>(ctx, std::make_unique<file_port_source>(f), path.string());
   else
     throw make<file_error>(ctx, fmt::format("Can't open {} for reading: {}", path.string(), strerror(errno)));
 }
 
 static ptr<textual_output_port>
 open_output_file(context& ctx, std::string const& path) {
-  if (std::FILE* f = std::fopen(path.c_str(), "w"))
+  if (std::FILE* f = open_file(path, _T("w")))
     return make<textual_output_port>(ctx, std::make_unique<file_port_sink>(f));
   else
     throw make<file_error>(ctx, fmt::format("Can't open {} for writing: {}", path, strerror(errno)));
@@ -263,7 +263,7 @@ open_output_string(context& ctx) {
 }
 
 void
-export_port(context& ctx, module& result) {
+export_port(context& ctx, module_& result) {
   define_procedure(ctx, "open-input-file", result, true, open_input_file);
   define_procedure(ctx, "open-output-file", result, true, open_output_file);
   define_procedure(ctx, "close", result, true, close);

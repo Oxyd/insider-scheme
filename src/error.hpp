@@ -10,7 +10,7 @@
 namespace insider {
 
 class context;
-class module;
+class module_;
 class string;
 
 template <typename... Args>

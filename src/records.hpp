@@ -7,7 +7,7 @@
 
 namespace insider {
 
-class module;
+class module_;
 
 class record_type : public leaf_object<record_type> {
 public:

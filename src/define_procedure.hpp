@@ -121,7 +121,7 @@ namespace detail {
   struct define_typed_procedure<R(context&, Args...)> {
     template <typename Callable, typename... Defaults>
     static operand
-    define(context& ctx, char const* name, module& m, bool export_,
+    define(context& ctx, char const* name, module_& m, bool export_,
            Callable const& f, Defaults... defaults) {
       auto proc = make_native_procedure_object<R(Args...)>::make(
         ctx, name, f, std::move(defaults)...
@@ -134,7 +134,7 @@ namespace detail {
   struct define_typed_procedure<R(Args...)> {
     template <typename Callable, typename... Defaults>
     static operand
-    define(context& ctx, char const* name, module& m, bool export_,
+    define(context& ctx, char const* name, module_& m, bool export_,
            Callable const& f, Defaults... defaults) {
       return detail::define_typed_procedure<R(context&, Args...)>::define(
         ctx, name, m, export_,
@@ -150,7 +150,7 @@ namespace detail {
 // free or member function.
 template <typename R, typename... Args, typename... Defaults>
 operand
-define_procedure(context& ctx, char const* name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module_& m, bool export_,
                  R (*f)(Args...),
                  Defaults... defaults) {
   return detail::define_typed_procedure<R(Args...)>::define(ctx, name, m, export_, f, std::move(defaults)...);
@@ -158,7 +158,7 @@ define_procedure(context& ctx, char const* name, module& m, bool export_,
 
 template <typename R, typename C, typename... Args, typename... Defaults>
 operand
-define_procedure(context& ctx, char const* name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module_& m, bool export_,
                  R (C::* f)(context&, Args...), Defaults... defaults) {
   return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
                                                                           [=] (context& ctx, C* c, Args... args) {
@@ -169,7 +169,7 @@ define_procedure(context& ctx, char const* name, module& m, bool export_,
 
 template <typename R, typename C, typename... Args, typename... Defaults>
 operand
-define_procedure(context& ctx, char const* name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module_& m, bool export_,
                  R (C::* f)(context&, Args...) const, Defaults... defaults) {
   return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(ctx, name, m, export_,
                                                                               [=] (context& ctx, ptr<C> c, Args... args) {
@@ -180,7 +180,7 @@ define_procedure(context& ctx, char const* name, module& m, bool export_,
 
 template <typename R, typename C, typename... Args, typename... Defaults>
 operand
-define_procedure(context& ctx, char const* name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module_& m, bool export_,
                  R (C::* f)(Args...), Defaults... defaults) {
   return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(ctx, name, m, export_,
                                                                               [=] (context&, ptr<C> c, Args... args) {
@@ -191,7 +191,7 @@ define_procedure(context& ctx, char const* name, module& m, bool export_,
 
 template <typename R, typename C, typename... Args, typename... Defaults>
 operand
-define_procedure(context& ctx, char const* name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module_& m, bool export_,
                  R (C::* f)(Args...) const, Defaults... defaults) {
   return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(ctx, name, m, export_,
                                                                               [=] (context&, ptr<C> c, Args... args) {
@@ -202,14 +202,14 @@ define_procedure(context& ctx, char const* name, module& m, bool export_,
 
 template <typename Callable, typename... Defaults>
 operand
-define_procedure(context& ctx, char const* name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module_& m, bool export_,
                  Callable const& f, Defaults... defaults) {
   return define_procedure(ctx, name, m, export_, +f, std::move(defaults)...);
 }
 
 template <typename FunctionType, typename Callable, typename... Defaults>
 operand
-define_procedure(context& ctx, char const* name, module& m, bool export_,
+define_procedure(context& ctx, char const* name, module_& m, bool export_,
                  Callable const& f, Defaults... defaults) {
   return detail::define_typed_procedure<FunctionType>::define(ctx, name, m, export_, f, std::move(defaults)...);
 }
@@ -218,7 +218,7 @@ define_procedure(context& ctx, char const* name, module& m, bool export_,
 // object_span with no conversion to C++ types.
 template <typename F>
 operand
-define_raw_procedure(context& ctx, char const* name, module& m, bool export_, F const& f) {
+define_raw_procedure(context& ctx, char const* name, module_& m, bool export_, F const& f) {
   auto proc = make<native_procedure>(ctx, f, name);
   return define_top_level(ctx, std::string(name), m, export_, proc);
 }

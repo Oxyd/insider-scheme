@@ -112,7 +112,7 @@ skip_whitespace(input_stream& stream) {
     while (c && whitespace(*c))
       c = stream.advance_and_peek_character();
 
-    if (*c == ';')
+    if (c == ';')
       while ((c = stream.read_character()) && *c != '\n')
         ;
 
@@ -934,7 +934,7 @@ get_default_port(context& ctx) {
 }
 
 void
-export_read(context& ctx, module& result) {
+export_read(context& ctx, module_& result) {
   define_top_level(ctx, "current-input-port-tag", result, true, ctx.constants->current_input_port_tag.get());
   define_procedure(ctx, "read", result, true,
                    static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read),

@@ -10,14 +10,14 @@
 
 namespace insider {
 
-module::module(context& ctx, std::optional<module_name> const& name)
+module_::module_(context& ctx, std::optional<module_name> const& name)
   : env_{make_tracked<insider::scope>(ctx,
                                       fmt::format("{} module top-level",
                                                   name ? module_name_to_string(*name) : "<unnamed module>"))}
 { }
 
 auto
-module::find(ptr<symbol> identifier) const -> std::optional<binding_type> {
+module_::find(ptr<symbol> identifier) const -> std::optional<binding_type> {
   if (auto binding = lookup(identifier, {env_.get()}))
     return binding;
 
@@ -25,7 +25,7 @@ module::find(ptr<symbol> identifier) const -> std::optional<binding_type> {
 }
 
 void
-module::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
+module_::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
   if (auto v = find(identifier)) {
     if (*v == b)
       return; // Re-importing the same variable under the same name is OK.
@@ -41,12 +41,12 @@ module::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
 }
 
 ptr<procedure>
-module::top_level_procedure() const {
+module_::top_level_procedure() const {
   return proc_.get();
 }
 
 void
-module::export_(ptr<symbol> name) {
+module_::export_(ptr<symbol> name) {
   if (!find(name))
     throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name->value())};
 
@@ -55,7 +55,7 @@ module::export_(ptr<symbol> name) {
 
 namespace {
   struct import_set {
-    module* source;
+    module_* source;
     std::vector<std::tuple<std::string, std::string>> names;
   };
 }
@@ -130,7 +130,7 @@ parse_import_set(context& ctx, import_specifier const& spec) {
 }
 
 static void
-perform_imports(context& ctx, module& m, import_set const& set) {
+perform_imports(context& ctx, module_& m, import_set const& set) {
   for (auto const& [to_name, from_name] : set.names) {
     if (auto b = set.source->find(ctx.intern(from_name)))
       m.scope()->add(ctx.store, make<syntax>(ctx, ctx.intern(to_name), scope_set{m.scope()}), *b);
@@ -142,9 +142,9 @@ perform_imports(context& ctx, module& m, import_set const& set) {
     execute(ctx, *set.source);
 }
 
-std::unique_ptr<module>
+std::unique_ptr<module_>
 instantiate(context& ctx, protomodule const& pm) {
-  auto result = std::make_unique<module>(ctx, pm.name);
+  auto result = std::make_unique<module_>(ctx, pm.name);
 
   perform_imports(ctx, *result, pm);
   compile_module_body(ctx, *result, pm);
@@ -156,7 +156,7 @@ instantiate(context& ctx, protomodule const& pm) {
 }
 
 void
-import_all_exported(context& ctx, module& to, module& from) {
+import_all_exported(context& ctx, module_& to, module_& from) {
   import_set is{&from, {}};
 
   for (std::string const& name : from.exports())
@@ -166,7 +166,7 @@ import_all_exported(context& ctx, module& to, module& from) {
 }
 
 void
-import_all_top_level(context& ctx, module& to, module& from) {
+import_all_top_level(context& ctx, module_& to, module_& from) {
   import_set is{&from, {}};
 
   for (std::string const& name : from.top_level_names())
@@ -176,13 +176,13 @@ import_all_top_level(context& ctx, module& to, module& from) {
 }
 
 void
-perform_imports(context& ctx, module& m, protomodule const& pm) {
+perform_imports(context& ctx, module_& m, protomodule const& pm) {
   for (import_specifier const& spec : pm.imports)
     perform_imports(ctx, m, parse_import_set(ctx, spec));
 }
 
 operand
-define_top_level(context& ctx, std::string const& name, module& m, bool export_, ptr<> object) {
+define_top_level(context& ctx, std::string const& name, module_& m, bool export_, ptr<> object) {
   auto index = ctx.add_top_level(object, name);
   auto name_sym = ctx.intern(name);
   auto var = std::make_shared<variable>(name, index);
@@ -195,12 +195,12 @@ define_top_level(context& ctx, std::string const& name, module& m, bool export_,
 }
 
 static tracked_ptr<>
-run_module(context& ctx, module& m) {
+run_module(context& ctx, module_& m) {
   return call_with_continuation_barrier(ctx, m.top_level_procedure(), {});
 }
 
 tracked_ptr<>
-execute(context& ctx, module& mod) {
+execute(context& ctx, module_& mod) {
   tracked_ptr<> result = run_module(ctx, mod);
   mod.mark_active();
 

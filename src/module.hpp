@@ -13,12 +13,12 @@ class procedure;
 // A module is a map from symbols to top-level variable indices. It also
 // contains a top-level procedure which contains the code to be run when the
 // module is loaded.
-class module {
+class module_ {
 public:
   using binding_type = insider::scope::value_type;
 
   explicit
-  module(context&, std::optional<module_name> const& = {});
+  module_(context&, std::optional<module_name> const& = {});
 
   std::optional<binding_type>
   find(ptr<symbol>) const;
@@ -59,31 +59,31 @@ private:
 
 // Turn a protomodule into a module. First instantiate all uninstantiated
 // dependencies of the protomodule, then compile its body.
-std::unique_ptr<module>
+std::unique_ptr<module_>
 instantiate(context&, protomodule const&);
 
 // Import all exports from one module to another.
 void
-import_all_exported(context&, module& to, module& from);
+import_all_exported(context&, module_& to, module_& from);
 
 // Import all top-level bindings (whether exported or not) from one module to another.
 void
-import_all_top_level(context&, module& to, module& from);
+import_all_top_level(context&, module_& to, module_& from);
 
 // Given a protomodule, go through all of its import declarations and perform
 // them in the given module.
 void
-perform_imports(context&, module& to, protomodule const& import_declarations);
+perform_imports(context&, module_& to, protomodule const& import_declarations);
 
 operand
-define_top_level(context&, std::string const& name, module&, bool export_, ptr<> object);
+define_top_level(context&, std::string const& name, module_&, bool export_, ptr<> object);
 
 // Recursively activate all dependencies of the given module, execute the
 // module's body and return the result of the last expression in its body.
 //
 // Causes garbage collection.
 tracked_ptr<>
-execute(context&, module&);
+execute(context&, module_&);
 
 } // namespace insider
 

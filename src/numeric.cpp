@@ -1426,7 +1426,7 @@ gcd(context& ctx, ptr<> x, ptr<> y) {
 }
 
 static void
-export_native(context& ctx, module& m, std::string const& name,
+export_native(context& ctx, module_& m, std::string const& name,
               ptr<> (*f)(context&, object_span), special_top_level_tag tag) {
   auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f, name.c_str()), name);
   ctx.tag_top_level(index, tag);
@@ -1496,7 +1496,7 @@ read_number(context& ctx, input_stream& stream) {
 
   std::u32string literal = read_digits(stream);
   c = stream.peek_character();
-  if (*c == '/') {
+  if (c == '/') {
     stream.read_character();
 
     ptr<> num = read_integer(ctx, literal);
@@ -1507,13 +1507,13 @@ read_number(context& ctx, input_stream& stream) {
                                                   num,
                                                   read_integer(ctx, read_digits(stream))));
   }
-  else if (*c == '.' || *c == 'e' || *c == 'E') {
+  else if (c == '.' || c == 'e' || c == 'E') {
     literal += *c;
     stream.read_character();
     literal += read_digits(stream);
 
     c = stream.peek_character();
-    if (*c == 'e' || *c == 'E') {
+    if (c == 'e' || c == 'E') {
       literal += *c;
       stream.read_character();
       literal += read_digits(stream);
@@ -1640,7 +1640,7 @@ write_number(context& ctx, ptr<> value, ptr<textual_output_port> out) {
 }
 
 void
-export_numeric(context& ctx, module& result) {
+export_numeric(context& ctx, module_& result) {
   export_native(ctx, result, "+", add, special_top_level_tag::plus);
   export_native(ctx, result, "-", subtract, special_top_level_tag::minus);
   export_native(ctx, result, "*", multiply, special_top_level_tag::times);

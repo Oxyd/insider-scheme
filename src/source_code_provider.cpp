@@ -42,7 +42,7 @@ find_source_relative(context& ctx, source_file_origin origin, std::filesystem::p
 }
 
 void
-export_source_code_provider(context& ctx, module& result) {
+export_source_code_provider(context& ctx, module_& result) {
   define_procedure(ctx, "open-source-file-relative", result, true,
                    [] (context& ctx, ptr<opaque_value<source_file_origin>> origin,
                        std::filesystem::path const& path) -> ptr<> {

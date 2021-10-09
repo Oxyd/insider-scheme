@@ -15,7 +15,7 @@ namespace insider {
 class boolean;
 class context;
 class input_stream;
-class module;
+class module_;
 class textual_output_port;
 
 namespace detail {

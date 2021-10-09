@@ -7,34 +7,34 @@
 namespace insider {
 
 void
-export_numeric(context&, module&);
+export_numeric(context&, module_&);
 
 void
-export_vm(context&, module&);
+export_vm(context&, module_&);
 
 void
-export_records(context&, module&);
+export_records(context&, module_&);
 
 void
-export_write(context&, module&);
+export_write(context&, module_&);
 
 void
-export_analyser(context&, module&);
+export_analyser(context&, module_&);
 
 void
-export_port(context&, module&);
+export_port(context&, module_&);
 
 void
-export_basic_types(context&, module&);
+export_basic_types(context&, module_&);
 
 void
-export_read(context&, module&);
+export_read(context&, module_&);
 
 void
-export_source_code_provider(context&, module&);
+export_source_code_provider(context&, module_&);
 
 void
-export_syntax(context&, module&);
+export_syntax(context&, module_&);
 
 static ptr<symbol>
 type(context& ctx, ptr<> o) {
@@ -44,9 +44,9 @@ type(context& ctx, ptr<> o) {
     return ctx.intern(integer_type_name);
 }
 
-module
+module_
 make_internal_module(context& ctx) {
-  module result{ctx};
+  module_ result{ctx};
   result.mark_active();
 
   export_numeric(ctx, result);

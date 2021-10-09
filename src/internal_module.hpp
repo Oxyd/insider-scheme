@@ -4,9 +4,9 @@
 namespace insider {
 
 class context;
-class module;
+class module_;
 
-module
+module_
 make_internal_module(context&);
 
 } // namespace insider

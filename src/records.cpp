@@ -36,7 +36,7 @@ make_instance(context& ctx, ptr<record_type> type) {
 }
 
 void
-export_records(context& ctx, module& result) {
+export_records(context& ctx, module_& result) {
   define_procedure(ctx, "make-record-type", result, true,
                    [] (context& ctx, std::size_t num_fields) {
                      return make<record_type>(ctx, num_fields);

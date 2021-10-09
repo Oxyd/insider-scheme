@@ -11,7 +11,7 @@
 
 namespace insider {
 
-class module;
+class module_;
 
 class port_source {
 public:

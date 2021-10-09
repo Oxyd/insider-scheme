@@ -37,7 +37,7 @@ syntax_to_string(context& ctx, ptr<syntax> stx) {
 namespace {
   struct parsing_context {
     context&                  ctx;
-    insider::module&          module;
+    insider::module_&         module_;
     source_file_origin const& origin;
     std::vector<std::vector<std::shared_ptr<variable>>> environment;
     std::vector<std::vector<tracked_ptr<scope>>> use_site_scopes;
@@ -291,7 +291,7 @@ analyse_transformer(parsing_context&, ptr<syntax>);
 static ptr<>
 eval_transformer(parsing_context& pc, ptr<syntax> datum) {
   simple_action a(pc.ctx, datum, "Evaluating transformer");
-  auto proc = compile_syntax(pc.ctx, analyse_transformer(pc, datum), pc.module);
+  auto proc = compile_syntax(pc.ctx, analyse_transformer(pc, datum), pc.module_);
   return call_with_continuation_barrier(pc.ctx, proc, {}).get();
 }
 
@@ -953,7 +953,7 @@ syntax_traits::is_qq_form(parsing_context& pc, ptr<> stx) {
 
 static std::unique_ptr<expression>
 make_internal_reference(context& ctx, std::string name) {
-  std::optional<module::binding_type> binding = ctx.internal_module.find(ctx.intern(name));
+  std::optional<module_::binding_type> binding = ctx.internal_module.find(ctx.intern(name));
   assert(binding);
   assert(std::holds_alternative<std::shared_ptr<variable>>(*binding));
 
@@ -1422,12 +1422,12 @@ analyse_internal(parsing_context& pc, ptr<syntax> stx) {
 
 static std::unique_ptr<expression>
 analyse_transformer(parsing_context& pc, ptr<syntax> transformer_stx) {
-  parsing_context transformer_pc{pc.ctx, pc.module, pc.origin, {}, {}};
+  parsing_context transformer_pc{pc.ctx, pc.module_, pc.origin, {}, {}};
   return analyse_internal(transformer_pc, transformer_stx);
 }
 
 std::unique_ptr<expression>
-analyse(context& ctx, ptr<syntax> stx, module& m, source_file_origin const& origin) {
+analyse(context& ctx, ptr<syntax> stx, module_& m, source_file_origin const& origin) {
   parameterize origin_param{ctx, ctx.constants->current_source_file_origin_tag.get(),
                             make<opaque_value<source_file_origin>>(ctx, origin)};
   parsing_context pc{ctx, m, origin, {}, {}};
@@ -1467,13 +1467,13 @@ static void
 perform_begin_for_syntax(parsing_context& pc, protomodule const& parent_pm, tracked_ptr<> const& body) {
   simple_action a(pc.ctx, "Analysing begin-for-syntax");
 
-  remove_scope(body.get(), pc.module.scope());
+  remove_scope(body.get(), pc.module_.scope());
   protomodule pm{parent_pm.name, parent_pm.imports, {},
                  from_scheme<std::vector<tracked_ptr<syntax>>>(pc.ctx, syntax_to_list(pc.ctx, body.get())),
                  pc.origin};
   auto submodule = instantiate(pc.ctx, pm);
   execute(pc.ctx, *submodule);
-  import_all_top_level(pc.ctx, pc.module, *submodule);
+  import_all_top_level(pc.ctx, pc.module_, *submodule);
 }
 
 // Gather syntax and top-level variable definitions, expand top-level macro
@@ -1482,7 +1482,7 @@ perform_begin_for_syntax(parsing_context& pc, protomodule const& parent_pm, trac
 //
 // Causes a garbage collection.
 static std::vector<tracked_ptr<syntax>>
-expand_top_level(parsing_context& pc, module& m, protomodule const& pm) {
+expand_top_level(parsing_context& pc, module_& m, protomodule const& pm) {
   simple_action a(pc.ctx, "Expanding module top-level");
 
   for (tracked_ptr<syntax> e : pm.body)
@@ -1855,7 +1855,7 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
 }
 
 sequence_expression
-analyse_module(context& ctx, module& m, protomodule const& pm) {
+analyse_module(context& ctx, module_& m, protomodule const& pm) {
   parameterize origin_param{ctx, ctx.constants->current_source_file_origin_tag.get(),
                             make<opaque_value<source_file_origin>>(ctx, pm.origin)};
   parsing_context pc{ctx, m, pm.origin, {}, {}};
@@ -1870,7 +1870,7 @@ analyse_module(context& ctx, module& m, protomodule const& pm) {
 }
 
 void
-export_analyser(context& ctx, module& result) {
+export_analyser(context& ctx, module_& result) {
   define_procedure(ctx, "expand", result, true,
                    [] (context& ctx, tracked_ptr<syntax> stx) {
                      return expand(ctx, stx, nullptr);

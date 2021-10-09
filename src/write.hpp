@@ -10,7 +10,7 @@
 namespace insider {
 
 class context;
-class module;
+class module_;
 class source_location;
 class syntax;
 class textual_output_port;

@@ -139,7 +139,7 @@ copy_syntax(context& ctx, ptr<syntax> stx) {
 }
 
 void
-export_syntax(context& ctx, module& result) {
+export_syntax(context& ctx, module_& result) {
   define_procedure(ctx, "syntax-expression", result, true, &syntax::expression);
   define_procedure(ctx, "syntax-scopes", result, true,
                    [] (context& ctx, ptr<syntax> s) {

@@ -302,7 +302,7 @@ values_tuple::visit_members(member_visitor const& f) {
 }
 
 void
-export_basic_types(context& ctx, module& result) {
+export_basic_types(context& ctx, module_& result) {
   define_procedure(ctx, "make-error", result, true,
                    [] (context& ctx, ptr<string> m, ptr<> i) { return make<error>(ctx, m, i); });
   define_procedure(ctx, "error-message", result, true, &error::message);

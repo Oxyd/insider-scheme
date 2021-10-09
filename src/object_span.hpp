@@ -20,7 +20,7 @@ public:
 
   explicit
   object_span(std::vector<ptr<>> const& v)
-    : begin_{&v[0]}
+    : begin_{v.data()}
     , size_{v.size()}
   { }
 

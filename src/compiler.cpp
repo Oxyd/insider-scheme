@@ -122,11 +122,11 @@ namespace {
     register_allocator             registers;
     variable_bindings              bindings;
     std::vector<insider::bytecode> bytecode_stack;  // Stack of bytecodes to facilitate compiling ifs.
-    insider::module&               module;
+    insider::module_&              module_;
 
-    procedure_context(procedure_context* parent, insider::module& m)
+    procedure_context(procedure_context* parent, insider::module_& m)
       : parent{parent}
-      , module{m}
+      , module_{m}
     {
       bytecode_stack.emplace_back();
     }
@@ -454,7 +454,7 @@ make_procedure(context& ctx, procedure_context const& pc, unsigned min_args, boo
 
 static void
 compile_lambda(context& ctx, procedure_context& parent, lambda_expression const& stx, result_register& result) {
-  procedure_context proc{&parent, parent.module};
+  procedure_context proc{&parent, parent.module_};
   variable_bindings::scope args_scope;
 
   for (auto const& free : stx.free_variables)
@@ -732,12 +732,12 @@ compile_sequence(context& ctx, procedure_context& proc, sequence_expression cons
 }
 
 ptr<procedure>
-compile_expression(context& ctx, ptr<syntax> datum, module& mod, source_file_origin const& origin) {
+compile_expression(context& ctx, ptr<syntax> datum, module_& mod, source_file_origin const& origin) {
   return compile_syntax(ctx, analyse(ctx, datum, mod, origin), mod);
 }
 
 ptr<procedure>
-compile_syntax(context& ctx, std::unique_ptr<expression> e, module& mod) {
+compile_syntax(context& ctx, std::unique_ptr<expression> e, module_& mod) {
   procedure_context proc{nullptr, mod};
   shared_register result = compile_expression_to_register(ctx, proc, *e, true);
   if (result)
@@ -747,17 +747,17 @@ compile_syntax(context& ctx, std::unique_ptr<expression> e, module& mod) {
   return make_procedure(ctx, proc, 0, false, std::nullopt);
 }
 
-module
+module_
 compile_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& data, source_file_origin const& origin) {
   simple_action a(ctx, "Analysing main module");
   protomodule pm = read_main_module(ctx, data, origin);
-  module result{ctx};
+  module_ result{ctx};
   perform_imports(ctx, result, pm);
   compile_module_body(ctx, result, pm);
   return result;
 }
 
-module
+module_
 compile_main_module(context& ctx, std::filesystem::path const& path) {
   filesystem_source_code_provider provider{"."};
   if (auto file = provider.find_file(ctx, path))
@@ -767,7 +767,7 @@ compile_main_module(context& ctx, std::filesystem::path const& path) {
 }
 
 void
-compile_module_body(context& ctx, module& m, protomodule const& pm) {
+compile_module_body(context& ctx, module_& m, protomodule const& pm) {
   sequence_expression body = analyse_module(ctx, m, pm);
 
   procedure_context proc{nullptr, m};

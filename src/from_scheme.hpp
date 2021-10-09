@@ -72,7 +72,7 @@ struct from_scheme_converter<std::string> {
 
 template <>
 struct from_scheme_converter<std::filesystem::path> {
-  static std::string
+  static std::filesystem::path
   convert(context&, ptr<> o) { return std::filesystem::path{expect<string>(o)->value()}; }
 };
 

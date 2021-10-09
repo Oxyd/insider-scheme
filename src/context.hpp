@@ -38,7 +38,7 @@ class boolean;
 class context;
 class core_form_type;
 class integer;
-class module;
+class module_;
 class null_type;
 class textual_output_port;
 class procedure;
@@ -99,7 +99,7 @@ public:
   free_store                       store;
   std::unique_ptr<constants>       constants;
   statics_list                     statics;
-  module                           internal_module; // (insider internal)
+  module_                          internal_module; // (insider internal)
   std::string                      error_backtrace; // Built from actions during stack unwinding.
   bytecode                         program;
   std::unique_ptr<execution_state> current_execution;
@@ -154,7 +154,7 @@ public:
   bool
   knows_module(module_name const&);
 
-  module*
+  module_*
   find_module(module_name const&);
 
   void
@@ -176,7 +176,7 @@ private:
   std::vector<tracked_ptr<>> top_level_objects_;
   std::vector<std::string> top_level_binding_names_;
   std::unordered_map<operand, special_top_level_tag> top_level_tags_;
-  std::map<module_name, std::unique_ptr<module>> modules_;
+  std::map<module_name, std::unique_ptr<module_>> modules_;
   std::vector<std::unique_ptr<source_code_provider>> source_providers_;
   tracked_ptr<> features_;
 };
