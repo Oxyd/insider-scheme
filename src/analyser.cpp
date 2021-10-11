@@ -635,6 +635,8 @@ static std::unique_ptr<expression>
 parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   simple_action a(pc.ctx, stx, "Parsing lambda");
 
+  source_location loc = stx->location();
+
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (!datum || cdr(assume<pair>(datum)) == pc.ctx.constants->null.get())
     throw make_syntax_error(stx, "Invalid lambda syntax");
@@ -643,7 +645,7 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   ptr<> param_names = param_stx;
   std::vector<std::shared_ptr<variable>> parameters;
   bool has_rest = false;
-  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("lambda body at {}", format_location(stx->location())));
+  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("lambda body at {}", format_location(loc)));
   while (!semisyntax_is<null_type>(param_names)) {
     if (auto param = semisyntax_match<pair>(param_names)) {
       auto id = expect_id(pc.ctx, expect<syntax>(car(param)));
@@ -676,8 +678,9 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   auto subenv = extend_environment(pc, subscope.get());
 
   return make_expression<lambda_expression>(std::move(parameters), has_rest,
-                                            parse_body(pc, body, stx->location()),
-                                            std::nullopt, std::vector<std::shared_ptr<insider::variable>>{});
+                                            parse_body(pc, body, loc),
+                                            fmt::format("<lambda at {}>", format_location(loc)),
+                                            std::vector<std::shared_ptr<insider::variable>>{});
 }
 
 static std::unique_ptr<expression>

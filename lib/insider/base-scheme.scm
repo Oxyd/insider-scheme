@@ -24,7 +24,8 @@
         plain-procedure? native-procedure? closure? procedure? scheme-procedure?
         expand full-expand
         make-record-type make-record-instance record-set! record-ref record-type
-        features known-module?)
+        features known-module?
+        values call-with-values)
 
 (begin-for-syntax
  (%define pair?
@@ -365,10 +366,21 @@
       (and (syntax? x)
            (null? (syntax-expression x)))))
 
-(define (full-expand stx)
-  (let* ((stx* (expand stx))
-         (e (syntax-expression stx*)))
-    (cond ((pair? e)
-           (datum->syntax stx (map full-expand (syntax->list stx*))))
+(define (full-expand stx . max-depth)
+  (define (do-expand stx depth max-depth)
+    (cond ((and max-depth (>= depth max-depth))
+           stx)
           (else
-           (expand stx)))))
+           (let* ((stx* (expand stx))
+                  (e (syntax-expression stx*)))
+             (cond ((pair? e)
+                    (datum->syntax stx
+                                   (map
+                                    (lambda (s) (do-expand s (+ depth 1) max-depth))
+                                    (syntax->list stx*))))
+                   (else
+                    (expand stx)))))))
+
+  (do-expand stx 0 (if (null? max-depth)
+                       #f
+                       (car max-depth))))

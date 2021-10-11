@@ -69,7 +69,7 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   } else if (auto core = match<core_form_type>(datum)) {
     out->write(fmt::format("<core form {}>", core->name));
   } else if (auto e = match<error>(datum)) {
-    out->write(fmt::format("<error: {}>", e->message(ctx)->value()));
+    out->write(fmt::format("<error: {} {}>", e->message(ctx)->value(), datum_to_string(ctx, e->irritants(ctx))));
   } else if (auto fe = match<file_error>(datum)) {
     out->write(fmt::format("<file error: {}>", fe->message()));
   } else
