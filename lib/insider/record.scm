@@ -1,5 +1,5 @@
 (library (insider record))
-(import (insider base-scheme) (insider syntax))
+(import (insider base-scheme) (insider syntax) (insider error))
 (export define-record-type)
 
 (begin-for-syntax
