@@ -545,10 +545,11 @@ static std::unique_ptr<expression>
 parse_letrec_star(parsing_context& pc, ptr<syntax> stx) {
   using namespace std::literals;
   simple_action a(pc.ctx, stx, "Parsing letrec*");
+  source_location loc = stx->location();
 
   auto [definitions, body] = parse_let_common(pc, stx, "letrec*"sv);
 
-  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("letrec* body at {}", format_location(stx->location())));
+  auto subscope = make_tracked<scope>(pc.ctx, fmt::format("letrec* body at {}", format_location(loc)));
 
   std::vector<definition_pair_expression> definition_exprs;
   std::vector<std::shared_ptr<variable>> variables;
@@ -574,7 +575,7 @@ parse_letrec_star(parsing_context& pc, ptr<syntax> stx) {
                                                                               std::move(init_expr)));
   }
 
-  auto proper_body_sequence = parse_body(pc, body.get(), stx->location());
+  auto proper_body_sequence = parse_body(pc, body.get(), loc);
   body_sequence.expressions.insert(body_sequence.expressions.end(),
                                    std::move_iterator(proper_body_sequence.expressions.begin()),
                                    std::move_iterator(proper_body_sequence.expressions.end()));
