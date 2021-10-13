@@ -96,13 +96,10 @@ public:
   data() { return begin(); }
 
   std::size_t
-  length() const { return length_; }
-
-  std::size_t
-  size() const { return length(); }
+  length() const { return size(); }
 
   bool
-  zero() const { return length_ == 0; }
+  zero() const { return size() == 0; }
 
   bool
   positive() const { return positive_; }
@@ -117,7 +114,6 @@ public:
   hash() const;
 
 private:
-  std::size_t length_;
   bool positive_ = true;
 };
 

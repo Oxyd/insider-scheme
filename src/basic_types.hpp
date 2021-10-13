@@ -199,12 +199,6 @@ public:
 
   void
   set(free_store&, std::size_t, ptr<>);
-
-  std::size_t
-  size() const { return size_; }
-
-private:
-  std::size_t size_;
 };
 
 inline void
@@ -319,15 +313,11 @@ public:
   void
   set(free_store& store, std::size_t, ptr<>);
 
-  std::size_t
-  size() const { return size_; }
-
   void
   visit_members(member_visitor const&);
 
 private:
   ptr<insider::procedure> procedure_;
-  std::size_t size_;
 };
 
 inline void
@@ -458,17 +448,13 @@ public:
   explicit
   values_tuple(object_span values);
 
+  values_tuple(values_tuple&& other);
+
   ptr<>
   ref(std::size_t i) const { return storage_element(i); }
 
-  std::size_t
-  size() const { return size_; }
-
   void
   visit_members(member_visitor const& f);
-
-private:
-  std::size_t size_;
 };
 
 } // namespace insider

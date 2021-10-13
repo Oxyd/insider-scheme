@@ -10,16 +10,16 @@ record_instance::extra_elements(ptr<record_type> type) {
   return type->num_fields();
 }
 
+record_instance::record_instance(ptr<record_type> type)
+  : dynamic_size_object{type->num_fields()}
+  , type_{type}
+{ }
+
 void
 record_instance::visit_members(member_visitor const& f) {
   f(type_);
   for (std::size_t i = 0; i < size(); ++i)
     f(storage_element(i));
-}
-
-std::size_t
-record_instance::size() const {
-  return type_->num_fields();
 }
 
 void

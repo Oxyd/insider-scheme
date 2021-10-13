@@ -106,14 +106,14 @@ memq(ptr<> element, ptr<> list) {
 }
 
 vector::vector(context& ctx, std::size_t size)
-  : size_{size}
+  : dynamic_size_object{size}
 {
   for (std::size_t i = 0; i < size_; ++i)
     storage_element(i) = ctx.constants->void_.get();
 }
 
 vector::vector(vector&& other)
-  : size_{other.size_}
+  : dynamic_size_object{other.size_}
 {
   for (std::size_t i = 0; i < size_; ++i)
     storage_element(i) = other.storage_element(i);
@@ -225,13 +225,13 @@ make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
 }
 
 closure::closure(ptr<insider::procedure> p, std::size_t num_captures)
-  : procedure_{p}
-  , size_{num_captures}
+  : dynamic_size_object{num_captures}
+  , procedure_{p}
 { }
 
 closure::closure(closure&& other)
-  : procedure_{other.procedure_}
-  , size_{other.size_}
+  : dynamic_size_object{other.size_}
+  , procedure_{other.procedure_}
 {
   for (std::size_t i = 0; i < size_; ++i)
     storage_element(i) = other.storage_element(i);
@@ -289,10 +289,17 @@ error::visit_members(member_visitor const& f) {
 }
 
 values_tuple::values_tuple(object_span values)
-  : size_{values.size()}
+  : dynamic_size_object{values.size()}
 {
   for (std::size_t i = 0; i < size_; ++i)
     storage_element(i) = values[i];
+}
+
+values_tuple::values_tuple(values_tuple&& other)
+  : dynamic_size_object{other.size_}
+{
+  for (std::size_t i = 0; i < size_; ++i)
+    storage_element(i) = other.storage_element(i);
 }
 
 void

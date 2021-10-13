@@ -54,12 +54,12 @@ public:
     return num_locals;
   }
 
-  stack_frame(std::size_t num_locals, ptr<> callable, ptr<stack_frame> parent = nullptr,
+  stack_frame(std::size_t size, ptr<> callable, ptr<stack_frame> parent = nullptr,
               integer::value_type previous_pc = 0)
-    : previous_pc{previous_pc}
+    : dynamic_size_object{size}
+    , previous_pc{previous_pc}
     , parent{parent}
     , callable{callable}
-    , num_locals_{num_locals}
   { }
 
   stack_frame(stack_frame&&);
@@ -75,7 +75,7 @@ public:
 
   void
   set_rest_to_null(std::size_t from) {
-    for (std::size_t i = from; i < num_locals_; ++i)
+    for (std::size_t i = from; i < size(); ++i)
       storage_element(i) = nullptr;
   }
 
@@ -85,14 +85,8 @@ public:
   void
   visit_members(member_visitor const&);
 
-  std::size_t
-  size() const { return num_locals_; }
-
   void
-  resize(std::size_t new_num_locals) { num_locals_ = new_num_locals; }
-
-private:
-  std::size_t num_locals_;
+  resize(std::size_t new_num_locals) { size_ = new_num_locals; }
 };
 
 static_assert(std::is_trivially_destructible_v<stack_frame>);

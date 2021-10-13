@@ -62,17 +62,17 @@ big_integer::extra_elements(ptr<big_integer> i) {
 }
 
 big_integer::big_integer(std::size_t length)
-  : length_{length}
+  : dynamic_size_object{length}
 {
   std::fill(begin(), end(), limb_type{0});
 }
 
 big_integer::big_integer(std::size_t length, dont_initialize_t)
-  : length_{length}
+  : dynamic_size_object{length}
 { }
 
 big_integer::big_integer(std::vector<limb_type> const& limbs, bool positive)
-  : length_{limbs.size()}
+  : dynamic_size_object{limbs.size()}
   , positive_{positive}
 {
   assert(static_cast<std::vector<limb_type>::size_type>(end() - begin()) == limbs.size());
@@ -80,7 +80,7 @@ big_integer::big_integer(std::vector<limb_type> const& limbs, bool positive)
 }
 
 big_integer::big_integer(ptr<big_integer> i)
-  : length_{i->length()}
+  : dynamic_size_object{i->length()}
   , positive_{i->positive()}
 {
   std::copy(i->begin(), i->end(), begin());
@@ -97,7 +97,7 @@ short_integer_to_sign_magnitude(integer::value_type i) {
 }
 
 big_integer::big_integer(integer i)
-  : length_{number_of_limbs_for_small_integer(i.value())}
+  : dynamic_size_object{number_of_limbs_for_small_integer(i.value())}
 {
   auto [sign, magnitude] = short_integer_to_sign_magnitude(i.value());
   positive_ = sign;
@@ -114,7 +114,7 @@ big_integer::big_integer(integer i)
 }
 
 big_integer::big_integer(big_integer&& other)
-  : length_{other.length_}
+  : dynamic_size_object{other.size_}
   , positive_{other.positive_}
 {
   std::copy(other.begin(), other.end(), begin());
@@ -127,7 +127,7 @@ big_integer::begin() -> iterator {
 
 auto
 big_integer::end() -> iterator{
-  return &storage_element(0) + length_;
+  return &storage_element(0) + size_;
 }
 
 auto
@@ -144,7 +144,7 @@ std::size_t
 big_integer::hash() const {
   std::size_t result = 0;
 
-  for (std::size_t i = 0; i < length_; ++i)
+  for (std::size_t i = 0; i < size_; ++i)
     result = storage_element(i) + (result << 6) + (result << 16) - result;
 
   return result ^ static_cast<std::size_t>(positive_);

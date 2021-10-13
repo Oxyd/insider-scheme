@@ -31,7 +31,7 @@ public:
   extra_elements(ptr<record_type> type);
 
   explicit
-  record_instance(ptr<record_type> type) : type_{type} { }
+  record_instance(ptr<record_type> type);
 
   ptr<record_type>
   type() const { return type_; }
@@ -44,9 +44,6 @@ public:
 
   void
   visit_members(member_visitor const& f);
-
-  std::size_t
-  size() const;
 
 private:
   ptr<record_type> type_;

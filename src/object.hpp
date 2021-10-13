@@ -198,7 +198,7 @@ namespace detail {
   template <typename T, typename U>
   std::size_t
   size(ptr<> o) {
-    return sizeof(T) + detail::round_to_words(static_cast<T*>(o.value())->size() * sizeof(U));
+    return sizeof(T) + detail::round_to_words(static_cast<T*>(o.value())->size_ * sizeof(U));
   }
 }
 
@@ -262,7 +262,19 @@ struct alignas(T) alignas(object) dynamic_size_object : object {
   static constexpr bool is_dynamic_size = true;
   static word_type const type_index;
 
+  explicit
+  dynamic_size_object(std::size_t size)
+    : size_{size}
+  { }
+
+  std::size_t
+  size() const { return size_; }
+
 protected:
+  template <typename, typename>
+  friend std::size_t
+  detail::size(ptr<>);
+
   T&
   storage_element(std::size_t i) {
     return reinterpret_cast<T*>(reinterpret_cast<std::byte*>(this) + sizeof(Derived))[i];
@@ -272,6 +284,8 @@ protected:
   storage_element(std::size_t i) const {
     return reinterpret_cast<T const*>(reinterpret_cast<std::byte const*>(this) + sizeof(Derived))[i];
   }
+
+  std::size_t size_;
 };
 
 template <typename Derived, typename T, bool PermanentRoot>
