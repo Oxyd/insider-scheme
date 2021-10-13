@@ -15,6 +15,14 @@ record_instance::record_instance(ptr<record_type> type)
   , type_{type}
 { }
 
+record_instance::record_instance(record_instance&& other)
+  : dynamic_size_object{other}
+  , type_{other.type_}
+{
+  for (std::size_t i = 0; i < size(); ++i)
+    storage_element(i) = other.storage_element(i);
+}
+
 void
 record_instance::visit_members(member_visitor const& f) {
   f(type_);
