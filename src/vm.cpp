@@ -284,7 +284,7 @@ arithmetic(opcode opcode, instruction_state& istate) {
     istate.frame()->set(dest, multiply(istate.context(), lhs, rhs));
     break;
   case opcode::divide:
-    istate.frame()->set(dest, truncate_quotient(istate.context(), lhs, rhs));
+    istate.frame()->set(dest, divide(istate.context(), lhs, rhs));
     break;
   default:
     assert(!"Cannot get here");
