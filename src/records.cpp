@@ -13,6 +13,8 @@ record_instance::extra_elements(ptr<record_type> type) {
 void
 record_instance::visit_members(member_visitor const& f) {
   f(type_);
+  for (std::size_t i = 0; i < size(); ++i)
+    f(storage_element(i));
 }
 
 std::size_t
