@@ -263,7 +263,14 @@ normalize_fraction(context& ctx, ptr<fraction> q) {
       return q;
   }
 
-  return make<fraction>(ctx, truncate_quotient(ctx, num, com_den), truncate_quotient(ctx, den, com_den));
+  ptr<> reduced_num = truncate_quotient(ctx, num, com_den);
+  ptr<> reduced_den = truncate_quotient(ctx, den, com_den);
+
+  if (auto d = match<integer>(reduced_den))
+    if (d->value() == 1)
+      return reduced_num;
+
+  return make<fraction>(ctx, num, den);
 }
 
 static ptr<big_integer>
