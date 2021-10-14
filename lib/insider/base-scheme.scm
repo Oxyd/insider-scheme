@@ -4,7 +4,7 @@
          (define %define)
          (let %let)))
 
-(export define let let* letrec letrec* let-syntax letrec-syntax set! lambda if box unbox box-set!
+(export define let let* letrec letrec* let-syntax letrec-syntax set! lambda if box box? unbox box-set!
         define-syntax begin begin-for-syntax
         quote quasiquote unquote unquote-splicing syntax-trap syntax-error
         + - * / = < > >= <= gcd arithmetic-shift bitwise-and bitwise-or bitwise-not
@@ -355,6 +355,9 @@
 
 (define (vector? x)
   (eq? (type x) 'insider::vector))
+
+(define (box? x)
+  (eq? (type x) 'insider::box))
 
 (define (unwrap-syntax x)
   (if (syntax? x)
