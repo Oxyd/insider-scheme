@@ -2,11 +2,13 @@
 (import (insider base-scheme)
         (insider syntax)
         (insider error)
-        (only (insider internal) capture-stack replace-stack!
+        (only (insider internal)
+              capture-stack replace-stack!
               create-parameter-tag  find-parameter-value set-parameter-value! call-parameterized
-              apply values call-with-values))
+              apply values call-with-values with-exception-handler raise raise-continuable dynamic-wind))
 (export call-with-current-continuation call/cc let/cc make-parameter
-        make-parameter-from-tag parameterize apply values call-with-values)
+        make-parameter-from-tag parameterize apply values call-with-values
+        with-exception-handler raise raise-continuable dynamic-wind guard)
 
 (define (call-with-current-continuation f)
   (capture-stack
@@ -73,3 +75,74 @@
   (syntax-rules ()
     ((parameterize ((params values) ...) body ...)
      (parameterize-collect () ((params values) ...) body ...))))
+
+(define-syntax make-guard-cond
+  (syntax-rules (else =>)
+    ((make-guard-cond reraise (else result1 result2 ...))
+     (begin result1 result2 ...))
+
+    ((make-guard-cond reraise (test => result))
+     (let ((temp test))
+       (if temp
+           (result temp)
+           reraise)))
+
+    ((make-guard-cond reraise (test => result) clause1 clause2 ...)
+     (let ((temp test))
+       (if temp
+           (result temp)
+           (make-guard-cond reraise clause1 clause2 ...))))
+
+    ((make-guard-cond reraise (test))
+     (or test reraise))
+
+    ((make-guard-cond reraise (test) clause1 clause2 ...)
+     (let ((temp test))
+       (if temp
+           temp
+           (make-guard-cond reraise clause1 clause2 ...))))
+
+    ((make-guard-cond reraise (test result1 result2 ...))
+     (if test
+         (begin result1 result2 ...)
+         reraise))
+
+    ((make-guard-cond reraise (test result1 result2 ...) clause1 clause2 ...)
+     (if test
+         (begin result1 result2 ...)
+         (make-guard-cond reraise clause1 clause2 ...)))))
+
+(define-syntax make-guard-handler
+  (syntax-rules ()
+    ((make-guard-handler condition return-from-guard (var clause ...))
+     (let/cc return-from-handler
+       (return-from-guard
+        (lambda ()
+          (let ((var condition))
+            (make-guard-cond
+             (return-from-handler
+              (lambda ()
+                (raise-continuable condition)))
+             clause ...))))))))
+
+(define-syntax make-guard-result-thunk
+  (syntax-rules ()
+    ((make-guard-result-thunk (var clause ...) body1 body2 ...)
+     (let/cc return-from-guard
+       (with-exception-handler
+        (lambda (condition)
+          (let ((handler-result-thunk (make-guard-handler condition return-from-guard (var clause ...))))
+            (handler-result-thunk)))
+        (lambda ()
+          (call-with-values
+            (lambda () body1 body2 ...)
+            (lambda results
+              (return-from-guard
+               (lambda ()
+                 (apply values results)))))))))))
+
+(define-syntax guard
+  (syntax-rules ()
+    ((guard (var clause ...) body1 body2 ...)
+     (let ((result-thunk (make-guard-result-thunk (var clause ...) body1 body2 ...)))
+       (result-thunk)))))
