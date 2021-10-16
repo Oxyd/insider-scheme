@@ -5,7 +5,7 @@
         (only (insider internal) capture-stack replace-stack!
               create-parameter-tag  find-parameter-value set-parameter-value! call-parameterized
               apply values call-with-values))
-(export call-with-current-continuation call/cc make-parameter
+(export call-with-current-continuation call/cc let/cc make-parameter
         make-parameter-from-tag parameterize apply values call-with-values)
 
 (define (call-with-current-continuation f)
@@ -15,6 +15,12 @@
           (replace-stack! stack (apply values vals)))))))
 
 (define call/cc call-with-current-continuation)
+
+(define-syntax let/cc
+  (syntax-rules ()
+    ((let/cc var . body)
+     (call/cc
+      (lambda (var) . body)))))
 
 (define (make-parameter-from-tag tag . args)
   (let ((converter (if (null? args)
