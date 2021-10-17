@@ -370,19 +370,18 @@
            (null? (syntax-expression x)))))
 
 (define (full-expand stx . max-depth)
-  (define (do-expand stx depth max-depth)
+  (define (do-expand x depth max-depth)
     (cond ((and max-depth (>= depth max-depth))
-           stx)
+           x)
+          ((pair? x)
+           (cons (do-expand (car x) (+ depth 1) max-depth)
+                 (do-expand (cdr x) depth max-depth)))
+          ((syntax? x)
+           (let* ((stx (expand x))
+                  (e (syntax-expression stx)))
+             (datum->syntax stx (do-expand e (+ depth 1) max-depth))))
           (else
-           (let* ((stx* (expand stx))
-                  (e (syntax-expression stx*)))
-             (cond ((pair? e)
-                    (datum->syntax stx
-                                   (map
-                                    (lambda (s) (do-expand s (+ depth 1) max-depth))
-                                    (syntax->list stx*))))
-                   (else
-                    (expand stx)))))))
+           x)))
 
   (do-expand stx 0 (if (null? max-depth)
                        #f
