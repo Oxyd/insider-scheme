@@ -718,6 +718,11 @@ TEST_F(control, apply_with_multiple_arguments) {
   EXPECT_EQ(expect<integer>(result).value(), 106);
 }
 
+TEST_F(control, apply_with_variadic_lambda) {
+  auto result = eval("(apply (lambda args args) '(1 2 3))");
+  EXPECT_TRUE(equal(ctx, result, read("(1 2 3)")));
+}
+
 TEST_F(control, call_with_values_single_value) {
   auto result = eval(R"(
     (call-with-values

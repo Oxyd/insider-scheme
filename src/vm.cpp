@@ -429,50 +429,68 @@ push_closure(frame_stack& stack, ptr<insider::closure> closure) {
     stack.push(closure->ref(j));
 }
 
+template <typename F>
 static void
-push_mandatory_args(instruction_state& istate, frame_stack& stack, std::size_t min_args) {
+push_mandatory_args(frame_stack& stack, std::size_t min_args, F get_arg) {
   for (std::size_t j = 0; j < min_args; ++j)
-    stack.push(istate.frame()->ref(istate.reader.read_operand()));
+    stack.push(get_arg());
 }
 
+namespace {
+  class instruction_argument_reader {
+  public:
+    explicit
+    instruction_argument_reader(instruction_state& istate) : istate_{istate} { }
+
+    ptr<>
+    operator () () {
+      return istate_.frame()->ref(istate_.reader.read_operand());
+    }
+
+  private:
+    instruction_state& istate_;
+  };
+}
+
+template <typename F>
 static ptr<>
-convert_args_to_list(instruction_state& istate, std::size_t num_rest) {
-  ptr<pair> head = cons(istate.context(),
-                        istate.frame()->ref(istate.reader.read_operand()),
-                        istate.context().constants->null.get());
+convert_args_to_list(context& ctx, std::size_t num_rest, F get_arg) {
+  ptr<pair> head = cons(ctx, get_arg(), ctx.constants->null.get());
   ptr<pair> last = head;
 
   for (std::size_t i = 1; i < num_rest; ++i) {
-    ptr<pair> new_tail = cons(istate.context(),
-                              istate.frame()->ref(istate.reader.read_operand()),
-                              istate.context().constants->null.get());
-    last->set_cdr(istate.context().store, new_tail);
+    ptr<pair> new_tail = cons(ctx, get_arg(), ctx.constants->null.get());
+    last->set_cdr(ctx.store, new_tail);
     last = new_tail;
   }
 
   return head;
 }
 
+template <typename F>
 static void
-push_rest_arg(instruction_state& istate, frame_stack& stack, ptr<procedure> proc, std::size_t num_args) {
+push_rest_arg(context& ctx, frame_stack& stack, ptr<procedure> proc, std::size_t num_args, F get_arg) {
   std::size_t num_rest = num_args - proc->min_args;
 
   if (num_rest > 0)
-    stack.push(convert_args_to_list(istate, num_rest));
+    stack.push(convert_args_to_list(ctx, num_rest, get_arg));
   else
-    stack.push(istate.context().constants->null.get());
+    stack.push(ctx.constants->null.get());
 }
 
+template <typename F>
 static void
-push_arguments_and_closure(ptr<procedure> proc, ptr<insider::closure> closure, instruction_state& istate,
-                           ptr<stack_frame> new_frame, std::size_t num_args) {
+push_arguments_and_closure(context& ctx,
+                           ptr<procedure> proc, ptr<insider::closure> closure,
+                           ptr<stack_frame> new_frame, std::size_t num_args,
+                           F get_arg) {
   frame_stack stack{new_frame};
   push_closure(stack, closure);
-  push_mandatory_args(istate, stack, proc->min_args);
+  push_mandatory_args(stack, proc->min_args, get_arg);
   stack.set_rest_to_null();
 
   if (proc->has_rest)
-    push_rest_arg(istate, stack, proc, num_args);
+    push_rest_arg(ctx, stack, proc, num_args, get_arg);
 }
 
 static void
@@ -494,7 +512,8 @@ push_scheme_call_frame(ptr<procedure> proc, ptr<insider::closure> closure,
   throw_if_wrong_number_of_args(proc, num_args);
 
   auto new_frame = make_scheme_frame(istate, proc);
-  push_arguments_and_closure(proc, closure, istate, new_frame, num_args);
+  push_arguments_and_closure(istate.context(), proc, closure, new_frame, num_args,
+                             instruction_argument_reader{istate});
 
   if (is_tail)
     new_frame = make_tail_call(istate.context().store.stack(), new_frame);
@@ -508,7 +527,7 @@ make_native_frame(instruction_state& istate, operand num_args, ptr<native_proced
   auto new_frame = stack.make(num_args, proc, istate.frame(), istate.reader.previous_pc());
 
   frame_stack args_stack{new_frame};
-  push_mandatory_args(istate, args_stack, num_args);
+  push_mandatory_args(args_stack, num_args, instruction_argument_reader{istate});
 
   if (is_tail)
     new_frame = make_tail_call(stack, new_frame);
@@ -556,6 +575,8 @@ is_native_frame(ptr<stack_frame> f) {
 
 static ptr<>
 return_value_to_caller(execution_state& state, ptr<> result) {
+  assert(result);
+
   if (!state.current_frame())
     // We are returning from the global procedure, so we return back to the
     // calling C++ code.
@@ -900,15 +921,8 @@ make_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> con
 
   auto new_frame = state.ctx.store.stack().make(proc->locals_size, callable, state.current_frame(), state.pc);
 
-  std::size_t new_frame_top = 0;
-  if (closure)
-    for (ptr<> c : collect_closure(closure))
-      new_frame->set(new_frame_top++, c);
-
-  for (ptr<> a : arguments)
-    new_frame->set(new_frame_top++, a);
-
-  new_frame->set_rest_to_null(new_frame_top);
+  push_arguments_and_closure(state.ctx, proc, closure, new_frame, arguments.size(),
+                             [a = arguments.begin()] () mutable { return *a++; });
 
   state.set_current_frame(new_frame);
   state.pc = proc->entry_pc;
