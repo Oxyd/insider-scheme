@@ -19,7 +19,7 @@ namespace {
   struct end { };
   struct left_paren { };
   struct right_paren { };
-  struct hash_left_paren { };
+  struct octothorpe_left_paren { };
   struct dot { };
 
   struct generic_literal {
@@ -58,7 +58,7 @@ namespace {
       end,
       left_paren,
       right_paren,
-      hash_left_paren,
+      octothorpe_left_paren,
       dot,
       generic_literal,
       boolean_literal,
@@ -557,7 +557,7 @@ read_token_after_octothorpe(context& ctx, input_stream& stream, source_location 
       return {octothorpe_comma{}, loc};
   }
   else if (*c == '(')
-    return {hash_left_paren{}, loc};
+    return {octothorpe_left_paren{}, loc};
   else if (digit(*c))
     return read_datum_label(stream, loc);
   else if (*c == ';')
@@ -809,7 +809,7 @@ read(context& ctx, token first_token, input_stream& stream, bool read_syntax,
     return {};
   else if (std::holds_alternative<left_paren>(first_token.value))
     return read_list(ctx, stream, read_syntax, labels, defining_label);
-  else if (std::holds_alternative<hash_left_paren>(first_token.value))
+  else if (std::holds_alternative<octothorpe_left_paren>(first_token.value))
     return read_vector(ctx, stream, read_syntax, labels, defining_label);
   else if (std::holds_alternative<quote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "'", "quote", read_syntax, labels, defining_label);
