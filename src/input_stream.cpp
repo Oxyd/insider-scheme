@@ -6,7 +6,7 @@
 
 namespace insider {
 
-input_stream::input_stream(insider::ptr<textual_input_port> p)
+input_stream::input_stream(ptr<textual_input_port> p)
   : port_{p}
 { }
 

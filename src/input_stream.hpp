@@ -14,7 +14,7 @@ class textual_input_port;
 class input_stream {
 public:
   explicit
-  input_stream(insider::ptr<textual_input_port>);
+  input_stream(ptr<textual_input_port>);
 
   std::optional<char32_t>
   peek_character();
@@ -41,10 +41,10 @@ public:
   disable_fold_case() { fold_case_ = false; }
 
 private:
-  insider::ptr<textual_input_port> port_;
-  unsigned                         line_   = 1;
-  unsigned                         column_ = 1;
-  bool                             fold_case_ = false;
+  ptr<textual_input_port> port_;
+  unsigned                line_      = 1;
+  unsigned                column_    = 1;
+  bool                    fold_case_ = false;
 };
 
 } // namespace insider
