@@ -400,17 +400,20 @@ read_token_after_comma(reader_stream& stream, source_location loc) {
 }
 
 static token
-read_token_after_period(context& ctx, reader_stream& stream, reader_stream::checkpoint& period_cp,
-                        source_location loc) {
+read_token_after_period(context& ctx, reader_stream& stream) {
+  source_location loc = stream.location();
+  auto cp = stream.make_checkpoint();
+  expect(stream, '.');
+
   std::optional<char32_t> c = stream.peek();
   if (!c)
     throw read_error{"Unexpected end of input", stream.location()};
 
   if (delimiter(*c)) {
-    period_cp.commit();
+    cp.commit();
     return {dot{}, loc};
   } else {
-    period_cp.revert();
+    cp.revert();
 
     if (digit(*c))
       return read_numeric_literal(ctx, stream);
@@ -443,20 +446,24 @@ read_identifier_after_plus_or_minus(context& ctx, reader_stream& stream, source_
   return id;
 }
 
+static std::optional<char32_t>
+peek_2nd(reader_stream& stream) {
+  auto cp = stream.make_checkpoint();
+  stream.read();
+  return stream.peek();
+}
+
 static token
-read_token_after_plus_or_minus(context& ctx, char32_t initial, reader_stream& stream,
-                               reader_stream::checkpoint& initial_cp, source_location loc) {
+read_token_after_plus_or_minus(context& ctx, reader_stream& stream) {
   // This can begin either a number (like -2) or a symbol (like + -- the
   // addition function).
 
-  std::optional<char32_t> c = stream.peek();
-  if (!c) {
-    initial_cp.commit();
-    return {identifier{std::string(1, initial)}, loc};
-  }
+  source_location loc = stream.location();
+  std::optional<char32_t> c = peek_2nd(stream);
 
-  initial_cp.revert();
-  if (digit(*c) || *c == '.')
+  if (!c)
+    return read_identifier(stream);
+  else if (digit(*c) || *c == '.')
     return read_numeric_literal(ctx, stream);
   else
     return read_identifier_after_plus_or_minus(ctx, stream, loc);
@@ -580,51 +587,50 @@ read_token_after_octothorpe(context& ctx, reader_stream& stream, source_location
     return read_special_literal(ctx, stream);
 }
 
+static bool
+can_begin_identifier(char32_t c) {
+  return c != '(' && c != ')' && c != '\'' && c != '`' && c != ',' && c != '#'
+         && c != '"' && c != '|';
+}
+
+static token
+read_after_delimiter(context& ctx, reader_stream& stream) {
+  source_location loc = stream.location();
+  char32_t delimiter = require_char(stream);
+  switch (delimiter) {
+  case '(': return {left_paren{}, loc};
+  case ')': return {right_paren{}, loc};
+  case '\'': return {quote{}, loc};
+  case '`': return {backquote{}, loc};
+  case ',': return read_token_after_comma(stream, loc);
+  case '#': return read_token_after_octothorpe(ctx, stream, loc);
+  case '"': return read_string_literal(ctx, stream);
+  case '|': return read_verbatim_identifier(ctx, stream);
+  default:
+    assert(false);
+    return {};
+  }
+}
+
 static token
 read_token(context& ctx, reader_stream& stream) {
   skip_whitespace(stream);
 
   source_location loc = stream.location();
-  auto cp = stream.make_checkpoint();
-  std::optional<char32_t> c = stream.read();
+  std::optional<char32_t> c = stream.peek();
+
   if (!c)
     return {end{}, loc};
-
-  if (*c == '.' || *c == '+' || *c == '-') {
-    if (*c == '.')
-      return read_token_after_period(ctx, stream, cp, loc);
-    else if (*c == '+' || *c == '-')
-      return read_token_after_plus_or_minus(ctx, *c, stream, cp, loc);
-  } else if (digit(*c)) {
-    cp.revert();
+  else if (*c == '.')
+    return read_token_after_period(ctx, stream);
+  else if (*c == '+' || *c == '-')
+    return read_token_after_plus_or_minus(ctx, stream);
+  else if (digit(*c))
     return read_numeric_literal(ctx, stream);
-  } else if (*c != '(' && *c != ')' && *c != '\'' && *c != '`' && *c != ',' && *c != '#'
-             && *c != '"' && *c != '|') {
-    cp.revert();
+  else if (can_begin_identifier(*c))
     return read_identifier(stream);
-  } else {
-    cp.commit();
-
-    if (*c == '(')
-      return {left_paren{}, loc};
-    else if (*c == ')')
-      return {right_paren{}, loc};
-    else if (*c == '\'')
-      return {quote{}, loc};
-    else if (*c == '`')
-      return {backquote{}, loc};
-    else if (*c == ',')
-      return read_token_after_comma(stream, loc);
-    else if (*c == '#')
-      return read_token_after_octothorpe(ctx, stream, loc);
-    else if (*c == '"')
-      return read_string_literal(ctx, stream);
-    else if (*c == '|')
-      return read_verbatim_identifier(ctx, stream);
-  }
-
-  assert(false);
-  return {};
+  else
+    return read_after_delimiter(ctx, stream);
 }
 
 static ptr<>
