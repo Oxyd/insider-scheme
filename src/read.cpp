@@ -3,9 +3,9 @@
 #include "basic_types.hpp"
 #include "character.hpp"
 #include "define_procedure.hpp"
-#include "input_stream.hpp"
 #include "numeric.hpp"
 #include "port.hpp"
+#include "reader_stream.hpp"
 #include "source_location.hpp"
 #include "string.hpp"
 
@@ -105,33 +105,33 @@ delimiter(char32_t c) {
 }
 
 static void
-skip_whitespace(input_stream& stream) {
-  std::optional<char32_t> c = stream.peek_character();
+skip_whitespace(reader_stream& stream) {
+  std::optional<char32_t> c = stream.peek();
 
   while (c && (whitespace(*c) || *c == ';')) {
     while (c && whitespace(*c))
-      c = stream.advance_and_peek_character();
+      c = advance_and_peek(stream);
 
     if (c == ';')
-      while ((c = stream.read_character()) && *c != '\n')
+      while ((c = stream.read()) && *c != '\n')
         ;
 
-    c = stream.peek_character();
+    c = stream.peek();
   }
 }
 
 static void
-skip_intraline_whitespace(input_stream& stream) {
-  std::optional<char32_t> c = stream.peek_character();
+skip_intraline_whitespace(reader_stream& stream) {
+  std::optional<char32_t> c = stream.peek();
   while (c && intraline_whitespace(*c))
-    c = stream.advance_and_peek_character();
+    c = advance_and_peek(stream);
 }
 
 static std::u32string
-read_until_delimiter(input_stream& stream) {
+read_until_delimiter(reader_stream& stream) {
   std::u32string result;
-  while (stream.peek_character() && !delimiter(*stream.peek_character()))
-    result += *stream.read_character();
+  while (stream.peek() && !delimiter(*stream.peek()))
+    result += *stream.read();
 
   return result;
 }
@@ -147,16 +147,16 @@ hexdigit(char32_t c) {
 }
 
 static token
-read_numeric_literal(context& ctx, input_stream& stream) {
-  source_location loc = stream.current_location();
+read_numeric_literal(context& ctx, reader_stream& stream) {
+  source_location loc = stream.location();
   return {generic_literal{read_number(ctx, stream)}, loc};
 }
 
 static std::u32string
-read_hexdigits(input_stream& stream) {
+read_hexdigits(reader_stream& stream) {
   std::u32string result;
-  while (stream.peek_character() && hexdigit(*stream.peek_character()))
-    result += *stream.read_character();
+  while (stream.peek() && hexdigit(*stream.peek()))
+    result += *stream.read();
   return result;
 }
 
@@ -167,7 +167,7 @@ read_character_from_hexdigits(context& ctx, std::u32string const& digits) {
 }
 
 static token
-read_character(context& ctx, input_stream& stream) {
+read_character(context& ctx, reader_stream& stream) {
   static std::unordered_map<std::u32string, char32_t> const character_names{
     {U"alarm",     '\x07'},
     {U"backspace", '\x08'},
@@ -180,12 +180,12 @@ read_character(context& ctx, input_stream& stream) {
     {U"tab",       '\x09'}
   };
 
-  std::optional<char32_t> c = stream.read_character();
+  std::optional<char32_t> c = stream.read();
   if (!c)
-    throw read_error{"Unexpected end of input", stream.current_location()};
+    throw read_error{"Unexpected end of input", stream.location()};
 
   if (*c != 'x') {
-    source_location loc = stream.current_location();
+    source_location loc = stream.location();
     if (!is_alphabetic(*c))
       return {generic_literal{character_to_ptr(*c)}, loc};
 
@@ -193,7 +193,7 @@ read_character(context& ctx, input_stream& stream) {
     if (literal.size() == 1)
       return {generic_literal{character_to_ptr(literal[0])}, loc};
     else {
-      if (stream.fold_case())
+      if (stream.fold_case)
         literal = foldcase(literal);
 
       if (auto it = character_names.find(literal); it != character_names.end())
@@ -203,7 +203,7 @@ read_character(context& ctx, input_stream& stream) {
     }
   }
   else {
-    source_location loc = stream.current_location();
+    source_location loc = stream.location();
     std::u32string digits = read_hexdigits(stream);
 
     if (!digits.empty())
@@ -214,12 +214,12 @@ read_character(context& ctx, input_stream& stream) {
 }
 
 static token
-read_special_literal(context& ctx, input_stream& stream) {
-  std::optional<char32_t> c = stream.peek_character();
+read_special_literal(context& ctx, reader_stream& stream) {
+  std::optional<char32_t> c = stream.peek();
   if (!c)
-    throw read_error{"Unexpected end of input", stream.current_location()};
+    throw read_error{"Unexpected end of input", stream.location()};
 
-  source_location loc = stream.current_location();
+  source_location loc = stream.location();
 
   switch (*c) {
   case 't':
@@ -245,7 +245,7 @@ read_special_literal(context& ctx, input_stream& stream) {
   }
 
   case '\\': {
-    stream.read_character();
+    stream.read();
     return read_character(ctx, stream);
   }
 
@@ -255,50 +255,50 @@ read_special_literal(context& ctx, input_stream& stream) {
 }
 
 static char32_t
-require_char(input_stream& stream) {
-  std::optional<char32_t> result = stream.read_character();
+require_char(reader_stream& stream) {
+  std::optional<char32_t> result = stream.read();
   if (!result)
-    throw read_error{"Unexpected end of input", stream.current_location()};
+    throw read_error{"Unexpected end of input", stream.location()};
   return *result;
 }
 
 static void
-consume(input_stream& stream, char32_t expected) {
+consume(reader_stream& stream, char32_t expected) {
   char32_t c = require_char(stream);
   assert(c == expected);
 }
 
 static void
-expect(input_stream& stream, char32_t expected) {
-  source_location loc = stream.current_location();
+expect(reader_stream& stream, char32_t expected) {
+  source_location loc = stream.location();
   char32_t c = require_char(stream);
   if (c != expected)
     throw read_error{fmt::format("Unexpected character: {}, expected {}", to_utf8(c), to_utf8(expected)), loc};
 }
 
 static token
-read_identifier(input_stream& stream) {
-  source_location loc = stream.current_location();
+read_identifier(reader_stream& stream) {
+  source_location loc = stream.location();
   std::u32string value;
-  while (stream.peek_character() && !delimiter(*stream.peek_character()))
-    value += *stream.read_character();
+  while (stream.peek() && !delimiter(*stream.peek()))
+    value += *stream.read();
 
-  if (stream.fold_case())
+  if (stream.fold_case)
     value = foldcase(value);
 
   return {identifier{to_utf8(value)}, loc};
 }
 
 static char32_t
-read_hex_escape(context& ctx, input_stream& stream) {
+read_hex_escape(context& ctx, reader_stream& stream) {
   std::u32string digits = read_hexdigits(stream);
   expect(stream, ';');
   return read_character_from_hexdigits(ctx, digits);
 }
 
 static char32_t
-read_common_escape(context& ctx, input_stream& stream) {
-  source_location loc = stream.current_location();
+read_common_escape(context& ctx, reader_stream& stream) {
+  source_location loc = stream.location();
   char32_t escape = require_char(stream);
 
   switch (escape) {
@@ -317,15 +317,20 @@ read_common_escape(context& ctx, input_stream& stream) {
 }
 
 static std::optional<char32_t>
-read_string_escape(context& ctx, input_stream& stream) {
-  source_location loc = stream.current_location();
+read_string_escape(context& ctx, reader_stream& stream) {
+  source_location loc = stream.location();
+  auto cp = stream.make_checkpoint();
   char32_t escape = require_char(stream);
   if (escape == '\n') {
+    cp.commit();
+
     skip_intraline_whitespace(stream);
     return {};
   } else if (intraline_whitespace(escape)) {
+    cp.commit();
+
     skip_intraline_whitespace(stream);
-    if (std::optional<char32_t> after_whitespace = stream.read_character())
+    if (std::optional<char32_t> after_whitespace = stream.read())
       if (*after_whitespace == '\n') {
         skip_intraline_whitespace(stream);
         return {};
@@ -333,39 +338,39 @@ read_string_escape(context& ctx, input_stream& stream) {
 
     throw read_error{fmt::format("Unrecognised escape sequence \\{}", to_utf8(escape)), loc};
   } else {
-    stream.put_back(escape);
+    cp.revert();
     return read_common_escape(ctx, stream);
   }
 }
 
 static token
-read_verbatim_identifier(context& ctx, input_stream& stream) {
+read_verbatim_identifier(context& ctx, reader_stream& stream) {
   // The opening | was consumed before calling this function.
 
-  source_location loc = stream.current_location();
+  source_location loc = stream.location();
   std::u32string value;
 
-  std::optional<char32_t> c = stream.read_character();
+  std::optional<char32_t> c = stream.read();
   while (c && *c != '|') {
     if (*c == '\\')
       value += read_common_escape(ctx, stream);
     else
       value += *c;
 
-    c = stream.read_character();
+    c = stream.read();
   }
 
   if (!c)
-    throw read_error{"Unexpected end of input", stream.current_location()};
+    throw read_error{"Unexpected end of input", stream.location()};
 
   return {identifier{to_utf8(value)}, loc};
 }
 
 static token
-read_string_literal(context& ctx, input_stream& stream) {
+read_string_literal(context& ctx, reader_stream& stream) {
   // The opening " was consumed before calling this function.
 
-  source_location loc = stream.current_location();
+  source_location loc = stream.location();
 
   std::string result;
   while (true) {
@@ -384,10 +389,10 @@ read_string_literal(context& ctx, input_stream& stream) {
 }
 
 static token
-read_token_after_comma(input_stream& stream, source_location loc) {
-  std::optional<char32_t> c = stream.peek_character();
+read_token_after_comma(reader_stream& stream, source_location loc) {
+  std::optional<char32_t> c = stream.peek();
   if (c && *c == '@') {
-    stream.read_character();
+    stream.read();
     return {comma_at{}, loc};
   }
   else
@@ -395,15 +400,17 @@ read_token_after_comma(input_stream& stream, source_location loc) {
 }
 
 static token
-read_token_after_period(context& ctx, input_stream& stream, source_location loc) {
-  std::optional<char32_t> c = stream.peek_character();
+read_token_after_period(context& ctx, reader_stream& stream, reader_stream::checkpoint& period_cp,
+                        source_location loc) {
+  std::optional<char32_t> c = stream.peek();
   if (!c)
-    throw read_error{"Unexpected end of input", stream.current_location()};
+    throw read_error{"Unexpected end of input", stream.location()};
 
-  if (delimiter(*c))
+  if (delimiter(*c)) {
+    period_cp.commit();
     return {dot{}, loc};
-  else {
-    stream.put_back(U'.');
+  } else {
+    period_cp.revert();
 
     if (digit(*c))
       return read_numeric_literal(ctx, stream);
@@ -413,7 +420,7 @@ read_token_after_period(context& ctx, input_stream& stream, source_location loc)
 }
 
 static token
-read_identifier_after_plus_or_minus(context& ctx, input_stream& stream, source_location loc) {
+read_identifier_after_plus_or_minus(context& ctx, reader_stream& stream, source_location loc) {
   token id = read_identifier(stream);
   std::string const& id_value = std::get<identifier>(id.value).value;
 
@@ -437,15 +444,18 @@ read_identifier_after_plus_or_minus(context& ctx, input_stream& stream, source_l
 }
 
 static token
-read_token_after_plus_or_minus(context& ctx, char32_t initial, input_stream& stream, source_location loc) {
+read_token_after_plus_or_minus(context& ctx, char32_t initial, reader_stream& stream,
+                               reader_stream::checkpoint& initial_cp, source_location loc) {
   // This can begin either a number (like -2) or a symbol (like + -- the
   // addition function).
 
-  std::optional<char32_t> c = stream.peek_character();
-  if (!c)
+  std::optional<char32_t> c = stream.peek();
+  if (!c) {
+    initial_cp.commit();
     return {identifier{std::string(1, initial)}, loc};
+  }
 
-  stream.put_back(initial);
+  initial_cp.revert();
   if (digit(*c) || *c == '.')
     return read_numeric_literal(ctx, stream);
   else
@@ -453,45 +463,45 @@ read_token_after_plus_or_minus(context& ctx, char32_t initial, input_stream& str
 }
 
 static std::string
-read_datum_label_value(input_stream& stream) {
+read_datum_label_value(reader_stream& stream) {
   std::string result;
 
-  std::optional<char32_t> c = stream.peek_character();
+  std::optional<char32_t> c = stream.peek();
   while (c && digit(*c)) {
-    to_utf8(*stream.read_character(), [&] (char byte) { result.push_back(byte); });
-    c = stream.peek_character();
+    to_utf8(*stream.read(), [&] (char byte) { result.push_back(byte); });
+    c = stream.peek();
   }
 
   return result;
 }
 
 static token
-read_datum_label(input_stream& stream, source_location loc) {
+read_datum_label(reader_stream& stream, source_location loc) {
   std::string label = read_datum_label_value(stream);
 
-  std::optional<char32_t> c = stream.read_character();
+  std::optional<char32_t> c = stream.read();
   if (!c)
-    throw read_error{"Unexpected end of input", stream.current_location()};
+    throw read_error{"Unexpected end of input", stream.location()};
 
   if (*c == '=')
     return {datum_label_definition{std::move(label)}, loc};
   else if (*c == '#')
     return {datum_label_reference{std::move(label)}, loc};
   else
-    throw read_error{"Unexpected character after datum label", stream.current_location()};
+    throw read_error{"Unexpected character after datum label", stream.location()};
 }
 
 static token
-read_token(context& ctx, input_stream& stream);
+read_token(context& ctx, reader_stream& stream);
 
 using datum_labels = std::unordered_map<std::string, tracked_ptr<>>;
 
 static ptr<>
-read(context& ctx, token first_token, input_stream& stream, bool read_syntax,
+read(context& ctx, token first_token, reader_stream& stream, bool read_syntax,
      datum_labels& labels, std::optional<std::string> defining_label = {});
 
 static token
-read_datum_comment(context& ctx, input_stream& stream) {
+read_datum_comment(context& ctx, reader_stream& stream) {
   consume(stream, ';');
   datum_labels labels;
   read(ctx, read_token(ctx, stream), stream, false, labels); // Discard
@@ -500,7 +510,7 @@ read_datum_comment(context& ctx, input_stream& stream) {
 }
 
 static token
-read_block_comment(context& ctx, input_stream& stream) {
+read_block_comment(context& ctx, reader_stream& stream) {
   consume(stream, '|');
 
   unsigned nesting_level = 1;
@@ -521,15 +531,15 @@ read_block_comment(context& ctx, input_stream& stream) {
 }
 
 static token
-read_directive(context& ctx, input_stream& stream) {
+read_directive(context& ctx, reader_stream& stream) {
   consume(stream, '!');
 
-  source_location loc = stream.current_location();
+  source_location loc = stream.location();
   std::u32string directive = read_until_delimiter(stream);
   if (directive == U"fold-case")
-    stream.enable_fold_case();
+    stream.fold_case = true;
   else if (directive == U"no-fold-case")
-    stream.disable_fold_case();
+    stream.fold_case = false;
   else
     throw read_error{fmt::format("Invalid directive: {}", to_utf8(directive)), loc};
 
@@ -537,21 +547,21 @@ read_directive(context& ctx, input_stream& stream) {
 }
 
 static token
-read_token_after_octothorpe(context& ctx, input_stream& stream, source_location loc) {
-  std::optional<char32_t> c = stream.peek_character();
+read_token_after_octothorpe(context& ctx, reader_stream& stream, source_location loc) {
+  std::optional<char32_t> c = stream.peek();
   if (!c)
-    throw read_error{"Unexpected end of input", stream.current_location()};
+    throw read_error{"Unexpected end of input", stream.location()};
   else if (*c == '\'') {
-    stream.read_character();
+    stream.read();
     return {octothorpe_quote{}, loc};
   } else if (*c == '`') {
-    stream.read_character();
+    stream.read();
     return {octothorpe_backquote{}, loc};
   } else if (*c == ',') {
-    stream.read_character();
-    c = stream.peek_character();
+    stream.read();
+    c = stream.peek();
     if (*c == '@') {
-      stream.read_character();
+      stream.read();
       return {octothorpe_comma_at{}, loc};
     } else
       return {octothorpe_comma{}, loc};
@@ -571,42 +581,50 @@ read_token_after_octothorpe(context& ctx, input_stream& stream, source_location 
 }
 
 static token
-read_token(context& ctx, input_stream& stream) {
+read_token(context& ctx, reader_stream& stream) {
   skip_whitespace(stream);
 
-  source_location loc = stream.current_location();
-  std::optional<char32_t> c = stream.read_character();
+  source_location loc = stream.location();
+  auto cp = stream.make_checkpoint();
+  std::optional<char32_t> c = stream.read();
   if (!c)
     return {end{}, loc};
 
-  if (*c == '(')
-    return {left_paren{}, loc};
-  else if (*c == ')')
-    return {right_paren{}, loc};
-  else if (*c == '\'')
-    return {quote{}, loc};
-  else if (*c == '`')
-    return {backquote{}, loc};
-  else if (*c == ',')
-    return read_token_after_comma(stream, loc);
-  else if (*c == '.')
-    return read_token_after_period(ctx, stream, loc);
-  else if (*c == '+' || *c == '-')
-    return read_token_after_plus_or_minus(ctx, *c, stream, loc);
-  else if (digit(*c)) {
-    stream.put_back(*c);
+  if (*c == '.' || *c == '+' || *c == '-') {
+    if (*c == '.')
+      return read_token_after_period(ctx, stream, cp, loc);
+    else if (*c == '+' || *c == '-')
+      return read_token_after_plus_or_minus(ctx, *c, stream, cp, loc);
+  } else if (digit(*c)) {
+    cp.revert();
     return read_numeric_literal(ctx, stream);
-  }
-  else if (*c == '#')
-    return read_token_after_octothorpe(ctx, stream, loc);
-  else if (*c == '"')
-    return read_string_literal(ctx, stream);
-  else if (*c == '|')
-    return read_verbatim_identifier(ctx, stream);
-  else {
-    stream.put_back(*c);
+  } else if (*c != '(' && *c != ')' && *c != '\'' && *c != '`' && *c != ',' && *c != '#'
+             && *c != '"' && *c != '|') {
+    cp.revert();
     return read_identifier(stream);
+  } else {
+    cp.commit();
+
+    if (*c == '(')
+      return {left_paren{}, loc};
+    else if (*c == ')')
+      return {right_paren{}, loc};
+    else if (*c == '\'')
+      return {quote{}, loc};
+    else if (*c == '`')
+      return {backquote{}, loc};
+    else if (*c == ',')
+      return read_token_after_comma(stream, loc);
+    else if (*c == '#')
+      return read_token_after_octothorpe(ctx, stream, loc);
+    else if (*c == '"')
+      return read_string_literal(ctx, stream);
+    else if (*c == '|')
+      return read_verbatim_identifier(ctx, stream);
   }
+
+  assert(false);
+  return {};
 }
 
 static ptr<>
@@ -630,7 +648,7 @@ find_datum_label_reference(datum_labels const& labels, std::string const& label,
 }
 
 static ptr<>
-read_and_wrap(context& ctx, token first_token, input_stream& stream, bool read_syntax, datum_labels& labels) {
+read_and_wrap(context& ctx, token first_token, reader_stream& stream, bool read_syntax, datum_labels& labels) {
   return wrap(ctx,
               read(ctx, first_token, stream, read_syntax, labels),
               first_token.location, read_syntax);
@@ -651,7 +669,7 @@ define_label(context& ctx, datum_labels& labels, std::optional<std::string> cons
 }
 
 static ptr<>
-read_list(context& ctx, input_stream& stream, bool read_syntax, datum_labels& labels,
+read_list(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& labels,
           std::optional<std::string> const& defining_label) {
   token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t.value))
@@ -697,8 +715,8 @@ read_list(context& ctx, input_stream& stream, bool read_syntax, datum_labels& la
 }
 
 static std::vector<ptr<>>
-read_vector_elements(context& ctx, input_stream& stream, bool read_syntax, datum_labels& labels) {
-  stream.read_character(); // Consume (
+read_vector_elements(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& labels) {
+  stream.read(); // Consume (
 
   std::vector<ptr<>> elements;
 
@@ -744,7 +762,7 @@ replace_value(context& ctx, ptr<vector> v, ptr<> from, ptr<> to) {
 }
 
 static ptr<>
-read_vector(context& ctx, input_stream& stream, bool read_syntax, datum_labels& labels,
+read_vector(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& labels,
             std::optional<std::string> const& defining_label) {
   ptr<> dummy_vector;
   if (defining_label) {
@@ -774,7 +792,7 @@ read_vector(context& ctx, input_stream& stream, bool read_syntax, datum_labels& 
 }
 
 static ptr<>
-read_shortcut(context& ctx, input_stream& stream, token shortcut_token,
+read_shortcut(context& ctx, reader_stream& stream, token shortcut_token,
               std::string const& shortcut, std::string const& expansion,
               bool read_syntax, datum_labels& labels,
               std::optional<std::string> const& defining_label) {
@@ -803,7 +821,7 @@ define_label_for_atomic_value(context& ctx, ptr<> value, datum_labels& labels,
 }
 
 static ptr<>
-read(context& ctx, token first_token, input_stream& stream, bool read_syntax,
+read(context& ctx, token first_token, reader_stream& stream, bool read_syntax,
      datum_labels& labels, std::optional<std::string> defining_label) {
   if (std::holds_alternative<end>(first_token.value))
     return {};
@@ -853,7 +871,7 @@ read(context& ctx, token first_token, input_stream& stream, bool read_syntax,
 
 ptr<>
 read(context& ctx, ptr<textual_input_port> stream) {
-  input_stream s{stream};
+  reader_stream s{track(ctx, stream)};
   datum_labels labels;
   return read(ctx, read_token(ctx, s), s, false, labels);
 }
@@ -865,7 +883,7 @@ read(context& ctx, std::string s) {
 }
 
 static ptr<syntax>
-read_syntax(context& ctx, input_stream& s) {
+read_syntax(context& ctx, reader_stream& s) {
   datum_labels labels;
   if (ptr<> result = read_and_wrap(ctx, read_token(ctx, s), s, true, labels))
     return assume<syntax>(result);
@@ -875,7 +893,7 @@ read_syntax(context& ctx, input_stream& s) {
 
 ptr<syntax>
 read_syntax(context& ctx, ptr<textual_input_port> stream) {
-  input_stream s{stream};
+  reader_stream s{track(ctx, stream)};
   return read_syntax(ctx, s);
 }
 
@@ -901,7 +919,7 @@ read_multiple(context& ctx, std::string s) {
 }
 
 static std::vector<tracked_ptr<syntax>>
-read_syntax_multiple(context& ctx, input_stream& stream) {
+read_syntax_multiple(context& ctx, reader_stream& stream) {
   std::vector<tracked_ptr<syntax>> result;
   while (ptr<syntax> elem = read_syntax(ctx, stream))
     result.push_back(track(ctx, elem));
@@ -911,14 +929,14 @@ read_syntax_multiple(context& ctx, input_stream& stream) {
 
 std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context& ctx, ptr<textual_input_port> p) {
-  input_stream in{p};
+  reader_stream in{track(ctx, p)};
   return read_syntax_multiple(ctx, in);
 }
 
 std::vector<tracked_ptr<syntax>>
 read_syntax_multiple_ci(context& ctx, ptr<textual_input_port> p) {
-  input_stream in{p};
-  in.enable_fold_case();
+  reader_stream in{track(ctx, p)};
+  in.fold_case = true;
   return read_syntax_multiple(ctx, in);
 }
 

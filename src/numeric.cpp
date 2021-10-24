@@ -1,9 +1,9 @@
 #include "numeric.hpp"
 
 #include "define_procedure.hpp"
-#include "input_stream.hpp"
 #include "port.hpp"
 #include "read.hpp"
+#include "reader_stream.hpp"
 #include "write.hpp"
 
 #include <algorithm>
@@ -1460,13 +1460,13 @@ read_integer(context& ctx, std::u32string const& digits, unsigned base) {
 }
 
 static std::u32string
-read_digits(input_stream& stream) {
-  std::optional<char32_t> c = stream.peek_character();
+read_digits(reader_stream& stream) {
+  std::optional<char32_t> c = stream.peek();
 
   std::u32string result;
   while (c && digit(*c)) {
     result += static_cast<char>(*c);
-    c = stream.advance_and_peek_character();
+    c = advance_and_peek(stream);
   }
 
   return result;
@@ -1492,19 +1492,19 @@ string_to_double(std::string const& s) {
 }
 
 ptr<>
-read_number(context& ctx, input_stream& stream) {
-  std::optional<char32_t> c = stream.peek_character();
+read_number(context& ctx, reader_stream& stream) {
+  std::optional<char32_t> c = stream.peek();
   bool negative = false;
   assert(c);
   if (*c == '-' || *c == '+') {
     negative = *c == '-';
-    stream.read_character();
+    stream.read();
   }
 
   std::u32string literal = read_digits(stream);
-  c = stream.peek_character();
+  c = stream.peek();
   if (c == '/') {
-    stream.read_character();
+    stream.read();
 
     ptr<> num = read_integer(ctx, literal);
     if (negative)
@@ -1516,13 +1516,13 @@ read_number(context& ctx, input_stream& stream) {
   }
   else if (c == '.' || c == 'e' || c == 'E') {
     literal += *c;
-    stream.read_character();
+    stream.read();
     literal += read_digits(stream);
 
-    c = stream.peek_character();
+    c = stream.peek();
     if (c == 'e' || c == 'E') {
       literal += *c;
-      stream.read_character();
+      stream.read();
       literal += read_digits(stream);
     }
 

@@ -14,8 +14,8 @@ namespace insider {
 
 class boolean;
 class context;
-class input_stream;
 class module_;
+class reader_stream;
 class textual_output_port;
 
 namespace detail {
@@ -299,7 +299,7 @@ ptr<>
 read_integer(context& ctx, std::u32string const& digits, unsigned base = 10);
 
 ptr<>
-read_number(context&, input_stream&);
+read_number(context&, reader_stream&);
 
 void
 write_number(context&, ptr<> value, ptr<textual_output_port> out);

@@ -36,7 +36,6 @@ set(scheme_sources
   src/error.cpp
   src/expression.cpp
   src/free_store.cpp
-  src/input_stream.cpp
   src/internal_module.cpp
   src/module.cpp
   src/module_name.cpp
@@ -44,6 +43,7 @@ set(scheme_sources
   src/object.cpp
   src/port.cpp
   src/read.cpp
+  src/reader_stream.cpp
   src/records.cpp
   src/scope.cpp
   src/source_code_provider.cpp
@@ -68,6 +68,7 @@ set(test_sources
   test/test_numeric.cpp
   test/test_port.cpp
   test/test_procedures.cpp
+  test/test_reader_stream.cpp
   test/test_records.cpp
   test/test_string.cpp
   test/test_types.cpp
