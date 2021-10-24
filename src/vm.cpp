@@ -37,16 +37,6 @@ execution_state::set_current_frame_to_parent() {
          || ctx.store.stack().is_at_top(current_frame_.get()));
 }
 
-static std::vector<ptr<>>
-collect_closure(ptr<closure> cls) {
-  std::vector<ptr<>> result;
-  result.reserve(cls->size());
-  for (std::size_t i = 0; i < cls->size(); ++i)
-    result.push_back(cls->ref(i));
-
-  return result;
-}
-
 static operand
 get_destination_register(execution_state& state) {
   bytecode const& bc = state.ctx.program;
