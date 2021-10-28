@@ -296,7 +296,7 @@ ptr<>
 gcd(context&, ptr<>, ptr<>);
 
 ptr<>
-read_integer(context& ctx, std::u32string const& digits, unsigned base = 10);
+read_integer(context& ctx, std::string const& digits, unsigned base = 10);
 
 ptr<>
 read_number(context&, reader_stream&);

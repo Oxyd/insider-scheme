@@ -162,7 +162,7 @@ read_hexdigits(reader_stream& stream) {
 
 static char32_t
 read_character_from_hexdigits(context& ctx, std::u32string const& digits) {
-  auto value = expect<integer>(read_integer(ctx, digits, 16));
+  auto value = expect<integer>(read_integer(ctx, to_utf8(digits), 16));
   return static_cast<char32_t>(value.value());
 }
 

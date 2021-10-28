@@ -1445,7 +1445,7 @@ export_native(context& ctx, module_& m, std::string const& name,
 }
 
 ptr<>
-read_integer(context& ctx, std::u32string const& digits, unsigned base) {
+read_integer(context& ctx, std::string const& digits, unsigned base) {
   ptr<> result = integer_to_ptr(integer{0});
 
   for (char32_t c : digits) {
@@ -1459,11 +1459,11 @@ read_integer(context& ctx, std::u32string const& digits, unsigned base) {
   return result;
 }
 
-static std::u32string
+static std::string
 read_digits(reader_stream& stream) {
   std::optional<char32_t> c = stream.peek();
 
-  std::u32string result;
+  std::string result;
   while (c && digit(*c)) {
     result += static_cast<char>(*c);
     c = advance_and_peek(stream);
@@ -1501,7 +1501,7 @@ read_number(context& ctx, reader_stream& stream) {
     stream.read();
   }
 
-  std::u32string literal = read_digits(stream);
+  std::string literal = read_digits(stream);
   c = stream.peek();
   if (c == '/') {
     stream.read();
@@ -1526,7 +1526,7 @@ read_number(context& ctx, reader_stream& stream) {
       literal += read_digits(stream);
     }
 
-    double value = string_to_double(to_utf8(literal));
+    double value = string_to_double(literal);
     if (negative)
       value = -value;
 
