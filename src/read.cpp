@@ -268,7 +268,7 @@ read_decimal(context& ctx, std::string const& whole_part, reader_stream& stream,
   std::string fractional_part = read_digits(stream);
 
   if (whole_part.empty() && fractional_part.empty())
-    throw read_error{"Invalid decimal literal", loc};
+    return {};
 
   return string_to_floating_point(ctx, whole_part + "."s + fractional_part + read_suffix(stream, loc));
 }
@@ -369,10 +369,13 @@ read_number(context& ctx, reader_stream& stream, source_location loc) {
   return read_complex(ctx, stream, loc);
 }
 
-static token
+static std::optional<token>
 read_numeric_literal(context& ctx, reader_stream& stream) {
   source_location loc = stream.location();
-  return {generic_literal{read_number(ctx, stream, loc)}, loc};
+  if (ptr<> value = read_number(ctx, stream, loc))
+    return token{generic_literal{value}, loc};
+  else
+    return std::nullopt;
 }
 
 static std::u32string
@@ -599,7 +602,7 @@ read_token_after_comma(reader_stream& stream, source_location loc) {
 }
 
 static token
-read_token_after_period(context& ctx, reader_stream& stream) {
+read_token_after_period(reader_stream& stream) {
   source_location loc = stream.location();
   auto cp = stream.make_checkpoint();
   expect(stream, '.');
@@ -613,59 +616,8 @@ read_token_after_period(context& ctx, reader_stream& stream) {
     return {dot{}, loc};
   } else {
     cp.revert();
-
-    if (digit(*c))
-      return read_numeric_literal(ctx, stream);
-    else
-      return read_identifier(stream);
-  }
-}
-
-static token
-read_identifier_after_plus_or_minus(context& ctx, reader_stream& stream, source_location loc) {
-  token id = read_identifier(stream);
-  std::string const& id_value = std::get<identifier>(id.value).value;
-
-  // Infinities and NaNs look like identifiers, but they're numbers.
-
-  std::string value;
-  std::locale c_locale{"C"};
-  std::transform(id_value.begin(), id_value.end(), std::back_inserter(value),
-                 [&] (char c) { return std::tolower(c, c_locale); });
-
-  if (value == "+inf.0")
-    return {generic_literal{make<floating_point>(ctx, floating_point::positive_infinity)}, loc};
-  else if (value == "-inf.0")
-    return {generic_literal{make<floating_point>(ctx, floating_point::negative_infinity)}, loc};
-  else if (value == "+nan.0")
-    return {generic_literal{make<floating_point>(ctx, floating_point::positive_nan)}, loc};
-  else if (value == "-nan.0")
-    return {generic_literal{make<floating_point>(ctx, floating_point::negative_nan)}, loc};
-
-  return id;
-}
-
-static std::optional<char32_t>
-peek_2nd(reader_stream& stream) {
-  auto cp = stream.make_checkpoint();
-  stream.read();
-  return stream.peek();
-}
-
-static token
-read_token_after_plus_or_minus(context& ctx, reader_stream& stream) {
-  // This can begin either a number (like -2) or a symbol (like + -- the
-  // addition function).
-
-  source_location loc = stream.location();
-  std::optional<char32_t> c = peek_2nd(stream);
-
-  if (!c)
     return read_identifier(stream);
-  else if (digit(*c) || *c == '.')
-    return read_numeric_literal(ctx, stream);
-  else
-    return read_identifier_after_plus_or_minus(ctx, stream, loc);
+  }
 }
 
 static std::string
@@ -811,6 +763,25 @@ read_after_delimiter(context& ctx, reader_stream& stream) {
   }
 }
 
+template <auto OtherParser>
+static token
+read_number_or(context& ctx, reader_stream& stream) {
+  if (auto numeric_token = read_numeric_literal(ctx, stream))
+    return *numeric_token;
+  else
+    return OtherParser(stream);
+}
+
+static token
+require_numeric_literal(context& ctx, reader_stream& stream) {
+  source_location loc = stream.location();
+
+  if (auto numeric_token = read_numeric_literal(ctx, stream))
+    return *numeric_token;
+  else
+    throw read_error{"Expected numeric literal", loc};
+}
+
 static token
 read_token(context& ctx, reader_stream& stream) {
   skip_whitespace(stream);
@@ -821,11 +792,11 @@ read_token(context& ctx, reader_stream& stream) {
   if (!c)
     return {end{}, loc};
   else if (*c == '.')
-    return read_token_after_period(ctx, stream);
+    return read_number_or<read_token_after_period>(ctx, stream);
   else if (*c == '+' || *c == '-')
-    return read_token_after_plus_or_minus(ctx, stream);
+    return read_number_or<read_identifier>(ctx, stream);
   else if (digit(*c))
-    return read_numeric_literal(ctx, stream);
+    return require_numeric_literal(ctx, stream);
   else if (can_begin_identifier(*c))
     return read_identifier(stream);
   else
