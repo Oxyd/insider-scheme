@@ -146,6 +146,9 @@ private:
   ptr<> denominator_;
 };
 
+ptr<>
+normalize_fraction(context& ctx, ptr<fraction> q);
+
 class floating_point : public leaf_object<floating_point> {
 public:
   static constexpr char const* scheme_name = "insider::floating_point";
@@ -297,9 +300,6 @@ gcd(context&, ptr<>, ptr<>);
 
 ptr<>
 read_integer(context& ctx, std::string const& digits, unsigned base = 10);
-
-ptr<>
-read_number(context&, reader_stream&);
 
 void
 write_number(context&, ptr<> value, ptr<textual_output_port> out);

@@ -146,10 +146,233 @@ hexdigit(char32_t c) {
   return digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
+static char32_t
+require_char(reader_stream& stream) {
+  std::optional<char32_t> result = stream.read();
+  if (!result)
+    throw read_error{"Unexpected end of input", stream.location()};
+  return *result;
+}
+
+static void
+consume(reader_stream& stream, char32_t expected) {
+  char32_t c = require_char(stream);
+  assert(c == expected);
+}
+
+static void
+expect(reader_stream& stream, char32_t expected) {
+  source_location loc = stream.location();
+  char32_t c = require_char(stream);
+  if (c != expected)
+    throw read_error{fmt::format("Unexpected character: {}, expected {}", to_utf8(c), to_utf8(expected)), loc};
+}
+
+static std::string
+read_digits(reader_stream& stream) {
+  std::optional<char32_t> c = stream.peek();
+
+  std::string result;
+  while (c && digit(*c)) {
+    result += static_cast<char>(*c);
+    c = advance_and_peek(stream);
+  }
+
+  return result;
+}
+
+static std::string
+downcase_latin1(std::string const& s) {
+  std::locale c_locale{"C"};
+  std::string result;
+  std::transform(s.begin(), s.end(), std::back_inserter(result),
+                 [&] (char c) { return std::tolower(c, c_locale); });
+  return result;
+}
+
+static char
+read_sign(reader_stream& stream) {
+  auto cp = stream.make_checkpoint();
+  auto c = stream.read();
+  if (c == '+' || c == '-') {
+    cp.commit();
+    return *c;
+  } else
+    return '+';
+}
+
+static ptr<>
+read_fraction(context& ctx, std::string const& numerator_digits, reader_stream& stream, source_location loc) {
+  std::string denominator_digits = read_digits(stream);
+  if (denominator_digits.empty())
+    throw read_error{"Invalid fraction literal", loc};
+
+  return normalize_fraction(ctx, make<fraction>(ctx,
+                                                read_integer(ctx, numerator_digits),
+                                                read_integer(ctx, denominator_digits)));
+}
+
+static bool
+can_begin_decimal_suffix(reader_stream& stream) {
+  return stream.peek() == 'e' || stream.peek() == 'E';
+}
+
+static std::string
+read_suffix(reader_stream& stream, source_location loc) {
+  // <suffix> -> <empty>
+  //           | e <sign> <digit 10>+
+  //
+  // <sign> -> <empty> | + | -
+
+  using namespace std::literals;
+
+  if (can_begin_decimal_suffix(stream)) {
+    stream.read();
+    std::string result = "e"s + read_sign(stream) + read_digits(stream);
+    if (result.size() == 2)
+      throw read_error{"Invalid numeric suffix", loc};
+    return result;
+  } else
+    return ""s;
+}
+
+static double
+string_to_double(std::string const& s) {
+  // XXX: This would ideally use std::from_chars. But, as of 2020, GCC does not implement that, violating C++17.
+  // Alternatives include std::stod and std::atof, but those parse the string according to the currently installed
+  // global locale. Many things could be said about std::istringstream, but at least it can be imbued with a locale
+  // without messing with the global locale. Thus, that's what we're going with.
+
+  std::istringstream is{s};
+  is.imbue(std::locale{"C"});
+
+  double result;
+  is >> result;
+
+  if (!is || is.peek() != std::istringstream::traits_type::eof())
+    throw std::runtime_error{fmt::format("Invalid floating point literal: {}", s)};
+
+  return result;
+}
+
+static ptr<>
+string_to_floating_point(context& ctx, std::string const& s) {
+  return make<floating_point>(ctx, string_to_double(s));
+}
+
+static ptr<>
+read_decimal(context& ctx, std::string const& whole_part, reader_stream& stream, source_location loc) {
+  using namespace std::literals;
+
+  consume(stream, '.');
+  std::string fractional_part = read_digits(stream);
+
+  if (whole_part.empty() && fractional_part.empty())
+    throw read_error{"Invalid decimal literal", loc};
+
+  return string_to_floating_point(ctx, whole_part + "."s + fractional_part + read_suffix(stream, loc));
+}
+
+static ptr<>
+read_ureal(context& ctx, reader_stream& stream, source_location loc) {
+  // <ureal R> -> <uinteger R>
+  //            | <uinteger R> / <uinteger R>
+  //            | <decimal R>
+  //
+  // <decimal 10> -> <uinteger 10> <suffix>
+  //               | . <digit 10>+ <suffix>
+  //               | <digit 10>+ . <digit 10>* <suffix>
+  //
+  // <uinteger R> -> <digit R>+
+
+  using namespace std::literals;
+
+  if (std::string digits = read_digits(stream); !digits.empty()) {
+    auto next = stream.peek();
+    if (next == '/') {
+      consume(stream, '/');
+      return read_fraction(ctx, digits, stream, loc);
+    } else if (next == '.')
+      return read_decimal(ctx, digits, stream, loc);
+    else if (can_begin_decimal_suffix(stream))
+      return string_to_floating_point(ctx, digits + read_suffix(stream, loc));
+    else
+      return read_integer(ctx, digits);
+  } else if (stream.peek() == '.')
+    return read_decimal(ctx, ""s, stream, loc);
+  else
+    return {};
+}
+
+static ptr<>
+read_signed_real(context& ctx, reader_stream& stream, source_location loc) {
+  // <sign> <ureal R>
+
+  auto cp = stream.make_checkpoint();
+  char sign = read_sign(stream);
+  if (ptr<> magnitude = read_ureal(ctx, stream, loc)) {
+    cp.commit();
+
+    if (sign == '-')
+      return multiply(ctx, magnitude, integer_to_ptr(-1));
+    else
+      return magnitude;
+  }
+
+  return {};
+}
+
+static ptr<>
+read_infnan(context& ctx, reader_stream& stream, source_location loc) {
+  auto cp = stream.make_checkpoint();
+
+  std::string s = downcase_latin1(to_utf8(read_until_delimiter(stream)));
+  if (s.starts_with("+inf.0") || s.starts_with("-inf.0")
+      || s.starts_with("+nan.0") || s.starts_with("-nan.0")) {
+    cp.commit();
+
+    if (s == "+inf.0")
+      return make<floating_point>(ctx, floating_point::positive_infinity);
+    else if (s == "-inf.0")
+      return make<floating_point>(ctx, floating_point::negative_infinity);
+    else if (s == "+nan.0")
+      return make<floating_point>(ctx, floating_point::positive_nan);
+    else if (s == "-nan.0")
+      return make<floating_point>(ctx, floating_point::negative_nan);
+    else
+      throw read_error("Invalid infinity or NaN", loc);
+  }
+
+  return {};
+}
+
+static ptr<>
+read_real(context& ctx, reader_stream& stream, source_location loc) {
+  // <real R> -> <sign> <ureal R>
+  //           | <infnan>
+
+  if (ptr<> result = read_signed_real(ctx, stream, loc))
+    return result;
+  else
+    return read_infnan(ctx, stream, loc);
+}
+
+static ptr<>
+read_complex(context& ctx, reader_stream& stream, source_location loc) {
+  // Unimplemented.
+  return read_real(ctx, stream, loc);
+}
+
+static ptr<>
+read_number(context& ctx, reader_stream& stream, source_location loc) {
+  // Unimplemented.
+  return read_complex(ctx, stream, loc);
+}
+
 static token
 read_numeric_literal(context& ctx, reader_stream& stream) {
   source_location loc = stream.location();
-  return {generic_literal{read_number(ctx, stream)}, loc};
+  return {generic_literal{read_number(ctx, stream, loc)}, loc};
 }
 
 static std::u32string
@@ -254,34 +477,10 @@ read_special_literal(context& ctx, reader_stream& stream) {
   }
 }
 
-static char32_t
-require_char(reader_stream& stream) {
-  std::optional<char32_t> result = stream.read();
-  if (!result)
-    throw read_error{"Unexpected end of input", stream.location()};
-  return *result;
-}
-
-static void
-consume(reader_stream& stream, char32_t expected) {
-  char32_t c = require_char(stream);
-  assert(c == expected);
-}
-
-static void
-expect(reader_stream& stream, char32_t expected) {
-  source_location loc = stream.location();
-  char32_t c = require_char(stream);
-  if (c != expected)
-    throw read_error{fmt::format("Unexpected character: {}, expected {}", to_utf8(c), to_utf8(expected)), loc};
-}
-
 static token
 read_identifier(reader_stream& stream) {
   source_location loc = stream.location();
-  std::u32string value;
-  while (stream.peek() && !delimiter(*stream.peek()))
-    value += *stream.read();
+  std::u32string value = read_until_delimiter(stream);
 
   if (stream.fold_case)
     value = foldcase(value);

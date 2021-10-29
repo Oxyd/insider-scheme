@@ -2,8 +2,6 @@
 
 #include "define_procedure.hpp"
 #include "port.hpp"
-#include "read.hpp"
-#include "reader_stream.hpp"
 #include "write.hpp"
 
 #include <algorithm>
@@ -168,11 +166,6 @@ floating_point::hash() const {
   return std::hash<value_type>{}(value);
 }
 
-static bool
-digit(char32_t c) {
-  return c >= '0' && c <= '9';
-}
-
 static unsigned
 digit_value(char32_t c) {
   if (c >= '0' && c <= '9')
@@ -242,7 +235,7 @@ normalize(context& ctx, ptr<big_integer> i) {
   return result;
 }
 
-static ptr<>
+ptr<>
 normalize_fraction(context& ctx, ptr<fraction> q) {
   ptr<> num = q->numerator();
   ptr<> den = q->denominator();
@@ -435,16 +428,6 @@ static ptr<big_integer>
 flip_sign(ptr<big_integer> i) {
   i->set_positive(!i->positive());
   return i;
-}
-
-static ptr<>
-flip_sign(ptr<> i) {
-  if (auto b = match<big_integer>(i))
-    return flip_sign(b);
-
-  auto small = assume<integer>(i);
-  small.set_value(-small.value());
-  return integer_to_ptr(small);
 }
 
 static ptr<big_integer>
@@ -1457,85 +1440,6 @@ read_integer(context& ctx, std::string const& digits, unsigned base) {
     result = normalize(ctx, b);
 
   return result;
-}
-
-static std::string
-read_digits(reader_stream& stream) {
-  std::optional<char32_t> c = stream.peek();
-
-  std::string result;
-  while (c && digit(*c)) {
-    result += static_cast<char>(*c);
-    c = advance_and_peek(stream);
-  }
-
-  return result;
-}
-
-static double
-string_to_double(std::string const& s) {
-  // XXX: This would ideally use std::from_chars. But, as of 2020, GCC does not implement that, violating C++17.
-  // Alternatives include std::stod and std::atof, but those parse the string according to the currently installed
-  // global locale. Many things could be said about std::istringstream, but at least it can be imbued with a locale
-  // without messing with the global locale. Thus, that's what we're going with.
-
-  std::istringstream is{s};
-  is.imbue(std::locale{"C"});
-
-  double result;
-  is >> result;
-
-  if (!is || is.peek() != std::istringstream::traits_type::eof())
-    throw std::runtime_error{fmt::format("Invalid floating point literal: {}", s)};
-
-  return result;
-}
-
-ptr<>
-read_number(context& ctx, reader_stream& stream) {
-  std::optional<char32_t> c = stream.peek();
-  bool negative = false;
-  assert(c);
-  if (*c == '-' || *c == '+') {
-    negative = *c == '-';
-    stream.read();
-  }
-
-  std::string literal = read_digits(stream);
-  c = stream.peek();
-  if (c == '/') {
-    stream.read();
-
-    ptr<> num = read_integer(ctx, literal);
-    if (negative)
-      num = flip_sign(num);
-
-    return normalize_fraction(ctx, make<fraction>(ctx,
-                                                  num,
-                                                  read_integer(ctx, read_digits(stream))));
-  }
-  else if (c == '.' || c == 'e' || c == 'E') {
-    literal += *c;
-    stream.read();
-    literal += read_digits(stream);
-
-    c = stream.peek();
-    if (c == 'e' || c == 'E') {
-      literal += *c;
-      stream.read();
-      literal += read_digits(stream);
-    }
-
-    double value = string_to_double(literal);
-    if (negative)
-      value = -value;
-
-    return make<floating_point>(ctx, value);
-  }
-  else {
-    ptr<> value = read_integer(ctx, literal);
-    return negative ? flip_sign(value) : value;
-  }
 }
 
 template <typename T>
