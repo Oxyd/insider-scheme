@@ -726,19 +726,6 @@ bitshift_right(context& ctx, ptr<big_integer> i, std::size_t k) {
   return bitshift_right_destructive(make<big_integer>(ctx, i), k);
 }
 
-static unsigned
-count_leading_zeroes(limb_type i) {
-  limb_type const top_bit = limb_type{1} << (limb_width - 1);
-
-  unsigned count = 0;
-  while ((i & top_bit) == 0) {
-    i <<= 1;
-    ++count;
-  }
-
-  return count;
-}
-
 static limb_type
 guess_quotient(limb_type a_hi, limb_type a_lo, limb_type b) {
   double_limb_type a = (double_limb_type{a_hi} << limb_width) | a_lo;
@@ -772,7 +759,7 @@ div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divi
     return {quot, make<big_integer>(ctx, std::vector{rem})};
   }
 
-  unsigned normalisation_shift = count_leading_zeroes(divisor->back());
+  unsigned normalisation_shift = std::countl_zero(divisor->back());
   dividend = bitshift_left(ctx, dividend, normalisation_shift);
   divisor = bitshift_left(ctx, divisor, normalisation_shift);
 
