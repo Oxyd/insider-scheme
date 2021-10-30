@@ -306,6 +306,9 @@ ptr<>
 gcd(context&, ptr<>, ptr<>);
 
 ptr<>
+inexact(context&, ptr<>);
+
+ptr<>
 read_integer(context& ctx, std::string const& digits, unsigned base = 10);
 
 void

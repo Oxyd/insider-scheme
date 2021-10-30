@@ -1471,6 +1471,68 @@ export_native(context& ctx, module_& m, std::string const& name,
   m.export_(name_sym);
 }
 
+static ptr<floating_point>
+small_integer_to_floating_point(context& ctx, integer::value_type i) {
+  return make<floating_point>(ctx, i);
+}
+
+static void
+check_fit_in_floating_point(context& ctx, ptr<big_integer> b) {
+  if (bit_length(ctx, b) > std::numeric_limits<floating_point::value_type>::max_exponent)
+    throw std::runtime_error{"Value too large to fit into inexact number"};
+}
+
+static double
+big_integer_to_double(context& ctx, ptr<big_integer> b) {
+  check_fit_in_floating_point(ctx, b);
+
+  double result = 0.0;
+  auto* limbs = b->data();
+  for (std::size_t i = 0; i < b->length(); ++i)
+    result += std::ldexp(static_cast<floating_point::value_type>(limbs[i]),
+                         i * big_integer::limb_width);
+
+  return b->positive() ? result : -result;
+}
+
+static ptr<floating_point>
+big_integer_to_floating_point(context& ctx, ptr<big_integer> b) {
+  return make<floating_point>(ctx, big_integer_to_double(ctx, b));
+}
+
+static double
+integer_to_double(context& ctx, ptr<> x) {
+  if (auto i = match<integer>(x))
+    return static_cast<double>(i->value());
+  else {
+    auto f = assume<big_integer>(x);
+    return big_integer_to_double(ctx, f);
+  }
+}
+
+static ptr<floating_point>
+fraction_to_floating_point(context& ctx, ptr<fraction> f) {
+  auto [quot, rem] = quotient_remainder(ctx, f->numerator(), f->denominator());
+  double quot_double = integer_to_double(ctx, quot);
+  double rem_double = integer_to_double(ctx, rem);
+  double den_double = integer_to_double(ctx, f->denominator());
+  return make<floating_point>(ctx, quot_double + rem_double / den_double);
+}
+
+ptr<>
+inexact(context& ctx, ptr<> x) {
+  if (auto i = match<integer>(x))
+    return small_integer_to_floating_point(ctx, i->value());
+  else if (auto b = match<big_integer>(x))
+    return big_integer_to_floating_point(ctx, b);
+  else if (auto f = match<fraction>(x))
+    return fraction_to_floating_point(ctx, f);
+  else if (auto fp = match<floating_point>(x))
+    return fp;
+  else
+    throw std::runtime_error{"Expected a number"};
+}
+
 ptr<>
 read_integer(context& ctx, std::string const& digits, unsigned base) {
   ptr<> result = integer_to_ptr(integer{0});
