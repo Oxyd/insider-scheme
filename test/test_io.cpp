@@ -413,3 +413,26 @@ TEST_F(io, write_doesnt_use_labels_when_no_cycles) {
 TEST_F(io, write_uses_labels_when_cycles_are_present) {
   EXPECT_EQ(read_write(ctx, "#0=(1 . #0#)"), "#0=(1 . #0#)");
 }
+
+TEST_F(io, read_decimal_prefix) {
+  EXPECT_EQ(expect<integer>(read("#d12")).value(), 12);
+  EXPECT_EQ(expect<integer>(read("#d-4")).value(), -4);
+  EXPECT_TRUE(num_equal(read("#d1/3"), make_fraction(1, 3)));
+}
+
+TEST_F(io, read_binary_prefix) {
+  EXPECT_EQ(expect<integer>(read("#b11")).value(), 0b11);
+  EXPECT_EQ(expect<integer>(read("#b-11")).value(), -0b11);
+  EXPECT_TRUE(num_equal(read("#b1/10"), make_fraction(1, 2)));
+}
+
+TEST_F(io, read_octal_prefix) {
+  EXPECT_EQ(expect<integer>(read("#o10")).value(), 8);
+}
+
+TEST_F(io, read_hex_prefix) {
+  EXPECT_EQ(expect<integer>(read("#x10")).value(), 16);
+  EXPECT_EQ(expect<integer>(read("#xa")).value(), 10);
+  EXPECT_EQ(expect<integer>(read("#xaB")).value(), 0xab);
+  EXPECT_EQ(expect<integer>(read("#x1a2B3c4")).value(), 0x1a2b3c4);
+}

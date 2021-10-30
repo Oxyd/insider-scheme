@@ -137,13 +137,18 @@ read_until_delimiter(reader_stream& stream) {
 }
 
 static bool
-digit(char32_t c) {
-  return c >= '0' && c <= '9';
-}
+digit(char32_t c, unsigned base = 10) {
+  switch (base) {
+  case 2: return c >= '0' && c <= '1';
+  case 8: return c >= '0' && c <= '7';
+  case 10: return c >= '0' && c <= '9';
+  case 16: return (c >= '0' && c <= '9')
+                  || (c >= 'a' && c <= 'f')
+                  || (c >= 'A' && c <= 'F');
+  }
 
-static bool
-hexdigit(char32_t c) {
-  return digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+  assert(false);
+  return false;
 }
 
 static char32_t
@@ -168,12 +173,18 @@ expect(reader_stream& stream, char32_t expected) {
     throw read_error{fmt::format("Unexpected character: {}, expected {}", to_utf8(c), to_utf8(expected)), loc};
 }
 
+namespace {
+  struct number_parse_mode {
+    unsigned base = 10;
+  };
+}
+
 static std::string
-read_digits(reader_stream& stream) {
+read_digits(reader_stream& stream, unsigned base) {
   std::optional<char32_t> c = stream.peek();
 
   std::string result;
-  while (c && digit(*c)) {
+  while (c && digit(*c, base)) {
     result += static_cast<char>(*c);
     c = advance_and_peek(stream);
   }
@@ -202,14 +213,15 @@ read_sign(reader_stream& stream) {
 }
 
 static ptr<>
-read_fraction(context& ctx, std::string const& numerator_digits, reader_stream& stream, source_location loc) {
-  std::string denominator_digits = read_digits(stream);
+read_fraction(context& ctx, number_parse_mode mode,
+              std::string const& numerator_digits, reader_stream& stream, source_location loc) {
+  std::string denominator_digits = read_digits(stream, mode.base);
   if (denominator_digits.empty())
     throw read_error{"Invalid fraction literal", loc};
 
   return normalize_fraction(ctx, make<fraction>(ctx,
-                                                read_integer(ctx, numerator_digits),
-                                                read_integer(ctx, denominator_digits)));
+                                                read_integer(ctx, numerator_digits, mode.base),
+                                                read_integer(ctx, denominator_digits, mode.base)));
 }
 
 static bool
@@ -228,7 +240,7 @@ read_suffix(reader_stream& stream, source_location loc) {
 
   if (can_begin_decimal_suffix(stream)) {
     stream.read();
-    std::string result = "e"s + read_sign(stream) + read_digits(stream);
+    std::string result = "e"s + read_sign(stream) + read_digits(stream, 10);
     if (result.size() == 2)
       throw read_error{"Invalid numeric suffix", loc};
     return result;
@@ -260,12 +272,21 @@ string_to_floating_point(context& ctx, std::string const& s) {
   return make<floating_point>(ctx, string_to_double(s));
 }
 
+static void
+check_mode_for_decimal(number_parse_mode mode, source_location loc) {
+  if (mode.base != 10)
+    throw read_error{"Decimal number literals can only use base 10", loc};
+}
+
 static ptr<>
-read_decimal(context& ctx, std::string const& whole_part, reader_stream& stream, source_location loc) {
+read_decimal(context& ctx, number_parse_mode mode,
+             std::string const& whole_part, reader_stream& stream, source_location loc) {
   using namespace std::literals;
 
+  check_mode_for_decimal(mode, loc);
+
   consume(stream, '.');
-  std::string fractional_part = read_digits(stream);
+  std::string fractional_part = read_digits(stream, 10);
 
   if (whole_part.empty() && fractional_part.empty())
     return {};
@@ -274,7 +295,7 @@ read_decimal(context& ctx, std::string const& whole_part, reader_stream& stream,
 }
 
 static ptr<>
-read_ureal(context& ctx, reader_stream& stream, source_location loc) {
+read_ureal(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
   // <ureal R> -> <uinteger R>
   //            | <uinteger R> / <uinteger R>
   //            | <decimal R>
@@ -287,30 +308,31 @@ read_ureal(context& ctx, reader_stream& stream, source_location loc) {
 
   using namespace std::literals;
 
-  if (std::string digits = read_digits(stream); !digits.empty()) {
+  if (std::string digits = read_digits(stream, mode.base); !digits.empty()) {
     auto next = stream.peek();
     if (next == '/') {
       consume(stream, '/');
-      return read_fraction(ctx, digits, stream, loc);
+      return read_fraction(ctx, mode, digits, stream, loc);
     } else if (next == '.')
-      return read_decimal(ctx, digits, stream, loc);
-    else if (can_begin_decimal_suffix(stream))
+      return read_decimal(ctx, mode, digits, stream, loc);
+    else if (can_begin_decimal_suffix(stream)) {
+      check_mode_for_decimal(mode, loc);
       return string_to_floating_point(ctx, digits + read_suffix(stream, loc));
-    else
-      return read_integer(ctx, digits);
+    } else
+      return read_integer(ctx, digits, mode.base);
   } else if (stream.peek() == '.')
-    return read_decimal(ctx, ""s, stream, loc);
+    return read_decimal(ctx, mode, ""s, stream, loc);
   else
     return {};
 }
 
 static ptr<>
-read_signed_real(context& ctx, reader_stream& stream, source_location loc) {
+read_signed_real(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
   // <sign> <ureal R>
 
   auto cp = stream.make_checkpoint();
   char sign = read_sign(stream);
-  if (ptr<> magnitude = read_ureal(ctx, stream, loc)) {
+  if (ptr<> magnitude = read_ureal(ctx, mode, stream, loc)) {
     cp.commit();
 
     if (sign == '-')
@@ -347,26 +369,67 @@ read_infnan(context& ctx, reader_stream& stream, source_location loc) {
 }
 
 static ptr<>
-read_real(context& ctx, reader_stream& stream, source_location loc) {
+read_real(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
   // <real R> -> <sign> <ureal R>
   //           | <infnan>
 
-  if (ptr<> result = read_signed_real(ctx, stream, loc))
+  if (ptr<> result = read_signed_real(ctx, mode, stream, loc))
     return result;
   else
     return read_infnan(ctx, stream, loc);
 }
 
 static ptr<>
-read_complex(context& ctx, reader_stream& stream, source_location loc) {
+read_complex(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
   // Unimplemented.
-  return read_real(ctx, stream, loc);
+  return read_real(ctx, mode, stream, loc);
+}
+
+static unsigned
+read_radix(reader_stream& stream) {
+  // <radix 2> -> #b
+  // <radix 8> -> #o
+  // <radix 10> -> <empty> | #d
+  // <radix 16> -> #x
+
+  auto cp = stream.make_checkpoint();
+  consume(stream, '#');
+
+  auto r = stream.read();
+  if (r == 'b' || r == 'o' || r == 'd' || r == 'x') {
+    cp.commit();
+    switch (*r) {
+    case 'b': return 2;
+    case 'o': return 8;
+    case 'd': return 10;
+    case 'x': return 16;
+    }
+
+    assert(false);
+    return 10;
+  } else
+    return 10;
+}
+
+static number_parse_mode
+read_number_prefix(reader_stream& stream) {
+  // <prefix R> -> <radix R> <exactness>
+  //             | <exactness> <radix R>
+  //
+  // <exactness> -> <empty> | #i | #e
+  //
+
+  if (stream.peek() != '#')
+    return number_parse_mode{};
+
+  return {read_radix(stream)};
 }
 
 static ptr<>
 read_number(context& ctx, reader_stream& stream, source_location loc) {
-  // Unimplemented.
-  return read_complex(ctx, stream, loc);
+  // <num R> -> <prefix R> <complex R>
+
+  return read_complex(ctx, read_number_prefix(stream), stream, loc);
 }
 
 static std::optional<token>
@@ -381,7 +444,7 @@ read_numeric_literal(context& ctx, reader_stream& stream) {
 static std::u32string
 read_hexdigits(reader_stream& stream) {
   std::u32string result;
-  while (stream.peek() && hexdigit(*stream.peek()))
+  while (stream.peek() && digit(*stream.peek(), 16))
     result += *stream.read();
   return result;
 }
@@ -754,7 +817,6 @@ read_after_delimiter(context& ctx, reader_stream& stream) {
   case '\'': return {quote{}, loc};
   case '`': return {backquote{}, loc};
   case ',': return read_token_after_comma(stream, loc);
-  case '#': return read_token_after_octothorpe(ctx, stream, loc);
   case '"': return read_string_literal(ctx, stream);
   case '|': return read_verbatim_identifier(ctx, stream);
   default:
@@ -783,6 +845,17 @@ require_numeric_literal(context& ctx, reader_stream& stream) {
 }
 
 static token
+read_after_octothorpe(context& ctx, reader_stream& stream) {
+  source_location loc = stream.location();
+  if (auto numeric_token = read_numeric_literal(ctx, stream))
+    return *numeric_token;
+  else {
+    consume(stream, '#');
+    return read_token_after_octothorpe(ctx, stream, loc);
+  }
+}
+
+static token
 read_token(context& ctx, reader_stream& stream) {
   skip_whitespace(stream);
 
@@ -799,6 +872,8 @@ read_token(context& ctx, reader_stream& stream) {
     return require_numeric_literal(ctx, stream);
   else if (can_begin_identifier(*c))
     return read_identifier(stream);
+  else if (*c == '#')
+    return read_after_octothorpe(ctx, stream);
   else
     return read_after_delimiter(ctx, stream);
 }
