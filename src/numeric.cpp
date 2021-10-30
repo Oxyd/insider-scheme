@@ -4,6 +4,7 @@
 #include "port.hpp"
 #include "write.hpp"
 
+#include <bit>
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -1200,6 +1201,48 @@ bitwise_not(context&, ptr<> x) {
     return integer_to_ptr(integer{~value->value()});
   else
     throw std::runtime_error{"Only fixnums are supported"};
+}
+
+static std::size_t
+integer_bit_length(integer::value_type i) {
+  // For a positive integer, the bit length is the type width minus the number
+  // of leading zeroes. This is because we imagine all integers to be preceded
+  // by an infinite sequence of zeroes.
+  //
+  // Analogously, we imagine negative integers to be preceded by an infinite
+  // sequence of ones, so the bit length of a negative value is the type width
+  // minus the number of leading ones.
+
+  using unsigned_type = std::make_unsigned_t<integer::value_type>;
+
+  if (i >= 0)
+    return integer::storage_width - std::countl_zero(static_cast<unsigned_type>(i));
+  else
+    return integer::storage_width - std::countl_one(static_cast<unsigned_type>(i));
+}
+
+static ptr<big_integer>
+big_complement(context& ctx, ptr<big_integer> b) {
+  auto minus_one = make<big_integer>(ctx, std::vector{big_integer::limb_type{1}}, false);
+  return sub_big(ctx, minus_one, b);
+}
+
+static std::size_t
+big_integer_bit_length(context& ctx, ptr<big_integer> b) {
+  if (!b->positive())
+    b = big_complement(ctx, b);
+
+  return b->length() * big_integer::limb_width - std::countl_zero(b->back());
+}
+
+std::size_t
+bit_length(context& ctx, ptr<> x) {
+  if (auto i = match<integer>(x))
+    return integer_bit_length(i->value());
+  else if (auto b = match<big_integer>(x))
+    return big_integer_bit_length(ctx, b);
+  else
+    throw std::runtime_error{"Expected integer"};
 }
 
 using primitive_relational_type = ptr<boolean>(context&, ptr<>, ptr<>);

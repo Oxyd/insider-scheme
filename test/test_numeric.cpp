@@ -510,3 +510,20 @@ TEST_F(numeric, is_integer) {
   EXPECT_TRUE(is_integer(read("2.0")));
   EXPECT_TRUE(is_integer(read("4/2")));
 }
+
+TEST_F(numeric, bit_length) {
+  EXPECT_EQ(bit_length(ctx, integer_to_ptr(0)), 0);
+  EXPECT_EQ(bit_length(ctx, integer_to_ptr(1)), 1);
+  EXPECT_EQ(bit_length(ctx, integer_to_ptr(2)), 2);
+  EXPECT_EQ(bit_length(ctx, integer_to_ptr(5)), 3);
+
+  EXPECT_EQ(bit_length(ctx, integer_to_ptr(-1)), 0);
+  EXPECT_EQ(bit_length(ctx, integer_to_ptr(-4)), 2);
+  EXPECT_EQ(bit_length(ctx, integer_to_ptr(-7)), 3);
+  EXPECT_EQ(bit_length(ctx, integer_to_ptr(-8)), 3);
+
+  EXPECT_EQ(bit_length(ctx, read("340282366920938463463374607431768211456")), 129);
+  EXPECT_EQ(bit_length(ctx, read("340282366920938463463374607431768211457")), 129);
+  EXPECT_EQ(bit_length(ctx, read("-340282366920938463463374607431768211456")), 128);
+  EXPECT_EQ(bit_length(ctx, read("-340282366920938463463374607431768211457")), 129);
+}

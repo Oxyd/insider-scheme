@@ -20,11 +20,11 @@ class textual_output_port;
 
 namespace detail {
 #if defined __GNUC__ || defined __clang__
-  #define INSIDER_SCHEME_LIMB_WIDTH 64
+  constexpr std::size_t limb_width = 64;
   using limb_type = std::uint64_t;
   using double_limb_type = __uint128_t;
 #else
-  #define INSIDER_SCHEME_LIMB_WIDTH 32
+  constexpr std::size_t limb_width = 32;
   using limb_type = std::uint32_t;
   using double_limb_type = std::uint64_t;
 #endif
@@ -42,6 +42,7 @@ public:
   using iterator = detail::limb_type*;
   using reverse_iterator = std::reverse_iterator<iterator>;
   using limb_type = detail::limb_type;
+  static constexpr std::size_t limb_width = detail::limb_width;
 
   static std::size_t
   extra_elements(std::size_t length);
@@ -272,6 +273,9 @@ bitwise_or(context&, ptr<>, ptr<>);
 
 ptr<>
 bitwise_not(context&, ptr<>);
+
+std::size_t
+bit_length(context&, ptr<>);
 
 ptr<boolean>
 arith_equal(context&, ptr<>, ptr<>);
