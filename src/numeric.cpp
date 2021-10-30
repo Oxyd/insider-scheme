@@ -152,8 +152,8 @@ fraction::fraction(ptr<> num, ptr<> den)
   : numerator_{num}
   , denominator_{den}
 {
-  assert(is_integer(num));
-  assert(is_integer(den));
+  assert(is_exact_integer(num));
+  assert(is_exact_integer(den));
 }
 
 std::size_t
@@ -1009,18 +1009,32 @@ arithmetic_two(context& ctx, ptr<> lhs, ptr<> rhs) {
 }
 
 bool
-is_integer(ptr<> x) {
+is_exact_integer(ptr<> x) {
   return is<integer>(x) || is<big_integer>(x);
+}
+
+static bool
+is_floating_integer(ptr<> x) {
+  if (auto fp = match<floating_point>(x)) {
+    double integer_part;
+    return std::modf(fp->value, &integer_part) == 0.0;
+  } else
+    return false;
+}
+
+bool
+is_integer(ptr<> x) {
+  return is_exact_integer(x) || is_floating_integer(x);
 }
 
 bool
 is_number(ptr<> x) {
-  return is_integer(x) || is<fraction>(x) || is<floating_point>(x);
+  return is_exact_integer(x) || is<fraction>(x) || is<floating_point>(x);
 }
 
 bool
 is_exact(ptr<> x) {
-  return is_integer(x) || is<fraction>(x);
+  return is_exact_integer(x) || is<fraction>(x);
 }
 
 bool

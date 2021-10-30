@@ -504,3 +504,9 @@ TEST_F(numeric, integer_eqv) {
   EXPECT_TRUE(eqv(ctx, i1, i2));
   EXPECT_EQ(hasheqv(i1), hasheqv(i2));
 }
+
+TEST_F(numeric, is_integer) {
+  EXPECT_TRUE(is_integer(read("2")));
+  EXPECT_TRUE(is_integer(read("2.0")));
+  EXPECT_TRUE(is_integer(read("4/2")));
+}

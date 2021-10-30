@@ -170,6 +170,9 @@ public:
 };
 
 bool
+is_exact_integer(ptr<>);
+
+bool
 is_integer(ptr<>);
 
 bool
