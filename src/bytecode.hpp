@@ -1,7 +1,7 @@
 #ifndef INSIDER_BYTECODE_HPP
 #define INSIDER_BYTECODE_HPP
 
-#include "numeric.hpp"
+#include "integer.hpp"
 #include "operand.hpp"
 
 #include <array>

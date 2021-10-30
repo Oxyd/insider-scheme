@@ -13,6 +13,7 @@
 namespace insider {
 
 class textual_input_port;
+class module_;
 
 // The analyser expects a Scheme datum (or a list of data) that represents a
 // program, and turns it into an internal representation, defined in expression.hpp.

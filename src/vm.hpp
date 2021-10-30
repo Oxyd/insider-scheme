@@ -2,7 +2,7 @@
 #define INSIDER_VM_HPP
 
 #include "call_stack.hpp"
-#include "numeric.hpp"
+#include "integer.hpp"
 #include "ptr.hpp"
 
 #include <vector>
