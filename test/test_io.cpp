@@ -436,3 +436,12 @@ TEST_F(io, read_hex_prefix) {
   EXPECT_EQ(expect<integer>(read("#xaB")).value(), 0xab);
   EXPECT_EQ(expect<integer>(read("#x1a2B3c4")).value(), 0x1a2b3c4);
 }
+
+TEST_F(io, read_inexact) {
+  EXPECT_TRUE(equal(read("#i5"), read("5.0")));
+  EXPECT_TRUE(equal(read("#i-5"), read("-5.0")));
+  EXPECT_TRUE(equal(read("#i1/2"), read("0.5")));
+  EXPECT_TRUE(equal(read("#i0.25"), read("0.25")));
+  EXPECT_TRUE(equal(read("#i#xa"), read("10.0")));
+  EXPECT_TRUE(equal(read("#o#i10"), read("8.0")));
+}

@@ -175,7 +175,13 @@ expect(reader_stream& stream, char32_t expected) {
 
 namespace {
   struct number_parse_mode {
+    enum class exactness_mode {
+      no_change,
+      make_inexact
+    };
+
     unsigned base = 10;
+    exactness_mode exactness = exactness_mode::no_change;
   };
 }
 
@@ -369,7 +375,7 @@ read_infnan(context& ctx, reader_stream& stream, source_location loc) {
 }
 
 static ptr<>
-read_real(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
+read_real_preserve_exactness(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
   // <real R> -> <sign> <ureal R>
   //           | <infnan>
 
@@ -380,12 +386,23 @@ read_real(context& ctx, number_parse_mode mode, reader_stream& stream, source_lo
 }
 
 static ptr<>
+read_real(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
+  if (ptr<> result = read_real_preserve_exactness(ctx, mode, stream, loc)) {
+    if (mode.exactness == number_parse_mode::exactness_mode::make_inexact)
+      return inexact(ctx, result);
+    else
+      return result;
+  } else
+    return {};
+}
+
+static ptr<>
 read_complex(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
   // Unimplemented.
   return read_real(ctx, mode, stream, loc);
 }
 
-static unsigned
+static std::optional<unsigned>
 read_radix(reader_stream& stream) {
   // <radix 2> -> #b
   // <radix 8> -> #o
@@ -393,36 +410,62 @@ read_radix(reader_stream& stream) {
   // <radix 16> -> #x
 
   auto cp = stream.make_checkpoint();
-  consume(stream, '#');
+
+  if (stream.read() != '#')
+    return {};
 
   auto r = stream.read();
-  if (r == 'b' || r == 'o' || r == 'd' || r == 'x') {
-    cp.commit();
-    switch (*r) {
-    case 'b': return 2;
-    case 'o': return 8;
-    case 'd': return 10;
-    case 'x': return 16;
-    }
+  if (r != 'b' && r != 'o' && r != 'd' && r != 'x')
+    return {};
 
-    assert(false);
-    return 10;
-  } else
-    return 10;
+  cp.commit();
+  switch (*r) {
+  case 'b': return 2;
+  case 'o': return 8;
+  case 'd': return 10;
+  case 'x': return 16;
+  }
+
+  assert(false);
+  return {};
+}
+
+static std::optional<number_parse_mode::exactness_mode>
+read_exactness(reader_stream& stream) {
+  // <exactness> -> <empty> | #i | #e
+
+  auto cp = stream.make_checkpoint();
+
+  if (stream.read() != '#')
+    return {};
+
+  auto e = stream.read();
+  if (e != 'i')
+    return {};
+
+  cp.commit();
+  switch (*e) {
+  case 'i':
+    return number_parse_mode::exactness_mode::make_inexact;
+  }
+
+  assert(false);
+  return {};
 }
 
 static number_parse_mode
 read_number_prefix(reader_stream& stream) {
   // <prefix R> -> <radix R> <exactness>
   //             | <exactness> <radix R>
-  //
-  // <exactness> -> <empty> | #i | #e
-  //
 
-  if (stream.peek() != '#')
+  if (auto radix = read_radix(stream)) {
+    auto exactness = read_exactness(stream);
+    return {*radix, exactness ? *exactness : number_parse_mode::exactness_mode::no_change};
+  } else if (auto exactness = read_exactness(stream)) {
+    auto radix = read_radix(stream);
+    return {radix ? *radix : 10, *exactness};
+  } else
     return number_parse_mode{};
-
-  return {read_radix(stream)};
 }
 
 static ptr<>
