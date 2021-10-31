@@ -188,6 +188,12 @@ is_inexact(ptr<>);
 bool
 is_nan(ptr<>);
 
+bool
+is_infinite(ptr<>);
+
+bool
+is_positive(ptr<>);
+
 ptr<>
 add(context&, ptr<>, ptr<>);
 ptr<>
@@ -307,6 +313,9 @@ gcd(context&, ptr<>, ptr<>);
 
 ptr<>
 inexact(context&, ptr<>);
+
+ptr<>
+exact(context&, ptr<>);
 
 ptr<>
 read_integer(context& ctx, std::string const& digits, unsigned base = 10);

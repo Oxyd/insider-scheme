@@ -543,3 +543,31 @@ TEST_F(numeric, inexact) {
   EXPECT_DOUBLE_EQ(expect<floating_point>(inexact(ctx, read("1/2")))->value, 0.5);
   EXPECT_DOUBLE_EQ(expect<floating_point>(inexact(ctx, read("1267650600228229401496703205376/1267650600228229401496703205377")))->value, 1.0);
 }
+
+TEST_F(numeric, exact) {
+  EXPECT_EQ(expect<integer>(exact(ctx, read("0"))).value(), 0);
+  EXPECT_EQ(expect<integer>(exact(ctx, read("2"))).value(), 2);
+  EXPECT_TRUE(test_equal(exact(ctx, read("1/2")), read("1/2")));
+
+  EXPECT_EQ(expect<integer>(exact(ctx, read("0.0"))).value(), 0);
+  EXPECT_EQ(expect<integer>(exact(ctx, read("2.0"))).value(), 2);
+  EXPECT_TRUE(test_equal(exact(ctx, read("4611686018427387904.0")), read("4611686018427387904")));
+  EXPECT_TRUE(test_equal(exact(ctx, read("1267650600228229401496703205376.0")),
+                         read("1267650600228229401496703205376")));
+  EXPECT_TRUE(test_equal(exact(ctx, read("0.5")), read("1/2")));
+  EXPECT_TRUE(test_equal(exact(ctx, read("12.125")), read("97/8")));
+
+  EXPECT_EQ(expect<integer>(exact(ctx, read("-0.0"))).value(), 0);
+  EXPECT_EQ(expect<integer>(exact(ctx, read("-2.0"))).value(), -2);
+  EXPECT_TRUE(test_equal(exact(ctx, read("-4611686018427387904.0")), read("-4611686018427387904")));
+  EXPECT_TRUE(test_equal(exact(ctx, read("-1267650600228229401496703205376.0")),
+                         read("-1267650600228229401496703205376")));
+  EXPECT_TRUE(test_equal(exact(ctx, read("-0.5")), read("-1/2")));
+  EXPECT_TRUE(test_equal(exact(ctx, read("-12.125")), read("-97/8")));
+
+  EXPECT_TRUE(test_equal(exact(ctx, read("1e200")),
+                         read("99999999999999996973312221251036165947450327545502362648241750950346848435554075534196338404706251868027512415973882408182135734368278484639385041047239877871023591066789981811181813306167128854888448")));
+
+  EXPECT_THROW(exact(ctx, read("+inf.0")), std::runtime_error);
+  EXPECT_THROW(exact(ctx, read("+nan.0")), std::runtime_error);
+}

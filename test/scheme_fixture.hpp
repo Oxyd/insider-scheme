@@ -66,6 +66,9 @@ struct scheme_fixture : testing::Test {
   make_float(double value) {
     return insider::make<insider::floating_point>(ctx, value);
   }
+
+  testing::AssertionResult
+  test_equal(insider::ptr<> x, insider::ptr<> y);
 };
 
 #endif

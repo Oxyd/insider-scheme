@@ -260,9 +260,12 @@ normalize_fraction(context& ctx, ptr<fraction> q) {
   ptr<> reduced_num = truncate_quotient(ctx, num, com_den);
   ptr<> reduced_den = truncate_quotient(ctx, den, com_den);
 
-  if (auto d = match<integer>(reduced_den))
+  if (auto d = match<integer>(reduced_den)) {
     if (d->value() == 1)
       return reduced_num;
+    else if (d->value () == -1)
+      return multiply(ctx, reduced_num, integer_to_ptr(-1));
+  }
 
   return make<fraction>(ctx, num, den);
 }
@@ -1035,6 +1038,25 @@ is_nan(ptr<> x) {
   return is<floating_point>(x) && std::isnan(assume<floating_point>(x)->value);
 }
 
+bool
+is_infinite(ptr<> x) {
+  return is<floating_point>(x) && std::isinf(assume<floating_point>(x)->value);
+}
+
+bool
+is_positive(ptr<> x) {
+  if (auto i = match<integer>(x))
+    return i->value() > 0;
+  else if (auto b = match<big_integer>(x))
+    return b->positive();
+  else if (auto f = match<fraction>(x))
+    return is_positive(f->numerator()) == is_positive(f->denominator());
+  else if (auto fp = match<floating_point>(x))
+    return fp->value > 0.0;
+  else
+    throw std::runtime_error{"Expected a real number"};
+}
+
 ptr<>
 add(context& ctx, ptr<> lhs, ptr<> rhs) {
   return arithmetic_two<add_small, add_big, add_fraction, add_float>(ctx, lhs, rhs);
@@ -1529,6 +1551,94 @@ inexact(context& ctx, ptr<> x) {
     return fraction_to_floating_point(ctx, f);
   else if (auto fp = match<floating_point>(x))
     return fp;
+  else
+    throw std::runtime_error{"Expected a number"};
+}
+
+template <int Base>
+static ptr<>
+integer_power(context& ctx, unsigned exponent) {
+  ptr<> result = integer_to_ptr(1);
+  while (exponent > 0) {
+    result = multiply(ctx, result, integer_to_ptr(Base));
+    exponent -= 1;
+  }
+
+  return result;
+}
+
+static ptr<>
+big_integer_power_of_2(context& ctx, unsigned exponent) {
+  std::size_t num_limbs = exponent / big_integer::limb_width + 1;
+  unsigned limb_exponent = exponent % big_integer::limb_width;
+
+  auto result = make<big_integer>(ctx, num_limbs);
+  result->back() = big_integer::limb_type{1} << limb_exponent;
+  return result;
+}
+
+template <>
+ptr<>
+integer_power<2>(context& ctx, unsigned exponent) {
+  assert(exponent > 0);
+
+  if (exponent < integer::value_width - 1)
+    return integer_to_ptr(integer::value_type{1} << exponent);
+  else
+    return big_integer_power_of_2(ctx, exponent);
+}
+
+static void
+throw_if_not_representable_as_exact(ptr<floating_point> fp) {
+  if (is_infinite(fp))
+    throw std::runtime_error{"Infinity cannot be represented as exact number"};
+  if (is_nan(fp))
+    throw std::runtime_error{"NaN cannot be represented as exact number"};
+}
+
+ptr<>
+floating_point_to_exact(context& ctx, ptr<floating_point> value) {
+  throw_if_not_representable_as_exact(value);
+
+  constexpr int radix = std::numeric_limits<floating_point::value_type>::radix;
+  int negative = value->value < 0.0;
+  int exponent;
+  floating_point::value_type f = std::frexp(std::fabs(value->value), &exponent);
+
+  // f = 0 . d1 d2 ... dn * r^e, where di are digits in base-r, r is the radix, e the exponent.
+
+  ptr<> numerator = integer_to_ptr(0);
+
+  while (f != 0.0) {
+    f *= radix;               // f = d1 . d2 d3 ... dn * r^e
+    double d = std::trunc(f); // d1
+    f -= d;                   // f = 0 . d2 d3 ... dn * r^e
+
+    numerator = add(ctx,
+                    integer_to_ptr(static_cast<integer::value_type>(d)),
+                    multiply(ctx, numerator, integer_to_ptr(radix)));
+    exponent -= 1;
+  }
+
+  if (negative)
+    numerator = multiply(ctx, integer_to_ptr(-1), numerator);
+
+  if (exponent == 0)
+    return numerator;
+  else if (exponent > 0)
+    return multiply(ctx, numerator, integer_power<radix>(ctx, exponent));
+  else {
+    ptr<> denominator = integer_power<radix>(ctx, -exponent);
+    return normalize_fraction(ctx, make<fraction>(ctx, numerator, denominator));
+  }
+}
+
+ptr<>
+exact(context& ctx, ptr<> x) {
+  if (auto f = match<floating_point>(x))
+    return floating_point_to_exact(ctx, f);
+  else if (is_exact(x))
+    return x;
   else
     throw std::runtime_error{"Expected a number"};
 }
