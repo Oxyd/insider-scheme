@@ -315,7 +315,7 @@ TEST_F(modules, mix_begin_and_include_in_define_library) {
     (import (insider internal) (foo))
     result
   )");
-  EXPECT_TRUE(equal(ctx, result, read("(include begin)")));
+  EXPECT_TRUE(equal(result, read("(include begin)")));
 }
 
 TEST_F(modules, include_ci_in_define_library) {
@@ -438,7 +438,7 @@ TEST_F(modules, cond_expand_in_define_library_test_for_library) {
     (import (insider internal) (foo))
     (cons first second)
   )");
-  EXPECT_TRUE(equal(ctx, result, read("(#t . #f)")));
+  EXPECT_TRUE(equal(result, read("(#t . #f)")));
 }
 
 TEST_F(modules, cond_expand_in_define_library_boolean_conditionals) {
@@ -474,7 +474,7 @@ TEST_F(modules, cond_expand_in_define_library_boolean_conditionals) {
     (import (insider internal) (foo))
     ((lambda l l) first second third)
   )");
-  EXPECT_TRUE(equal(ctx, result, read("(#t #t #t)")));
+  EXPECT_TRUE(equal(result, read("(#t #t #t)")));
 }
 
 TEST_F(modules, empty_module_body) {

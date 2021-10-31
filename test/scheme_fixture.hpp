@@ -68,7 +68,7 @@ struct scheme_fixture : testing::Test {
   }
 
   testing::AssertionResult
-  test_equal(insider::ptr<> x, insider::ptr<> y);
+  equal(insider::ptr<> x, insider::ptr<> y);
 };
 
 #endif

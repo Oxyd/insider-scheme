@@ -305,7 +305,7 @@ display(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
 std::string
 datum_to_string(context& ctx, ptr<> datum) {
   auto p = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
-  write_simple(ctx, datum, p);
+  write(ctx, datum, p);
   return p->get_string();
 }
 

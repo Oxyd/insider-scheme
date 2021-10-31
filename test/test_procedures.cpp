@@ -67,44 +67,44 @@ TEST_F(procedures, make_list) {
 }
 
 TEST_F(procedures, equal) {
-  EXPECT_TRUE(equal(ctx, read("1"), read("1")));
-  EXPECT_FALSE(equal(ctx, read("1"), read("2")));
-  EXPECT_FALSE(equal(ctx, read("1"), read("sym")));
-  EXPECT_TRUE(equal(ctx, read("'(1 2)"), read("'(1 2)")));
-  EXPECT_TRUE(equal(ctx, read("'(1 2)"), read("(quote (1 2))")));
-  EXPECT_FALSE(equal(ctx, read("'(1 2)"), read("'(1 3)")));
-  EXPECT_FALSE(equal(ctx, read("'(1 2)"), read("'(1 2 3)")));
-  EXPECT_TRUE(equal(ctx, make<string>(ctx, "foo"), make<string>(ctx, "foo")));
-  EXPECT_FALSE(equal(ctx, make<string>(ctx, "foo"), make<string>(ctx, "bar")));
+  EXPECT_TRUE(equal(read("1"), read("1")));
+  EXPECT_FALSE(equal(read("1"), read("2")));
+  EXPECT_FALSE(equal(read("1"), read("sym")));
+  EXPECT_TRUE(equal(read("'(1 2)"), read("'(1 2)")));
+  EXPECT_TRUE(equal(read("'(1 2)"), read("(quote (1 2))")));
+  EXPECT_FALSE(equal(read("'(1 2)"), read("'(1 3)")));
+  EXPECT_FALSE(equal(read("'(1 2)"), read("'(1 2 3)")));
+  EXPECT_TRUE(equal(make<string>(ctx, "foo"), make<string>(ctx, "foo")));
+  EXPECT_FALSE(equal(make<string>(ctx, "foo"), make<string>(ctx, "bar")));
 }
 
 TEST_F(procedures, equal_on_infinite_data_structures) {
-  EXPECT_TRUE(equal(ctx, read("#1=(a b . #1#)"), read("#2=(a b a b . #2#)")));
-  EXPECT_FALSE(equal(ctx, read("#1=(a b . #1#)"), read("#2=(a b a . #2#)")));
+  EXPECT_TRUE(equal(read("#1=(a b . #1#)"), read("#2=(a b a b . #2#)")));
+  EXPECT_FALSE(equal(read("#1=(a b . #1#)"), read("#2=(a b a . #2#)")));
 }
 
 TEST_F(procedures, append) {
   auto r1 = eval("(append '(a1 a2 a3) '(b1 b2 b3) '(c1 c2) '(d1) '() '(f1 f2))");
-  EXPECT_TRUE(equal(ctx, r1, read("(a1 a2 a3 b1 b2 b3 c1 c2 d1 f1 f2)")));
+  EXPECT_TRUE(equal(r1, read("(a1 a2 a3 b1 b2 b3 c1 c2 d1 f1 f2)")));
 
   auto r2 = eval("(append)");
-  EXPECT_TRUE(equal(ctx, r2, read("()")));
+  EXPECT_TRUE(equal(r2, read("()")));
 
   auto r3 = eval("(append '(a1 a2 a3))");
-  EXPECT_TRUE(equal(ctx, r3, read("(a1 a2 a3)")));
+  EXPECT_TRUE(equal(r3, read("(a1 a2 a3)")));
 
   auto r4 = eval("(append '(a1 a2) 'tail)");
   EXPECT_EQ(cddr(expect<pair>(r4)), ctx.intern("tail"));
 
   auto r5 = eval("(append '() '() '() '())");
-  EXPECT_TRUE(equal(ctx, r5, ctx.constants->null.get()));
+  EXPECT_TRUE(equal(r5, ctx.constants->null.get()));
 
   auto r6 = eval("(append '() '(a1 a2))");
-  EXPECT_TRUE(equal(ctx, r6, read("(a1 a2)")));
+  EXPECT_TRUE(equal(r6, read("(a1 a2)")));
 
   auto r7 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3))");
-  EXPECT_TRUE(equal(ctx, r7, read("(a1 a2 b1 b2 b3)")));
+  EXPECT_TRUE(equal(r7, read("(a1 a2 b1 b2 b3)")));
 
   auto r8 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3) '())");
-  EXPECT_TRUE(equal(ctx, r8, read("(a1 a2 b1 b2 b3)")));
+  EXPECT_TRUE(equal(r8, read("(a1 a2 b1 b2 b3)")));
 }

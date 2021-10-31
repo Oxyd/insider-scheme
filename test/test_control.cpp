@@ -562,7 +562,7 @@ TEST_F(control, with_exception_handler_can_nest_several_times) {
               (lambda ()
                 (raise-continuable '(raise))))))))
   )");
-  EXPECT_TRUE(equal(ctx, result, read("(outermost-handler middle-handler inner-handler raise)")));
+  EXPECT_TRUE(equal(result, read("(outermost-handler middle-handler inner-handler raise)")));
 }
 
 TEST_F(control, raise_continuable_goes_directly_to_builtin_handler_if_no_with_exception_handler) {
@@ -720,7 +720,7 @@ TEST_F(control, apply_with_multiple_arguments) {
 
 TEST_F(control, apply_with_variadic_lambda) {
   auto result = eval("(apply (lambda args args) '(1 2 3))");
-  EXPECT_TRUE(equal(ctx, result, read("(1 2 3)")));
+  EXPECT_TRUE(equal(result, read("(1 2 3)")));
 }
 
 TEST_F(control, call_with_values_single_value) {

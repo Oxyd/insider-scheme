@@ -186,7 +186,7 @@ TEST_F(port_fixture, open_input_string_can_be_read) {
         (let ((y (read p)))
           (cons x y))))
   )");
-  EXPECT_TRUE(equal(ctx, result, read("(foo . bar)")));
+  EXPECT_TRUE(equal(result, read("(foo . bar)")));
 }
 
 TEST_F(port_fixture, read_syntax_reads_syntax) {

@@ -194,20 +194,20 @@ TEST_F(io, read_comments) {
 }
 
 TEST_F(io, read_datum_comment) {
-  EXPECT_TRUE(equal(ctx, read("(1 #;(+ 2 3) 4)"), read("(1 4)")));
-  EXPECT_TRUE(equal(ctx, read("(1 #;   (+ 2 3) 4)"), read("(1 4)")));
-  EXPECT_TRUE(equal(ctx, read("(1 #;(+ #;(+ 4 5) 3) 4)"), read("(1 4)")));
-  EXPECT_TRUE(equal(ctx, read("(1 #;2 4)"), read("(1 4)")));
+  EXPECT_TRUE(equal(read("(1 #;(+ 2 3) 4)"), read("(1 4)")));
+  EXPECT_TRUE(equal(read("(1 #;   (+ 2 3) 4)"), read("(1 4)")));
+  EXPECT_TRUE(equal(read("(1 #;(+ #;(+ 4 5) 3) 4)"), read("(1 4)")));
+  EXPECT_TRUE(equal(read("(1 #;2 4)"), read("(1 4)")));
 }
 
 TEST_F(io, read_block_comment) {
-  EXPECT_TRUE(equal(ctx, read("(1 #| rest of the list |# 2 3)"), read("(1 2 3)")));
-  EXPECT_TRUE(equal(ctx, read("(1 #| outer #| nested |# |# 2 3)"), read("(1 2 3)")));
+  EXPECT_TRUE(equal(read("(1 #| rest of the list |# 2 3)"), read("(1 2 3)")));
+  EXPECT_TRUE(equal(read("(1 #| outer #| nested |# |# 2 3)"), read("(1 2 3)")));
 }
 
 TEST_F(io, case_folding) {
-  EXPECT_TRUE(equal(ctx, read("#!fold-case fOO"), read("foo")));
-  EXPECT_TRUE(equal(ctx, read("(#!fold-case FOO #!no-fold-case BAR)"), read("(foo BAR)")));
+  EXPECT_TRUE(equal(read("#!fold-case fOO"), read("foo")));
+  EXPECT_TRUE(equal(read("(#!fold-case FOO #!no-fold-case BAR)"), read("(foo BAR)")));
   EXPECT_EQ(expect<char32_t>(read(R"(#!fold-case #\NEWLINE)")), '\n');
 }
 
@@ -323,7 +323,7 @@ TEST_F(io, read_datum_label) {
 
 TEST_F(io, read_datum_reference_to_atomic_value) {
   auto result = expect<pair>(read("(1 #0=2 3 #0#)"));
-  EXPECT_TRUE(equal(ctx, result, read("(1 2 3 2)")));
+  EXPECT_TRUE(equal(result, read("(1 2 3 2)")));
 }
 
 TEST_F(io, read_datum_reference_in_pair) {
@@ -342,8 +342,8 @@ TEST_F(io, read_datum_reference_in_vector) {
 
 TEST_F(io, read_datum_reference_to_vector) {
   auto result = expect<pair>(read("(#0=#(1 2 3) #0#)"));
-  EXPECT_TRUE(equal(ctx, expect<vector>(car(result)), read("#(1 2 3)")));
-  EXPECT_TRUE(equal(ctx, expect<vector>(cadr(result)), read("#(1 2 3)")));
+  EXPECT_TRUE(equal(expect<vector>(car(result)), read("#(1 2 3)")));
+  EXPECT_TRUE(equal(expect<vector>(cadr(result)), read("#(1 2 3)")));
   EXPECT_EQ(expect<vector>(cadr(result)), car(result));
 }
 
@@ -357,7 +357,7 @@ TEST_F(io, multiple_datum_references) {
 
 TEST_F(io, datum_label_to_atomic_shortcut) {
   auto result = expect<pair>(read("(#0='foo #0#)"));
-  EXPECT_TRUE(equal(ctx, car(result), read("(quote foo)")));
+  EXPECT_TRUE(equal(car(result), read("(quote foo)")));
   EXPECT_EQ(cadr(result), car(result));
 }
 

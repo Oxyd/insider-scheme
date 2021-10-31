@@ -5,7 +5,7 @@
 using namespace insider;
 
 testing::AssertionResult
-scheme_fixture::test_equal(insider::ptr<> x, insider::ptr<> y) {
+scheme_fixture::equal(insider::ptr<> x, insider::ptr<> y) {
   if (insider::equal(ctx, x, y))
     return testing::AssertionSuccess();
   else

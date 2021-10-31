@@ -226,7 +226,7 @@ TEST_F(interpreter, exec_cons) {
     5, 0
   );
   auto result = call_with_continuation_barrier(ctx, global, {});
-  EXPECT_TRUE(equal(ctx, result.get(), read("(1 2 3)")));
+  EXPECT_TRUE(equal(result.get(), read("(1 2 3)")));
 }
 
 TEST_F(interpreter, exec_make_vector) {
@@ -244,7 +244,7 @@ TEST_F(interpreter, exec_make_vector) {
   );
 
   auto result = call_with_continuation_barrier(ctx, global, {});
-  EXPECT_TRUE(equal(ctx, result.get(), read("#(1 2 3)")));
+  EXPECT_TRUE(equal(result.get(), read("#(1 2 3)")));
 }
 
 TEST_F(interpreter, scheme_to_native_to_scheme) {
@@ -283,7 +283,7 @@ TEST_F(interpreter, scheme_to_native_to_scheme) {
 TEST_F(interpreter, call_variadic_scheme_procedure_from_native) {
   ptr<> f = eval("(lambda args args)");
   ptr<> result = call_with_continuation_barrier(ctx, f, {to_scheme(ctx, 0), to_scheme(ctx, 1), to_scheme(ctx, 2)}).get();
-  EXPECT_TRUE(equal(ctx, result, read("(0 1 2)")));
+  EXPECT_TRUE(equal(result, read("(0 1 2)")));
 }
 
 TEST_F(interpreter, native_tail_calls) {
