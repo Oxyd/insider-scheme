@@ -246,7 +246,9 @@ read_suffix(reader_stream& stream, source_location loc) {
 
   if (can_begin_decimal_suffix(stream)) {
     stream.read();
-    std::string result = "e"s + read_sign(stream) + read_digits(stream, 10);
+    std::string result = "e"s;
+    result += read_sign(stream);
+    result += read_digits(stream, 10);
     if (result.size() == 2)
       throw read_error{"Invalid numeric suffix", loc};
     return result;

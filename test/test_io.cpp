@@ -290,18 +290,20 @@ TEST_F(io, read_write_fraction) {
 }
 
 TEST_F(io, read_write_float) {
-  EXPECT_TRUE(num_equal(read("0.0"), make_float(0.0)));
-  EXPECT_TRUE(num_equal(read("0.1"), make_float(0.1)));
-  EXPECT_TRUE(num_equal(read("-0.1"), make_float(-0.1)));
-  EXPECT_TRUE(num_equal(read("1.0"), make_float(1.0)));
-  EXPECT_TRUE(num_equal(read("3.14"), make_float(3.14)));
-  EXPECT_TRUE(num_equal(read(".5"), make_float(0.5)));
-  EXPECT_TRUE(num_equal(read("-.5"), make_float(-0.5)));
-  EXPECT_TRUE(num_equal(read("5."), make_float(5.0)));
-  EXPECT_TRUE(num_equal(read("-5."), make_float(-5.0)));
-  EXPECT_TRUE(num_equal(read("+inf.0"), make_float(floating_point::positive_infinity)));
-  EXPECT_TRUE(num_equal(read("+INF.0"), make_float(floating_point::positive_infinity)));
-  EXPECT_TRUE(num_equal(read("-inf.0"), make_float(floating_point::negative_infinity)));
+  EXPECT_TRUE(equal(read("0.0"), make_float(0.0)));
+  EXPECT_TRUE(equal(read("0.1"), make_float(0.1)));
+  EXPECT_TRUE(equal(read("-0.1"), make_float(-0.1)));
+  EXPECT_TRUE(equal(read("1.0"), make_float(1.0)));
+  EXPECT_TRUE(equal(read("3.14"), make_float(3.14)));
+  EXPECT_TRUE(equal(read(".5"), make_float(0.5)));
+  EXPECT_TRUE(equal(read("-.5"), make_float(-0.5)));
+  EXPECT_TRUE(equal(read("5."), make_float(5.0)));
+  EXPECT_TRUE(equal(read("-5."), make_float(-5.0)));
+  EXPECT_TRUE(equal(read("5e3"), make_float(5000.0)));
+  EXPECT_TRUE(equal(read("5e-2"), make_float(0.05)));
+  EXPECT_TRUE(equal(read("+inf.0"), make_float(floating_point::positive_infinity)));
+  EXPECT_TRUE(equal(read("+INF.0"), make_float(floating_point::positive_infinity)));
+  EXPECT_TRUE(equal(read("-inf.0"), make_float(floating_point::negative_infinity)));
   EXPECT_TRUE(std::isnan(expect<floating_point>(read("+nan.0"))->value));
   EXPECT_TRUE(std::isnan(expect<floating_point>(read("+NaN.0"))->value));
   EXPECT_TRUE(std::isnan(expect<floating_point>(read("-nan.0"))->value));
