@@ -311,6 +311,22 @@ greater_or_equal(context&, object_span);
 ptr<>
 gcd(context&, ptr<>, ptr<>);
 
+template <int Base>
+ptr<>
+integer_power(context& ctx, unsigned exponent) {
+  ptr<> result = integer_to_ptr(1);
+  while (exponent > 0) {
+    result = multiply(ctx, result, integer_to_ptr(Base));
+    exponent -= 1;
+  }
+
+  return result;
+}
+
+template <>
+ptr<>
+integer_power<2>(context&, unsigned);
+
 ptr<>
 inexact(context&, ptr<>);
 

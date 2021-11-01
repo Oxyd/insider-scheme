@@ -1555,18 +1555,6 @@ inexact(context& ctx, ptr<> x) {
     throw std::runtime_error{"Expected a number"};
 }
 
-template <int Base>
-static ptr<>
-integer_power(context& ctx, unsigned exponent) {
-  ptr<> result = integer_to_ptr(1);
-  while (exponent > 0) {
-    result = multiply(ctx, result, integer_to_ptr(Base));
-    exponent -= 1;
-  }
-
-  return result;
-}
-
 static ptr<>
 big_integer_power_of_2(context& ctx, unsigned exponent) {
   std::size_t num_limbs = exponent / big_integer::limb_width + 1;

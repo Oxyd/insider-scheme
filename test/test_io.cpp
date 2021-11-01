@@ -451,3 +451,15 @@ TEST_F(io, read_inexact) {
   EXPECT_TRUE(equal(read("#i#xa"), read("10.0")));
   EXPECT_TRUE(equal(read("#o#i10"), read("8.0")));
 }
+
+TEST_F(io, read_exact) {
+  EXPECT_TRUE(equal(read("#e1.0"), read("1")));
+  EXPECT_TRUE(equal(read("#e0.1"), read("1/10")));
+  EXPECT_TRUE(equal(read("#e3.14"), read("314/100")));
+  EXPECT_TRUE(equal(read("#e1e2"), read("100")));
+  EXPECT_TRUE(equal(read("#e123.456"), read("123456/1000")));
+  EXPECT_TRUE(equal(read("#e123.456e2"), read("123456/10")));
+  EXPECT_TRUE(equal(read("#e123.456e-2"), read("123456/100000")));
+  EXPECT_THROW(read("#e+inf.0"), std::runtime_error);
+  EXPECT_THROW(read("#e+nan.0"), std::runtime_error);
+}

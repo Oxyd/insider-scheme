@@ -177,7 +177,8 @@ namespace {
   struct number_parse_mode {
     enum class exactness_mode {
       no_change,
-      make_inexact
+      make_inexact,
+      make_exact
     };
 
     unsigned base = 10;
@@ -286,11 +287,52 @@ check_mode_for_decimal(number_parse_mode mode, source_location loc) {
     throw read_error{"Decimal number literals can only use base 10", loc};
 }
 
+static int
+suffix_to_exponent(context& ctx, std::string const& suffix) {
+  if (!suffix.empty()) {
+    assert(suffix.length() > 2);
+    assert(suffix[0] == 'e' || suffix[0] == 'E');
+    assert(suffix[1] == '+' || suffix[1] == '-');
+
+    int sign = suffix[1] == '+' ? 1 : -1;
+    return sign * expect<integer>(read_integer(ctx, suffix.substr(2))).value();
+  } else
+    return 0;
+}
+
+static ptr<>
+string_to_exact(context& ctx,
+                std::string const& whole_part,
+                std::string const& fractional_part,
+                std::string const& suffix) {
+  ptr<> numerator = read_integer(ctx, whole_part + fractional_part);
+  int exponent = -fractional_part.length();
+  exponent += suffix_to_exponent(ctx, suffix);
+
+  if (exponent > 0)
+    return multiply(ctx, numerator, integer_power<10>(ctx, exponent));
+  else if (exponent < 0)
+    return divide(ctx, numerator, integer_power<10>(ctx, -exponent));
+  else
+    return numerator;
+}
+
+static ptr<>
+string_to_decimal(context& ctx, number_parse_mode mode,
+                  std::string const& whole_part,
+                  std::string const& fractional_part,
+                  std::string const& suffix) {
+  using namespace std::literals;
+
+  if (mode.exactness != number_parse_mode::exactness_mode::make_exact)
+    return string_to_floating_point(ctx, whole_part + "."s + fractional_part + suffix);
+  else
+    return string_to_exact(ctx, whole_part, fractional_part, suffix);
+}
+
 static ptr<>
 read_decimal(context& ctx, number_parse_mode mode,
              std::string const& whole_part, reader_stream& stream, source_location loc) {
-  using namespace std::literals;
-
   check_mode_for_decimal(mode, loc);
 
   consume(stream, '.');
@@ -299,7 +341,7 @@ read_decimal(context& ctx, number_parse_mode mode,
   if (whole_part.empty() && fractional_part.empty())
     return {};
 
-  return string_to_floating_point(ctx, whole_part + "."s + fractional_part + read_suffix(stream, loc));
+  return string_to_decimal(ctx, mode, whole_part, fractional_part, read_suffix(stream, loc));
 }
 
 static ptr<>
@@ -325,7 +367,7 @@ read_ureal(context& ctx, number_parse_mode mode, reader_stream& stream, source_l
       return read_decimal(ctx, mode, digits, stream, loc);
     else if (can_begin_decimal_suffix(stream)) {
       check_mode_for_decimal(mode, loc);
-      return string_to_floating_point(ctx, digits + read_suffix(stream, loc));
+      return string_to_decimal(ctx, mode, digits, ""s, read_suffix(stream, loc));
     } else
       return read_integer(ctx, digits, mode.base);
   } else if (stream.peek() == '.')
@@ -387,13 +429,26 @@ read_real_preserve_exactness(context& ctx, number_parse_mode mode, reader_stream
     return read_infnan(ctx, stream, loc);
 }
 
+static void
+throw_if_exact_non_rational(ptr<> value, number_parse_mode mode) {
+  if (mode.exactness != number_parse_mode::exactness_mode::make_exact)
+    return;
+
+  if (is_nan(value))
+    throw std::runtime_error{"Can't make exact NaN"};
+  else if (is_infinite(value))
+    throw std::runtime_error{"Can't make exact infinity"};
+}
+
 static ptr<>
 read_real(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
   if (ptr<> result = read_real_preserve_exactness(ctx, mode, stream, loc)) {
     if (mode.exactness == number_parse_mode::exactness_mode::make_inexact)
       return inexact(ctx, result);
-    else
+    else {
+      throw_if_exact_non_rational(result, mode);
       return result;
+    }
   } else
     return {};
 }
@@ -442,13 +497,15 @@ read_exactness(reader_stream& stream) {
     return {};
 
   auto e = stream.read();
-  if (e != 'i')
+  if (e != 'i' && e != 'e')
     return {};
 
   cp.commit();
   switch (*e) {
   case 'i':
     return number_parse_mode::exactness_mode::make_inexact;
+  case 'e':
+    return number_parse_mode::exactness_mode::make_exact;
   }
 
   assert(false);
