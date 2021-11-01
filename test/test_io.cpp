@@ -418,16 +418,19 @@ TEST_F(io, read_decimal_prefix) {
   EXPECT_EQ(expect<integer>(read("#d12")).value(), 12);
   EXPECT_EQ(expect<integer>(read("#d-4")).value(), -4);
   EXPECT_TRUE(num_equal(read("#d1/3"), make_fraction(1, 3)));
+  EXPECT_TRUE(num_equal(read("#d+inf.0"), make<floating_point>(ctx, floating_point::positive_infinity)));
 }
 
 TEST_F(io, read_binary_prefix) {
   EXPECT_EQ(expect<integer>(read("#b11")).value(), 0b11);
   EXPECT_EQ(expect<integer>(read("#b-11")).value(), -0b11);
   EXPECT_TRUE(num_equal(read("#b1/10"), make_fraction(1, 2)));
+  EXPECT_TRUE(num_equal(read("#b+inf.0"), make<floating_point>(ctx, floating_point::positive_infinity)));
 }
 
 TEST_F(io, read_octal_prefix) {
   EXPECT_EQ(expect<integer>(read("#o10")).value(), 8);
+  EXPECT_TRUE(num_equal(read("#o+inf.0"), make<floating_point>(ctx, floating_point::positive_infinity)));
 }
 
 TEST_F(io, read_hex_prefix) {
@@ -435,6 +438,7 @@ TEST_F(io, read_hex_prefix) {
   EXPECT_EQ(expect<integer>(read("#xa")).value(), 10);
   EXPECT_EQ(expect<integer>(read("#xaB")).value(), 0xab);
   EXPECT_EQ(expect<integer>(read("#x1a2B3c4")).value(), 0x1a2b3c4);
+  EXPECT_TRUE(num_equal(read("#x+inf.0"), make<floating_point>(ctx, floating_point::positive_infinity)));
 }
 
 TEST_F(io, read_inexact) {
