@@ -167,6 +167,11 @@ floating_point::hash() const {
   return std::hash<value_type>{}(value);
 }
 
+std::size_t
+complex::hash() const {
+  return insider::hash(real_) ^ insider::hash(imaginary_);
+}
+
 static unsigned
 digit_value(char32_t c) {
   if (c >= '0' && c <= '9')
@@ -268,6 +273,19 @@ normalize_fraction(context& ctx, ptr<fraction> q) {
   }
 
   return make<fraction>(ctx, num, den);
+}
+
+static ptr<>
+normalize_complex(ptr<complex> z) {
+  if (is_zero(z->imaginary()))
+    return z->real();
+  else
+    return z;
+}
+
+static ptr<>
+make_normalized_complex(context& ctx, ptr<> real, ptr<> imag) {
+  return normalize_complex(make<complex>(ctx, real, imag));
 }
 
 static ptr<big_integer>
@@ -491,6 +509,13 @@ add_float(context& ctx, ptr<floating_point> lhs, ptr<floating_point> rhs) {
   return make<floating_point>(ctx, lhs->value + rhs->value);
 }
 
+static ptr<complex>
+add_complex(context& ctx, ptr<complex> lhs, ptr<complex> rhs) {
+  return make<complex>(ctx,
+                       add(ctx, lhs->real(), rhs->real()),
+                       add(ctx, lhs->imaginary(), rhs->imaginary()));
+}
+
 static ptr<big_integer>
 sub_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   if (rhs->zero())
@@ -534,6 +559,13 @@ sub_fraction(context& ctx, ptr<fraction> lhs, ptr<fraction> rhs) {
 static ptr<floating_point>
 sub_float(context& ctx, ptr<floating_point> lhs, ptr<floating_point> rhs) {
   return make<floating_point>(ctx, lhs->value - rhs->value);
+}
+
+static ptr<complex>
+sub_complex(context& ctx, ptr<complex> lhs, ptr<complex> rhs) {
+  return make<complex>(ctx,
+                       subtract(ctx, lhs->real(), rhs->real()),
+                       subtract(ctx, lhs->imaginary(), rhs->imaginary()));
 }
 
 static std::tuple<limb_type, limb_type>
@@ -662,6 +694,16 @@ mul_fraction(context& ctx, ptr<fraction> lhs, ptr<fraction> rhs) {
 static ptr<floating_point>
 mul_float(context& ctx, ptr<floating_point> lhs, ptr<floating_point> rhs) {
   return make<floating_point>(ctx, lhs->value * rhs->value);
+}
+
+static ptr<complex>
+mul_complex(context& ctx, ptr<complex> lhs, ptr<complex> rhs) {
+  // (a + bi)(c + di) = (ac - bd) + (bc + ad)i
+  return make<complex>(
+    ctx,
+    subtract(ctx, multiply(ctx, lhs->real(), rhs->real()), multiply(ctx, lhs->imaginary(), rhs->imaginary())),
+    add(ctx, multiply(ctx, lhs->imaginary(), rhs->real()), multiply(ctx, lhs->real(), rhs->imaginary()))
+  );
 }
 
 static ptr<big_integer>
@@ -860,7 +902,8 @@ namespace {
     small_integer,
     big_integer,
     fraction,
-    floating_point
+    floating_point,
+    complex
   };
 }
 
@@ -871,7 +914,9 @@ find_common_type(ptr<> lhs, ptr<> rhs) {
   if (!is_number(rhs))
     throw std::runtime_error{fmt::format("Expected number, got {}", object_type_name(rhs))};
 
-  if (is<floating_point>(lhs) || is<floating_point>(rhs))
+  if (is<complex>(lhs) || is<complex>(rhs))
+    return common_type::complex;
+  else if (is<floating_point>(lhs) || is<floating_point>(rhs))
     return common_type::floating_point;
   else if (is<fraction>(lhs) || is<fraction>(rhs))
     return common_type::fraction;
@@ -979,9 +1024,17 @@ arithmetic(context& ctx, object_span xs, bool allow_empty, integer::value_type n
   }
 }
 
+static ptr<complex>
+make_complex(context& ctx, ptr<> x) {
+  if (auto z = match<complex>(x))
+    return z;
+  else
+    return make<complex>(ctx, x, integer_to_ptr(0));
+}
+
 using primitive_arithmetic_type = ptr<>(context& ctx, ptr<>, ptr<>);
 
-template <auto Small, auto Big, auto Fraction, auto Float>
+template <auto Small, auto Big, auto Fraction, auto Float, auto Complex>
 ptr<>
 arithmetic_two(context& ctx, ptr<> lhs, ptr<> rhs) {
   switch (find_common_type(lhs, rhs)) {
@@ -993,6 +1046,8 @@ arithmetic_two(context& ctx, ptr<> lhs, ptr<> rhs) {
     return normalize_fraction(ctx, Fraction(ctx, make_fraction(ctx, lhs), make_fraction(ctx, rhs)));
   case common_type::floating_point:
     return Float(ctx, make_float(ctx, lhs), make_float(ctx, rhs));
+  case common_type::complex:
+    return normalize_complex(Complex(ctx, make_complex(ctx, lhs), make_complex(ctx, rhs)));
   }
 
   assert(false);
@@ -1020,17 +1075,33 @@ is_integer(ptr<> x) {
 
 bool
 is_number(ptr<> x) {
-  return is_exact_integer(x) || is<fraction>(x) || is<floating_point>(x);
+  return is_exact_integer(x) || is<fraction>(x) || is<floating_point>(x) || is<complex>(x);
+}
+
+bool
+is_real(ptr<> x) {
+  if (auto z = match<complex>(x))
+    return is_zero(z->imaginary());
+  else
+    return is_number(x);
+}
+
+static bool
+is_exact_complex(ptr<> x) {
+  if (auto z = match<complex>(x))
+    return is_exact(z->real()) && is_exact(z->imaginary());
+  else
+    return false;
 }
 
 bool
 is_exact(ptr<> x) {
-  return is_exact_integer(x) || is<fraction>(x);
+  return is_exact_integer(x) || is<fraction>(x) || is_exact_complex(x);
 }
 
 bool
 is_inexact(ptr<> x) {
-  return is<floating_point>(x);
+  return is_number(x) && !is_exact(x);
 }
 
 bool
@@ -1057,9 +1128,39 @@ is_positive(ptr<> x) {
     throw std::runtime_error{"Expected a real number"};
 }
 
+bool
+is_negative(ptr<> x) {
+  if (auto i = match<integer>(x))
+    return i->value() < 0;
+  else if (auto b = match<big_integer>(x))
+    return !b->positive() && !b->zero();
+  else if (auto f = match<fraction>(x))
+    return is_negative(f->numerator()) == is_negative(f->denominator());
+  else if (auto fp = match<floating_point>(x))
+    return fp->value < 0.0;
+  else
+    throw std::runtime_error{"Expected a real number"};
+}
+
+bool
+is_zero(ptr<> x) {
+  if (auto i = match<integer>(x))
+    return i->value() == 0;
+  else if (auto b = match<big_integer>(x))
+    return b->zero();
+  else if (auto f = match<fraction>(x))
+    return is_zero(f->numerator());
+  else if (auto fp = match<floating_point>(x))
+    return fp->value == 0.0;
+  else if (auto z = match<complex>(x))
+    return is_zero(z->real()) && is_zero(z->imaginary());
+  else
+    throw std::runtime_error{"Expected a number"};
+}
+
 ptr<>
 add(context& ctx, ptr<> lhs, ptr<> rhs) {
-  return arithmetic_two<add_small, add_big, add_fraction, add_float>(ctx, lhs, rhs);
+  return arithmetic_two<add_small, add_big, add_fraction, add_float, add_complex>(ctx, lhs, rhs);
 }
 
 ptr<>
@@ -1069,7 +1170,7 @@ add(context& ctx, object_span xs) {
 
 ptr<>
 subtract(context& ctx, ptr<> lhs, ptr<> rhs) {
-  return arithmetic_two<sub_small, sub_big, sub_fraction, sub_float>(ctx, lhs, rhs);
+  return arithmetic_two<sub_small, sub_big, sub_fraction, sub_float, sub_complex>(ctx, lhs, rhs);
 }
 
 ptr<>
@@ -1079,7 +1180,7 @@ subtract(context& ctx, object_span xs) {
 
 ptr<>
 multiply(context& ctx, ptr<> lhs, ptr<> rhs) {
-  return arithmetic_two<mul_small, mul_big, mul_fraction, mul_float>(ctx, lhs, rhs);
+  return arithmetic_two<mul_small, mul_big, mul_fraction, mul_float, mul_complex>(ctx, lhs, rhs);
 }
 
 ptr<>
@@ -1127,6 +1228,25 @@ div_float(context& ctx, ptr<floating_point> x, ptr<floating_point> y) {
   return make<floating_point>(ctx, x->value / y->value);
 }
 
+static ptr<>
+div_complex_by_real(context& ctx, ptr<complex> lhs, ptr<> rhs) {
+  assert(is_real(rhs));
+  return make_normalized_complex(ctx, divide(ctx, lhs->real(), rhs), divide(ctx, lhs->imaginary(), rhs));
+}
+
+static ptr<>
+div_complex(context& ctx, ptr<complex> lhs, ptr<complex> rhs) {
+  // a + bi   (a + bi) (c - di)
+  // ------ = -----------------
+  // c + di       c^2 + d^2
+
+  return div_complex_by_real(ctx,
+                             make_complex(ctx, multiply(ctx, lhs, conjugate(ctx, rhs))),
+                             add(ctx,
+                                 multiply(ctx, rhs->real(), rhs->real()),
+                                 multiply(ctx, rhs->imaginary(), rhs->imaginary())));
+}
+
 ptr<>
 divide(context& ctx, ptr<> lhs, ptr<> rhs) {
   switch (find_common_type(lhs, rhs)) {
@@ -1137,6 +1257,12 @@ divide(context& ctx, ptr<> lhs, ptr<> rhs) {
 
   case common_type::floating_point:
     return div_float(ctx, make_float(ctx, lhs), make_float(ctx, rhs));
+
+  case common_type::complex:
+    if (is<complex>(rhs))
+      return div_complex(ctx, make_complex(ctx, lhs), make_complex(ctx, rhs));
+    else
+      return div_complex_by_real(ctx, assume<complex>(lhs), rhs);
   }
 
   assert(false);
@@ -1146,6 +1272,14 @@ divide(context& ctx, ptr<> lhs, ptr<> rhs) {
 ptr<>
 divide(context& ctx, object_span xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&divide)>(ctx, xs, false, 1);
+}
+
+ptr<>
+conjugate(context& ctx, ptr<> x) {
+  if (auto z = match<complex>(x))
+    return make<complex>(ctx, z->real(), subtract(ctx, integer_to_ptr(0), z->imaginary()));
+  else
+    return x;
 }
 
 template <auto Small>
@@ -1289,7 +1423,7 @@ namespace {
     less,
     greater,
     equal,
-    nan
+    incomparable
   };
 }
 
@@ -1353,7 +1487,7 @@ compare(context& ctx, ptr<> lhs, ptr<> rhs) {
     auto y = make_float(ctx, rhs);
 
     if (is_nan(x) || is_nan(y))
-      return general_compare_result::nan;
+      return general_compare_result::incomparable;
     else if (x->value < y->value)
       return general_compare_result::less;
     else if (x->value > y->value)
@@ -1361,9 +1495,28 @@ compare(context& ctx, ptr<> lhs, ptr<> rhs) {
     else
       return general_compare_result::equal;
   }
+
+  case common_type::complex: {
+    auto x = make_complex(ctx, lhs);
+    auto y = make_complex(ctx, rhs);
+
+    auto re = compare(ctx, x->real(), y->real());
+    auto im = compare(ctx, x->imaginary(), y->imaginary());
+
+    if (re == general_compare_result::equal && im == general_compare_result::equal)
+      return general_compare_result::equal;
+    else
+      return general_compare_result::incomparable;
+  }
   }
 
   return {};
+}
+
+static void
+throw_if_not_real(ptr<> x) {
+  if (!is_real(x))
+    throw std::runtime_error{"Expected a real number"};
 }
 
 ptr<boolean>
@@ -1378,6 +1531,8 @@ arith_equal(context& ctx, object_span xs) {
 
 ptr<boolean>
 less(context& ctx, ptr<> lhs, ptr<> rhs) {
+  throw_if_not_real(lhs);
+  throw_if_not_real(rhs);
   return compare(ctx, lhs, rhs) == general_compare_result::less ? ctx.constants->t.get() : ctx.constants->f.get();
 }
 
@@ -1388,6 +1543,8 @@ less(context& ctx, object_span xs) {
 
 ptr<boolean>
 greater(context& ctx, ptr<> lhs, ptr<> rhs) {
+  throw_if_not_real(lhs);
+  throw_if_not_real(rhs);
   return compare(ctx, lhs, rhs) == general_compare_result::greater ? ctx.constants->t.get() : ctx.constants->f.get();
 }
 
@@ -1398,6 +1555,9 @@ greater(context& ctx, object_span xs) {
 
 ptr<boolean>
 less_or_equal(context& ctx, ptr<> lhs, ptr<> rhs) {
+  throw_if_not_real(lhs);
+  throw_if_not_real(rhs);
+
   general_compare_result cmp = compare(ctx, lhs, rhs);
   return (cmp == general_compare_result::less || cmp == general_compare_result::equal)
          ? ctx.constants->t.get() : ctx.constants->f.get();
@@ -1410,6 +1570,9 @@ less_or_equal(context& ctx, object_span xs) {
 
 ptr<boolean>
 greater_or_equal(context& ctx, ptr<> lhs, ptr<> rhs) {
+  throw_if_not_real(lhs);
+  throw_if_not_real(rhs);
+
   general_compare_result cmp = compare(ctx, lhs, rhs);
   return (cmp == general_compare_result::greater || cmp == general_compare_result::equal)
          ? ctx.constants->t.get() : ctx.constants->f.get();
@@ -1740,6 +1903,15 @@ write_float(ptr<floating_point> value, ptr<textual_output_port> out) {
   out->write(result.substr(0, end + 1));
 }
 
+static void
+write_complex(context& ctx, ptr<complex> z, ptr<textual_output_port> out) {
+  write_number(ctx, z->real(), out);
+  if (!is_negative(z->imaginary()))
+    out->write('+');
+  write_number(ctx, z->imaginary(), out);
+  out->write('i');
+}
+
 void
 write_number(context& ctx, ptr<> value, ptr<textual_output_port> out) {
   if (auto s = match<integer>(value))
@@ -1750,6 +1922,8 @@ write_number(context& ctx, ptr<> value, ptr<textual_output_port> out) {
     write_fraction(ctx, q, out);
   else if (auto f = match<floating_point>(value))
     write_float(f, out);
+  else if (auto z = match<complex>(value))
+    write_complex(ctx, z, out);
   else
     assert(false);
 }

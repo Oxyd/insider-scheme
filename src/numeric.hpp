@@ -170,6 +170,35 @@ public:
   hash() const;
 };
 
+class complex : public composite_object<complex> {
+public:
+  static constexpr char const* scheme_name = "insider::complex";
+
+  complex(ptr<> r, ptr<> i) : real_{r}, imaginary_{i} { }
+
+  ptr<>
+  real() const { return real_; }
+
+  ptr<>
+  imaginary() const { return imaginary_; }
+
+  void
+  set_real(free_store& fs, ptr<> r) { real_ = r; fs.notify_arc(this, r); }
+
+  void
+  set_imaginary(free_store& fs, ptr<> i) { imaginary_ = i; fs.notify_arc(this, i); }
+
+  void
+  visit_members(member_visitor const& f) { f(real_); f(imaginary_); }
+
+  std::size_t
+  hash() const;
+
+private:
+  ptr<> real_;
+  ptr<> imaginary_;
+};
+
 bool
 is_exact_integer(ptr<>);
 
@@ -178,6 +207,9 @@ is_integer(ptr<>);
 
 bool
 is_number(ptr<>);
+
+bool
+is_real(ptr<>);
 
 bool
 is_exact(ptr<>);
@@ -193,6 +225,12 @@ is_infinite(ptr<>);
 
 bool
 is_positive(ptr<>);
+
+bool
+is_negative(ptr<>);
+
+bool
+is_zero(ptr<>);
 
 ptr<>
 add(context&, ptr<>, ptr<>);
@@ -267,6 +305,9 @@ ptr<>
 divide(context&, ptr<>, ptr<>);
 ptr<>
 divide(context&, object_span);
+
+ptr<>
+conjugate(context&, ptr<>);
 
 ptr<>
 arithmetic_shift(context&, ptr<>, ptr<>);

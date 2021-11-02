@@ -496,6 +496,22 @@ TEST_F(numeric, float_arithmetic) {
 #undef ASSERT_FP_EQ
 }
 
+TEST_F(numeric, complex_arithmetic) {
+  auto icplx = [&] (int r, int i) { return make<complex>(ctx, integer_to_ptr(r), integer_to_ptr(i)); };
+
+  EXPECT_TRUE(equal(add(ctx, icplx(1, 2), icplx(3, 4)), icplx(4, 6)));
+  EXPECT_TRUE(equal(add(ctx, icplx(1, 2), icplx(0, -2)), integer_to_ptr(1)));
+  EXPECT_TRUE(equal(add(ctx, icplx(1, 2), icplx(-1, 0)), icplx(0, 2)));
+  EXPECT_TRUE(equal(add(ctx, icplx(1, 2), integer_to_ptr(5)), icplx(6, 2)));
+
+  EXPECT_TRUE(equal(subtract(ctx, icplx(1, 2), icplx(3, 4)), icplx(-2, -2)));
+
+  EXPECT_TRUE(equal(multiply(ctx, icplx(10, 20), icplx(30, 40)), icplx(-500, 1000)));
+
+  EXPECT_TRUE(equal(divide(ctx, icplx(2, 4), integer_to_ptr(2)), icplx(1, 2)));
+  EXPECT_TRUE(equal(divide(ctx, icplx(1, -3), icplx(1, 2)), icplx(-1, -1)));
+}
+
 TEST_F(numeric, integer_eqv) {
   auto i1 = read("326842357047048580094685541896229290526226710742342560706866927058691036387550824695609726546021742995306480127227041503526172382597364126586477735162986");
   auto i2 = read("326842357047048580094685541896229290526226710742342560706866927058691036387550824695609726546021742995306480127227041503526172382597364126586477735162986");
