@@ -199,6 +199,9 @@ private:
   ptr<> imaginary_;
 };
 
+ptr<>
+make_rectangular(context&, ptr<> real, ptr<> imaginary);
+
 bool
 is_exact_integer(ptr<>);
 

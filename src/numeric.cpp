@@ -288,11 +288,6 @@ normalize_complex(ptr<complex> z) {
     return z;
 }
 
-static ptr<>
-make_normalized_complex(context& ctx, ptr<> real, ptr<> imag) {
-  return normalize_complex(make<complex>(ctx, real, imag));
-}
-
 static ptr<big_integer>
 add_big_magnitude_to_limb_destructive(context& ctx, ptr<big_integer> result,
                                       ptr<big_integer> lhs, limb_type rhs) {
@@ -1059,6 +1054,11 @@ arithmetic_two(context& ctx, ptr<> lhs, ptr<> rhs) {
   return {};
 }
 
+ptr<>
+make_rectangular(context& ctx, ptr<> real, ptr<> imaginary) {
+  return normalize_complex(make<complex>(ctx, real, imaginary));
+}
+
 bool
 is_exact_integer(ptr<> x) {
   return is<integer>(x) || is<big_integer>(x);
@@ -1236,7 +1236,7 @@ div_float(context& ctx, ptr<floating_point> x, ptr<floating_point> y) {
 static ptr<>
 div_complex_by_real(context& ctx, ptr<complex> lhs, ptr<> rhs) {
   assert(is_real(rhs));
-  return make_normalized_complex(ctx, divide(ctx, lhs->real(), rhs), divide(ctx, lhs->imaginary(), rhs));
+  return make_rectangular(ctx, divide(ctx, lhs->real(), rhs), divide(ctx, lhs->imaginary(), rhs));
 }
 
 static ptr<>
