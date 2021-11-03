@@ -239,6 +239,9 @@ bool
 is_zero(ptr<>);
 
 ptr<>
+negate(context&, ptr<>);
+
+ptr<>
 add(context&, ptr<>, ptr<>);
 ptr<>
 add(context&, object_span);
@@ -382,9 +385,6 @@ exact(context&, ptr<>);
 
 ptr<>
 read_integer(context& ctx, std::string const& digits, unsigned base = 10);
-
-void
-write_number(context&, ptr<> value, ptr<textual_output_port> out);
 
 } // namespace insider
 

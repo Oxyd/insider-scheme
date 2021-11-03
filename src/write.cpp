@@ -41,6 +41,131 @@ write_char(char32_t c, ptr<textual_output_port> out) {
   out->write(c);
 }
 
+void
+write_number(context& ctx, ptr<> value, ptr<textual_output_port> out);
+
+template <typename T>
+static void
+write_small_magnitude(std::string& buffer, T n) {
+  while (n > 0) {
+    T quot = n / 10;
+    T rem = n % 10;
+    buffer.push_back('0' + rem);
+    n = quot;
+  }
+}
+
+static void
+write_small(integer value, ptr<textual_output_port> out) {
+  if (value.value() == 0) {
+    out->write('0');
+    return;
+  }
+
+  if (value.value() < 0)
+    out->write('-');
+
+  std::string buffer;
+  integer::value_type n = value.value() >= 0 ? value.value() : -value.value();
+  write_small_magnitude(buffer, n);
+
+  for (auto c = buffer.rbegin(), e = buffer.rend(); c != e; ++c)
+    out->write(static_cast<char32_t>(*c));
+}
+
+static void
+write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out) {
+  if (value->zero()) {
+    out->write('0');
+    return;
+  }
+
+  ptr<> v = value;
+  if (!value->positive()) {
+    out->write('-');
+    v = negate(ctx, value);
+  }
+
+  std::string buffer;
+  while (is<big_integer>(v)) {
+    auto [quot, rem] = quotient_remainder(ctx, v, integer_to_ptr(10));
+    buffer.push_back('0' + assume<integer>(rem).value());
+    v = quot;
+  }
+
+  write_small_magnitude(buffer, assume<integer>(v).value());
+
+  for (auto c = buffer.rbegin(), e = buffer.rend(); c != e; ++c)
+    out->write(static_cast<char32_t>(*c));
+}
+
+static void
+write_fraction(context& ctx, ptr<fraction> value, ptr<textual_output_port> out) {
+  write_number(ctx, value->numerator(), out);
+  out->write('/');
+  write_number(ctx, value->denominator(), out);
+}
+
+static void
+write_float(ptr<floating_point> value, ptr<textual_output_port> out) {
+  // Same as with string_to_double: std::to_chars would be the ideal way to implement this, but we'll go with an
+  // std::ostringstream in its absence.
+
+  if (value->value == floating_point::positive_infinity) {
+    out->write("+inf.0");
+    return;
+  } else if (value->value == floating_point::negative_infinity) {
+    out->write("-inf.0");
+    return;
+  } else if (std::isnan(value->value)) {
+    if (std::signbit(value->value))
+      out->write('-');
+    else
+      out->write('+');
+
+    out->write("nan.0");
+    return;
+  }
+
+  std::ostringstream os;
+  os.imbue(std::locale("C"));
+
+  os << std::showpoint << std::fixed
+     << std::setprecision(std::numeric_limits<floating_point::value_type>::max_digits10 - 1)
+     << value->value;
+
+  std::string result = os.str();
+  std::string::size_type dot = result.find('.');
+  std::string::size_type last_nonzero = result.find_last_not_of('0');
+  std::string::size_type end = std::max(dot + 1, last_nonzero);
+  out->write(result.substr(0, end + 1));
+}
+
+static void
+write_complex(context& ctx, ptr<complex> z, ptr<textual_output_port> out) {
+  write_number(ctx, z->real(), out);
+  if (!is_negative(z->imaginary()))
+    out->write('+');
+  write_number(ctx, z->imaginary(), out);
+  out->write('i');
+}
+
+void
+write_number(context& ctx, ptr<> value, ptr<textual_output_port> out) {
+  if (auto s = match<integer>(value))
+    write_small(*s, out);
+  else if (auto b = match<big_integer>(value))
+    write_big(ctx, b, out);
+  else if (auto q = match<fraction>(value))
+    write_fraction(ctx, q, out);
+  else if (auto f = match<floating_point>(value))
+    write_float(f, out);
+  else if (auto z = match<complex>(value))
+    write_complex(ctx, z, out);
+  else
+    assert(false);
+}
+
 static void
 write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   if (datum == ctx.constants->null.get())
