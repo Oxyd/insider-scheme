@@ -227,6 +227,9 @@ bool
 is_nan(ptr<>);
 
 bool
+is_finite(ptr<>);
+
+bool
 is_infinite(ptr<>);
 
 bool

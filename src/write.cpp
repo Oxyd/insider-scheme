@@ -141,13 +141,28 @@ write_float(ptr<floating_point> value, ptr<textual_output_port> out) {
   out->write(result.substr(0, end + 1));
 }
 
+template <int I>
+static bool
+is_exact_equal(ptr<> x) {
+  return is_exact_integer(x) && is<integer>(x) && assume<integer>(x).value() == I;
+}
+
 static void
 write_complex(context& ctx, ptr<complex> z, ptr<textual_output_port> out) {
-  write_number(ctx, z->real(), out);
-  if (!is_negative(z->imaginary()))
-    out->write('+');
-  write_number(ctx, z->imaginary(), out);
-  out->write('i');
+  if (!is_exact_equal<0>(z->real()))
+    write_number(ctx, z->real(), out);
+
+  if (is_exact_equal<1>(z->imaginary()))
+    out->write("+i");
+  else if (is_exact_equal<-1>(z->imaginary()))
+    out->write("-i");
+  else {
+    if (!is_negative(z->imaginary()) && !is_exact_equal<0>(z->real()) && is_finite(z->imaginary()))
+      out->write('+');
+
+    write_number(ctx, z->imaginary(), out);
+    out->write('i');
+  }
 }
 
 void

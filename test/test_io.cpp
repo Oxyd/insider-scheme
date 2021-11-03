@@ -491,3 +491,47 @@ TEST_F(io, read_complex) {
   EXPECT_TRUE(equal(read("+i"), make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(1))));
   EXPECT_TRUE(equal(read("-i"), make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(-1))));
 }
+
+TEST_F(io, write_complex) {
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(1), integer_to_ptr(1))), "1+i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(1))), "+i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(2))), "2i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(1), integer_to_ptr(2))), "1+2i");
+
+  auto flt_zero = make<floating_point>(ctx, 0.0);
+  auto flt_one = make<floating_point>(ctx, 1.0);
+  auto flt_two = make<floating_point>(ctx, 2.0);
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(1), flt_one)), "1+1.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(0), flt_one)), "1.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, flt_zero, flt_one)), "0.0+1.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(0), flt_two)), "2.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, flt_zero, flt_two)), "0.0+2.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(1), flt_two)), "1+2.0i");
+
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(1), integer_to_ptr(-1))), "1-i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(-1))), "-i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(-2))), "-2i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(1), integer_to_ptr(-2))), "1-2i");
+
+  auto pos_inf = make<floating_point>(ctx, floating_point::positive_infinity);
+  auto pos_nan = make<floating_point>(ctx, floating_point::positive_nan);
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(0), pos_inf)), "+inf.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(0), pos_nan)), "+nan.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(1), pos_inf)), "1+inf.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(1), pos_nan)), "1+nan.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, pos_inf, integer_to_ptr(1))), "+inf.0+i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, pos_nan, integer_to_ptr(1))), "+nan.0+i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, pos_inf, integer_to_ptr(2))), "+inf.0+2i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, pos_nan, integer_to_ptr(2))), "+nan.0+2i");
+
+  auto neg_inf = make<floating_point>(ctx, floating_point::negative_infinity);
+  auto neg_nan = make<floating_point>(ctx, floating_point::negative_nan);
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(0), neg_inf)), "-inf.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(0), neg_nan)), "-nan.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(1), neg_inf)), "1-inf.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(1), neg_nan)), "1-nan.0i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, neg_inf, integer_to_ptr(1))), "-inf.0+i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, neg_nan, integer_to_ptr(1))), "-nan.0+i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, neg_inf, integer_to_ptr(2))), "-inf.0+2i");
+  EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, neg_nan, integer_to_ptr(2))), "-nan.0+2i");
+}

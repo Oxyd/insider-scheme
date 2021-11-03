@@ -1115,6 +1115,11 @@ is_nan(ptr<> x) {
 }
 
 bool
+is_finite(ptr<> x) {
+  return is_number(x) && !is_infinite(x) && !is_nan(x);
+}
+
+bool
 is_infinite(ptr<> x) {
   return is<floating_point>(x) && std::isinf(assume<floating_point>(x)->value);
 }
