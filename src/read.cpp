@@ -173,6 +173,16 @@ expect(reader_stream& stream, char32_t expected) {
     throw read_error{fmt::format("Unexpected character: {}, expected {}", to_utf8(c), to_utf8(expected)), loc};
 }
 
+static void
+expect(reader_stream& stream, char32_t expected1, char32_t expected2) {
+  source_location loc = stream.location();
+  char32_t c = require_char(stream);
+  if (c != expected1 && c != expected2)
+    throw read_error{fmt::format("Unexpected character: {}, expected {} or {}",
+                                 to_utf8(c), to_utf8(expected1), to_utf8(expected2)),
+                     loc};
+}
+
 namespace {
   struct number_parse_mode {
     enum class exactness_mode {
@@ -196,15 +206,6 @@ read_digits(reader_stream& stream, unsigned base) {
     c = advance_and_peek(stream);
   }
 
-  return result;
-}
-
-static std::string
-downcase_latin1(std::string const& s) {
-  std::locale c_locale{"C"};
-  std::string result;
-  std::transform(s.begin(), s.end(), std::back_inserter(result),
-                 [&] (char c) { return std::tolower(c, c_locale); });
   return result;
 }
 
@@ -394,28 +395,33 @@ read_signed_real(context& ctx, number_parse_mode mode, reader_stream& stream, so
   return {};
 }
 
-static ptr<>
-read_infnan(context& ctx, reader_stream& stream, source_location loc) {
+static bool
+match_sequence_ci(reader_stream& stream, std::string const& expected) {
   auto cp = stream.make_checkpoint();
+  std::locale c_locale{"C"};
 
-  std::string s = downcase_latin1(to_utf8(read_until_delimiter(stream)));
-  if (s.starts_with("+inf.0") || s.starts_with("-inf.0")
-      || s.starts_with("+nan.0") || s.starts_with("-nan.0")) {
-    cp.commit();
-
-    if (s == "+inf.0")
-      return make<floating_point>(ctx, floating_point::positive_infinity);
-    else if (s == "-inf.0")
-      return make<floating_point>(ctx, floating_point::negative_infinity);
-    else if (s == "+nan.0")
-      return make<floating_point>(ctx, floating_point::positive_nan);
-    else if (s == "-nan.0")
-      return make<floating_point>(ctx, floating_point::negative_nan);
-    else
-      throw read_error("Invalid infinity or NaN", loc);
+  for (char c : expected) {
+    auto actual = stream.read();
+    if (!actual || std::tolower(static_cast<char>(*actual), c_locale) != c)
+      return false;
   }
 
-  return {};
+  cp.commit();
+  return true;
+}
+
+static ptr<>
+read_infnan(context& ctx, reader_stream& stream) {
+  if (match_sequence_ci(stream, "+inf.0"))
+    return make<floating_point>(ctx, floating_point::positive_infinity);
+  else if (match_sequence_ci(stream, "-inf.0"))
+    return make<floating_point>(ctx, floating_point::negative_infinity);
+  else if (match_sequence_ci(stream, "+nan.0"))
+    return make<floating_point>(ctx, floating_point::positive_nan);
+  else if (match_sequence_ci(stream, "-nan.0"))
+    return make<floating_point>(ctx, floating_point::negative_nan);
+  else
+    return {};
 }
 
 static ptr<>
@@ -426,7 +432,7 @@ read_real_preserve_exactness(context& ctx, number_parse_mode mode, reader_stream
   if (ptr<> result = read_signed_real(ctx, mode, stream, loc))
     return result;
   else
-    return read_infnan(ctx, stream, loc);
+    return read_infnan(ctx, stream);
 }
 
 static void
@@ -454,9 +460,62 @@ read_real(context& ctx, number_parse_mode mode, reader_stream& stream, source_lo
 }
 
 static ptr<>
+read_imaginary_part(context& ctx, number_parse_mode mode, ptr<> real,
+                    reader_stream& stream, source_location loc) {
+  if (auto imag = read_real(ctx, mode, stream, loc)) {
+    expect(stream, 'i', 'I');
+    return make_rectangular(ctx, real, imag);
+  } else {
+    auto sign = stream.read();
+    assert(sign == '+' || sign == '-');
+
+    expect(stream, 'i', 'I');
+    return make_rectangular(ctx, real, sign == '+' ? integer_to_ptr(1) : integer_to_ptr(-1));
+  }
+}
+
+static ptr<>
+read_complex_after_real_part(context& ctx, number_parse_mode mode, ptr<> real,
+                             reader_stream& stream, source_location loc) {
+  if (stream.peek() == '+' || stream.peek() == '-')
+    return read_imaginary_part(ctx, mode, real, stream, loc);
+  else if (stream.peek() == 'i' || stream.peek() == 'I') {
+    stream.read();
+    return make_rectangular(ctx, integer_to_ptr(0), real);
+  } else
+    return real;
+}
+
+static ptr<>
+read_sign_followed_by_imaginary_unit(context& ctx, reader_stream& stream) {
+  auto cp = stream.make_checkpoint();
+
+  auto sign = stream.read();
+  assert(sign == '+' || sign == '-');
+
+  auto imaginary_unit = stream.read();
+  if (imaginary_unit == 'i' || imaginary_unit == 'I') {
+    cp.commit();
+    return make_rectangular(ctx, integer_to_ptr(0), sign == '+' ? integer_to_ptr(1) : integer_to_ptr(-1));
+  } else
+    return {};
+}
+
+static ptr<>
 read_complex(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
-  // Unimplemented.
-  return read_real(ctx, mode, stream, loc);
+  // <complex R> -> <real R>
+  //              | <real R> @ <real R>
+  //              | <real R> + <ureal R> i | <real R> - <ureal R> i
+  //              | <real R> + i | <real R> - i | <real R> <infnan> i
+  //              | + <ureal R> i | - <ureal R> i
+  //              | <infnan> i | +i | -i
+
+  if (auto x = read_real(ctx, mode, stream, loc))
+    return read_complex_after_real_part(ctx, mode, x, stream, loc);
+  else if (stream.peek() == '+' || stream.peek() == '-')
+    return read_sign_followed_by_imaginary_unit(ctx, stream);
+  else
+    return {};
 }
 
 static std::optional<unsigned>
@@ -527,11 +586,22 @@ read_number_prefix(reader_stream& stream) {
     return number_parse_mode{};
 }
 
+static void
+throw_if_no_delimiter_after_number(reader_stream& stream, source_location loc) {
+  auto c = stream.peek();
+  if (c && !delimiter(*c))
+    throw read_error{fmt::format("{} unexpected following a numeric literal", to_utf8(*c)), loc};
+}
+
 static ptr<>
 read_number(context& ctx, reader_stream& stream, source_location loc) {
   // <num R> -> <prefix R> <complex R>
 
-  return read_complex(ctx, read_number_prefix(stream), stream, loc);
+  if (auto result = read_complex(ctx, read_number_prefix(stream), stream, loc)) {
+    throw_if_no_delimiter_after_number(stream, loc);
+    return result;
+  } else
+    return {};
 }
 
 static std::optional<token>

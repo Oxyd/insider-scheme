@@ -463,3 +463,31 @@ TEST_F(io, read_exact) {
   EXPECT_THROW(read("#e+inf.0"), std::runtime_error);
   EXPECT_THROW(read("#e+nan.0"), std::runtime_error);
 }
+
+TEST_F(io, read_complex) {
+  EXPECT_TRUE(equal(read("1+1i"), make_rectangular(ctx, integer_to_ptr(1), integer_to_ptr(1))));
+  EXPECT_TRUE(equal(read("1-1i"), make_rectangular(ctx, integer_to_ptr(1), integer_to_ptr(-1))));
+  EXPECT_TRUE(equal(read("1/2+2/3i"), make_rectangular(ctx, make_fraction(1, 2), make_fraction(2, 3))));
+  EXPECT_TRUE(equal(read("1.5+1.5i"), make_rectangular(ctx, make<floating_point>(ctx, 1.5), make<floating_point>(ctx, 1.5))));
+
+  EXPECT_TRUE(equal(read("1+i"), make_rectangular(ctx, integer_to_ptr(1), integer_to_ptr(1))));
+  EXPECT_TRUE(equal(read("1-i"), make_rectangular(ctx, integer_to_ptr(1), integer_to_ptr(-1))));
+
+  EXPECT_TRUE(equal(read("1+inf.0i"), make_rectangular(ctx, integer_to_ptr(1), make<floating_point>(ctx, floating_point::positive_infinity))));
+
+  auto one_plus_imaginary_nan = expect<complex>(read("1+nan.0i"));
+  EXPECT_TRUE(equal(one_plus_imaginary_nan->real(), integer_to_ptr(1)));
+  EXPECT_TRUE(std::isnan(expect<floating_point>(one_plus_imaginary_nan->imaginary())->value));
+
+  EXPECT_TRUE(equal(read("+2i"), make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(2))));
+  EXPECT_TRUE(equal(read("-2i"), make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(-2))));
+
+  EXPECT_TRUE(equal(read("+inf.0i"), make_rectangular(ctx, integer_to_ptr(0), make<floating_point>(ctx, floating_point::positive_infinity))));
+
+  auto zero_plus_imaginary_nan = expect<complex>(read("+nan.0i"));
+  EXPECT_TRUE(equal(zero_plus_imaginary_nan->real(), integer_to_ptr(0)));
+  EXPECT_TRUE(std::isnan(expect<floating_point>(zero_plus_imaginary_nan->imaginary())->value));
+
+  EXPECT_TRUE(equal(read("+i"), make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(1))));
+  EXPECT_TRUE(equal(read("-i"), make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(-1))));
+}

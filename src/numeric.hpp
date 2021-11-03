@@ -148,6 +148,9 @@ private:
 };
 
 ptr<>
+make_fraction(context& ctx, ptr<> num, ptr<> den);
+
+ptr<>
 normalize_fraction(context& ctx, ptr<fraction> q);
 
 class floating_point : public leaf_object<floating_point> {

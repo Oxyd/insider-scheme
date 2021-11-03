@@ -247,6 +247,11 @@ negate(context& ctx, ptr<> x) {
 }
 
 ptr<>
+make_fraction(context& ctx, ptr<> num, ptr<> den) {
+  return normalize_fraction(ctx, make<fraction>(ctx, num, den));
+}
+
+ptr<>
 normalize_fraction(context& ctx, ptr<fraction> q) {
   ptr<> num = q->numerator();
   ptr<> den = q->denominator();
