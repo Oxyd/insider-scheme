@@ -256,6 +256,12 @@ normalize_fraction(context& ctx, ptr<fraction> q) {
       return integer_to_ptr(*n);
   }
 
+  if (is_negative(den))
+    return normalize_fraction(ctx,
+                              make<fraction>(ctx,
+                                             multiply(ctx, num, integer_to_ptr(-1)),
+                                             multiply(ctx, den, integer_to_ptr(-1))));
+
   ptr<> com_den = gcd(ctx, num, den);
   if (auto c = match<integer>(com_den)) {
     if (c->value() == 1)
@@ -265,12 +271,9 @@ normalize_fraction(context& ctx, ptr<fraction> q) {
   ptr<> reduced_num = truncate_quotient(ctx, num, com_den);
   ptr<> reduced_den = truncate_quotient(ctx, den, com_den);
 
-  if (auto d = match<integer>(reduced_den)) {
+  if (auto d = match<integer>(reduced_den))
     if (d->value() == 1)
       return reduced_num;
-    else if (d->value () == -1)
-      return multiply(ctx, reduced_num, integer_to_ptr(-1));
-  }
 
   return make<fraction>(ctx, num, den);
 }

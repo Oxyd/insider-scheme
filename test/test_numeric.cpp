@@ -480,6 +480,13 @@ TEST_F(numeric, fraction_arithmetic) {
   EXPECT_TRUE(num_equal(divide(ctx, integer_to_ptr(integer{8}), integer_to_ptr(integer{2})), integer_to_ptr(integer{4})));
   EXPECT_TRUE(num_equal(divide(ctx, make_fraction(3, 4), make_fraction(2, 3)), make_fraction(9, 8)));
   EXPECT_TRUE(num_equal(divide(ctx, make_fraction(1, 3), make_fraction(2, 3)), make_fraction(1, 2)));
+
+}
+
+TEST_F(numeric, fractions_are_normalised_to_positive_denominator) {
+  auto q = expect<fraction>(normalize_fraction(ctx, make_fraction(-1, -2)));
+  EXPECT_TRUE(equal(q->numerator(), integer_to_ptr(1)));
+  EXPECT_TRUE(equal(q->denominator(), integer_to_ptr(2)));
 }
 
 TEST_F(numeric, float_arithmetic) {
