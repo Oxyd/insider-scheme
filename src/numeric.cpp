@@ -241,6 +241,11 @@ normalize(context& ctx, ptr<big_integer> i) {
   return result;
 }
 
+static ptr<>
+negate(context& ctx, ptr<> x) {
+  return multiply(ctx, x, integer_to_ptr(-1));
+}
+
 ptr<>
 normalize_fraction(context& ctx, ptr<fraction> q) {
   ptr<> num = q->numerator();
@@ -257,10 +262,7 @@ normalize_fraction(context& ctx, ptr<fraction> q) {
   }
 
   if (is_negative(den))
-    return normalize_fraction(ctx,
-                              make<fraction>(ctx,
-                                             multiply(ctx, num, integer_to_ptr(-1)),
-                                             multiply(ctx, den, integer_to_ptr(-1))));
+    return normalize_fraction(ctx, make<fraction>(ctx, negate(ctx, num), negate(ctx, den)));
 
   ptr<> com_den = gcd(ctx, num, den);
   if (auto c = match<integer>(com_den)) {
@@ -1775,7 +1777,7 @@ floating_point_to_exact(context& ctx, ptr<floating_point> value) {
   }
 
   if (negative)
-    numerator = multiply(ctx, integer_to_ptr(-1), numerator);
+    numerator = negate(ctx, numerator);
 
   if (exponent == 0)
     return numerator;
