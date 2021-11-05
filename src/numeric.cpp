@@ -1729,6 +1729,8 @@ inexact(context& ctx, ptr<> x) {
     return fraction_to_floating_point(ctx, f);
   else if (auto fp = match<floating_point>(x))
     return fp;
+  else if (auto z = match<complex>(x))
+    return make<complex>(ctx, inexact(ctx, z->real()), inexact(ctx, z->imaginary()));
   else
     throw std::runtime_error{"Expected a number"};
 }
@@ -1805,6 +1807,8 @@ exact(context& ctx, ptr<> x) {
     return floating_point_to_exact(ctx, f);
   else if (is_exact(x))
     return x;
+  else if (auto z = match<complex>(x))
+    return make<complex>(ctx, exact(ctx, z->real()), exact(ctx, z->imaginary()));
   else
     throw std::runtime_error{"Expected a number"};
 }

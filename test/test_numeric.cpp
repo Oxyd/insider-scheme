@@ -565,6 +565,9 @@ TEST_F(numeric, inexact) {
   EXPECT_DOUBLE_EQ(expect<floating_point>(inexact(ctx, read("1/2")))->value, 0.5);
   EXPECT_DOUBLE_EQ(expect<floating_point>(inexact(ctx, read("1/2")))->value, 0.5);
   EXPECT_DOUBLE_EQ(expect<floating_point>(inexact(ctx, read("1267650600228229401496703205376/1267650600228229401496703205377")))->value, 1.0);
+
+  EXPECT_DOUBLE_EQ(expect<floating_point>(expect<complex>(inexact(ctx, read("1+2i")))->real())->value, 1.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(expect<complex>(inexact(ctx, read("1+2i")))->imaginary())->value, 2.0);
 }
 
 TEST_F(numeric, exact) {
@@ -593,4 +596,6 @@ TEST_F(numeric, exact) {
 
   EXPECT_THROW(exact(ctx, read("+inf.0")), std::runtime_error);
   EXPECT_THROW(exact(ctx, read("+nan.0")), std::runtime_error);
+
+  EXPECT_TRUE(equal(exact(ctx, read("0.5+1.5i")), read("1/2+3/2i")));
 }
