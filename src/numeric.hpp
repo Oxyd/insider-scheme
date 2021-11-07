@@ -205,6 +205,15 @@ private:
 ptr<>
 make_rectangular(context&, ptr<> real, ptr<> imaginary);
 
+ptr<>
+make_polar(context&, ptr<> magnitude, ptr<> angle);
+
+ptr<>
+magnitude(context&, ptr<>);
+
+ptr<>
+angle(context&, ptr<>);
+
 bool
 is_exact_integer(ptr<>);
 

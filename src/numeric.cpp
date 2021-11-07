@@ -1064,6 +1064,63 @@ make_rectangular(context& ctx, ptr<> real, ptr<> imaginary) {
   return normalize_complex(make<complex>(ctx, real, imaginary));
 }
 
+ptr<>
+make_polar(context& ctx, ptr<> magnitude, ptr<> angle) {
+  return normalize_complex(make<complex>(ctx,
+                                         multiply(ctx, magnitude, cos(ctx, angle)),
+                                         multiply(ctx, magnitude, sin(ctx, angle))));
+}
+
+static ptr<>
+real_magnitude(context& ctx, ptr<> x) {
+  if (is_negative(x))
+    return multiply(ctx, integer_to_ptr(-1), x);
+  else
+    return x;
+}
+
+static ptr<>
+complex_magnitude(context& ctx, ptr<complex> z) {
+  double re = make_float(ctx, z->real())->value;
+  double im = make_float(ctx, z->imaginary())->value;
+  return make<floating_point>(ctx, std::sqrt(re * re + im * im));
+}
+
+ptr<>
+magnitude(context& ctx, ptr<> x) {
+  if (auto z = match<complex>(x))
+    return complex_magnitude(ctx, z);
+  else if (is_real(x))
+    return real_magnitude(ctx, x);
+  else
+    throw std::runtime_error{"Expected a number"};
+}
+
+static ptr<>
+real_angle(context& ctx, ptr<> x) {
+  if (is_negative(x))
+    return make<floating_point>(ctx, std::numbers::pi);
+  else
+    return integer_to_ptr(0);
+}
+
+static ptr<>
+complex_angle(context& ctx, ptr<complex> z) {
+  double re = make_float(ctx, z->real())->value;
+  double im = make_float(ctx, z->imaginary())->value;
+  return make<floating_point>(ctx, std::atan2(im, re));
+}
+
+ptr<>
+angle(context& ctx, ptr<> x) {
+  if (auto z = match<complex>(x))
+    return complex_angle(ctx, z);
+  else if (is_real(x))
+    return real_angle(ctx, x);
+  else
+    throw std::runtime_error{"Expected a number"};
+}
+
 bool
 is_exact_integer(ptr<> x) {
   return is<integer>(x) || is<big_integer>(x);

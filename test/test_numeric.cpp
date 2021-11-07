@@ -701,3 +701,70 @@ TEST_F(numeric, atan2) {
   EXPECT_DOUBLE_EQ(at(+0.0, -0.0), std::numbers::pi);
   EXPECT_DOUBLE_EQ(at(-0.0, -0.0), -std::numbers::pi);
 }
+
+TEST_F(numeric, make_polar) {
+  auto z1 = expect<floating_point>(make_polar(ctx, integer_to_ptr(1), integer_to_ptr(0)));
+  EXPECT_DOUBLE_EQ(z1->value, 1.0);
+
+  auto z2 = expect<complex>(make_polar(ctx, integer_to_ptr(1), make<floating_point>(ctx, std::numbers::pi / 2.0)));
+  EXPECT_NEAR(expect<floating_point>(z2->real())->value, 0.0, 1e-6);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z2->imaginary())->value, 1.0);
+
+  auto z3 = expect<complex>(make_polar(ctx, make<floating_point>(ctx, std::sqrt(2.0)), make<floating_point>(ctx, std::numbers::pi / 4.0)));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z3->real())->value, 1.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z3->imaginary())->value, 1.0);
+}
+
+TEST_F(numeric, magnitude) {
+  EXPECT_EQ(expect<integer>(magnitude(ctx, integer_to_ptr(4))).value(), 4);
+  EXPECT_EQ(expect<integer>(magnitude(ctx, integer_to_ptr(-4))).value(), 4);
+
+  EXPECT_DOUBLE_EQ(expect<floating_point>(magnitude(ctx, make<floating_point>(ctx, 4.0)))->value, 4.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(magnitude(ctx, make<floating_point>(ctx, -4.0)))->value, 4.0);
+
+  EXPECT_DOUBLE_EQ(expect<floating_point>(magnitude(ctx, make_rectangular(ctx, make<floating_point>(ctx, 4.0), integer_to_ptr(0))))->value, 4.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(magnitude(ctx, make_rectangular(ctx, integer_to_ptr(0), make<floating_point>(ctx, 4.0))))->value, 4.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(magnitude(ctx, make_rectangular(ctx,
+                                                                          make<floating_point>(ctx, 2.8284271247461903),
+                                                                          make<floating_point>(ctx, 2.8284271247461903))))->value,
+                   4.0);
+
+  EXPECT_DOUBLE_EQ(expect<floating_point>(magnitude(ctx,
+                                                    make_polar(ctx,
+                                                               integer_to_ptr(4),
+                                                               integer_to_ptr(1))))->value,
+                   4.0);
+}
+
+TEST_F(numeric, angle) {
+  EXPECT_EQ(expect<integer>(angle(ctx, integer_to_ptr(1))).value(), 0);
+  EXPECT_EQ(expect<integer>(angle(ctx, integer_to_ptr(0))).value(), 0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(angle(ctx, integer_to_ptr(-1)))->value, std::numbers::pi);
+
+  EXPECT_DOUBLE_EQ(expect<floating_point>(angle(ctx,
+                                                make_polar(ctx,
+                                                           make<floating_point>(ctx, 2.0),
+                                                           make<floating_point>(ctx, 1.4))))->value,
+                   1.4);
+
+  EXPECT_NEAR(expect<floating_point>(angle(ctx,
+                                           make_polar(ctx,
+                                                      make<floating_point>(ctx, 1.0),
+                                                      make<floating_point>(ctx, 12 * std::numbers::pi))))->value,
+              0.0,
+              1e-6);
+
+  EXPECT_NEAR(expect<floating_point>(angle(ctx,
+                                           make_polar(ctx,
+                                                      make<floating_point>(ctx, 1.0),
+                                                      make<floating_point>(ctx, 11 * std::numbers::pi))))->value,
+              std::numbers::pi,
+              1e-6);
+
+  EXPECT_NEAR(expect<floating_point>(angle(ctx,
+                                           make_polar(ctx,
+                                                      make<floating_point>(ctx, 1.0),
+                                                      make<floating_point>(ctx, (3.0 / 2.0) * std::numbers::pi))))->value,
+              -std::numbers::pi / 2.0,
+              1e-6);
+}
