@@ -121,7 +121,7 @@ immediate_to_ptr(word_type w) noexcept {
   return ptr<>{reinterpret_cast<object*>(w)};
 }
 
-constexpr char const* integer_type_name = "insider::fixnum";
+constexpr char const* integer_type_name = "insider::integer";
 constexpr char const* character_type_name = "insider::character";
 
 inline std::string
