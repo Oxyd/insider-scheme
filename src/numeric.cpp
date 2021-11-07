@@ -4,9 +4,10 @@
 #include "port.hpp"
 #include "write.hpp"
 
-#include <bit>
 #include <algorithm>
+#include <bit>
 #include <cmath>
+#include <complex>
 #include <cstdlib>
 #include <ios>
 #include <locale>
@@ -999,6 +1000,10 @@ make_float(context& ctx, ptr<> x) {
       integer_to_float_value(q->numerator())
       / integer_to_float_value(q->denominator())
     );
+  else if (auto z = match<complex>(x)) {
+    assert(is_real(z));
+    return make_float(ctx, z->real());
+  }
 
   assert(false);
   return {};
@@ -1811,6 +1816,193 @@ exact(context& ctx, ptr<> x) {
     return make<complex>(ctx, exact(ctx, z->real()), exact(ctx, z->imaginary()));
   else
     throw std::runtime_error{"Expected a number"};
+}
+
+static ptr<>
+real_exp(context& ctx, ptr<floating_point> x) {
+  return make<floating_point>(ctx, std::exp(x->value));
+}
+
+using std_complex = std::complex<floating_point::value_type>;
+
+static std_complex
+to_std_complex(ptr<complex> z) {
+  return {assume<floating_point>(z->real())->value,
+          assume<floating_point>(z->imaginary())->value};
+}
+
+static ptr<>
+from_std_complex(context& ctx, std_complex z) {
+  if (z.imag() == 0.0)
+    return make<floating_point>(ctx, z.real());
+  else
+    return make<complex>(ctx, make<floating_point>(ctx, z.real()), make<floating_point>(ctx, z.imag()));
+}
+
+ptr<>
+complex_exp(context& ctx, ptr<complex> z) {
+  return from_std_complex(ctx, std::exp(to_std_complex(z)));
+}
+
+template <auto Real, auto Complex>
+static ptr<>
+transcendental(context& ctx, ptr<> z) {
+  if (is<complex>(z))
+    return Complex(ctx, assume<complex>(inexact(ctx, z)));
+  else if (is_real(z))
+    return Real(ctx, assume<floating_point>(inexact(ctx, z)));
+  else
+    throw std::runtime_error{"Expected a number"};
+}
+
+ptr<>
+exp(context& ctx, ptr<> z) {
+  return transcendental<real_exp, complex_exp>(ctx, z);
+}
+
+static ptr<>
+real_log(context& ctx, ptr<floating_point> x) {
+  if (x->value > 0.0)
+    return make<floating_point>(ctx, std::log(x->value));
+  else
+    return from_std_complex(ctx, std::log(std_complex{x->value, 0.0}));
+}
+
+static ptr<>
+complex_log(context& ctx, ptr<complex> z) {
+  return from_std_complex(ctx, std::log(to_std_complex(z)));
+}
+
+ptr<>
+log(context& ctx, ptr<> z) {
+  return transcendental<real_log, complex_log>(ctx, z);
+}
+
+static ptr<>
+real_sin(context& ctx, ptr<floating_point> x) {
+  return make<floating_point>(ctx, std::sin(x->value));
+}
+
+static ptr<>
+complex_sin(context& ctx, ptr<complex> z) {
+  return from_std_complex(ctx, std::sin(to_std_complex(z)));
+}
+
+static ptr<>
+real_cos(context& ctx, ptr<floating_point> x) {
+  return make<floating_point>(ctx, std::cos(x->value));
+}
+
+static ptr<>
+complex_cos(context& ctx, ptr<complex> z) {
+  return from_std_complex(ctx, std::cos(to_std_complex(z)));
+}
+
+ptr<>
+sin(context& ctx, ptr<> z) {
+  return transcendental<real_sin, complex_sin>(ctx, z);
+}
+
+ptr<>
+cos(context& ctx, ptr<> z) {
+  return transcendental<real_cos, complex_cos>(ctx, z);
+}
+
+static ptr<>
+real_tan(context& ctx, ptr<floating_point> x) {
+  return make<floating_point>(ctx, std::tan(x->value));
+}
+
+static ptr<>
+complex_tan(context& ctx, ptr<complex> z) {
+  return from_std_complex(ctx, std::tan(to_std_complex(z)));
+}
+
+ptr<>
+tan(context& ctx, ptr<> z) {
+  return transcendental<real_tan, complex_tan>(ctx, z);
+}
+
+static ptr<>
+real_asin(context& ctx, ptr<floating_point> x) {
+  return make<floating_point>(ctx, std::asin(x->value));
+}
+
+static ptr<>
+complex_asin(context& ctx, ptr<complex> z) {
+  return from_std_complex(ctx, std::asin(to_std_complex(z)));
+}
+
+ptr<>
+asin(context& ctx, ptr<> z) {
+  return transcendental<real_asin, complex_asin>(ctx, z);
+}
+
+static ptr<>
+real_acos(context& ctx, ptr<floating_point> x) {
+  return make<floating_point>(ctx, std::acos(x->value));
+}
+
+static ptr<>
+complex_acos(context& ctx, ptr<complex> z) {
+  return from_std_complex(ctx, std::acos(to_std_complex(z)));
+}
+
+ptr<>
+acos(context& ctx, ptr<> z) {
+  return transcendental<real_acos, complex_acos>(ctx, z);
+}
+
+static ptr<>
+real_atan(context& ctx, ptr<floating_point> x) {
+  return make<floating_point>(ctx, std::atan(x->value));
+}
+
+static ptr<>
+complex_atan(context& ctx, ptr<complex> z) {
+  return from_std_complex(ctx, std::atan(to_std_complex(z)));
+}
+
+ptr<>
+atan(context& ctx, ptr<> z) {
+  return transcendental<real_atan, complex_atan>(ctx, z);
+}
+
+ptr<>
+atan2(context& ctx, ptr<> y, ptr<> x) {
+  if (!is_real(x) || !is_real(y))
+    throw std::runtime_error{"Expected real number"};
+
+  double y_fl = make_float(ctx, y)->value;
+  double x_fl = make_float(ctx, x)->value;
+  return make<floating_point>(ctx, std::atan2(y_fl, x_fl));
+}
+
+static std_complex
+std_sqrt(std_complex z) {
+  auto result = std::sqrt(z);
+  if (result.real() == 0.0 && result.imag() < 0.0)
+    return -result;
+  else
+    return result;
+}
+
+static ptr<>
+real_sqrt(context& ctx, ptr<floating_point> x) {
+  if (x->value >= 0)
+    return make<floating_point>(ctx, std::sqrt(x->value));
+  else
+    return from_std_complex(ctx, std_sqrt(std_complex{x->value, 0}));
+}
+
+static ptr<>
+complex_sqrt(context& ctx, ptr<complex> z) {
+  return from_std_complex(ctx, std_sqrt(to_std_complex(z)));
+}
+
+ptr<>
+sqrt(context& ctx, ptr<> z) {
+  return transcendental<real_sqrt, complex_sqrt>(ctx, z);
 }
 
 ptr<>

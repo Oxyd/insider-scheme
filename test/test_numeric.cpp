@@ -1,5 +1,9 @@
 #include "bignum.hpp"
+
 #include "scheme_fixture.hpp"
+#include "to_scheme.hpp"
+
+#include <numbers>
 
 using namespace insider;
 
@@ -598,4 +602,92 @@ TEST_F(numeric, exact) {
   EXPECT_THROW(exact(ctx, read("+nan.0")), std::runtime_error);
 
   EXPECT_TRUE(equal(exact(ctx, read("0.5+1.5i")), read("1/2+3/2i")));
+}
+
+TEST_F(numeric, exp) {
+  EXPECT_DOUBLE_EQ(expect<floating_point>(exp(ctx, integer_to_ptr(0)))->value, 1.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(exp(ctx, integer_to_ptr(1)))->value, std::numbers::e);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(exp(ctx, integer_to_ptr(-1)))->value, 1.0 / std::numbers::e);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(exp(ctx, integer_to_ptr(2)))->value, std::numbers::e * std::numbers::e);
+
+  auto z1 = expect<complex>(exp(ctx, make<complex>(ctx, integer_to_ptr(3), make<floating_point>(ctx, std::numbers::pi))));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z1->real())->value, -std::numbers::e * std::numbers::e * std::numbers::e);
+  EXPECT_NEAR(expect<floating_point>(z1->imaginary())->value, 0.0, 1e-6);
+}
+
+TEST_F(numeric, log) {
+  EXPECT_DOUBLE_EQ(expect<floating_point>(log(ctx, integer_to_ptr(1)))->value, 0.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(log(ctx, integer_to_ptr(0)))->value, floating_point::negative_infinity);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(log(ctx, to_scheme(ctx, std::numbers::e)))->value, 1.0);
+
+  auto z1 = expect<complex>(log(ctx, integer_to_ptr(-1)));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z1->real())->value, 0.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z1->imaginary())->value, std::numbers::pi);
+
+  auto z2 = expect<complex>(log(ctx, to_scheme(ctx, -0.0)));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z2->real())->value, floating_point::negative_infinity);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z2->imaginary())->value, std::numbers::pi);
+}
+
+TEST_F(numeric, sin_cos) {
+  EXPECT_DOUBLE_EQ(expect<floating_point>(sin(ctx, integer_to_ptr(0)))->value, 0.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(cos(ctx, integer_to_ptr(0)))->value, 1.0);
+
+  EXPECT_DOUBLE_EQ(expect<floating_point>(sin(ctx, to_scheme(ctx, std::numbers::pi / 2.0)))->value, 1.0);
+  EXPECT_NEAR(expect<floating_point>(cos(ctx, to_scheme(ctx, std::numbers::pi / 2.0)))->value, 0.0, 1e-6);
+
+  auto z1 = expect<complex>(sin(ctx, read("1+1i")));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z1->real())->value, 1.2984575814159773);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z1->imaginary())->value, 0.6349639147847361);
+
+  auto z2 = expect<complex>(cos(ctx, read("1+1i")));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z2->real())->value, 0.8337300251311491);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z2->imaginary())->value, -0.9888977057628651);
+}
+
+TEST_F(numeric, sqrt) {
+  EXPECT_DOUBLE_EQ(expect<floating_point>(sqrt(ctx, integer_to_ptr(9)))->value, 3.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(sqrt(ctx, integer_to_ptr(1)))->value, 1.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(sqrt(ctx, integer_to_ptr(0)))->value, 0.0);
+
+  auto z1 = expect<complex>(sqrt(ctx, integer_to_ptr(-1)));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z1->real())->value, 0.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z1->imaginary())->value, 1.0);
+
+  auto z2 = expect<complex>(sqrt(ctx, make<complex>(ctx, integer_to_ptr(-1), make<floating_point>(ctx, -0.0))));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z2->real())->value, 0.0);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z2->imaginary())->value, 1.0);
+
+  auto z3 = expect<complex>(sqrt(ctx, make<complex>(ctx, integer_to_ptr(0), integer_to_ptr(1))));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z3->real())->value, 1.0 / std::sqrt(2.0));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z3->imaginary())->value, 1.0 / std::sqrt(2.0));
+
+  auto z4 = expect<complex>(sqrt(ctx, make<complex>(ctx, integer_to_ptr(0), integer_to_ptr(-1))));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z4->real())->value, 1.0 / std::sqrt(2.0));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z4->imaginary())->value, -1.0 / std::sqrt(2.0));
+}
+
+TEST_F(numeric, atan2) {
+  auto at = [&] (double y, double x) {
+    return expect<floating_point>(atan2(ctx, make<floating_point>(ctx, y), make<floating_point>(ctx, x)))->value;
+  };
+
+  EXPECT_EQ(at(+0.0, 1.0), +0.0);
+  EXPECT_EQ(at(-0.0, 1.0), -0.0);
+  EXPECT_GT(at(1.0, 1.0), 0.0);
+  EXPECT_LT(at(1.0, 1.0), std::numbers::pi / 2.0);
+  EXPECT_DOUBLE_EQ(at(1.0, 0.0), std::numbers::pi / 2.0);
+  EXPECT_GT(at(1.0, -1.0), std::numbers::pi / 2.0);
+  EXPECT_LT(at(1.0, -1.0), std::numbers::pi);
+  EXPECT_DOUBLE_EQ(at(0.0, -1.0), std::numbers::pi);
+  EXPECT_DOUBLE_EQ(at(-0.0, -1.0), -std::numbers::pi);
+  EXPECT_GT(at(-1.0, -1.0), -std::numbers::pi);
+  EXPECT_LT(at(-1.0, -1.0), -std::numbers::pi / 2.0);
+  EXPECT_DOUBLE_EQ(at(-1.0, 0.0), -std::numbers::pi / 2.0);
+  EXPECT_GT(at(-1.0, 1.0), -std::numbers::pi / 2.0);
+  EXPECT_LT(at(-1.0, 1.0), 0.0);
+  EXPECT_EQ(at(+0.0, +0.0), +0.0);
+  EXPECT_EQ(at(-0.0, +0.0), -0.0);
+  EXPECT_DOUBLE_EQ(at(+0.0, -0.0), std::numbers::pi);
+  EXPECT_DOUBLE_EQ(at(-0.0, -0.0), -std::numbers::pi);
 }

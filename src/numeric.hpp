@@ -387,6 +387,36 @@ ptr<>
 exact(context&, ptr<>);
 
 ptr<>
+exp(context&, ptr<>);
+
+ptr<>
+log(context&, ptr<>);
+
+ptr<>
+sin(context&, ptr<>);
+
+ptr<>
+cos(context&, ptr<>);
+
+ptr<>
+tan(context&, ptr<>);
+
+ptr<>
+asin(context&, ptr<>);
+
+ptr<>
+acos(context&, ptr<>);
+
+ptr<>
+atan(context&, ptr<>);
+
+ptr<>
+atan2(context&, ptr<>, ptr<>);
+
+ptr<>
+sqrt(context&, ptr<>);
+
+ptr<>
 read_integer(context& ctx, std::string const& digits, unsigned base = 10);
 
 } // namespace insider
