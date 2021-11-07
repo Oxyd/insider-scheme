@@ -768,3 +768,28 @@ TEST_F(numeric, angle) {
               -std::numbers::pi / 2.0,
               1e-6);
 }
+
+TEST_F(numeric, is_odd_even) {
+  EXPECT_TRUE(is_even(integer_to_ptr(0)));
+  EXPECT_FALSE(is_odd(integer_to_ptr(0)));
+
+  EXPECT_TRUE(is_even(integer_to_ptr(2)));
+  EXPECT_FALSE(is_odd(integer_to_ptr(2)));
+
+  EXPECT_TRUE(is_even(integer_to_ptr(-2)));
+  EXPECT_FALSE(is_odd(integer_to_ptr(-2)));
+
+  EXPECT_FALSE(is_even(integer_to_ptr(1)));
+  EXPECT_TRUE(is_odd(integer_to_ptr(1)));
+
+  EXPECT_FALSE(is_even(integer_to_ptr(-1)));
+  EXPECT_TRUE(is_odd(integer_to_ptr(-1)));
+
+  auto z1 = read("234098350981325098134509854309831450981345098134098230981209345908142");
+  EXPECT_TRUE(is_even(z1));
+  EXPECT_FALSE(is_odd(z1));
+
+  auto z2 = read("-234098134598120982340981239014906389129031489431825409812390812389735897537891597");
+  EXPECT_FALSE(is_even(z2));
+  EXPECT_TRUE(is_odd(z2));
+}

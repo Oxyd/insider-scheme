@@ -253,6 +253,12 @@ is_zero(ptr<>);
 bool
 is_exact_zero(ptr<>);
 
+bool
+is_odd(ptr<>);
+
+bool
+is_even(ptr<>);
+
 ptr<>
 negate(context&, ptr<>);
 

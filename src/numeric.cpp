@@ -1236,6 +1236,26 @@ is_exact_zero(ptr<> x) {
   return is_exact(x) && is_zero(x);
 }
 
+bool
+is_odd(ptr<> n) {
+  if (auto i = match<integer>(n))
+    return (i->value() & 1) == 1;
+  else if (auto b = match<big_integer>(n))
+    return (b->front() & 1) == 1;
+  else
+    throw std::runtime_error{"Expected a number"};
+}
+
+bool
+is_even(ptr<> n) {
+  if (auto i = match<integer>(n))
+    return (i->value() & 1) == 0;
+  else if (auto b = match<big_integer>(n))
+    return (b->front() & 1) == 0;
+  else
+    throw std::runtime_error{"Expected a number"};
+}
+
 ptr<>
 negate(context& ctx, ptr<> x) {
   return multiply(ctx, x, integer_to_ptr(-1));
