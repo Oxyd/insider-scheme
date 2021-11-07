@@ -986,27 +986,28 @@ integer_to_float_value(ptr<> n) {
     return big_to_float_value(assume<big_integer>(n));
 }
 
-static ptr<floating_point>
-make_float(context& ctx, ptr<> x) {
+static floating_point::value_type
+to_float_value(ptr<> x) {
   if (auto f = match<floating_point>(x))
-    return f;
+    return f->value;
   else if (auto n = match<integer>(x))
-    return make<floating_point>(ctx, n->value());
+    return n->value();
   else if (auto n = match<big_integer>(x))
-    return make<floating_point>(ctx, big_to_float_value(n));
+    return big_to_float_value(n);
   else if (auto q = match<fraction>(x))
-    return make<floating_point>(
-      ctx,
-      integer_to_float_value(q->numerator())
-      / integer_to_float_value(q->denominator())
-    );
+    return integer_to_float_value(q->numerator()) / integer_to_float_value(q->denominator());
   else if (auto z = match<complex>(x)) {
     assert(is_real(z));
-    return make_float(ctx, z->real());
+    return to_float_value(z->real());
   }
 
   assert(false);
   return {};
+}
+
+static ptr<floating_point>
+make_float(context& ctx, ptr<> x) {
+  return make<floating_point>(ctx, to_float_value(x));
 }
 
 template <auto F>
@@ -1081,8 +1082,8 @@ real_magnitude(context& ctx, ptr<> x) {
 
 static ptr<>
 complex_magnitude(context& ctx, ptr<complex> z) {
-  double re = make_float(ctx, z->real())->value;
-  double im = make_float(ctx, z->imaginary())->value;
+  double re = to_float_value(z->real());
+  double im = to_float_value(z->imaginary());
   return make<floating_point>(ctx, std::sqrt(re * re + im * im));
 }
 
@@ -1106,8 +1107,8 @@ real_angle(context& ctx, ptr<> x) {
 
 static ptr<>
 complex_angle(context& ctx, ptr<complex> z) {
-  double re = make_float(ctx, z->real())->value;
-  double im = make_float(ctx, z->imaginary())->value;
+  double re = to_float_value(z->real());
+  double im = to_float_value(z->imaginary());
   return make<floating_point>(ctx, std::atan2(im, re));
 }
 
@@ -2035,8 +2036,8 @@ atan2(context& ctx, ptr<> y, ptr<> x) {
   if (!is_real(x) || !is_real(y))
     throw std::runtime_error{"Expected real number"};
 
-  double y_fl = make_float(ctx, y)->value;
-  double x_fl = make_float(ctx, x)->value;
+  double y_fl = to_float_value(y);
+  double x_fl = to_float_value(x);
   return make<floating_point>(ctx, std::atan2(y_fl, x_fl));
 }
 
