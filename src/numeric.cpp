@@ -1857,7 +1857,7 @@ floating_point_to_exact(context& ctx, ptr<floating_point> value) {
   throw_if_not_representable_as_exact(value);
 
   constexpr int radix = std::numeric_limits<floating_point::value_type>::radix;
-  int negative = value->value < 0.0;
+  bool negative = value->value < 0.0;
   int exponent;
   floating_point::value_type f = std::frexp(std::fabs(value->value), &exponent);
 
