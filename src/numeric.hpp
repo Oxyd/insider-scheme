@@ -414,6 +414,9 @@ ptr<>
 atan2(context&, ptr<>, ptr<>);
 
 ptr<>
+square(context&, ptr<>);
+
+ptr<>
 sqrt(context&, ptr<>);
 
 ptr<>

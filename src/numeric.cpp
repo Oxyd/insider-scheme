@@ -1987,6 +1987,11 @@ std_sqrt(std_complex z) {
     return result;
 }
 
+ptr<>
+square(context& ctx, ptr<> z) {
+  return multiply(ctx, z, z);
+}
+
 static ptr<>
 real_sqrt(context& ctx, ptr<floating_point> x) {
   if (x->value >= 0)

@@ -645,6 +645,16 @@ TEST_F(numeric, sin_cos) {
   EXPECT_DOUBLE_EQ(expect<floating_point>(z2->imaginary())->value, -0.9888977057628651);
 }
 
+TEST_F(numeric, square) {
+  EXPECT_EQ(expect<integer>(square(ctx, integer_to_ptr(5))).value(), 25);
+  EXPECT_EQ(expect<integer>(square(ctx, integer_to_ptr(-5))).value(), 25);
+  EXPECT_EQ(expect<floating_point>(square(ctx, make<floating_point>(ctx, 5.0)))->value, 25.0);
+
+  auto z1 = expect<complex>(square(ctx, make_rectangular(ctx, integer_to_ptr(2), integer_to_ptr(3))));
+  EXPECT_EQ(expect<integer>(z1->real()).value(), -5);
+  EXPECT_EQ(expect<integer>(z1->imaginary()).value(), 12);
+}
+
 TEST_F(numeric, sqrt) {
   EXPECT_DOUBLE_EQ(expect<floating_point>(sqrt(ctx, integer_to_ptr(9)))->value, 3.0);
   EXPECT_DOUBLE_EQ(expect<floating_point>(sqrt(ctx, integer_to_ptr(1)))->value, 1.0);
