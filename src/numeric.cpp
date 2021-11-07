@@ -1230,6 +1230,11 @@ is_zero(ptr<> x) {
     throw std::runtime_error{"Expected a number"};
 }
 
+bool
+is_exact_zero(ptr<> x) {
+  return is_exact(x) && is_zero(x);
+}
+
 ptr<>
 negate(context& ctx, ptr<> x) {
   return multiply(ctx, x, integer_to_ptr(-1));

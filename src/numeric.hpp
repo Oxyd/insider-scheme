@@ -250,6 +250,9 @@ is_negative(ptr<>);
 bool
 is_zero(ptr<>);
 
+bool
+is_exact_zero(ptr<>);
+
 ptr<>
 negate(context&, ptr<>);
 

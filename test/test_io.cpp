@@ -492,6 +492,19 @@ TEST_F(io, read_complex) {
   EXPECT_TRUE(equal(read("-i"), make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(-1))));
 }
 
+TEST_F(io, read_polar_complex) {
+  auto z1 = read("1@0");
+  EXPECT_EQ(expect<integer>(z1).value(), 1);
+
+  auto z2 = expect<complex>(read("1@1.5707963267948966"));
+  EXPECT_NEAR(expect<floating_point>(z2->real())->value, 0.0, 1e-6);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z2->imaginary())->value, 1.0);
+
+  auto z3 = expect<complex>(read("2@2"));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z3->real())->value, -0.8322936730942848);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z3->imaginary())->value, 1.8185948536513634);
+}
+
 TEST_F(io, write_complex) {
   EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(1), integer_to_ptr(1))), "1+i");
   EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, integer_to_ptr(0), integer_to_ptr(1))), "+i");

@@ -475,10 +475,25 @@ read_imaginary_part(context& ctx, number_parse_mode mode, ptr<> real,
 }
 
 static ptr<>
-read_complex_after_real_part(context& ctx, number_parse_mode mode, ptr<> real,
+read_angle(context& ctx, number_parse_mode mode, ptr<> magnitude,
+           reader_stream& stream, source_location loc) {
+  consume(stream, '@');
+  if (ptr<> angle = read_real(ctx, mode, stream, loc)) {
+    if (is_exact_zero(angle))
+      return magnitude;
+    else
+      return make_polar(ctx, magnitude, angle);
+  } else
+    throw read_error{"Invalid polar complex literal", loc};
+}
+
+static ptr<>
+read_complex_after_first_part(context& ctx, number_parse_mode mode, ptr<> real,
                              reader_stream& stream, source_location loc) {
   if (stream.peek() == '+' || stream.peek() == '-')
     return read_imaginary_part(ctx, mode, real, stream, loc);
+  else if (stream.peek() == '@')
+    return read_angle(ctx, mode, real, stream, loc);
   else if (stream.peek() == 'i' || stream.peek() == 'I') {
     stream.read();
     return make_rectangular(ctx, integer_to_ptr(0), real);
@@ -511,7 +526,7 @@ read_complex(context& ctx, number_parse_mode mode, reader_stream& stream, source
   //              | <infnan> i | +i | -i
 
   if (auto x = read_real(ctx, mode, stream, loc))
-    return read_complex_after_real_part(ctx, mode, x, stream, loc);
+    return read_complex_after_first_part(ctx, mode, x, stream, loc);
   else if (stream.peek() == '+' || stream.peek() == '-')
     return read_sign_followed_by_imaginary_unit(ctx, stream);
   else
