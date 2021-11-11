@@ -548,3 +548,21 @@ TEST_F(io, write_complex) {
   EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, neg_inf, integer_to_ptr(2))), "-inf.0+2i");
   EXPECT_EQ(to_string_simple(ctx, make_rectangular(ctx, neg_nan, integer_to_ptr(2))), "-nan.0+2i");
 }
+
+TEST_F(io, number_to_string) {
+  EXPECT_EQ(number_to_string(ctx, integer_to_ptr(0)), "0");
+  EXPECT_EQ(number_to_string(ctx, integer_to_ptr(2)), "2");
+  EXPECT_EQ(number_to_string(ctx, integer_to_ptr(-23)), "-23");
+  EXPECT_EQ(number_to_string(ctx, make<fraction>(ctx, integer_to_ptr(2), integer_to_ptr(3))), "2/3");
+  EXPECT_EQ(number_to_string(ctx, make<floating_point>(ctx, 2.5)), "2.5");
+  EXPECT_EQ(number_to_string(ctx, make_rectangular(ctx, integer_to_ptr(2), integer_to_ptr(3))), "2+3i");
+  EXPECT_EQ(number_to_string(ctx, make<floating_point>(ctx, floating_point::positive_infinity)), "+inf.0");
+  EXPECT_EQ(number_to_string(ctx, make<floating_point>(ctx, floating_point::positive_nan)), "+nan.0");
+
+  EXPECT_EQ(number_to_string(ctx, integer_to_ptr(-23), 8), "-27");
+  EXPECT_EQ(number_to_string(ctx, make<fraction>(ctx, integer_to_ptr(10), integer_to_ptr(11)), 8), "12/13");
+  EXPECT_EQ(number_to_string(ctx, make<floating_point>(ctx, 12.5), 8), "#i31/2");
+  EXPECT_EQ(number_to_string(ctx, make<floating_point>(ctx, floating_point::positive_infinity), 8), "+inf.0");
+
+  EXPECT_EQ(number_to_string(ctx, make<floating_point>(ctx, 2.6875), 16), "#i2b/10");
+}

@@ -38,6 +38,9 @@ display(context& ctx, ptr<>, ptr<textual_output_port>);
 std::string
 datum_to_string(context& ctx, ptr<>);
 
+std::string
+number_to_string(context&, ptr<>, unsigned base = 10);
+
 void
 init_write(context&);
 

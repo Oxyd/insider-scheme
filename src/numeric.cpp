@@ -1193,7 +1193,12 @@ is_inexact(ptr<> x) {
 
 bool
 is_nan(ptr<> x) {
-  return is<floating_point>(x) && std::isnan(assume<floating_point>(x)->value);
+  if (auto z = match<complex>(x))
+    return is_nan(z->real()) || is_nan(z->imaginary());
+  else if (auto fp = match<floating_point>(x))
+    return std::isnan(fp->value);
+  else
+    return false;
 }
 
 bool
@@ -1203,7 +1208,12 @@ is_finite(ptr<> x) {
 
 bool
 is_infinite(ptr<> x) {
-  return is<floating_point>(x) && std::isinf(assume<floating_point>(x)->value);
+  if (auto z = match<complex>(x))
+    return is_infinite(z->real()) || is_infinite(z->imaginary());
+  else if (auto fp = match<floating_point>(x))
+    return std::isinf(fp->value);
+  else
+    return false;
 }
 
 bool

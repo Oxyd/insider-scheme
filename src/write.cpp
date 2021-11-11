@@ -42,21 +42,32 @@ write_char(char32_t c, ptr<textual_output_port> out) {
 }
 
 static void
-write_number(context& ctx, ptr<> value, ptr<textual_output_port> out);
+write_number(context& ctx, ptr<> value, ptr<textual_output_port> out, unsigned base = 10);
+
+static char32_t
+digit_to_letter(unsigned d) {
+  if (d <= 9)
+    return '0' + d;
+  else if (d <= 16)
+    return 'a' + (d - 10);
+
+  assert(false);
+  return {};
+}
 
 template <typename T>
 static void
-write_small_magnitude(std::string& buffer, T n) {
+write_small_magnitude(std::string& buffer, T n, unsigned base) {
   while (n > 0) {
-    T quot = n / 10;
-    T rem = n % 10;
-    buffer.push_back('0' + rem);
+    T quot = n / base;
+    T rem = n % base;
+    buffer.push_back(digit_to_letter(rem));
     n = quot;
   }
 }
 
 static void
-write_small(integer value, ptr<textual_output_port> out) {
+write_small(integer value, ptr<textual_output_port> out, unsigned base) {
   if (value.value() == 0) {
     out->write('0');
     return;
@@ -67,14 +78,14 @@ write_small(integer value, ptr<textual_output_port> out) {
 
   std::string buffer;
   integer::value_type n = value.value() >= 0 ? value.value() : -value.value();
-  write_small_magnitude(buffer, n);
+  write_small_magnitude(buffer, n, base);
 
   for (auto c = buffer.rbegin(), e = buffer.rend(); c != e; ++c)
     out->write(static_cast<char32_t>(*c));
 }
 
 static void
-write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out) {
+write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out, unsigned base) {
   if (value->zero()) {
     out->write('0');
     return;
@@ -88,22 +99,22 @@ write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out) {
 
   std::string buffer;
   while (is<big_integer>(v)) {
-    auto [quot, rem] = quotient_remainder(ctx, v, integer_to_ptr(10));
-    buffer.push_back('0' + assume<integer>(rem).value());
+    auto [quot, rem] = quotient_remainder(ctx, v, integer_to_ptr(base));
+    buffer.push_back(digit_to_letter(assume<integer>(rem).value()));
     v = quot;
   }
 
-  write_small_magnitude(buffer, assume<integer>(v).value());
+  write_small_magnitude(buffer, assume<integer>(v).value(), base);
 
   for (auto c = buffer.rbegin(), e = buffer.rend(); c != e; ++c)
     out->write(static_cast<char32_t>(*c));
 }
 
 static void
-write_fraction(context& ctx, ptr<fraction> value, ptr<textual_output_port> out) {
-  write_number(ctx, value->numerator(), out);
+write_fraction(context& ctx, ptr<fraction> value, ptr<textual_output_port> out, unsigned base) {
+  write_number(ctx, value->numerator(), out, base);
   out->write('/');
-  write_number(ctx, value->denominator(), out);
+  write_number(ctx, value->denominator(), out, base);
 }
 
 static void
@@ -148,9 +159,9 @@ is_exact_equal(ptr<> x) {
 }
 
 static void
-write_complex(context& ctx, ptr<complex> z, ptr<textual_output_port> out) {
+write_complex(context& ctx, ptr<complex> z, ptr<textual_output_port> out, unsigned base) {
   if (!is_exact_equal<0>(z->real()))
-    write_number(ctx, z->real(), out);
+    write_number(ctx, z->real(), out, base);
 
   if (is_exact_equal<1>(z->imaginary()))
     out->write("+i");
@@ -160,23 +171,23 @@ write_complex(context& ctx, ptr<complex> z, ptr<textual_output_port> out) {
     if (!is_negative(z->imaginary()) && !is_exact_equal<0>(z->real()) && is_finite(z->imaginary()))
       out->write('+');
 
-    write_number(ctx, z->imaginary(), out);
+    write_number(ctx, z->imaginary(), out, base);
     out->write('i');
   }
 }
 
 static void
-write_number(context& ctx, ptr<> value, ptr<textual_output_port> out) {
+write_number(context& ctx, ptr<> value, ptr<textual_output_port> out, unsigned base) {
   if (auto s = match<integer>(value))
-    write_small(*s, out);
+    write_small(*s, out, base);
   else if (auto b = match<big_integer>(value))
-    write_big(ctx, b, out);
+    write_big(ctx, b, out, base);
   else if (auto q = match<fraction>(value))
-    write_fraction(ctx, q, out);
+    write_fraction(ctx, q, out, base);
   else if (auto f = match<floating_point>(value))
     write_float(f, out);
   else if (auto z = match<complex>(value))
-    write_complex(ctx, z, out);
+    write_complex(ctx, z, out, base);
   else
     assert(false);
 }
@@ -446,6 +457,34 @@ std::string
 datum_to_string(context& ctx, ptr<> datum) {
   auto p = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
   write(ctx, datum, p);
+  return p->get_string();
+}
+
+static void
+throw_if_base_not_allowed(unsigned base) {
+  if (base != 2 && base != 8 && base != 10 && base != 16)
+    throw std::runtime_error{"Invalid base"};
+}
+
+static void
+inexact_number_to_nondecimal_string(context& ctx, ptr<> z, unsigned base, ptr<textual_output_port> out) {
+  if (is_finite(z)) {
+    out->write("#i");
+    write_number(ctx, exact(ctx, z), out, base);
+  } else
+    write_number(ctx, z, out); // Write +nan.0 or +inf.0, base doesn't matter
+}
+
+std::string
+number_to_string(context& ctx, ptr<> z, unsigned base) {
+  throw_if_base_not_allowed(base);
+  auto p = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
+
+  if (is_exact(z) || base == 10)
+    write_number(ctx, z, p, base);
+  else
+    inexact_number_to_nondecimal_string(ctx, z, base, p);
+
   return p->get_string();
 }
 
