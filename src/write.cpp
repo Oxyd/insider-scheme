@@ -41,7 +41,7 @@ write_char(char32_t c, ptr<textual_output_port> out) {
   out->write(c);
 }
 
-void
+static void
 write_number(context& ctx, ptr<> value, ptr<textual_output_port> out);
 
 template <typename T>
@@ -165,7 +165,7 @@ write_complex(context& ctx, ptr<complex> z, ptr<textual_output_port> out) {
   }
 }
 
-void
+static void
 write_number(context& ctx, ptr<> value, ptr<textual_output_port> out) {
   if (auto s = match<integer>(value))
     write_small(*s, out);
