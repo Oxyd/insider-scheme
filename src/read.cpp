@@ -587,7 +587,7 @@ read_exactness(reader_stream& stream) {
 }
 
 static number_parse_mode
-read_number_prefix(reader_stream& stream) {
+read_number_prefix(reader_stream& stream, unsigned default_radix) {
   // <prefix R> -> <radix R> <exactness>
   //             | <exactness> <radix R>
 
@@ -596,9 +596,9 @@ read_number_prefix(reader_stream& stream) {
     return {*radix, exactness ? *exactness : number_parse_mode::exactness_mode::no_change};
   } else if (auto exactness = read_exactness(stream)) {
     auto radix = read_radix(stream);
-    return {radix ? *radix : 10, *exactness};
+    return {radix ? *radix : default_radix, *exactness};
   } else
-    return number_parse_mode{};
+    return number_parse_mode{default_radix, number_parse_mode::exactness_mode::no_change};
 }
 
 static void
@@ -609,10 +609,10 @@ throw_if_no_delimiter_after_number(reader_stream& stream, source_location loc) {
 }
 
 static ptr<>
-read_number(context& ctx, reader_stream& stream, source_location loc) {
+read_number(context& ctx, reader_stream& stream, source_location loc, unsigned default_base = 10) {
   // <num R> -> <prefix R> <complex R>
 
-  if (auto result = read_complex(ctx, read_number_prefix(stream), stream, loc)) {
+  if (auto result = read_complex(ctx, read_number_prefix(stream, default_base), stream, loc)) {
     throw_if_no_delimiter_after_number(stream, loc);
     return result;
   } else
@@ -1382,6 +1382,27 @@ std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context& ctx, std::string s) {
   unique_port_handle<ptr<textual_input_port>> h{make_string_input_port(ctx, std::move(s))};
   return read_syntax_multiple(ctx, *h);
+}
+
+ptr<>
+string_to_number(context& ctx, std::string const& s, unsigned base) {
+  if (base != 2 && base != 8 && base != 10 && base != 16)
+    throw std::runtime_error{"Invalid base"};
+
+  try {
+    auto port = make_string_input_port(ctx, s);
+    reader_stream stream{track(ctx, port)};
+
+    if (ptr<> result = read_number(ctx, stream, stream.location(), base)) {
+      if (!stream.read())
+        return result;
+      else
+        return ctx.constants->f.get();
+    } else
+      return ctx.constants->f.get();
+  } catch (read_error const&) {
+    return ctx.constants->f.get();
+  }
 }
 
 static ptr<textual_input_port>

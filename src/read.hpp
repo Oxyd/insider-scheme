@@ -48,6 +48,9 @@ read_syntax_multiple_ci(context&, ptr<textual_input_port>);
 std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context&, std::string);
 
+ptr<>
+string_to_number(context&, std::string const&, unsigned base = 10);
+
 void
 init_read(context&);
 

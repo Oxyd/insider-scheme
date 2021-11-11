@@ -566,3 +566,15 @@ TEST_F(io, number_to_string) {
 
   EXPECT_EQ(number_to_string(ctx, make<floating_point>(ctx, 2.6875), 16), "#i2b/10");
 }
+
+TEST_F(io, string_to_number) {
+  EXPECT_TRUE(equal(string_to_number(ctx, "100"), integer_to_ptr(100)));
+  EXPECT_TRUE(equal(string_to_number(ctx, "100", 16), integer_to_ptr(256)));
+  EXPECT_TRUE(equal(string_to_number(ctx, "1e2"), make<floating_point>(ctx, 100.0)));
+  EXPECT_TRUE(equal(string_to_number(ctx, "2/3"), make<fraction>(ctx, integer_to_ptr(2), integer_to_ptr(3))));
+  EXPECT_TRUE(equal(string_to_number(ctx, "#o10", 16), integer_to_ptr(8)));
+
+  EXPECT_EQ(string_to_number(ctx, "invalid"), ctx.constants->f.get());
+  EXPECT_EQ(string_to_number(ctx, "12+"), ctx.constants->f.get());
+  EXPECT_EQ(string_to_number(ctx, "#xabgh"), ctx.constants->f.get());
+}
