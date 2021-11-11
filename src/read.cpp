@@ -479,7 +479,7 @@ read_angle(context& ctx, number_parse_mode mode, ptr<> magnitude,
            reader_stream& stream, source_location loc) {
   consume(stream, '@');
   if (ptr<> angle = read_real(ctx, mode, stream, loc)) {
-    if (is_exact_zero(angle))
+    if (is_exactly_equal_to(angle, 0))
       return magnitude;
     else
       return make_polar(ctx, magnitude, angle);

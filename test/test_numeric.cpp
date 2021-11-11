@@ -793,3 +793,51 @@ TEST_F(numeric, is_odd_even) {
   EXPECT_FALSE(is_even(z2));
   EXPECT_TRUE(is_odd(z2));
 }
+
+TEST_F(numeric, expt) {
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(2), integer_to_ptr(2)), integer_to_ptr(4)));
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(2), integer_to_ptr(-2)), read("1/4")));
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(4), integer_to_ptr(12)), integer_to_ptr(16777216)));
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(4), integer_to_ptr(120)), read("1766847064778384329583297500742918515827483896875618958121606201292619776")));
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(5), integer_to_ptr(-91)), read("1/4038967834731580443708050254247865495926816947758197784423828125")));
+
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(-1), integer_to_ptr(6)), integer_to_ptr(1)));
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(-1), integer_to_ptr(7)), integer_to_ptr(-1)));
+
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(-1), integer_to_ptr(-6)), integer_to_ptr(1)));
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(-1), integer_to_ptr(-7)), integer_to_ptr(-1)));
+
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(-1), read("2340982134098120395820358203958092184091238023850284602984012834")), integer_to_ptr(1)));
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(-1), read("2340982134098120395820358203958092184091238023850284602984012835")), integer_to_ptr(-1)));
+
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(0), integer_to_ptr(0)), integer_to_ptr(1)));
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(0), read("0.0")), read("1.0")));
+  EXPECT_TRUE(equal(expt(ctx, read("0.0"), integer_to_ptr(0)), read("1.0")));
+  EXPECT_TRUE(equal(expt(ctx, read("0.0"), read("0.0")), read("1.0")));
+
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(0), integer_to_ptr(1)), integer_to_ptr(0)));
+  EXPECT_TRUE(equal(expt(ctx, integer_to_ptr(0), read("2+i")), read("0.0")));
+
+  EXPECT_DOUBLE_EQ(expect<floating_point>(expt(ctx, integer_to_ptr(2), read("1/2")))->value, std::sqrt(2.0));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(expt(ctx, integer_to_ptr(8), read("1/3")))->value, 2.0);
+
+  EXPECT_DOUBLE_EQ(expect<floating_point>(expt(ctx,
+                                               make<floating_point>(ctx, 1.2),
+                                               integer_to_ptr(2)))->value,
+                   1.44);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(expt(ctx,
+                                               make<floating_point>(ctx, 1.2),
+                                               make<floating_point>(ctx, 2.1)))->value,
+                   1.4664951016517147);
+
+  EXPECT_TRUE(equal(expt(ctx, read("1+i"), integer_to_ptr(2)), read("2i")));
+  EXPECT_TRUE(equal(expt(ctx, read("1+i"), integer_to_ptr(3)), read("-2+2i")));
+
+  auto z1 = expect<complex>(expt(ctx, integer_to_ptr(2), read("+i")));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z1->real())->value, 0.7692389013639721);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z1->imaginary())->value, 0.6389612763136348);
+
+  auto z2 = expect<complex>(expt(ctx, read("2+3i"), read("4+5i")));
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z2->real())->value, -0.7530458367485596);
+  EXPECT_DOUBLE_EQ(expect<floating_point>(z2->imaginary())->value, -0.9864287886477449);
+}

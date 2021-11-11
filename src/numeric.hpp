@@ -251,7 +251,7 @@ bool
 is_zero(ptr<>);
 
 bool
-is_exact_zero(ptr<>);
+is_exactly_equal_to(ptr<>, integer::value_type);
 
 bool
 is_odd(ptr<>);
@@ -436,6 +436,9 @@ square(context&, ptr<>);
 
 ptr<>
 sqrt(context&, ptr<>);
+
+ptr<>
+expt(context&, ptr<> base, ptr<> exponent);
 
 ptr<>
 read_integer(context& ctx, std::string const& digits, unsigned base = 10);

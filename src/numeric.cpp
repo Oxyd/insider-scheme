@@ -676,6 +676,10 @@ static ptr<>
 mul_small(context& ctx, integer lhs, integer rhs) {
   integer::value_type x = lhs.value() > 0 ? lhs.value() : -lhs.value();
   integer::value_type y = rhs.value() > 0 ? rhs.value() : -rhs.value();
+
+  if (x == 0 || y == 0)
+    return integer_to_ptr(0);
+
   bool result_positive = (lhs.value() > 0) == (rhs.value() > 0);
 
   if (small_mul_overflow(x, y))
@@ -751,8 +755,7 @@ bitshift_right_destructive(ptr<big_integer> i, std::size_t k) {
 
   assert(k < limb_width);
 
-  limb_type const bottom_k_bits = ~limb_type{1} >> (limb_width - k);
-  assert((i->front() & bottom_k_bits) == 0);
+  limb_type const bottom_k_bits_mask = ~limb_type{1} >> (limb_width - k);
 
   for (std::size_t n = 0; n < i->length(); ++n) {
     limb_type& current = i->data()[n];
@@ -760,7 +763,7 @@ bitshift_right_destructive(ptr<big_integer> i, std::size_t k) {
 
     if (n + 1 < i->length()) {
       limb_type upper = i->data()[n + 1];
-      current |= (upper & bottom_k_bits) << (limb_width - k);
+      current |= (upper & bottom_k_bits_mask) << (limb_width - k);
     }
   }
 
@@ -770,6 +773,22 @@ bitshift_right_destructive(ptr<big_integer> i, std::size_t k) {
 static ptr<big_integer>
 bitshift_right(context& ctx, ptr<big_integer> i, std::size_t k) {
   return bitshift_right_destructive(make<big_integer>(ctx, i), k);
+}
+
+static ptr<>
+bitshift_right(context& ctx, ptr<> n, std::size_t k) {
+  if (auto i = match<integer>(n))
+    return integer_to_ptr(i->value() >> k);
+  else
+    return bitshift_right(ctx, assume<big_integer>(n), k);
+}
+
+static bool
+least_significant_bit(ptr<> n) {
+  if (auto i = match<integer>(n))
+    return i->value() & 1;
+  else
+    return assume<big_integer>(n)->front() & 1;
 }
 
 static limb_type
@@ -1232,8 +1251,11 @@ is_zero(ptr<> x) {
 }
 
 bool
-is_exact_zero(ptr<> x) {
-  return is_exact(x) && is_zero(x);
+is_exactly_equal_to(ptr<> x, integer::value_type y) {
+  if (auto i = match<integer>(x))
+    return i->value() == y;
+  else
+    return false;
 }
 
 bool
@@ -2091,6 +2113,87 @@ complex_sqrt(context& ctx, ptr<complex> z) {
 ptr<>
 sqrt(context& ctx, ptr<> z) {
   return transcendental<real_sqrt, complex_sqrt>(ctx, z);
+}
+
+static std_complex
+to_inexact_complex(ptr<> x) {
+  if (auto z = match<complex>(x))
+    return {to_float_value(z->real()), to_float_value(z->imaginary())};
+  else if (is_real(x))
+    return {to_float_value(x), 0.0};
+  else
+    throw std::runtime_error{"Expected a number"};
+}
+
+static ptr<>
+real_expt(context& ctx, ptr<> base, ptr<> exponent) {
+  return make<floating_point>(ctx, std::pow(to_float_value(base), to_float_value(exponent)));
+}
+
+static ptr<>
+complex_expt(context& ctx, ptr<> base, ptr<> exponent) {
+  return from_std_complex(ctx, std::pow(to_inexact_complex(base), to_inexact_complex(exponent)));
+}
+
+static ptr<>
+inexact_expt(context& ctx, ptr<> base, ptr<> exponent) {
+  if (is_real(base) && is_real(exponent))
+    return real_expt(ctx, base, exponent);
+  else
+    return complex_expt(ctx, base, exponent);
+}
+
+static ptr<>
+exact_integral_expt_of_generic_base(context& ctx, ptr<> base, ptr<> exponent) {
+  // b^(a_n 2^n + a_(n - 1) 2^(n - 1) + ... + a_0)
+  // = b^(a_n 2^n) * b^(a_(n - 1) 2^(n - 1)) * ... * 2^(a_0)
+  // = b^(2^(k_1)) * b^(2^(k_2)) * ... b^(2^(k_m)),
+  // where k_i is the maximal subsequence of (1, ..., n) such that a_(k_i) is 1 for all i.
+
+  ptr<> result = integer_to_ptr(1);
+  ptr<> abs_exponent = is_negative(exponent) ? multiply(ctx, exponent, integer_to_ptr(-1)) : exponent;
+  ptr<> base_to_2i = base; // b^(2^i) where i is the number of iterations of the while loop below
+
+  while (!is_zero(abs_exponent)) {
+    if (least_significant_bit(abs_exponent))
+      result = multiply(ctx, result, base_to_2i);
+
+    base_to_2i = multiply(ctx, base_to_2i, base_to_2i);
+    abs_exponent = bitshift_right(ctx, abs_exponent, 1);
+  }
+
+  if (is_negative(exponent))
+    return normalize_fraction(ctx, make<fraction>(ctx, integer_to_ptr(1), result));
+  else
+    return result;
+}
+
+static ptr<>
+integer_power_of_negative_1(ptr<> exponent) {
+  if (is_even(exponent))
+    return integer_to_ptr(1);
+  else
+    return integer_to_ptr(-1);
+}
+
+static ptr<>
+exact_integral_expt(context& ctx, ptr<> base, ptr<> exponent) {
+  assert(is_exact_integer(exponent));
+
+  if (base == integer_to_ptr(2) && is<integer>(exponent) && !is_negative(exponent))
+    return integer_power<2>(ctx, assume<integer>(exponent).value());
+  else if (base == integer_to_ptr(-1))
+    return integer_power_of_negative_1(exponent);
+  else
+    return exact_integral_expt_of_generic_base(ctx, base, exponent);
+}
+
+ptr<>
+expt(context& ctx, ptr<> base, ptr<> exponent) {
+  if (is_inexact(base) || is_inexact(exponent) || !is_exact_integer(exponent))
+    return inexact_expt(ctx, base, exponent);
+  else
+    return exact_integral_expt(ctx, base, exponent);
 }
 
 ptr<>
