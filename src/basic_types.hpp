@@ -230,6 +230,37 @@ vector_to_list(context&, ptr<vector>);
 ptr<vector>
 vector_append(context&, object_span vs);
 
+// A sequence of bytes.
+class bytevector : public dynamic_size_object<bytevector, std::uint8_t> {
+public:
+  static constexpr char const* scheme_name = "insider::bytevector";
+
+  using element_type = std::uint8_t;
+
+  static std::size_t
+  extra_elements(std::size_t size) { return size; }
+
+  bytevector(std::size_t size);
+
+  void
+  set(std::size_t index, element_type value) { storage_element(index) = value; }
+
+  element_type
+  ref(std::size_t index) const { return storage_element(index); }
+
+  element_type const*
+  begin() const { return &storage_element(0); }
+
+  element_type const*
+  end() const { return &storage_element(0) + size(); }
+
+  void
+  visit_members(member_visitor const&);
+};
+
+bool
+bytevector_eqv(ptr<bytevector>, ptr<bytevector>);
+
 // An immutable string, used for identifying Scheme objects.
 class symbol : public leaf_object<symbol> {
 public:

@@ -20,6 +20,7 @@ namespace {
   struct left_paren { };
   struct right_paren { };
   struct octothorpe_left_paren { };
+  struct octothorpe_u8 { };
   struct dot { };
 
   struct generic_literal {
@@ -59,6 +60,7 @@ namespace {
       left_paren,
       right_paren,
       octothorpe_left_paren,
+      octothorpe_u8,
       dot,
       generic_literal,
       boolean_literal,
@@ -174,7 +176,7 @@ expect(reader_stream& stream, char32_t expected) {
 }
 
 static void
-expect(reader_stream& stream, char32_t expected1, char32_t expected2) {
+expect_either(reader_stream& stream, char32_t expected1, char32_t expected2) {
   source_location loc = stream.location();
   char32_t c = require_char(stream);
   if (c != expected1 && c != expected2)
@@ -463,13 +465,13 @@ static ptr<>
 read_imaginary_part(context& ctx, number_parse_mode mode, ptr<> real,
                     reader_stream& stream, source_location loc) {
   if (auto imag = read_real(ctx, mode, stream, loc)) {
-    expect(stream, 'i', 'I');
+    expect_either(stream, 'i', 'I');
     return make_rectangular(ctx, real, imag);
   } else {
     auto sign = stream.read();
     assert(sign == '+' || sign == '-');
 
-    expect(stream, 'i', 'I');
+    expect_either(stream, 'i', 'I');
     return make_rectangular(ctx, real, sign == '+' ? integer_to_ptr(1) : integer_to_ptr(-1));
   }
 }
@@ -984,7 +986,11 @@ read_token_after_octothorpe(context& ctx, reader_stream& stream, source_location
     return read_block_comment(ctx, stream);
   else if (*c == '!')
     return read_directive(ctx, stream);
-  else
+  else if (*c == 'u') {
+    consume(stream, 'u');
+    expect(stream, '8');
+    return {octothorpe_u8{}, loc};
+  } else
     return read_special_literal(ctx, stream);
 }
 
@@ -1152,15 +1158,30 @@ read_list(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& l
   return result;
 }
 
+static bool
+valid_bytevector_element(ptr<> e) {
+  if (auto i = match<integer>(e))
+    return i->value() >= std::numeric_limits<bytevector::element_type>::min()
+           && i->value() <= std::numeric_limits<bytevector::element_type>::max();
+  else
+    return false;
+}
+
 static std::vector<ptr<>>
-read_vector_elements(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& labels) {
-  stream.read(); // Consume (
+read_vector_elements(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& labels,
+                     bool bytevector = false) {
+  consume(stream, '(');
 
   std::vector<ptr<>> elements;
 
   token t = read_token(ctx, stream);
   while (!std::holds_alternative<end>(t.value) && !std::holds_alternative<right_paren>(t.value)) {
+    source_location loc = stream.location();
     elements.push_back(read_and_wrap(ctx, t, stream, read_syntax, labels));
+
+    if (bytevector && !valid_bytevector_element(elements.back()))
+      throw read_error{"Invalid bytevector element", loc};
+
     t = read_token(ctx, stream);
   }
 
@@ -1230,6 +1251,22 @@ read_vector(context& ctx, reader_stream& stream, bool read_syntax, datum_labels&
 }
 
 static ptr<>
+read_bytevector(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& labels,
+                std::optional<std::string> const& defining_label) {
+  source_location loc = stream.location();
+  std::vector<ptr<>> elements = read_vector_elements(ctx, stream, read_syntax, labels, true);
+
+  auto bv = make<bytevector>(ctx, elements.size());
+  for (std::size_t i = 0; i < elements.size(); ++i)
+    bv->set(i, assume<integer>(elements[i]).value());
+
+  if (defining_label)
+    labels.emplace(*defining_label, track(ctx, bv));
+
+  return bv;
+}
+
+static ptr<>
 read_shortcut(context& ctx, reader_stream& stream, token shortcut_token,
               std::string const& shortcut, std::string const& expansion,
               bool read_syntax, datum_labels& labels,
@@ -1267,6 +1304,8 @@ read(context& ctx, token first_token, reader_stream& stream, bool read_syntax,
     return read_list(ctx, stream, read_syntax, labels, defining_label);
   else if (std::holds_alternative<octothorpe_left_paren>(first_token.value))
     return read_vector(ctx, stream, read_syntax, labels, defining_label);
+  else if (std::holds_alternative<octothorpe_u8>(first_token.value))
+    return read_bytevector(ctx, stream, read_syntax, labels, defining_label);
   else if (std::holds_alternative<quote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "'", "quote", read_syntax, labels, defining_label);
   else if (std::holds_alternative<octothorpe_quote>(first_token.value))

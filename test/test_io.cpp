@@ -78,6 +78,24 @@ TEST_F(io, read_vector) {
   EXPECT_THROW(read("#(1 2"), read_error);
 }
 
+TEST_F(io, read_bytevector) {
+  auto v1 = expect<bytevector>(read("#u8()"));
+  EXPECT_EQ(v1->size(), 0);
+
+  auto v2 = expect<bytevector>(read("#u8(1 2 3)"));
+  EXPECT_EQ(v2->size(), 3);
+  EXPECT_EQ(v2->ref(0), 1);
+  EXPECT_EQ(v2->ref(1), 2);
+  EXPECT_EQ(v2->ref(2), 3);
+
+  EXPECT_THROW(read("#u8(712)"), read_error);
+  EXPECT_THROW(read("#u8(-2)"), read_error);
+  EXPECT_THROW(read("#u8(symbol)"), read_error);
+  EXPECT_THROW(read("#u8(())"), read_error);
+  EXPECT_THROW(read("#u8(12"), read_error);
+  EXPECT_THROW(read("#u8("), read_error);
+}
+
 TEST_F(io, read_symbol) {
   EXPECT_EQ(read("foo"), ctx.intern("foo"));
   EXPECT_EQ(read("multiple-words"), ctx.intern("multiple-words"));
@@ -342,11 +360,24 @@ TEST_F(io, read_datum_reference_in_vector) {
   EXPECT_EQ(expect<integer>(result->ref(3)).value(), 3);
 }
 
+TEST_F(io, read_datum_reference_in_bytevector) {
+  auto result = expect<pair>(read("(#0=2 . #u8(1 #0# 3))"));
+  EXPECT_EQ(expect<integer>(car(result)).value(), 2);
+  EXPECT_TRUE(equal(cdr(result), read("#u8(1 2 3)")));
+}
+
 TEST_F(io, read_datum_reference_to_vector) {
   auto result = expect<pair>(read("(#0=#(1 2 3) #0#)"));
   EXPECT_TRUE(equal(expect<vector>(car(result)), read("#(1 2 3)")));
   EXPECT_TRUE(equal(expect<vector>(cadr(result)), read("#(1 2 3)")));
   EXPECT_EQ(expect<vector>(cadr(result)), car(result));
+}
+
+TEST_F(io, read_datum_reference_to_bytevector) {
+  auto result = expect<pair>(read("(#0=#u8(1 2 3) #0#)"));
+  EXPECT_TRUE(equal(expect<bytevector>(car(result)), read("#u8(1 2 3)")));
+  EXPECT_TRUE(equal(expect<bytevector>(cadr(result)), read("#u8(1 2 3)")));
+  EXPECT_EQ(expect<bytevector>(cadr(result)), car(result));
 }
 
 TEST_F(io, multiple_datum_references) {

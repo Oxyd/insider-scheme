@@ -62,6 +62,9 @@ eqv(context& ctx, ptr<> x, ptr<> y) {
   if (is<string>(x) && is<string>(y))
     return assume<string>(x)->value() == assume<string>(y)->value();
 
+  if (is<bytevector>(x) && is<bytevector>(y))
+    return bytevector_eqv(assume<bytevector>(x), assume<bytevector>(y));
+
   return false;
 }
 

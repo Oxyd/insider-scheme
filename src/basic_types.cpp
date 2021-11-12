@@ -202,6 +202,18 @@ vector_append(context& ctx, object_span vs) {
   return result;
 }
 
+bytevector::bytevector(std::size_t size)
+  : dynamic_size_object{size}
+{ }
+
+void
+bytevector::visit_members(member_visitor const&) { }
+
+bool
+bytevector_eqv(ptr<bytevector> x, ptr<bytevector> y) {
+  return std::equal(x->begin(), x->end(), y->begin(), y->end());
+}
+
 box::box(ptr<> value)
   : value_{value}
 { }

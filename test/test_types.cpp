@@ -85,3 +85,19 @@ TEST_F(types, opaque_value) {
   auto result = eval("(make-value)");
   EXPECT_EQ(expect<opaque_value<int>>(result)->value, 7);
 }
+
+TEST_F(types, bytevector_has_correct_size_after_creation) {
+  ptr<bytevector> bv = make<bytevector>(ctx, 3);
+  EXPECT_EQ(bv->size(), 3);
+}
+
+TEST_F(types, bytevector_ref_returns_stored_element) {
+  ptr<bytevector> bv = make<bytevector>(ctx, 3);
+  bv->set(0, 12);
+  bv->set(1, 24);
+  bv->set(2, 48);
+
+  EXPECT_EQ(bv->ref(0), 12);
+  EXPECT_EQ(bv->ref(1), 24);
+  EXPECT_EQ(bv->ref(2), 48);
+}
