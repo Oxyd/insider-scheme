@@ -269,6 +269,17 @@ TEST_F(io, write) {
   EXPECT_EQ(to_string_simple(ctx, l), R"((() #void #t #f symbol "string" #\c -13))");
 }
 
+TEST_F(io, write_bytevector) {
+  auto bv1 = make<bytevector>(ctx, 0);
+  EXPECT_EQ(to_string_simple(ctx, bv1), "#u8()");
+
+  auto bv2 = make<bytevector>(ctx, 3);
+  bv2->set(0, 1);
+  bv2->set(1, 2);
+  bv2->set(2, 3);
+  EXPECT_EQ(to_string_simple(ctx, bv2), "#u8(1 2 3)");
+}
+
 TEST_F(io, read_bignum) {
   EXPECT_TRUE(num_equal(read("18446744073709551616"), make_big(ctx, 0ull, 1ull)));
   EXPECT_TRUE(num_equal(read("-18446744073709551616"), make_big_negative(ctx, 0ull, 1ull)));

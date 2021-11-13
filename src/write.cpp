@@ -206,7 +206,15 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
     write_number(ctx, datum, out);
   else if (auto sym = match<symbol>(datum))
     out->write(sym->value());
-  else if (auto stx = match<syntax>(datum)) {
+  else if (auto bv = match<bytevector>(datum)) {
+    out->write("#u8(");
+    for (std::size_t i = 0; i < bv->size(); ++i) {
+      if (i != 0)
+        out->write(' ');
+      write_small(integer{bv->ref(i)}, out, 10);
+    }
+    out->write(")");
+  } else if (auto stx = match<syntax>(datum)) {
     out->write("#<syntax ");
     out->write(format_location(stx->location()));
     out->write(' ');
