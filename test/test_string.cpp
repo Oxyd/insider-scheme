@@ -2,6 +2,8 @@
 
 #include "string.hpp"
 
+#include "to_scheme.hpp"
+
 using namespace insider;
 
 struct string_fixture : scheme_fixture { };
@@ -97,4 +99,24 @@ TEST_F(string_fixture, sigma) {
 TEST_F(string_fixture, string_foldcase) {
   EXPECT_EQ(foldcase(ctx, make<string>(ctx, "scheiße"))->value(), "scheisse");
   EXPECT_EQ(foldcase(ctx, make<string>(ctx, "ꮜꮝꮞ"))->value(), "ᏌᏍᏎ");
+}
+
+TEST_F(string_fixture, utf8_to_string) {
+  using namespace std::literals;
+  EXPECT_TRUE(equal(utf8_to_string(ctx, expect<bytevector>(read("#u8(#x41)")), 0, 1), to_scheme(ctx, "A"s)));
+  EXPECT_TRUE(equal(utf8_to_string(ctx, expect<bytevector>(read("#u8(#xe1 #xbd #x88 #xce #xb4 #xcf #x85 #xcf #x83 #xcf #x83 #xce #xb5 #xcf #x8d #xcf #x82)")),
+                                   0, 17),
+                    to_scheme(ctx, "Ὀδυσσεύς"s)));
+  EXPECT_TRUE(equal(utf8_to_string(ctx, expect<bytevector>(read("#u8(#xe1 #xbd #x88 #xce #xb4 #xcf #x85 #xcf #x83 #xcf #x83 #xce #xb5 #xcf #x8d #xcf #x82)")),
+                                   5, 13),
+                    to_scheme(ctx, "υσσε"s)));
+  EXPECT_THROW(utf8_to_string(ctx, expect<bytevector>(read("#u8(#xff #xfe)")), 0, 2), std::runtime_error);
+}
+
+TEST_F(string_fixture, string_to_utf8) {
+  using namespace std::literals;
+  EXPECT_TRUE(equal(string_to_utf8(ctx, expect<string>(to_scheme(ctx, "Ὀδυσσεύς"s)), 0, 8),
+                    read("#u8(#xe1 #xbd #x88 #xce #xb4 #xcf #x85 #xcf #x83 #xcf #x83 #xce #xb5 #xcf #x8d #xcf #x82)")));
+  EXPECT_TRUE(equal(string_to_utf8(ctx, expect<string>(to_scheme(ctx, "Ὀδυσσεύς"s)), 2, 6),
+                    read("#u8(#xcf #x85 #xcf #x83 #xcf #x83 #xce #xb5)")));
 }

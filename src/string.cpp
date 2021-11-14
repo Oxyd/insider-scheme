@@ -1,5 +1,6 @@
 #include "string.hpp"
 
+#include "basic_types.hpp"
 #include "code_point_properties.hpp"
 #include "context.hpp"
 
@@ -260,6 +261,60 @@ foldcase(std::u32string const& s) {
     else
       result.push_back(cp);
   }
+
+  return result;
+}
+
+static void
+check_utf8(ptr<bytevector> bv, std::size_t start, std::size_t end) {
+  // from_utf8 will throw if it can't decode bytes as UTF-8.
+
+  while (start < end)
+    start += from_utf8(bv->begin() + start, bv->begin() + end).length;
+}
+
+ptr<string>
+utf8_to_string(context& ctx, ptr<bytevector> bv, std::size_t start, std::size_t end) {
+  assert(start <= end);
+  assert(start < bv->size());
+  assert(end <= bv->size());
+
+  check_utf8(bv, start, end);
+  return make<string>(ctx, std::string(bv->begin() + start, bv->begin() + end));
+}
+
+std::tuple<std::size_t, std::size_t>
+find_code_point_byte_range(std::string const& data, std::size_t code_point_start, std::size_t code_point_end) {
+  std::size_t byte_index = 0;
+  std::size_t code_point_index = 0;
+
+  std::size_t start_index = 0;
+  std::size_t end_index = data.size();
+
+  while (byte_index < data.size()) {
+    if (code_point_index == code_point_start)
+      start_index = byte_index;
+
+    byte_index += from_utf8(data.data() + byte_index, data.data() + data.size()).length;
+    ++code_point_index;
+
+    if (code_point_index == code_point_end) {
+      end_index = byte_index;
+      break;
+    }
+  }
+
+  return {start_index, end_index};
+}
+
+ptr<bytevector>
+string_to_utf8(context& ctx, ptr<string> s, std::size_t start, std::size_t end) {
+  std::string const& data = s->value();
+  auto [start_index, end_index] = find_code_point_byte_range(data, start, end);
+
+  auto result = make<bytevector>(ctx, end_index - start_index);
+  for (std::size_t i = start_index, j = 0; i < end_index; ++i, ++j)
+    result->set(j, data[i]);
 
   return result;
 }

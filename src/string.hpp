@@ -7,6 +7,8 @@
 
 namespace insider {
 
+class bytevector;
+
 class string : public leaf_object<string> {
 public:
   static constexpr char const* scheme_name = "insider::string";
@@ -50,6 +52,12 @@ foldcase(context&, ptr<string>);
 
 std::u32string
 foldcase(std::u32string const&);
+
+ptr<string>
+utf8_to_string(context&, ptr<bytevector>, std::size_t start, std::size_t end);
+
+ptr<bytevector>
+string_to_utf8(context&, ptr<string>, std::size_t start, std::size_t end);
 
 } // namespace insider
 
