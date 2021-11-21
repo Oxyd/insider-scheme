@@ -87,9 +87,6 @@ public:
   read_character();
 
   void
-  put_back(char32_t);
-
-  void
   rewind();
 
   std::string const&
@@ -97,7 +94,6 @@ public:
 
 private:
   std::unique_ptr<port_source> source_;
-  std::vector<char32_t>        put_back_buffer_;
   std::array<char, 4>          read_buffer_;
   std::size_t                  read_buffer_length_ = 0;
   std::string                  name_;

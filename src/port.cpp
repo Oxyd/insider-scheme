@@ -84,9 +84,6 @@ textual_input_port::peek_character() {
   if (!source_)
     return {};
 
-  if (!put_back_buffer_.empty())
-    return put_back_buffer_.back();
-
   if (!fill_read_buffer())
     return {};
   else
@@ -98,12 +95,6 @@ textual_input_port::read_character() {
   if (!source_)
     return {};
 
-  if (!put_back_buffer_.empty()) {
-    char32_t c = put_back_buffer_.back();
-    put_back_buffer_.pop_back();
-    return c;
-  }
-
   if (!fill_read_buffer())
     return {};
   else
@@ -111,15 +102,9 @@ textual_input_port::read_character() {
 }
 
 void
-textual_input_port::put_back(char32_t c) {
-  put_back_buffer_.push_back(c);
-}
-
-void
 textual_input_port::rewind() {
   if (source_)
     source_->rewind();
-  put_back_buffer_.clear();
   read_buffer_length_ = 0;
 }
 

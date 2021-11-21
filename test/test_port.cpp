@@ -75,25 +75,6 @@ TEST_F(port_fixture, read_sequence_of_non_ascii_characters) {
   EXPECT_EQ(p->read_character(), U'ě');
 }
 
-TEST_F(port_fixture, peek_and_read_put_back_character) {
-  auto p = make_string_input_port("a");
-  p->put_back('b');
-  EXPECT_EQ(p->peek_character(), 'b');
-  EXPECT_EQ(p->read_character(), 'b');
-  EXPECT_EQ(p->read_character(), 'a');
-  EXPECT_FALSE(p->read_character());
-}
-
-TEST_F(port_fixture, put_back_multiple_characters) {
-  auto p = make_string_input_port("a");
-  p->put_back('b');
-  p->put_back('c');
-  EXPECT_EQ(p->read_character(), 'c');
-  EXPECT_EQ(p->read_character(), 'b');
-  EXPECT_EQ(p->read_character(), 'a');
-  EXPECT_FALSE(p->read_character());
-}
-
 TEST_F(port_fixture, rewind) {
   auto p = make_string_input_port("abc");
   p->read_character();
@@ -110,13 +91,6 @@ TEST_F(port_fixture, cant_peek_or_read_from_closed_port) {
   auto p = make_string_input_port("abc");
   p->close();
   EXPECT_FALSE(p->peek_character());
-  EXPECT_FALSE(p->read_character());
-}
-
-TEST_F(port_fixture, cant_read_from_closed_port_after_put_back) {
-  auto p = make_string_input_port("abc");
-  p->close();
-  p->put_back('d');
   EXPECT_FALSE(p->read_character());
 }
 
