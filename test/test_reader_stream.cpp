@@ -7,7 +7,7 @@ using namespace insider;
 struct reader_stream_fixture : scheme_fixture {
   reader_stream
   make(std::string data) {
-    return reader_stream{track(ctx, make_string_input_port(ctx, std::move(data)))};
+    return reader_stream{track(ctx, open_input_string(ctx, std::move(data)))};
   }
 };
 

@@ -1355,7 +1355,7 @@ read(context& ctx, ptr<textual_input_port> stream) {
 
 ptr<>
 read(context& ctx, std::string s) {
-  unique_port_handle<ptr<textual_input_port>> h{make_string_input_port(ctx, std::move(s))};
+  unique_port_handle<ptr<textual_input_port>> h{open_input_string(ctx, std::move(s))};
   return read(ctx, *h);
 }
 
@@ -1376,7 +1376,7 @@ read_syntax(context& ctx, ptr<textual_input_port> stream) {
 
 ptr<syntax>
 read_syntax(context& ctx, std::string s) {
-  unique_port_handle<ptr<textual_input_port>> h{make_string_input_port(ctx, std::move(s))};
+  unique_port_handle<ptr<textual_input_port>> h{open_input_string(ctx, std::move(s))};
   return read_syntax(ctx, *h);
 }
 
@@ -1391,7 +1391,7 @@ read_multiple(context& ctx, ptr<textual_input_port> in) {
 
 std::vector<tracked_ptr<>>
 read_multiple(context& ctx, std::string s) {
-  unique_port_handle<ptr<textual_input_port>> h{make_string_input_port(ctx, std::move(s))};
+  unique_port_handle<ptr<textual_input_port>> h{open_input_string(ctx, std::move(s))};
   return read_multiple(ctx, *h);
 }
 
@@ -1419,7 +1419,7 @@ read_syntax_multiple_ci(context& ctx, ptr<textual_input_port> p) {
 
 std::vector<tracked_ptr<syntax>>
 read_syntax_multiple(context& ctx, std::string s) {
-  unique_port_handle<ptr<textual_input_port>> h{make_string_input_port(ctx, std::move(s))};
+  unique_port_handle<ptr<textual_input_port>> h{open_input_string(ctx, std::move(s))};
   return read_syntax_multiple(ctx, *h);
 }
 
@@ -1429,7 +1429,7 @@ string_to_number(context& ctx, std::string const& s, unsigned base) {
     throw std::runtime_error{"Invalid base"};
 
   try {
-    auto port = make_string_input_port(ctx, s);
+    auto port = open_input_string(ctx, s);
     reader_stream stream{track(ctx, port)};
 
     if (ptr<> result = read_number(ctx, stream, stream.location(), base)) {

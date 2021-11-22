@@ -146,7 +146,7 @@ textual_input_port::flush_read_buffer() {
 }
 
 ptr<textual_input_port>
-make_string_input_port(context& ctx, std::string data) {
+open_input_string(context& ctx, std::string data) {
   return make<textual_input_port>(ctx, std::make_unique<string_port_source>(std::move(data)),
                                   "<memory buffer>");
 }
@@ -235,11 +235,6 @@ close(ptr<> port) {
     top->close();
   else
     throw std::runtime_error{"Expected a port"};
-}
-
-static ptr<textual_input_port>
-open_input_string(context& ctx, std::string s) {
-  return make<textual_input_port>(ctx, std::make_unique<string_port_source>(std::move(s)), "<input string>");
 }
 
 static ptr<textual_output_port>

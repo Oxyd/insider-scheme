@@ -7,7 +7,7 @@ using namespace insider;
 
 struct port_fixture : scheme_fixture {
   ptr<textual_input_port>
-  make_string_input_port(std::string data) {
+  open_input_string(std::string data) {
     return make<textual_input_port>(ctx, std::make_unique<string_port_source>(std::move(data)), "<buffer>");
   }
 
@@ -18,38 +18,38 @@ struct port_fixture : scheme_fixture {
 };
 
 TEST_F(port_fixture, fresh_port_is_open) {
-  auto p = make_string_input_port("");
+  auto p = open_input_string("");
   EXPECT_TRUE(p->open());
 }
 
 TEST_F(port_fixture, closed_port_is_not_open) {
-  auto p = make_string_input_port("");
+  auto p = open_input_string("");
   p->close();
   EXPECT_FALSE(p->open());
 }
 
 TEST_F(port_fixture, empty_port_is_empty) {
-  auto p = make_string_input_port("");
+  auto p = open_input_string("");
   EXPECT_FALSE(p->peek_character());
   EXPECT_FALSE(p->read_character());
 }
 
 TEST_F(port_fixture, read_one_character_from_port) {
-  auto p = make_string_input_port("a");
+  auto p = open_input_string("a");
   EXPECT_EQ(p->peek_character(), 'a');
   EXPECT_EQ(p->read_character(), 'a');
   EXPECT_FALSE(p->peek_character());
 }
 
 TEST_F(port_fixture, peek_single_character_multiple_times) {
-  auto p = make_string_input_port("abc");
+  auto p = open_input_string("abc");
   EXPECT_EQ(p->peek_character(), 'a');
   EXPECT_EQ(p->peek_character(), 'a');
   EXPECT_EQ(p->peek_character(), 'a');
 }
 
 TEST_F(port_fixture, read_sequence_of_characters) {
-  auto p = make_string_input_port("abc");
+  auto p = open_input_string("abc");
   EXPECT_EQ(p->read_character(), 'a');
   EXPECT_EQ(p->read_character(), 'b');
   EXPECT_EQ(p->read_character(), 'c');
@@ -57,14 +57,14 @@ TEST_F(port_fixture, read_sequence_of_characters) {
 }
 
 TEST_F(port_fixture, read_non_ascii_character) {
-  auto p = make_string_input_port("á");
+  auto p = open_input_string("á");
   EXPECT_EQ(p->peek_character(), U'á');
   EXPECT_EQ(p->read_character(), U'á');
   EXPECT_FALSE(p->peek_character());
 }
 
 TEST_F(port_fixture, read_sequence_of_non_ascii_characters) {
-  auto p = make_string_input_port("příšerně žluťoučký kůň");
+  auto p = open_input_string("příšerně žluťoučký kůň");
   EXPECT_EQ(p->read_character(), U'p');
   EXPECT_EQ(p->read_character(), U'ř');
   EXPECT_EQ(p->read_character(), U'í');
@@ -76,7 +76,7 @@ TEST_F(port_fixture, read_sequence_of_non_ascii_characters) {
 }
 
 TEST_F(port_fixture, rewind) {
-  auto p = make_string_input_port("abc");
+  auto p = open_input_string("abc");
   p->read_character();
   p->read_character();
   EXPECT_EQ(p->peek_character(), 'c');
@@ -88,7 +88,7 @@ TEST_F(port_fixture, rewind) {
 }
 
 TEST_F(port_fixture, cant_peek_or_read_from_closed_port) {
-  auto p = make_string_input_port("abc");
+  auto p = open_input_string("abc");
   p->close();
   EXPECT_FALSE(p->peek_character());
   EXPECT_FALSE(p->read_character());
@@ -135,7 +135,7 @@ TEST_F(port_fixture, writing_to_closed_port_does_not_do_anything) {
 TEST_F(port_fixture, unique_port_handle_closes_port_when_out_of_scope) {
   ptr<textual_input_port> p;
   {
-    unique_port_handle<ptr<textual_input_port>> h{make_string_input_port("")};
+    unique_port_handle<ptr<textual_input_port>> h{open_input_string("")};
     p = h.get();
     EXPECT_TRUE(p->open());
   }

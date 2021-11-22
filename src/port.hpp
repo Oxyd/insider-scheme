@@ -112,7 +112,7 @@ private:
 };
 
 ptr<textual_input_port>
-make_string_input_port(context&, std::string);
+open_input_string(context&, std::string);
 
 ptr<textual_input_port>
 open_file_for_text_input(context&, std::filesystem::path const&);
