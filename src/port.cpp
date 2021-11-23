@@ -35,7 +35,7 @@ file_port_source::read() {
 }
 
 std::optional<std::uint8_t>
-file_port_source::peek() {
+file_port_source::peek() const {
   int byte = std::getc(f_);
   if (byte == EOF)
     return {};
@@ -62,7 +62,7 @@ string_port_source::read() {
 }
 
 std::optional<std::uint8_t>
-string_port_source::peek() {
+string_port_source::peek() const {
   if (position_ == data_.length())
     return {};
   else
@@ -71,6 +71,31 @@ string_port_source::peek() {
 
 void
 string_port_source::rewind() {
+  position_ = 0;
+}
+
+bytevector_port_source::bytevector_port_source(std::vector<std::uint8_t> data)
+  : data_{std::move(data)}
+{ }
+
+std::optional<std::uint8_t>
+bytevector_port_source::read() {
+  if (position_ == data_.size())
+    return {};
+  else
+    return data_[position_++];
+}
+
+std::optional<std::uint8_t>
+bytevector_port_source::peek() const {
+  if (position_ == data_.size())
+    return {};
+  else
+    return data_[position_];
+}
+
+void
+bytevector_port_source::rewind() {
   position_ = 0;
 }
 
@@ -145,6 +170,20 @@ textual_input_port::flush_read_buffer() {
   return result;
 }
 
+binary_input_port::binary_input_port(std::unique_ptr<port_source> source)
+  : source_{std::move(source)}
+{ }
+
+std::optional<std::uint8_t>
+binary_input_port::read_u8() {
+  return source_->read();
+}
+
+std::optional<std::uint8_t>
+binary_input_port::peek_u8() const {
+  return source_->peek();
+}
+
 ptr<textual_input_port>
 open_input_string(context& ctx, std::string data) {
   return make<textual_input_port>(ctx, std::make_unique<string_port_source>(std::move(data)),
@@ -174,6 +213,11 @@ port_sink::get_string() const {
   throw std::runtime_error{"Not a string port"};
 }
 
+std::vector<std::uint8_t>
+port_sink::get_bytevector() const {
+  throw std::runtime_error{"Not a bytevector port"};
+}
+
 file_port_sink::file_port_sink(FILE* f, bool should_close)
   : f_{f}
   , should_close_{should_close}
@@ -194,6 +238,11 @@ string_port_sink::write(std::uint8_t byte) {
   data_.push_back(byte);
 }
 
+void
+bytevector_port_sink::write(std::uint8_t byte) {
+  data_.push_back(byte);
+}
+
 textual_output_port::textual_output_port(std::unique_ptr<port_sink> sink)
   : sink_{std::move(sink)}
 { }
@@ -209,6 +258,16 @@ textual_output_port::write(std::string const& s) {
   if (sink_)
     for (char c : s)
       sink_->write(c);
+}
+
+binary_output_port::binary_output_port(std::unique_ptr<port_sink> sink)
+  : sink_{std::move(sink)}
+{ }
+
+void
+binary_output_port::write(std::uint8_t byte) {
+  if (sink_)
+    sink_->write(byte);
 }
 
 static ptr<textual_input_port>

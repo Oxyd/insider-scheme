@@ -11,9 +11,19 @@ struct port_fixture : scheme_fixture {
     return make<textual_input_port>(ctx, std::make_unique<string_port_source>(std::move(data)), "<buffer>");
   }
 
+  ptr<binary_input_port>
+  open_input_bytevector(std::vector<std::uint8_t> data) {
+    return make<binary_input_port>(ctx, std::make_unique<bytevector_port_source>(std::move(data)));
+  }
+
   ptr<textual_output_port>
   make_string_output_port() {
     return make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
+  }
+
+  ptr<binary_output_port>
+  make_bytevector_output_port() {
+    return make<binary_output_port>(ctx, std::make_unique<bytevector_port_sink>());
   }
 };
 
@@ -94,6 +104,28 @@ TEST_F(port_fixture, cant_peek_or_read_from_closed_port) {
   EXPECT_FALSE(p->read_character());
 }
 
+TEST_F(port_fixture, cant_read_empty_binary_input_port) {
+  auto p = open_input_bytevector({});
+  EXPECT_FALSE(p->read_u8());
+}
+
+TEST_F(port_fixture, can_read_bytes_from_binary_input_port) {
+  auto p = open_input_bytevector({1, 2, 3});
+  EXPECT_EQ(p->read_u8(), 1);
+  EXPECT_EQ(p->read_u8(), 2);
+  EXPECT_EQ(p->read_u8(), 3);
+  EXPECT_FALSE(p->read_u8());
+}
+
+TEST_F(port_fixture, peek_does_not_advance_binary_input_port) {
+  auto p = open_input_bytevector({1, 2, 3});
+  EXPECT_EQ(p->peek_u8(), 1);
+  EXPECT_EQ(p->peek_u8(), 1);
+  EXPECT_EQ(p->read_u8(), 1);
+  EXPECT_EQ(p->peek_u8(), 2);
+  EXPECT_EQ(p->read_u8(), 2);
+}
+
 TEST_F(port_fixture, write_character) {
   auto p = make_string_output_port();
   p->write(U'a');
@@ -130,6 +162,17 @@ TEST_F(port_fixture, writing_to_closed_port_does_not_do_anything) {
   p->close();
   p->write("abc");
   EXPECT_EQ(p->get_string(), "");
+}
+
+TEST_F(port_fixture, write_sequence_of_bytes) {
+  auto p = make_bytevector_output_port();
+  p->write(1);
+  p->write(2);
+
+  auto bv = p->get_bytevector();
+  ASSERT_EQ(bv.size(), 2);
+  EXPECT_EQ(bv[0], 1);
+  EXPECT_EQ(bv[1], 2);
 }
 
 TEST_F(port_fixture, unique_port_handle_closes_port_when_out_of_scope) {

@@ -22,7 +22,7 @@ public:
   read() = 0;
 
   virtual std::optional<std::uint8_t>
-  peek() = 0;
+  peek() const = 0;
 
   virtual void
   rewind() = 0;
@@ -39,7 +39,7 @@ public:
   read() override;
 
   std::optional<std::uint8_t>
-  peek() override;
+  peek() const override;
 
   void
   rewind() override;
@@ -58,7 +58,7 @@ public:
   read() override;
 
   std::optional<std::uint8_t>
-  peek() override;
+  peek() const override;
 
   void
   rewind() override;
@@ -66,6 +66,25 @@ public:
 private:
   std::string data_;
   std::size_t position_ = 0;
+};
+
+class bytevector_port_source final : public port_source {
+public:
+  explicit
+  bytevector_port_source(std::vector<std::uint8_t> data);
+
+  std::optional<std::uint8_t>
+  read() override;
+
+  std::optional<std::uint8_t>
+  peek() const override;
+
+  void
+  rewind() override;
+
+private:
+  std::vector<std::uint8_t> data_;
+  std::size_t               position_ = 0;
 };
 
 class textual_input_port : public leaf_object<textual_input_port> {
@@ -117,6 +136,29 @@ open_input_string(context&, std::string);
 ptr<textual_input_port>
 open_file_for_text_input(context&, std::filesystem::path const&);
 
+class binary_input_port : public leaf_object<binary_input_port> {
+public:
+  static constexpr char const* scheme_name = "insider::binary_input_port";
+
+  explicit
+  binary_input_port(std::unique_ptr<port_source>);
+
+  bool
+  open() const { return static_cast<bool>(source_); }
+
+  void
+  close() { source_.reset(); }
+
+  std::optional<std::uint8_t>
+  read_u8();
+
+  std::optional<std::uint8_t>
+  peek_u8() const;
+
+private:
+  std::unique_ptr<port_source> source_;
+};
+
 class port_sink {
 public:
   virtual
@@ -127,6 +169,9 @@ public:
 
   virtual std::string
   get_string() const;
+
+  virtual std::vector<std::uint8_t>
+  get_bytevector() const;
 };
 
 class file_port_sink final : public port_sink {
@@ -156,6 +201,18 @@ private:
   std::string data_;
 };
 
+class bytevector_port_sink final : public port_sink {
+public:
+  void
+  write(std::uint8_t) override;
+
+  std::vector<std::uint8_t>
+  get_bytevector() const override { return data_; }
+
+private:
+  std::vector<std::uint8_t> data_;
+};
+
 class textual_output_port : public leaf_object<textual_output_port> {
 public:
   static constexpr char const* scheme_name = "insider::textual_output_port";
@@ -177,6 +234,29 @@ public:
 
   std::string
   get_string() const { return sink_ ? sink_->get_string() : ""; }
+
+private:
+  std::unique_ptr<port_sink> sink_;
+};
+
+class binary_output_port : public leaf_object<binary_output_port> {
+public:
+  static constexpr char const* scheme_name = "insider::binary_output_port";
+
+  explicit
+  binary_output_port(std::unique_ptr<port_sink>);
+
+  bool
+  open() const { return static_cast<bool>(sink_); }
+
+  void
+  close() { sink_.reset(); }
+
+  void
+  write(std::uint8_t);
+
+  std::vector<std::uint8_t>
+  get_bytevector() const { return sink_ ? sink_->get_bytevector() : std::vector<std::uint8_t>{}; }
 
 private:
   std::unique_ptr<port_sink> sink_;
