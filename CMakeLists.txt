@@ -50,6 +50,7 @@ set(scheme_sources
   src/source_location.cpp
   src/string.cpp
   src/syntax.cpp
+  src/time.cpp
   src/vm.cpp
   src/write.cpp
   )

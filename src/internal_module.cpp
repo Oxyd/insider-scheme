@@ -36,6 +36,9 @@ export_source_code_provider(context&, module_&);
 void
 export_syntax(context&, module_&);
 
+void
+export_time(context&, module_&);
+
 static ptr<symbol>
 type(context& ctx, ptr<> o) {
   if (is_object_ptr(o))
@@ -59,6 +62,7 @@ make_internal_module(context& ctx) {
   export_read(ctx, result);
   export_source_code_provider(ctx, result);
   export_syntax(ctx, result);
+  export_time(ctx, result);
 
   define_raw_procedure(ctx, "append", result, true, append);
   define_procedure(ctx, "list->vector", result, true, list_to_vector);
