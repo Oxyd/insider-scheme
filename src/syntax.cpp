@@ -138,6 +138,12 @@ copy_syntax(context& ctx, ptr<syntax> stx) {
   return assume<syntax>(copy_syntax_helper(ctx, stx));
 }
 
+static ptr<>
+syntax_location(context& ctx, ptr<syntax> s) {
+  source_location loc = s->location();
+  return to_scheme_list(ctx, loc.file_name, loc.line, loc.column);
+}
+
 void
 export_syntax(context& ctx, module_& result) {
   define_procedure(ctx, "syntax-expression", result, true, &syntax::expression);
@@ -199,6 +205,7 @@ export_syntax(context& ctx, module_& result) {
 
                      return x_scopes == y_scopes;
                    });
+  define_procedure(ctx, "syntax-location", result, true, syntax_location);
 }
 
 } // namespace insider

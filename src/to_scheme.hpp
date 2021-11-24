@@ -1,6 +1,7 @@
 #ifndef INSIDER_TO_SCHEME_HPP
 #define INSIDER_TO_SCHEME_HPP
 
+#include "basic_types.hpp"
 #include "context.hpp"
 #include "integer.hpp"
 #include "numeric.hpp"
@@ -71,6 +72,12 @@ struct to_scheme_converter<std::string> {
   static ptr<>
   convert(context& ctx, std::string const& s) { return make<string>(ctx, s); }
 };
+
+template <typename... Ts>
+ptr<>
+to_scheme_list(context& ctx, Ts&&... ts) {
+  return make_list(ctx, to_scheme(ctx, ts)...);
+}
 
 } // namespace insider
 
