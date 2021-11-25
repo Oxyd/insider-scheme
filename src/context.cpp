@@ -12,14 +12,26 @@
 
 namespace insider {
 
-ptr<>&
+ptr<>
 parameter_map::find_value(ptr<parameter_tag> tag) {
   for (auto& [key, value] : values_)
     if (key == tag)
       return value;
 
   assert(!"Can't happen");
-  return std::get<1>(values_.front());
+  return {};
+}
+
+void
+parameter_map::set_value(free_store& fs, ptr<parameter_tag> tag, ptr<> new_value) {
+  for (auto& [key, value] : values_)
+    if (key == tag) {
+      value = new_value;
+      fs.notify_arc(this, new_value);
+      return;
+    }
+
+  assert(!"Can't happen");
 }
 
 void

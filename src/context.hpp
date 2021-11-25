@@ -21,8 +21,11 @@ class parameter_map : public composite_object<parameter_map> {
 public:
   static constexpr char const* scheme_name = "insider::parameter_map";
 
-  ptr<>&
+  ptr<>
   find_value(ptr<parameter_tag>);
+
+  void
+  set_value(free_store&, ptr<parameter_tag>, ptr<>);
 
   void
   add_value(ptr<parameter_tag>, ptr<>);

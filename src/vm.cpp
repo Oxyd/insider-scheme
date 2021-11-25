@@ -1330,7 +1330,7 @@ set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
 
     frame->extra->parameter_value = value;
   } else
-    ctx.parameters->find_value(tag) = value;
+    ctx.parameters->set_value(ctx.store, tag, value);
 }
 
 static ptr<>
@@ -1385,9 +1385,9 @@ parameterize::parameterize(context& ctx, ptr<parameter_tag> tag, ptr<> new_value
     frame_ = create_parameterization_frame(ctx, tag, new_value);
   else {
     tag_ = track(ctx, tag);
-    ptr<>& value = ctx.parameters->find_value(tag);
+    ptr<> value = ctx.parameters->find_value(tag);
     original_value_ = track(ctx, value);
-    value = new_value;
+    ctx.parameters->set_value(ctx.store, tag, new_value);
   }
 }
 
@@ -1398,7 +1398,7 @@ parameterize::~parameterize() {
     ctx_.current_execution->set_current_frame_to_parent();
   } else {
     assert(!ctx_.current_execution);
-    ctx_.parameters->find_value(tag_.get()) = original_value_.get();
+    ctx_.parameters->set_value(ctx_.store, tag_.get(), original_value_.get());
   }
 }
 
