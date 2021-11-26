@@ -37,6 +37,37 @@ execution_state::set_current_frame_to_parent() {
          || ctx.store.stack().is_at_top(current_frame_.get()));
 }
 
+static ptr<>
+find_callee_value(context& ctx, opcode opcode, ptr<stack_frame> frame, integer::value_type reg) {
+  switch (opcode) {
+  case opcode::call:
+  case opcode::tail_call:
+    return frame->ref(reg);
+
+  case opcode::call_top_level:
+  case opcode::tail_call_top_level:
+    return ctx.get_top_level(reg);
+
+  case opcode::call_static:
+  case opcode::tail_call_static:
+    return ctx.get_static(reg);
+
+  default:
+    assert(false);
+    return {};
+  }
+}
+
+static ptr<>
+get_call_target(context& ctx, ptr<stack_frame> frame, integer::value_type pc) {
+  bytecode const& bc = ctx.program;
+
+  opcode opcode = read_opcode(bc, pc);
+  assert(opcode == opcode::call || opcode == opcode::call_top_level || opcode == opcode::call_static);
+
+  return find_callee_value(ctx, opcode, frame, read_operand(bc, pc));
+}
+
 static operand
 get_destination_register(execution_state& state) {
   bytecode const& bc = state.ctx.program;
@@ -53,6 +84,16 @@ get_destination_register(execution_state& state) {
     read_operand(bc, pc); // Skip over arguments.
 
   return dest;
+}
+
+static bool
+is_dummy_frame(ptr<stack_frame> f) {
+  return !f->callable;
+}
+
+static bool
+is_native_frame(ptr<stack_frame> f) {
+  return is_dummy_frame(f) || is<native_procedure>(f->callable);
 }
 
 namespace {
@@ -79,12 +120,12 @@ namespace {
         ptr<stack_frame> previous_frame = frame->parent;
         ptr<> proc = frame->callable;
 
-        if (auto scheme_proc = match<procedure>(proc)) {
-          auto name = scheme_proc->name;
-          result += fmt::format("in {}", name ? *name : "<lambda>");
-        } else {
-          assert(is<native_procedure>(proc));
-          result += fmt::format("in native procedure {}", assume<native_procedure>(proc)->name);
+        result += format_callable(proc);
+
+        if (previous_frame && !is_native_frame(previous_frame)) {
+          ptr<> parent_target = get_call_target(state_.ctx, previous_frame, frame->previous_pc);
+          if (parent_target != proc)
+            result += '\n' + format_callable(parent_target);
         }
 
         frame = previous_frame;
@@ -96,6 +137,17 @@ namespace {
 
   private:
     execution_state& state_;
+
+    std::string
+    format_callable(ptr<> proc) const {
+      if (auto scheme_proc = match<procedure>(proc)) {
+        auto name = scheme_proc->name;
+        return fmt::format("in {}", name ? *name : "<lambda>");
+      } else {
+        assert(is<native_procedure>(proc));
+        return fmt::format("in native procedure {}", assume<native_procedure>(proc)->name);
+      }
+    }
   };
 }
 
@@ -117,11 +169,6 @@ static void
 clear_native_continuations(ptr<stack_frame> frame) {
   if (auto e = frame->extra)
     e->native_continuations.clear();
-}
-
-static bool
-is_dummy_frame(ptr<stack_frame> f) {
-  return !f->callable;
 }
 
 static ptr<stack_frame>
@@ -344,24 +391,7 @@ relational(opcode opcode, instruction_state& istate) {
 
 static ptr<>
 find_callee(opcode opcode, instruction_state& istate) {
-  switch (opcode) {
-  case opcode::call:
-  case opcode::tail_call:
-    return istate.frame()->ref(istate.reader.read_operand());
-
-  case opcode::call_top_level:
-  case opcode::tail_call_top_level:
-    return istate.context().get_top_level(istate.reader.read_operand());
-
-  case opcode::call_static:
-  case opcode::tail_call_static:
-    return istate.context().get_static(istate.reader.read_operand());
-
-  default:
-    assert(false);
-  }
-
-  return {};
+  return find_callee_value(istate.context(), opcode, istate.frame(), istate.reader.read_operand());
 }
 
 static std::tuple<ptr<>, ptr<closure>>
@@ -557,11 +587,6 @@ pop_frame(execution_state& state) {
 
 static ptr<>
 resume_native_call(execution_state& state, ptr<> scheme_result);
-
-static bool
-is_native_frame(ptr<stack_frame> f) {
-  return is_dummy_frame(f) || is<native_procedure>(f->callable);
-}
 
 static ptr<>
 return_value_to_caller(execution_state& state, ptr<> result) {
