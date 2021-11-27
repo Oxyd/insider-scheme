@@ -1,5 +1,5 @@
 (library (insider disassemble))
-(import (insider base-scheme) (insider file)
+(import (insider syntax) (insider basic-procedures) (insider file) (insider string) (insider list)
         (only (insider internal)
               procedure-bytecode procedure-name opcodes instruction-opcode instruction-operands
               top-level-name static-value top-level-value closure-procedure))

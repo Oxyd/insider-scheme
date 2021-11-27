@@ -1,5 +1,5 @@
 (library (scheme lazy))
-(import (insider base-scheme) (insider syntax) (insider record))
+(import (insider syntax) (insider record) (insider basic-procedures))
 (export delay-force delay force make-promise promise?)
 
 (define-record-type <promise>

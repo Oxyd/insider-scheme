@@ -1,5 +1,6 @@
 (library (insider cond-expand))
-(import (insider base-scheme) (insider syntax))
+(import (insider syntax) (insider error) (insider list)
+        (only (insider internal) known-module? features))
 (export cond-expand library)
 
 (begin-for-syntax
@@ -10,7 +11,7 @@
      (else
       #t)
      ((and elements ...)
-      (all condition-matches? elements))
+      (every condition-matches? elements))
      ((or elements ...)
       (any condition-matches? elements))
      ((library name)

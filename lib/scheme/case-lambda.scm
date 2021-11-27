@@ -1,5 +1,5 @@
 (library (scheme case-lambda))
-(import (insider base-scheme) (insider syntax) (insider error) (insider control))
+(import (insider syntax) (insider error) (insider control) (insider list))
 (export case-lambda)
 
 (define-syntax case-lambda

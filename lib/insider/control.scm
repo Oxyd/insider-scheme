@@ -1,8 +1,9 @@
 (library (insider control))
-(import (insider base-scheme)
-        (insider syntax)
+(import (insider syntax)
+        (insider list)
         (insider error)
         (only (insider internal)
+              eq?
               capture-stack replace-stack!
               create-parameter-tag  find-parameter-value set-parameter-value! call-parameterized
               apply values call-with-values with-exception-handler raise raise-continuable dynamic-wind))

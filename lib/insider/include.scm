@@ -1,5 +1,11 @@
 (library (insider include))
-(import (insider base-scheme) (insider file) (insider syntax) (insider error) (insider control))
+(import (insider file)
+        (insider syntax)
+        (insider error)
+        (insider control)
+        (insider string)
+        (insider basic-procedures)
+        (insider list))
 (export include include-ci)
 
 (begin-for-syntax

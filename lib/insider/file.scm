@@ -1,5 +1,5 @@
 (library (insider file))
-(import (insider base-scheme) (insider control) (insider syntax) (insider error)
+(import (insider syntax) (insider control) (insider syntax) (insider error)
         (only (insider internal)
               read read-syntax read-syntax-multiple read-syntax-multiple-ci
               write write-simple write-shared display newline
