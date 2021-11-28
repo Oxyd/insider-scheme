@@ -140,6 +140,9 @@ namespace {
 
     std::string
     format_callable(ptr<> proc) const {
+      if (auto cls = match<closure>(proc))
+        proc = cls->procedure();
+
       if (auto scheme_proc = match<procedure>(proc)) {
         auto name = scheme_proc->name;
         return fmt::format("in {}", name ? *name : "<lambda>");
