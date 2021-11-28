@@ -77,7 +77,7 @@ namespace detail {
 
     template <typename Callable, std::size_t... Is>
     static auto
-    call(context& ctx, Callable const& f, object_span args, std::index_sequence<Is...>) {
+    call(context& ctx, Callable const& f, [[maybe_unused]] object_span args, std::index_sequence<Is...>) {
       assert(args.size() == sizeof...(Is));
       return f(ctx, from_scheme<Args>(ctx, args[Is])...);
     }

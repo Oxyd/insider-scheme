@@ -359,16 +359,6 @@ private:
   request_collection();
 };
 
-inline tracked_ptr<>*
-tracked_ptr<>::root_list(free_store& fs) noexcept {
-  return fs.root_list();
-}
-
-inline weak_ptr<>*
-weak_ptr<>::root_list(free_store& fs) noexcept {
-  return fs.weak_root_list();
-}
-
 class gc_disabler {
 public:
   explicit

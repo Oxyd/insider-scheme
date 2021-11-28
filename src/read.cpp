@@ -162,8 +162,8 @@ require_char(reader_stream& stream) {
 }
 
 static void
-consume(reader_stream& stream, char32_t expected) {
-  char32_t c = require_char(stream);
+consume(reader_stream& stream, [[maybe_unused]] char32_t expected) {
+  [[maybe_unused]] char32_t c = require_char(stream);
   assert(c == expected);
 }
 

@@ -42,6 +42,7 @@ set(scheme_sources
   src/numeric.cpp
   src/object.cpp
   src/port.cpp
+  src/ptr.cpp
   src/read.cpp
   src/reader_stream.cpp
   src/records.cpp
