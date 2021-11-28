@@ -17,7 +17,7 @@
  (define (field-index name-stx indices)
    (let ((name (syntax-expression name-stx)))
      (cond ((assq name indices) => cdr)
-           (else (error "Invalid field" (syntax-expression name))))))
+           (else (error "Invalid field" name)))))
 
  (define (record-size fields)
    (length (syntax->list fields)))
