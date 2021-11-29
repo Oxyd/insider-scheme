@@ -1,5 +1,6 @@
 (library (insider control))
 (import (insider syntax)
+        (insider basic-procedures)
         (insider list)
         (insider error)
         (only (insider internal)
@@ -25,6 +26,9 @@
      (call/cc
       (lambda (var) . body)))))
 
+(define <get-tag> (list 'get-tag))
+(define <get-converter> (list 'get-converter))
+
 (define (make-parameter-from-tag tag . args)
   (let ((converter (if (null? args)
                        (lambda (x) x)
@@ -32,15 +36,13 @@
     (lambda args
       (cond ((null? args)
              (find-parameter-value tag))
-            ((eq? (car args) 'get-tag)
+            ((eq? (car args) <get-tag>)
              tag)
-            ((eq? (car args) 'get-converter)
+            ((eq? (car args) <get-converter>)
              converter)
-            ((eq? (car args) 'set-value)
-             (let ((value (cadr args)))
-               (set-parameter-value! tag (converter value))))
             (else
-             (error "Invalid parameter procedure call"))))))
+             (let ((value (car args)))
+               (set-parameter-value! tag (converter value))))))))
 
 (define (make-parameter init . args)
   (let ((converter (if (null? args)
@@ -66,8 +68,8 @@
 
     ((parameterize-collect ((tags transformed-values) ...) ((param0 value0) (param1 value1) ...) body ...)
      (let ((p param0))
-       (let ((tag (p 'get-tag))
-             (transformed-value ((p 'get-converter) value0)))
+       (let ((tag (p <get-tag>))
+             (transformed-value ((p <get-converter>) value0)))
          (parameterize-collect ((tags transformed-values) ... (tag transformed-value))
                                ((param1 value1) ...)
                                body ...))))))
