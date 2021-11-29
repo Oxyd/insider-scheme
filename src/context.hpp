@@ -86,6 +86,7 @@ public:
       let_syntax, letrec_syntax;
     tracked_ptr<parameter_tag> current_input_port_tag;
     tracked_ptr<parameter_tag> current_output_port_tag;
+    tracked_ptr<parameter_tag> current_error_port_tag;
     tracked_ptr<parameter_tag> current_source_file_origin_tag;
   };
 

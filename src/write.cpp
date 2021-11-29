@@ -509,6 +509,7 @@ get_default_port(context& ctx) {
 void
 export_write(context& ctx, module_& result) {
   define_top_level(ctx, "current-output-port-tag", result, true, ctx.constants->current_output_port_tag.get());
+  define_top_level(ctx, "current-error-port-tag", result, true, ctx.constants->current_error_port_tag.get());
   define_procedure(ctx, "write", result, true, write, get_default_port);
   define_procedure(ctx, "write-simple", result, true, write_simple, get_default_port);
   define_procedure(ctx, "write-shared", result, true, write_shared, get_default_port);
@@ -520,6 +521,9 @@ void
 init_write(context& ctx) {
   auto default_output_port = make_tracked<textual_output_port>(ctx, std::make_unique<file_port_sink>(stdout, false));
   ctx.constants->current_output_port_tag = track(ctx, create_parameter_tag(ctx, default_output_port.get()));
+
+  auto default_error_port = make_tracked<textual_output_port>(ctx, std::make_unique<file_port_sink>(stderr, false));
+  ctx.constants->current_error_port_tag = track(ctx, create_parameter_tag(ctx, default_error_port.get()));
 }
 
 } // namespace insider
