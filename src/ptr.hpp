@@ -241,6 +241,8 @@ class tracked_ptr<> : public detail::tracked_ptr_base<tracked_ptr<>> {
 public:
   using tracked_ptr_base::tracked_ptr_base;
 
+  tracked_ptr(tracked_ptr const&) noexcept = default;
+
   tracked_ptr<>&
   operator = (tracked_ptr<> const& other) noexcept = default;
 
