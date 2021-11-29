@@ -91,6 +91,16 @@ TEST_F(control, jump_to_outer_continuation) {
   EXPECT_EQ(expect<integer>(result).value(), 6);
 }
 
+TEST_F(control, create_parameter_tag_sets_parameter_value) {
+  auto result = eval_module(R"(
+    (import (insider internal))
+
+    (define p (create-parameter-tag 0))
+    (find-parameter-value p)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 0);
+}
+
 TEST_F(control, top_level_parameter_values) {
   auto result = eval_module(R"(
     (import (insider internal))
