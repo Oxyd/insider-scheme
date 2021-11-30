@@ -5,7 +5,7 @@
  + - * / = < <= > >=
  eq? eqv? equal?
  cons car cdr set-car! set-cdr!
- vector-ref vector-set! vector-length
+ make-vector vector-ref vector-set! vector-length
  type
 
  ;; Defined here

@@ -105,11 +105,11 @@ memq(ptr<> element, ptr<> list) {
   return false;
 }
 
-vector::vector(context& ctx, std::size_t size)
+vector::vector(std::size_t size, ptr<> fill)
   : dynamic_size_object{size}
 {
   for (std::size_t i = 0; i < size_; ++i)
-    storage_element(i) = ctx.constants->void_.get();
+    storage_element(i) = fill;
 }
 
 vector::vector(vector&& other)
@@ -144,7 +144,7 @@ vector::set(free_store& store, std::size_t i, ptr<> value) {
 
 ptr<vector>
 make_vector(context& ctx, std::vector<ptr<>> const& elems) {
-  auto result = make<vector>(ctx, ctx, elems.size());
+  auto result = make<vector>(ctx, elems.size(), ctx.constants->void_.get());
   for (std::size_t i = 0; i < elems.size(); ++i)
     result->set(ctx.store, i, elems[i]);
 
@@ -157,7 +157,7 @@ list_to_vector(context& ctx, ptr<> lst) {
   for (ptr<> e = lst; e != ctx.constants->null.get(); e = cdr(expect<pair>(e)))
     ++size;
 
-  auto result = make<vector>(ctx, ctx, size);
+  auto result = make<vector>(ctx, size, ctx.constants->void_.get());
   std::size_t i = 0;
   for (ptr<> e = lst; e != ctx.constants->null.get(); e = cdr(assume<pair>(e)))
     result->set(ctx.store, i++, car(assume<pair>(e)));
@@ -191,7 +191,7 @@ vector_append(context& ctx, object_span vs) {
     size += v->size();
   }
 
-  auto result = make<vector>(ctx, ctx, size);
+  auto result = make<vector>(ctx, size, ctx.constants->void_.get());
   std::size_t i = 0;
   for (ptr<> e : vs) {
     ptr<vector> v = assume<vector>(e);

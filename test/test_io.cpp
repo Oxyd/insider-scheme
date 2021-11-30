@@ -245,7 +245,7 @@ TEST_F(io, write) {
   auto p2 = make<pair>(ctx, integer_to_ptr(integer{0}), p1);
   EXPECT_EQ(to_string_simple(ctx, p2), "(0 1 . 2)");
 
-  auto v = make<vector>(ctx, ctx, 3);
+  auto v = make<vector>(ctx, 3, ctx.constants->void_.get());
   v->set(ctx.store, 0, character_to_ptr('r'));
   v->set(ctx.store, 1, p2);
   v->set(ctx.store, 2, make<string>(ctx, "foobar"));

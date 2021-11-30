@@ -78,9 +78,10 @@ make_internal_module(context& ctx) {
                    static_cast<ptr<vector> (*)(context&, std::vector<ptr<>> const&)>(make_vector));
   define_procedure(
     ctx, "make-vector", result, true,
-    [] (context& ctx, std::size_t len) {
-      return make<vector>(ctx, ctx, len);
-    }
+    [] (context& ctx, std::size_t len, ptr<> fill) {
+      return make<vector>(ctx, len, fill);
+    },
+    [] (context& ctx) { return ctx.constants->void_.get(); }
   );
   operand vector_ref_index = define_procedure(ctx, "vector-ref", result, true, &vector::ref);
   ctx.tag_top_level(vector_ref_index, special_top_level_tag::vector_ref);

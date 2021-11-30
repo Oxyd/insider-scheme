@@ -59,7 +59,7 @@ syntax_to_datum_helper(context& ctx, ptr<> o) {
   } else if (auto p = semisyntax_match<pair>(o)) {
     return cons(ctx, syntax_to_datum_helper(ctx, car(p)), syntax_to_datum_helper(ctx, cdr(p)));
   } else if (auto v = semisyntax_match<vector>(o)) {
-    auto result = make<vector>(ctx, ctx, v->size());
+    auto result = make<vector>(ctx, v->size(), ctx.constants->void_.get());
     for (std::size_t i = 0; i < v->size(); ++i)
       result->set(ctx.store, i, syntax_to_datum_helper(ctx, v->ref(i)));
     return result;
@@ -82,7 +82,7 @@ datum_to_syntax(context& ctx, ptr<syntax> s, ptr<> datum) {
     ptr<syntax> tail = datum_to_syntax(ctx, s, cdr(p));
     return make<syntax>(ctx, cons(ctx, head, tail), s->location(), s->scopes());
   } else if (auto v = match<vector>(datum)) {
-    auto result_vec = make<vector>(ctx, ctx, v->size());
+    auto result_vec = make<vector>(ctx, v->size(), ctx.constants->void_.get());
     for (std::size_t i = 0; i < v->size(); ++i)
       result_vec->set(ctx.store, i, datum_to_syntax(ctx, s, v->ref(i)));
     return make<syntax>(ctx, result_vec, s->location(), s->scopes());
@@ -125,7 +125,7 @@ copy_syntax_helper(context& ctx, ptr<> o) {
   else if (auto p = match<pair>(o))
     return make<pair>(ctx, copy_syntax_helper(ctx, car(p)), copy_syntax_helper(ctx, cdr(p)));
   else if (auto v = match<vector>(o)) {
-    auto new_v = make<vector>(ctx, ctx, v->size());
+    auto new_v = make<vector>(ctx, v->size(), ctx.constants->void_.get());
     for (std::size_t i = 0; i < v->size(); ++i)
       new_v->set(ctx.store, i, copy_syntax_helper(ctx, v->ref(i)));
     return new_v;

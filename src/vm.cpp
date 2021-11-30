@@ -751,7 +751,7 @@ make_vector(instruction_state& istate) {
   operand dest = istate.reader.read_operand();
   operand num_elems = istate.reader.read_operand();
 
-  auto result = make<vector>(istate.context(), istate.context(), num_elems);
+  auto result = make<vector>(istate.context(), num_elems, istate.context().constants->void_.get());
   for (std::size_t i = 0; i < num_elems; ++i)
     result->set(istate.context().store, i, istate.frame()->ref(istate.reader.read_operand()));
 

@@ -185,9 +185,9 @@ public:
   static constexpr char const* scheme_name = "insider::vector";
 
   static std::size_t
-  extra_elements(context&, std::size_t size) { return size; }
+  extra_elements(std::size_t size, ptr<>) { return size; }
 
-  vector(context&, std::size_t);
+  vector(std::size_t, ptr<> fill);
 
   vector(vector&&);
 
@@ -210,7 +210,7 @@ make_vector(context&, std::vector<ptr<>> const&);
 template <typename Container, typename Converter>
 ptr<>
 make_vector(context& ctx, Container const& values, Converter const& convert) {
-  auto result = make<vector>(ctx, ctx, values.size());
+  auto result = make<vector>(ctx, values.size(), ctx.constants->void_.get());
 
   for (std::size_t i = 0; i < values.size(); ++i)
     result->set(ctx.store, i, convert(values[i]));

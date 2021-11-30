@@ -1233,12 +1233,12 @@ read_vector(context& ctx, reader_stream& stream, bool read_syntax, datum_labels&
     // create the result and recurse through all its elements replacing the
     // dummy empty vector value with the real one.
 
-    dummy_vector = make<vector>(ctx, ctx, 0);
+    dummy_vector = make<vector>(ctx, 0, ctx.constants->void_.get());
     define_label(ctx, labels, *defining_label, dummy_vector);
   }
 
   std::vector<ptr<>> elements = read_vector_elements(ctx, stream, read_syntax, labels);
-  ptr<vector> result = make<vector>(ctx, ctx, elements.size());
+  ptr<vector> result = make<vector>(ctx, elements.size(), ctx.constants->void_.get());
   for (std::size_t i = 0; i < elements.size(); ++i)
     result->set(ctx.store, i, elements[i]);
 
