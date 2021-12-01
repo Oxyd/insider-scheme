@@ -1029,6 +1029,15 @@ setup_scheme_frame_for_call_from_native(execution_state& state, ptr<> callable, 
   return frame;
 }
 
+static ptr<stack_frame>
+setup_scheme_frame_for_potential_call_from_native(execution_state& state, ptr<> callable,
+                                                  std::vector<ptr<>> const& arguments) {
+  if (state.current_frame() && is_native_frame(state.current_frame()))
+    return setup_scheme_frame_for_call_from_native(state, callable, arguments);
+  else
+    return make_scheme_frame(state, callable, arguments);
+}
+
 static tracked_ptr<>
 call_scheme_with_continuation_barrier(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments,
                                       ptr<parameter_tag> parameter, ptr<> parameter_value) {
@@ -1111,7 +1120,7 @@ static tracked_ptr<>
 call_scheme_continuable(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments,
                         native_continuation_type cont) {
   create_or_get_extra_data(state.ctx, state.current_frame())->native_continuations.emplace_back(std::move(cont));
-  setup_scheme_frame_for_call_from_native(state, callable, arguments);
+  setup_scheme_frame_for_potential_call_from_native(state, callable, arguments);
   return state.ctx.constants->tail_call_tag;
 }
 

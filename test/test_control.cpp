@@ -710,6 +710,20 @@ TEST_F(control, cxx_exception_passes_through_if_not_handled) {
   FAIL();
 }
 
+TEST_F(control, scheme_can_handle_exceptions_raised_by_instructions) {
+  // vector-ref will be compiled into an instruction.
+  auto result = eval(R"(
+    (capture-stack
+      (lambda (return)
+        (with-exception-handler
+          (lambda (e)
+            (replace-stack! return #t))
+          (lambda ()
+            (vector-ref #() 5)))))
+  )");
+  EXPECT_EQ(result.value(), ctx.constants->t.get().value());
+}
+
 TEST_F(control, apply_with_single_argument) {
   auto result = eval("(apply + '(1 2 3))");
   EXPECT_EQ(expect<integer>(result).value(), 6);
