@@ -551,11 +551,12 @@ compile_application(context& ctx, procedure_context& proc, application_expressio
           || *tag == special_top_level_tag::times || *tag == special_top_level_tag::divide) {
         compile_arithmetic(ctx, proc, stx, *tag, result);
         return;
-      } else if (*tag == special_top_level_tag::less_than
-                 || *tag == special_top_level_tag::greater_than
-                 || *tag == special_top_level_tag::less_or_equal
-                 || *tag == special_top_level_tag::greater_or_equal
-                 || *tag == special_top_level_tag::arith_equal) {
+      } else if ((*tag == special_top_level_tag::less_than
+                  || *tag == special_top_level_tag::greater_than
+                  || *tag == special_top_level_tag::less_or_equal
+                  || *tag == special_top_level_tag::greater_or_equal
+                  || *tag == special_top_level_tag::arith_equal)
+                 && stx.arguments.size() == 2){
         compile_relational(ctx, proc, stx, *tag, result);
         return;
       } else if (*tag == special_top_level_tag::vector_set) {
