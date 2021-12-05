@@ -39,14 +39,6 @@ export_syntax(context&, module_&);
 void
 export_time(context&, module_&);
 
-static ptr<symbol>
-type(context& ctx, ptr<> o) {
-  if (is_object_ptr(o))
-    return ctx.intern(object_type(o).name);
-  else
-    return ctx.intern(integer_type_name);
-}
-
 module_
 make_internal_module(context& ctx) {
   module_ result{ctx};
@@ -173,7 +165,8 @@ make_internal_module(context& ctx) {
     }
   );
 
-  define_procedure(ctx, "type", result, true, type);
+  operand type_index = define_procedure(ctx, "type", result, true, type);
+  ctx.tag_top_level(type_index, special_top_level_tag::type);
 
   define_procedure(
     ctx, "eq?", result, true,

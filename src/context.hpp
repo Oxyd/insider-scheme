@@ -68,7 +68,8 @@ enum class special_top_level_tag {
   greater_than,
   greater_or_equal,
   vector_set,
-  vector_ref
+  vector_ref,
+  type
 };
 
 // Evaluation context.
@@ -204,6 +205,14 @@ track(context& ctx, ptr<> o) { return {ctx.store, o}; }
 template <typename T>
 tracked_ptr<T>
 track(context& ctx, ptr<T> o) { return {ctx.store, o}; }
+
+inline ptr<symbol>
+type(context& ctx, ptr<> o) {
+  if (is_object_ptr(o))
+    return ctx.intern(object_type(o).name);
+  else
+    return ctx.intern(integer_type_name);
+}
 
 } // namespace insider
 

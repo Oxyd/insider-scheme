@@ -415,6 +415,17 @@ compile_vector_ref(context& ctx, procedure_context& proc, application_expression
 }
 
 static void
+compile_type(context& ctx, procedure_context& proc, application_expression const& stx, result_register& result) {
+  if (stx.arguments.size() != 1)
+    throw std::runtime_error{"type: Expected exactly 1 argument"};
+
+  shared_register expr_reg = compile_expression_to_register(ctx, proc, *stx.arguments[0], false);
+  if (result.result_used())
+    encode_instruction(proc.bytecode_stack.back(),
+                       instruction{opcode::type, *expr_reg, *result.get(proc)});
+}
+
+static void
 compile_let(context& ctx, procedure_context& proc, let_expression const& stx, bool tail, result_register& result) {
   variable_bindings::scope scope;
   for (auto const& def : stx.definitions) {
@@ -564,6 +575,9 @@ compile_application(context& ctx, procedure_context& proc, application_expressio
         return;
       } else if (*tag == special_top_level_tag::vector_ref) {
         compile_vector_ref(ctx, proc, stx, result);
+        return;
+      } else if (*tag == special_top_level_tag::type) {
+        compile_type(ctx, proc, stx, result);
         return;
       }
     }

@@ -781,6 +781,12 @@ vector_ref(instruction_state& istate) {
   istate.frame()->set(istate.reader.read_operand(), v->ref(i));
 }
 
+static void
+type(instruction_state& istate) {
+  ptr<> o = istate.frame()->ref(istate.reader.read_operand());
+  istate.frame()->set(istate.reader.read_operand(), type(istate.context(), o));
+}
+
 static tracked_ptr<>
 do_instruction(execution_state& state, gc_disabler& no_gc) {
   instruction_state istate{state};
@@ -885,6 +891,10 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
 
   case opcode::vector_ref:
     vector_ref(istate);
+    break;
+
+  case opcode::type:
+    type(istate);
     break;
 
   default:

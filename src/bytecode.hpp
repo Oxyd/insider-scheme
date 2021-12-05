@@ -54,7 +54,8 @@ enum class opcode : std::uint16_t {
   cons,             // cons <a> <b> <destination> -- make a cons pair (a . b)
   make_vector,      // make-vector <destination> <elements ...>
   vector_set,       // vector-set! <vector> <index> <value>
-  vector_ref        // vector-ref <vector> <index> <destination>
+  vector_ref,       // vector-ref <vector> <index> <destination>
+  type              // type <value> <destination>
 };
 
 // Metainformation about an opcode. Used for decoding instructions.
@@ -139,6 +140,7 @@ instructions{
   std::tuple{"make-vector",         opcode::make_vector,         std::size_t{1}, true},
   std::tuple{"vector-set!",         opcode::vector_set,          std::size_t{3}, false},
   std::tuple{"vector-ref",          opcode::vector_ref,          std::size_t{3}, false},
+  std::tuple{"type",                opcode::type,                std::size_t{2}, false}
 };
 
 inline auto // std::array<instruction_info, N>
