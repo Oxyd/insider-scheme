@@ -206,7 +206,8 @@
     ((or) #f)
     ((or e1) e1)
     ((or e1 e2 rest ...)
-     (if e1 e1 (or e2 rest ...)))))
+     (let ((v e1))
+       (if v v (or e2 rest ...))))))
 
 (define-syntax and
   (syntax-rules ()
