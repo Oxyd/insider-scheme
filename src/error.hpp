@@ -47,6 +47,9 @@ public:
   [[noreturn]] void
   rethrow() const { std::rethrow_exception(exception_); }
 
+  std::string
+  message() const;
+
 private:
   std::exception_ptr exception_;
 };

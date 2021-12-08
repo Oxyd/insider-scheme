@@ -2,7 +2,8 @@
 (import (insider syntax) (insider basic-procedures) (insider list)
         (only (insider internal)
               dynamic-wind with-exception-handler raise raise-continuable
-              make-error error-message error-irritants uncaught-exception-inner-exception file-error-message))
+              make-error error-message error-irritants uncaught-exception-inner-exception file-error-message
+              cxx-exception-message))
 (export dynamic-wind with-exception-handler raise raise-continuable
         error error-object-message error-object-irritants error? file-error?)
 
@@ -28,6 +29,8 @@
      "Unhandled exception")
     ((insider::file_error)
      (file-error-message e))
+    ((insider::cxx_exception)
+     (cxx-exception-message e))
     (else
      (error "Not an error object" e))))
 

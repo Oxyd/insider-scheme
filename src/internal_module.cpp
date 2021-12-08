@@ -39,6 +39,9 @@ export_syntax(context&, module_&);
 void
 export_time(context&, module_&);
 
+void
+export_error(context&, module_&);
+
 module_
 make_internal_module(context& ctx) {
   module_ result{ctx};
@@ -55,6 +58,7 @@ make_internal_module(context& ctx) {
   export_source_code_provider(ctx, result);
   export_syntax(ctx, result);
   export_time(ctx, result);
+  export_error(ctx, result);
 
   define_raw_procedure(ctx, "append", result, true, append);
   define_procedure(ctx, "list->vector", result, true, list_to_vector);
