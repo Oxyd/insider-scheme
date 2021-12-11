@@ -20,6 +20,7 @@ stack_frame::stack_frame(stack_frame&& other)
   , previous_pc{other.previous_pc}
   , parent{other.parent}
   , callable{other.callable}
+  , extra{other.extra}
 {
   for (std::size_t i = 0; i < size_; ++i)
     storage_element(i) = other.storage_element(i);
