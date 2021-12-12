@@ -763,9 +763,9 @@ compile_syntax(context& ctx, std::unique_ptr<expression> e, module_& mod) {
 }
 
 module_
-compile_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& data, source_file_origin const& origin) {
+compile_module(context& ctx, std::vector<tracked_ptr<syntax>> const& data, source_file_origin const& origin) {
   simple_action a(ctx, "Analysing main module");
-  protomodule pm = read_main_module(ctx, data, origin);
+  protomodule pm = read_module(ctx, data, origin);
   module_ result{ctx};
   perform_imports(ctx, result, pm);
   compile_module_body(ctx, result, pm);
@@ -773,10 +773,10 @@ compile_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& data, 
 }
 
 module_
-compile_main_module(context& ctx, std::filesystem::path const& path) {
+compile_module(context& ctx, std::filesystem::path const& path) {
   filesystem_source_code_provider provider{"."};
   if (auto file = provider.find_file(ctx, path))
-    return compile_main_module(ctx, insider::read_syntax_multiple(ctx, file->port.get().get()), file->origin);
+    return compile_module(ctx, insider::read_syntax_multiple(ctx, file->port.get().get()), file->origin);
   else
     throw std::runtime_error{fmt::format("Can't open input file {}", path.string())};
 }

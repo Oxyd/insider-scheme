@@ -231,7 +231,7 @@ find_protomodule(context& ctx, module_name const& name,
                  std::vector<std::unique_ptr<source_code_provider>> const& providers) {
   for (std::unique_ptr<source_code_provider> const& provider : providers)
     if (auto source = find_module_in_provider(ctx, *provider, name))
-      return read_library(ctx, read_syntax_multiple(ctx, source->port.get().get()), source->origin);
+      return read_module(ctx, read_syntax_multiple(ctx, source->port.get().get()), source->origin);
 
   throw std::runtime_error{fmt::format("Unknown module {}", module_name_to_string(name))};
 }

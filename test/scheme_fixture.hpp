@@ -40,7 +40,7 @@ struct scheme_fixture : testing::Test {
   insider::ptr<>
   eval_module(std::string const& expr) {
     insider::null_source_code_provider provider;
-    insider::module_ m = compile_main_module(ctx, read_syntax_multiple(ctx, expr),
+    insider::module_ m = compile_module(ctx, read_syntax_multiple(ctx, expr),
                                              {&provider, "<unit test main module>"});
     return execute(ctx, m).get();
   }

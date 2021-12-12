@@ -1608,33 +1608,6 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
   throw std::logic_error{"Unreachable"};
 }
 
-protomodule
-read_main_module(context& ctx, std::vector<tracked_ptr<syntax>> const& contents,
-                 source_file_origin const& origin) {
-  protomodule result{origin};
-
-  auto stx = contents.begin();
-  while (stx != contents.end()) {
-    if (is_directive(stx->get(), "import")) {
-      ptr<> directive = syntax_to_list(ctx, cdr(syntax_assume<pair>(stx->get())));
-      if (!directive)
-        throw make_syntax_error(stx->get(), "Invalid import directive");
-
-      for (ptr<> set : in_list{directive})
-        result.imports.push_back(parse_import_set(ctx, expect<syntax>(set)));
-
-      ++stx;
-    } else
-      break;
-  }
-
-  result.body.reserve(contents.end() - stx);
-  for (; stx != contents.end(); ++stx)
-    result.body.push_back(*stx);
-
-  return result;
-}
-
 static void
 process_library_import(context& ctx, protomodule& result, ptr<syntax> stx) {
   for (ptr<> set : in_list{syntax_to_list(ctx, syntax_cdr(stx))})
@@ -1648,18 +1621,15 @@ process_library_export(context& ctx, protomodule& result, ptr<syntax> stx) {
 }
 
 static protomodule
-read_plain_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents, source_file_origin origin) {
+read_plain_module(context& ctx, std::vector<tracked_ptr<syntax>> const& contents, source_file_origin origin) {
   protomodule result{std::move(origin)};
   auto current = contents.begin();
 
-  assert(current != contents.end());
-  assert(is_directive(current->get(), "library"));
-
-  result.name = parse_module_name(ctx, syntax_cadr(current->get()));
-  ++current;
-
   while (current != contents.end())
-    if (is_directive(current->get(), "import")) {
+    if (is_directive(current->get(), "library")) {
+      result.name = parse_module_name(ctx, syntax_cadr(current->get()));
+      ++current;
+    } else if (is_directive(current->get(), "import")) {
       process_library_import(ctx, result, current->get());
       ++current;
     } else if (is_directive(current->get(), "export")) {
@@ -1832,16 +1802,14 @@ read_define_library(context& ctx, tracked_ptr<syntax> form, source_file_origin c
 }
 
 protomodule
-read_library(context& ctx, std::vector<tracked_ptr<syntax>> const& contents, source_file_origin const& origin) {
+read_module(context& ctx, std::vector<tracked_ptr<syntax>> const& contents, source_file_origin const& origin) {
   if (contents.empty())
-    throw std::runtime_error("Empty library body");
+    throw std::runtime_error("Empty module body");
 
-  if (is_directive(contents.front().get(), "library"))
-    return read_plain_library(ctx, contents, std::move(origin));
-  else if (is_directive(contents.front().get(), "define-library"))
+  if (is_directive(contents.front().get(), "define-library"))
     return read_define_library(ctx, contents.front(), std::move(origin));
   else
-    throw make_syntax_error(contents.front().get(), "Invalid library definition");
+    return read_plain_module(ctx, contents, std::move(origin));
 }
 
 std::optional<module_name>

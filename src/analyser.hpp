@@ -29,14 +29,10 @@ analyse(context&, ptr<syntax> stx, module_&, source_file_origin const&);
 module_name
 parse_module_name(context&, ptr<syntax>);
 
-// Interpret the given list of data as a main (program) module.
+// Interpret the given list of data as a module. This can be a library module, or main module.
 protomodule
-read_main_module(context&, std::vector<tracked_ptr<syntax>> const& contents, source_file_origin const&);
-
-// Interpret the given list of data as a library.
-protomodule
-read_library(context&, std::vector<tracked_ptr<syntax>> const& contents,
-             source_file_origin const&);
+read_module(context&, std::vector<tracked_ptr<syntax>> const& contents,
+            source_file_origin const&);
 
 std::optional<module_name>
 read_library_name(context&, ptr<textual_input_port>);
