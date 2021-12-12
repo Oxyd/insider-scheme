@@ -712,6 +712,8 @@ parse_application(parsing_context& pc, ptr<syntax> stx) {
   if (!datum)
     throw make_syntax_error(stx, "Invalid function call syntax");
 
+  std::unique_ptr<expression> target_expr = parse(pc, expect<syntax>(car(assume<pair>(datum.get()))));
+
   std::vector<std::unique_ptr<expression>> arguments;
   auto arg_expr = track(pc.ctx, cdr(assume<pair>(datum.get())));
   while (arg_expr != pc.ctx.constants->null) {
@@ -719,8 +721,7 @@ parse_application(parsing_context& pc, ptr<syntax> stx) {
     arg_expr = track(pc.ctx, cdr(assume<pair>(arg_expr.get())));
   }
 
-  return make_expression<application_expression>(parse(pc, expect<syntax>(car(assume<pair>(datum.get())))),
-                                                 std::move(arguments));
+  return make_expression<application_expression>(std::move(target_expr), std::move(arguments));
 }
 
 static std::unique_ptr<expression>
