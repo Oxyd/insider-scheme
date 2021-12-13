@@ -763,27 +763,28 @@ compile_syntax(context& ctx, std::unique_ptr<expression> e, module_& mod) {
 }
 
 module_
-compile_module(context& ctx, std::vector<tracked_ptr<syntax>> const& data, source_file_origin const& origin) {
+compile_module(context& ctx, std::vector<tracked_ptr<syntax>> const& data, source_file_origin const& origin,
+               bool main_module) {
   simple_action a(ctx, "Analysing main module");
   protomodule pm = read_module(ctx, data, origin);
   module_ result{ctx};
   perform_imports(ctx, result, pm);
-  compile_module_body(ctx, result, pm);
+  compile_module_body(ctx, result, pm, main_module);
   return result;
 }
 
 module_
-compile_module(context& ctx, std::filesystem::path const& path) {
+compile_module(context& ctx, std::filesystem::path const& path, bool main_module) {
   filesystem_source_code_provider provider{"."};
   if (auto file = provider.find_file(ctx, path))
-    return compile_module(ctx, insider::read_syntax_multiple(ctx, file->port.get().get()), file->origin);
+    return compile_module(ctx, insider::read_syntax_multiple(ctx, file->port.get().get()), file->origin, main_module);
   else
     throw std::runtime_error{fmt::format("Can't open input file {}", path.string())};
 }
 
 void
-compile_module_body(context& ctx, module_& m, protomodule const& pm) {
-  sequence_expression body = analyse_module(ctx, m, pm);
+compile_module_body(context& ctx, module_& m, protomodule const& pm, bool main_module) {
+  sequence_expression body = analyse_module(ctx, m, pm, main_module);
 
   procedure_context proc{nullptr, m};
   result_register result;

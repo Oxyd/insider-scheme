@@ -39,7 +39,7 @@ read_library_name(context&, ptr<textual_input_port>);
 
 // Analyse a protomodule's body in the given module.
 sequence_expression
-analyse_module(context&, module_&, protomodule const&);
+analyse_module(context&, module_&, protomodule const&, bool main_module = false);
 
 void
 init_analyser(context&);

@@ -29,14 +29,15 @@ compile_syntax(context&, std::unique_ptr<expression>, module_&);
 // Interpret a list of expressions and import declarations as a module and
 // create the module.
 module_
-compile_module(context&, std::vector<tracked_ptr<syntax>> const& data, source_file_origin const&);
+compile_module(context&, std::vector<tracked_ptr<syntax>> const& data, source_file_origin const&,
+               bool main_module = false);
 
 module_
-compile_module(context&, std::filesystem::path const&);
+compile_module(context&, std::filesystem::path const&, bool main_module = false);
 
 // Translate a protomodule's body.
 void
-compile_module_body(context&, module_&, protomodule const&);
+compile_module_body(context&, module_&, protomodule const&, bool main_module = false);
 
 } // namespace insider
 

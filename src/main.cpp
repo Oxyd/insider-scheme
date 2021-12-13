@@ -72,7 +72,7 @@ main(int argc, char** argv) {
       return 1;
     }
 
-    auto mod = insider::compile_module(ctx, program_path);
+    auto mod = insider::compile_module(ctx, program_path, true);
     insider::simple_action a{ctx, "Executing program"};
     insider::execute(ctx, mod);
     return 0;

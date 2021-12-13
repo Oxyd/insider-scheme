@@ -89,6 +89,7 @@ public:
     tracked_ptr<parameter_tag> current_output_port_tag;
     tracked_ptr<parameter_tag> current_error_port_tag;
     tracked_ptr<parameter_tag> current_source_file_origin_tag;
+    tracked_ptr<parameter_tag> is_main_module_tag;
   };
 
   struct statics_list {
