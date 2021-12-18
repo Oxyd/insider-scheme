@@ -624,9 +624,11 @@ read_number(context& ctx, reader_stream& stream, source_location loc, unsigned d
 static std::optional<token>
 read_numeric_literal(context& ctx, reader_stream& stream) {
   source_location loc = stream.location();
-  if (ptr<> value = read_number(ctx, stream, loc))
+  auto cp = stream.make_checkpoint();
+  if (ptr<> value = read_number(ctx, stream, loc)) {
+    cp.commit();
     return token{generic_literal{value}, loc};
-  else
+  } else
     return std::nullopt;
 }
 
@@ -728,7 +730,7 @@ read_special_literal(context& ctx, reader_stream& stream) {
   }
 
   default:
-    throw read_error{"Unimplemented", loc};
+    throw read_error{fmt::format("Invalid literal: #{}", to_utf8(*c)), loc};
   }
 }
 
