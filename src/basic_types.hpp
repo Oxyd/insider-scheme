@@ -204,8 +204,20 @@ public:
 inline void
 vector_set(tracked_ptr<vector> const& v, std::size_t i, ptr<> value) { v->set(v.store(), i, value); }
 
+template <typename It>
 ptr<vector>
-make_vector(context&, std::vector<ptr<>> const&);
+make_vector(context& ctx, It begin, It end) {
+  auto result = make<vector>(ctx, end - begin, ctx.constants->void_.get());
+  for (It elem = begin; elem != end; ++elem)
+    result->set(ctx.store, elem - begin, *elem);
+
+  return result;
+}
+
+inline ptr<vector>
+make_vector(context& ctx, std::vector<ptr<>> const& elems) {
+  return make_vector(ctx, elems.begin(), elems.end());
+}
 
 template <typename Container, typename Converter>
 ptr<>

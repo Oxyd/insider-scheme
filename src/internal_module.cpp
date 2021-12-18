@@ -42,6 +42,11 @@ export_time(context&, module_&);
 void
 export_error(context&, module_&);
 
+static ptr<vector>
+make_vector_proc(context& ctx, object_span args) {
+  return make_vector(ctx, args.begin(), args.end());
+}
+
 module_
 make_internal_module(context& ctx) {
   module_ result{ctx};
@@ -70,8 +75,7 @@ make_internal_module(context& ctx) {
       return integer{static_cast<integer::value_type>(v->size())};
     }
   );
-  define_procedure(ctx, "vector", result, true,
-                   static_cast<ptr<vector> (*)(context&, std::vector<ptr<>> const&)>(make_vector));
+  define_raw_procedure(ctx, "vector", result, true, make_vector_proc);
   define_procedure(
     ctx, "make-vector", result, true,
     [] (context& ctx, std::size_t len, ptr<> fill) {

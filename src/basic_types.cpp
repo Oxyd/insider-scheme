@@ -143,15 +143,6 @@ vector::set(free_store& store, std::size_t i, ptr<> value) {
 }
 
 ptr<vector>
-make_vector(context& ctx, std::vector<ptr<>> const& elems) {
-  auto result = make<vector>(ctx, elems.size(), ctx.constants->void_.get());
-  for (std::size_t i = 0; i < elems.size(); ++i)
-    result->set(ctx.store, i, elems[i]);
-
-  return result;
-}
-
-ptr<vector>
 list_to_vector(context& ctx, ptr<> lst) {
   std::size_t size = 0;
   for (ptr<> e = lst; e != ctx.constants->null.get(); e = cdr(expect<pair>(e)))
