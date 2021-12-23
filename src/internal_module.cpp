@@ -168,8 +168,15 @@ make_internal_module(context& ctx) {
 
   define_procedure(
     ctx, "symbol->string", result, true,
-    [] (context& ctx, ptr<> datum) {
+    [] (context& ctx, ptr<symbol> datum) {
       return make<string>(ctx, expect<symbol>(datum)->value());
+    }
+  );
+
+  define_procedure(
+    ctx, "string->symbol", result, true,
+    [] (context& ctx, ptr<string> s) {
+      return ctx.intern(s->value());
     }
   );
 
