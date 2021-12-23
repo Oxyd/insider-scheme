@@ -1182,6 +1182,7 @@ process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl
 
 static std::unique_ptr<expression>
 parse_quasiquote(parsing_context& pc, ptr<syntax> stx) {
+  simple_action a(pc.ctx, stx, "Parsing quasiquote");
   return process_qq_template<quote_traits>(
     pc,
     parse_qq_template<quote_traits>(pc, track(pc.ctx, syntax_cadr(stx)), 0)
@@ -1190,6 +1191,7 @@ parse_quasiquote(parsing_context& pc, ptr<syntax> stx) {
 
 static std::unique_ptr<expression>
 parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
+  simple_action a(pc.ctx, stx, "Parsing quasisyntax");
   return process_qq_template<syntax_traits>(
     pc,
     parse_qq_template<syntax_traits>(pc, track(pc.ctx, syntax_cadr(stx)), 0)
