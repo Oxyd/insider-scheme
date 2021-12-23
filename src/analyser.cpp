@@ -220,6 +220,16 @@ flip_scope(free_store& fs, ptr<> expr, ptr<scope> e) {
   modify_scopes(expr, [&] (ptr<syntax> stx) { stx->flip_scope(fs, e); });
 }
 
+static ptr<syntax>
+call_transformer_with_continuation_barrier(context& ctx, ptr<> callable, tracked_ptr<syntax> const& stx) {
+  ptr<> result = call_with_continuation_barrier(ctx, callable, {stx.get()}).get();
+  if (auto s = match<syntax>(result))
+    return copy_syntax(ctx, s);
+  else
+    throw std::runtime_error{fmt::format("Syntax transformer didn't return a syntax: {}",
+                                         datum_to_string(ctx, result))};
+}
+
 static tracked_ptr<syntax>
 call_transformer(context& ctx, ptr<transformer> t, tracked_ptr<syntax> const& stx,
                  std::vector<tracked_ptr<scope>>* use_site_scopes) {
@@ -235,12 +245,7 @@ call_transformer(context& ctx, ptr<transformer> t, tracked_ptr<syntax> const& st
   if (use_site_scopes)
     use_site_scopes->push_back(use_site_scope);
 
-  ptr<syntax> result = copy_syntax(
-    ctx,
-    expect<syntax>(call_with_continuation_barrier(ctx, t->callable(), {stx.get()}).get(),
-                   "Syntax transformer didn't return a syntax")
-  );
-
+  ptr<syntax> result = call_transformer_with_continuation_barrier(ctx, t->callable(), stx);
   flip_scope(ctx.store, result, introduced_env.get());
   return track(ctx, result);
 }
