@@ -1276,7 +1276,7 @@ is_odd(ptr<> n) {
   else if (auto b = match<big_integer>(n))
     return (b->front() & 1) == 1;
   else
-    throw std::runtime_error{"Expected a number"};
+    throw std::runtime_error{"Expected an integer"};
 }
 
 bool
@@ -1286,7 +1286,7 @@ is_even(ptr<> n) {
   else if (auto b = match<big_integer>(n))
     return (b->front() & 1) == 0;
   else
-    throw std::runtime_error{"Expected a number"};
+    throw std::runtime_error{"Expected an integer"};
 }
 
 ptr<>
@@ -2239,6 +2239,8 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "bitwise-or", result, true, bitwise_or);
   define_procedure(ctx, "bitwise-not", result, true, bitwise_not);
   define_procedure(ctx, "integer?", result, true, is_integer);
+  define_procedure(ctx, "odd?", result, true, is_odd);
+  define_procedure(ctx, "even?", result, true, is_even);
   define_procedure(ctx, "expt", result, true, expt);
 }
 
