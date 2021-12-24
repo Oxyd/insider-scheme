@@ -12,6 +12,21 @@
 #include <cstring>
 #include <string>
 
+#ifdef WIN32
+#include <Windows.h>
+#endif
+
+#ifdef WIN32
+static void
+enable_virtual_terminal_processing() {
+  if (HANDLE stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE); stdout_handle != INVALID_HANDLE_VALUE) {
+    DWORD mode = 0;
+    GetConsoleMode(stdout_handle, &mode);
+    SetConsoleMode(stdout_handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+  }
+}
+#endif
+
 static void
 print_usage(char const* program_name) {
   fmt::print("{} [<options> ...] <file>\n", program_name);
@@ -22,6 +37,10 @@ print_usage(char const* program_name) {
 int
 main(int argc, char** argv) {
   using namespace std::literals;
+
+#ifdef WIN32
+  enable_virtual_terminal_processing();
+#endif
 
   std::string program_path;
   insider::context ctx;
