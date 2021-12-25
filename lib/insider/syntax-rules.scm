@@ -103,10 +103,6 @@
    (lambda (x)
      (eq? (type x) 'insider::vector)))
 
- (define not
-   (lambda (x)
-     (eq? x #f)))
-
  (define list
    (lambda x x))
 
@@ -118,16 +114,21 @@
    (lambda (x)
      (cdr (cdddr x))))
 
+ (define assoc
+   (lambda (x alist . rest)
+     (let ((pred (if (null? rest) equal? (car rest))))
+       (define loop
+         (lambda (lst)
+           (if (null? lst)
+               #f
+               (if (pred x (caar lst))
+                   (car lst)
+                   (loop (cdr lst))))))
+       (loop alist))))
+
  (define assq
    (lambda (x alist)
-     (define loop
-       (lambda (lst)
-         (if (null? lst)
-             #f
-             (if (eq? x (caar lst))
-                 (car lst)
-                 (loop (cdr lst))))))
-     (loop alist)))
+     (assoc x alist eq?)))
 
  (define map
    (lambda (f list)
@@ -137,6 +138,15 @@
              '()
              (cons (f (car p)) (go (cdr p))))))
      (go list)))
+
+ (define map2
+   (lambda (f list1 list2)
+     (define go
+       (lambda (p q)
+         (if (or (null? p) (null? q))
+             '()
+             (cons (f (car p) (car q)) (go (cdr p) (cdr q))))))
+     (go list1 list2)))
 
  (define reverse
    (lambda (lst)
@@ -156,95 +166,29 @@
              (loop (cdr lst) (+ accum 1)))))
      (loop list 0)))
 
- (define filter
-   (lambda (pred list)
-     (define loop
-       (lambda (l accum)
-         (if (null? l)
-             accum
-             (loop (cdr l)
-                   (if (pred (car l))
-                       (cons (car l) accum)
-                       accum)))))
-     (reverse (loop list '()))))
-
- (define any
-   (lambda (pred lst)
-     (define loop
-       (lambda (elem)
-         (if (null? elem)
-             #f
-             (let ((value (pred (car elem))))
-               (if value value (loop (cdr elem)))))))
-     (loop lst)))
-
  (define error
    (lambda (message . irritants)
      (raise (make-error message irritants))))
 
- (define no-binding (list 'no-binding))
-
- (define empty-binding?
-   (lambda (binding)
-     (eq? binding no-binding)))
-
- (define merge-level!
-   (lambda (x-alist y-alist)
+ (define reverse-improper-syntax-list
+   (lambda (lst)
      (define loop
-       (lambda (x)
-         (if (null? x)
-             y-alist
-             (let ((x-binding (car x)))
-               (cond ((assq (car x-binding) y-alist)
-                      => (lambda (y-binding)
-                           ;; When merging the first level, the binding will be a
-                           ;; scalar value. In this case we merge scalar value with
-                           ;; the empty binding to the scalar value, and disallow
-                           ;; merging with non-empty lists.
-                           (cond ((and (not (empty-binding? (cdr x-binding)))
-                                       (not (empty-binding? (cdr y-binding))))
-                                  (set-cdr! y-binding (append (cdr x-binding) (cdr y-binding)))
-                                  (loop (cdr x)))
-                                 ((and (empty-binding? (cdr x-binding)) (not (empty-binding? (cdr y-binding))))
-                                  (loop (cdr x)))
-                                 ((and (empty-binding? (cdr y-binding)) (not (empty-binding? (cdr x-binding))))
-                                  (set-cdr! y-binding (cdr x-binding))
-                                  (loop (cdr x)))
-                                 (else
-                                  (error "Merging different levels" x-binding y-binding)))))
-                     (else
-                      (set! y-alist (cons (car x) y-alist))
-                      (loop (cdr x))))))))
-     (loop x-alist)))
-
- (define merge-bindings!
-   (lambda (xs ys)
-     (define loop
-       (lambda (x y accum)
-         (cond ((and (null? x) (null? y))
-                (reverse accum))
-               ((null? x)
-                (loop x (cdr y) (cons (car y) accum)))
-               ((null? y)
-                (loop (cdr x) y (cons (car x) accum)))
+       (lambda (e accum)
+         (cond ((syntax-pair? e)
+                (loop (syntax-cdr e) (cons (syntax-car e) accum)))
                (else
-                (loop (cdr x) (cdr y) (cons (merge-level! (car x) (car y)) accum))))))
-     (loop xs ys '())))
+                (cons accum e)))))
+     (loop lst '())))
 
- (define shift-binding
-   (lambda (binding)
-     (let ((key (car binding)) (value (cdr binding)))
-       (if (empty-binding? value)
-           `(,key . ())
-           `(,key . (,value))))))
+  (define syntax-pair?
+   (lambda (x)
+     (or (pair? x)
+         (and (syntax? x)
+              (pair? (syntax-expression x))))))
 
- (define shift-level
-   (lambda (level)
-     (map shift-binding level)))
-
- (define shift-bindings
-   (lambda (bindings)
-     (cons '() (map shift-level bindings))))
+ (define syntax-vector?
+   (lambda (x)
+     (and (syntax? x) (vector? (syntax-expression x)))))
 
  (define syntax-null?
    (lambda (x)
@@ -272,484 +216,375 @@
    (lambda (x)
      (syntax-cdr (syntax-cdr x))))
 
- (define unwrap-syntax
-   (lambda (x)
-     (if (syntax? x)
-         (syntax-expression x)
-         x)))
-
- (define reverse-improper-syntax-list
-   (lambda (lst)
-     (define loop
-       (lambda (e accum)
-         (cond ((syntax-pair? e)
-                (loop (syntax-cdr e) (cons (syntax-car e) accum)))
-               (else
-                (cons accum e)))))
-     (loop lst '())))
-
- (define bind
-   (lambda (value continuation)
-     (if value
-         (continuation value)
-         #f)))
-
- (define match-tail/list
-   (lambda (pattern expression ellipsis literals)
-     (let ((pattern* (reverse-improper-syntax-list pattern))
-           (expression* (reverse-improper-syntax-list expression)))
-       (bind (match-clause (cdr pattern*) (cdr expression*) ellipsis literals)
-             (lambda (tail-match)
-               (define loop
-                 (lambda (pat expr accum)
-                   (cond ((null? pat)
-                          (cons accum (length expr)))
-                         ((null? expr)
-                          #f)
-                         (else
-                          (bind (match-clause (syntax-car pat) (syntax-car expr) ellipsis literals)
-                                (lambda (m)
-                                  (loop (syntax-cdr pat) (syntax-cdr expr) (merge-bindings! accum m))))))))
-               (loop (car pattern*) (car expression*) tail-match))))))
-
- (define syntax-pair?
-   (lambda (x)
-     (or (pair? x)
-         (and (syntax? x)
-              (pair? (syntax-expression x))))))
-
- (define syntax-vector?
-   (lambda (x)
-     (and (syntax? x) (vector? (syntax-expression x)))))
-
- (define ellipsis?
-   (lambda (id ellipsis)
-     (and ellipsis
-          (syntax? id)
-          (eq? (syntax-expression id) ellipsis))))
+ (define syntax-cons
+   (lambda (stx x y)
+     (if (syntax? stx)
+         (datum->syntax stx (cons x y))
+         (cons x y))))
 
  (define underscore?
    (lambda (id)
      (and (syntax? id)
           (eq? (syntax-expression id) '_))))
 
+ (define make-match-context
+   (lambda (ellipsis literals)
+     (let ((ellipsis-is-literal? (member ellipsis literals free-identifier=?)))
+       (vector (if ellipsis-is-literal? #f (syntax->datum ellipsis))
+               literals))))
+
+ (define context-ellipsis
+   (lambda (context)
+     (vector-ref context 0)))
+
+ (define context-literals
+   (lambda (context)
+     (vector-ref context 1)))
+
+ (define ellipsis?
+   (lambda (context id)
+     (let ((ellipsis (context-ellipsis context)))
+       (and ellipsis
+            (syntax? id)
+            (eq? (syntax-expression id) ellipsis)))))
+
  (define literal?
-   (lambda (id literals)
-     (and (identifier? id)
-          (member id literals free-identifier=?))))
+   (lambda (context id)
+     (let ((literals (context-literals context)))
+       (and (identifier? id)
+            (member id literals free-identifier=?)))))
 
  (define followed-by-ellipsis?
-   (lambda (x ellipsis)
-     (and (syntax-pair? (syntax-cdr x)) (ellipsis? (syntax-cadr x) ellipsis))))
+   (lambda (context pattern)
+     (and (syntax-pair? (syntax-cdr pattern))
+          (ellipsis? context (syntax-cadr pattern)))))
 
- (define first-level-pattern-variables
-   (lambda (pattern ellipsis)
-     (cond ((underscore? pattern)
-            '())
-           ((identifier? pattern)
-            (list (syntax-expression pattern)))
-           ((syntax-pair? pattern)
-            (if (followed-by-ellipsis? pattern ellipsis)
-                (first-level-pattern-variables (syntax-cddr pattern) ellipsis)
-                (set-union (first-level-pattern-variables (syntax-car pattern) ellipsis)
-                           (first-level-pattern-variables (syntax-cdr pattern) ellipsis)
-                           eq?)))
-           ((syntax-vector? pattern)
-            (let ((v (syntax-expression pattern)))
-              (define loop
-                (lambda (i accum)
-                  (cond ((>= i (vector-length v))
-                         accum)
-                        ((and (< (+ i 1) (vector-length v))
-                              (ellipsis? (vector-ref v (+ i 1)) ellipsis))
-                         (loop (+ i 2) accum))
-                        (else
-                         (loop (+ i 1) (set-union (first-level-pattern-variables (vector-ref v i) ellipsis)
-                                                  accum
-                                                  eq?))))))
-              (loop 0 '())))
-           (else
-            '()))))
+ (define tail-after-ellipsis
+   (lambda (pattern)
+     (syntax-cddr pattern)))
 
- (define make-empty-bindings
-   (lambda (pattern ellipsis)
-     (cond ((underscore? pattern)
-            '())
-           ((identifier? pattern)
-            `(((,(syntax-expression pattern) . ,no-binding))))
-           ((syntax-pair? pattern)
-            (cond ((followed-by-ellipsis? pattern ellipsis)
-                   (merge-bindings! (shift-bindings (make-empty-bindings (syntax-car pattern) ellipsis))
-                                    (make-empty-bindings (syntax-cddr pattern) ellipsis)))
-                  (else
-                   (merge-bindings! (make-empty-bindings (syntax-car pattern) ellipsis)
-                                    (make-empty-bindings (syntax-cdr pattern) ellipsis)))))
-           ((syntax-vector? pattern)
-            (let ((v (syntax-expression pattern)))
-              (define loop
-                (lambda (i accum)
-                  (cond ((>= i (vector-length v))
-                         accum)
-                        ((and (< (+ i 1) (vector-length v))
-                              (ellipsis? (vector-ref v (+ i 1)) ellipsis))
-                         (loop (+ i 2)
-                               (merge-bindings! (shift-bindings (make-empty-bindings (vector-ref v i) ellipsis))
-                                                accum)))
-                        (else
-                         (loop (+ i 1)
-                               (merge-bindings! (make-empty-bindings (vector-ref v i) ellipsis)
-                                                accum))))))
-              (loop 0 '())))
-           (else
-            '()))))
-
- (define match-repeatedly/list
-   (lambda (pattern expression num-elems ellipsis literals)
+ (define extract-pattern-variables
+   (lambda (context pattern)
      (define loop
-       (lambda (e accum i)
-         (if (= i 0)
-             accum
-             (bind (match-clause pattern (syntax-car e) ellipsis literals)
-                   (lambda (m)
-                     (loop (syntax-cdr e) (merge-bindings! accum (shift-bindings m)) (- i 1)))))))
-     (loop expression '() num-elems)))
-
- (define match-repeatedly/vector
-   (lambda (pattern expression begin end ellipsis literals)
-     (define loop
-       (lambda (i accum)
-         (if (= i end)
-             accum
-             (bind (match-clause pattern (vector-ref expression i) ellipsis literals)
-                   (lambda (m)
-                     (loop (+ i 1) (merge-bindings! accum (shift-bindings m))))))))
-     (loop begin '())))
-
- (define match-literal
-   (lambda (pattern expression)
-     (if (and (identifier? expression)
-              (free-identifier=? pattern expression))
-         '()
-         #f)))
-
- (define match-list-followed-by-ellipsis
-   (lambda (pattern expression ellipsis literals)
-     (bind (match-tail/list (syntax-cddr pattern) expression ellipsis literals)
-           (lambda (tail-result)
-             (let ((tail-match (car tail-result))
-                   (num-unmatched (cdr tail-result)))
-               (bind (match-repeatedly/list (syntax-car pattern) expression num-unmatched ellipsis literals)
-                     (lambda (repeated-match)
-                       (merge-bindings! repeated-match tail-match))))))))
-
- (define match-plain-list
-   (lambda (pattern expression ellipsis literals)
-     (let ((car-match (match-clause (syntax-car pattern) (syntax-car expression) ellipsis literals))
-           (cdr-match (match-clause (syntax-cdr pattern) (syntax-cdr expression) ellipsis literals)))
-       (if (and car-match cdr-match)
-           (merge-bindings! car-match cdr-match)
-           #f))))
-
- (define match-list
-   (lambda (pattern expression ellipsis literals)
-     (cond ((followed-by-ellipsis? pattern ellipsis)
-            (match-list-followed-by-ellipsis pattern expression ellipsis literals))
-           ((syntax-pair? expression)
-            (match-plain-list pattern expression ellipsis literals))
-           (else #f))))
-
- (define match-vector
-   (lambda (pattern expression ellipsis literals)
-     (if (syntax-vector? expression)
-         (let ((pattern* (unwrap-syntax pattern))
-               (expression* (unwrap-syntax expression)))
-           (define loop
-             (lambda (i j accum)
-               (if (= i (vector-length pattern*))
-                   accum
-                   (let ((next (+ i 1)))
-                     (cond ((and (< next (vector-length pattern*)) (ellipsis? (vector-ref pattern* next) ellipsis))
-                            (let ((repeated-length (+ 1 (- (vector-length expression*) (vector-length pattern*)))))
-                              (let ((repeated-end (+ j repeated-length 1)))
-                                (bind (match-repeatedly/vector (vector-ref pattern* i) expression* j repeated-end ellipsis literals)
-                                      (lambda (repeated-match)
-                                        (loop (+ next 1) repeated-end (merge-bindings! accum repeated-match)))))))
-                           ((>= j (vector-length expression*))
-                            #f)
-                           (else
-                            (bind (match-clause (vector-ref pattern* i) (vector-ref expression* j) ellipsis literals)
-                                  (lambda (m)
-                                    (loop next (+ j 1) (merge-bindings! accum m))))))))))
-           (loop 0 0 '()))
-         #f)))
-
- (define match-clause
-   (lambda (pattern expression ellipsis literals)
-     (cond ((literal? pattern literals)
-            (match-literal pattern expression))
-           ((underscore? pattern)
-            '())
-           ((identifier? pattern)
-            `(((,(syntax-expression pattern) . ,expression))))
-           ((syntax-pair? pattern)
-            (match-list pattern expression ellipsis literals))
-           ((syntax-vector? pattern)
-            (match-vector pattern expression ellipsis literals))
-           ((equal? (unwrap-syntax pattern) (unwrap-syntax expression))
-            '())
-           (else
-            #f))))
-
- (define match-clause*
-   (lambda (pattern expression ellipsis-stx literals-stx)
-     (let ((ellipsis (syntax->datum ellipsis-stx)))
-       (bind (match-clause pattern expression ellipsis (syntax->list literals-stx))
-             (lambda (bindings)
-               (merge-bindings! bindings (make-empty-bindings pattern ellipsis)))))))
-
- (define set-union
-   (lambda (x y compare)
-     (define loop
-       (lambda (elem accum)
-         (cond ((null? elem) accum)
-               ((member (car elem) accum compare)
-                (loop (cdr elem) accum))
+       (lambda (pattern level)
+         (cond ((syntax-null? pattern)
+                '())
+               ((literal? context pattern)
+                '())
+               ((underscore? pattern)
+                '())
+               ((ellipsis? context pattern)
+                '())
+               ((identifier? pattern)
+                (list (cons pattern level)))
+               ((syntax-pair? pattern)
+                (if (followed-by-ellipsis? context pattern)
+                    (append (loop (syntax-car pattern) (+ level 1))
+                            (loop (syntax-cddr pattern) level))
+                    (append (loop (syntax-car pattern) level)
+                            (loop (syntax-cdr pattern) level))))
+               ((vector? (syntax-expression pattern))
+                (loop (vector->list (syntax-expression pattern)) level))
                (else
-                (loop (cdr elem) (cons (car elem) accum))))))
-     (loop y x)))
+                '()))))
+     (loop pattern 0)))
 
- (define all-pattern-ids
-   (lambda (pattern ellipsis literals)
-     (cond ((null? pattern)
-            '())
-           ((literal? pattern literals)
-            '())
-           ((and (identifier? pattern) (free-identifier=? pattern #'_))
-            '())
-           ((ellipsis? pattern ellipsis)
-            '())
+ (define extract-pattern-variable-ids
+   (lambda (context pattern)
+     (map car (extract-pattern-variables context pattern))))
+
+ (define <no-match> (list 'no-match))
+
+ (define emit-literal-matcher
+   (lambda (literal input body)
+     #`(if (and (identifier? #,input) (free-identifier=? #,input #'#,literal))
+           #,body
+           <no-match>)))
+
+ (define emit-identifier-matcher
+   (lambda (pattern input body)
+     #`(let ((#,pattern #,input))
+         #,body)))
+
+ (define emit-null-matcher
+   (lambda (input body)
+     #`(if (syntax-null? #,input)
+           #,body
+           <no-match>)))
+
+ (define emit-plain-pair-matcher
+   (lambda (context pattern input body end-matcher)
+     (let ((head (gensym "head")) (tail (gensym "tail")))
+       #`(if (syntax-pair? #,input)
+             (let ((#,head (syntax-car #,input))
+                   (#,tail (syntax-cdr #,input)))
+               #,(emit-matcher context
+                               (syntax-car pattern) head
+                               (emit-matcher context (syntax-cdr pattern) tail body end-matcher)
+                               end-matcher))
+             <no-match>))))
+
+ (define gensym
+   (let ((counter 0))
+     (lambda (name)
+       (if (identifier? name)
+           (gensym (symbol->string (syntax->datum name)))
+           (let ((new-name (string-append name "-" (number->string counter))))
+             (set! counter (+ counter 1))
+             (datum->syntax #'here (string->symbol new-name)))))))
+
+ (define emit-repeated-pattern-matcher
+   (lambda (context repeated-pattern input body)
+     (let ((vars (extract-pattern-variable-ids context repeated-pattern)))
+       (let ((vars* (map gensym vars))
+             (input* (gensym "input"))
+             (recurse (gensym "recurse")))
+         #`(letrec* ((#,recurse
+                      (lambda (#,input* #,@vars*)
+                        (if (syntax-null? #,input*)
+                            (let #,(map2 (lambda (v v*) #`(#,v (reverse #,v*))) vars vars*)
+                              #,body)
+                            (if (syntax-pair? #,input*)
+                                (let ((elem (syntax-car #,input*)))
+                                  #,(emit-matcher context repeated-pattern #'elem
+                                                  #`(#,recurse (syntax-cdr #,input*)
+                                                               #,@(map2 (lambda (v v*) #`(cons #,v #,v*)) vars vars*))
+                                                  emit-null-matcher))
+                                <no-match>)))))
+             (#,recurse #,input #,@(map (lambda (_) '()) vars)))))))
+
+ (define emit-ellipsis-tail-matcher
+   (lambda (context pattern input emit-repeated-matcher)
+     (if (syntax-null? pattern)
+         (emit-repeated-matcher input)
+         (let ((reversed-pattern (reverse-improper-syntax-list pattern)))
+           #`(let ((reversed-input (reverse-improper-syntax-list #,input)))
+               #,(emit-matcher context (cdr reversed-pattern) #'(cdr reversed-input)
+                               (emit-matcher context (car reversed-pattern) #'(car reversed-input)
+                                             #'(syntax-error "This should not be emitted")
+                                             (lambda (input body)
+                                               (emit-repeated-matcher #`(reverse #,input))))
+                               emit-null-matcher))))))
+
+ (define emit-ellipsis-pair-matcher
+   (lambda (context pattern input body)
+     (let ((repeated-pattern (syntax-car pattern))
+           (tail-pattern (syntax-cddr pattern)))
+       (emit-ellipsis-tail-matcher context tail-pattern input
+                                   (lambda (input)
+                                     (emit-repeated-pattern-matcher context repeated-pattern input body))))))
+
+ (define emit-pair-matcher
+   (lambda (context pattern input body end-matcher)
+     (if (followed-by-ellipsis? context pattern)
+         (emit-ellipsis-pair-matcher context pattern input body)
+         (emit-plain-pair-matcher context pattern input body end-matcher))))
+
+ (define emit-vector-matcher
+   (lambda (context pattern input body end-matcher)
+     (let ((pattern-list (vector->list pattern)))
+       #`(if (syntax-vector? #,input)
+             (let ((lst (vector->list (syntax-expression #,input))))
+               #,(emit-matcher context pattern-list #'lst body end-matcher))
+             <no-match>))))
+
+ (define emit-constant-matcher
+   (lambda (pattern input body)
+     #`(if (equal? #,(syntax-expression pattern) (syntax-expression #,input))
+           #,body
+           <no-match>)))
+
+ (define emit-matcher
+   (lambda (context pattern input body end-matcher)
+     (cond ((literal? context pattern)
+            (emit-literal-matcher pattern input body))
+           ((underscore? pattern)
+            body)
            ((identifier? pattern)
-            (list pattern))
+            (emit-identifier-matcher pattern input body))
+           ((syntax-null? pattern)
+            (end-matcher input body))
            ((syntax-pair? pattern)
-            (set-union (all-pattern-ids (syntax-car pattern) ellipsis literals)
-                       (all-pattern-ids (syntax-cdr pattern) ellipsis literals)
-                       bound-identifier=?))
-           ((vector? (syntax-expression pattern))
-            (let ((v (syntax-expression pattern)))
-              (define loop
-                (lambda (i accum)
-                  (cond ((>= i (vector-length v))
-                         accum)
-                        ((ellipsis? (vector-ref v i) ellipsis)
-                         (loop (+ i 1) accum))
-                        (else
-                         (loop (+ i 1) (set-union accum
-                                                  (all-pattern-ids (vector-ref v i) ellipsis literals)
-                                                  bound-identifier=?))))))
-              (loop 0 '())))
+            (emit-pair-matcher context pattern input body end-matcher))
+           ((syntax-vector? pattern)
+            (emit-vector-matcher context (syntax-expression pattern) input body end-matcher))
            (else
-            '()))))
+            (emit-constant-matcher pattern input body)))))
 
- (define all-template-variables
-   (lambda (template ellipsis literals)
-     (cond ((null? template)
-            '())
-           ((literal? template literals)
-            '())
-           ((ellipsis? template ellipsis)
-            '())
-           ((identifier? template)
-            (list (syntax-expression template)))
-           ((syntax-pair? template)
-            (set-union (all-template-variables (syntax-car template) ellipsis literals)
-                       (all-template-variables (syntax-cdr template) ellipsis literals)
-                       eq?))
-           ((syntax-vector? template)
-            (let ((v (syntax-expression template)))
-              (define loop
-                (lambda (i accum)
-                  (cond ((>= i (vector-length v))
-                         accum)
-                        ((ellipsis? (vector-ref v i) ellipsis)
-                         (loop (+ i 1) accum))
-                        (else
-                         (loop (+ i 1) (set-union accum
-                                                  (all-template-variables (vector-ref v i) ellipsis literals)
-                                                  eq?))))))
-              (loop 0 '())))
-           (else
-            '()))))
+ (define variable-level
+   (lambda (id variable-levels)
+     (let ((apair (assoc id variable-levels free-identifier=?)))
+       (if apair (cdr apair) #f))))
 
- (define flatten-bindings
-   (lambda (bindings)
+ (define check-level*!
+   (lambda (expected-level actual-level id)
+     (if (> expected-level actual-level)
+         (error "Not enough ellipses following template" id)
+         (if (< expected-level actual-level)
+             (error "Too many ellipses following template" id)))))
+
+ (define check-level!
+   (lambda (id variable-levels level)
+     (let ((expected-level (variable-level id variable-levels)))
+       (if expected-level
+           (check-level*! expected-level level id)))))
+
+ (define quasisyntax* #'quasisyntax)
+ (define unsyntax* #'unsyntax)
+ (define unsyntax-splicing* #'unsyntax-splicing)
+
+ (define make-splice-context
+   (lambda (match-context variable-levels)
+     (vector (context-ellipsis match-context)
+             (context-literals match-context)
+             variable-levels
+             #t)))
+
+ (define context-variable-levels
+   (lambda (context)
+     (vector-ref context 2)))
+
+ (define context-ellipsis-enabled?
+   (lambda (context)
+     (vector-ref context 3)))
+
+ (define make-splice-context-with-disabled-ellipses
+   (lambda (context)
+     (vector (context-ellipsis context)
+             (context-literals context)
+             (context-variable-levels context)
+             #f)))
+
+ (define splice-identifier-template
+   (lambda (context id level)
+     (let ((expected-level (variable-level id (context-variable-levels context))))
+       (if expected-level
+           (begin
+             (check-level*! expected-level level id)
+             #`(#,unsyntax* #,id))
+           id))))
+
+ (define split-on-ellipses
+   (lambda (context template)
      (define loop
-       (lambda (accum level)
-         (if (null? level)
-             accum
-             (letrec* ((inner-loop
-                        (lambda (accum binding)
-                          (if (null? binding)
-                              (loop accum (cdr level))
-                              (inner-loop (cons (car binding) accum) (cdr binding))))))
-               (inner-loop accum (car level))))))
-     (loop '() bindings)))
+       (lambda (tail num-ellipses)
+         (if (and (context-ellipsis-enabled? context)
+                  (syntax-pair? tail)
+                  (ellipsis? context (syntax-car tail)))
+             (loop (syntax-cdr tail) (+ num-ellipses 1))
+             (cons tail num-ellipses))))
+     (loop (syntax-cdr template) 0)))
 
- (define make-bindings
-   (lambda (pattern match ellipsis literals)
-     (let ((ids (all-pattern-ids pattern (syntax->datum ellipsis) (syntax->list literals))))
+ (define splice-repeated-simple-template
+   (lambda (context template level)
+     (check-level! template (context-variable-levels context) level)
+     #`(#,unsyntax-splicing* #,template)))
+
+ (define flatten
+   (lambda (lol)
+     (define loop
+       (lambda (lst result)
+         (if (syntax-null? lst)
+             result
+             (loop (syntax-cdr lst) (append result (syntax->list (syntax-car lst)))))))
+     (loop lol '())))
+
+ (define extract-template-variables
+   (lambda (context template)
+     (let ((variable-levels (context-variable-levels context)))
        (define loop
-         (lambda (accum id)
-           (if (null? id)
-               accum
-               (loop #`((#,(car id) (cdr (assq '#,(syntax-expression (car id)) #,match))) . #,accum)
-                     (cdr id)))))
-       (loop '() ids))))
-
- (define filter-match
-   (lambda (match variables)
-     (map (lambda (level)
-            (filter (lambda (binding)
-                      (memq (car binding) variables))
-                    level))
-          match)))
-
- (define match-level-null?
-   (lambda (level)
-     (any (lambda (binding)
-            (null? (cdr binding)))
-          level)))
-
- (define match-null?
-   (lambda (match)
-     (any match-level-null? match)))
-
- (define match-car
-   (lambda (match)
-     (map (lambda (level)
-            (map (lambda (binding)
-                   (cons (car binding) (cadr binding)))
-                 level))
-          match)))
-
- (define match-cdr
-   (lambda (match)
-     (map (lambda (level)
-            (map (lambda (binding)
-                   (cons (car binding) (cddr binding)))
-                 level))
-          match)))
-
- (define expand-repeatedly/list
-   (lambda (template match current-level variable-levels ellipsis literals)
-     (let ((vars (all-template-variables template ellipsis literals)))
-       (define loop
-         (lambda (m accum)
-           (cond ((match-null? m)
-                  (reverse accum))
+         (lambda (template)
+           (cond ((syntax-null? template)
+                  '())
+                 ((and (identifier? template) (assoc template variable-levels free-identifier=?))
+                  (list template))
+                 ((syntax-pair? template)
+                  (append (loop (syntax-car template)) (loop (syntax-cdr template))))
+                 ((syntax-vector? template)
+                  (loop (vector->list (syntax-expression template))))
                  (else
-                  (loop (match-cdr m)
-                        (cons (expand-template template (match-car m) current-level variable-levels ellipsis literals)
-                              accum))))))
-       (loop (filter-match match vars) '()))))
+                  '()))))
+       (loop template))))
 
- (define wrap-expansion
-   (lambda (template expansion)
-     (if (syntax? template)
-         (datum->syntax template expansion)
-         expansion)))
+ (define splice-repeated-complex-template
+   (lambda (context template level)
+     (let ((template-variables (extract-template-variables context template))
+           (loop (gensym "loop")))
+       #`(#,unsyntax-splicing*
+          (letrec* ((#,loop (lambda #,template-variables
+                              (if (or #,@(map (lambda (v) #`(null? #,v)) template-variables))
+                                  '()
+                                  (cons (let #,(map (lambda (v) #`(#,v (car #,v))) template-variables)
+                                          (#,quasisyntax*
+                                           #,(splice-template context template level)))
+                                        (#,loop #,@(map (lambda (v) #`(cdr #,v)) template-variables)))))))
+            (#,loop #,@template-variables))))))
 
- (define car*
-   (lambda (x)
-     (if (null? x)
-         '()
-         (car x))))
+ (define flatten-spliced-template
+   (lambda (spliced-template count)
+     (if (= count 0)
+         spliced-template
+         (flatten-spliced-template #`(#,unsyntax-splicing* (flatten (#,quasisyntax* #,spliced-template))) (- count 1)))))
 
- (define cdr*
-   (lambda (x)
-     (if (null? x)
-         '()
-         (cdr x))))
+ (define splice-template-followed-by-multiple-ellipses
+   (lambda (context template level num-ellipses)
+     (let ((spliced-template (splice-repeated-complex-template context template (+ level num-ellipses))))
+       (flatten-spliced-template spliced-template (- num-ellipses 1)))))
 
- (define find-binding-at-current-match-level
-   (lambda (identifier match)
-     (assq identifier (car* match))))
+ (define simple-template?
+   (lambda (template num-ellipses)
+     (and (identifier? template) (= num-ellipses 1))))
 
- (define expand-template
-   (lambda (template match current-level variable-levels ellipsis literals)
-     (cond ((syntax-pair? template)
-            (if (ellipsis? (syntax-car template) ellipsis)
-                (expand-template (syntax-cadr template) match variable-levels #f literals)
-                (wrap-expansion template
-                                (if (followed-by-ellipsis? template ellipsis)
-                                    (append (expand-repeatedly/list (syntax-car template)
-                                                                    (cdr* match)
-                                                                    (+ current-level 1)
-                                                                    variable-levels
-                                                                    ellipsis
-                                                                    literals)
-                                            (expand-template (syntax-cddr template)
-                                                             match
-                                                             current-level
-                                                             variable-levels
-                                                             ellipsis
-                                                             literals))
-                                    (cons (expand-template (syntax-car template)
-                                                           match
-                                                           current-level
-                                                           variable-levels
-                                                           ellipsis
-                                                           literals)
-                                          (expand-template (syntax-cdr template)
-                                                           match
-                                                           current-level
-                                                           variable-levels
-                                                           ellipsis
-                                                           literals))))))
+ (define splice-repeated-template
+   (lambda (context template level num-ellipses)
+     (if (simple-template? template num-ellipses)
+         (splice-repeated-simple-template context template (+ level 1))
+         (splice-template-followed-by-multiple-ellipses context template level num-ellipses))))
+
+ (define splice-list-template
+   (lambda (context template level)
+     (define loop
+       (lambda (template)
+         (cond ((null? template)
+                '())
+               ((syntax-pair? template)
+                (let ((tail&num-ellipses (split-on-ellipses context template)))
+                  (let ((tail (car tail&num-ellipses)) (num-ellipses (cdr tail&num-ellipses)))
+                    (syntax-cons template
+                                 (if (= num-ellipses 0)
+                                     (splice-template context (syntax-car template) level)
+                                     (splice-repeated-template context (syntax-car template) level num-ellipses))
+                                 (loop tail)))))
+               (else
+                (splice-template context template level)))))
+     (loop template)))
+
+ (define handle-list-template
+   (lambda (context template level)
+     (if (and (context-ellipsis-enabled? context) (ellipsis? context (syntax-car template)))
+         (splice-template (make-splice-context-with-disabled-ellipses context)
+                          (syntax-cadr template) level)
+         (splice-list-template context template level))))
+
+ (define splice-vector-template
+   (lambda (context template level)
+     (let ((v (syntax-expression template)))
+       #`(#,unsyntax* (list->vector (syntax->list (#,quasisyntax* #,(splice-template context (vector->list v) level))))))))
+
+ (define splice-template
+   (lambda (context template level)
+     (cond ((identifier? template)
+            (splice-identifier-template context template level))
+           ((syntax-pair? template)
+            (handle-list-template context template level))
            ((syntax-vector? template)
-            (wrap-expansion template
-                            (list->vector (expand-template (vector->list (syntax-expression template))
-                                                           match
-                                                           variable-levels
-                                                           ellipsis
-                                                           literals))))
-           ((identifier? template)
-            (let ((id (syntax-expression template)))
-              (cond ((assq id variable-levels)
-                     => (lambda (variable-level)
-                          (if (> (cdr variable-level) current-level)
-                            (error "Not enough ellipses following template" id))
-                          (if (< (cdr variable-level) current-level)
-                            (error "Too many ellipses following template" id))
-                          (cdr (assq id (car* match)))))
-                    (else template))))
-           (else template))))
+            (splice-vector-template context template level))
+           (else
+            template))))
 
- (define get-variable-names
-   (lambda (level)
-     (map car level)))
-
- (define assign-level-to-variables
-   (lambda (level variables)
-     (map (lambda (v) (cons v level)) variables)))
-
- (define make-variable-levels
-   (lambda (match)
-     (define go
-       (lambda (level-index level)
-         (if (null? level)
-             '()
-             (append (assign-level-to-variables level-index (get-variable-names (car level)))
-                     (go (+ level-index 1) (cdr level))))))
-     (go 0 match)))
-
- (define expand-template*
-   (lambda (template match ellipsis literals-stx)
-     (expand-template template
-                      match
-                      0
-                      (make-variable-levels match)
-                      (syntax->datum ellipsis)
-                      (syntax->list literals-stx)))))
+ (define emit-splicer
+   (lambda (context template)
+     (splice-template context template 0))))
 
 (define-syntax syntax-match*
   (lambda (stx)
@@ -758,44 +593,47 @@
             (ellipsis (caddr form))
             (literals (cadddr form))
             (clauses (cddddr form)))
-        #`(let ((value #,value-expr))
-            (cond
-             #,@(map (lambda (clause)
-                       (let ((pattern (syntax-car clause))
-                             (body (syntax-cdr clause)))
-                         #`((match-clause* #'#,pattern value #'#,ellipsis #'#,literals)
-                            => (lambda (m)
-                                 (let ((bindings (flatten-bindings m)))
-                                   (let #,(make-bindings pattern #'bindings ellipsis literals)
-                                     #,@body))))))
-                     clauses)))))))
-
+        (let ((context (make-match-context ellipsis (syntax->list literals))))
+          (define emit-matchers
+            (lambda (clauses input)
+              (if (syntax-null? clauses)
+                  #'(error "No matching clause")
+                  (let ((clause (syntax-car clauses)))
+                    (let ((pattern (syntax-car clause))
+                          (body (syntax-cadr clause)))
+                      #`(let ((clause-result #,(emit-matcher context pattern input body emit-null-matcher)))
+                          (if (eq? clause-result <no-match>)
+                              #,(emit-matchers (syntax-cdr clauses) input)
+                              clause-result)))))))
+          #`(let ((value #,value-expr))
+              #,(emit-matchers clauses #'value)))))))
+ 
 (define-syntax syntax-match
   (lambda (stx)
     (syntax-match* stx ... ()
       ((_ value (literals ...) clauses ...)
-       #`(syntax-match* #,value ... #,literals
-            #,@clauses))
+       #`(syntax-match* #,value ... #,literals #,@clauses))
+
       ((_ value ellipsis (literals ...) clauses ...)
-       #`(syntax-match* #,value #,ellipsis #,literals
-            #,@clauses)))))
+       #`(syntax-match* #,value #,ellipsis #,literals #,@clauses)))))
 
 (define-syntax syntax-rules
   (lambda (stx)
     (syntax-match stx ()
       ((_ (literals ...) clauses ...)
        #`(syntax-rules ... #,literals #,@clauses))
+
       ((_ ellipsis (literals ...) (patterns templates) ...)
-       #`(lambda (value)
-           (define loop
-             (lambda (pattern template)
-               (if (syntax-null? pattern)
-                   #'(syntax-error "No matching syntax-rules clause")
-                   (let ((match (match-clause* (syntax-cdr (syntax-car pattern)) (syntax-cdr value)
-                                               #'#,ellipsis #'#,literals)))
-                     (if match
-                         (expand-template* (syntax-car template) match #'#,ellipsis #'#,literals)
-                         (loop (syntax-cdr pattern) (syntax-cdr template)))))))
-           (loop #'#,patterns #'#,templates)))
-      (_
-       #'(syntax-error "Invalid syntax-rules syntax")))))
+       (let ((match-context (make-match-context ellipsis (syntax->list literals))))
+         (define make-clauses
+           (lambda (patterns templates)
+             (if (null? patterns)
+                 #'()
+                 (let ((pattern (syntax-cdr (car patterns))) (template (car templates)))
+                   (let ((context (make-splice-context match-context
+                                                       (extract-pattern-variables match-context pattern))))
+                     (let ((splicer (emit-splicer context template)))
+                       #`((#,pattern (#,quasisyntax* #,splicer))
+                          . #,(make-clauses (cdr patterns) (cdr templates)))))))))
+         #`(lambda (stx)
+             (syntax-match (syntax-cdr stx) #,ellipsis #,literals #,@(make-clauses patterns templates))))))))
