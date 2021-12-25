@@ -134,6 +134,16 @@ format_scope_set(scope_set const& set) {
   return result;
 }
 
+void
+define(free_store& fs, ptr<syntax> id, std::shared_ptr<variable> value) {
+  id->scopes().back()->add(fs, id, std::move(value));
+}
+
+void
+define(free_store& fs, ptr<syntax> id, ptr<transformer> value) {
+  id->scopes().back()->add(fs, id, value);
+}
+
 std::optional<scope::value_type>
 lookup(ptr<symbol> name, scope_set const& envs) {
   std::optional<scope::value_type> result;

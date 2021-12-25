@@ -350,3 +350,19 @@ TEST_F(macros, internal_definition_shadowing_macro_introduced_binding) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
+
+TEST_F(macros, transformer_referring_to_name_produced_by_another_transformer) {
+  auto result = eval(R"(
+    (let-syntax ((jabberwocky
+                   (lambda (stx)
+                     (let ((name (cadr (syntax->list stx))))
+                       #`(begin
+                           (define march-hare 42)
+                           (define-syntax #,name
+                             (lambda (stx)
+                               #'march-hare)))))))
+      (jabberwocky mad-hatter)
+      (mad-hatter))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 42);
+}

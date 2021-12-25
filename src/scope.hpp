@@ -79,6 +79,12 @@ private:
   is_redefinition(ptr<syntax>, value_type const& intended_value) const;
 };
 
+void
+define(free_store&, ptr<syntax> id, std::shared_ptr<variable>);
+
+void
+define(free_store&, ptr<syntax> id, ptr<transformer>);
+
 std::optional<scope::value_type>
 lookup(ptr<symbol> id, scope_set const& envs);
 

@@ -379,7 +379,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
 
         auto transformer_proc = eval_transformer(pc, expect<syntax>(caddr(assume<pair>(p)))); // GC
         auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
-        outside_scope->add(pc.ctx.store, name.get(), transformer);
+        define(pc.ctx.store, name.get(), transformer);
 
         continue;
       }
@@ -396,7 +396,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
         result.internal_variable_defs.emplace_back(body_content::internal_variable{track(pc.ctx, id),
                                                                                    track(pc.ctx, init),
                                                                                    var});
-        outside_scope->add(pc.ctx.store, id, var);
+        define(pc.ctx.store, id, var);
         internal_vars.emplace_back(std::move(var));
 
         continue;
@@ -535,7 +535,7 @@ parse_let(parsing_context& pc, ptr<syntax> stx_) {
   for (definition_pair const& dp : definitions) {
     add_scope(pc.ctx.store, dp.id.get(), subscope.get());
     auto var = std::make_shared<variable>(identifier_name(dp.id.get()));
-    subscope->add(pc.ctx.store, dp.id.get(), var);
+    define(pc.ctx.store, dp.id.get(), var);
 
     definition_exprs.emplace_back(dp.id, std::move(var), parse(pc, dp.expression.get()));
   }
@@ -561,7 +561,7 @@ parse_letrec_star(parsing_context& pc, ptr<syntax> stx) {
   for (definition_pair const& dp : definitions) {
     add_scope(pc.ctx.store, dp.id.get(), subscope.get());
     auto var = std::make_shared<variable>(identifier_name(dp.id.get()));
-    subscope->add(pc.ctx.store, dp.id.get(), var);
+    define(pc.ctx.store, dp.id.get(), var);
 
     variables.push_back(var);
     auto void_expr = make_expression<literal_expression>(pc.ctx.constants->void_);
@@ -603,7 +603,7 @@ parse_let_syntax(parsing_context& pc, ptr<syntax> stx) {
 
     auto transformer_proc = eval_transformer(pc, dp.expression.get()); // GC
     auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
-    subscope->add(pc.ctx.store, dp.id.get(), transformer);
+    define(pc.ctx.store, dp.id.get(), transformer);
   }
 
   add_scope(pc.ctx.store, body.get(), subscope.get());
@@ -628,7 +628,7 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
     add_scope(pc.ctx.store, dp.expression.get(), subscope.get());
     auto transformer_proc = eval_transformer(pc, dp.expression.get()); // GC
     auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
-    subscope->add(pc.ctx.store, dp.id.get(), transformer);
+    define(pc.ctx.store, dp.id.get(), transformer);
   }
 
   add_scope(pc.ctx.store, body.get(), subscope.get());
@@ -659,7 +659,7 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
 
       auto var = std::make_shared<variable>(identifier_name(id));
       parameters.push_back(var);
-      subscope->add(pc.ctx.store, id, std::move(var));
+      define(pc.ctx.store, id, std::move(var));
 
       param_names = cdr(param);
     }
@@ -670,7 +670,7 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
 
       auto var = std::make_shared<variable>(identifier_name(name));
       parameters.push_back(var);
-      subscope->add(pc.ctx.store, name, std::move(var));
+      define(pc.ctx.store, name, std::move(var));
       break;
     }
     else
@@ -1523,7 +1523,7 @@ expand_top_level(parsing_context& pc, module_& m, protomodule const& pm) {
 
           auto transformer_proc = eval_transformer(pc, expect<syntax>(caddr(p))); // GC
           auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
-          m.scope()->add(pc.ctx.store, name.get(), transformer);
+          define(pc.ctx.store, name.get(), transformer);
 
           continue;
         }
@@ -1535,7 +1535,7 @@ expand_top_level(parsing_context& pc, module_& m, protomodule const& pm) {
           remove_use_site_scopes(name, pc.use_site_scopes.back());
 
           auto index = pc.ctx.add_top_level(pc.ctx.constants->void_.get(), identifier_name(name));
-          m.scope()->add(pc.ctx.store, name, std::make_shared<variable>(identifier_name(name), index));
+          define(pc.ctx.store, name, std::make_shared<variable>(identifier_name(name), index));
         }
         else if (form == pc.ctx.constants->begin.get()) {
           expand_begin(pc, p, stack);
