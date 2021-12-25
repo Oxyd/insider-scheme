@@ -113,23 +113,28 @@ is_in_scope(parsing_context& pc, std::shared_ptr<variable> const& var) {
 }
 
 static std::shared_ptr<variable>
+lookup_variable_binding(parsing_context& pc, ptr<syntax> id) {
+  if (auto binding = lookup(id))
+    if (auto var = std::get_if<std::shared_ptr<variable>>(&*binding))
+      return *var;
+
+  return {};
+}
+
+static std::shared_ptr<variable>
 lookup_variable(parsing_context& pc, ptr<syntax> id) {
-  if (auto binding = lookup(id)) {
-    if (auto var = std::get_if<std::shared_ptr<variable>>(&*binding)) {
-      if (is_in_scope(pc, *var))
-        return *var;
-      else
-        throw make_syntax_error(id, "{}: Not in scope", identifier_name(id));
-    } else
-      return {};
-  }
+  if (auto var = lookup_variable_binding(pc, id))
+    if (is_in_scope(pc, var))
+      return var;
+    else
+      throw make_syntax_error(id, "{}: Not in scope", identifier_name(id));
 
   return {};
 }
 
 static ptr<core_form_type>
 lookup_core(parsing_context& pc, ptr<syntax> id) {
-  auto var = lookup_variable(pc, id);
+  auto var = lookup_variable_binding(pc, id);
   if (!var || !var->global)
     return {};  // Core forms are never defined in a local scope.
 
