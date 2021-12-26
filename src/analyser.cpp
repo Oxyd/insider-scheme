@@ -123,11 +123,12 @@ lookup_variable_binding(ptr<syntax> id) {
 
 static std::shared_ptr<variable>
 lookup_variable(parsing_context& pc, ptr<syntax> id) {
-  if (auto var = lookup_variable_binding(id))
+  if (auto var = lookup_variable_binding(id)) {
     if (is_in_scope(pc, var))
       return var;
     else
       throw make_syntax_error(id, "{}: Not in scope", identifier_name(id));
+  }
 
   return {};
 }
