@@ -129,18 +129,18 @@ TEST_F(io, read_verbatim_symbol) {
 }
 
 TEST_F(io, read_char) {
-  EXPECT_EQ(expect<char32_t>(read(R"(#\a)")), 'a');
-  EXPECT_EQ(expect<char32_t>(read(R"(#\A)")), 'A');
-  EXPECT_EQ(expect<char32_t>(read(R"(#\4)")), '4');
-  EXPECT_EQ(expect<char32_t>(read(R"(#\\)")), '\\');
-  EXPECT_EQ(expect<char32_t>(read(R"(#\()")), '(');
-  EXPECT_EQ(expect<char32_t>(read(R"(#\ )")), ' ');
-  EXPECT_EQ(expect<char32_t>(read(R"(#\space)")), ' ');
-  EXPECT_EQ(expect<char32_t>(read(R"(#\x63)")), 'c');
-  EXPECT_EQ(expect<char32_t>(read(R"(#\x6d)")), 'm');
-  EXPECT_EQ(expect<char32_t>(read(R"(#\x6D)")), 'm');
-  EXPECT_EQ(expect<char32_t>(read(R"(#\x4d)")), 'M');
-  EXPECT_EQ(expect<char32_t>(read(R"(#\x)")), 'x');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\a)")), U'a');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\A)")), U'A');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\4)")), U'4');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\\)")), U'\\');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\()")), U'(');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\ )")), U' ');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\space)")), U' ');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\x63)")), U'c');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\x6d)")), U'm');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\x6D)")), U'm');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\x4d)")), U'M');
+  EXPECT_EQ(expect<char32_t>(read(R"(#\x)")), U'x');
   EXPECT_EQ(expect<char32_t>(read(R"(#\ž)")), U'ž');
   EXPECT_EQ(expect<char32_t>(read(R"(#\x17e)")), U'ž');
 }
@@ -226,7 +226,7 @@ TEST_F(io, read_block_comment) {
 TEST_F(io, case_folding) {
   EXPECT_TRUE(equal(read("#!fold-case fOO"), read("foo")));
   EXPECT_TRUE(equal(read("(#!fold-case FOO #!no-fold-case BAR)"), read("(foo BAR)")));
-  EXPECT_EQ(expect<char32_t>(read(R"(#!fold-case #\NEWLINE)")), '\n');
+  EXPECT_EQ(expect<char32_t>(read(R"(#!fold-case #\NEWLINE)")), U'\n');
 }
 
 static std::string

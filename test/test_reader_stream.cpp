@@ -21,24 +21,24 @@ TEST_F(reader_stream_fixture, can_read_character_from_port) {
 
 TEST_F(reader_stream_fixture, location_updates_after_read) {
   auto s = make("abc");
-  EXPECT_EQ(s.location().column, 1);
+  EXPECT_EQ(s.location().column, 1u);
   s.read();
-  EXPECT_EQ(s.location().column, 2);
+  EXPECT_EQ(s.location().column, 2u);
   s.read();
-  EXPECT_EQ(s.location().column, 3);
+  EXPECT_EQ(s.location().column, 3u);
 }
 
 TEST_F(reader_stream_fixture, location_updates_after_reading_newline) {
   auto s = make("ab\ncd");
-  EXPECT_EQ(s.location().line, 1);
+  EXPECT_EQ(s.location().line, 1u);
   s.read();
-  EXPECT_EQ(s.location().line, 1);
+  EXPECT_EQ(s.location().line, 1u);
   s.read();
-  EXPECT_EQ(s.location().line, 1);
+  EXPECT_EQ(s.location().line, 1u);
   s.read();
-  EXPECT_EQ(s.location().line, 2);
+  EXPECT_EQ(s.location().line, 2u);
   s.read();
-  EXPECT_EQ(s.location().line, 2);
+  EXPECT_EQ(s.location().line, 2u);
 }
 
 TEST_F(reader_stream_fixture, checkpoint_reverts_to_previous_state_when_not_committed) {
@@ -71,13 +71,13 @@ TEST_F(reader_stream_fixture, checkpoint_does_not_revert_when_committed) {
 TEST_F(reader_stream_fixture, location_is_correct_after_rollback) {
   auto s = make("abcd");
   s.read();
-  EXPECT_EQ(s.location().column, 2);
+  EXPECT_EQ(s.location().column, 2u);
   {
     auto c = s.make_checkpoint();
     s.read();
-    EXPECT_EQ(s.location().column, 3);
+    EXPECT_EQ(s.location().column, 3u);
   }
-  EXPECT_EQ(s.location().column, 2);
+  EXPECT_EQ(s.location().column, 2u);
 }
 
 TEST_F(reader_stream_fixture, stream_position_is_correct_after_reverting_two_nested_checkpoints) {
@@ -116,18 +116,18 @@ TEST_F(reader_stream_fixture, stream_position_is_correct_after_reverting_inner_c
 
 TEST_F(reader_stream_fixture, location_is_correct_after_rolling_back_past_newline) {
   auto s = make("a\nb");
-  EXPECT_EQ(s.location().column, 1);
-  EXPECT_EQ(s.location().line, 1);
+  EXPECT_EQ(s.location().column, 1u);
+  EXPECT_EQ(s.location().line, 1u);
 
   {
     auto c = s.make_checkpoint();
     s.read();
     s.read();
     s.read();
-    EXPECT_EQ(s.location().column, 2);
-    EXPECT_EQ(s.location().line, 2);
+    EXPECT_EQ(s.location().column, 2u);
+    EXPECT_EQ(s.location().line, 2u);
   }
 
-  EXPECT_EQ(s.location().column, 1);
-  EXPECT_EQ(s.location().line, 1);
+  EXPECT_EQ(s.location().column, 1u);
+  EXPECT_EQ(s.location().line, 1u);
 }

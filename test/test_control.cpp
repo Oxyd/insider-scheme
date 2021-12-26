@@ -236,7 +236,7 @@ TEST_F(control, call_continuable_allows_jump_back_in) {
   auto p = assume<pair>(result);
   EXPECT_EQ(expect<integer>(car(p)).value(), 20);
   EXPECT_EQ(expect<integer>(cadr(p)).value(), 8);
-  EXPECT_EQ(continuation_counter, 2);
+  EXPECT_EQ(continuation_counter, 2u);
 }
 
 TEST_F(control, call_continuable_can_be_used_twice) {

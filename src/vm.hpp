@@ -15,7 +15,8 @@ class tail_call_tag_type;
 
 class root_stack;
 
-struct execution_state {
+class execution_state {
+public:
   context&            ctx;
   integer::value_type pc = -1;
 

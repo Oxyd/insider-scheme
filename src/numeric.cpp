@@ -104,7 +104,7 @@ big_integer::big_integer(integer i)
   positive_ = sign;
 
   if constexpr (sizeof(integer::value_type) <= sizeof(limb_type)) {
-    front() = magnitude;
+    front() = static_cast<big_integer::limb_type>(magnitude);
   } else {
     auto it = begin();
     for (std::size_t k = 0; k < number_of_limbs_for_small_integer(i.value()); ++k) {
@@ -635,7 +635,7 @@ magnitude_one(ptr<big_integer> i) {
 }
 
 static ptr<big_integer>
-shift(context& ctx, ptr<big_integer> i, unsigned k) {
+shift(context& ctx, ptr<big_integer> i, std::size_t k) {
   if (k == 0)
     return i;
 
@@ -661,7 +661,7 @@ mul_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
     std::swap(lhs, rhs);
 
   auto result = mul_big_magnitude_by_limb(ctx, lhs, rhs->front());
-  for (std::size_t i = 1; i < rhs->length(); ++i) {
+  for (unsigned i = 1; i < static_cast<unsigned>(rhs->length()); ++i) {
     auto term = mul_big_magnitude_by_limb(ctx, lhs, rhs->data()[i]);
     if (!term->zero())
       result = add_big_magnitude(ctx, result, shift(ctx, term, i));
@@ -796,7 +796,7 @@ static limb_type
 guess_quotient(limb_type a_hi, limb_type a_lo, limb_type b) {
   double_limb_type a = (double_limb_type{a_hi} << limb_width) | a_lo;
   double_limb_type q = a / b;
-  return std::min(q, double_limb_type{max_limb_value});
+  return static_cast<limb_type>(std::min(q, double_limb_type{max_limb_value}));
 }
 
 static std::tuple<ptr<big_integer>, limb_type>
@@ -806,7 +806,7 @@ div_rem_by_limb_magnitude(context& ctx, ptr<big_integer> dividend, limb_type div
 
   for (std::size_t i = dividend->length(); i > 0; --i) {
     d = (d << limb_width) | dividend->data()[i - 1];
-    limb_type q = d / divisor;
+    limb_type q = static_cast<limb_type>(d / divisor);
     quotient->data()[i - 1] = q;
     d -= double_limb_type{q} * double_limb_type{divisor};
     assert(d <= max_limb_value);
@@ -1001,7 +1001,7 @@ big_to_float_value(ptr<big_integer> n) {
 static floating_point::value_type
 integer_to_float_value(ptr<> n) {
   if (auto s = match<integer>(n))
-    return s->value();
+    return static_cast<floating_point::value_type>(s->value());
   else
     return big_to_float_value(assume<big_integer>(n));
 }
@@ -1011,7 +1011,7 @@ to_float_value(ptr<> x) {
   if (auto f = match<floating_point>(x))
     return f->value;
   else if (auto n = match<integer>(x))
-    return n->value();
+    return static_cast<floating_point::value_type>(n->value());
   else if (auto n = match<big_integer>(x))
     return big_to_float_value(n);
   else if (auto q = match<fraction>(x))
@@ -1794,7 +1794,7 @@ export_native(context& ctx, module_& m, std::string const& name,
 
 static ptr<floating_point>
 small_integer_to_floating_point(context& ctx, integer::value_type i) {
-  return make<floating_point>(ctx, i);
+  return make<floating_point>(ctx, static_cast<floating_point::value_type>(i));
 }
 
 static void
@@ -1811,7 +1811,7 @@ big_integer_to_double(context& ctx, ptr<big_integer> b) {
   auto* limbs = b->data();
   for (std::size_t i = 0; i < b->length(); ++i)
     result += std::ldexp(static_cast<floating_point::value_type>(limbs[i]),
-                         i * big_integer::limb_width);
+                         static_cast<int>(i * big_integer::limb_width));
 
   return b->positive() ? result : -result;
 }
@@ -2192,7 +2192,7 @@ exact_integral_expt(context& ctx, ptr<> base, ptr<> exponent) {
   assert(is_exact_integer(exponent));
 
   if (base == integer_to_ptr(2) && is<integer>(exponent) && !is_negative(exponent))
-    return integer_power<2>(ctx, assume<integer>(exponent).value());
+    return integer_power<2>(ctx, static_cast<unsigned>(assume<integer>(exponent).value()));
   else if (base == integer_to_ptr(-1))
     return integer_power_of_negative_1(exponent);
   else

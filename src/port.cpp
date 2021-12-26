@@ -29,7 +29,7 @@ std::optional<std::uint8_t>
 file_port_source::read() {
   int byte = std::getc(f_);
   if (byte != EOF)
-    return byte;
+    return static_cast<std::uint8_t>(byte);
   else
     return {};
 }
@@ -41,7 +41,7 @@ file_port_source::peek() const {
     return {};
 
   std::ungetc(byte, f_);
-  return byte;
+  return static_cast<std::uint8_t>(byte);
 }
 
 void

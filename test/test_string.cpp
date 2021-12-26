@@ -19,17 +19,17 @@ TEST_F(string_fixture, string_eqv) {
 
 TEST_F(string_fixture, string_ref) {
   auto s1 = make<string>(ctx, "foo");
-  EXPECT_EQ(s1->ref(0), 'f');
-  EXPECT_EQ(s1->ref(1), 'o');
-  EXPECT_EQ(s1->ref(2), 'o');
+  EXPECT_EQ(s1->ref(0), U'f');
+  EXPECT_EQ(s1->ref(1), U'o');
+  EXPECT_EQ(s1->ref(2), U'o');
 }
 
 TEST_F(string_fixture, string_set_latin) {
   auto s = make<string>(ctx, "   ");
-  EXPECT_EQ(s->ref(0), ' ');
+  EXPECT_EQ(s->ref(0), U' ');
   s->set(0, 'd');
-  EXPECT_EQ(s->ref(0), 'd');
-  EXPECT_EQ(s->ref(1), ' ');
+  EXPECT_EQ(s->ref(0), U'd');
+  EXPECT_EQ(s->ref(1), U' ');
 }
 
 TEST_F(string_fixture, string_set_multibyte_same_length) {
@@ -37,23 +37,23 @@ TEST_F(string_fixture, string_set_multibyte_same_length) {
   EXPECT_EQ(s->ref(1), U'á');
   s->set(1, U'ž');
   EXPECT_EQ(s->ref(1), U'ž');
-  EXPECT_EQ(s->ref(2), 'a');
+  EXPECT_EQ(s->ref(2), U'a');
 }
 
 TEST_F(string_fixture, string_set_multibyte_shorter) {
   auto s = make<string>(ctx, "aáa");
   EXPECT_EQ(s->ref(1), U'á');
   s->set(1, U'a');
-  EXPECT_EQ(s->ref(1), 'a');
-  EXPECT_EQ(s->ref(2), 'a');
+  EXPECT_EQ(s->ref(1), U'a');
+  EXPECT_EQ(s->ref(2), U'a');
 }
 
 TEST_F(string_fixture, string_set_multibyte_longer) {
   auto s = make<string>(ctx, "aaa");
-  EXPECT_EQ(s->ref(1), 'a');
+  EXPECT_EQ(s->ref(1), U'a');
   s->set(1, U'á');
   EXPECT_EQ(s->ref(1), U'á');
-  EXPECT_EQ(s->ref(2), 'a');
+  EXPECT_EQ(s->ref(2), U'a');
 }
 
 TEST_F(string_fixture, string_length) {

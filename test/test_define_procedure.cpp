@@ -49,7 +49,7 @@ TEST_F(define_procedure_fixture, procedure_with_parameter_as_the_default) {
   define_procedure(ctx, "add", ctx.internal_module, true,
                    [] (int x, int y) { return x + y; },
                    [=] (context& ctx) {
-                     return expect<integer>(find_parameter_value(ctx, n.get())).value();
+                     return static_cast<int>(expect<integer>(find_parameter_value(ctx, n.get())).value());
                    });
 
   EXPECT_EQ(expect<integer>(eval("(add 1)")).value(), 1);

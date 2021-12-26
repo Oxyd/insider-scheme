@@ -44,12 +44,12 @@ write_char(char32_t c, ptr<textual_output_port> out) {
 static void
 write_number(context& ctx, ptr<> value, ptr<textual_output_port> out, unsigned base = 10);
 
-static char32_t
+static char
 digit_to_letter(unsigned d) {
   if (d <= 9)
-    return '0' + d;
+    return static_cast<char>('0' + d);
   else if (d <= 16)
-    return 'a' + (d - 10);
+    return static_cast<char>('a' + (d - 10));
 
   assert(false);
   return {};
@@ -61,7 +61,7 @@ write_small_magnitude(std::string& buffer, T n, unsigned base) {
   while (n > 0) {
     T quot = n / base;
     T rem = n % base;
-    buffer.push_back(digit_to_letter(rem));
+    buffer.push_back(digit_to_letter(static_cast<unsigned>(rem)));
     n = quot;
   }
 }
@@ -100,7 +100,7 @@ write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out, un
   std::string buffer;
   while (is<big_integer>(v)) {
     auto [quot, rem] = quotient_remainder(ctx, v, integer_to_ptr(base));
-    buffer.push_back(digit_to_letter(assume<integer>(rem).value()));
+    buffer.push_back(digit_to_letter(static_cast<unsigned>(assume<integer>(rem).value())));
     v = quot;
   }
 

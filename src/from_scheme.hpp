@@ -61,7 +61,25 @@ struct from_scheme_converter<bool> {
 template <typename T>
 struct from_scheme_converter<T, std::enable_if_t<std::is_integral_v<T>>> {
   static T
-  convert(context&, ptr<> o) { return expect<integer>(o).value(); }
+  convert(context&, ptr<> o) {
+    integer::value_type value = expect<integer>(o).value();
+    if (in_range(value))
+      return static_cast<T>(value);
+    else
+      throw std::runtime_error{fmt::format("Expected integer between {} and {}",
+                                           std::numeric_limits<T>::min(),
+                                           std::numeric_limits<T>::max())};
+  }
+
+  static bool
+  in_range(integer::value_type value) {
+    if constexpr (std::is_signed_v<T>)
+      return value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max();
+    else
+      return value >= 0
+             && static_cast<std::make_unsigned_t<integer::value_type>>(value)
+                <= std::numeric_limits<T>::max();
+  }
 };
 
 template <>

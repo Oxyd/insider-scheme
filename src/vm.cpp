@@ -38,7 +38,7 @@ execution_state::set_current_frame_to_parent() {
 }
 
 static ptr<>
-find_callee_value(context& ctx, opcode opcode, ptr<stack_frame> frame, integer::value_type reg) {
+find_callee_value(context& ctx, opcode opcode, ptr<stack_frame> frame, operand reg) {
   switch (opcode) {
   case opcode::call:
   case opcode::tail_call:

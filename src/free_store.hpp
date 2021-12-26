@@ -215,7 +215,7 @@ struct mature_generation {
 namespace detail {
   template <typename T, typename... Args>
   std::size_t
-  allocation_size(Args&&... args) {
+  allocation_size([[maybe_unused]] Args&&... args) {
     if constexpr (T::is_dynamic_size) {
       std::size_t elements = T::extra_elements(args...);
       return detail::round_to_words(sizeof(T) + elements * sizeof(typename T::element_type));

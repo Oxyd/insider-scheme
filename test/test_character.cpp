@@ -53,24 +53,24 @@ TEST_F(character_fixture, is_whitespace) {
 }
 
 TEST_F(character_fixture, upcase) {
-  EXPECT_EQ(upcase('a'), 'A');
-  EXPECT_EQ(upcase('A'), 'A');
-  EXPECT_EQ(upcase('5'), '5');
+  EXPECT_EQ(upcase('a'), U'A');
+  EXPECT_EQ(upcase('A'), U'A');
+  EXPECT_EQ(upcase('5'), U'5');
   EXPECT_EQ(upcase(U'か'), U'か');
 }
 
 TEST_F(character_fixture, downcase) {
-  EXPECT_EQ(downcase('A'), 'a');
-  EXPECT_EQ(downcase('a'), 'a');
-  EXPECT_EQ(downcase('5'), '5');
+  EXPECT_EQ(downcase('A'), U'a');
+  EXPECT_EQ(downcase('a'), U'a');
+  EXPECT_EQ(downcase('5'), U'5');
   EXPECT_EQ(downcase(U'か'), U'か');
 }
 
 TEST_F(character_fixture, foldcase) {
-  EXPECT_EQ(foldcase('a'), 'a');
-  EXPECT_EQ(foldcase('A'), 'a');
+  EXPECT_EQ(foldcase('a'), U'a');
+  EXPECT_EQ(foldcase('A'), U'a');
   EXPECT_EQ(foldcase(U'Á'), U'á');
-  EXPECT_EQ(foldcase(U'ſ'), 's');
+  EXPECT_EQ(foldcase(U'ſ'), U's');
 }
 
 TEST_F(character_fixture, to_utf8) {

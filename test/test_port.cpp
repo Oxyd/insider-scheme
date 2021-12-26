@@ -46,23 +46,23 @@ TEST_F(port_fixture, empty_port_is_empty) {
 
 TEST_F(port_fixture, read_one_character_from_port) {
   auto p = open_input_string("a");
-  EXPECT_EQ(p->peek_character(), 'a');
-  EXPECT_EQ(p->read_character(), 'a');
+  EXPECT_EQ(p->peek_character(), U'a');
+  EXPECT_EQ(p->read_character(), U'a');
   EXPECT_FALSE(p->peek_character());
 }
 
 TEST_F(port_fixture, peek_single_character_multiple_times) {
   auto p = open_input_string("abc");
-  EXPECT_EQ(p->peek_character(), 'a');
-  EXPECT_EQ(p->peek_character(), 'a');
-  EXPECT_EQ(p->peek_character(), 'a');
+  EXPECT_EQ(p->peek_character(), U'a');
+  EXPECT_EQ(p->peek_character(), U'a');
+  EXPECT_EQ(p->peek_character(), U'a');
 }
 
 TEST_F(port_fixture, read_sequence_of_characters) {
   auto p = open_input_string("abc");
-  EXPECT_EQ(p->read_character(), 'a');
-  EXPECT_EQ(p->read_character(), 'b');
-  EXPECT_EQ(p->read_character(), 'c');
+  EXPECT_EQ(p->read_character(), U'a');
+  EXPECT_EQ(p->read_character(), U'b');
+  EXPECT_EQ(p->read_character(), U'c');
   EXPECT_FALSE(p->read_character());
 }
 
@@ -89,12 +89,12 @@ TEST_F(port_fixture, rewind) {
   auto p = open_input_string("abc");
   p->read_character();
   p->read_character();
-  EXPECT_EQ(p->peek_character(), 'c');
+  EXPECT_EQ(p->peek_character(), U'c');
   p->rewind();
-  EXPECT_EQ(p->peek_character(), 'a');
-  EXPECT_EQ(p->read_character(), 'a');
-  EXPECT_EQ(p->read_character(), 'b');
-  EXPECT_EQ(p->read_character(), 'c');
+  EXPECT_EQ(p->peek_character(), U'a');
+  EXPECT_EQ(p->read_character(), U'a');
+  EXPECT_EQ(p->read_character(), U'b');
+  EXPECT_EQ(p->read_character(), U'c');
 }
 
 TEST_F(port_fixture, cant_peek_or_read_from_closed_port) {

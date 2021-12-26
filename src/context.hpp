@@ -178,7 +178,7 @@ public:
 private:
   std::unordered_map<std::string, weak_ptr<symbol>> interned_symbols_;
   std::vector<tracked_ptr<>> statics_;
-  eqv_unordered_map<tracked_ptr<>, std::size_t> statics_cache_;
+  eqv_unordered_map<tracked_ptr<>, operand> statics_cache_;
   std::vector<tracked_ptr<>> top_level_objects_;
   std::vector<std::string> top_level_binding_names_;
   std::unordered_map<operand, special_top_level_tag> top_level_tags_;

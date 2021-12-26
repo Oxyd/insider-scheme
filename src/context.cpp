@@ -146,7 +146,7 @@ context::intern_static(tracked_ptr<> const& x) {
   auto it = statics_cache_.find(x);
   if (it == statics_cache_.end()) {
     statics_.push_back(x);
-    it = statics_cache_.emplace(x, statics_.size() - 1).first;
+    it = statics_cache_.emplace(x, static_cast<operand>(statics_.size() - 1)).first;
   }
 
   return it->second;
@@ -178,7 +178,7 @@ operand
 context::add_top_level(ptr<> x, std::string name) {
   top_level_objects_.push_back({store, x});
   top_level_binding_names_.emplace_back(std::move(name));
-  return top_level_objects_.size() - 1;
+  return static_cast<operand>(top_level_objects_.size() - 1);
 }
 
 std::string

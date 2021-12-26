@@ -19,7 +19,7 @@ convert_limbs(limb_vector& limbs, Limb first, Limbs... rest) {
     convert_limbs(limbs, rest...);
   } else if constexpr (sizeof(Limb) == 2 * sizeof(limb_type)) {
     Limb mask = (Limb{1} << std::numeric_limits<limb_type>::digits) - 1;
-    limbs.push_back(first & mask);
+    limbs.push_back(static_cast<limb_type>(first & mask));
     limb_type hi = first >> std::numeric_limits<limb_type>::digits;
     if (hi > 0 || sizeof...(rest) > 0)
       limbs.push_back(hi);

@@ -482,7 +482,7 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_expression const&
     encode_instruction(proc.bytecode_stack.back(), instruction{opcode::ret, *body_result.get(proc)});
 
   assert(proc.bytecode_stack.size() == 1);
-  auto p = track(ctx, make_procedure(ctx, proc, stx.parameters.size() - (stx.has_rest ? 1 : 0),
+  auto p = track(ctx, make_procedure(ctx, proc, static_cast<unsigned>(stx.parameters.size() - (stx.has_rest ? 1 : 0)),
                                      stx.has_rest, stx.name));
 
   if (!stx.free_variables.empty()) {

@@ -114,7 +114,7 @@ skip_whitespace(reader_stream& stream) {
     while (c && whitespace(*c))
       c = advance_and_peek(stream);
 
-    if (c == ';')
+    if (c == U';')
       while ((c = stream.read()) && *c != '\n')
         ;
 
@@ -215,9 +215,9 @@ static char
 read_sign(reader_stream& stream) {
   auto cp = stream.make_checkpoint();
   auto c = stream.read();
-  if (c == '+' || c == '-') {
+  if (c == U'+' || c == U'-') {
     cp.commit();
-    return *c;
+    return static_cast<char>(*c);
   } else
     return '+';
 }
@@ -236,7 +236,7 @@ read_fraction(context& ctx, number_parse_mode mode,
 
 static bool
 can_begin_decimal_suffix(reader_stream& stream) {
-  return stream.peek() == 'e' || stream.peek() == 'E';
+  return stream.peek() == U'e' || stream.peek() == U'E';
 }
 
 static std::string
@@ -298,7 +298,7 @@ suffix_to_exponent(context& ctx, std::string const& suffix) {
     assert(suffix[1] == '+' || suffix[1] == '-');
 
     int sign = suffix[1] == '+' ? 1 : -1;
-    return sign * expect<integer>(read_integer(ctx, suffix.substr(2))).value();
+    return static_cast<int>(sign * expect<integer>(read_integer(ctx, suffix.substr(2))).value());
   } else
     return 0;
 }
@@ -309,7 +309,7 @@ string_to_exact(context& ctx,
                 std::string const& fractional_part,
                 std::string const& suffix) {
   ptr<> numerator = read_integer(ctx, whole_part + fractional_part);
-  int exponent = -fractional_part.length();
+  int exponent = -static_cast<int>(fractional_part.length());
   exponent += suffix_to_exponent(ctx, suffix);
 
   if (exponent > 0)
@@ -363,17 +363,17 @@ read_ureal(context& ctx, number_parse_mode mode, reader_stream& stream, source_l
 
   if (std::string digits = read_digits(stream, mode.base); !digits.empty()) {
     auto next = stream.peek();
-    if (next == '/') {
+    if (next == U'/') {
       consume(stream, '/');
       return read_fraction(ctx, mode, digits, stream, loc);
-    } else if (next == '.')
+    } else if (next == U'.')
       return read_decimal(ctx, mode, digits, stream, loc);
     else if (can_begin_decimal_suffix(stream)) {
       check_mode_for_decimal(mode, loc);
       return string_to_decimal(ctx, mode, digits, ""s, read_suffix(stream, loc));
     } else
       return read_integer(ctx, digits, mode.base);
-  } else if (stream.peek() == '.')
+  } else if (stream.peek() == U'.')
     return read_decimal(ctx, mode, ""s, stream, loc);
   else
     return {};
@@ -469,10 +469,10 @@ read_imaginary_part(context& ctx, number_parse_mode mode, ptr<> real,
     return make_rectangular(ctx, real, imag);
   } else {
     auto sign = stream.read();
-    assert(sign == '+' || sign == '-');
+    assert(sign == U'+' || sign == U'-');
 
     expect_either(stream, 'i', 'I');
-    return make_rectangular(ctx, real, sign == '+' ? integer_to_ptr(1) : integer_to_ptr(-1));
+    return make_rectangular(ctx, real, sign == U'+' ? integer_to_ptr(1) : integer_to_ptr(-1));
   }
 }
 
@@ -492,11 +492,11 @@ read_angle(context& ctx, number_parse_mode mode, ptr<> magnitude,
 static ptr<>
 read_complex_after_first_part(context& ctx, number_parse_mode mode, ptr<> real,
                              reader_stream& stream, source_location loc) {
-  if (stream.peek() == '+' || stream.peek() == '-')
+  if (stream.peek() == U'+' || stream.peek() == U'-')
     return read_imaginary_part(ctx, mode, real, stream, loc);
-  else if (stream.peek() == '@')
+  else if (stream.peek() == U'@')
     return read_angle(ctx, mode, real, stream, loc);
-  else if (stream.peek() == 'i' || stream.peek() == 'I') {
+  else if (stream.peek() == U'i' || stream.peek() == U'I') {
     stream.read();
     return make_rectangular(ctx, integer_to_ptr(0), real);
   } else
@@ -508,12 +508,12 @@ read_sign_followed_by_imaginary_unit(context& ctx, reader_stream& stream) {
   auto cp = stream.make_checkpoint();
 
   auto sign = stream.read();
-  assert(sign == '+' || sign == '-');
+  assert(sign == U'+' || sign == U'-');
 
   auto imaginary_unit = stream.read();
-  if (imaginary_unit == 'i' || imaginary_unit == 'I') {
+  if (imaginary_unit == U'i' || imaginary_unit == U'I') {
     cp.commit();
-    return make_rectangular(ctx, integer_to_ptr(0), sign == '+' ? integer_to_ptr(1) : integer_to_ptr(-1));
+    return make_rectangular(ctx, integer_to_ptr(0), sign == U'+' ? integer_to_ptr(1) : integer_to_ptr(-1));
   } else
     return {};
 }
@@ -529,7 +529,7 @@ read_complex(context& ctx, number_parse_mode mode, reader_stream& stream, source
 
   if (auto x = read_real(ctx, mode, stream, loc))
     return read_complex_after_first_part(ctx, mode, x, stream, loc);
-  else if (stream.peek() == '+' || stream.peek() == '-')
+  else if (stream.peek() == U'+' || stream.peek() == U'-')
     return read_sign_followed_by_imaginary_unit(ctx, stream);
   else
     return {};
@@ -544,19 +544,19 @@ read_radix(reader_stream& stream) {
 
   auto cp = stream.make_checkpoint();
 
-  if (stream.read() != '#')
+  if (stream.read() != U'#')
     return {};
 
   auto r = stream.read();
-  if (r != 'b' && r != 'o' && r != 'd' && r != 'x')
+  if (r != U'b' && r != U'o' && r != U'd' && r != U'x')
     return {};
 
   cp.commit();
   switch (*r) {
-  case 'b': return 2;
-  case 'o': return 8;
-  case 'd': return 10;
-  case 'x': return 16;
+  case U'b': return 2;
+  case U'o': return 8;
+  case U'd': return 10;
+  case U'x': return 16;
   }
 
   assert(false);
@@ -569,18 +569,18 @@ read_exactness(reader_stream& stream) {
 
   auto cp = stream.make_checkpoint();
 
-  if (stream.read() != '#')
+  if (stream.read() != U'#')
     return {};
 
   auto e = stream.read();
-  if (e != 'i' && e != 'e')
+  if (e != U'i' && e != U'e')
     return {};
 
   cp.commit();
   switch (*e) {
-  case 'i':
+  case U'i':
     return number_parse_mode::exactness_mode::make_inexact;
-  case 'e':
+  case U'e':
     return number_parse_mode::exactness_mode::make_exact;
   }
 
@@ -1260,7 +1260,7 @@ read_bytevector(context& ctx, reader_stream& stream, bool read_syntax, datum_lab
 
   auto bv = make<bytevector>(ctx, elements.size());
   for (std::size_t i = 0; i < elements.size(); ++i)
-    bv->set(i, assume<integer>(elements[i]).value());
+    bv->set(i, static_cast<bytevector::element_type>(assume<integer>(elements[i]).value()));
 
   if (defining_label)
     labels.emplace(*defining_label, track(ctx, bv));

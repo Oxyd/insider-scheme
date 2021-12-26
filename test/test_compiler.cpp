@@ -309,7 +309,7 @@ TEST_F(compiler, compile_higher_order_arithmetic) {
 }
 
 TEST_F(compiler, compile_module) {
-  int sum = 0;
+  integer::value_type sum = 0;
   define_top_level(
     ctx, "f", ctx.internal_module, true,
     make<native_procedure>(ctx,

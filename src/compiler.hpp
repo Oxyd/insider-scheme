@@ -10,7 +10,7 @@
 
 namespace insider {
 
-class expression;
+struct expression;
 class module_;
 class procedure;
 class syntax;
