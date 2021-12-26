@@ -25,6 +25,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
   add_compile_options("/wd4996")
   add_compile_options("/MP")
   add_compile_options("/utf-8")
+  add_compile_options("/bigobj")
   add_definitions(-DUNICODE -D_UNICODE)
 endif()
 
