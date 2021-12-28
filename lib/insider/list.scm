@@ -6,10 +6,17 @@
  cons car cdr cadr caddr cadddr cddr cdddr set-car! set-cdr! append
 
  ;; Defined here: R7RS procedures:
- null? pair? caar assoc assq assv member memq memv length reverse map for-each
+ null? pair? list caar assoc assq assv member memq memv length reverse map for-each
 
  ;; SRFI-1:
  any every filter)
+
+(define-type-predicate pair? insider::pair)
+
+(define (null? x)
+  (eq? x '()))
+
+(define (list . l) l)
 
 (define (caar x)
   (car (car x)))

@@ -9,9 +9,10 @@
  type
 
  ;; Defined here
- null? pair? box? syntax? vector? plain-procedure? native-procedure? closure? procedure? scheme-procedure?
+ define-type-predicate
+ box? syntax? vector? plain-procedure? native-procedure? closure? procedure? scheme-procedure?
  symbol? string?
- not list)
+ not)
 
 (define-syntax define-type-predicate
   (syntax-rules ()
@@ -19,10 +20,6 @@
      (define (name x)
        (eq? (type x) 'expected-type)))))
 
-(define (null? x)
-  (eq? x '()))
-
-(define-type-predicate pair? insider::pair)
 (define-type-predicate box? insider::box)
 (define-type-predicate syntax? insider::syntax)
 (define-type-predicate vector? insider::vector)
@@ -40,5 +37,3 @@
 
 (define (not x)
   (if x #f #t))
-
-(define (list . l) l)
