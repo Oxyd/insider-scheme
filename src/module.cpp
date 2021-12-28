@@ -47,9 +47,7 @@ module_::top_level_procedure() const {
 
 void
 module_::export_(ptr<symbol> name) {
-  if (!find(name))
-    throw std::runtime_error{fmt::format("Can't export undefined symbol {}", name->value())};
-
+  assert(find(name));
   exports_.emplace(name->value());
 }
 
@@ -142,6 +140,25 @@ perform_imports(context& ctx, module_& m, import_set const& set) {
     execute(ctx, *set.source);
 }
 
+static void
+check_all_defined(context& ctx, module_& m, std::vector<std::string> const& names) {
+  std::vector<std::string> undefined;
+  for (std::string const& name : names)
+    if (!m.find(ctx.intern(name)))
+      undefined.push_back(name);
+
+  if (!undefined.empty()) {
+    if (undefined.size() == 1)
+      throw std::runtime_error{fmt::format("Can't export undefined symbol {}", undefined.front())};
+    else {
+      std::string names = undefined.front();
+      for (auto n = undefined.begin() + 1; n != undefined.end(); ++n)
+        names += ", " + *n;
+      throw std::runtime_error{fmt::format("Can't export undefined symbols: {}", names)};
+    }
+  }
+}
+
 std::unique_ptr<module_>
 instantiate(context& ctx, protomodule const& pm) {
   auto result = std::make_unique<module_>(ctx, pm.name);
@@ -149,6 +166,7 @@ instantiate(context& ctx, protomodule const& pm) {
   perform_imports(ctx, *result, pm);
   compile_module_body(ctx, *result, pm);
 
+  check_all_defined(ctx, *result, pm.exports);
   for (std::string const& name : pm.exports)
     result->export_(ctx.intern(name));
 
