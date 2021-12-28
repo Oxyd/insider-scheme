@@ -11,7 +11,7 @@
               main-module?-tag))
 (export call-with-current-continuation call/cc let/cc make-parameter
         make-parameter-from-tag parameterize apply values call-with-values
-        with-exception-handler raise raise-continuable dynamic-wind guard is-main-module? when-main-module)
+        with-exception-handler raise raise-continuable dynamic-wind guard when-main-module)
 
 (define (call-with-current-continuation f)
   (capture-stack
@@ -151,12 +151,12 @@
      (let ((result-thunk (make-guard-result-thunk (var clause ...) body1 body2 ...)))
        (result-thunk)))))
 
-(define is-main-module? (make-parameter-from-tag main-module?-tag))
+(define main-module? (make-parameter-from-tag main-module?-tag))
 
 (define-syntax when-main-module
   (lambda (stx)
     (syntax-match stx ()
       ((_ . body)
-       (if (is-main-module?)
+       (if (main-module?)
            #`(begin . #,body)
            #'(begin))))))
