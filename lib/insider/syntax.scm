@@ -16,7 +16,7 @@
  syntax-match syntax-rules
 
  ;; Defined here
- define let let* letrec let-values let*-values case when unless do
+ ... _ define let let* letrec let-values let*-values case when unless do
  or and define-auxiliary-syntax cond else =>)
 
 (define-syntax define
@@ -99,6 +99,8 @@
 
 (define-auxiliary-syntax else)
 (define-auxiliary-syntax =>)
+(define-auxiliary-syntax _)
+(define-auxiliary-syntax ...)
 
 (define-syntax cond
   (syntax-rules (else =>)
