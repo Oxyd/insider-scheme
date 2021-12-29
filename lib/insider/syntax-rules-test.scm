@@ -1,4 +1,4 @@
-(library (insider syntax-rules test))
+(library (insider syntax-rules-test))
 (import (insider syntax) (insider basic-procedures) (insider test) (insider control)
         (insider list) (insider numeric))
 (export test-syntax-transformers)

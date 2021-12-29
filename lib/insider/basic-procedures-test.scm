@@ -1,4 +1,4 @@
-(library (insider basic-procedures test))
+(library (insider basic-procedures-test))
 (import (insider syntax) (insider basic-procedures) (insider test) (insider control) (insider list)
         (insider numeric))
 (export test-basic-procedures)
