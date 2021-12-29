@@ -41,7 +41,10 @@
  test-begin test-end test-group test-group-with-cleanup
  test-assert test-eqv test-equal test-eq test-approximate test-error
 
- test-apply test-with-runner)
+ test-apply test-with-runner
+
+ ;; Non-standard extensions:
+ test test-false)
 
 (define-record-type <test-runner>
   (make-test-runner on-begin on-end on-group-begin on-group-end on-bad-count on-bad-end-name on-final
@@ -455,6 +458,19 @@
      (execute-test-case! (test-runner-get) (lambda () expr) name 'expr))
     ((test-assert expr)
      (test-assert "" expr))))
+
+(define-syntax test
+  (syntax-rules ()
+    ((test . args)
+     (test-assert . args))))
+
+(define-syntax test-false
+  (syntax-rules ()
+    ((test-false name expr)
+     (test-assert name (not expr)))
+
+    ((test-false expr)
+     (test-assert "" (not expr)))))
 
 (define-syntax define-test-syntax
   (syntax-rules ()
