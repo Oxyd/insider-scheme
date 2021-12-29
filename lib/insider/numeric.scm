@@ -2,4 +2,5 @@
 (import (insider internal))
 (export
  ;; From core
- gcd arithmetic-shift bitwise-and bitwise-or bitwise-not integer? odd? even?)
+ + - * / = < <= > >=
+ gcd arithmetic-shift bitwise-and bitwise-or bitwise-not integer? odd? even? zero? number? exp log)

@@ -1,5 +1,5 @@
 (library (insider record))
-(import (insider syntax) (insider error) (insider list) (insider basic-procedures)
+(import (insider syntax) (insider error) (insider list) (insider basic-procedures) (insider numeric)
         (only (insider internal) eq? type make-record-type make-record-instance record-set! record-ref record-type))
 (export define-record-type)
 

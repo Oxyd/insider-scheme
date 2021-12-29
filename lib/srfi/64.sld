@@ -36,6 +36,6 @@
    test-runner-null test-runner-simple test-runner-create
 
    test-begin test-end test-group test-group-with-cleanup
-   test-assert test-eqv test-equal test-eq test-error
+   test-assert test-eqv test-equal test-eq test-approximate test-error
 
    test-apply test-with-runner))

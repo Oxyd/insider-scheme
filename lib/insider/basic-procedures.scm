@@ -2,7 +2,6 @@
 (import (insider syntax) (except (insider internal) let define))
 (export
  ;; From core
- + - * / = < <= > >=
  eq? eqv? equal?
  cons car cdr set-car! set-cdr!
  make-vector vector-ref vector-set! vector-length

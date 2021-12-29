@@ -2241,6 +2241,10 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "integer?", result, true, is_integer);
   define_procedure(ctx, "odd?", result, true, is_odd);
   define_procedure(ctx, "even?", result, true, is_even);
+  define_procedure(ctx, "zero?", result, true, is_zero);
+  define_procedure(ctx, "number?", result, true, is_number);
+  define_procedure(ctx, "exp", result, true, exp);
+  define_procedure(ctx, "log", result, true, log);
   define_procedure(ctx, "expt", result, true, expt);
 }
 

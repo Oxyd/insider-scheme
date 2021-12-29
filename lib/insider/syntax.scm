@@ -7,7 +7,7 @@
  ;; From core
  set! lambda if box unbox box-set! define-syntax begin begin-for-syntax quote quasiquote unquote
  unquote-splicing syntax quasisyntax unsyntax unsyntax-splicing syntax-trap syntax-error
- let-syntax letrec-syntax
+ letrec* let-syntax letrec-syntax
 
  syntax-expression syntax-scopes syntax-add-scope! syntax->datum syntax->list datum->syntax
  free-identifier=? bound-identifier=? syntax-location
@@ -88,7 +88,7 @@
          (let*-values (((names-rest ...) init-exprs-rest) ...) . body))))
 
     ((let*-values () . body)
-     (begin . body))))
+     (let () . body))))
 
 (define-syntax define-auxiliary-syntax
   (syntax-rules ()

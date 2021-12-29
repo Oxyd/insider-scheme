@@ -39,7 +39,7 @@
  test-runner-null test-runner-simple test-runner-create
 
  test-begin test-end test-group test-group-with-cleanup
- test-assert test-eqv test-equal test-eq test-error
+ test-assert test-eqv test-equal test-eq test-approximate test-error
 
  test-apply test-with-runner)
 
@@ -478,6 +478,16 @@
 (define-test-syntax test-eqv eqv?)
 (define-test-syntax test-equal equal?)
 (define-test-syntax test-eq eq?)
+
+(define-syntax test-approximate
+  (syntax-rules ()
+    ((test-approximate name expected expr error)
+     (let ((value expr))
+       (and (>= value (- expected error))
+            (<= value (+ expected error)))))
+
+    ((test-approximate expected expr error)
+     (test-approximate "" expected expr error))))
 
 (define (expect-exception thunk error-predicate)
   (guard (e
