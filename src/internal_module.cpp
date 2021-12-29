@@ -42,6 +42,9 @@ export_time(context&, module_&);
 void
 export_error(context&, module_&);
 
+void
+export_string(context&, module_&);
+
 static ptr<vector>
 make_vector_proc(context& ctx, object_span args) {
   return make_vector(ctx, args.begin(), args.end());
@@ -64,6 +67,7 @@ make_internal_module(context& ctx) {
   export_syntax(ctx, result);
   export_time(ctx, result);
   export_error(ctx, result);
+  export_string(ctx, result);
 
   define_raw_procedure(ctx, "append", result, true, append);
   define_procedure(ctx, "list->vector", result, true, list_to_vector);
@@ -110,75 +114,6 @@ make_internal_module(context& ctx) {
                    [] (context& ctx, ptr<pair> p, ptr<> new_cdr) {
                      p->set_cdr(ctx.store, new_cdr);
                    });
-
-  define_raw_procedure(
-    ctx, "make-string", result, true,
-    [] (context& ctx, object_span args) {
-      if (args.size() < 1)
-        throw std::runtime_error{"make-string: Expected at least 1 argument"};
-      if (args.size() > 2)
-        throw std::runtime_error{"make-string: Expected at most 2 arguments"};
-
-      integer::value_type length = expect<integer>(args[0]).value();
-      if (length < 0)
-        throw std::runtime_error{"make-string: Length cannot be negative"};
-
-      auto result = make<string>(ctx, length);
-
-      if (args.size() == 2) {
-        char32_t fill = expect<char32_t>(args[1]);
-        for (std::size_t i = 0; i < static_cast<std::size_t>(length); ++i)
-          result->set(i, fill);
-      }
-
-      return result;
-    }
-  );
-
-  define_procedure(
-    ctx, "string-length", result, true,
-    [] (ptr<string> s) {
-      return integer{static_cast<integer::value_type>(s->length())};
-    }
-  );
-
-  define_raw_procedure(ctx, "string-append", result, true,
-                       [] (context& ctx, object_span args) {
-                         std::string result;
-                         for (ptr<> s : args)
-                           result += expect<string>(s)->value();
-                         return make<string>(ctx, result);
-                       });
-
-  define_procedure(
-    ctx, "number->string", result, true,
-    [] (context& ctx, ptr<> num) {
-      if (!is_number(num))
-        throw make_error("Not a number: {}", datum_to_string(ctx, num));
-      return datum_to_string(ctx, num);
-    }
-  );
-
-  define_procedure(
-    ctx, "datum->string", result, true,
-    [] (context& ctx, ptr<> datum) {
-      return datum_to_string(ctx, datum);
-    }
-  );
-
-  define_procedure(
-    ctx, "symbol->string", result, true,
-    [] (context& ctx, ptr<symbol> datum) {
-      return make<string>(ctx, expect<symbol>(datum)->value());
-    }
-  );
-
-  define_procedure(
-    ctx, "string->symbol", result, true,
-    [] (context& ctx, ptr<string> s) {
-      return ctx.intern(s->value());
-    }
-  );
 
   operand type_index = define_procedure(ctx, "type", result, true, type);
   ctx.tag_top_level(type_index, special_top_level_tag::type);

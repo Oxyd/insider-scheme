@@ -3,6 +3,7 @@
 #include "basic_types.hpp"
 #include "code_point_properties.hpp"
 #include "context.hpp"
+#include "define_procedure.hpp"
 
 #include <iterator>
 
@@ -317,6 +318,60 @@ string_to_utf8(context& ctx, ptr<string> s, std::size_t start, std::size_t end) 
     result->set(j, data[i]);
 
   return result;
+}
+
+static ptr<>
+make_string(context& ctx, object_span args) {
+  if (args.size() < 1)
+    throw std::runtime_error{"make-string: Expected at least 1 argument"};
+  if (args.size() > 2)
+    throw std::runtime_error{"make-string: Expected at most 2 arguments"};
+
+  integer::value_type length = expect<integer>(args[0]).value();
+  if (length < 0)
+    throw std::runtime_error{"make-string: Length cannot be negative"};
+
+  auto result = make<string>(ctx, length);
+
+  if (args.size() == 2) {
+    char32_t fill = expect<char32_t>(args[1]);
+    for (std::size_t i = 0; i < static_cast<std::size_t>(length); ++i)
+      result->set(i, fill);
+  }
+
+  return result;
+}
+
+static integer
+string_length(ptr<string> s) {
+  return static_cast<integer::value_type>(s->length());
+}
+
+static ptr<string>
+string_append(context& ctx, object_span args) {
+  std::string result;
+  for (ptr<> s : args)
+    result += expect<string>(s)->value();
+  return make<string>(ctx, result);
+}
+
+static ptr<string>
+symbol_to_string(context& ctx, ptr<symbol> datum) {
+  return make<string>(ctx, expect<symbol>(datum)->value());
+}
+
+static ptr<symbol>
+string_to_symbol(context& ctx, ptr<string> s) {
+  return ctx.intern(s->value());
+}
+
+void
+export_string(context& ctx, module_& result) {
+  define_raw_procedure(ctx, "make-string", result, true, make_string);
+  define_procedure(ctx, "string-length", result, true, string_length);
+  define_raw_procedure(ctx, "string-append", result, true, string_append);
+  define_procedure(ctx, "symbol->string", result, true, symbol_to_string);
+  define_procedure(ctx, "string->symbol", result, true, string_to_symbol);
 }
 
 } // namespace insider

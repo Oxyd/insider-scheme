@@ -515,6 +515,8 @@ export_write(context& ctx, module_& result) {
   define_procedure(ctx, "write-shared", result, true, write_shared, get_default_port);
   define_procedure(ctx, "display", result, true, display, get_default_port);
   define_procedure(ctx, "newline", result, true, newline, get_default_port);
+  define_procedure(ctx, "number->string", result, true, number_to_string, [] (context&) { return 10u; });
+  define_procedure(ctx, "datum->string", result, true, datum_to_string);
 }
 
 void
