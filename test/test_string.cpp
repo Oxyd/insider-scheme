@@ -3,6 +3,7 @@
 #include "string.hpp"
 
 #include "to_scheme.hpp"
+#include "write.hpp"
 
 using namespace insider;
 
@@ -119,4 +120,9 @@ TEST_F(string_fixture, string_to_utf8) {
                     read("#u8(#xe1 #xbd #x88 #xce #xb4 #xcf #x85 #xcf #x83 #xcf #x83 #xce #xb5 #xcf #x8d #xcf #x82)")));
   EXPECT_TRUE(equal(string_to_utf8(ctx, expect<string>(to_scheme(ctx, "Ὀδυσσεύς"s)), 2, 6),
                     read("#u8(#xcf #x85 #xcf #x83 #xcf #x83 #xce #xb5)")));
+}
+
+TEST_F(string_fixture, non_latin_datum_to_string) {
+  using namespace std::literals;
+  EXPECT_EQ(datum_to_string(ctx, to_scheme(ctx, "kůň"s)), R"("kůň")");
 }

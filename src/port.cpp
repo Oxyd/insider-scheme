@@ -254,6 +254,12 @@ textual_output_port::write(char32_t c) {
 }
 
 void
+textual_output_port::write_utf8(char c) {
+  if (sink_)
+    sink_->write(c);
+}
+
+void
 textual_output_port::write(std::string const& s) {
   if (sink_)
     for (char c : s)

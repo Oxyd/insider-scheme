@@ -230,6 +230,9 @@ public:
   write(char32_t);
 
   void
+  write_utf8(char);
+
+  void
   write(std::string const&);
 
   std::string

@@ -31,7 +31,7 @@ write_string(ptr<string> s, ptr<textual_output_port> out) {
     else if (c == '\\')
       out->write(R"(\\)");
     else
-      out->write(c);
+      out->write_utf8(c);
   out->write('"');
 }
 
