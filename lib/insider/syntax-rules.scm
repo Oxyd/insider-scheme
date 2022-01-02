@@ -16,12 +16,14 @@
    (define-syntax or
      (lambda (stx)
        (let ((form (syntax->list stx)))
-         (let ((first (cadr form))
-               (rest (cddr form)))
-           (if (null? rest)
-               first
-               #`(let ((e #,first))
-                   (if e e (or #,@rest))))))))
+         (if (null? (cdr form))
+             #'#f
+             (let ((first (cadr form))
+                   (rest (cddr form)))
+               (if (null? rest)
+                   first
+                   #`(let ((e #,first))
+                       (if e e (or #,@rest)))))))))
 
    (define-syntax and
      (lambda (stx)
