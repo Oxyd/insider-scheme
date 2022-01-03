@@ -276,6 +276,17 @@
      (let-syntax ((s (syntax-rules ()
                        ((s a b c)
                         #(c b a)))))
+       (s 1 2 3)))
+
+    (test-equal
+     "macro producing macro"
+     3
+     (let-syntax ((s (syntax-rules ()
+                       ((s . body)
+                        (let-syntax ((t (syntax-rules ()
+                                          ((t . body*)
+                                           (begin . body*)))))
+                          (t . body))))))
        (s 1 2 3)))))
 
 (define (syntax-rules/repeated-match)

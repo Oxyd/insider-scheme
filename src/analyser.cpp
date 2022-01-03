@@ -1009,15 +1009,15 @@ parse_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
     unsigned nested_level = quote_level;
 
     if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
-      auto unquote_stx = track(pc.ctx, syntax_cadr(stx.get()));
-
       if (Traits::is_unquote(pc.ctx, form)) {
+        auto unquote_stx = track(pc.ctx, syntax_cadr(stx.get()));
         if (quote_level == 0)
           return std::make_unique<qq_template>(unquote{unquote_stx, false}, unquote_stx);
         else
           nested_level = quote_level - 1;
       }
       else if (Traits::is_unquote_splicing(pc.ctx, form)) {
+        auto unquote_stx = track(pc.ctx, syntax_cadr(stx.get()));
         if (quote_level == 0)
           return std::make_unique<qq_template>(unquote{unquote_stx, true}, unquote_stx);
         else

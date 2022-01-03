@@ -594,6 +594,7 @@ TEST_F(compiler, quasisyntax) {
   EXPECT_SYNTAX_EQ(eval("(let ((x '(a b c))) #`(#,@x))"), read("(a b c)"));
   EXPECT_SYNTAX_EQ(eval("(let ((middle '(x y z))) #`#(a b #,@middle c d))"),
                    read("#(a b x y z c d)"));
+  EXPECT_SYNTAX_EQ(eval("#`(begin . body)"), read("(begin . body)"));
 
 #undef EXPECT_SYNTAX_EQ
 }
