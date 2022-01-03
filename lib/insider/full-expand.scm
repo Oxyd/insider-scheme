@@ -1,5 +1,6 @@
 (library (insider full-expand))
-(import (insider syntax) (insider basic-procedures) (only (insider internal) expand))
+(import (insider syntax) (insider basic-procedures) (insider numeric) (insider list)
+        (only (insider internal) expand))
 (export full-expand)
 
 (define (full-expand stx . max-depth)
