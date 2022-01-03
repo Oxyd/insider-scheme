@@ -24,7 +24,12 @@
                (list x y z))))
       (test-equal '(zero one two) (f 'zero))
       (test-equal '(zero eleven two) (f 'zero 'eleven))
-      (test-equal '(zero eleven twenty) (f 'zero 'eleven 'twenty)))))
+      (test-equal '(zero eleven twenty) (f 'zero 'eleven 'twenty)))
+
+    (let ((f (opt-lambda ((x 0) (y 1)) (+ x y))))
+      (test-equal 1 (f))
+      (test-equal 2 (f 1))
+      (test-equal 3 (f 1 2)))))
 
 (when-main-module
  (test-opt-lambda))
