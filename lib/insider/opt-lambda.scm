@@ -4,23 +4,32 @@
 
 (define-syntax make-opt-lambda
   (syntax-rules ()
-    ((make-opt-lambda (required ...) (optional ...) . body)
+    ((make-opt-lambda (required ...) (optional ...) . lambda-body)
      (lambda (required ... . tail)
        (let ((len (length tail)))
          (if (> len (length '(optional ...)))
              (error "opt-lambda: Too many arguments")
              (letrec-syntax
                  ((clause (syntax-rules --- ()
-                                        ((clause () . body)
-                                         (begin . body))
+                            ((clause () ((opt-name opt-default) ---) . body)
+                             (let ((opt-name opt-default) ---) . body))
 
-                                        ((clause ((opt-name opt-default) (opt-names opt-defaults) ---) . body)
-                                         (if (= len (length '(opt-name opt-names ---)))
-                                             (apply (lambda (opt-name opt-names ---) . body) tail)
-                                             (let ((opt-name opt-default))
-                                               (clause ((opt-names opt-defaults) ---) . body)))))))
+                            ((clause ((provided-names provided-defaults) --- (provided-name provided-default))
+                                     ((opt-name opt-default) ---)
+                                     . body)
+                             (begin
+                               '(provided-names ---)
+                               'provided-name
+                               '(opt-name ---)
+                               (if (= len (length '(provided-names --- provided-name)))
+                                   (apply (lambda (provided-names --- provided-name)
+                                            (let ((opt-name opt-default) ---) . body))
+                                          tail)
+                                   (clause ((provided-names provided-defaults) ---)
+                                           ((opt-name opt-default) --- (provided-name provided-default))
+                                           . body)))))))
 
-               (clause (optional ...) . body))))))))
+               (clause (optional ...) () . lambda-body))))))))
 
 (define-syntax collect-args
   (syntax-rules ()

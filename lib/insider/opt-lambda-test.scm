@@ -1,5 +1,5 @@
 (library (insider opt-lambda-test))
-(import (insider syntax) (insider opt-lambda) (insider test) (insider numeric) (insider control))
+(import (insider syntax) (insider opt-lambda) (insider test) (insider numeric) (insider control) (insider list))
 (export test-opt-lambda)
 
 (define (test-opt-lambda)
@@ -18,7 +18,13 @@
 
     (let ((f (opt-lambda (x (y x)) (+ x y))))
       (test-equal 5 (f 2 3))
-      (test-equal 4 (f 2)))))
+      (test-equal 4 (f 2)))
+
+    (let ((f (opt-lambda (x (y 'one) (z 'two))
+               (list x y z))))
+      (test-equal '(zero one two) (f 'zero))
+      (test-equal '(zero eleven two) (f 'zero 'eleven))
+      (test-equal '(zero eleven twenty) (f 'zero 'eleven 'twenty)))))
 
 (when-main-module
  (test-opt-lambda))
