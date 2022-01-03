@@ -159,6 +159,15 @@
              (loop (cdr lst) (cons (car lst) accum)))))
      (loop lst '())))
 
+ (define reverse-syntax-list
+   (lambda (lst)
+     (define loop
+       (lambda (lst accum)
+         (if (syntax-null? lst)
+             accum
+             (loop (syntax-cdr lst) (cons (syntax-car lst) accum)))))
+     (loop lst '())))
+
  (define length
    (lambda (list)
      (define loop
@@ -323,7 +332,7 @@
                #,(emit-matcher context
                                (syntax-car pattern) head
                                (emit-matcher context (syntax-cdr pattern) tail body end-matcher)
-                               end-matcher))
+                               emit-null-matcher))
              <no-match>))))
 
  (define gensym
@@ -365,7 +374,7 @@
                                (emit-matcher context (car reversed-pattern) #'(car reversed-input)
                                              #'(syntax-error "This should not be emitted")
                                              (lambda (input body)
-                                               (emit-repeated-matcher #`(reverse #,input))))
+                                               (emit-repeated-matcher #`(reverse-syntax-list #,input))))
                                emit-null-matcher))))))
 
  (define emit-ellipsis-pair-matcher

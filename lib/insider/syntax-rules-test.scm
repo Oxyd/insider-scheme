@@ -170,6 +170,19 @@
        ((1 xs ... 4) xs)))
 
     (test-syntax
+     "match front and tail of list"
+     '((1 2 3) 4)
+     (syntax-match #'(1 2 3 4) ()
+       ((a ... b) (list a b))))
+
+    (test-syntax
+     "match beginning of a complex list"
+     '((a b) c)
+     (syntax-match #'((a 0) (b 1) (c 2)) ()
+       (((xs _) ... (x _))
+        (list xs x))))
+
+    (test-syntax
      "match repeated sublist of multiple elements"
      '(1 3 5 2 4 6)
      (syntax-match #'((1 2) (3 4) (5 6)) ()
@@ -409,7 +422,26 @@
      (let-syntax ((s (syntax-rules ... (...)
                        ((_ x)
                         '(x ...)))))
-       (s 100)))))
+       (s 100)))
+
+    (test-equal
+     "reverse a list backward"
+     '(3 2 1)
+     (letrec-syntax ((s (syntax-rules ()
+                          ((s () (ys ...))
+                           (list ys ...))
+
+                          ((s (xs ... x) (ys ...))
+                           (s (xs ...) (ys ... x))))))
+       (s (1 2 3) ())))
+
+    (test-equal
+     "match beginning of a complex list"
+     '(a b c)
+     (let-syntax ((s (syntax-rules ()
+                       ((clause ((xs _) ... (x _)))
+                        (list 'xs ... 'x)))))
+       (s ((a 0) (b 1) (c 2)))))))
 
 (define (syntax-rules/hygiene)
   (test-group "hygiene"
