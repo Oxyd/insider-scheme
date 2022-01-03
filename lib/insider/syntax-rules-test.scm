@@ -255,6 +255,14 @@
        (s 1 2 3)))
 
     (test-equal
+     "expand to proper list tail"
+     3
+     (let-syntax ((s (syntax-rules ()
+                       ((s . exprs)
+                        (begin . exprs)))))
+       (s 2 3)))
+
+    (test-equal
      "expand to constant vector"
      #(1 2 3)
      (let-syntax ((s (syntax-rules ()
