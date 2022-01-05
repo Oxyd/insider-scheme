@@ -29,6 +29,11 @@
     (let ((f (opt-lambda ((x 0) (y 1)) (+ x y))))
       (test-equal 1 (f))
       (test-equal 2 (f 1))
+      (test-equal 3 (f 1 2)))
+
+    (let ((f (opt-lambda ((x 0) (y x)) (+ x y))))
+      (test-equal 0 (f))
+      (test-equal 2 (f 1))
       (test-equal 3 (f 1 2)))))
 
 (when-main-module

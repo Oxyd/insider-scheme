@@ -12,7 +12,7 @@
              (letrec-syntax
                  ((clause (syntax-rules --- ()
                             ((clause () ((opt-name opt-default) ---) . body)
-                             (let ((opt-name opt-default) ---) . body))
+                             (let* ((opt-name opt-default) ---) . body))
 
                             ((clause ((provided-names provided-defaults) --- (provided-name provided-default))
                                      ((opt-name opt-default) ---)
@@ -26,7 +26,7 @@
                                             (let ((opt-name opt-default) ---) . body))
                                           tail)
                                    (clause ((provided-names provided-defaults) ---)
-                                           ((opt-name opt-default) --- (provided-name provided-default))
+                                           ((provided-name provided-default) (opt-name opt-default) ---)
                                            . body)))))))
 
                (clause (optional ...) () . lambda-body))))))))
