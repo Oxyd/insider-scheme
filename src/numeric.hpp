@@ -323,11 +323,6 @@ multiply_fixnums(integer::value_type lhs, integer::value_type rhs) {
   }
 }
 
-ptr<>
-truncate_quotient(context&, ptr<>, ptr<>);
-ptr<>
-truncate_quotient(context&, object_span);
-
 std::tuple<ptr<>, ptr<>>
 quotient_remainder(context&, ptr<>, ptr<>);
 

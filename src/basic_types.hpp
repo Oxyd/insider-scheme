@@ -7,6 +7,8 @@
 #include "free_store.hpp"
 #include "object.hpp"
 
+#include <utility>
+
 namespace insider {
 
 // The empty list. There should only be exactly one instance of this type per
@@ -488,8 +490,19 @@ public:
   static std::size_t
   extra_elements(object_span values) { return values.size(); }
 
+  template <typename... Ts>
+  static std::size_t
+  extra_elements(ptr<Ts>...) { return sizeof...(Ts); }
+
   explicit
   values_tuple(object_span values);
+
+  template <typename... Ts>
+  values_tuple(ptr<Ts>... elems)
+    : dynamic_size_object{sizeof...(elems)}
+  {
+    assign_elements(std::index_sequence_for<Ts...>{}, elems...);
+  }
 
   values_tuple(values_tuple&& other);
 
@@ -498,6 +511,13 @@ public:
 
   void
   visit_members(member_visitor const& f);
+
+private:
+  template <typename... Ts, std::size_t... Is>
+  void
+  assign_elements(std::index_sequence<Is...>, ptr<Ts>... elems) {
+    ((storage_element(Is) = elems), ...);
+  }
 };
 
 } // namespace insider

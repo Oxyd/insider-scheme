@@ -248,6 +248,9 @@ make_fraction(context& ctx, ptr<> num, ptr<> den) {
   return normalize_fraction(ctx, make<fraction>(ctx, num, den));
 }
 
+static ptr<>
+truncate_quotient(context& ctx, ptr<> lhs, ptr<> rhs);
+
 ptr<>
 normalize_fraction(context& ctx, ptr<fraction> q) {
   ptr<> num = q->numerator();
@@ -1324,14 +1327,14 @@ multiply(context& ctx, object_span xs) {
   return arithmetic<static_cast<primitive_arithmetic_type*>(&multiply)>(ctx, xs, true, 1);
 }
 
-ptr<>
+static ptr<>
 truncate_quotient(context& ctx, ptr<> lhs, ptr<> rhs) {
   return std::get<0>(quotient_remainder(ctx, lhs, rhs));
 }
 
-ptr<>
-truncate_quotient(context& ctx, object_span xs) {
-  return arithmetic<static_cast<primitive_arithmetic_type*>(&truncate_quotient)>(ctx, xs, false, 1);
+static ptr<>
+truncate_remainder(context& ctx, ptr<> lhs, ptr<> rhs) {
+  return std::get<1>(quotient_remainder(ctx, lhs, rhs));
 }
 
 std::tuple<ptr<>, ptr<>>
@@ -1347,6 +1350,12 @@ quotient_remainder(context& ctx, ptr<> lhs, ptr<> rhs) {
 
   assert(false);
   return {};
+}
+
+static ptr<values_tuple>
+truncate_div(context& ctx, ptr<> lhs, ptr<> rhs) {
+  auto [q, r] = quotient_remainder(ctx, lhs, rhs);
+  return make<values_tuple>(ctx, q, r);
 }
 
 static ptr<>
@@ -2247,6 +2256,9 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "exp", result, true, exp);
   define_procedure(ctx, "log", result, true, log);
   define_procedure(ctx, "expt", result, true, expt);
+  define_procedure(ctx, "truncate/", result, true, truncate_div);
+  define_procedure(ctx, "truncate-quotient", result, true, truncate_quotient);
+  define_procedure(ctx, "truncate-remainder", result, true, truncate_remainder);
 }
 
 } // namespace insider

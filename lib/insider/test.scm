@@ -39,7 +39,7 @@
  test-runner-null test-runner-simple test-runner-create
 
  test-begin test-end test-group test-group-with-cleanup
- test-assert test-eqv test-equal test-eq test-approximate test-error
+ test-assert test-eqv test-equal test-eq test-approximate test-error test-values-equal
 
  test-apply test-with-runner
 
@@ -483,7 +483,7 @@
                                 (let ((runner (test-runner-get))
                                       (expected-value expected)
                                       (actual-value expr))
-                                  (test-result-set! runner 'expected-value expected)
+                                  (test-result-set! runner 'expected-value expected-value)
                                   (test-result-set! runner 'actual-value actual-value)
                                   (predicate expected-value actual-value)))
                               test-name
@@ -494,6 +494,30 @@
 (define-test-syntax test-eqv eqv?)
 (define-test-syntax test-equal equal?)
 (define-test-syntax test-eq eq?)
+
+(define (values-equal? x y)
+  (call-with-values (lambda () x)
+    (lambda x-list
+      (call-with-values (lambda () y)
+        (lambda y-list
+          (equal? x-list y-list))))))
+
+(define-syntax test-values-equal
+  (syntax-rules ()
+    ((test-values-equal test-name (expected ...) expr)
+     (execute-test-case! (test-runner-get)
+                         (lambda ()
+                           (let ((runner (test-runner-get))
+                                 (expected-value (values expected ...))
+                                 (actual-value expr))
+                             (test-result-set! runner 'expected-value expected-value)
+                             (test-result-set! runner 'actual-value actual-value)
+                             (values-equal? expected-value actual-value)))
+                         test-name
+                         '(values-equal? (expected ...) expr)))
+
+    ((test-values-equal (expected ...) expr)
+     (test-values-equal "" (expected ...) expr))))
 
 (define-syntax test-approximate
   (syntax-rules ()
