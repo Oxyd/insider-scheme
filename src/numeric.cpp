@@ -2239,6 +2239,7 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "bitwise-or", result, true, bitwise_or);
   define_procedure(ctx, "bitwise-not", result, true, bitwise_not);
   define_procedure(ctx, "integer?", result, true, is_integer);
+  define_procedure(ctx, "exact-integer?", result, true, is_exact_integer);
   define_procedure(ctx, "odd?", result, true, is_odd);
   define_procedure(ctx, "even?", result, true, is_even);
   define_procedure(ctx, "zero?", result, true, is_zero);

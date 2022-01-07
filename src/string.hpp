@@ -25,6 +25,12 @@ public:
   char32_t
   ref(std::size_t) const;
 
+  void
+  append_char(char32_t);
+
+  void
+  append(std::string const&);
+
   std::string const&
   value() const { return data_; }
 
@@ -58,6 +64,9 @@ utf8_to_string(context&, ptr<bytevector>, std::size_t start, std::size_t end);
 
 ptr<bytevector>
 string_to_utf8(context&, ptr<string>, std::size_t start, std::size_t end);
+
+ptr<string>
+string_reverse(context&, ptr<string>, std::size_t start, std::size_t end);
 
 } // namespace insider
 

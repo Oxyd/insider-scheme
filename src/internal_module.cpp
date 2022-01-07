@@ -45,6 +45,9 @@ export_error(context&, module_&);
 void
 export_string(context&, module_&);
 
+void
+export_character(context&, module_&);
+
 static ptr<vector>
 make_vector_proc(context& ctx, object_span args) {
   return make_vector(ctx, args.begin(), args.end());
@@ -68,6 +71,7 @@ make_internal_module(context& ctx) {
   export_time(ctx, result);
   export_error(ctx, result);
   export_string(ctx, result);
+  export_character(ctx, result);
 
   define_raw_procedure(ctx, "append", result, true, append);
   define_procedure(ctx, "list->vector", result, true, list_to_vector);

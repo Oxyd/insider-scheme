@@ -81,6 +81,9 @@ to_utf8(char32_t);
 std::string
 to_utf8(std::u32string const&);
 
+bool
+is_initial_byte(char byte);
+
 std::size_t
 utf8_code_point_byte_length(char first_byte);
 

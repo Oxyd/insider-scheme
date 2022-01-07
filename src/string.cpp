@@ -5,6 +5,8 @@
 #include "context.hpp"
 #include "define_procedure.hpp"
 
+#include <algorithm>
+#include <functional>
 #include <iterator>
 
 namespace insider {
@@ -43,6 +45,16 @@ char32_t
 string::ref(std::size_t i) const {
   std::size_t byte_index = nth_code_point(data_, i);
   return from_utf8(data_.begin() + byte_index, data_.end()).code_point;
+}
+
+void
+string::append_char(char32_t c) {
+  to_utf8(c, [&] (char byte) { data_.push_back(byte); });
+}
+
+void
+string::append(std::string const& more_data) {
+  data_.append(more_data);
 }
 
 std::size_t
@@ -321,6 +333,19 @@ string_to_utf8(context& ctx, ptr<string> s, std::size_t start, std::size_t end) 
 }
 
 static ptr<>
+construct_string(context& ctx, object_span args) {
+  std::size_t length = args.size();
+  std::string result;
+  result.reserve(length);
+
+  for (std::size_t i = 0; i < length; ++i)
+    to_utf8(expect<char32_t>(args[i]), [&] (char byte) { result.push_back(byte); });
+
+  result.shrink_to_fit();
+  return make<string>(ctx, std::move(result));
+}
+
+static ptr<>
 make_string(context& ctx, object_span args) {
   if (args.size() < 1)
     throw std::runtime_error{"make-string: Expected at least 1 argument"};
@@ -340,6 +365,11 @@ make_string(context& ctx, object_span args) {
   }
 
   return result;
+}
+
+static ptr<>
+make_string_byte_length(context& ctx, std::size_t length) {
+  return make<string>(ctx, std::string(length, '\0'));
 }
 
 static integer
@@ -365,13 +395,164 @@ string_to_symbol(context& ctx, ptr<string> s) {
   return ctx.intern(s->value());
 }
 
+static integer
+string_byte_length(ptr<string> s) {
+  return integer{static_cast<integer::value_type>(s->value().size())};
+}
+
+static integer
+next_code_point_byte_index(ptr<string> s, std::size_t index) {
+  if (index >= s->value().size())
+    throw std::runtime_error{"Can't advance post-end byte index"};
+  else
+    return index + utf8_code_point_byte_length(s->value()[index]);
+}
+
+static integer
+previous_code_point_byte_index(ptr<string> s, std::size_t index) {
+  if (index == 0)
+    throw std::runtime_error{"Can't go before start of string"};
+  else {
+    do
+      --index;
+    while (!is_initial_byte(s->value()[index]));
+    return index;
+  }
+}
+
+static char32_t
+string_ref(ptr<string> s, std::size_t index) {
+  return s->ref(index);
+}
+
+static char32_t
+string_ref_byte_index(ptr<string> s, std::size_t bi) {
+  if (bi >= s->value().size())
+    throw std::runtime_error{"Byte index out of range"};
+  else
+    return from_utf8(s->value().begin() + bi, s->value().end()).code_point;
+}
+
+static bool
+is_string_null(ptr<string> s) {
+  return s->value().empty();
+}
+
+static ptr<string>
+vector_to_string(context& ctx, ptr<vector> v) {
+  std::string data;
+  std::size_t size = v->size();
+  data.reserve(size);
+  for (std::size_t i = 0; i < size; ++i)
+    to_utf8(expect<char32_t>(v->ref(i)), [&] (char byte) { data.push_back(byte); });
+
+  data.shrink_to_fit();
+  return make<string>(ctx, std::move(data));
+}
+
+ptr<string>
+string_reverse(context& ctx, ptr<string> s, std::size_t begin, std::size_t end) {
+  std::string const& input = s->value();
+
+  if (begin > input.size() || end > input.size() || begin > end)
+    throw std::runtime_error{"Invalid index"};
+
+  std::string output;
+  output.resize(end - begin);
+
+  std::size_t input_index = begin;
+  std::size_t output_index = output.size();
+  while (input_index < end) {
+    from_utf8_result r = from_utf8(input.begin() + input_index, input.end());
+    assert(output_index >= r.length);
+
+    output_index -= r.length;
+    to_utf8(r.code_point, [&, o = output_index] (char byte) mutable { output[o++] = byte; });
+
+    input_index += r.length;
+  }
+
+  return make<string>(ctx, std::move(output));
+}
+
+static ptr<string>
+string_copy_byte_indexes(context& ctx, ptr<string> s, std::size_t begin, std::size_t end) {
+  std::string const& value = s->value();
+  if (begin > end)
+    throw std::runtime_error{"Invalid index"};
+
+  return make<string>(ctx, value.substr(begin, end - begin));
+}
+
+static void
+string_append_in_place(ptr<string> s, ptr<string> t) {
+  s->append(t->value());
+}
+
+static integer
+string_contains_byte_indexes(ptr<string> haystack, ptr<string> needle,
+                             std::size_t haystack_start, std::size_t haystack_end,
+                             std::size_t needle_start, std::size_t needle_end) {
+  std::string const& h = haystack->value();
+  std::string const& n = needle->value();
+
+  if (haystack_start > h.size() || haystack_end > h.size() || haystack_start > haystack_end
+      || needle_start > n.size() || needle_end > n.size() || needle_start > needle_end)
+    throw std::runtime_error{"Invalid index"};
+
+  auto result = h.find(n.data() + needle_start, haystack_start, needle_end - needle_start);
+  if (result == std::string::npos || result > haystack_end)
+    return haystack_end;
+  else
+    return integer{static_cast<integer::value_type>(result)};
+}
+
+static integer
+string_contains_right_byte_indexes(ptr<string> haystack, ptr<string> needle,
+                                   std::size_t haystack_start, std::size_t haystack_end,
+                                   std::size_t needle_start, std::size_t needle_end) {
+  std::string const& h = haystack->value();
+  std::string const& n = needle->value();
+
+  if (haystack_start > h.size() || haystack_end > h.size() || haystack_start > haystack_end
+      || needle_start > n.size() || needle_end > n.size() || needle_start > needle_end)
+    throw std::runtime_error{"Invalid index"};
+
+  std::size_t haystack_size = haystack_end - haystack_start;
+  std::size_t needle_size = needle_end - needle_start;
+  if (needle_size > haystack_size)
+    return haystack_end;
+
+  auto result = h.rfind(n.data() + needle_start, haystack_end - needle_size, needle_size);
+  if (result == std::string::npos || result < haystack_start)
+    return haystack_end;
+  else
+    return integer{static_cast<integer::value_type>(result)};
+}
+
 void
 export_string(context& ctx, module_& result) {
+  define_raw_procedure(ctx, "string", result, true, construct_string);
   define_raw_procedure(ctx, "make-string", result, true, make_string);
+  define_procedure(ctx, "make-string/byte-length", result, true, make_string_byte_length);
   define_procedure(ctx, "string-length", result, true, string_length);
   define_raw_procedure(ctx, "string-append", result, true, string_append);
+  define_procedure(ctx, "string-append!", result, true, string_append_in_place);
   define_procedure(ctx, "symbol->string", result, true, symbol_to_string);
   define_procedure(ctx, "string->symbol", result, true, string_to_symbol);
+  define_procedure(ctx, "string-byte-length", result, true, string_byte_length);
+  define_procedure(ctx, "next-code-point-byte-index", result, true, next_code_point_byte_index);
+  define_procedure(ctx, "previous-code-point-byte-index", result, true, previous_code_point_byte_index);
+  define_procedure(ctx, "string-ref", result, true, string_ref);
+  define_procedure(ctx, "string-set!", result, true, &string::set);
+  define_procedure(ctx, "string-append-char!", result, true, &string::append_char);
+  define_procedure(ctx, "string-ref/byte-index", result, true, string_ref_byte_index);
+  define_procedure(ctx, "string-null?", result, true, is_string_null);
+  define_procedure(ctx, "vector->string", result, true, vector_to_string);
+  define_procedure(ctx, "string-reverse*", result, true, string_reverse);
+  define_procedure(ctx, "string-copy/byte-indexes", result, true, string_copy_byte_indexes);
+  define_procedure(ctx, "string-contains/byte-indexes", result, true, string_contains_byte_indexes);
+  define_procedure(ctx, "string-contains-right/byte-indexes", result, true, string_contains_right_byte_indexes);
 }
 
 } // namespace insider

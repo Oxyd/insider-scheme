@@ -3,6 +3,7 @@
 #include "basic_types.hpp"
 #include "code_point_properties.hpp"
 #include "context.hpp"
+#include "define_procedure.hpp"
 #include "integer.hpp"
 
 #include <fmt/format.h>
@@ -107,6 +108,11 @@ to_utf8(std::u32string const& s) {
   return result;
 }
 
+bool
+is_initial_byte(char byte) {
+  return (byte & 0b1100'0000) != 0b1000'0000;
+}
+
 std::size_t
 utf8_code_point_byte_length(char first_byte) {
   if ((first_byte & 0b1000'0000) == 0)
@@ -120,6 +126,28 @@ utf8_code_point_byte_length(char first_byte) {
   else
     throw std::runtime_error{fmt::format("Invalid initial byte in UTF-8 encoding: {}",
                                          static_cast<uint32_t>(first_byte))};
+}
+
+static integer
+char_to_integer(char32_t c) {
+  return integer{c};
+}
+
+static char32_t
+integer_to_char(integer i) {
+  return static_cast<char32_t>(i.value());
+}
+
+void
+export_character(context& ctx, module_& result) {
+  define_procedure(ctx, "char-alphabetic?", result, true, is_alphabetic);
+  define_procedure(ctx, "char-numeric?", result, true, is_numeric);
+  define_procedure(ctx, "char-whitespace?", result, true, is_white_space);
+  define_procedure(ctx, "char-upper-case?", result, true, is_upper_case);
+  define_procedure(ctx, "char-lower-case?", result, true, is_lower_case);
+  define_procedure(ctx, "digit-value", result, true, digit_value);
+  define_procedure(ctx, "char->integer", result, true, char_to_integer);
+  define_procedure(ctx, "integer->char", result, true, integer_to_char);
 }
 
 } // namespace insider

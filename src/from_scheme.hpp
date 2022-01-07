@@ -50,11 +50,37 @@ struct from_scheme_converter<tracked_ptr<T>> {
 };
 
 template <>
+struct from_scheme_converter<integer> {
+  static integer
+  convert(context&, ptr<> o) { return expect<integer>(o); }
+};
+
+template <>
 struct from_scheme_converter<bool> {
   static bool
   convert(context& ctx, ptr<> o) {
     ptr<boolean> b = expect<boolean>(o);
     return b == ctx.constants->t.get();
+  }
+};
+
+template <>
+struct from_scheme_converter<char32_t> {
+  static char32_t
+  convert(context&, ptr<> o) {
+    return expect<char32_t>(o);
+  }
+};
+
+template <>
+struct from_scheme_converter<char> {
+  static char
+  convert(context&, ptr<> o) {
+    char32_t value = expect<char32_t>(o);
+    if (value <= 0x7F)
+      return static_cast<char>(value);
+    else
+      throw std::runtime_error{"Expected an ASCII character"};
   }
 };
 

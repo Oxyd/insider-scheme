@@ -126,3 +126,18 @@ TEST_F(string_fixture, non_latin_datum_to_string) {
   using namespace std::literals;
   EXPECT_EQ(datum_to_string(ctx, to_scheme(ctx, "kůň"s)), R"("kůň")");
 }
+
+TEST_F(string_fixture, append_char) {
+  auto s = make<string>(ctx, "ab");
+  s->append_char(U'c');
+  s->append_char(U'ď');
+  s->append_char(U'e');
+  EXPECT_EQ(s->length(), 5);
+  EXPECT_TRUE(equal(s, read(R"("abcďe")")));
+}
+
+TEST_F(string_fixture, string_reverse) {
+  auto s = make<string>(ctx, "brčál");
+  auto r = string_reverse(ctx, s, 0, s->value().size());
+  EXPECT_EQ(r->value(), "láčrb");
+}

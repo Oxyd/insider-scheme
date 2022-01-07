@@ -10,7 +10,7 @@
  ;; Defined here
  define-type-predicate
  box? syntax? vector? plain-procedure? native-procedure? closure? procedure? scheme-procedure?
- symbol? string?
+ symbol? string? boolean?
  not)
 
 (define-syntax define-type-predicate
@@ -27,6 +27,7 @@
 (define-type-predicate closure? insider::closure)
 (define-type-predicate symbol? insider::symbol)
 (define-type-predicate string? insider::string)
+(define-type-predicate boolean? insider::boolean)
 
 (define (procedure? x)
   (or (plain-procedure? x) (native-procedure? x) (closure? x)))

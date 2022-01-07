@@ -39,6 +39,7 @@ TEST_F(character_fixture, is_lower_or_upper_case) {
   EXPECT_TRUE(is_upper_case('A'));
   EXPECT_FALSE(is_lower_case('0'));
   EXPECT_FALSE(is_upper_case('0'));
+  EXPECT_TRUE(is_upper_case(U'Č'));
 
   EXPECT_TRUE(is_alphabetic(U'か'));
   EXPECT_FALSE(is_lower_case(U'か'));
