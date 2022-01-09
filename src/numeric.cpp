@@ -1269,7 +1269,7 @@ is_negative(ptr<> x) {
   else if (auto b = match<big_integer>(x))
     return !b->positive() && !b->zero();
   else if (auto f = match<fraction>(x))
-    return is_negative(f->numerator()) == is_negative(f->denominator());
+    return is_negative(f->numerator()) != is_negative(f->denominator());
   else if (auto fp = match<floating_point>(x))
     return fp->value < 0.0;
   else
@@ -2247,6 +2247,43 @@ expt(context& ctx, ptr<> base, ptr<> exponent) {
 }
 
 ptr<>
+abs(context& ctx, ptr<> x) {
+  if (is_negative(x))
+    return multiply(ctx, x, integer_to_ptr(-1));
+  else
+    return x;
+}
+
+static ptr<>
+floor_fraction(context& ctx, ptr<fraction> q) {
+  ptr<> rem = truncate_remainder(ctx, q->numerator(), q->denominator());
+  ptr<> num = subtract(ctx, q->numerator(), rem);
+  if (is_negative(q))
+    num = subtract(ctx, num, q->denominator());
+  return divide(ctx, num, q->denominator());
+}
+
+static ptr<>
+floor_floating_point(context& ctx, ptr<floating_point> f) {
+  if (is_finite(f))
+    return make<floating_point>(ctx, std::floor(f->value));
+  else
+    return f;
+}
+
+ptr<>
+floor(context& ctx, ptr<> x) {
+  if (is_exact_integer(x))
+    return x;
+  else if (auto q = match<fraction>(x))
+    return floor_fraction(ctx, q);
+  else if (auto f = match<floating_point>(x))
+    return floor_floating_point(ctx, f);
+  else
+    throw std::runtime_error{"Expected real number"};
+}
+
+ptr<>
 read_integer(context& ctx, std::string const& digits, unsigned base) {
   ptr<> result = integer_to_ptr(integer{0});
 
@@ -2289,6 +2326,8 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "truncate/", result, true, truncate_div);
   define_procedure(ctx, "truncate-quotient", result, true, truncate_quotient);
   define_procedure(ctx, "truncate-remainder", result, true, truncate_remainder);
+  define_procedure(ctx, "abs", result, true, abs);
+  define_procedure(ctx, "floor", result, true, floor);
 }
 
 } // namespace insider

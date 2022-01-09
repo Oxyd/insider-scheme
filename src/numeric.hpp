@@ -436,6 +436,12 @@ ptr<>
 expt(context&, ptr<> base, ptr<> exponent);
 
 ptr<>
+abs(context&, ptr<>);
+
+ptr<>
+floor(context&, ptr<>);
+
+ptr<>
 read_integer(context& ctx, std::string const& digits, unsigned base = 10);
 
 } // namespace insider

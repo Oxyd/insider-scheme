@@ -847,3 +847,28 @@ TEST_F(numeric, expt) {
   EXPECT_DOUBLE_EQ(expect<floating_point>(z2->real())->value, -0.7530458367485596);
   EXPECT_DOUBLE_EQ(expect<floating_point>(z2->imaginary())->value, -0.9864287886477449);
 }
+
+TEST_F(numeric, abs) {
+  EXPECT_TRUE(equal(abs(ctx, integer_to_ptr(2)), integer_to_ptr(2)));
+  EXPECT_TRUE(equal(abs(ctx, integer_to_ptr(-2)), integer_to_ptr(2)));
+  EXPECT_TRUE(equal(abs(ctx, read("23497235908132958723")), read("23497235908132958723")));
+  EXPECT_TRUE(equal(abs(ctx, read("-23497235908132958723")), read("23497235908132958723")));
+  EXPECT_TRUE(equal(abs(ctx, read("2/3")), read("2/3")));
+  EXPECT_TRUE(equal(abs(ctx, read("-2/3")), read("2/3")));
+  EXPECT_TRUE(equal(abs(ctx, read("0.1")), read("0.1")));
+  EXPECT_TRUE(equal(abs(ctx, read("-0.1")), read("0.1")));
+}
+
+TEST_F(numeric, floor) {
+  EXPECT_TRUE(equal(floor(ctx, integer_to_ptr(2)), integer_to_ptr(2)));
+  EXPECT_TRUE(equal(floor(ctx, integer_to_ptr(-2)), integer_to_ptr(-2)));
+  EXPECT_TRUE(equal(floor(ctx, read("23497235908132958723")), read("23497235908132958723")));
+  EXPECT_TRUE(equal(floor(ctx, read("-23497235908132958723")), read("-23497235908132958723")));
+  EXPECT_TRUE(equal(floor(ctx, read("2/3")), integer_to_ptr(0)));
+  EXPECT_TRUE(equal(floor(ctx, read("5/3")), integer_to_ptr(1)));
+  EXPECT_TRUE(equal(floor(ctx, read("-2/3")), integer_to_ptr(-1)));
+  EXPECT_TRUE(equal(floor(ctx, read("-5/3")), integer_to_ptr(-2)));
+  EXPECT_TRUE(equal(floor(ctx, read("0.1")), read("0.0")));
+  EXPECT_TRUE(equal(floor(ctx, read("2.1")), read("2.0")));
+  EXPECT_TRUE(equal(floor(ctx, read("-2.3")), read("-3.0")));
+}
