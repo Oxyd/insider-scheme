@@ -216,6 +216,10 @@
                    "bar")
                   result))
 
+    (test-equal "cdefab" (string-replicate "abcdef" 2 8))
+    (test-equal "efabcd" (string-replicate "abcdef" -2 4))
+    (test-equal "abcabca" (string-replicate "abc" 0 7))
+
     (test-equal 2 (string-count "The answer is 42." char-numeric?))
 
     (test-equal "The miserable perl programmer endured daily ridicule."

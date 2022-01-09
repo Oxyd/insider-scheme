@@ -32,7 +32,7 @@
 
  string-reverse string-concatenate string-concatenate-reverse string-fold string-fold-right
  string-for-each-cursor string-for-each
- string-count string-replace string-split string-filter string-remove)
+ string-replicate string-count string-replace string-split string-filter string-remove)
 
 ;; String cursors are represented as exact negative integers. Byte index b is
 ;; represented as the string cursor with value -b - 1. This is to ensure that
@@ -473,6 +473,24 @@
   (if (null? strings-rest)
       (string-for-each-1 proc string1)
       (string-for-each-multi proc (cons string1 strings-rest))))
+
+(define string-replicate
+  (opt-lambda (s from to (start (string-cursor-start s)) (end (string-cursor-end s)))
+    (if (= from to)
+        (string)
+        (let* ((length (string-cursor-diff s start end))
+               (count (- to from))
+               (from-cursor (string-cursor-forward s start (floor-remainder from length)))
+               (from-byte-index (->byte-index s from-cursor))
+               (start-byte-index (->byte-index s start))
+               (end-byte-index (->byte-index s end)))
+          (do ((current from-byte-index
+                        (let ((next (next-code-point-byte-index s current)))
+                          (if (= next end-byte-index) start-byte-index next)))
+               (count count (- count 1))
+               (result (string)))
+              ((= count 0) result)
+            (string-append-char! result (string-ref/byte-index s current)))))))
 
 (define string-count
   (opt-lambda (s pred (start (string-cursor-start s)) (end (string-cursor-end s)))
