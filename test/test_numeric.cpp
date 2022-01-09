@@ -190,6 +190,10 @@ TEST_F(numeric, bignum_divide) {
     return integer_to_ptr(integer{v});
   };
 
+  auto make_float = [&] (floating_point::value_type v) {
+    return make<floating_point>(ctx, v);
+  };
+
   auto test_div = [&] (ptr<> x, ptr<> y,
                        ptr<> quotient, ptr<> remainder) {
     auto [q, r] = quotient_remainder(ctx, x, y);
@@ -211,6 +215,8 @@ TEST_F(numeric, bignum_divide) {
   test_div(make_small(-5), make_small(2), make_small(-2), make_small(-1));
   test_div(make_small(5), make_small(-2), make_small(-2), make_small(1));
   test_div(make_small(-5), make_small(-2), make_small(2), make_small(-1));
+  test_div(make_float(-5.0), make_small(-2), make_float(2.0), make_float(-1.0));
+  EXPECT_THROW(quotient_remainder(ctx, make_float(-5.2), make_small(-2)), std::runtime_error);
   test_div(make_big(ctx,
                     14874543083359811318ull,
                     1935678593982463049ull,

@@ -897,6 +897,17 @@ div_rem_small(integer dividend, integer divisor) {
   return {integer_to_ptr(integer{quot}), integer_to_ptr(integer{rem})};
 }
 
+static bool
+is_floating_integer(ptr<> x);
+
+static std::tuple<ptr<>, ptr<>>
+div_rem_float(context& ctx, ptr<floating_point> dividend, ptr<floating_point> divisor) {
+  if (!is_floating_integer(dividend) || !is_floating_integer(divisor))
+    throw std::runtime_error{"Expected integer"};
+
+  return quotient_remainder(ctx, exact(ctx, dividend), exact(ctx, divisor));
+}
+
 static exact_compare_result
 compare_big(ptr<big_integer> lhs, ptr<big_integer> rhs) {
   if (lhs->positive() != rhs->positive()) {
@@ -1344,6 +1355,8 @@ quotient_remainder(context& ctx, ptr<> lhs, ptr<> rhs) {
     return div_rem_small(assume<integer>(lhs), assume<integer>(rhs));
   case common_type::big_integer:
     return div_rem_big(ctx, make_big(ctx, lhs), make_big(ctx, rhs));
+  case common_type::floating_point:
+    return div_rem_float(ctx, make_float(ctx, lhs), make_float(ctx, rhs));
   default:
     throw std::runtime_error{"Expected integer"};
   }
@@ -1894,7 +1907,7 @@ throw_if_not_representable_as_exact(ptr<floating_point> fp) {
     throw std::runtime_error{"NaN cannot be represented as exact number"};
 }
 
-ptr<>
+static ptr<>
 floating_point_to_exact(context& ctx, ptr<floating_point> value) {
   throw_if_not_representable_as_exact(value);
 
