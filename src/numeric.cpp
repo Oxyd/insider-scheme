@@ -656,9 +656,9 @@ mul_big(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
     return rhs;
 
   if (magnitude_one(lhs))
-    return set_sign_copy(ctx, rhs, lhs->positive());
+    return set_sign_copy(ctx, rhs, lhs->positive() == rhs->positive());
   if (magnitude_one(rhs))
-    return set_sign_copy(ctx, lhs, rhs->positive());
+    return set_sign_copy(ctx, lhs, lhs->positive() == rhs->positive());
 
   if (lhs->length() < rhs->length())
     std::swap(lhs, rhs);
@@ -872,6 +872,9 @@ div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divi
 
 static std::tuple<ptr<>, ptr<>>
 div_rem_big(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divisor) {
+  if (dividend->zero())
+    return {integer_to_ptr(0), integer_to_ptr(0)};
+
   if (divisor->zero())
     throw std::runtime_error{"Division by zero"};
 
@@ -884,11 +887,25 @@ div_rem_big(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divisor) {
   }
 
   auto [quot, rem] = div_rem_magnitude(ctx, dividend, divisor);
-  if (divisor->positive())
-    return {normalize(ctx, quot), normalize(ctx, rem)};
-  else
-    return {normalize(ctx, set_sign_copy(ctx, quot, !dividend->positive())),
-            normalize(ctx, rem)};
+
+  // Now |dividend| = quot * |divisor| + rem. We need to work out the signs of
+  // quot and rem to get rid of the absolute values.
+  //
+  // dividend < 0, divisor > 0:
+  // dividend = -|dividend| = -(quot * divisor + rem) = (-quot) * divisor + (-rem)
+  //
+  // dividend > 0, divisor < 0:
+  // dividend = quot * (-divisor) + rem = (-quot) * divisor + rem
+  //
+  // dividend < 0, divisor < 0:
+  // dividend = -|dividend| = -(quot * (-divisor) + rem) = (-quot) * (-divisor) + (-rem)
+  //          = quot * divisor + (-rem)
+
+  bool quot_positive = dividend->positive() == divisor->positive();
+  bool rem_positive = dividend->positive();
+
+  return {normalize(ctx, set_sign_copy(ctx, quot, quot_positive)),
+          normalize(ctx, set_sign_copy(ctx, rem, rem_positive))};
 }
 
 static std::tuple<ptr<>, ptr<>>

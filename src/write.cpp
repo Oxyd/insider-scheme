@@ -231,6 +231,13 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
     out->write(fmt::format("<error: {} {}>", e->message(ctx)->value(), datum_to_string(ctx, e->irritants(ctx))));
   } else if (auto fe = match<file_error>(datum)) {
     out->write(fmt::format("<file error: {}>", fe->message()));
+  } else if (auto v = match<values_tuple>(datum)) {
+    out->write("<values");
+    for (std::size_t i = 0; i < v->size(); ++i) {
+      out->write(' ');
+      write_simple(ctx, v->ref(i), out);
+    }
+    out->write(">");
   } else
     out->write(fmt::format("<{}>", object_type_name(datum)));
 }
