@@ -63,17 +63,17 @@ find_property_value(char32_t c) {
 }
 
 char32_t
-upcase(char32_t c) {
+char_upcase(char32_t c) {
   return find_property_value<&code_point_properties::simple_uppercase>(c);
 }
 
 char32_t
-downcase(char32_t c) {
+char_downcase(char32_t c) {
   return find_property_value<&code_point_properties::simple_lowercase>(c);
 }
 
 char32_t
-foldcase(char32_t c) {
+char_foldcase(char32_t c) {
   return find_property_value<&code_point_properties::simple_case_folding>(c);
 }
 
@@ -148,6 +148,9 @@ export_character(context& ctx, module_& result) {
   define_procedure(ctx, "digit-value", result, true, digit_value);
   define_procedure(ctx, "char->integer", result, true, char_to_integer);
   define_procedure(ctx, "integer->char", result, true, integer_to_char);
+  define_procedure(ctx, "char-upcase", result, true, char_upcase);
+  define_procedure(ctx, "char-downcase", result, true, char_downcase);
+  define_procedure(ctx, "char-foldcase", result, true, char_foldcase);
 }
 
 } // namespace insider

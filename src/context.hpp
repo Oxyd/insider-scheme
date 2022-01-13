@@ -211,8 +211,13 @@ inline ptr<symbol>
 type(context& ctx, ptr<> o) {
   if (is_object_ptr(o))
     return ctx.intern(object_type(o).name);
-  else
+  else if (is_fixnum(o))
     return ctx.intern(integer_type_name);
+  else if (is_character(o))
+    return ctx.intern(character_type_name);
+
+  assert(false);
+  return {};
 }
 
 } // namespace insider

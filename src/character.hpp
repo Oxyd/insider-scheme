@@ -42,13 +42,13 @@ bool
 is_white_space(char32_t);
 
 char32_t
-upcase(char32_t);
+char_upcase(char32_t);
 
 char32_t
-downcase(char32_t);
+char_downcase(char32_t);
 
 char32_t
-foldcase(char32_t);
+char_foldcase(char32_t);
 
 // The length in bytes of a code-point after conversion to UTF-8.
 std::size_t

@@ -233,7 +233,7 @@ downcase(context& ctx, ptr<string> s) {
   for (auto cp = code_points_begin(old_data), e = code_points_end(old_data); cp != e; ++cp)
     if (*cp != uppercase_sigma) {
       update_is_preceded_by_cased_letter(is_preceded_by_cased_letter, *cp);
-      append(new_data, downcase(*cp));
+      append(new_data, char_downcase(*cp));
     } else {
       if (is_preceded_by_cased_letter
           && !is_followed_by_cased_letter(cp.base(), old_data.data() + old_data.length()))
