@@ -1,6 +1,6 @@
 (library (insider string-test))
 (import (insider syntax) (insider string) (insider test) (insider control) (insider char) (insider numeric)
-        (insider list))
+        (insider list) (insider basic-procedures))
 (export test-string)
 
 (define (test-string-cursor)
@@ -245,6 +245,19 @@
                    "foo"
                    "bar")
                   result))
+
+    (test-equal "abdegh" (string-map char-foldcase "AbdEgH"))
+    (test-equal "IBM"
+                (string-map
+                 (lambda (c)
+                   (integer->char (+ 1 (char->integer c))))
+                 "HAL"))
+    (test-equal "StUdLyCaPs"
+                (string-map
+                 (lambda (c k)
+                   ((if (eqv? k #\u) char-upcase char-downcase) c))
+                 "studlycaps xxx"
+                 "ululululul"))
 
     (test-equal "cdefab" (string-replicate "abcdef" 2 8))
     (test-equal "efabcd" (string-replicate "abcdef" -2 4))

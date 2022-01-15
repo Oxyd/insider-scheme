@@ -38,7 +38,7 @@
  string-index string-index-right string-skip string-skip-right string-contains string-contains-right
 
  string-reverse string-concatenate string-concatenate-reverse string-fold string-fold-right
- string-for-each-cursor string-for-each
+ string-for-each-cursor string-for-each string-map
  string-replicate string-count string-replace string-split string-filter string-remove)
 
 (define-type-predicate string? insider::string)
@@ -523,6 +523,14 @@
   (if (null? strings-rest)
       (string-for-each-1 proc string1)
       (string-for-each-multi proc (cons string1 strings-rest))))
+
+(define (string-map proc string1 . strings-rest)
+  (let ((result (string)))
+    (apply string-for-each
+           (lambda chars
+             (string-append-char! result (apply proc chars)))
+           string1 strings-rest)
+    result))
 
 (define string-replicate
   (opt-lambda (s from to (start (string-cursor-start s)) (end (string-cursor-end s)))
