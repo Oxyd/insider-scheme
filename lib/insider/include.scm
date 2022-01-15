@@ -5,7 +5,8 @@
         (insider control)
         (insider string)
         (insider basic-procedures)
-        (insider list))
+        (insider list)
+        (insider numeric))
 (export include include-ci)
 
 (begin-for-syntax
