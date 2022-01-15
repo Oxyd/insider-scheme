@@ -747,6 +747,16 @@ TEST_F(control, apply_with_variadic_lambda) {
   EXPECT_TRUE(equal(result, read("(1 2 3)")));
 }
 
+TEST_F(control, apply_with_multiple_arguments_and_variadic_lambda) {
+  auto result = eval(R"(
+    (apply
+      (lambda (x . y)
+        (cons x y))
+      1 '(2 3))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2 3)")));
+}
+
 TEST_F(control, call_with_values_single_value) {
   auto result = eval(R"(
     (call-with-values

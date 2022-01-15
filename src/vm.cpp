@@ -454,7 +454,7 @@ push_closure(frame_stack& stack, ptr<insider::closure> closure) {
 
 template <typename F>
 static void
-push_mandatory_args(frame_stack& stack, std::size_t min_args, F get_arg) {
+push_mandatory_args(frame_stack& stack, std::size_t min_args, F&& get_arg) {
   for (std::size_t j = 0; j < min_args; ++j)
     stack.push(get_arg());
 }
@@ -477,7 +477,7 @@ namespace {
 
 template <typename F>
 static ptr<>
-convert_args_to_list(context& ctx, std::size_t num_rest, F get_arg) {
+convert_args_to_list(context& ctx, std::size_t num_rest, F& get_arg) {
   ptr<pair> head = cons(ctx, get_arg(), ctx.constants->null.get());
   ptr<pair> last = head;
 
@@ -492,7 +492,7 @@ convert_args_to_list(context& ctx, std::size_t num_rest, F get_arg) {
 
 template <typename F>
 static void
-push_rest_arg(context& ctx, frame_stack& stack, ptr<procedure> proc, std::size_t num_args, F get_arg) {
+push_rest_arg(context& ctx, frame_stack& stack, ptr<procedure> proc, std::size_t num_args, F& get_arg) {
   std::size_t num_rest = num_args - proc->min_args;
 
   if (num_rest > 0)
@@ -506,7 +506,7 @@ static void
 push_arguments_and_closure(context& ctx,
                            ptr<procedure> proc, ptr<insider::closure> closure,
                            ptr<stack_frame> new_frame, std::size_t num_args,
-                           F get_arg) {
+                           F&& get_arg) {
   frame_stack stack{new_frame};
   push_closure(stack, closure);
   push_mandatory_args(stack, proc->min_args, get_arg);
