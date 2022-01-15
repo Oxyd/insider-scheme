@@ -1,7 +1,7 @@
 (library (insider test))
 (import (insider syntax) (insider basic-procedures) (insider list)
         (insider record) (insider control) (insider error) (insider file)
-        (insider numeric) (scheme case-lambda)
+        (insider numeric) (insider string) (scheme case-lambda)
         (only (insider internal) string-append datum->string number->string))
 (export
  test-runner?

@@ -69,6 +69,7 @@
       (+ i 1))
 
     (test-equal "abc" (string #\a #\b #\c))
+    (test-equal 3 (string-length (make-string 3)))
     (test-equal "xxx" (make-string 3 #\x))
 
     (test-equal "123" (string-tabulate integer->digit+1 3))
@@ -88,7 +89,10 @@
 (define (test-string-conversion)
   (test-group "string conversion"
     (test-equal '(#\a #\b #\c) (string->list "abc"))
+    (test-equal '(#\d #\e #\f) (string->list "abcdef" 3))
+    (test-equal '(#\d #\e) (string->list "abcdef" 3 5))
     (test-equal '(#\b #\c) (string->list/cursors "abcdef" 1 3))
+    (test-equal "abc" (list->string '(#\a #\b #\c)))
 
     (test-equal #(#\a #\b #\c) (string->vector "abc"))
     (test-equal #(#\b #\c) (string->vector/cursors "abcdef" 1 3))
@@ -179,9 +183,35 @@
     (test-equal #\o (string-ref "foo" 1))
     (test-equal #\o (string-ref "foo" 2))
 
-    (let ((s (string-copy "abc")))
-      (string-set! s 0 #\A)
-      (test-equal "Abc" s))
+    (test-equal "Abc"
+                (let ((s (string-copy "abc")))
+                  (string-set! s 0 #\A)
+                  s))
+
+    (test-equal "abCDEfgh"
+                (let ((s (string-copy "abcdefgh")))
+                  (string-copy! s 2 "CDE")
+                  s))
+
+    (test-equal "abfghfgh"
+                (let ((s (string-copy "abcdefgh")))
+                  (string-copy! s 2 s 5)
+                  s))
+
+    (test-equal "abcdecdh"
+                (let ((s (string-copy "abcdefgh")))
+                  (string-copy! s 5 s 2 4)
+                  s))
+
+    (test-equal "aabcefgh"
+                (let ((s (string-copy "abcdefgh")))
+                  (string-copy! s 1 s 0 3)
+                  s))
+
+    (test-equal "abcdefgh"
+                (let ((s (string-copy "abcdefgh")))
+                  (string-copy! s 1 s 1)
+                  s))
 
     (test-equal ".able was I ere I saw elbA" (string-reverse "Able was I ere I saw elba."))
     (test-equal "snoops" (string-reverse "Who stole the spoons?" 14 20))
@@ -241,10 +271,71 @@
     (test-equal '("f" "o" "o") (string-split "foo" ""))
 
     (test-equal "bdf" (string-filter char-lower-case? "AbCdEf"))
-    (test-equal "ACE" (string-remove char-lower-case? "AbCdEf"))))
+    (test-equal "ACE" (string-remove char-lower-case? "AbCdEf"))
+
+    (test-equal "aaabbb" (string-append "aaa" "bbb"))
+    (test-equal "aaabbbccc" (string-append "aaa" "bbb" "ccc"))
+
+    (test-equal "xxx"
+                (let ((s (string-copy "žžž")))
+                  (string-fill! s #\x)
+                  s))
+
+    (test-equal "žžž"
+                (let ((s (string-copy "xxx")))
+                  (string-fill! s #\ž)
+                  s))
+
+    (test-equal "xxžžžxx"
+                (let ((s (string-copy "xxxxxxx")))
+                  (string-fill! s #\ž 2 5)
+                  s))))
+
+(define (test-string-comparison)
+  (test-group "comparison"
+    (test (string=? "foo" "foo" "foo"))
+    (test-false (string=? "foo" "foo" "bar" "foo"))
+
+    (test (string<? "aaa" "bbb" "ccc"))
+    (test-false (string<? "aaa" "ccc" "bbb"))
+    (test-false (string<? "aaa" "aaa"))
+    (test-false (string<? "aaa" "BBB"))
+
+    (test (string<=? "aaa" "aaa" "aab"))
+    (test-false (string<=? "aaa" "aab" "aaa"))
+
+    (test (string>? "ccc" "bbb" "aaa"))
+    (test-false (string>? "aaa" "aaa"))
+    (test-false (string>? "ccc" "aaa" "bbb"))
+
+    (test (string>=? "ccc" "bbb" "aaa"))
+    (test (string>=? "ccc" "ccc" "bbb" "aaa"))
+    (test-false (string>=? "aaa" "bbb"))
+
+    (test (string-ci=? "foo" "FOO" "foO"))
+    (test-false (string-ci=? "foo" "BAR"))
+
+    (test (string-ci<? "aaA" "bBb" "Ccc"))
+    (test-false (string-ci<? "AAA" "ccc" "bbb"))
+    (test-false (string-ci<? "AAA" "aaa"))
+    (test (string-ci<? "aaa" "BBB"))
+
+    (test (string-ci<=? "aaa" "AAa" "aAb"))
+    (test-false (string-ci<=? "AAA" "aab" "aAa"))
+
+    (test (string-ci>? "cCc" "bBB" "AAA"))
+    (test-false (string-ci>? "aaa" "aAA"))
+    (test-false (string-ci>? "ccc" "AaA" "bbB"))
+
+    (test (string-ci>=? "ccc" "bBB" "Aaa"))
+    (test (string-ci>=? "ccc" "cCC" "bbB" "Aaa"))
+    (test-false (string-ci>=? "aaA" "BBb"))))
 
 (define (test-string)
   (test-group "string"
+    (test (string? "foo"))
+    (test-false (string? #\f))
+
     (test-string-cursor)
     (test-string-predicates)
     (test-string-constructors)
@@ -252,7 +343,8 @@
     (test-string-selection)
     (test-string-affixes)
     (test-string-searching)
-    (test-string-whole)))
+    (test-string-whole)
+    (test-string-comparison)))
 
 (when-main-module
  (test-string))

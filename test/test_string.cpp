@@ -73,33 +73,33 @@ TEST_F(string_fixture, string_equal) {
 }
 
 TEST_F(string_fixture, string_upcase_simple) {
-  EXPECT_EQ(upcase(ctx, make<string>(ctx, "aaa"))->value(), "AAA");
-  EXPECT_EQ(upcase(ctx, make<string>(ctx, "aAa"))->value(), "AAA");
-  EXPECT_EQ(upcase(ctx, make<string>(ctx, "000"))->value(), "000");
-  EXPECT_EQ(upcase(ctx, make<string>(ctx, "ááá"))->value(), "ÁÁÁ");
+  EXPECT_EQ(string_upcase(ctx, make<string>(ctx, "aaa"))->value(), "AAA");
+  EXPECT_EQ(string_upcase(ctx, make<string>(ctx, "aAa"))->value(), "AAA");
+  EXPECT_EQ(string_upcase(ctx, make<string>(ctx, "000"))->value(), "000");
+  EXPECT_EQ(string_upcase(ctx, make<string>(ctx, "ááá"))->value(), "ÁÁÁ");
 }
 
 TEST_F(string_fixture, string_upcase_complex) {
-  EXPECT_EQ(upcase(ctx, make<string>(ctx, "eﬃcient"))->value(), "EFFICIENT");
-  EXPECT_EQ(upcase(ctx, make<string>(ctx, "scheiße"))->value(), "SCHEISSE");
+  EXPECT_EQ(string_upcase(ctx, make<string>(ctx, "eﬃcient"))->value(), "EFFICIENT");
+  EXPECT_EQ(string_upcase(ctx, make<string>(ctx, "scheiße"))->value(), "SCHEISSE");
 }
 
 TEST_F(string_fixture, string_downcase_simple) {
-  EXPECT_EQ(downcase(ctx, make<string>(ctx, "AAA"))->value(), "aaa");
-  EXPECT_EQ(downcase(ctx, make<string>(ctx, "aAa"))->value(), "aaa");
-  EXPECT_EQ(downcase(ctx, make<string>(ctx, "000"))->value(), "000");
-  EXPECT_EQ(downcase(ctx, make<string>(ctx, "ÁÁÁ"))->value(), "ááá");
+  EXPECT_EQ(string_downcase(ctx, make<string>(ctx, "AAA"))->value(), "aaa");
+  EXPECT_EQ(string_downcase(ctx, make<string>(ctx, "aAa"))->value(), "aaa");
+  EXPECT_EQ(string_downcase(ctx, make<string>(ctx, "000"))->value(), "000");
+  EXPECT_EQ(string_downcase(ctx, make<string>(ctx, "ÁÁÁ"))->value(), "ááá");
 }
 
 TEST_F(string_fixture, sigma) {
-  EXPECT_EQ(upcase(ctx, make<string>(ctx, "Ὀδυσσεύς"))->value(), "ὈΔΥΣΣΕΎΣ");
-  EXPECT_EQ(downcase(ctx, make<string>(ctx, "ὈΔΥΣΣΕΎΣ"))->value(), "ὀδυσσεύς");
-  EXPECT_EQ(downcase(ctx, make<string>(ctx, "Σ"))->value(), "σ");
+  EXPECT_EQ(string_upcase(ctx, make<string>(ctx, "Ὀδυσσεύς"))->value(), "ὈΔΥΣΣΕΎΣ");
+  EXPECT_EQ(string_downcase(ctx, make<string>(ctx, "ὈΔΥΣΣΕΎΣ"))->value(), "ὀδυσσεύς");
+  EXPECT_EQ(string_downcase(ctx, make<string>(ctx, "Σ"))->value(), "σ");
 }
 
 TEST_F(string_fixture, string_foldcase) {
-  EXPECT_EQ(foldcase(ctx, make<string>(ctx, "scheiße"))->value(), "scheisse");
-  EXPECT_EQ(foldcase(ctx, make<string>(ctx, "ꮜꮝꮞ"))->value(), "ᏌᏍᏎ");
+  EXPECT_EQ(string_foldcase(ctx, make<string>(ctx, "scheiße"))->value(), "scheisse");
+  EXPECT_EQ(string_foldcase(ctx, make<string>(ctx, "ꮜꮝꮞ"))->value(), "ᏌᏍᏎ");
 }
 
 TEST_F(string_fixture, utf8_to_string) {

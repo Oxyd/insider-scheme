@@ -674,7 +674,7 @@ read_character(context& ctx, reader_stream& stream) {
       return {generic_literal{character_to_ptr(literal[0])}, loc};
     else {
       if (stream.fold_case)
-        literal = foldcase(literal);
+        literal = string_foldcase(literal);
 
       if (auto it = character_names.find(literal); it != character_names.end())
         return {generic_literal{character_to_ptr(it->second)}, loc};
@@ -740,7 +740,7 @@ read_identifier(reader_stream& stream) {
   std::u32string value = read_until_delimiter(stream);
 
   if (stream.fold_case)
-    value = foldcase(value);
+    value = string_foldcase(value);
 
   return {identifier{to_utf8(value)}, loc};
 }

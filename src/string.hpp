@@ -22,6 +22,9 @@ public:
   void
   set(std::size_t i, char32_t c);
 
+  void
+  set_byte_index(std::size_t bi, char32_t c);
+
   char32_t
   ref(std::size_t) const;
 
@@ -48,16 +51,16 @@ inline bool
 string_equal(ptr<string> x , ptr<string> y) { return x->value() == y->value(); }
 
 ptr<string>
-upcase(context&, ptr<string>);
+string_upcase(context&, ptr<string>);
 
 ptr<string>
-downcase(context&, ptr<string>);
+string_downcase(context&, ptr<string>);
 
 ptr<string>
-foldcase(context&, ptr<string>);
+string_foldcase(context&, ptr<string>);
 
 std::u32string
-foldcase(std::u32string const&);
+string_foldcase(std::u32string const&);
 
 ptr<string>
 utf8_to_string(context&, ptr<bytevector>, std::size_t start, std::size_t end);

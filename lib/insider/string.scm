@@ -3,9 +3,16 @@
         (insider vector) (insider control) (insider list) (insider error)
         (except (insider internal) define let))
 (export
+ string?
+
  string-append string-append! string-append-char! string-length
  symbol->string string make-string number->string datum->string
  string-ref string-set!
+
+ string=? string<? string<=? string>? string>=?
+ string-ci=? string-ci<? string-ci<=? string-ci>? string-ci>=?
+
+ string-upcase string-downcase string-foldcase
 
  string-cursor? string-cursor-start string-cursor-end string-cursor-next string-cursor-prev
  string-cursor-forward string-cursor-back
@@ -19,9 +26,9 @@
 
  string-tabulate string-unfold string-unfold-right
 
- string->list string->list/cursors string->vector string->vector/cursors string-join
+ string->list string->list/cursors list->string string->vector string->vector/cursors string-join
 
- string-copy string-copy/cursors substring substring/cursors
+ string-copy string-copy/cursors substring substring/cursors string-copy! string-fill!
  string-take string-drop string-take-right string-drop-right
  string-pad string-pad-right
  string-trim string-trim-right string-trim-both
@@ -33,6 +40,8 @@
  string-reverse string-concatenate string-concatenate-reverse string-fold string-fold-right
  string-for-each-cursor string-for-each
  string-replicate string-count string-replace string-split string-filter string-remove)
+
+(define-type-predicate string? insider::string)
 
 ;; String cursors are represented as exact negative integers. Byte index b is
 ;; represented as the string cursor with value -b - 1. This is to ensure that
@@ -180,6 +189,12 @@
 
 (define string->list string->list/cursors)
 
+(define (list->string list)
+  (do ((result (string))
+       (current list (cdr current)))
+      ((null? current) result)
+    (string-append-char! result (car current))))
+
 (define string->vector/cursors
   (opt-lambda (s (start* (string-cursor-start s)) (end* (string-cursor-end s)))
     (let ((start (->byte-index s start*))
@@ -234,6 +249,41 @@
   (string-copy/cursors s start end))
 
 (define substring substring/cursors)
+
+(define (string-copy!/forward to at from start end)
+  (let ((at (->byte-index to at))
+        (start (->byte-index from start))
+        (end (->byte-index from end)))
+    (do ((from-current start (next-code-point-byte-index from from-current))
+         (to-current at (next-code-point-byte-index to to-current)))
+        ((= from-current end))
+      (string-set!/byte-index to to-current (string-ref/byte-index from from-current)))))
+
+(define (string-copy!/backward to at from start end)
+  (let* ((start* (->byte-index from start))
+         (end* (->byte-index from end))
+         (length (string-cursor-diff from start end))
+         (to-end (->byte-index to (string-cursor-forward to at length))))
+    (let loop ((from-current end*) (to-current to-end))
+      (let ((from-current-1 (previous-code-point-byte-index from from-current))
+            (to-current-1 (previous-code-point-byte-index to to-current)))
+        (string-set!/byte-index to to-current-1 (string-ref/byte-index from from-current-1))
+        (unless (= from-current-1 start*)
+          (loop from-current-1 to-current-1))))))
+
+(define string-copy!
+  (opt-lambda (to at from (start (string-cursor-start from)) (end (string-cursor-end from)))
+    (if (and (eq? to from) (string-cursor<? start at))
+        (string-copy!/backward to at from start end)
+        (string-copy!/forward to at from start end))))
+
+(define string-fill!
+  (opt-lambda (s fill (start (string-cursor-start s)) (end (string-cursor-end s)))
+    (let ((length (string-cursor-diff s start end)))
+      (do ((current (->byte-index s start) (next-code-point-byte-index s current))
+           (count length (- count 1)))
+          ((= count 0))
+        (string-set!/byte-index s current fill)))))
 
 (define (string-take s nchars)
   (string-copy/cursors s 0 nchars))
@@ -567,6 +617,30 @@
   (opt-lambda (pred s (start (string-cursor-start s)) (end (string-cursor-end s)))
     (string-filter (lambda (c) (not (pred c))) s start end)))
 
-;; Local variables:
-;; eval: (put 'opt-lambda 'scheme-indent-function 1)
-;; End:
+(define (string-compare predicate first-string other-strings)
+  (or (null? other-strings)
+      (and (predicate first-string (car other-strings))
+           (string-compare predicate (car other-strings) (cdr other-strings)))))
+
+(define (make-string-comparator predicate)
+  (lambda (string1 string2 . strings-rest)
+    (string-compare predicate string1 (cons string2 strings-rest))))
+
+(define string=? (make-string-comparator string=?/pair))
+(define string<? (make-string-comparator string<?/pair))
+(define string<=? (make-string-comparator string<=?/pair))
+(define string>? (make-string-comparator string>?/pair))
+(define string>=? (make-string-comparator string>=?/pair))
+
+(define (make-string-comparator-ci predicate)
+  (lambda (string1 string2 . strings-rest)
+    (string-compare
+     predicate
+     (string-foldcase string1)
+     (cons (string-foldcase string2) (map string-foldcase strings-rest)))))
+
+(define string-ci=? (make-string-comparator-ci string=?/pair))
+(define string-ci<? (make-string-comparator-ci string<?/pair))
+(define string-ci<=? (make-string-comparator-ci string<=?/pair))
+(define string-ci>? (make-string-comparator-ci string>?/pair))
+(define string-ci>=? (make-string-comparator-ci string>=?/pair))

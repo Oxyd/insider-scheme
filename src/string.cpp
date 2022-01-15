@@ -30,6 +30,11 @@ nth_code_point(std::string const& data, std::size_t n) {
 void
 string::set(std::size_t i, char32_t c) {
   std::size_t byte_index = nth_code_point(data_, i);
+  set_byte_index(byte_index, c);
+}
+
+void
+string::set_byte_index(std::size_t byte_index, char32_t c) {
   std::size_t old_length = utf8_code_point_byte_length(data_[byte_index]);
   std::size_t new_length = utf32_code_point_byte_length(c);
 
@@ -169,7 +174,7 @@ for_each_code_point(std::string const& data, F&& f) {
 }
 
 ptr<string>
-upcase(context& ctx, ptr<string> s) {
+string_upcase(context& ctx, ptr<string> s) {
   std::string const& old_data = s->value();
   std::string new_data;
   new_data.reserve(old_data.length());
@@ -212,7 +217,7 @@ is_followed_by_cased_letter(char const* begin, char const* end) {
 }
 
 ptr<string>
-downcase(context& ctx, ptr<string> s) {
+string_downcase(context& ctx, ptr<string> s) {
   // Note: In Unicode version 13, there are no language-independent downcasing
   // mappings that differ from the simple mappings.
 
@@ -246,7 +251,7 @@ downcase(context& ctx, ptr<string> s) {
 }
 
 ptr<string>
-foldcase(context& ctx, ptr<string> s) {
+string_foldcase(context& ctx, ptr<string> s) {
   std::string const& old_data = s->value();
   std::string new_data;
   new_data.reserve(old_data.length());
@@ -263,7 +268,7 @@ foldcase(context& ctx, ptr<string> s) {
 }
 
 std::u32string
-foldcase(std::u32string const& s) {
+string_foldcase(std::u32string const& s) {
   std::u32string result;
   result.reserve(s.length());
 
@@ -530,6 +535,31 @@ string_contains_right_byte_indexes(ptr<string> haystack, ptr<string> needle,
     return integer{static_cast<integer::value_type>(result)};
 }
 
+static bool
+string_eq(ptr<string> lhs, ptr<string> rhs) {
+  return lhs->value() == rhs->value();
+}
+
+static bool
+string_lt(ptr<string> lhs, ptr<string> rhs) {
+  return lhs->value() < rhs->value();
+}
+
+static bool
+string_le(ptr<string> lhs, ptr<string> rhs) {
+  return lhs->value() <= rhs->value();
+}
+
+static bool
+string_gt(ptr<string> lhs, ptr<string> rhs) {
+  return lhs->value() > rhs->value();
+}
+
+static bool
+string_ge(ptr<string> lhs, ptr<string> rhs) {
+  return lhs->value() >= rhs->value();
+}
+
 void
 export_string(context& ctx, module_& result) {
   define_raw_procedure(ctx, "string", result, true, construct_string);
@@ -545,6 +575,7 @@ export_string(context& ctx, module_& result) {
   define_procedure(ctx, "previous-code-point-byte-index", result, true, previous_code_point_byte_index);
   define_procedure(ctx, "string-ref", result, true, string_ref);
   define_procedure(ctx, "string-set!", result, true, &string::set);
+  define_procedure(ctx, "string-set!/byte-index", result, true, &string::set_byte_index);
   define_procedure(ctx, "string-append-char!", result, true, &string::append_char);
   define_procedure(ctx, "string-ref/byte-index", result, true, string_ref_byte_index);
   define_procedure(ctx, "string-null?", result, true, is_string_null);
@@ -553,6 +584,14 @@ export_string(context& ctx, module_& result) {
   define_procedure(ctx, "string-copy/byte-indexes", result, true, string_copy_byte_indexes);
   define_procedure(ctx, "string-contains/byte-indexes", result, true, string_contains_byte_indexes);
   define_procedure(ctx, "string-contains-right/byte-indexes", result, true, string_contains_right_byte_indexes);
+  define_procedure(ctx, "string=?/pair", result, true, string_eq);
+  define_procedure(ctx, "string<?/pair", result, true, string_lt);
+  define_procedure(ctx, "string<=?/pair", result, true, string_le);
+  define_procedure(ctx, "string>?/pair", result, true, string_gt);
+  define_procedure(ctx, "string>=?/pair", result, true, string_ge);
+  define_procedure(ctx, "string-upcase", result, true, string_upcase);
+  define_procedure(ctx, "string-downcase", result, true, string_downcase);
+  define_procedure(ctx, "string-foldcase", result, true, static_cast<ptr<string> (*)(context&, ptr<string>)>(&string_foldcase));
 }
 
 } // namespace insider

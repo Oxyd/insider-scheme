@@ -10,7 +10,7 @@
  ;; Defined here
  define-type-predicate
  box? syntax? vector? plain-procedure? native-procedure? closure? procedure? scheme-procedure?
- symbol? string? boolean?
+ symbol? boolean?
  not)
 
 (define-syntax define-type-predicate
