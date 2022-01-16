@@ -256,6 +256,8 @@ public:
 
   bytevector(std::size_t size);
 
+  bytevector(bytevector&&);
+
   void
   set(std::size_t index, element_type value) { storage_element(index) = value; }
 

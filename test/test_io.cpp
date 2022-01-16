@@ -96,6 +96,11 @@ TEST_F(io, read_bytevector) {
   EXPECT_THROW(read("#u8("), read_error);
 }
 
+TEST_F(io, eval_bytevector_literal) {
+  auto result = expect<bytevector>(eval("#u8(1 2 3)"));
+  EXPECT_TRUE(equal(result, read("#u8(1 2 3)")));
+}
+
 TEST_F(io, read_symbol) {
   EXPECT_EQ(read("foo"), ctx.intern("foo"));
   EXPECT_EQ(read("multiple-words"), ctx.intern("multiple-words"));

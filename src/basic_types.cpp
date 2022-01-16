@@ -197,6 +197,13 @@ bytevector::bytevector(std::size_t size)
   : dynamic_size_object{size}
 { }
 
+bytevector::bytevector(bytevector&& other)
+  : dynamic_size_object{other.size()}
+{
+  for (std::size_t i = 0; i < size(); ++i)
+    storage_element(i) = other.storage_element(i);
+}
+
 void
 bytevector::visit_members(member_visitor const&) { }
 
@@ -311,6 +318,27 @@ values_tuple::visit_members(member_visitor const& f) {
     f(storage_element(i));
 }
 
+static ptr<bytevector>
+make_bytevector(context& ctx, std::size_t len, bytevector::element_type fill) {
+  auto result = make<bytevector>(ctx, len);
+  for (std::size_t i = 0; i < len; ++i)
+    result->set(i, fill);
+  return result;
+}
+
+static ptr<bytevector>
+make_bytevector_elems(context& ctx, object_span args) {
+  auto result = make<bytevector>(ctx, args.size());
+  for (std::size_t i = 0; i < args.size(); ++i)
+    result->set(i, from_scheme<bytevector::element_type>(ctx, args[i]));
+  return result;
+}
+
+static integer
+bytevector_length(ptr<bytevector> bv) {
+  return static_cast<integer::value_type>(bv->size());
+}
+
 void
 export_basic_types(context& ctx, module_& result) {
   define_procedure(ctx, "make-error", result, true,
@@ -320,6 +348,12 @@ export_basic_types(context& ctx, module_& result) {
   define_procedure(ctx, "uncaught-exception-inner-exception", result, true,
                    [] (ptr<uncaught_exception> e) { return e->inner_exception; });
   define_procedure(ctx, "file-error-message", result, true, &file_error::message);
+
+  define_procedure(ctx, "make-bytevector", result, true, make_bytevector, [] (context&) { return 0; });
+  define_raw_procedure(ctx, "bytevector", result, true, make_bytevector_elems);
+  define_procedure(ctx, "bytevector-length", result, true, bytevector_length);
+  define_procedure(ctx, "bytevector-u8-ref", result, true, &bytevector::ref);
+  define_procedure(ctx, "bytevector-u8-set!", result, true, &bytevector::set);
 }
 
 } // namespace insider

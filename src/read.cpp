@@ -1085,6 +1085,14 @@ wrap(context& ctx, ptr<> value, source_location const& loc, bool read_syntax) {
 }
 
 static ptr<>
+unwrap(ptr<> value) {
+  if (auto stx = match<syntax>(value))
+    return stx->expression();
+  else
+    return value;
+}
+
+static ptr<>
 find_datum_label_reference(datum_labels const& labels, std::string const& label, source_location ref_location) {
   if (auto it = labels.find(label); it != labels.end()) {
     assert(it->second);
@@ -1181,8 +1189,11 @@ read_vector_elements(context& ctx, reader_stream& stream, bool read_syntax, datu
     source_location loc = stream.location();
     elements.push_back(read_and_wrap(ctx, t, stream, read_syntax, labels));
 
-    if (bytevector && !valid_bytevector_element(elements.back()))
-      throw read_error{"Invalid bytevector element", loc};
+    if (bytevector) {
+      elements.back() = unwrap(elements.back());
+      if (!valid_bytevector_element(elements.back()))
+        throw read_error{"Invalid bytevector element", loc};
+    }
 
     t = read_token(ctx, stream);
   }
