@@ -326,12 +326,11 @@ find_code_point_byte_range(std::string const& data, std::size_t code_point_start
 }
 
 ptr<bytevector>
-string_to_utf8(context& ctx, ptr<string> s, std::size_t start, std::size_t end) {
+string_to_utf8_byte_indexes(context& ctx, ptr<string> s, std::size_t start, std::size_t end) {
   std::string const& data = s->value();
-  auto [start_index, end_index] = find_code_point_byte_range(data, start, end);
 
-  auto result = make<bytevector>(ctx, end_index - start_index);
-  for (std::size_t i = start_index, j = 0; i < end_index; ++i, ++j)
+  auto result = make<bytevector>(ctx, end - start);
+  for (std::size_t i = start, j = 0; i < end; ++i, ++j)
     result->set(j, data[i]);
 
   return result;
@@ -592,6 +591,8 @@ export_string(context& ctx, module_& result) {
   define_procedure(ctx, "string-upcase", result, true, string_upcase);
   define_procedure(ctx, "string-downcase", result, true, string_downcase);
   define_procedure(ctx, "string-foldcase", result, true, static_cast<ptr<string> (*)(context&, ptr<string>)>(&string_foldcase));
+  define_procedure(ctx, "string->utf8/byte-indexes", result, true, string_to_utf8_byte_indexes);
+  define_procedure(ctx, "utf8->string*", result, true, utf8_to_string);
 }
 
 } // namespace insider

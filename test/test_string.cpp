@@ -116,9 +116,9 @@ TEST_F(string_fixture, utf8_to_string) {
 
 TEST_F(string_fixture, string_to_utf8) {
   using namespace std::literals;
-  EXPECT_TRUE(equal(string_to_utf8(ctx, expect<string>(to_scheme(ctx, "Ὀδυσσεύς"s)), 0, 8),
+  EXPECT_TRUE(equal(string_to_utf8_byte_indexes(ctx, expect<string>(to_scheme(ctx, "Ὀδυσσεύς"s)), 0, 17),
                     read("#u8(#xe1 #xbd #x88 #xce #xb4 #xcf #x85 #xcf #x83 #xcf #x83 #xce #xb5 #xcf #x8d #xcf #x82)")));
-  EXPECT_TRUE(equal(string_to_utf8(ctx, expect<string>(to_scheme(ctx, "Ὀδυσσεύς"s)), 2, 6),
+  EXPECT_TRUE(equal(string_to_utf8_byte_indexes(ctx, expect<string>(to_scheme(ctx, "Ὀδυσσεύς"s)), 5, 13),
                     read("#u8(#xcf #x85 #xcf #x83 #xcf #x83 #xce #xb5)")));
 }
 

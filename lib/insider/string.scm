@@ -1,6 +1,6 @@
 (library (insider string))
 (import (insider syntax) (insider numeric) (insider basic-procedures) (scheme case-lambda) (insider opt-lambda)
-        (insider vector) (insider control) (insider list) (insider error)
+        (insider vector) (insider control) (insider list) (insider error) (insider bytevector)
         (except (insider internal) define let))
 (export
  string?
@@ -13,6 +13,7 @@
  string-ci=? string-ci<? string-ci<=? string-ci>? string-ci>=?
 
  string-upcase string-downcase string-foldcase
+ string->utf8 utf8->string
 
  string-cursor? string-cursor-start string-cursor-end string-cursor-next string-cursor-prev
  string-cursor-forward string-cursor-back
@@ -652,3 +653,11 @@
 (define string-ci<=? (make-string-comparator-ci string<=?/pair))
 (define string-ci>? (make-string-comparator-ci string>?/pair))
 (define string-ci>=? (make-string-comparator-ci string>=?/pair))
+
+(define string->utf8
+  (opt-lambda (s (start (string-cursor-start s)) (end (string-cursor-end s)))
+    (string->utf8/byte-indexes s (->byte-index s start) (->byte-index s end))))
+
+(define utf8->string
+  (opt-lambda (bv (start 0) (end (bytevector-length bv)))
+    (utf8->string* bv start end)))

@@ -66,7 +66,7 @@ ptr<string>
 utf8_to_string(context&, ptr<bytevector>, std::size_t start, std::size_t end);
 
 ptr<bytevector>
-string_to_utf8(context&, ptr<string>, std::size_t start, std::size_t end);
+string_to_utf8_byte_indexes(context&, ptr<string>, std::size_t start, std::size_t end);
 
 ptr<string>
 string_reverse(context&, ptr<string>, std::size_t start, std::size_t end);
