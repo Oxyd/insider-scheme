@@ -1472,6 +1472,7 @@ export_read(context& ctx, module_& result) {
                                                   [] (tracked_ptr<syntax> s) { return s.get(); });
                    },
                    get_default_port);
+  define_procedure(ctx, "string->number", result, true, string_to_number, [] (context&) { return 10; });
 }
 
 void

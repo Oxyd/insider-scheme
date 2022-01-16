@@ -7,7 +7,7 @@
 
  string-append string-append! string-append-char! string-length
  symbol->string string make-string number->string datum->string
- string-ref string-set!
+ string-ref string-set! string->number
 
  string=? string<? string<=? string>? string>=?
  string-ci=? string-ci<? string-ci<=? string-ci>? string-ci>=?

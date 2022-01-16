@@ -115,7 +115,16 @@
     (test-equal "" (string-join '() ":" 'suffix))
     (test-equal ":" (string-join '("") ":" 'suffix))
 
-    (test-error (string-join '() "" 'invalid-grammar))))
+    (test-error (string-join '() "" 'invalid-grammar))
+
+    (test-equal 12 (string->number "12"))
+    (test-equal 18 (string->number "12" 16))
+    (test-equal 26 (string->number "1a" 16))
+    (test-equal 8 (string->number "10" 8))
+    (test-equal 18 (string->number "#x12"))
+    (test-equal 18 (string->number "#x12" 2))
+    (test-equal 100.0 (string->number "1e2"))
+    (test-eq #f (string->number "1a"))))
 
 (define (test-string-selection)
   (test-group "string selection"
