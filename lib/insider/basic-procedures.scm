@@ -9,7 +9,7 @@
 
  ;; Defined here
  define-type-predicate
- box? syntax? vector? plain-procedure? native-procedure? closure? procedure? scheme-procedure?
+ box? syntax? plain-procedure? native-procedure? closure? procedure? scheme-procedure?
  symbol? boolean?
  not)
 
@@ -21,7 +21,6 @@
 
 (define-type-predicate box? insider::box)
 (define-type-predicate syntax? insider::syntax)
-(define-type-predicate vector? insider::vector)
 (define-type-predicate plain-procedure? insider::procedure)
 (define-type-predicate native-procedure? insider::native_procedure)
 (define-type-predicate closure? insider::closure)

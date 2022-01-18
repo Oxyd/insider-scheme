@@ -48,6 +48,24 @@ namespace detail {
   struct expect_helper<char32_t> : immediate_expect_helper<char32_t, ptr_to_character> { };
 }
 
+template <typename T>
+struct value_type_for {
+  using type = ptr<T>;
+};
+
+template <>
+struct value_type_for<integer> {
+  using type = integer;
+};
+
+template <>
+struct value_type_for<char32_t> {
+  using type = char32_t;
+};
+
+template <typename T>
+using value_type_for_t = typename value_type_for<T>::type;
+
 // Expect an object to be of given type and return the apropriate typed pointer
 // to the object. Throws type_error if the object isn't of the required type.
 template <typename T>

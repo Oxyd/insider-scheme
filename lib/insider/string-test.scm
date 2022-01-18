@@ -133,7 +133,10 @@
     (test-equal #u8(#xCE #xBB) (string->utf8 "λ"))
     (test-equal #u8(#x6b #xc5 #xaf #xc5 #x88)
                 (string->utf8 "příšerně žluťoučký kůň úpěl ďábelské ódy"
-                              19 22))))
+                              19 22))
+
+    (test-equal #(#\A #\B #\C) (string->vector "ABC"))
+    (test-equal "123" (vector->string #(#\1 #\2 #\3)))))
 
 (define (test-string-selection)
   (test-group "string selection"

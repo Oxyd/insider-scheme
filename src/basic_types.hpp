@@ -232,17 +232,8 @@ make_vector(context& ctx, Container const& values, Converter const& convert) {
   return result;
 }
 
-ptr<vector>
-list_to_vector(context&, ptr<> lst);
-
 std::vector<ptr<>>
 list_to_std_vector(ptr<>);
-
-ptr<>
-vector_to_list(context&, ptr<vector>);
-
-ptr<vector>
-vector_append(context&, object_span vs);
 
 // A sequence of bytes.
 class bytevector : public dynamic_size_object<bytevector, std::uint8_t> {

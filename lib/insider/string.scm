@@ -23,8 +23,6 @@
 
  string-null? string-every string-any
 
- vector->string
-
  string-tabulate string-unfold string-unfold-right
 
  string->list string->list/cursors list->string string->vector string->vector/cursors string-join
@@ -40,7 +38,9 @@
 
  string-reverse string-concatenate string-concatenate-reverse string-fold string-fold-right
  string-for-each-cursor string-for-each string-map
- string-replicate string-count string-replace string-split string-filter string-remove)
+ string-replicate string-count string-replace string-split string-filter string-remove
+
+ vector->string string->vector)
 
 (define-type-predicate string? insider::string)
 
@@ -661,3 +661,10 @@
 (define utf8->string
   (opt-lambda (bv (start 0) (end (bytevector-length bv)))
     (utf8->string* bv start end)))
+
+(define vector->string
+  (opt-lambda (v (start 0) (end (vector-length v)))
+    (do ((result (string))
+         (current start (+ current 1)))
+        ((= current end) result)
+      (string-append-char! result (vector-ref v current)))))

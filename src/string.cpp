@@ -442,18 +442,6 @@ is_string_null(ptr<string> s) {
   return s->value().empty();
 }
 
-static ptr<string>
-vector_to_string(context& ctx, ptr<vector> v) {
-  std::string data;
-  std::size_t size = v->size();
-  data.reserve(size);
-  for (std::size_t i = 0; i < size; ++i)
-    to_utf8(expect<char32_t>(v->ref(i)), [&] (char byte) { data.push_back(byte); });
-
-  data.shrink_to_fit();
-  return make<string>(ctx, std::move(data));
-}
-
 ptr<string>
 string_reverse(context& ctx, ptr<string> s, std::size_t begin, std::size_t end) {
   std::string const& input = s->value();
@@ -578,7 +566,6 @@ export_string(context& ctx, module_& result) {
   define_procedure(ctx, "string-append-char!", result, true, &string::append_char);
   define_procedure(ctx, "string-ref/byte-index", result, true, string_ref_byte_index);
   define_procedure(ctx, "string-null?", result, true, is_string_null);
-  define_procedure(ctx, "vector->string", result, true, vector_to_string);
   define_procedure(ctx, "string-reverse*", result, true, string_reverse);
   define_procedure(ctx, "string-copy/byte-indexes", result, true, string_copy_byte_indexes);
   define_procedure(ctx, "string-contains/byte-indexes", result, true, string_contains_byte_indexes);

@@ -3,7 +3,8 @@
         (insider basic-procedures-test) (insider bytevector-test)
         (insider char-test) (insider numeric-test)
         (insider opt-lambda-test) (insider string-test)
-        (insider syntax-rules-test) (insider syntax-test))
+        (insider syntax-rules-test) (insider syntax-test)
+        (insider vector-test))
 (export test-lib)
 
 (define (test-lib)
@@ -15,7 +16,8 @@
     (test-opt-lambda)
     (test-string)
     (test-syntax-transformers)
-    (test-syntax)))
+    (test-syntax)
+    (test-vector)))
 
 (when-main-module
  (test-lib))

@@ -48,11 +48,6 @@ export_string(context&, module_&);
 void
 export_character(context&, module_&);
 
-static ptr<vector>
-make_vector_proc(context& ctx, object_span args) {
-  return make_vector(ctx, args.begin(), args.end());
-}
-
 module_
 make_internal_module(context& ctx) {
   module_ result{ctx};
@@ -74,34 +69,6 @@ make_internal_module(context& ctx) {
   export_character(ctx, result);
 
   define_raw_procedure(ctx, "append", result, true, append);
-  define_procedure(ctx, "list->vector", result, true, list_to_vector);
-  define_procedure(ctx, "vector->list", result, true, vector_to_list);
-  define_raw_procedure(ctx, "vector-append", result, true, vector_append);
-  define_procedure(
-    ctx, "vector-length", result, true,
-    [] (ptr<vector> v) {
-      return integer{static_cast<integer::value_type>(v->size())};
-    }
-  );
-  define_raw_procedure(ctx, "vector", result, true, make_vector_proc);
-  define_procedure(
-    ctx, "make-vector", result, true,
-    [] (context& ctx, std::size_t len, ptr<> fill) {
-      return make<vector>(ctx, len, fill);
-    },
-    [] (context& ctx) { return ctx.constants->void_.get(); }
-  );
-  operand vector_ref_index = define_procedure(ctx, "vector-ref", result, true, &vector::ref);
-  ctx.tag_top_level(vector_ref_index, special_top_level_tag::vector_ref);
-
-  operand vector_set_index = define_procedure(
-    ctx, "vector-set!", result, true,
-    [] (context& ctx, ptr<vector> v, std::size_t i, ptr<> o) {
-      v->set(ctx.store, i, o);
-    }
-  );
-  ctx.tag_top_level(vector_set_index, special_top_level_tag::vector_set);
-
   define_procedure(ctx, "cons", result, true, cons);
   define_procedure(ctx, "car", result, true, static_cast<ptr<> (*)(ptr<pair>)>(car));
   define_procedure(ctx, "cdr", result, true, static_cast<ptr<> (*)(ptr<pair>)>(cdr));

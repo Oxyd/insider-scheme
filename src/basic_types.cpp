@@ -142,7 +142,7 @@ vector::set(free_store& store, std::size_t i, ptr<> value) {
   store.notify_arc(this, value);
 }
 
-ptr<vector>
+static ptr<vector>
 list_to_vector(context& ctx, ptr<> lst) {
   std::size_t size = 0;
   for (ptr<> e = lst; e != ctx.constants->null.get(); e = cdr(expect<pair>(e)))
@@ -165,16 +165,28 @@ list_to_std_vector(ptr<> lst) {
   return result;
 }
 
-ptr<>
-vector_to_list(context& ctx, ptr<vector> v) {
+static ptr<>
+vector_to_list(context& ctx, object_span args) {
+  require_arg_count(args, 1, 3);
+  ptr<vector> v = require_arg<vector>(args, 0);
+  integer::value_type start = optional_arg<integer>(args, 1, 0).value();
+  integer::value_type end = optional_arg<integer>(args, 2, v->size()).value();
+
+  if (start > end)
+    throw std::runtime_error{"Start can't be larger than end"};
+  if (start < 0 || end < 0
+      || start > static_cast<integer::value_type>(v->size())
+      || end > static_cast<integer::value_type>(v->size()))
+    throw std::runtime_error{"Argument out of bounds"};
+
   ptr<> result = ctx.constants->null.get();
-  for (std::size_t i = v->size(); i > 0; --i)
+  for (integer::value_type i = end; i > start; --i)
     result = cons(ctx, v->ref(i - 1), result);
 
   return result;
 }
 
-ptr<vector>
+static ptr<vector>
 vector_append(context& ctx, object_span vs) {
   std::size_t size = 0;
   for (ptr<> e : vs) {
@@ -339,8 +351,41 @@ bytevector_length(ptr<bytevector> bv) {
   return static_cast<integer::value_type>(bv->size());
 }
 
+static ptr<vector>
+make_vector_proc(context& ctx, object_span args) {
+  return make_vector(ctx, args.begin(), args.end());
+}
+
 void
 export_basic_types(context& ctx, module_& result) {
+  define_procedure(ctx, "list->vector", result, true, list_to_vector);
+  define_raw_procedure(ctx, "vector->list", result, true, vector_to_list);
+  define_raw_procedure(ctx, "vector-append", result, true, vector_append);
+  define_procedure(
+    ctx, "vector-length", result, true,
+    [] (ptr<vector> v) {
+      return integer{static_cast<integer::value_type>(v->size())};
+    }
+  );
+  define_raw_procedure(ctx, "vector", result, true, make_vector_proc);
+  define_procedure(
+    ctx, "make-vector", result, true,
+    [] (context& ctx, std::size_t len, ptr<> fill) {
+      return make<vector>(ctx, len, fill);
+    },
+    [] (context& ctx) { return ctx.constants->void_.get(); }
+  );
+  operand vector_ref_index = define_procedure(ctx, "vector-ref", result, true, &vector::ref);
+  ctx.tag_top_level(vector_ref_index, special_top_level_tag::vector_ref);
+
+  operand vector_set_index = define_procedure(
+    ctx, "vector-set!", result, true,
+    [] (context& ctx, ptr<vector> v, std::size_t i, ptr<> o) {
+      v->set(ctx.store, i, o);
+    }
+  );
+  ctx.tag_top_level(vector_set_index, special_top_level_tag::vector_set);
+
   define_procedure(ctx, "make-error", result, true,
                    [] (context& ctx, ptr<string> m, ptr<> i) { return make<error>(ctx, m, i); });
   define_procedure(ctx, "error-message", result, true, &error::message);

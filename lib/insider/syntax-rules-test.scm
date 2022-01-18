@@ -1,6 +1,6 @@
 (library (insider syntax-rules-test))
 (import (insider syntax) (insider basic-procedures) (insider test) (insider control)
-        (insider list) (insider numeric))
+        (insider list) (insider numeric) (insider vector))
 (export test-syntax-transformers)
 
 (define (strip-syntax x)
