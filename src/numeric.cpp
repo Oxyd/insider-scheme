@@ -2328,6 +2328,10 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "truncate-remainder", result, true, truncate_remainder);
   define_procedure(ctx, "abs", result, true, abs);
   define_procedure(ctx, "floor", result, true, floor);
+  define_procedure(ctx, "inexact?", result, true, is_inexact);
+  define_procedure(ctx, "exact?", result, true, is_exact);
+  define_procedure(ctx, "inexact", result, true, inexact);
+  define_procedure(ctx, "exact", result, true, exact);
 }
 
 } // namespace insider
