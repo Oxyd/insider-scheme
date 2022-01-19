@@ -6,7 +6,12 @@
  cons car cdr cadr caddr cadddr cddr cdddr set-car! set-cdr! append
 
  ;; Defined here: R7RS procedures:
- null? pair? list caar assoc assq assv member memq memv length reverse map for-each
+ null? pair? list list?
+ caar cdar caaar caadr cadar cdaar cdadr cddar
+ caaaar caaadr caadar caaddr cadaar cadadr caddar
+ cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr
+ assoc assq assv member memq memv length reverse map for-each
+ make-list list-tail list-ref list-set! list-copy
 
  ;; SRFI-1:
  any every filter)
@@ -20,6 +25,31 @@
 
 (define (caar x)
   (car (car x)))
+
+(define (cdar x)
+  (cdr (car x)))
+
+(define (caaar x) (car (car (car x))))
+(define (caadr x) (car (car (cdr x))))
+(define (cadar x) (car (cdr (car x))))
+(define (cdaar x) (cdr (car (car x))))
+(define (cdadr x) (cdr (car (cdr x))))
+(define (cddar x) (cdr (cdr (car x))))
+(define (caaaar x) (car (car (car (car x)))))
+(define (caaadr x) (car (car (car (cdr x)))))
+(define (caadar x) (car (car (cdr (car x)))))
+(define (caaddr x) (car (car (cdr (cdr x)))))
+(define (cadaar x) (car (cdr (car (car x)))))
+(define (cadadr x) (car (cdr (car (cdr x)))))
+(define (caddar x) (car (cdr (cdr (car x)))))
+(define (cdaaar x) (cdr (car (car (car x)))))
+(define (cdaadr x) (cdr (car (car (cdr x)))))
+(define (cdadar x) (cdr (car (cdr (car x)))))
+(define (cdaddr x) (cdr (car (cdr (cdr x)))))
+(define (cddaar x) (cdr (cdr (car (car x)))))
+(define (cddadr x) (cdr (cdr (car (cdr x)))))
+(define (cdddar x) (cdr (cdr (cdr (car x)))))
+(define (cddddr x) (cdr (cdr (cdr (cdr x)))))
 
 (define (assoc obj alist . compare*)
   (let ((compare (if (null? compare*)
@@ -167,3 +197,38 @@
          (cons pred (filter pred (cdr list))))
         (else
          (filter pred (cdr list)))))
+
+(define (list? x)
+  (if (not (pair? x))
+      (null? x)
+      (let loop ((slow x) (fast (cdr x)))
+        (if (not (pair? fast))
+            (null? fast)
+            (and (not (eq? slow fast))
+                 (loop (cdr slow)
+                       (let ((fast* (cdr fast)))
+                         (if (pair? fast*)
+                             (cdr fast*)
+                             fast*))))))))
+
+(define (make-list k . fill*)
+  (let ((fill (if (pair? fill*) (car fill*) #void)))
+    (do ((k k (- k 1))
+         (result '() (cons fill result)))
+        ((= k 0) result))))
+
+(define (list-tail l k)
+  (if (= k 0)
+      l
+      (list-tail (cdr l) (- k 1))))
+
+(define (list-ref l k)
+  (car (list-tail l k)))
+
+(define (list-set! l k x)
+  (set-car! (list-tail l k) x))
+
+(define (list-copy x)
+  (if (pair? x)
+      (cons (car x) (list-copy (cdr x)))
+      x))

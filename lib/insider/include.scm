@@ -6,7 +6,8 @@
         (insider string)
         (insider basic-procedures)
         (insider list)
-        (insider numeric))
+        (insider numeric)
+        (insider vector))
 (export include include-ci)
 
 (begin-for-syntax
