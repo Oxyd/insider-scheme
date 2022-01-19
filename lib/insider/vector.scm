@@ -1,8 +1,9 @@
 (library (insider vector))
-(import (insider syntax) (insider basic-procedures) (insider opt-lambda)
+(import (insider syntax) (insider basic-procedures) (insider opt-lambda) (insider numeric) (insider list)
         (except (insider internal) define let))
 (export vector make-vector list->vector vector->list vector-append vector-length vector-ref vector-set!
-        vector? vector-tabulate vector-copy vector-copy! vector->list vector-fill!)
+        vector? vector-tabulate vector-copy vector-copy! vector->list vector-fill!
+        vector-for-each vector-map)
 
 (define-type-predicate vector? insider::vector)
 
@@ -44,3 +45,43 @@
     (do ((current start (+ current 1)))
         ((= current end))
       (vector-set! v current fill))))
+
+(define (vector-for-each/1 proc v)
+  (let ((l (vector-length v)))
+    (do ((i 0 (+ i 1)))
+        ((= i l))
+      (proc (vector-ref v i)))))
+
+(define (min-length list-of-vectors)
+  (apply min (map vector-length list-of-vectors)))
+
+(define (vector-for-each/many proc list-of-vectors)
+  (let ((length (min-length list-of-vectors)))
+    (do ((i 0 (+ i 1)))
+        ((= i length))
+      (apply proc (map (lambda (v) (vector-ref v i)) list-of-vectors)))))
+
+(define (vector-for-each proc v1 . vectors-rest)
+  (if (null? vectors-rest)
+      (vector-for-each/1 proc v1)
+      (vector-for-each/many proc (cons v1 vectors-rest))))
+
+(define (vector-map/1 proc v)
+  (let* ((l (vector-length v))
+         (result (make-vector l)))
+    (do ((i 0 (+ i 1)))
+        ((= i l) result)
+      (vector-set! result i (proc (vector-ref v i))))))
+
+(define (vector-map/many proc list-of-vectors)
+  (let* ((length (min-length list-of-vectors))
+         (result (make-vector length)))
+    (do ((i 0 (+ i 1)))
+        ((= i length) result)
+      (vector-set! result i
+                   (apply proc (map (lambda (v) (vector-ref v i)) list-of-vectors))))))
+
+(define (vector-map proc v1 . vectors-rest)
+  (if (null? vectors-rest)
+      (vector-map/1 proc v1)
+      (vector-map/many proc (cons v1 vectors-rest))))

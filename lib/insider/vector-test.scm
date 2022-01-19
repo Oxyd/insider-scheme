@@ -1,5 +1,5 @@
 (library (insider vector-test))
-(import (insider syntax) (insider test) (insider vector) (insider control))
+(import (insider syntax) (insider test) (insider vector) (insider control) (insider list) (insider numeric))
 (export test-vector)
 
 (define (test-vector)
@@ -53,7 +53,30 @@
     (test-equal #(1 2 smash smash 5)
                 (let ((a (vector 1 2 3 4 5)))
                   (vector-fill! a 'smash 2 4)
-                  a))))
+                  a))
+
+    (test-equal '(0 1 4 9 16)
+                (let ((v (make-list 5)))
+                  (vector-for-each
+                   (lambda (i) (list-set! v i (* i i)))
+                   #(0 1 2 3 4))
+                  v))
+
+    (test-equal 17
+                (let ((sum-of-products 0))
+                  (vector-for-each
+                   (lambda (i j) (set! sum-of-products (+ sum-of-products (* i j))))
+                   #(1 2 3 4)
+                   #(5 6))
+                  sum-of-products))
+
+    (test-equal #(b e h)
+                (vector-map cadr #((a b) (d e) (g h))))
+    (test-equal #(1 4 27 256 3125)
+                (vector-map (lambda (n) (expt n n))
+                            #(1 2 3 4 5)))
+    (test-equal #(5 7 9)
+                (vector-map + #(1 2 3) #(4 5 6 7)))))
 
 (when-main-module
  (test-vector))

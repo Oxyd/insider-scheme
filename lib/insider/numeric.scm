@@ -5,7 +5,7 @@
  ;; From core
  + - * / = < <= > >= truncate/ truncate-quotient truncate-remainder
  gcd arithmetic-shift bitwise-and bitwise-or bitwise-not integer? odd? even? zero? number? exp log
- abs floor inexact? exact? inexact exact
+ abs floor inexact? exact? inexact exact expt
 
  ;; Defined here
  floor/ floor-quotient floor-remainder min max)
