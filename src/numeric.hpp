@@ -202,6 +202,75 @@ private:
   ptr<> imaginary_;
 };
 
+namespace detail {
+  template <typename T>
+  std::size_t
+  number_of_limbs_for_small_integer(T i) {
+    constexpr limb_type max_limb_value = std::numeric_limits<limb_type>::max();
+
+    if (i == 0)
+      return 0;
+
+    if constexpr (sizeof(limb_type) >= sizeof(integer::value_type))
+      return 1;
+    else {
+      if (i <= static_cast<integer::value_type>(max_limb_value)
+          && -i <= static_cast<integer::value_type>(max_limb_value))
+        return 1;
+      else
+        return 2;
+    }
+  }
+
+  template <typename T>
+  std::tuple<bool, T>
+  integer_to_sign_magnitude(T i) {
+    if constexpr (std::is_signed_v<T>) {
+      if (i >= 0)
+        return {true, i};
+      else
+        return {false, -i};
+    } else
+      return {true, i};
+  }
+
+  template <typename T>
+  void
+  make_bignum_limbs_from_integer(big_integer& b, T value) {
+    auto [sign, magnitude] = integer_to_sign_magnitude(value);
+    b.set_positive(sign);
+
+    if constexpr (sizeof(T) <= sizeof(limb_type))
+      b.front() = magnitude;
+    else {
+      constexpr double_limb_type limb_mask = (double_limb_type{1} << limb_width) - 1;
+
+      auto it = b.begin();
+      for (std::size_t k = 0; k < b.length(); ++k) {
+        *it++ = magnitude & limb_mask;
+        magnitude >>= limb_width;
+      }
+    }
+  }
+
+  template <typename T>
+  ptr<big_integer>
+  integer_to_bignum(context& ctx, T value) {
+    auto b = make<big_integer>(ctx, number_of_limbs_for_small_integer(value));
+    make_bignum_limbs_from_integer(*b, value);
+    return b;
+  }
+} // namespace detail
+
+template <typename T>
+ptr<>
+integer_to_scheme(context& ctx, T value) {
+  if (in_fixnum_range(value))
+    return integer_to_ptr(static_cast<integer::value_type>(value));
+  else
+    return detail::integer_to_bignum(ctx, value);
+}
+
 ptr<>
 make_rectangular(context&, ptr<> real, ptr<> imaginary);
 

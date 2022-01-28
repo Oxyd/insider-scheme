@@ -58,7 +58,7 @@ struct to_scheme_converter<char32_t> {
 template <typename T>
 struct to_scheme_converter<T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>> {
   static ptr<>
-  convert(context&, T t) { return integer_to_ptr(integer{t}); }
+  convert(context& ctx, T t) { return integer_to_scheme(ctx, t); }
 };
 
 template <>

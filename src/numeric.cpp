@@ -36,25 +36,9 @@ big_integer::extra_elements(std::vector<limb_type> const& limbs, bool) {
   return limbs.size();
 }
 
-static std::size_t
-number_of_limbs_for_small_integer(integer::value_type i) {
-  if (i == 0)
-    return 0;
-
-  if constexpr (sizeof(limb_type) >= sizeof(integer::value_type))
-    return 1;
-  else {
-    if (i <= static_cast<integer::value_type>(max_limb_value)
-        && -i <= static_cast<integer::value_type>(max_limb_value))
-      return 1;
-    else
-      return 2;
-  }
-}
-
 std::size_t
 big_integer::extra_elements(integer i) {
-  return number_of_limbs_for_small_integer(i.value());
+  return detail::number_of_limbs_for_small_integer(i.value());
 }
 
 std::size_t
@@ -87,31 +71,10 @@ big_integer::big_integer(ptr<big_integer> i)
   std::copy(i->begin(), i->end(), begin());
 }
 
-static std::tuple<bool, integer::value_type>
-short_integer_to_sign_magnitude(integer::value_type i) {
-  if (i == 0)
-    return {true, 0};
-  else if (i > 0)
-    return {true, i};
-  else
-    return {false, -i};
-}
-
 big_integer::big_integer(integer i)
-  : dynamic_size_object{number_of_limbs_for_small_integer(i.value())}
+  : dynamic_size_object{detail::number_of_limbs_for_small_integer(i.value())}
 {
-  auto [sign, magnitude] = short_integer_to_sign_magnitude(i.value());
-  positive_ = sign;
-
-  if constexpr (sizeof(integer::value_type) <= sizeof(limb_type)) {
-    front() = static_cast<big_integer::limb_type>(magnitude);
-  } else {
-    auto it = begin();
-    for (std::size_t k = 0; k < number_of_limbs_for_small_integer(i.value()); ++k) {
-      *it++ = magnitude & limb_mask;
-      magnitude >>= limb_width;
-    }
-  }
+  detail::make_bignum_limbs_from_integer(*this, i.value());
 }
 
 big_integer::big_integer(big_integer&& other)

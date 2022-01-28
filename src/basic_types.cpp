@@ -346,11 +346,6 @@ make_bytevector_elems(context& ctx, object_span args) {
   return result;
 }
 
-static integer
-bytevector_length(ptr<bytevector> bv) {
-  return static_cast<integer::value_type>(bv->size());
-}
-
 static ptr<vector>
 make_vector_proc(context& ctx, object_span args) {
   return make_vector(ctx, args.begin(), args.end());
@@ -361,12 +356,7 @@ export_basic_types(context& ctx, module_& result) {
   define_procedure(ctx, "list->vector", result, true, list_to_vector);
   define_raw_procedure(ctx, "vector->list", result, true, vector_to_list);
   define_raw_procedure(ctx, "vector-append", result, true, vector_append);
-  define_procedure(
-    ctx, "vector-length", result, true,
-    [] (ptr<vector> v) {
-      return integer{static_cast<integer::value_type>(v->size())};
-    }
-  );
+  define_procedure(ctx, "vector-length", result, true, &vector::size);
   define_raw_procedure(ctx, "vector", result, true, make_vector_proc);
   define_procedure(
     ctx, "make-vector", result, true,
@@ -396,7 +386,7 @@ export_basic_types(context& ctx, module_& result) {
 
   define_procedure(ctx, "make-bytevector", result, true, make_bytevector, [] (context&) { return 0; });
   define_raw_procedure(ctx, "bytevector", result, true, make_bytevector_elems);
-  define_procedure(ctx, "bytevector-length", result, true, bytevector_length);
+  define_procedure(ctx, "bytevector-length", result, true, &bytevector::size);
   define_procedure(ctx, "bytevector-u8-ref", result, true, &bytevector::ref);
   define_procedure(ctx, "bytevector-u8-set!", result, true, &bytevector::set);
 }

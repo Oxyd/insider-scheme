@@ -376,11 +376,6 @@ make_string_byte_length(context& ctx, std::size_t length) {
   return make<string>(ctx, std::string(length, '\0'));
 }
 
-static integer
-string_length(ptr<string> s) {
-  return static_cast<integer::value_type>(s->length());
-}
-
 static ptr<string>
 string_append(context& ctx, object_span args) {
   std::string result;
@@ -399,9 +394,9 @@ string_to_symbol(context& ctx, ptr<string> s) {
   return ctx.intern(s->value());
 }
 
-static integer
+static std::size_t
 string_byte_length(ptr<string> s) {
-  return integer{static_cast<integer::value_type>(s->value().size())};
+  return s->value().size();
 }
 
 static integer
@@ -552,7 +547,7 @@ export_string(context& ctx, module_& result) {
   define_raw_procedure(ctx, "string", result, true, construct_string);
   define_raw_procedure(ctx, "make-string", result, true, make_string);
   define_procedure(ctx, "make-string/byte-length", result, true, make_string_byte_length);
-  define_procedure(ctx, "string-length", result, true, string_length);
+  define_procedure(ctx, "string-length", result, true, &string::length);
   define_raw_procedure(ctx, "string-append", result, true, string_append);
   define_procedure(ctx, "string-append!", result, true, string_append_in_place);
   define_procedure(ctx, "symbol->string", result, true, symbol_to_string);

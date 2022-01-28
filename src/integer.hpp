@@ -5,6 +5,7 @@
 #include "ptr.hpp"
 
 #include <cstdint>
+#include <type_traits>
 
 namespace insider {
 
@@ -44,6 +45,15 @@ integer_to_ptr(integer i) {
 
 inline std::size_t
 integer_hash(integer i) { return std::hash<integer::value_type>{}(i.value()); }
+
+template <typename T>
+bool
+in_fixnum_range(T value) {
+  if constexpr (std::is_signed_v<T>)
+    return value >= integer::min && value <= integer::max;
+  else
+    return value <= integer::max;
+}
 
 } // namespace insider
 
