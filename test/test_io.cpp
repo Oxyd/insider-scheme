@@ -625,3 +625,9 @@ TEST_F(io, string_to_number) {
   EXPECT_EQ(string_to_number(ctx, "12+"), ctx.constants->f.get());
   EXPECT_EQ(string_to_number(ctx, "#xabgh"), ctx.constants->f.get());
 }
+
+TEST_F(io, string_with_embedded_newlines) {
+  EXPECT_EQ(datum_to_string(ctx, read(R"("foo\nbar")")), R"("foo\nbar")");
+  EXPECT_EQ(datum_to_string(ctx, read(R"("foo\rbar")")), R"("foo\rbar")");
+  EXPECT_EQ(datum_to_string(ctx, read(R"("foo\r\nbar")")), R"("foo\r\nbar")");
+}

@@ -30,6 +30,10 @@ write_string(ptr<string> s, ptr<textual_output_port> out) {
       out->write(R"(\")");
     else if (c == '\\')
       out->write(R"(\\)");
+    else if (c == '\n')
+      out->write(R"(\n)");
+    else if (c == '\r')
+      out->write(R"(\r)");
     else
       out->write_utf8(c);
   out->write('"');
