@@ -324,6 +324,14 @@ values_tuple::values_tuple(values_tuple&& other)
     storage_element(i) = other.storage_element(i);
 }
 
+ptr<>
+values_tuple::ref(std::size_t i) const {
+  if (i > size())
+    throw std::runtime_error{"Index out of range"};
+
+  return storage_element(i);
+}
+
 void
 values_tuple::visit_members(member_visitor const& f) {
   for (std::size_t i = 0; i < size_; ++i)
@@ -389,6 +397,8 @@ export_basic_types(context& ctx, module_& result) {
   define_procedure(ctx, "bytevector-length", result, true, &bytevector::size);
   define_procedure(ctx, "bytevector-u8-ref", result, true, &bytevector::ref);
   define_procedure(ctx, "bytevector-u8-set!", result, true, &bytevector::set);
+  define_procedure(ctx, "values-tuple-length", result, true, &values_tuple::size);
+  define_procedure(ctx, "values-tuple-ref", result, true, &values_tuple::ref);
 }
 
 } // namespace insider

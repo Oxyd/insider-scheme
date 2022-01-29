@@ -1,5 +1,6 @@
 (library (insider syntax-test))
 (import (insider syntax) (insider basic-procedures) (insider numeric) (insider list) (insider control)
+        (insider define-values)
         (insider test))
 (export test-syntax)
 
@@ -154,7 +155,32 @@
                         ((< (car numbers) 0)
                          (loop (cdr numbers)
                                nonneg
-                               (cons (car numbers) neg))))))))
+                               (cons (car numbers) neg))))))
+
+    (test-equal '(1 2)
+                (let ()
+                  (define-values (a b) (values 1 2))
+                  (list a b)))
+
+    (test-equal '(1)
+                (let ()
+                  (define-values (a) (values 1))
+                  (list a)))
+
+    (test-equal '()
+                (let ()
+                  (define-values () (values))
+                  '()))
+
+    (test-equal '(1 2 (3 4 5))
+                (let ()
+                  (define-values (a b . rest) (values 1 2 3 4 5))
+                  (list a b rest)))
+
+    (test-equal '(1 2 ())
+                (let ()
+                  (define-values (a b . rest) (values 1 2))
+                  (list a b rest)))))
 
 (when-main-module
  (test-syntax))

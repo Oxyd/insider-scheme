@@ -500,7 +500,7 @@ public:
   values_tuple(values_tuple&& other);
 
   ptr<>
-  ref(std::size_t i) const { return storage_element(i); }
+  ref(std::size_t i) const;
 
   void
   visit_members(member_visitor const& f);
