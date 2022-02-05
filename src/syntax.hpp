@@ -34,6 +34,11 @@ class syntax : public composite_object<syntax> {
 public:
   static constexpr char const* scheme_name = "insider::syntax";
 
+  explicit
+  syntax(ptr<> expr)
+    : expression_{expr}
+  { }
+
   syntax(ptr<> expr, source_location loc)
     : expression_{expr}
     , location_{std::move(loc)}

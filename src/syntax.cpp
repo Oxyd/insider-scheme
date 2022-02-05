@@ -52,27 +52,59 @@ syntax::flip_scope(free_store& fs, ptr<scope> s) {
     fs.notify_arc(this, s);
 }
 
-static ptr<>
-syntax_to_datum_helper(context& ctx, ptr<> o) {
-  if (o == ctx.constants->null.get()) {
-    return o;
-  } else if (auto p = semisyntax_match<pair>(o)) {
-    return cons(ctx, syntax_to_datum_helper(ctx, car(p)), syntax_to_datum_helper(ctx, cdr(p)));
-  } else if (auto v = semisyntax_match<vector>(o)) {
-    auto result = make<vector>(ctx, v->size(), ctx.constants->void_.get());
-    for (std::size_t i = 0; i < v->size(); ++i)
-      result->set(ctx.store, i, syntax_to_datum_helper(ctx, v->ref(i)));
-    return result;
-  } else if (auto stx = match<syntax>(o)) {
-    return stx->expression();
-  } else {
-    return o;
-  }
-}
-
 ptr<>
 syntax_to_datum(context& ctx, ptr<syntax> stx) {
-  return syntax_to_datum_helper(ctx, stx);
+  struct record {
+    ptr<> value;
+    bool open = true;
+  };
+
+  std::unordered_map<ptr<>, ptr<>> results{{ctx.constants->null.get(), ctx.constants->null.get()}};
+  std::vector<record> stack{{stx}};
+
+  auto push = [&] (ptr<> value) {
+    if (!results.count(value))
+      stack.emplace_back(value);
+  };
+
+  while (!stack.empty()) {
+    record& current = stack.back();
+    if (current.open) {
+      current.open = false;
+
+      if (auto p = semisyntax_match<pair>(current.value)) {
+        results.emplace(current.value, cons(ctx, ctx.constants->null.get(), ctx.constants->null.get()));
+
+        push(car(p));
+        push(cdr(p));
+      } else if (auto v = semisyntax_match<vector>(current.value)) {
+        results.emplace(current.value, make<vector>(ctx, v->size(), ctx.constants->null.get()));
+
+        for (std::size_t i = 0; i < v->size(); ++i)
+          push(v->ref(i));
+      } else if (auto stx = match<syntax>(current.value)) {
+        results.emplace(stx, stx->expression());
+        stack.pop_back();
+      } else {
+        results.emplace(current.value, current.value);
+        stack.pop_back();
+      }
+    } else {
+      if (auto p = semisyntax_match<pair>(current.value)) {
+        auto result = assume<pair>(results.at(current.value));
+        result->set_car(ctx.store, results.at(car(p)));
+        result->set_cdr(ctx.store, results.at(cdr(p)));
+      } else if (auto v = semisyntax_match<vector>(current.value)) {
+        auto result = assume<vector>(results.at(current.value));
+        for (std::size_t i = 0; i < v->size(); ++i)
+          result->set(ctx.store, i, results.at(v->ref(i)));
+      }
+
+      stack.pop_back();
+    }
+  }
+
+  return results.at(stx);
 }
 
 ptr<syntax>

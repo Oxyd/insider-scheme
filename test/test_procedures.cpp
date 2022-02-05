@@ -108,3 +108,11 @@ TEST_F(procedures, append) {
   auto r8 = eval("(append '() '(a1 a2) '() '() '(b1 b2 b3) '())");
   EXPECT_TRUE(equal(r8, read("(a1 a2 b1 b2 b3)")));
 }
+
+TEST_F(procedures, syntax_to_datum_on_cyclic_input) {
+  auto p = cons(ctx, make<syntax>(ctx, integer_to_ptr(1)), ctx.constants->null.get());
+  p->set_cdr(ctx.store, p);
+  auto stx = make<syntax>(ctx, p);
+  auto datum = syntax_to_datum(ctx, stx);
+  EXPECT_TRUE(equal(datum, read("#0=(1 . #0#)")));
+}
