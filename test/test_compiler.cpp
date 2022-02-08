@@ -535,6 +535,11 @@ TEST_F(compiler, quasiquote) {
   EXPECT_TRUE(equal(result21, read("(a . `(b (,2)))")));
 }
 
+TEST_F(compiler, quote_infinite_data_structure) {
+  auto result = eval("'#0=(a . #0#)");
+  EXPECT_TRUE(equal(result, read("#0=(a . #0#)")));
+}
+
 TEST_F(compiler, unbound_vars) {
   EXPECT_THROW(eval("foo"), std::runtime_error);
   EXPECT_THROW(eval_module("foo"), std::runtime_error);

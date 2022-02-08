@@ -173,9 +173,16 @@ template <typename Operation>
 static void
 modify_scopes(ptr<> o, Operation const& op) {
   std::vector<ptr<>> stack{o};
+  std::unordered_set<ptr<>> closed;
+
   while (!stack.empty()) {
     ptr<> o = stack.back();
     stack.pop_back();
+
+    if (closed.count(o))
+      continue;
+    else
+      closed.emplace(o);
 
     if (auto stx = match<syntax>(o)) {
       op(stx);
