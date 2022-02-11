@@ -234,6 +234,13 @@ TEST_F(io, case_folding) {
   EXPECT_EQ(expect<char32_t>(read(R"(#!fold-case #\NEWLINE)")), U'\n');
 }
 
+TEST_F(io, read_syntax_with_shared_data) {
+  auto stx = read_syntax(ctx, "(#0=(1 2) #0#)");
+  auto first = expect<syntax>(car(expect<pair>(stx->expression())))->expression();
+  auto second = expect<syntax>(cadr(expect<pair>(stx->expression())))->expression();
+  EXPECT_EQ(first, second);
+}
+
 static std::string
 to_string_simple(context& ctx, ptr<> datum) {
   auto out = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());

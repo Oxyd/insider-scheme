@@ -110,9 +110,15 @@ TEST_F(procedures, append) {
 }
 
 TEST_F(procedures, syntax_to_datum_on_cyclic_input) {
-  auto p = cons(ctx, make<syntax>(ctx, integer_to_ptr(1)), ctx.constants->null.get());
-  p->set_cdr(ctx.store, p);
-  auto stx = make<syntax>(ctx, p);
+  auto p1 = cons(ctx, make<syntax>(ctx, integer_to_ptr(1)), ctx.constants->null.get());
+  p1->set_cdr(ctx.store, p1);
+  auto stx = make<syntax>(ctx, p1);
   auto datum = syntax_to_datum(ctx, stx);
   EXPECT_TRUE(equal(datum, read("#0=(1 . #0#)")));
+}
+
+TEST_F(procedures, syntax_to_datum_preserves_sharing) {
+  auto stx = read_syntax(ctx, "(#0=(1 2) #0#)");
+  auto datum = expect<pair>(syntax_to_datum(ctx, stx));
+  EXPECT_EQ(car(datum), cadr(datum));
 }

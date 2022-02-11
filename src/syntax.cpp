@@ -52,59 +52,92 @@ syntax::flip_scope(free_store& fs, ptr<scope> s) {
     fs.notify_arc(this, s);
 }
 
-ptr<>
-syntax_to_datum(context& ctx, ptr<syntax> stx) {
-  struct record {
-    ptr<> value;
-    bool open = true;
-  };
-
-  std::unordered_map<ptr<>, ptr<>> results{{ctx.constants->null.get(), ctx.constants->null.get()}};
-  std::vector<record> stack{{stx}};
-
-  auto push = [&] (ptr<> value) {
-    if (!results.count(value))
-      stack.emplace_back(value);
-  };
-
+// Recurse through stx and create a new pair or vector for each pair or vector
+// recursively contained in it. These new pairs and vectors are initialised to
+// contain all nulls.
+static std::unordered_map<ptr<>, ptr<>>
+make_fresh_aggregates(context& ctx, ptr<syntax> stx) {
+  std::unordered_map<ptr<>, ptr<>> result;
+  std::vector<ptr<>> stack{stx};
   while (!stack.empty()) {
-    record& current = stack.back();
-    if (current.open) {
-      current.open = false;
+    ptr<> current = stack.back();
+    stack.pop_back();
 
-      if (auto p = semisyntax_match<pair>(current.value)) {
-        results.emplace(current.value, cons(ctx, ctx.constants->null.get(), ctx.constants->null.get()));
+    if (auto p = semisyntax_match<pair>(current); p && !result.count(p)) {
+      auto new_p = cons(ctx, ctx.constants->null.get(), ctx.constants->null.get());
+      result.emplace(p, new_p);
 
-        push(car(p));
-        push(cdr(p));
-      } else if (auto v = semisyntax_match<vector>(current.value)) {
-        results.emplace(current.value, make<vector>(ctx, v->size(), ctx.constants->null.get()));
+      stack.push_back(car(p));
+      stack.push_back(cdr(p));
+    } else if (auto v = semisyntax_match<vector>(current); v && !result.count(v)) {
+      auto new_v = make<vector>(ctx, v->size(), ctx.constants->null.get());
+      result.emplace(v, new_v);
 
-        for (std::size_t i = 0; i < v->size(); ++i)
-          push(v->ref(i));
-      } else if (auto stx = match<syntax>(current.value)) {
-        results.emplace(stx, stx->expression());
-        stack.pop_back();
-      } else {
-        results.emplace(current.value, current.value);
-        stack.pop_back();
-      }
-    } else {
-      if (auto p = semisyntax_match<pair>(current.value)) {
-        auto result = assume<pair>(results.at(current.value));
-        result->set_car(ctx.store, results.at(car(p)));
-        result->set_cdr(ctx.store, results.at(cdr(p)));
-      } else if (auto v = semisyntax_match<vector>(current.value)) {
-        auto result = assume<vector>(results.at(current.value));
-        for (std::size_t i = 0; i < v->size(); ++i)
-          result->set(ctx.store, i, results.at(v->ref(i)));
-      }
-
-      stack.pop_back();
+      for (std::size_t i = 0; i < v->size(); ++i)
+        stack.push_back(v->ref(i));
     }
   }
 
-  return results.at(stx);
+  return result;
+}
+
+static ptr<>
+unwrap(ptr<> x) {
+  if (auto stx = match<syntax>(x))
+    return stx->expression();
+  else
+    return x;
+}
+
+static ptr<>
+unwrapped_value(ptr<> x, std::unordered_map<ptr<>, ptr<>> const& aggregates) {
+  x = unwrap(x);
+  if (auto it = aggregates.find(x); it != aggregates.end())
+    return it->second;
+  else
+    return x;
+}
+
+static void
+unwrap_syntaxes(context& ctx, ptr<syntax> stx, std::unordered_map<ptr<>, ptr<>> const& aggregates) {
+  std::vector<ptr<>> stack{stx};
+  while (!stack.empty()) {
+    ptr<> current = stack.back();
+    stack.pop_back();
+
+    if (auto p = semisyntax_match<pair>(current)) {
+      ptr<pair> result = assume<pair>(aggregates.at(p));
+      if (car(result) == ctx.constants->null.get()) {
+        result->set_car(ctx.store, unwrapped_value(car(p), aggregates));
+        stack.push_back(unwrap(car(p)));
+      }
+
+      if (cdr(result) == ctx.constants->null.get()) {
+        result->set_cdr(ctx.store, unwrapped_value(cdr(p), aggregates));
+        stack.push_back(unwrap(cdr(p)));
+      }
+    } else if (auto v = semisyntax_match<vector>(current)) {
+      ptr<vector> result = assume<vector>(aggregates.at(v));
+      for (std::size_t i = 0; i < v->size(); ++i) {
+        if (result->ref(i) == ctx.constants->null.get()) {
+          result->set(ctx.store, i, unwrapped_value(v->ref(i), aggregates));
+          stack.push_back(unwrap(v->ref(i)));
+        }
+      }
+    }
+  }
+}
+
+ptr<>
+syntax_to_datum(context& ctx, ptr<syntax> stx) {
+  auto aggregates = make_fresh_aggregates(ctx, stx);
+  unwrap_syntaxes(ctx, stx, aggregates);
+
+  ptr<> expr = stx->expression();
+  if (auto it = aggregates.find(expr); it != aggregates.end())
+    return it->second;
+  else
+    return expr;
 }
 
 ptr<syntax>
