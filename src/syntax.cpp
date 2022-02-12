@@ -101,30 +101,24 @@ unwrapped_value(ptr<> x, std::unordered_map<ptr<>, ptr<>> const& aggregates) {
 static void
 unwrap_syntaxes(context& ctx, ptr<syntax> stx, std::unordered_map<ptr<>, ptr<>> const& aggregates) {
   std::vector<ptr<>> stack{stx};
+
+  auto unwrap_aggregate = [&] <typename T> (ptr<T> aggregate) {
+    ptr<T> result = assume<T>(aggregates.at(aggregate));
+    for (std::size_t i = 0; i < aggregate->size(); ++i)
+      if (result->ref(i) == ctx.constants->null.get()) {
+        result->set(ctx.store, i, unwrapped_value(aggregate->ref(i), aggregates));
+        stack.push_back(unwrap(aggregate->ref(i)));
+      }
+  };
+
   while (!stack.empty()) {
     ptr<> current = stack.back();
     stack.pop_back();
 
-    if (auto p = semisyntax_match<pair>(current)) {
-      ptr<pair> result = assume<pair>(aggregates.at(p));
-      if (car(result) == ctx.constants->null.get()) {
-        result->set_car(ctx.store, unwrapped_value(car(p), aggregates));
-        stack.push_back(unwrap(car(p)));
-      }
-
-      if (cdr(result) == ctx.constants->null.get()) {
-        result->set_cdr(ctx.store, unwrapped_value(cdr(p), aggregates));
-        stack.push_back(unwrap(cdr(p)));
-      }
-    } else if (auto v = semisyntax_match<vector>(current)) {
-      ptr<vector> result = assume<vector>(aggregates.at(v));
-      for (std::size_t i = 0; i < v->size(); ++i) {
-        if (result->ref(i) == ctx.constants->null.get()) {
-          result->set(ctx.store, i, unwrapped_value(v->ref(i), aggregates));
-          stack.push_back(unwrap(v->ref(i)));
-        }
-      }
-    }
+    if (auto p = semisyntax_match<pair>(current))
+      unwrap_aggregate(p);
+    else if (auto v = semisyntax_match<vector>(current))
+      unwrap_aggregate(v);
   }
 }
 

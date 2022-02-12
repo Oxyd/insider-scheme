@@ -84,6 +84,33 @@ public:
   void
   set_cdr(free_store& store, ptr<> p) { cdr_ = p; store.notify_arc(this, p); }
 
+  // vector-like interface for uniform handling of pairs and vectors.
+
+  ptr<>
+  ref(std::size_t i) const {
+    assert(i == 0 || i == 1);
+
+    if (i == 0)
+      return car_;
+    else
+      return cdr_;
+  }
+
+  void
+  set(free_store& store, std::size_t i, ptr<> p) {
+    assert(i == 0 || i == 1);
+
+    if (i == 0)
+      car_ = p;
+    else
+      cdr_ = p;
+
+    store.notify_arc(this, p);
+  }
+
+  std::size_t
+  size() const { return 2; }
+
   void
   visit_members(member_visitor const& f) { f(car_); f(cdr_); }
 
