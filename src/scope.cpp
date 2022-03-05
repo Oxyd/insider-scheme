@@ -31,6 +31,23 @@ flip_scope(scope_set& set, ptr<scope> env) {
   }
 }
 
+void
+update_scope_set(scope_set& set, scope_set_operation op, ptr<scope> s) {
+  switch (op) {
+  case scope_set_operation::add:
+    add_scope(set, s);
+    break;
+
+  case scope_set_operation::remove:
+    remove_scope(set, s);
+    break;
+
+  case scope_set_operation::flip:
+    flip_scope(set, s);
+    break;
+  }
+}
+
 bool
 scope_sets_subseteq(scope_set const& lhs, scope_set const& rhs) {
   for (ptr<scope> e : lhs)
@@ -42,6 +59,12 @@ scope_sets_subseteq(scope_set const& lhs, scope_set const& rhs) {
 bool
 scope_sets_equal(scope_set const& lhs, scope_set const& rhs) {
   return scope_sets_subseteq(lhs, rhs) && scope_sets_subseteq(rhs, lhs);
+}
+
+void
+visit_members(scope_set& set, member_visitor const& f) {
+  for (ptr<scope>& scope : set)
+    f(scope);
 }
 
 void
@@ -82,7 +105,7 @@ scope::find_candidates(ptr<symbol> name, scope_set const& envs) const -> std::ve
   std::vector<binding> result;
   for (binding const& e : bindings_) {
     ptr<syntax> s = std::get<ptr<syntax>>(e);
-    if (assume<symbol>(s->expression()) == name && scope_sets_subseteq(s->scopes(), envs))
+    if (s->get_symbol() == name && scope_sets_subseteq(s->scopes(), envs))
       result.push_back(e);
   }
 
@@ -112,7 +135,7 @@ scope::visit_members(member_visitor const& f) {
 bool
 scope::is_redefinition(ptr<syntax> id, value_type const& intended_value) const {
   for (binding const& b : bindings_)
-    if (assume<symbol>(std::get<ptr<syntax>>(b)->expression())->value() == assume<symbol>(id->expression())->value()
+    if (std::get<ptr<syntax>>(b)->get_symbol()->value() == id->get_symbol()->value()
         && scope_sets_equal(id->scopes(), std::get<ptr<syntax>>(b)->scopes())
         && std::get<value_type>(b) != intended_value)
       return true;

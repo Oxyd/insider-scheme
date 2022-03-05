@@ -169,49 +169,8 @@ lookup_transformer(ptr<syntax> id) {
   return {};
 }
 
-template <typename Operation>
-static void
-modify_scopes(ptr<> o, Operation const& op) {
-  std::vector<ptr<>> stack{o};
-  std::unordered_set<ptr<>> closed;
-
-  while (!stack.empty()) {
-    ptr<> o = stack.back();
-    stack.pop_back();
-
-    if (closed.count(o))
-      continue;
-    else
-      closed.emplace(o);
-
-    if (auto stx = match<syntax>(o)) {
-      op(stx);
-      o = stx->expression();
-    }
-
-    if (auto p = match<pair>(o)) {
-      stack.push_back(car(p));
-      stack.push_back(cdr(p));
-    }
-
-    if (auto v = match<vector>(o))
-      for (std::size_t i = 0; i < v->size(); ++i)
-        stack.push_back(v->ref(i));
-  }
-}
-
-static void
-add_scope(free_store& fs, ptr<> expr, ptr<scope> e) {
-  modify_scopes(expr, [&] (ptr<syntax> stx) { stx->add_scope(fs, e); });
-}
-
-static void
-remove_scope(ptr<> expr, ptr<scope> e) {
-  modify_scopes(expr, [&] (ptr<syntax> stx) { stx->remove_scope(e); });
-}
-
-static void
-remove_use_site_scopes(ptr<syntax> expr, std::vector<tracked_ptr<scope>> const& use_site_scopes) {
+static ptr<syntax>
+remove_use_site_scopes(context& ctx, ptr<syntax> expr, std::vector<tracked_ptr<scope>> const& use_site_scopes) {
   assert(is_identifier(expr));
 
   std::vector<ptr<scope>> to_remove;
@@ -225,42 +184,38 @@ remove_use_site_scopes(ptr<syntax> expr, std::vector<tracked_ptr<scope>> const& 
                });
 
   for (ptr<scope> s : to_remove)
-    expr->remove_scope(s);
-}
+    expr = expr->remove_scope(ctx.store, s);
 
-static void
-flip_scope(free_store& fs, ptr<> expr, ptr<scope> e) {
-  modify_scopes(expr, [&] (ptr<syntax> stx) { stx->flip_scope(fs, e); });
+  return expr;
 }
 
 static ptr<syntax>
 call_transformer_with_continuation_barrier(context& ctx, ptr<> callable, tracked_ptr<syntax> const& stx) {
   ptr<> result = call_with_continuation_barrier(ctx, callable, {stx.get()}).get();
   if (auto s = match<syntax>(result))
-    return copy_syntax(ctx, s);
+    return s;
   else
     throw std::runtime_error{fmt::format("Syntax transformer didn't return a syntax: {}",
                                          datum_to_string(ctx, result))};
 }
 
 static tracked_ptr<syntax>
-call_transformer(context& ctx, ptr<transformer> t, tracked_ptr<syntax> const& stx,
+call_transformer(context& ctx, ptr<transformer> t, tracked_ptr<syntax> stx,
                  std::vector<tracked_ptr<scope>>* use_site_scopes) {
   auto introduced_env = make_tracked<scope>(ctx, fmt::format("introduced environment for syntax expansion at {}",
                                                              format_location(stx->location())));
-  add_scope(ctx.store, stx.get(), introduced_env.get());
+  stx = track(ctx, stx->add_scope(ctx.store, introduced_env.get()));
 
   auto use_site_scope = make_tracked<scope>(ctx,
                                             fmt::format("use-site scope for syntax expansion at {}",
                                                         format_location(stx->location())));
-  add_scope(ctx.store, stx.get(), use_site_scope.get());
+  stx = track(ctx, stx->add_scope(ctx.store, use_site_scope.get()));
 
   if (use_site_scopes)
     use_site_scopes->push_back(use_site_scope);
 
   ptr<syntax> result = call_transformer_with_continuation_barrier(ctx, t->callable(), stx);
-  flip_scope(ctx.store, result, introduced_env.get());
-  return track(ctx, result);
+  return track(ctx, result->flip_scope(ctx.store, introduced_env.get()));
 }
 
 // If the head of the given list is bound to a transformer, run the transformer
@@ -275,7 +230,7 @@ expand(context& ctx, tracked_ptr<syntax> stx, std::vector<tracked_ptr<scope>>* u
   do {
     expanded = false;
 
-    if (auto lst = syntax_match<pair>(stx.get())) {
+    if (auto lst = syntax_match<pair>(ctx, stx.get())) {
       ptr<syntax> head = expect<syntax>(car(lst));
       if (is_identifier(head)) {
         if (ptr<transformer> t = lookup_transformer(head)) {
@@ -331,7 +286,7 @@ namespace {
 
 static ptr<core_form_type>
 match_core_form(parsing_context& pc, ptr<syntax> stx) {
-  if (auto cf = syntax_match<core_form_type>(stx))
+  if (auto cf = syntax_match<core_form_type>(pc.ctx, stx))
     return cf;
   else if (syntax_is<symbol>(stx))
     return lookup_core(pc, stx);
@@ -347,6 +302,26 @@ expand_begin(parsing_context& pc, ptr<> stx, std::vector<tracked_ptr<syntax>>& s
   std::copy(subforms.rbegin(), subforms.rend(), std::back_inserter(stack));
 }
 
+static ptr<>
+add_scope_to_list(context& ctx, ptr<> x, ptr<scope> s) {
+  if (auto stx = match<syntax>(x))
+    return stx->add_scope(ctx.store, s);
+  else
+    return map(ctx, x, [&] (ptr<> elem) {
+      return expect<syntax>(elem)->add_scope(ctx.store, s);
+    });
+}
+
+static ptr<>
+remove_scope_from_list(context& ctx, ptr<> x, ptr<scope> s) {
+  if (auto stx = match<syntax>(x))
+    return stx->remove_scope(ctx.store, s);
+  else
+    return map(ctx, x, [&] (ptr<> elem) {
+      return expect<syntax>(elem)->remove_scope(ctx.store, s);
+    });
+}
+
 // Process the beginning of a body by adding new transformer and variable
 // definitions to the environment and expanding the heads of each form in the
 // list. Also checks that the list is followed by at least one expression and
@@ -359,7 +334,7 @@ static body_content
 process_internal_defines(parsing_context& pc, ptr<> data, source_location const& loc) {
   body_content result;
   auto outside_scope = make_tracked<scope>(pc.ctx, fmt::format("outside edge scope at {}", format_location(loc)));
-  add_scope(pc.ctx.store, data, outside_scope.get());
+  data = add_scope_to_list(pc.ctx, data, outside_scope.get());
 
   environment_extender internal_env{pc, {}};
   auto& internal_vars = pc.environment.back();
@@ -388,7 +363,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
           throw make_syntax_error(expr.get(), "define-syntax after a nondefinition");
 
         auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p)))));
-        remove_use_site_scopes(name.get(), pc.use_site_scopes.back());
+        name = track(pc.ctx, remove_use_site_scopes(pc.ctx, name.get(), pc.use_site_scopes.back()));
 
         auto transformer_proc = eval_transformer(pc, expect<syntax>(caddr(assume<pair>(p)))); // GC
         auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
@@ -401,7 +376,7 @@ process_internal_defines(parsing_context& pc, ptr<> data, source_location const&
           throw make_syntax_error(expr.get(), "define after a nondefinition");
 
         auto id = expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p))));
-        remove_use_site_scopes(id, pc.use_site_scopes.back());
+        id = remove_use_site_scopes(pc.ctx, id, pc.use_site_scopes.back());
 
         auto init = expect<syntax>(caddr(assume<pair>(p)));
         auto var = std::make_shared<variable>(identifier_name(id));
@@ -546,17 +521,17 @@ parse_let(parsing_context& pc, ptr<syntax> stx_) {
 
   std::vector<definition_pair_expression> definition_exprs;
   for (definition_pair const& dp : definitions) {
-    add_scope(pc.ctx.store, dp.id.get(), subscope.get());
-    auto var = std::make_shared<variable>(identifier_name(dp.id.get()));
-    define(pc.ctx.store, dp.id.get(), var);
+    tracked_ptr<syntax> id = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope.get()));
+    auto var = std::make_shared<variable>(identifier_name(id.get()));
+    define(pc.ctx.store, id.get(), var);
 
-    definition_exprs.emplace_back(dp.id, std::move(var), parse(pc, dp.expression.get()));
+    definition_exprs.emplace_back(id, std::move(var), parse(pc, dp.expression.get()));
   }
 
-  add_scope(pc.ctx.store, body.get(), subscope.get());
+  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body.get(), subscope.get());
   auto subenv = extend_environment(pc, subscope.get());
   return make_expression<let_expression>(std::move(definition_exprs),
-                                         parse_body(pc, body.get(), stx->location()));
+                                         parse_body(pc, body_with_scope, stx->location()));
 }
 
 static std::unique_ptr<expression>
@@ -572,28 +547,28 @@ parse_letrec_star(parsing_context& pc, ptr<syntax> stx) {
   std::vector<definition_pair_expression> definition_exprs;
   std::vector<std::shared_ptr<variable>> variables;
   for (definition_pair const& dp : definitions) {
-    add_scope(pc.ctx.store, dp.id.get(), subscope.get());
+    tracked_ptr<syntax> id = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope.get()));
     auto var = std::make_shared<variable>(identifier_name(dp.id.get()));
-    define(pc.ctx.store, dp.id.get(), var);
+    define(pc.ctx.store, id.get(), var);
 
     variables.push_back(var);
     auto void_expr = make_expression<literal_expression>(pc.ctx.constants->void_);
-    definition_exprs.emplace_back(dp.id, var, std::move(void_expr));
+    definition_exprs.emplace_back(id, var, std::move(void_expr));
   }
 
-  add_scope(pc.ctx.store, body.get(), subscope.get());
+  tracked_ptr<> body_with_scope = track(pc.ctx, add_scope_to_list(pc.ctx, body.get(), subscope.get()));
   auto subenv = extend_environment(pc, subscope.get());
 
   sequence_expression body_sequence;
   for (std::size_t i = 0; i < definition_exprs.size(); ++i) {
-    add_scope(pc.ctx.store, definitions[i].expression.get(), subscope.get());
-    std::unique_ptr<expression> init_expr = parse(pc, definitions[i].expression.get());
+    ptr<syntax> expr = definitions[i].expression->add_scope(pc.ctx.store, subscope.get());
+    std::unique_ptr<expression> init_expr = parse(pc, expr);
     variables[i]->is_set = true;
     body_sequence.expressions.push_back(make_expression<local_set_expression>(std::move(variables[i]),
                                                                               std::move(init_expr)));
   }
 
-  auto proper_body_sequence = parse_body(pc, body.get(), loc);
+  auto proper_body_sequence = parse_body(pc, body_with_scope.get(), loc);
   body_sequence.expressions.insert(body_sequence.expressions.end(),
                                    std::move_iterator(proper_body_sequence.expressions.begin()),
                                    std::move_iterator(proper_body_sequence.expressions.end()));
@@ -612,17 +587,17 @@ parse_let_syntax(parsing_context& pc, ptr<syntax> stx) {
   auto subscope = make_tracked<scope>(pc.ctx, fmt::format("body scope for let-syntax at {}",
                                                           format_location(loc)));
   for (definition_pair const& dp : definitions) {
-    add_scope(pc.ctx.store, dp.id.get(), subscope.get());
+    tracked_ptr<syntax> id = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope.get()));
 
     auto transformer_proc = eval_transformer(pc, dp.expression.get()); // GC
     auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
-    define(pc.ctx.store, dp.id.get(), transformer);
+    define(pc.ctx.store, id.get(), transformer);
   }
 
-  add_scope(pc.ctx.store, body.get(), subscope.get());
+  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body.get(), subscope.get());
   auto subenv = extend_environment(pc, subscope.get());
 
-  return make_expression<sequence_expression>(parse_body(pc, body.get(), loc));
+  return make_expression<sequence_expression>(parse_body(pc, body_with_scope, loc));
 }
 
 static std::unique_ptr<expression>
@@ -636,18 +611,17 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
   auto subscope = make_tracked<scope>(pc.ctx, fmt::format("body scope for letrec-syntax at {}",
                                                           format_location(loc)));
   for (definition_pair const& dp : definitions) {
-    add_scope(pc.ctx.store, dp.id.get(), subscope.get());
-
-    add_scope(pc.ctx.store, dp.expression.get(), subscope.get());
-    auto transformer_proc = eval_transformer(pc, dp.expression.get()); // GC
+    tracked_ptr<syntax> id = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope.get()));
+    ptr<syntax> expression = dp.expression->add_scope(pc.ctx.store, subscope.get());
+    auto transformer_proc = eval_transformer(pc, expression); // GC
     auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
-    define(pc.ctx.store, dp.id.get(), transformer);
+    define(pc.ctx.store, id.get(), transformer);
   }
 
-  add_scope(pc.ctx.store, body.get(), subscope.get());
+  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body.get(), subscope.get());
   auto subenv = extend_environment(pc, subscope.get());
 
-  return make_expression<sequence_expression>(parse_body(pc, body.get(), loc));
+  return make_expression<sequence_expression>(parse_body(pc, body_with_scope, loc));
 }
 
 static std::unique_ptr<expression>
@@ -666,24 +640,24 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   bool has_rest = false;
   auto subscope = make_tracked<scope>(pc.ctx, fmt::format("lambda body at {}", format_location(loc)));
   while (!semisyntax_is<null_type>(param_names)) {
-    if (auto param = semisyntax_match<pair>(param_names)) {
+    if (auto param = semisyntax_match<pair>(pc.ctx, param_names)) {
       auto id = expect_id(pc.ctx, expect<syntax>(car(param)));
-      id->add_scope(pc.ctx.store, subscope.get());
+      auto id_with_scope = id->add_scope(pc.ctx.store, subscope.get());
 
       auto var = std::make_shared<variable>(identifier_name(id));
       parameters.push_back(var);
-      define(pc.ctx.store, id, std::move(var));
+      define(pc.ctx.store, id_with_scope, std::move(var));
 
       param_names = cdr(param);
     }
     else if (semisyntax_is<symbol>(param_names)) {
       has_rest = true;
       auto name = expect<syntax>(param_names);
-      name->add_scope(pc.ctx.store, subscope.get());
+      auto name_with_scope = name->add_scope(pc.ctx.store, subscope.get());
 
-      auto var = std::make_shared<variable>(identifier_name(name));
+      auto var = std::make_shared<variable>(identifier_name(name_with_scope));
       parameters.push_back(var);
-      define(pc.ctx.store, name, std::move(var));
+      define(pc.ctx.store, name_with_scope, std::move(var));
       break;
     }
     else
@@ -692,12 +666,12 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   }
 
   ptr<> body = cddr(assume<pair>(datum));
-  add_scope(pc.ctx.store, body, subscope.get());
+  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body, subscope.get());
 
   auto subenv = extend_environment(pc, subscope.get());
 
   return make_expression<lambda_expression>(std::move(parameters), has_rest,
-                                            parse_body(pc, body, loc),
+                                            parse_body(pc, body_with_scope, loc),
                                             fmt::format("<lambda at {}>", format_location(loc)),
                                             std::vector<std::shared_ptr<insider::variable>>{});
 }
@@ -775,8 +749,8 @@ parse_sequence(parsing_context& pc, ptr<> stx) {
   std::vector<std::unique_ptr<expression>> exprs;
   for (tracked_ptr<> datum = track(pc.ctx, stx);
        !semisyntax_is<null_type>(datum.get());
-       datum = track(pc.ctx, syntax_cdr(datum.get())))
-    exprs.push_back(parse(pc, syntax_car(datum.get())));
+       datum = track(pc.ctx, syntax_cdr(pc.ctx, datum.get())))
+    exprs.push_back(parse(pc, syntax_car(pc.ctx, datum.get())));
 
   return make_expression<sequence_expression>(std::move(exprs));
 }
@@ -847,7 +821,7 @@ parse_syntax_error(parsing_context& pc, ptr<syntax> stx) {
   if (!datum || list_length(datum) < 2)
     throw make_syntax_error(stx, "Invalid syntax-error syntax, how ironic");
 
-  std::string result_msg = syntax_expect<string>(expect<syntax>(cadr(assume<pair>(datum))))->value();
+  std::string result_msg = syntax_expect<string>(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))))->value();
   for (ptr<> irritant : in_list{cddr(assume<pair>(datum))})
     result_msg += " " + syntax_to_string(pc.ctx, expect<syntax>(irritant));
 
@@ -944,7 +918,7 @@ namespace {
 
 bool
 quote_traits::is_qq_form(parsing_context& pc, ptr<> stx) {
-  if (auto p = semisyntax_match<pair>(stx))
+  if (auto p = semisyntax_match<pair>(pc.ctx, stx))
     if (auto form = match_core_form(pc, expect<syntax>(car(p))))
       return form == pc.ctx.constants->unquote.get()
              || form == pc.ctx.constants->unquote_splicing.get()
@@ -965,7 +939,7 @@ quote_traits::unwrap(context& ctx, ptr<syntax> stx) {
 
 bool
 syntax_traits::is_qq_form(parsing_context& pc, ptr<> stx) {
-  if (auto p = semisyntax_match<pair>(stx))
+  if (auto p = semisyntax_match<pair>(pc.ctx, stx))
     if (auto form = match_core_form(pc, expect<syntax>(car(p))))
       return form == pc.ctx.constants->unsyntax.get()
              || form == pc.ctx.constants->unsyntax_splicing.get()
@@ -1012,19 +986,19 @@ template <typename Traits>
 static std::unique_ptr<qq_template>
 parse_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
                   unsigned quote_level) {
-  if (auto p = syntax_match<pair>(stx.get())) {
+  if (auto p = syntax_match<pair>(pc.ctx, stx.get())) {
     unsigned nested_level = quote_level;
 
     if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
       if (Traits::is_unquote(pc.ctx, form)) {
-        auto unquote_stx = track(pc.ctx, syntax_cadr(stx.get()));
+        auto unquote_stx = track(pc.ctx, syntax_cadr(pc.ctx, stx.get()));
         if (quote_level == 0)
           return std::make_unique<qq_template>(unquote{unquote_stx, false}, unquote_stx);
         else
           nested_level = quote_level - 1;
       }
       else if (Traits::is_unquote_splicing(pc.ctx, form)) {
-        auto unquote_stx = track(pc.ctx, syntax_cadr(stx.get()));
+        auto unquote_stx = track(pc.ctx, syntax_cadr(pc.ctx, stx.get()));
         if (quote_level == 0)
           return std::make_unique<qq_template>(unquote{unquote_stx, true}, unquote_stx);
         else
@@ -1039,22 +1013,22 @@ parse_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
 
     ptr<> elem = stx.get();
     while (!semisyntax_is<null_type>(elem)) {
-      auto current = semisyntax_expect<pair>(elem);
-      if ((!semisyntax_is<pair>(syntax_cdr(elem)) && !is<null_type>(cdr(current)))
-          || Traits::is_qq_form(pc, syntax_cdr(elem)))
+      auto current = semisyntax_expect<pair>(pc.ctx, elem);
+      if ((!semisyntax_is<pair>(syntax_cdr(pc.ctx, elem)) && !is<null_type>(cdr(current)))
+          || Traits::is_qq_form(pc, syntax_cdr(pc.ctx, elem)))
         // An improper list or a list of the form (x . ,y), which is the same as
         // (x unquote y) which is a proper list, but we don't want to consider
         // it being proper here.
         break;
 
-      result.elems.push_back(parse_qq_template<Traits>(pc, track(pc.ctx, syntax_car(elem)), nested_level));
-      elem = syntax_cdr(elem);
+      result.elems.push_back(parse_qq_template<Traits>(pc, track(pc.ctx, syntax_car(pc.ctx, elem)), nested_level));
+      elem = syntax_cdr(pc.ctx, elem);
 
       if (!std::holds_alternative<literal>(result.elems.back()->value))
         all_literal = false;
     }
 
-    if (auto pair = semisyntax_match<insider::pair>(elem)) {
+    if (auto pair = semisyntax_match<insider::pair>(pc.ctx, elem)) {
       result.last = cons_pattern{
         parse_qq_template<Traits>(pc, track(pc.ctx, expect<syntax>(car(pair))), nested_level),
         parse_qq_template<Traits>(pc, track(pc.ctx, expect<syntax>(cdr(pair))), nested_level)
@@ -1069,7 +1043,7 @@ parse_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
     else
       return std::make_unique<qq_template>(std::move(result), stx);
   }
-  else if (auto v = syntax_match<vector>(stx.get())) {
+  else if (auto v = syntax_match<vector>(pc.ctx, stx.get())) {
     std::vector<std::unique_ptr<qq_template>> templates;
     templates.reserve(v->size());
     bool all_literal = true;
@@ -1198,7 +1172,7 @@ parse_quasiquote(parsing_context& pc, ptr<syntax> stx) {
   simple_action a(pc.ctx, stx, "Parsing quasiquote");
   return process_qq_template<quote_traits>(
     pc,
-    parse_qq_template<quote_traits>(pc, track(pc.ctx, syntax_cadr(stx)), 0)
+    parse_qq_template<quote_traits>(pc, track(pc.ctx, syntax_cadr(pc.ctx, stx)), 0)
   );
 }
 
@@ -1207,7 +1181,7 @@ parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
   simple_action a(pc.ctx, stx, "Parsing quasisyntax");
   return process_qq_template<syntax_traits>(
     pc,
-    parse_qq_template<syntax_traits>(pc, track(pc.ctx, syntax_cadr(stx)), 0)
+    parse_qq_template<syntax_traits>(pc, track(pc.ctx, syntax_cadr(pc.ctx, stx)), 0)
   );
 }
 
@@ -1218,7 +1192,7 @@ parse(parsing_context& pc, ptr<syntax> s) {
   if (syntax_is<symbol>(stx))
     return parse_reference(pc, stx);
   else if (syntax_is<pair>(stx)) {
-    auto head = syntax_car(stx);
+    auto head = syntax_car(pc.ctx, stx);
     if (auto form = match_core_form(pc, head)) {
       if (form == pc.ctx.constants->let.get())
         return parse_let(pc, stx);
@@ -1237,13 +1211,13 @@ parse(parsing_context& pc, ptr<syntax> s) {
       else if (form == pc.ctx.constants->box_set.get())
         return parse_box_set(pc, stx);
       else if (form == pc.ctx.constants->begin.get())
-        return parse_sequence(pc, syntax_cdr(stx));
+        return parse_sequence(pc, syntax_cdr(pc.ctx, stx));
       else if (form == pc.ctx.constants->define.get())
         return parse_define_or_set(pc, stx, "define");
       else if (form == pc.ctx.constants->quote.get())
-        return make_expression<literal_expression>(track(pc.ctx, syntax_to_datum(pc.ctx, syntax_cadr(stx))));
+        return make_expression<literal_expression>(track(pc.ctx, syntax_to_datum(pc.ctx, syntax_cadr(pc.ctx, stx))));
       else if (form == pc.ctx.constants->syntax.get())
-        return make_expression<literal_expression>(track(pc.ctx, syntax_cadr(stx)));
+        return make_expression<literal_expression>(track(pc.ctx, syntax_cadr(pc.ctx, stx)));
       else if (form == pc.ctx.constants->quasiquote.get())
         return parse_quasiquote(pc, stx);
       else if (form == pc.ctx.constants->quasisyntax.get())
@@ -1456,15 +1430,15 @@ analyse(context& ctx, ptr<syntax> stx, module_& m, source_file_origin const& ori
   parameterize origin_param{ctx, ctx.constants->current_source_file_origin_tag.get(),
                             make<opaque_value<source_file_origin>>(ctx, origin)};
   parsing_context pc{ctx, m, origin, {}, {}};
-  add_scope(ctx.store, stx, m.scope());
+  stx = stx->add_scope(ctx.store, m.scope());
   return analyse_internal(pc, stx);
 }
 
 static bool
 is_directive(ptr<syntax> datum, std::string const& directive) {
   return syntax_is<pair>(datum)
-         && syntax_is<symbol>(expect<syntax>(car(syntax_assume<pair>(datum))))
-         && syntax_assume<symbol>(expect<syntax>(car(syntax_assume<pair>(datum))))->value() == directive;
+         && syntax_is<symbol>(expect<syntax>(car(syntax_assume_without_update<pair>(datum))))
+         && syntax_assume_without_update<symbol>(expect<syntax>(car(syntax_assume_without_update<pair>(datum))))->value() == directive;
 }
 
 module_name
@@ -1477,9 +1451,9 @@ parse_module_name(context& ctx, ptr<syntax> stx) {
 
   for (ptr<> elem : in_list{datum}) {
     ptr<syntax> e = expect<syntax>(elem);
-    if (auto s = syntax_match<symbol>(e))
+    if (auto s = syntax_match_without_update<symbol>(e))
       result.push_back(s->value());
-    else if (auto i = syntax_match<integer>(e))
+    else if (auto i = syntax_match_without_update<integer>(e))
       result.push_back(std::to_string(i->value()));
     else
       throw make_syntax_error(e, "Invalid module name");
@@ -1492,13 +1466,24 @@ static void
 perform_begin_for_syntax(parsing_context& pc, protomodule const& parent_pm, tracked_ptr<> const& body) {
   simple_action a(pc.ctx, "Analysing begin-for-syntax");
 
-  remove_scope(body.get(), pc.module_.scope());
+  ptr<> body_without_scope = remove_scope_from_list(pc.ctx, body.get(), pc.module_.scope());
   protomodule pm{parent_pm.name, parent_pm.imports, {},
-                 from_scheme<std::vector<tracked_ptr<syntax>>>(pc.ctx, syntax_to_list(pc.ctx, body.get())),
+                 from_scheme<std::vector<tracked_ptr<syntax>>>(pc.ctx, syntax_to_list(pc.ctx, body_without_scope)),
                  pc.origin};
   auto submodule = instantiate(pc.ctx, pm);
   execute(pc.ctx, *submodule);
   import_all_top_level(pc.ctx, pc.module_, *submodule);
+}
+
+static std::vector<tracked_ptr<syntax>>
+add_module_scope_to_body(context& ctx, std::vector<tracked_ptr<syntax>> const& body, ptr<scope> s) {
+  std::vector<tracked_ptr<syntax>> result;
+  result.reserve(body.size());
+
+  for (tracked_ptr<syntax> e : body)
+    result.push_back(track(ctx, e->add_scope(ctx.store, s)));
+
+  return result;
 }
 
 // Gather syntax and top-level variable definitions, expand top-level macro
@@ -1510,14 +1495,12 @@ static std::vector<tracked_ptr<syntax>>
 expand_top_level(parsing_context& pc, module_& m, protomodule const& pm) {
   simple_action a(pc.ctx, "Expanding module top-level");
 
-  for (tracked_ptr<syntax> e : pm.body)
-    add_scope(pc.ctx.store, e.get(), m.scope());
-
+  auto body = add_module_scope_to_body(pc.ctx, pm.body, m.scope());
   internal_definition_context_guard idc{pc};
 
   std::vector<tracked_ptr<syntax>> stack;
-  stack.reserve(pm.body.size());
-  std::copy(pm.body.rbegin(), pm.body.rend(), std::back_inserter(stack));
+  stack.reserve(body.size());
+  std::copy(body.rbegin(), body.rend(), std::back_inserter(stack));
 
   std::vector<tracked_ptr<syntax>> result;
   while (!stack.empty()) {
@@ -1531,12 +1514,12 @@ expand_top_level(parsing_context& pc, module_& m, protomodule const& pm) {
       ptr<pair> p = assume<pair>(lst.get());
       if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
         if (form == pc.ctx.constants->define_syntax.get()) {
-          auto name = track(pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(p))));
-          remove_use_site_scopes(name.get(), pc.use_site_scopes.back());
+          auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
+          auto name_without_scope = track(pc.ctx, remove_use_site_scopes(pc.ctx, name, pc.use_site_scopes.back()));
 
           auto transformer_proc = eval_transformer(pc, expect<syntax>(caddr(p))); // GC
           auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
-          define(pc.ctx.store, name.get(), transformer);
+          define(pc.ctx.store, name_without_scope.get(), transformer);
 
           continue;
         }
@@ -1545,10 +1528,11 @@ expand_top_level(parsing_context& pc, module_& m, protomodule const& pm) {
             throw make_syntax_error(stx.get(), "Invalid define syntax");
 
           auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
-          remove_use_site_scopes(name, pc.use_site_scopes.back());
+          auto name_without_scope = remove_use_site_scopes(pc.ctx, name, pc.use_site_scopes.back());
 
-          auto index = pc.ctx.add_top_level(pc.ctx.constants->void_.get(), identifier_name(name));
-          define(pc.ctx.store, name, std::make_shared<variable>(identifier_name(name), index));
+          auto index = pc.ctx.add_top_level(pc.ctx.constants->void_.get(), identifier_name(name_without_scope));
+          define(pc.ctx.store, name_without_scope,
+                 std::make_shared<variable>(identifier_name(name_without_scope), index));
         }
         else if (form == pc.ctx.constants->begin.get()) {
           expand_begin(pc, p, stack);
@@ -1575,13 +1559,13 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
 
   auto p = assume<pair>(spec);
 
-  if (auto head = syntax_match<symbol>(expect<syntax>(car(p)))) {
+  if (auto head = syntax_match_without_update<symbol>(expect<syntax>(car(p)))) {
     if (head->value() == "only") {
       import_specifier::only result;
       result.from = std::make_unique<import_specifier>(parse_import_set(ctx, expect<syntax>(cadr(p))));
 
       for (ptr<> identifier : in_list{cddr(p)})
-        result.identifiers.push_back(syntax_expect<symbol>(expect<syntax>(identifier))->value());
+        result.identifiers.push_back(syntax_expect_without_update<symbol>(expect<syntax>(identifier))->value());
 
       return import_specifier{std::move(result)};
     }
@@ -1590,14 +1574,14 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
       result.from = std::make_unique<import_specifier>(parse_import_set(ctx, expect<syntax>(cadr(p))));
 
       for (ptr<> identifier : in_list{cddr(p)})
-        result.identifiers.push_back(syntax_expect<symbol>(expect<syntax>(identifier))->value());
+        result.identifiers.push_back(syntax_expect_without_update<symbol>(expect<syntax>(identifier))->value());
 
       return import_specifier{std::move(result)};
     }
     else if (head->value() == "prefix") {
       import_specifier::prefix result;
       result.from = std::make_unique<import_specifier>(parse_import_set(ctx, expect<syntax>(cadr(p))));
-      result.prefix_ = syntax_expect<symbol>(expect<syntax>(caddr(p)))->value();
+      result.prefix_ = syntax_expect_without_update<symbol>(expect<syntax>(caddr(p)))->value();
 
       return import_specifier{std::move(result)};
     }
@@ -1612,8 +1596,8 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
 
         auto np = assume<pair>(name_pair);
 
-        result.renames.push_back(std::tuple{syntax_expect<symbol>(expect<syntax>(car(np)))->value(),
-                                            syntax_expect<symbol>(expect<syntax>(cadr(np)))->value()});
+        result.renames.push_back(std::tuple{syntax_expect_without_update<symbol>(expect<syntax>(car(np)))->value(),
+                                            syntax_expect_without_update<symbol>(expect<syntax>(cadr(np)))->value()});
       }
 
       return import_specifier{std::move(result)};
@@ -1630,14 +1614,14 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
 
 static void
 process_library_import(context& ctx, protomodule& result, ptr<syntax> stx) {
-  for (ptr<> set : in_list{syntax_to_list(ctx, syntax_cdr(stx))})
+  for (ptr<> set : in_list{syntax_to_list(ctx, syntax_cdr(ctx, stx))})
     result.imports.push_back(parse_import_set(ctx, assume<syntax>(set)));
 }
 
 static void
 process_library_export(context& ctx, protomodule& result, ptr<syntax> stx) {
-  for (ptr<> name : in_list{syntax_to_list(ctx, syntax_cdr(stx))})
-    result.exports.push_back(syntax_expect<symbol>(assume<syntax>(name))->value());
+  for (ptr<> name : in_list{syntax_to_list(ctx, syntax_cdr(ctx, stx))})
+    result.exports.push_back(syntax_expect_without_update<symbol>(assume<syntax>(name))->value());
 }
 
 static protomodule
@@ -1647,7 +1631,7 @@ read_plain_module(context& ctx, std::vector<tracked_ptr<syntax>> const& contents
 
   while (current != contents.end())
     if (is_directive(current->get(), "library")) {
-      result.name = parse_module_name(ctx, syntax_cadr(current->get()));
+      result.name = parse_module_name(ctx, syntax_cadr(ctx, current->get()));
       ++current;
     } else if (is_directive(current->get(), "import")) {
       process_library_import(ctx, result, current->get());
@@ -1694,9 +1678,8 @@ perform_library_include(context& ctx, protomodule& result, source_file_origin co
 template <auto Reader>
 static void
 process_library_include(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> stx) {
-  for (ptr<syntax> filename : in_syntax_list{syntax_cdr(stx), stx})
-    perform_library_include<Reader>(ctx, result, origin, stx->location(),
-                                    syntax_expect<string>(filename)->value());
+  for (ptr<> filename : in_list{cdr(expect<pair>(syntax_to_datum(ctx, stx)))})
+    perform_library_include<Reader>(ctx, result, origin, stx->location(), expect<string>(filename)->value());
 }
 
 static void
@@ -1705,8 +1688,8 @@ process_library_declaration(context& ctx, protomodule& result, source_file_origi
 static void
 process_include_library_declarations(context& ctx, protomodule& result,
                                      source_file_origin const& origin, ptr<syntax> stx) {
-  for (ptr<syntax> filename_stx : in_syntax_list{syntax_cdr(stx), stx}) {
-    std::string filename = syntax_expect<string>(filename_stx)->value();
+  for (ptr<> filename_obj : in_list{cdr(expect<pair>(syntax_to_datum(ctx, stx)))}) {
+    std::string filename = expect<string>(filename_obj)->value();
     if (auto source = find_source_relative(ctx, origin, filename)) {
       auto contents = read_syntax_multiple(ctx, source->port.get().get());
       for (tracked_ptr<syntax> const& s : contents)
@@ -1721,54 +1704,54 @@ static bool
 eval_cond_expand_condition(context& ctx, ptr<syntax> condition);
 
 static bool
-eval_cond_expand_disjunction(context& ctx, ptr<> elements, source_location const& loc) {
-  for (ptr<syntax> cond : in_syntax_list{elements, loc})
-    if (eval_cond_expand_condition(ctx, cond))
+eval_cond_expand_disjunction(context& ctx, ptr<> elements) {
+  for (ptr<> cond : in_list{syntax_to_list(ctx, elements)})
+    if (eval_cond_expand_condition(ctx, expect<syntax>(cond)))
       return true;
   return false;
 }
 
 static bool
-eval_cond_expand_conjunction(context& ctx, ptr<> elements, source_location const& loc) {
-  for (ptr<syntax> cond : in_syntax_list{elements, loc})
-    if (!eval_cond_expand_condition(ctx, cond))
+eval_cond_expand_conjunction(context& ctx, ptr<> elements) {
+  for (ptr<> cond : in_list{syntax_to_list(ctx, elements)})
+    if (!eval_cond_expand_condition(ctx, expect<syntax>(cond)))
       return false;
   return true;
 }
 
 static bool
 eval_cond_expand_condition(context& ctx, ptr<syntax> condition) {
-  if (auto feature = syntax_match<symbol>(condition)) {
+  if (auto feature = syntax_match_without_update<symbol>(condition)) {
     if (feature == ctx.intern("else"))
       return true;
     else
       return memq(feature, ctx.features());
   } else if (is_directive(condition, "library"))
-    return ctx.knows_module(parse_module_name(ctx, syntax_cadr(condition)));
+    return ctx.knows_module(parse_module_name(ctx, syntax_cadr(ctx, condition)));
   else if (is_directive(condition, "not"))
-    return !eval_cond_expand_condition(ctx, syntax_cadr(condition));
+    return !eval_cond_expand_condition(ctx, syntax_cadr(ctx, condition));
   else if (is_directive(condition, "or"))
-    return eval_cond_expand_disjunction(ctx, syntax_cdr(condition), condition->location());
+    return eval_cond_expand_disjunction(ctx, syntax_cdr(ctx, condition));
   else if (is_directive(condition, "and"))
-    return eval_cond_expand_conjunction(ctx, syntax_cdr(condition), condition->location());
+    return eval_cond_expand_conjunction(ctx, syntax_cdr(ctx, condition));
   else
     throw make_syntax_error(condition, "Invalid cond-expand condition");
 }
 
 static void
 process_library_declarations(context& ctx, protomodule& result, source_file_origin const& origin,
-                             ptr<> list, source_location const& loc) {
-  for (ptr<syntax> decl : in_syntax_list{list, loc})
-    process_library_declaration(ctx, result, origin, decl);
+                             ptr<> list) {
+  for (ptr<> decl : in_list{syntax_to_list(ctx, list)})
+    process_library_declaration(ctx, result, origin, expect<syntax>(decl));
 }
 
 static bool
 process_cond_expand_clause(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> stx) {
-  auto condition = syntax_car(stx);
-  auto body = syntax_cdr(stx);
+  auto condition = syntax_car(ctx, stx);
+  auto body = syntax_cdr(ctx, stx);
 
   if (eval_cond_expand_condition(ctx, condition)) {
-    process_library_declarations(ctx, result, origin, body, stx->location());
+    process_library_declarations(ctx, result, origin, body);
     return true;
   } else
     return false;
@@ -1776,8 +1759,8 @@ process_cond_expand_clause(context& ctx, protomodule& result, source_file_origin
 
 static void
 process_cond_expand(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> stx) {
-  for (ptr<syntax> clause : in_syntax_list{syntax_cdr(stx), stx}) {
-    bool taken = process_cond_expand_clause(ctx, result, origin, clause);
+  for (ptr<> clause : in_list{cdr(expect<pair>(syntax_to_list(ctx, stx)))}) {
+    bool taken = process_cond_expand_clause(ctx, result, origin, expect<syntax>(clause));
     if (taken)
       break;
   }
@@ -1809,14 +1792,14 @@ static protomodule
 read_define_library(context& ctx, tracked_ptr<syntax> form, source_file_origin const& origin) {
   protomodule result{origin};
 
-  assert(syntax_assume<symbol>(syntax_car(form.get()))->value() == "define-library");
-  if (syntax_cdr(form.get()) == ctx.constants->null.get())
+  assert(expect<syntax>(syntax_car(ctx, form.get()))->get_symbol()->value() == "define-library");
+  if (syntax_cdr(ctx, form.get()) == ctx.constants->null.get())
     throw make_syntax_error(form.get(), "Invalid define-library syntax");
 
-  result.name = parse_module_name(ctx, syntax_cadr(form.get()));
+  result.name = parse_module_name(ctx, syntax_cadr(ctx, form.get()));
 
-  for (ptr<syntax> decl : in_syntax_list{syntax_cddr(form.get()), form.get()})
-    process_library_declaration(ctx, result, origin, decl);
+  for (ptr<> decl : in_list{cddr(expect<pair>(syntax_to_list(ctx, form.get())))})
+    process_library_declaration(ctx, result, origin, expect<syntax>(decl));
 
   return result;
 }
@@ -1837,7 +1820,7 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
   try {
     ptr<syntax> first_datum = read_syntax(ctx, in);
     if (is_directive(first_datum, "library") || is_directive(first_datum, "define-library"))
-      return parse_module_name(ctx, syntax_cadr(first_datum));
+      return parse_module_name(ctx, syntax_cadr(ctx, first_datum));
     else
       return {};
   }

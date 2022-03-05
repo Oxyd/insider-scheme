@@ -1087,7 +1087,7 @@ wrap(context& ctx, ptr<> value, source_location const& loc, bool read_syntax) {
 static ptr<>
 unwrap(ptr<> value) {
   if (auto stx = match<syntax>(value))
-    return stx->expression();
+    return stx->get_expression_without_update();
   else
     return value;
 }

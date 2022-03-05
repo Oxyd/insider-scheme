@@ -236,8 +236,8 @@ TEST_F(io, case_folding) {
 
 TEST_F(io, read_syntax_with_shared_data) {
   auto stx = read_syntax(ctx, "(#0=(1 2) #0#)");
-  auto first = expect<syntax>(car(expect<pair>(stx->expression())))->expression();
-  auto second = expect<syntax>(cadr(expect<pair>(stx->expression())))->expression();
+  auto first = expect<syntax>(car(expect<pair>(stx->update_and_get_expression(ctx))))->update_and_get_expression(ctx);
+  auto second = expect<syntax>(cadr(expect<pair>(stx->update_and_get_expression(ctx))))->update_and_get_expression(ctx);
   EXPECT_EQ(first, second);
 }
 

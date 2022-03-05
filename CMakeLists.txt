@@ -9,8 +9,10 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STRE
   set(CMAKE_CXX_FLAGS "-Wall -Wextra -pedantic -fno-omit-frame-pointer")
   set(CMAKE_C_FLAGS_DEBUG "-ggdb3")
   set(CMAKE_CXX_FLAGS_DEBUG "-ggdb3")
-  set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -ggdb3 -DNDEBUG")
-  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -ggdb3 -DNDEBUG")
+  set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -ggdb3")
+  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -ggdb3")
+  set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
+  set(CMAKE_Cxx_FLAGS_RELEASE "-O3 -DNDEBUG")
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
@@ -84,6 +86,7 @@ set(test_sources
   test/test_reader_stream.cpp
   test/test_records.cpp
   test/test_string.cpp
+  test/test_syntax.cpp
   test/test_types.cpp
   )
 

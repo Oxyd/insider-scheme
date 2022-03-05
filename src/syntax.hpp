@@ -28,37 +28,41 @@ identifier_name(ptr<syntax> x);
 std::optional<scope::value_type>
 lookup(ptr<syntax> id);
 
-// Part of the programs' source code. It is an S-expression together with
-// information about the source code location.
+// Part of the program source code. It is an expression together with
+// information about the source code location and the associated set of scopes.
+//
+// Scopes are propagated lazily: Modifying the scope set creates a new syntax
+// object with adjusted scopes, but this object points to the same expression as
+// the original object, thus the scope sets of the children are not updated. In
+// this state, the syntax object is called "dirty".
+//
+// When the expression of a dirty syntax object is accessed, it first modifies
+// its children's scope sets accordingly, making the children dirty and removing
+// the dirty flag from itself. This necessitates duplicating the expression
+// object it contains to make it point to the new syntax subobjects.
 class syntax : public composite_object<syntax> {
 public:
   static constexpr char const* scheme_name = "insider::syntax";
 
+  struct update_record {
+    scope_set_operation operation;
+    ptr<insider::scope> scope;
+  };
+
   explicit
-  syntax(ptr<> expr)
-    : expression_{expr}
-  { }
-
-  syntax(ptr<> expr, source_location loc)
-    : expression_{expr}
-    , location_{std::move(loc)}
-  {
-    assert(expr);
-  }
-
-  syntax(ptr<> expr, scope_set envs)
-    : expression_{expr}
-    , scopes_{std::move(envs)}
-  { }
-
-  syntax(ptr<> expr, source_location loc, scope_set scopes)
-    : expression_{expr}
-    , location_{std::move(loc)}
-    , scopes_{std::move(scopes)}
-  { }
+  syntax(ptr<> expr);
+  syntax(ptr<> expr, source_location loc);
+  syntax(ptr<> expr, scope_set envs);
+  syntax(ptr<> expr, source_location loc, scope_set scopes, std::vector<update_record> update_records = {});
 
   ptr<>
-  expression() const { return expression_; }
+  update_and_get_expression(context&);
+
+  ptr<symbol>
+  get_symbol() const;
+
+  ptr<>
+  get_expression_without_update() const { return expression_; }
 
   source_location const&
   location() const { return location_; }
@@ -66,80 +70,120 @@ public:
   scope_set const&
   scopes() const { return scopes_; }
 
-  void
-  add_scope(free_store&, ptr<scope>);
+  template <typename T>
+  bool
+  contains() const {
+    return is<T>(expression_);
+  }
 
-  void
-  remove_scope(ptr<scope>);
+  [[nodiscard]]
+  ptr<syntax>
+  add_scope(free_store&, ptr<scope>) const;
 
-  void
-  flip_scope(free_store&, ptr<scope>);
+  [[nodiscard]]
+  ptr<syntax>
+  remove_scope(free_store&, ptr<scope>) const;
+
+  [[nodiscard]]
+  ptr<syntax>
+  flip_scope(free_store&, ptr<scope>) const;
 
   void
   visit_members(member_visitor const&);
 
+  bool
+  dirty() const { return !update_records_.empty(); }
+
+  std::vector<update_record>
+  update_records() const { return update_records_; }
+
 private:
-  ptr<>           expression_;
-  source_location location_;
-  scope_set       scopes_;
+  ptr<>                      expression_;
+  source_location            location_;
+  scope_set                  scopes_;
+  std::vector<update_record> update_records_;
+
+  ptr<syntax>
+  update_scope(free_store&, ptr<scope>, scope_set_operation) const;
+
+  void
+  update_children(context&);
 };
 
 template <typename T>
 bool
 syntax_is(ptr<syntax> stx) {
-  return is<T>(stx->expression());
+  return stx->template contains<T>();
 }
 
 template <typename T>
 auto
-syntax_match(ptr<syntax> stx) {
-  return match<T>(stx->expression());
+syntax_match(context& ctx, ptr<syntax> stx) {
+  return match<T>(stx->update_and_get_expression(ctx));
 }
 
 template <typename T>
 auto
-syntax_expect(ptr<syntax> stx) {
-  return expect<T>(stx->expression());
+syntax_match_without_update(ptr<syntax> stx) {
+  return match<T>(stx->get_expression_without_update());
 }
 
 template <typename T>
 auto
-syntax_assume(ptr<syntax> stx) {
-  return assume<T>(stx->expression());
+syntax_expect(context& ctx, ptr<syntax> stx) {
+  return expect<T>(stx->update_and_get_expression(ctx));
+}
+
+template <typename T>
+auto
+syntax_expect_without_update(ptr<syntax> stx) {
+  return expect<T>(stx->get_expression_without_update());
+}
+
+template <typename T>
+auto
+syntax_assume(context& ctx, ptr<syntax> stx) {
+  return assume<T>(stx->update_and_get_expression(ctx));
+}
+
+template <typename T>
+auto
+syntax_assume_without_update(ptr<syntax> stx) {
+  return assume<T>(stx->get_expression_without_update());
 }
 
 template <typename T>
 auto
 semisyntax_is(ptr<> x) {
   if (auto stx = match<syntax>(x))
-    return is<T>(stx->expression());
+    return stx->template contains<T>();
   else
     return is<T>(x);
 }
 
 template <typename T>
 auto
-semisyntax_match(ptr<> x) {
+semisyntax_match(context& ctx, ptr<> x) {
   if (auto stx = match<syntax>(x))
-    return match<T>(stx->expression());
+    return match<T>(stx->update_and_get_expression(ctx));
   else
     return match<T>(x);
 }
 
 template <typename T>
 auto
-semisyntax_expect(ptr<> x) {
+semisyntax_expect(context& ctx, ptr<> x) {
   if (auto stx = match<syntax>(x))
-    return expect<T>(stx->expression());
+    return expect<T>(stx->update_and_get_expression(ctx));
   else
     return expect<T>(x);
 }
 
 template <typename T>
 auto
-semisyntax_assume(ptr<> x) {
+semisyntax_assume(context& ctx, ptr<> x) {
   if (auto stx = match<syntax>(x))
-    return assume<T>(stx->expression());
+    return assume<T>(stx->update_and_get_expression(ctx));
   else
     return assume<T>(x);
 }
@@ -152,9 +196,6 @@ datum_to_syntax(context&, ptr<syntax>, ptr<>);
 
 ptr<>
 syntax_to_list(context&, ptr<>);
-
-ptr<syntax>
-copy_syntax(context&, ptr<syntax>);
 
 // A procedure for transforming syntax to syntax.
 class transformer : public composite_object<transformer> {

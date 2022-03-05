@@ -11,45 +11,140 @@ bool
 is_identifier(ptr<> x) {
   if (!is<syntax>(x))
     return false;
-  return is<symbol>(assume<syntax>(x)->expression());
+  else
+    return assume<syntax>(x)->contains<symbol>();
 }
 
 std::string
 identifier_name(ptr<syntax> x) {
-  return syntax_expect<symbol>(x)->value();
+  if (!is_identifier(x))
+    throw make_syntax_error(x, "Expected identifier");
+  else
+    return x->get_symbol()->value();
 }
 
 std::optional<scope::value_type>
 lookup(ptr<syntax> id) {
-  assert(is_identifier(id));
-  return lookup(assume<symbol>(id->expression()), id->scopes());
+  return lookup(id->get_symbol(), id->scopes());
 }
+
+
+syntax::syntax(ptr<> expr)
+  : expression_{expr}
+{ }
+
+syntax::syntax(ptr<> expr, source_location loc)
+  : expression_{expr}
+  , location_{std::move(loc)}
+{
+  assert(expr);
+}
+
+syntax::syntax(ptr<> expr, scope_set envs)
+  : expression_{expr}
+  , scopes_{std::move(envs)}
+{ }
+
+syntax::syntax(ptr<> expr, source_location loc, scope_set scopes, std::vector<update_record> update_records)
+  : expression_{expr}
+  , location_{std::move(loc)}
+  , scopes_{std::move(scopes)}
+  , update_records_{std::move(update_records)}
+{ }
 
 void
 syntax::visit_members(member_visitor const& f) {
   f(expression_);
+  insider::visit_members(scopes_, f);
+  for (update_record& ur : update_records_)
+    f(ur.scope);
+}
 
-  for (ptr<scope>& env : scopes_)
-    f(env);
+ptr<>
+syntax::update_and_get_expression(context& ctx) {
+  if (dirty())
+    update_children(ctx);
+
+  return expression_;
+}
+
+ptr<symbol>
+syntax::get_symbol() const {
+  assert(contains<symbol>());
+  return assume<symbol>(expression_);
+}
+
+ptr<syntax>
+syntax::update_scope(free_store& fs, ptr<scope> s, scope_set_operation op) const {
+  scope_set new_scopes = scopes_;
+  update_scope_set(new_scopes, op, s);
+  auto result = fs.make<syntax>(expression_, location_, std::move(new_scopes), update_records_);
+  result->update_records_.emplace_back(op, s);
+  return result;
+}
+
+ptr<syntax>
+syntax::add_scope(free_store& fs, ptr<scope> s) const {
+  return update_scope(fs, s, scope_set_operation::add);
+}
+
+ptr<syntax>
+syntax::remove_scope(free_store& fs, ptr<scope> s) const {
+  return update_scope(fs, s, scope_set_operation::remove);
+}
+
+ptr<syntax>
+syntax::flip_scope(free_store& fs, ptr<scope> s) const {
+  return update_scope(fs, s, scope_set_operation::flip);
+}
+
+static ptr<syntax>
+apply_update_records_to_syntax(context& ctx, ptr<syntax> stx, std::vector<syntax::update_record> const& records) {
+  std::vector<syntax::update_record> effective_update_records = stx->update_records();
+  effective_update_records.insert(effective_update_records.end(), records.begin(), records.end());
+
+  scope_set set = stx->scopes();
+  for (syntax::update_record const& ur : records)
+    update_scope_set(set, ur.operation, ur.scope);
+
+  return make<syntax>(ctx, stx->get_expression_without_update(), stx->location(),
+                      std::move(set), std::move(effective_update_records));
+}
+
+static ptr<>
+apply_update_records_if_syntax(context& ctx, ptr<> x, std::vector<syntax::update_record> const& records) {
+  if (auto stx = match<syntax>(x))
+    return apply_update_records_to_syntax(ctx, stx, records);
+  else
+    return x;
+}
+
+static ptr<>
+apply_update_records_to_list(context& ctx, ptr<pair> head, std::vector<syntax::update_record> const& records) {
+  return map(ctx, head, [&] (ptr<> x) { return apply_update_records_if_syntax(ctx, x, records); });
+}
+
+static ptr<vector>
+apply_update_records_to_vector(context& ctx, ptr<vector> v, std::vector<syntax::update_record> const& records) {
+  auto result = make<vector>(ctx, v->size(), ctx.constants->void_.get());
+  for (std::size_t i = 0; i < v->size(); ++i)
+    result->set(ctx.store, i, apply_update_records_if_syntax(ctx, v->ref(i), records));
+  return result;
 }
 
 void
-syntax::add_scope(free_store& fs, ptr<scope> s) {
-  bool added = insider::add_scope(scopes_, s);
-  if (added)
-    fs.notify_arc(this, s);
-}
+syntax::update_children(context& ctx) {
+  assert(dirty());
 
-void
-syntax::remove_scope(ptr<scope> s) {
-  insider::remove_scope(scopes_, s);
-}
+  if (auto stx = match<syntax>(expression_))
+    expression_ = apply_update_records_to_syntax(ctx, stx, update_records_);
+  else if (auto p = match<pair>(expression_))
+    expression_ = apply_update_records_to_list(ctx, p, update_records_);
+  else if (auto v = match<vector>(expression_))
+    expression_ = apply_update_records_to_vector(ctx, v, update_records_);
 
-void
-syntax::flip_scope(free_store& fs, ptr<scope> s) {
-  bool added = insider::flip_scope(scopes_, s);
-  if (added)
-    fs.notify_arc(this, s);
+  ctx.store.notify_arc(this, expression_);
+  update_records_.clear();
 }
 
 // Recurse through stx and create a new pair or vector for each pair or vector
@@ -63,13 +158,16 @@ make_fresh_aggregates(context& ctx, ptr<syntax> stx) {
     ptr<> current = stack.back();
     stack.pop_back();
 
-    if (auto p = semisyntax_match<pair>(current); p && !result.count(p)) {
+    if (auto stx = match<syntax>(current))
+      current = stx->get_expression_without_update();
+
+    if (auto p = match<pair>(current); p && !result.count(p)) {
       auto new_p = cons(ctx, ctx.constants->null.get(), ctx.constants->null.get());
       result.emplace(p, new_p);
 
       stack.push_back(car(p));
       stack.push_back(cdr(p));
-    } else if (auto v = semisyntax_match<vector>(current); v && !result.count(v)) {
+    } else if (auto v = match<vector>(current); v && !result.count(v)) {
       auto new_v = make<vector>(ctx, v->size(), ctx.constants->null.get());
       result.emplace(v, new_v);
 
@@ -84,7 +182,7 @@ make_fresh_aggregates(context& ctx, ptr<syntax> stx) {
 static ptr<>
 unwrap(ptr<> x) {
   if (auto stx = match<syntax>(x))
-    return stx->expression();
+    return stx->get_expression_without_update();
   else
     return x;
 }
@@ -96,6 +194,15 @@ unwrapped_value(ptr<> x, std::unordered_map<ptr<>, ptr<>> const& aggregates) {
     return it->second;
   else
     return x;
+}
+
+template <typename T>
+auto
+semisyntax_match_without_update(ptr<> x) {
+  if (auto stx = match<syntax>(x))
+    return match<T>(stx->get_expression_without_update());
+  else
+    return match<T>(x);
 }
 
 static void
@@ -115,9 +222,9 @@ unwrap_syntaxes(context& ctx, ptr<syntax> stx, std::unordered_map<ptr<>, ptr<>> 
     ptr<> current = stack.back();
     stack.pop_back();
 
-    if (auto p = semisyntax_match<pair>(current))
+    if (auto p = semisyntax_match_without_update<pair>(current))
       unwrap_aggregate(p);
-    else if (auto v = semisyntax_match<vector>(current))
+    else if (auto v = semisyntax_match_without_update<vector>(current))
       unwrap_aggregate(v);
   }
 }
@@ -127,7 +234,7 @@ syntax_to_datum(context& ctx, ptr<syntax> stx) {
   auto aggregates = make_fresh_aggregates(ctx, stx);
   unwrap_syntaxes(ctx, stx, aggregates);
 
-  ptr<> expr = stx->expression();
+  ptr<> expr = stx->get_expression_without_update();
   if (auto it = aggregates.find(expr); it != aggregates.end())
     return it->second;
   else
@@ -159,11 +266,11 @@ syntax_to_list(context& ctx, ptr<> stx) {
   if (!is<pair>(stx) && (!is<syntax>(stx) || !syntax_is<pair>(assume<syntax>(stx))))
     return nullptr;
 
-  ptr<pair> result = make<pair>(ctx, car(semisyntax_assume<pair>(stx)), ctx.constants->null.get());
+  ptr<pair> result = make<pair>(ctx, car(semisyntax_assume<pair>(ctx, stx)), ctx.constants->null.get());
   ptr<pair> tail = result;
-  ptr<> datum = cdr(semisyntax_assume<pair>(stx));
+  ptr<> datum = cdr(semisyntax_assume<pair>(ctx, stx));
 
-  while (ptr<pair> p = semisyntax_match<pair>(datum)) {
+  while (ptr<pair> p = semisyntax_match<pair>(ctx, datum)) {
     auto new_pair = make<pair>(ctx, car(p), ctx.constants->null.get());
     tail->set_cdr(ctx.store, new_pair);
     tail = new_pair;
@@ -178,41 +285,41 @@ syntax_to_list(context& ctx, ptr<> stx) {
 }
 
 static ptr<>
-copy_syntax_helper(context& ctx, ptr<> o) {
-  if (auto stx = match<syntax>(o))
-    return make<syntax>(ctx, copy_syntax_helper(ctx, stx->expression()), stx->location(), stx->scopes());
-  else if (auto p = match<pair>(o))
-    return make<pair>(ctx, copy_syntax_helper(ctx, car(p)), copy_syntax_helper(ctx, cdr(p)));
-  else if (auto v = match<vector>(o)) {
-    auto new_v = make<vector>(ctx, v->size(), ctx.constants->void_.get());
-    for (std::size_t i = 0; i < v->size(); ++i)
-      new_v->set(ctx.store, i, copy_syntax_helper(ctx, v->ref(i)));
-    return new_v;
-  } else
-    return o;
-}
-
-ptr<syntax>
-copy_syntax(context& ctx, ptr<syntax> stx) {
-  return assume<syntax>(copy_syntax_helper(ctx, stx));
-}
-
-static ptr<>
 syntax_location(context& ctx, ptr<syntax> s) {
   source_location loc = s->location();
   return to_scheme_list(ctx, loc.file_name, loc.line, loc.column);
 }
 
+static bool
+bound_identifier_eq(context& ctx, ptr<syntax> x, ptr<syntax> y) {
+  if (!is_identifier(x) || !is_identifier(y))
+    throw std::runtime_error{"Expected two identifiers"};
+
+  if (x->update_and_get_expression(ctx) != y->update_and_get_expression(ctx))
+    return false;
+
+  scope_set x_scopes = x->scopes();
+  scope_set y_scopes = y->scopes();
+
+  if (x_scopes.size() != y_scopes.size())
+    return false;
+
+  std::sort(x_scopes.begin(), x_scopes.end());
+  std::sort(y_scopes.begin(), y_scopes.end());
+
+  return x_scopes == y_scopes;
+}
+
 void
 export_syntax(context& ctx, module_& result) {
-  define_procedure(ctx, "syntax-expression", result, true, &syntax::expression);
+  define_procedure(ctx, "syntax-expression", result, true, &syntax::update_and_get_expression);
   define_procedure(ctx, "syntax-scopes", result, true,
                    [] (context& ctx, ptr<syntax> s) {
                      return make_list_from_vector(ctx, s->scopes());
                    });
-  define_procedure(ctx, "syntax-add-scope!", result, true,
+  define_procedure(ctx, "syntax-add-scope", result, true,
                    [] (context& ctx, ptr<syntax> stx, ptr<scope> s) {
-                     stx->add_scope(ctx.store, s);
+                     return stx->add_scope(ctx.store, s);
                    });
 
   define_procedure(ctx, "syntax->datum", result, true, syntax_to_datum);
@@ -245,25 +352,7 @@ export_syntax(context& ctx, module_& result) {
                        return false;
                    });
 
-  define_procedure(ctx, "bound-identifier=?", result, true,
-                   [] (ptr<syntax> x, ptr<syntax> y) {
-                     if (!is_identifier(x) || !is_identifier(y))
-                       throw std::runtime_error{"Expected two identifiers"};
-
-                     if (x->expression() != y->expression())
-                       return false;
-
-                     scope_set x_scopes = x->scopes();
-                     scope_set y_scopes = y->scopes();
-
-                     if (x_scopes.size() != y_scopes.size())
-                       return false;
-
-                     std::sort(x_scopes.begin(), x_scopes.end());
-                     std::sort(y_scopes.begin(), y_scopes.end());
-
-                     return x_scopes == y_scopes;
-                   });
+  define_procedure(ctx, "bound-identifier=?", result, true, bound_identifier_eq);
   define_procedure(ctx, "syntax-location", result, true, syntax_location);
 }
 

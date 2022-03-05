@@ -211,5 +211,5 @@ TEST_F(port_fixture, read_syntax_reads_syntax) {
     (let ((p (open-input-string "foo")))
       (read-syntax p))
   )");
-  EXPECT_EQ(expect<symbol>(expect<syntax>(result)->expression())->value(), "foo");
+  EXPECT_EQ(expect<syntax>(result)->get_symbol()->value(), "foo");
 }

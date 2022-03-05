@@ -457,13 +457,13 @@ TEST_F(compiler, syntax) {
   auto result1 = eval("(syntax (a b c))");
   ASSERT_TRUE(is<syntax>(result1));
 
-  auto result1_expr = assume<syntax>(result1)->expression();
+  auto result1_expr = assume<syntax>(result1)->update_and_get_expression(ctx);
   ASSERT_TRUE(is<pair>(result1_expr));
   ASSERT_TRUE(is<syntax>(car(assume<pair>(result1_expr))));
 
   auto car_stx = assume<syntax>(car(assume<pair>(result1_expr)));
-  ASSERT_TRUE(is<symbol>(car_stx->expression()));
-  EXPECT_EQ(assume<symbol>(car_stx->expression())->value(), "a");
+  ASSERT_TRUE(is<symbol>(car_stx->update_and_get_expression(ctx)));
+  EXPECT_EQ(assume<symbol>(car_stx->update_and_get_expression(ctx))->value(), "a");
 
   auto result2 = eval("#'(a b c)");
   ASSERT_TRUE(is<syntax>(result2));
@@ -551,7 +551,7 @@ TEST_F(compiler, unbound_vars) {
 }
 
 static bool
-is_proper_syntax(ptr<> x) {
+is_proper_syntax(context& ctx, ptr<> x) {
   if (!is<syntax>(x))
     return false;
 
@@ -565,16 +565,16 @@ is_proper_syntax(ptr<> x) {
         return true;
 
       if (!semisyntax_is<pair>(elem))
-        return is_proper_syntax(elem);
+        return is_proper_syntax(ctx, elem);
 
-      if (!is_proper_syntax(car(semisyntax_expect<pair>(elem))))
+      if (!is_proper_syntax(ctx, car(semisyntax_expect<pair>(ctx, elem))))
         return false;
 
-      elem = cdr(semisyntax_assume<pair>(elem));
+      elem = cdr(semisyntax_assume<pair>(ctx, elem));
     }
-  } else if (auto v = syntax_match<vector>(stx)) {
+  } else if (auto v = syntax_match<vector>(ctx, stx)) {
     for (std::size_t i = 0; i < v->size(); ++i)
-      if (!is_proper_syntax(v->ref(i)))
+      if (!is_proper_syntax(ctx, v->ref(i)))
         return false;
   }
 
@@ -582,10 +582,10 @@ is_proper_syntax(ptr<> x) {
 }
 
 TEST_F(compiler, quasisyntax) {
-#define EXPECT_SYNTAX_EQ(x, y)                                          \
-  do {                                                                  \
-    auto result = x;                                                    \
-    EXPECT_TRUE(is_proper_syntax(result));                              \
+#define EXPECT_SYNTAX_EQ(x, y)                                           \
+  do {                                                                   \
+    auto result = x;                                                     \
+    EXPECT_TRUE(is_proper_syntax(ctx, result));                          \
     EXPECT_TRUE(equal(syntax_to_datum(ctx, expect<syntax>(result)), y)); \
   } while (false)
 

@@ -366,3 +366,13 @@ TEST_F(macros, transformer_referring_to_name_produced_by_another_transformer) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 42);
 }
+
+TEST_F(macros, transformers_preserve_shared_structure) {
+  auto result = expect<pair>(eval(R"(
+    (let-syntax ((identity
+                    (lambda (stx)
+                      (car (cdr (syntax-expression stx))))))
+      (identity '(#0=(1 2) #0#)))
+  )"));
+  EXPECT_EQ(car(result), cadr(result));
+}

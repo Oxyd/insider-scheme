@@ -206,6 +206,45 @@ append(context&, object_span);
 bool
 memq(ptr<> element, ptr<> list);
 
+namespace detail {
+
+  template <typename F>
+  ptr<pair>
+  map_non_empty_list(context& ctx, ptr<pair> head, F&& f) {
+    ptr<pair> tail{};
+    ptr<pair> new_head{};
+    ptr<> current = head;
+    while (is<pair>(current)) {
+      auto p = assume<pair>(current);
+      auto new_current = cons(ctx, f(car(p)), cdr(p));
+
+      if (tail)
+        tail->set_cdr(ctx.store, new_current);
+
+      if (!new_head)
+        new_head = new_current;
+
+      tail = new_current;
+      current = cdr(new_current);
+    }
+
+    if (current != ctx.constants->null.get())
+      tail->set_cdr(ctx.store, f(current));
+
+    return new_head;
+  }
+
+} // namespace detail
+
+template <typename F>
+ptr<>
+map(context& ctx, ptr<> list, F&& f) {
+  if (list == ctx.constants->null.get())
+    return ctx.constants->null.get();
+  else
+    return detail::map_non_empty_list(ctx, assume<pair>(list), std::forward<F>(f));
+}
+
 // An array of a fixed, dynamic size. Elements are allocated as a part of this
 // object, which requires cooperation from the allocator. From the C++ point of
 // view, there is an array of ptr<> allocated right after the vector object.

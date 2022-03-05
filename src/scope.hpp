@@ -17,6 +17,10 @@ struct variable;
 
 using scope_set = std::vector<ptr<scope>>;
 
+enum class scope_set_operation {
+  add, remove, flip
+};
+
 bool // Was the scope actually added?
 add_scope(scope_set&, ptr<scope>);
 
@@ -26,11 +30,17 @@ remove_scope(scope_set&, ptr<scope>);
 bool // Was the scope added?
 flip_scope(scope_set&, ptr<scope>);
 
+void
+update_scope_set(scope_set&, scope_set_operation, ptr<scope>);
+
 bool
 scope_sets_subseteq(scope_set const& lhs, scope_set const& rhs);
 
 bool
 scope_sets_equal(scope_set const& lhs, scope_set const& rhs);
+
+void
+visit_members(scope_set&, member_visitor const&);
 
 class scope : public composite_object<scope> {
 public:

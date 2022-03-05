@@ -160,44 +160,52 @@ template <typename R, typename C, typename... Args, typename... Defaults>
 operand
 define_procedure(context& ctx, char const* name, module_& m, bool export_,
                  R (C::* f)(context&, Args...), Defaults... defaults) {
-  return detail::define_typed_procedure<R(context&, C*, Args...)>::define(ctx, name, m, export_,
-                                                                          [=] (context& ctx, C* c, Args... args) {
-                                                                            return (c->*f)(ctx, args...);
-                                                                          },
-                                                                          std::move(defaults)...);
+  return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(
+    ctx, name, m, export_,
+    [=] (context& ctx, ptr<C> c, Args... args) {
+      return (c.value()->*f)(ctx, args...);
+    },
+    std::move(defaults)...
+  );
 }
 
 template <typename R, typename C, typename... Args, typename... Defaults>
 operand
 define_procedure(context& ctx, char const* name, module_& m, bool export_,
                  R (C::* f)(context&, Args...) const, Defaults... defaults) {
-  return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(ctx, name, m, export_,
-                                                                              [=] (context& ctx, ptr<C> c, Args... args) {
-                                                                                return (c.value()->*f)(ctx, args...);
-                                                                              },
-                                                                              std::move(defaults)...);
+  return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(
+    ctx, name, m, export_,
+    [=] (context& ctx, ptr<C> c, Args... args) {
+      return (c.value()->*f)(ctx, args...);
+    },
+    std::move(defaults)...
+  );
 }
 
 template <typename R, typename C, typename... Args, typename... Defaults>
 operand
 define_procedure(context& ctx, char const* name, module_& m, bool export_,
                  R (C::* f)(Args...), Defaults... defaults) {
-  return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(ctx, name, m, export_,
-                                                                              [=] (context&, ptr<C> c, Args... args) {
-                                                                                return (c.value()->*f)(args...);
-                                                                              },
-                                                                              std::move(defaults)...);
+  return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(
+    ctx, name, m, export_,
+    [=] (context&, ptr<C> c, Args... args) {
+      return (c.value()->*f)(args...);
+    },
+    std::move(defaults)...
+  );
 }
 
 template <typename R, typename C, typename... Args, typename... Defaults>
 operand
 define_procedure(context& ctx, char const* name, module_& m, bool export_,
                  R (C::* f)(Args...) const, Defaults... defaults) {
-  return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(ctx, name, m, export_,
-                                                                              [=] (context&, ptr<C> c, Args... args) {
-                                                                                return (c.value()->*f)(args...);
-                                                                              },
-                                                                              std::move(defaults)...);
+  return detail::define_typed_procedure<R(context&, ptr<C>, Args...)>::define(
+    ctx, name, m, export_,
+    [=] (context&, ptr<C> c, Args... args) {
+      return (c.value()->*f)(args...);
+    },
+    std::move(defaults)...
+  );
 }
 
 template <typename Callable, typename... Defaults>
