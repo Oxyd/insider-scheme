@@ -246,8 +246,14 @@
 
 (define string-copy string-copy/cursors)
 
+(define (entire-string? s start end)
+  (and (= (string-index->cursor s start) (string-cursor-start s))
+       (= (string-index->cursor s end) (string-cursor-end s))))
+
 (define (substring/cursors s start end)
-  (string-copy/cursors s start end))
+  (if (entire-string? s start end)
+      s
+      (string-copy/cursors s start end)))
 
 (define substring substring/cursors)
 
