@@ -427,7 +427,7 @@ void
 export_port(context& ctx, module_& result) {
   define_procedure(ctx, "open-input-file", result, true, open_input_file);
   define_procedure(ctx, "open-output-file", result, true, open_output_file);
-  define_procedure(ctx, "close", result, true, close);
+  define_procedure(ctx, "close-port", result, true, close);
   define_procedure(ctx, "close-output-port", result, true, close);
   define_procedure(ctx, "close-input-port", result, true, close);
   define_procedure(ctx, "open-input-string", result, true, open_input_string);

@@ -4,7 +4,7 @@
  (insider bytevector-test)
  (insider char-test)
  (insider control)
- (insider include-test))
+ (insider include-test)
  (insider io-test)
  (insider list-test)
  (insider numeric-test)
@@ -14,7 +14,7 @@
  (insider syntax-rules-test)
  (insider syntax-test)
  (insider test)
- (insider vector-test)
+ (insider vector-test))
 (export test-lib)
 
 (define (test-lib)

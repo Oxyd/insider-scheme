@@ -12,7 +12,7 @@
                 (u8-ready? %u8-ready?)))
 (export
  binary-port? call-with-input-file call-with-output-file call-with-port
- char-ready?  close close-input-port close-output-port current-error-port
+ char-ready? close-port close-input-port close-output-port current-error-port
  current-input-port current-output-port current-source-file-origin display
  eof-object eof-object?  flush-output-port flush-output-port
  get-output-bytevector get-output-string input-port-open?  input-port?  newline
@@ -56,7 +56,7 @@
 
 (define (call-with-port port proc)
   (let ((result (proc port)))
-    (close port)
+    (close-port port)
     result))
 
 (define (call-with-input-file path proc)
@@ -69,14 +69,14 @@
   (let ((port (open-input-file path)))
     (parameterize ((current-input-port port))
       (let ((result (thunk)))
-        (close port)
+        (close-port port)
         result))))
 
 (define (with-output-to-file path thunk)
   (let ((port (open-output-file path)))
     (parameterize ((current-output-port port))
       (let ((result (thunk)))
-        (close port)
+        (close-port port)
         result))))
 
 (define (eof-object? x)
