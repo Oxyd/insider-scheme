@@ -331,8 +331,14 @@ public:
   visit_members(member_visitor const&);
 };
 
+ptr<bytevector>
+make_bytevector_from_std_vector(context&, std::vector<std::uint8_t>);
+
 bool
 bytevector_eqv(ptr<bytevector>, ptr<bytevector>);
+
+std::vector<std::uint8_t>
+bytevector_data(ptr<bytevector>);
 
 // An immutable string, used for identifying Scheme objects.
 class symbol : public leaf_object<symbol> {

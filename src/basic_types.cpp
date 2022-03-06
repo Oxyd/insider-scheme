@@ -219,9 +219,26 @@ bytevector::bytevector(bytevector&& other)
 void
 bytevector::visit_members(member_visitor const&) { }
 
+ptr<bytevector>
+make_bytevector_from_std_vector(context& ctx, std::vector<std::uint8_t> data) {
+  auto result = make<bytevector>(ctx, data.size());
+  for (std::size_t i = 0; i < data.size(); ++i)
+    result->set(i, data[i]);
+  return result;
+}
+
 bool
 bytevector_eqv(ptr<bytevector> x, ptr<bytevector> y) {
   return std::equal(x->begin(), x->end(), y->begin(), y->end());
+}
+
+std::vector<std::uint8_t>
+bytevector_data(ptr<bytevector> bv) {
+  std::vector<std::uint8_t> result;
+  result.reserve(bv->size());
+  for (std::size_t i = 0; i < bv->size(); ++i)
+    result.push_back(bv->ref(i));
+  return result;
 }
 
 box::box(ptr<> value)

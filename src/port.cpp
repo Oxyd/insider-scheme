@@ -190,6 +190,16 @@ open_input_string(context& ctx, std::string data) {
                                   "<memory buffer>");
 }
 
+static ptr<binary_input_port>
+open_input_bytevector(context& ctx, ptr<bytevector> data) {
+  return make<binary_input_port>(ctx, std::make_unique<bytevector_port_source>(bytevector_data(data)));
+}
+
+static ptr<binary_output_port>
+open_output_bytevector(context& ctx) {
+  return make<binary_output_port>(ctx, std::make_unique<bytevector_port_sink>());
+}
+
 static FILE*
 open_file(std::filesystem::path const& path, std::filesystem::path::value_type const* mode) {
 #ifndef WIN32
@@ -234,6 +244,11 @@ file_port_sink::write(std::uint8_t byte) {
 }
 
 void
+file_port_sink::flush() {
+  std::fflush(f_);
+}
+
+void
 string_port_sink::write(std::uint8_t byte) {
   data_.push_back(byte);
 }
@@ -266,6 +281,12 @@ textual_output_port::write(std::string const& s) {
       sink_->write(c);
 }
 
+void
+textual_output_port::flush() {
+  if (sink_)
+    sink_->flush();
+}
+
 binary_output_port::binary_output_port(std::unique_ptr<port_sink> sink)
   : sink_{std::move(sink)}
 { }
@@ -274,6 +295,20 @@ void
 binary_output_port::write(std::uint8_t byte) {
   if (sink_)
     sink_->write(byte);
+}
+
+void
+binary_output_port::flush() {
+  if (sink_)
+    sink_->flush();
+}
+
+ptr<bytevector>
+binary_output_port::get_bytevector(context& ctx) const {
+  if (sink_)
+    return make_bytevector_from_std_vector(ctx, sink_->get_bytevector());
+  else
+    return make<bytevector>(ctx, 0);
 }
 
 static ptr<textual_input_port>
@@ -298,6 +333,10 @@ close(ptr<> port) {
     tip->close();
   else if (auto top = match<textual_output_port>(port))
     top->close();
+  else if (auto bip = match<binary_input_port>(port))
+    bip->close();
+  else if (auto bop = match<binary_output_port>(port))
+    bop->close();
   else
     throw std::runtime_error{"Expected a port"};
 }
@@ -305,6 +344,16 @@ close(ptr<> port) {
 static ptr<textual_output_port>
 open_output_string(context& ctx) {
   return make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
+}
+
+static void
+flush_port(ptr<> port) {
+  if (auto top = match<textual_output_port>(port))
+    top->flush();
+  else if (auto bop = match<binary_output_port>(port))
+    bop->flush();
+  else
+    throw std::runtime_error{"Expected an output port"};
 }
 
 void
@@ -316,8 +365,16 @@ export_port(context& ctx, module_& result) {
   define_procedure(ctx, "close-input-port", result, true, close);
   define_procedure(ctx, "open-input-string", result, true, open_input_string);
   define_procedure(ctx, "open-output-string", result, true, open_output_string);
+  define_procedure(ctx, "open-input-bytevector", result, true, open_input_bytevector);
+  define_procedure(ctx, "open-output-bytevector", result, true, open_output_bytevector);
   define_procedure(ctx, "get-output-string", result, true, &textual_output_port::get_string);
+  define_procedure(ctx, "get-output-bytevector", result, true, &binary_output_port::get_bytevector);
+  define_procedure(ctx, "read-char", result, true, &textual_input_port::read_character);
+  define_procedure(ctx, "peek-char", result, true, &textual_input_port::peek_character);
+  define_procedure(ctx, "read-u8", result, true, &binary_input_port::read_u8);
+  define_procedure(ctx, "peek-u8", result, true, &binary_input_port::peek_u8);
+  define_procedure(ctx, "write-u8", result, true, &binary_output_port::write);
+  define_procedure(ctx, "flush-output-port", result, true, flush_port);
 }
 
 } // namespace insider
-

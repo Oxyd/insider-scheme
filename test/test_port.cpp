@@ -169,10 +169,10 @@ TEST_F(port_fixture, write_sequence_of_bytes) {
   p->write(1);
   p->write(2);
 
-  auto bv = p->get_bytevector();
-  ASSERT_EQ(bv.size(), 2);
-  EXPECT_EQ(bv[0], 1);
-  EXPECT_EQ(bv[1], 2);
+  auto bv = p->get_bytevector(ctx);
+  ASSERT_EQ(bv->size(), 2);
+  EXPECT_EQ(bv->ref(0), 1);
+  EXPECT_EQ(bv->ref(1), 2);
 }
 
 TEST_F(port_fixture, unique_port_handle_closes_port_when_out_of_scope) {

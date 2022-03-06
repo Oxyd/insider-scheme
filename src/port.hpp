@@ -1,6 +1,7 @@
 #ifndef INSIDER_PORT_HPP
 #define INSIDER_PORT_HPP
 
+#include "basic_types.hpp"
 #include "object.hpp"
 
 #include <array>
@@ -167,6 +168,9 @@ public:
   virtual void
   write(std::uint8_t) = 0;
 
+  virtual void
+  flush() { }
+
   virtual std::string
   get_string() const;
 
@@ -183,6 +187,9 @@ public:
 
   void
   write(std::uint8_t) override;
+
+  void
+  flush() override;
 
 private:
   FILE* f_;
@@ -235,6 +242,9 @@ public:
   void
   write(std::string const&);
 
+  void
+  flush();
+
   std::string
   get_string() const { return sink_ ? sink_->get_string() : ""; }
 
@@ -258,8 +268,11 @@ public:
   void
   write(std::uint8_t);
 
-  std::vector<std::uint8_t>
-  get_bytevector() const { return sink_ ? sink_->get_bytevector() : std::vector<std::uint8_t>{}; }
+  void
+  flush();
+
+  ptr<bytevector>
+  get_bytevector(context&) const;
 
 private:
   std::unique_ptr<port_sink> sink_;

@@ -8,6 +8,8 @@
 #include "ptr.hpp"
 #include "string.hpp"
 
+#include <optional>
+
 namespace insider {
 
 template <typename T, typename Enable = void>
@@ -77,6 +79,17 @@ template <>
 struct to_scheme_converter<std::string> {
   static ptr<>
   convert(context& ctx, std::string const& s) { return make<string>(ctx, s); }
+};
+
+template <typename T>
+struct to_scheme_converter<std::optional<T>> {
+  static ptr<>
+  convert(context& ctx, std::optional<T> const& t) {
+    if (t)
+      return to_scheme(ctx, *t);
+    else
+      return ctx.constants->f.get();
+  }
 };
 
 template <typename... Ts>

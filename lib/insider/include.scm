@@ -1,5 +1,5 @@
 (library (insider include))
-(import (insider file)
+(import (insider io)
         (insider syntax)
         (insider error)
         (insider control)
