@@ -1,0 +1,1 @@
+(DEFINE FOO 2)

@@ -24,36 +24,30 @@
  (define (reader-ci name)
    (read-source-file read-syntax-multiple-ci name))
 
- (define (add-scope! x scope)
+ (define (add-scope x scope)
    (cond ((pair? x)
-          (add-scope! (car x) scope)
-          (add-scope! (cdr x) scope))
+          (cons (add-scope (car x) scope) (add-scope (cdr x) scope)))
          ((vector? x)
-          (do ((i 0 (+ i 1)))
-              ((= i (vector-length x)))
-            (add-scope! (vector-ref x i) scope)))
+          (vector-map (lambda (elem) (add-scope elem scope)) x))
          ((syntax? x)
-          (syntax-add-scope! x scope)
-          (add-scope! (syntax-expression x) scope))
+          (syntax-add-scope x scope))
          (else
-          #void)))
+          x)))
 
- (define (add-scopes! stx scopes)
-   (cond ((null? scopes)
-          #void)
-         (else
-          (add-scope! stx (car scopes))
-          (add-scopes! stx (cdr scopes)))))
+ (define (add-scopes x scopes)
+   (if (null? scopes)
+       x
+       (add-scopes (add-scope x (car scopes)) (cdr scopes))))
 
  (define (do-include stx reader)
    (syntax-match stx ()
      ((_ file-names ...)
       (let ((scopes (syntax-scopes stx))
             (expressions (apply append (map reader file-names))))
-        (for-each (lambda (stx)
-                    (add-scopes! stx scopes))
-                  expressions)
-        #`(begin #,@expressions))))))
+        #`(begin
+            #,@(map (lambda (stx)
+                      (add-scopes stx scopes))
+                    expressions)))))))
 
 (define-syntax include
   (lambda (stx)
