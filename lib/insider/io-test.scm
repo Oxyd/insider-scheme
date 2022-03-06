@@ -2,6 +2,36 @@
 (import (insider syntax) (insider io) (insider test) (insider control) (insider list) (insider bytevector))
 (export test-io)
 
+(define (test-ports)
+  (test-group "ports"
+    (let ((p (open-input-string "")))
+      (test (input-port? p))
+      (test-false (output-port? p))
+      (test (textual-port? p))
+      (test-false (binary-port? p))
+      (test (port? p)))
+
+    (let ((p (open-input-bytevector #u8())))
+      (test (input-port? p))
+      (test-false (output-port? p))
+      (test-false (textual-port? p))
+      (test (binary-port? p))
+      (test (port? p)))
+
+    (let ((p (open-output-string)))
+      (test-false (input-port? p))
+      (test (output-port? p))
+      (test (textual-port? p))
+      (test-false (binary-port? p))
+      (test (port? p)))
+
+    (let ((p (open-output-bytevector)))
+      (test-false (input-port? p))
+      (test (output-port? p))
+      (test-false (textual-port? p))
+      (test (binary-port? p))
+      (test (port? p)))))
+
 (define (test-read)
   (test-group "textual read"
     (define-syntax test-port-result
@@ -180,6 +210,7 @@
 
 (define (test-io)
   (test-group "I/O"
+    (test-ports)
     (test-read)
     (test-write)
     (test-binary-read)

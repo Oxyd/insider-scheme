@@ -1,6 +1,6 @@
 (library (insider io))
 (import (insider syntax) (insider control) (insider syntax) (insider error) (insider list) (insider opt-lambda)
-        (insider string) (insider char)
+        (insider string) (insider char) (insider basic-procedures)
         (rename (except (insider internal) define let)
                 (read-char %read-char)
                 (peek-char %peek-char)
@@ -9,17 +9,17 @@
                 (write-u8 %write-u8)
                 (flush-output-port %flush-output-port)))
 (export
- call-with-input-file call-with-output-file call-with-port close
+ binary-port? call-with-input-file call-with-output-file call-with-port close
  close-input-port close-output-port current-error-port current-input-port
  current-output-port current-source-file-origin display eof-object eof-object?
  flush-output-port flush-output-port get-output-bytevector get-output-string
- newline open-input-bytevector open-input-file open-input-string
+ input-port?  newline open-input-bytevector open-input-file open-input-string
  open-output-bytevector open-output-file open-output-string
- open-source-file-relative peek-char peek-u8 read read-bytevector
- read-bytevector! read-char read-line read-string read-syntax
- read-syntax-multiple read-syntax-multiple-ci read-u8 with-input-from-file
- with-output-to-file write write-char write-shared write-simple write-string
- write-u8)
+ open-source-file-relative output-port?  peek-char peek-u8 port?  read
+ read-bytevector read-bytevector!  read-char read-line read-string read-syntax
+ read-syntax-multiple read-syntax-multiple-ci read-u8 textual-port?
+ with-input-from-file with-output-to-file write write-char write-shared
+ write-simple write-string write-u8)
 
 (define current-input-port (make-parameter-from-tag current-input-port-tag))
 (define current-output-port (make-parameter-from-tag current-output-port-tag))
@@ -27,6 +27,26 @@
 (define current-source-file-origin (make-parameter-from-tag current-source-file-origin-tag))
 
 (define <eof-object> (list 'eof))
+
+(define-type-predicate textual-input-port? insider::textual_input_port)
+(define-type-predicate binary-input-port? insider::binary_input_port)
+(define-type-predicate textual-output-port? insider::textual_output_port)
+(define-type-predicate binary-output-port? insider::binary_output_port)
+
+(define (input-port? p)
+  (or (textual-input-port? p) (binary-input-port? p)))
+
+(define (output-port? p)
+  (or (textual-output-port? p) (binary-output-port? p)))
+
+(define (textual-port? p)
+  (or (textual-input-port? p) (textual-output-port? p)))
+
+(define (binary-port? p)
+  (or (binary-input-port? p) (binary-output-port? p)))
+
+(define (port? p)
+  (or (textual-input-port? p) (binary-input-port? p) (textual-output-port? p) (binary-output-port? p)))
 
 (define (call-with-port port proc)
   (let ((result (proc port)))
