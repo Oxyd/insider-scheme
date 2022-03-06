@@ -10,10 +10,19 @@
 #ifdef WIN32
 #include <tchar.h>
 #else
+#include <poll.h>
 #define _T(x) x
 #endif
 
 namespace insider {
+
+std::optional<std::uint8_t>
+port_source::read_if_available() {
+  if (byte_ready())
+    return read();
+  else
+    return std::nullopt;
+}
 
 file_port_source::file_port_source(FILE* f, bool should_close)
   : f_{f}
@@ -47,6 +56,16 @@ file_port_source::peek() const {
 void
 file_port_source::rewind() {
   std::rewind(f_);
+}
+
+bool
+file_port_source::byte_ready() const {
+#ifndef __WIN32__
+  pollfd pfd;
+  pfd.fd = fileno(f_);
+  pfd.events = POLLIN;
+  return poll(&pfd, 1, 0) == 1;
+#endif
 }
 
 string_port_source::string_port_source(std::string data)
@@ -134,6 +153,11 @@ textual_input_port::rewind() {
 }
 
 bool
+textual_input_port::char_ready() {
+  return !source_ || fill_read_buffer_if_available();
+}
+
+bool
 textual_input_port::read_byte() {
   if (auto maybe_byte = source_->read()) {
     read_buffer_[read_buffer_length_++] = *maybe_byte;
@@ -143,16 +167,40 @@ textual_input_port::read_byte() {
 }
 
 bool
-textual_input_port::fill_read_buffer() {
-  if (read_buffer_length_ != 0)
+textual_input_port::read_byte_if_available() {
+  if (auto maybe_byte = source_->read_if_available()) {
+    read_buffer_[read_buffer_length_++] = *maybe_byte;
     return true;
-
-  if (!read_byte())
+  } else
     return false;
+}
 
+bool
+textual_input_port::fill_read_buffer() {
+  return do_fill_read_buffer<&textual_input_port::read_byte>();
+}
+
+bool
+textual_input_port::fill_read_buffer_if_available() {
+  return do_fill_read_buffer<&textual_input_port::read_byte_if_available>();
+}
+
+template <auto Read>
+bool
+textual_input_port::do_fill_read_buffer() {
+  if (read_buffer_length_ == 0)
+    if (!(this->*Read)())
+      return false;
+
+  return fill_subsequent_bytes_of_read_buffer<Read>();
+}
+
+template <auto Read>
+bool
+textual_input_port::fill_subsequent_bytes_of_read_buffer() {
   std::size_t required = utf8_code_point_byte_length(read_buffer_[0]);
   while (read_buffer_length_ < required)
-    if (!read_byte())
+    if (!(this->*Read)())
       return false;
 
   return true;
@@ -182,6 +230,11 @@ binary_input_port::read_u8() {
 std::optional<std::uint8_t>
 binary_input_port::peek_u8() const {
   return source_->peek();
+}
+
+bool
+binary_input_port::u8_ready() const {
+  return !source_ || source_->byte_ready();
 }
 
 ptr<textual_input_port>
@@ -390,6 +443,8 @@ export_port(context& ctx, module_& result) {
   define_procedure(ctx, "write-u8", result, true, &binary_output_port::write);
   define_procedure(ctx, "flush-output-port", result, true, flush_port);
   define_procedure(ctx, "port-open?", result, true, is_port_open);
+  define_procedure(ctx, "char-ready?", result, true, &textual_input_port::char_ready);
+  define_procedure(ctx, "u8-ready?", result, true, &binary_input_port::u8_ready);
 }
 
 } // namespace insider

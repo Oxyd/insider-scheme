@@ -27,6 +27,12 @@ public:
 
   virtual void
   rewind() = 0;
+
+  virtual bool
+  byte_ready() const = 0;
+
+  std::optional<std::uint8_t>
+  read_if_available();
 };
 
 class file_port_source final : public port_source {
@@ -44,6 +50,9 @@ public:
 
   void
   rewind() override;
+
+  bool
+  byte_ready() const override;
 
 private:
   FILE* f_;
@@ -64,6 +73,9 @@ public:
   void
   rewind() override;
 
+  bool
+  byte_ready() const override { return true; }
+
 private:
   std::string data_;
   std::size_t position_ = 0;
@@ -82,6 +94,9 @@ public:
 
   void
   rewind() override;
+
+  bool
+  byte_ready() const override { return true; }
 
 private:
   std::vector<std::uint8_t> data_;
@@ -109,6 +124,9 @@ public:
   void
   rewind();
 
+  bool
+  char_ready();
+
   std::string const&
   name() const { return name_; }
 
@@ -122,7 +140,21 @@ private:
   read_byte();
 
   bool
+  read_byte_if_available();
+
+  bool
   fill_read_buffer();
+
+  bool
+  fill_read_buffer_if_available();
+
+  template <auto Read>
+  bool
+  do_fill_read_buffer();
+
+  template <auto Read>
+  bool
+  fill_subsequent_bytes_of_read_buffer();
 
   char32_t
   decode_read_buffer();
@@ -155,6 +187,9 @@ public:
 
   std::optional<std::uint8_t>
   peek_u8() const;
+
+  bool
+  u8_ready() const;
 
 private:
   std::unique_ptr<port_source> source_;
