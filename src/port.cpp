@@ -356,6 +356,20 @@ flush_port(ptr<> port) {
     throw std::runtime_error{"Expected an output port"};
 }
 
+static bool
+is_port_open(ptr<> port) {
+  if (auto tip = match<textual_input_port>(port))
+    return tip->open();
+  else if (auto top = match<textual_output_port>(port))
+    return top->open();
+  else if (auto bip = match<binary_input_port>(port))
+    return bip->open();
+  else if (auto bop = match<binary_output_port>(port))
+    return bop->open();
+  else
+    throw std::runtime_error{"Expected a port"};
+}
+
 void
 export_port(context& ctx, module_& result) {
   define_procedure(ctx, "open-input-file", result, true, open_input_file);
@@ -375,6 +389,7 @@ export_port(context& ctx, module_& result) {
   define_procedure(ctx, "peek-u8", result, true, &binary_input_port::peek_u8);
   define_procedure(ctx, "write-u8", result, true, &binary_output_port::write);
   define_procedure(ctx, "flush-output-port", result, true, flush_port);
+  define_procedure(ctx, "port-open?", result, true, is_port_open);
 }
 
 } // namespace insider

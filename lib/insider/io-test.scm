@@ -30,7 +30,17 @@
       (test (output-port? p))
       (test-false (textual-port? p))
       (test (binary-port? p))
-      (test (port? p)))))
+      (test (port? p)))
+
+    (let ((p (open-input-string "")))
+      (test (input-port-open? p))
+      (close p)
+      (test-false (input-port-open? p)))
+
+    (let ((p (open-output-string)))
+      (test (output-port-open? p))
+      (close p)
+      (test-false (output-port-open? p)))))
 
 (define (test-read)
   (test-group "textual read"

@@ -13,11 +13,11 @@
  close-input-port close-output-port current-error-port current-input-port
  current-output-port current-source-file-origin display eof-object eof-object?
  flush-output-port flush-output-port get-output-bytevector get-output-string
- input-port?  newline open-input-bytevector open-input-file open-input-string
- open-output-bytevector open-output-file open-output-string
- open-source-file-relative output-port?  peek-char peek-u8 port?  read
- read-bytevector read-bytevector!  read-char read-line read-string read-syntax
- read-syntax-multiple read-syntax-multiple-ci read-u8 textual-port?
+ input-port-open?  input-port?  newline open-input-bytevector open-input-file
+ open-input-string open-output-bytevector open-output-file open-output-string
+ open-source-file-relative output-port-open?  output-port?  peek-char peek-u8
+ port?  read read-bytevector read-bytevector!  read-char read-line read-string
+ read-syntax read-syntax-multiple read-syntax-multiple-ci read-u8 textual-port?
  with-input-from-file with-output-to-file write write-char write-shared
  write-simple write-string write-u8)
 
@@ -47,6 +47,9 @@
 
 (define (port? p)
   (or (textual-input-port? p) (binary-input-port? p) (textual-output-port? p) (binary-output-port? p)))
+
+(define input-port-open? port-open?)
+(define output-port-open? port-open?)
 
 (define (call-with-port port proc)
   (let ((result (proc port)))
