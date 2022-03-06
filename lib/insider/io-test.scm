@@ -216,7 +216,10 @@
                       (parameterize ((current-output-port port))
                         (write-u8 1)
                         (write-u8 2)
-                        (write-u8 3)))))
+                        (write-u8 3)))
+
+    (test-port-result #u8(1 2 3) port (write-bytevector #u8(1 2 3) port))
+    (test-port-result #u8(4 5 6) port (write-bytevector #u8(1 2 3 4 5 6 7 8 9) port 3 6))))
 
 (define (test-io)
   (test-group "I/O"

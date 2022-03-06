@@ -12,17 +12,17 @@
                 (u8-ready? %u8-ready?)))
 (export
  binary-port? call-with-input-file call-with-output-file call-with-port
- char-ready? close-port close-input-port close-output-port current-error-port
+ char-ready? close-input-port close-output-port close-port current-error-port
  current-input-port current-output-port current-source-file-origin display
- eof-object eof-object?  flush-output-port flush-output-port
- get-output-bytevector get-output-string input-port-open?  input-port?  newline
+ eof-object eof-object? flush-output-port flush-output-port
+ get-output-bytevector get-output-string input-port-open? input-port? newline
  open-input-bytevector open-input-file open-input-string open-output-bytevector
  open-output-file open-output-string open-source-file-relative output-port-open?
- output-port?  peek-char peek-u8 port?  read read-bytevector read-bytevector!
+ output-port? peek-char peek-u8 port? read read-bytevector read-bytevector!
  read-char read-line read-string read-syntax read-syntax-multiple
- read-syntax-multiple-ci read-u8 textual-port?  u8-ready?  with-input-from-file
- with-output-to-file write write-char write-shared write-simple write-string
- write-u8)
+ read-syntax-multiple-ci read-u8 textual-port? u8-ready? with-input-from-file
+ with-output-to-file write write-bytevector write-char write-shared write-simple
+ write-string write-u8)
 
 (define current-input-port (make-parameter-from-tag current-input-port-tag))
 (define current-output-port (make-parameter-from-tag current-output-port-tag))
@@ -186,6 +186,12 @@
                   (begin
                     (bytevector-u8-set! bv current byte)
                     (loop (+ current 1) (+ bytes-read 1))))))))))
+
+(define write-bytevector
+  (opt-lambda (bv (port (current-output-port)) (start 0) (end (bytevector-length bv)))
+    (do ((i start (+ i 1)))
+        ((= i end))
+      (write-u8 (bytevector-u8-ref bv i) port))))
 
 (define char-ready?
   (opt-lambda ((port (current-input-port)))
