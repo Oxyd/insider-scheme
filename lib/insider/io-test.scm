@@ -1,5 +1,6 @@
 (library (insider io-test))
-(import (insider syntax) (insider io) (insider test) (insider control) (insider list) (insider bytevector))
+(import (insider syntax) (insider io) (insider test) (insider control) (insider list) (insider bytevector)
+        (insider error))
 (export test-io)
 
 (define (test-ports)
@@ -48,6 +49,15 @@
       (syntax-rules ()
         ((test-port-result expected port-contents port body0 body ...)
          (test-equal expected
+                     (call-with-port
+                      (open-input-string port-contents)
+                      (lambda (port)
+                        body0 body ...))))))
+
+    (define-syntax test-port-error
+      (syntax-rules ()
+        ((test-port-error error-predicate port-contents port body0 body ...)
+         (test-error error-predicate
                      (call-with-port
                       (open-input-string port-contents)
                       (lambda (port)
@@ -108,7 +118,10 @@
     (test-port-result "foobar" "foobar" port (read-string 12 port))
     (test-port-result (eof-object) "" port (read-string 1 port))
 
-    (test-port-result (list 1 2 3) "(1 2 3)" port (read port))))
+    (test-port-result (list 1 2 3) "(1 2 3)" port (read port))
+
+    (test-port-error read-error? "(1 2" port (read port))
+    (test-port-error read-error? "\"foo" port (read port))))
 
 (define (test-write)
   (test-group "textual write"

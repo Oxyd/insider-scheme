@@ -1,6 +1,7 @@
 #ifndef INSIDER_READ_HPP
 #define INSIDER_READ_HPP
 
+#include "error.hpp"
 #include "ptr.hpp"
 
 #include <stdexcept>
@@ -14,8 +15,26 @@ struct source_location;
 class syntax;
 class textual_input_port;
 
-struct read_error : std::runtime_error {
+class read_error : public translatable_runtime_error {
+public:
+  class scheme_error : public leaf_object<scheme_error> {
+  public:
+    static constexpr char const* scheme_name = "insider::read_error::scheme_error";
+
+    explicit
+    scheme_error(std::string msg) : message_{std::move(msg)} { }
+
+    std::string
+    message() const { return message_; }
+
+  private:
+    std::string message_;
+  };
+
   read_error(std::string const& message, source_location const&);
+
+  ptr<>
+  translate(context&) const override;
 };
 
 // Read a single S-expression from the given input stream. Returns a null

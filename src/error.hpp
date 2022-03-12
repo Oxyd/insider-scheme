@@ -54,6 +54,15 @@ private:
   std::exception_ptr exception_;
 };
 
+// C++ exception that can be translated into a Scheme exception.
+class translatable_runtime_error : public std::runtime_error {
+public:
+  using std::runtime_error::runtime_error;
+
+  virtual ptr<>
+  translate(context&) const = 0;
+};
+
 } // namespace insider
 
 #endif

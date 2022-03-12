@@ -927,6 +927,8 @@ run(execution_state& state) {
       raise(state.ctx, e.get());
     } catch (scheme_exception& e) {
       throw e;
+    } catch (translatable_runtime_error& e) {
+      raise(state.ctx, e.translate(state.ctx));
     } catch (...) {
       raise(state.ctx, make<cxx_exception>(state.ctx, std::current_exception()));
     }

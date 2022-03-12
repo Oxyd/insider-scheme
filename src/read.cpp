@@ -84,8 +84,13 @@ namespace {
 } // anonymous namespace
 
 read_error::read_error(std::string const& message, source_location const& loc)
-  : std::runtime_error{fmt::format("{}: Read error: {}", format_location(loc), message)}
+  : translatable_runtime_error{fmt::format("{}: Read error: {}", format_location(loc), message)}
 { }
+
+ptr<>
+read_error::translate(context& ctx) const {
+  return make<scheme_error>(ctx, what());
+}
 
 static bool
 whitespace(char32_t c) {
@@ -1484,6 +1489,7 @@ export_read(context& ctx, module_& result) {
                    },
                    get_default_port);
   define_procedure(ctx, "string->number", result, true, string_to_number, [] (context&) { return 10; });
+  define_procedure(ctx, "read-error-message", result, true, &read_error::scheme_error::message);
 }
 
 void
