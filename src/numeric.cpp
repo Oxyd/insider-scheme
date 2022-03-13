@@ -245,7 +245,7 @@ normalize_fraction(context& ctx, ptr<fraction> q) {
     if (d->value() == 1)
       return reduced_num;
 
-  return make<fraction>(ctx, num, den);
+  return make<fraction>(ctx, reduced_num, reduced_den);
 }
 
 static ptr<>
@@ -2295,6 +2295,8 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "exact?", result, true, is_exact);
   define_procedure(ctx, "inexact", result, true, inexact);
   define_procedure(ctx, "exact", result, true, exact);
+  define_procedure(ctx, "fraction-numerator", result, true, &fraction::numerator);
+  define_procedure(ctx, "fraction-denominator", result, true, &fraction::denominator);
 }
 
 } // namespace insider

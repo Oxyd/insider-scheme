@@ -499,6 +499,12 @@ TEST_F(numeric, fractions_are_normalised_to_positive_denominator) {
   EXPECT_TRUE(equal(q->denominator(), integer_to_ptr(2)));
 }
 
+TEST_F(numeric, division_normalises_fractions) {
+  auto q = expect<fraction>(divide(ctx, integer_to_ptr(integer{6}), integer_to_ptr(integer{4})));
+  EXPECT_EQ(expect<integer>(q->numerator()).value(), 3);
+  EXPECT_EQ(expect<integer>(q->denominator()).value(), 2);
+}
+
 TEST_F(numeric, float_arithmetic) {
 #define ASSERT_FP_EQ(lhs, rhs) ASSERT_DOUBLE_EQ(expect<floating_point>(lhs)->value, rhs)
   ASSERT_FP_EQ(add(ctx, make<floating_point>(ctx, 0.5), make<floating_point>(ctx, 0.4)), 0.9);

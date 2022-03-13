@@ -1,5 +1,5 @@
 (library (insider numeric))
-(import (insider syntax)
+(import (insider syntax) (insider error)
         (except (insider internal) define let))
 (export
  ;; From core
@@ -8,7 +8,10 @@
  abs floor inexact? exact? exact-integer? inexact exact expt
 
  ;; Defined here
- floor/ floor-quotient floor-remainder min max)
+ complex? floor/ floor-quotient floor-remainder min max
+ numerator denominator)
+
+(define complex? number?)
 
 (define (floor/ n m)
   (let* ((q (floor (/ n m)))
@@ -60,3 +63,25 @@
   (if (exact? x)
       (max* x xs)
       (max/inexact x xs)))
+
+(define (numerator q)
+  (case (type q)
+    ((insider::integer insider::big_integer)
+     q)
+    ((insider::fraction)
+     (fraction-numerator q))
+    ((insider::floating_point)
+     (inexact (numerator (exact q))))
+    (else
+     (error "Expected a rational number" q))))
+
+(define (denominator q)
+  (case (type q)
+    ((insider::integer insider::big_integer)
+     1)
+    ((insider::fraction)
+     (fraction-denominator q))
+    ((insider::floating_point)
+     (inexact (denominator (exact q))))
+    (else
+     (error "Expected a rational number" q))))
