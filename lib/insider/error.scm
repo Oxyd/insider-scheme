@@ -5,12 +5,12 @@
               make-error error-message error-irritants uncaught-exception-inner-exception file-error-message
               read-error-message cxx-exception-message))
 (export dynamic-wind with-exception-handler raise raise-continuable
-        error error-object-message error-object-irritants error? file-error? read-error?)
+        error error-object-message error-object-irritants error-object? file-error? read-error?)
 
 (define (error message . irritants)
   (raise (make-error message irritants)))
 
-(define (error? x)
+(define (error-object? x)
   (and (memq (type x)
              '(insider::error
                insider::uncaught_exception

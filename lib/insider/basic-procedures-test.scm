@@ -59,11 +59,31 @@
     (test (equal? (make-vector 5 'a)
                   (make-vector 5 'a)))))
 
+(define (test-=?)
+  (test-group "...=?"
+    (test-group "boolean=?"
+      (test (boolean=? #t #t))
+      (test (boolean=? #f #f))
+      (test (boolean=? #t #t #t #t))
+      (test (boolean=? #f #f #f))
+      (test-false (boolean=? #t #f))
+      (test-false (boolean=? #f #t))
+      (test-false (boolean=? #t #t #f))
+      (test-false (boolean=? #t #f #t))
+      (test-false (boolean=? #t #t #t #t #f #t)))
+
+    (test-group "symbol=?"
+      (test (symbol=? 'foo 'foo))
+      (test-false (symbol=? 'foo 'bar))
+      (test (symbol=? 'foo 'foo 'foo))
+      (test-false (symbol=? 'foo 'foo 'foo 'bar 'foo)))))
+
 (define (test-equivalence-predicates)
   (test-group "Equivalence predicates"
     (test-eq?)
     (test-eqv?)
-    (test-equal?)))
+    (test-equal?)
+    (test-=?)))
 
 (define (test-basic-procedures)
   (test-group "(insider basic-procedures)"

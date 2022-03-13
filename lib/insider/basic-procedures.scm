@@ -11,7 +11,8 @@
  define-type-predicate
  box? syntax? plain-procedure? native-procedure? closure? procedure? scheme-procedure?
  symbol? boolean?
- not)
+ not
+ boolean=? symbol=?)
 
 (define-syntax define-type-predicate
   (syntax-rules ()
@@ -36,3 +37,11 @@
 
 (define (not x)
   (if x #f #t))
+
+(define (all-eq? first second . rest)
+  (and (eq? first second)
+       (or (eq? rest '())
+           (apply all-eq? second rest))))
+
+(define boolean=? all-eq?)
+(define symbol=? all-eq?)

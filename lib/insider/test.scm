@@ -153,7 +153,7 @@
 (define (fail-reason-unexpected-exception runner)
   (string-append "Unexpected error: "
                  (let ((e (test-result-ref runner 'actual-error)))
-                   (if (error? e)
+                   (if (error-object? e)
                        (error-object-message e)
                        (datum->string e)))))
 
