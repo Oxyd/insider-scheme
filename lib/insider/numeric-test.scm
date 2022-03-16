@@ -41,11 +41,45 @@
     (test-equal 1 (denominator 0))
     (test-equal 1.0 (denominator 0.0))))
 
+(define (test-categories)
+  (test-group "categories"
+    (test (complex? 3+4i))
+    (test (complex? 3))
+    (test (real? 3))
+    (test (real? -2.5+0i))
+    (test (real? -2.5+0.0i))
+    (test (real? #e1e10))
+    (test (real? +inf.0))
+    (test (real? +nan.0))
+    (test-false (rational? -inf.0))
+    (test (rational? 3.5))
+    (test (rational? 6/10))
+    (test (rational? 6/3))
+    (test (integer? 3+0i))
+    (test (integer? 3.0))
+    (test (integer? 8/4))
+
+    (test (positive? 1))
+    (test (positive? 1.0))
+    (test (positive? 1/2))
+    (test (positive? 0.1))
+    (test-false (positive? 0))
+    (test-false (positive? -1))
+    (test-false (positive? -1/2))
+
+    (test (negative? -1))
+    (test (negative? -1.0))
+    (test (negative? -1/2))
+    (test (negative? -0.1))
+    (test-false (negative? 1))
+    (test-false (negative? 0))))
+
 (define (test-numeric)
   (test-group "numeric"
     (test-comparison)
     (test-division)
-    (test-fraction)))
+    (test-fraction)
+    (test-categories)))
 
 (when-main-module
  (test-numeric))

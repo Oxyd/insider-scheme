@@ -1168,6 +1168,11 @@ is_real(ptr<> x) {
     return is_number(x);
 }
 
+bool
+is_rational(ptr<> x) {
+  return is_real(x) && !is_infinite(x);
+}
+
 static bool
 is_exact_complex(ptr<> x) {
   if (auto z = match<complex>(x))
@@ -2282,7 +2287,11 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "odd?", result, true, is_odd);
   define_procedure(ctx, "even?", result, true, is_even);
   define_procedure(ctx, "zero?", result, true, is_zero);
+  define_procedure(ctx, "positive?", result, true, is_positive);
+  define_procedure(ctx, "negative?", result, true, is_negative);
   define_procedure(ctx, "number?", result, true, is_number);
+  define_procedure(ctx, "real?", result, true, is_real);
+  define_procedure(ctx, "rational?", result, true, is_rational);
   define_procedure(ctx, "exp", result, true, exp);
   define_procedure(ctx, "log", result, true, log);
   define_procedure(ctx, "expt", result, true, expt);

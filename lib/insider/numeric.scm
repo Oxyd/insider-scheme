@@ -4,8 +4,9 @@
 (export
  ;; From core
  + - * / = < <= > >= truncate/ truncate-quotient truncate-remainder
- gcd arithmetic-shift bitwise-and bitwise-or bitwise-not integer? odd? even? zero? number? exp log
- abs floor inexact? exact? exact-integer? inexact exact expt
+ gcd arithmetic-shift bitwise-and bitwise-or bitwise-not integer? odd? even? zero? positive? negative?
+ number? exp log
+ abs floor inexact? exact? exact-integer? real? rational? inexact exact expt
 
  ;; Defined here
  complex? floor/ floor-quotient floor-remainder min max

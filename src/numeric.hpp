@@ -296,6 +296,9 @@ bool
 is_real(ptr<>);
 
 bool
+is_rational(ptr<>);
+
+bool
 is_exact(ptr<>);
 
 bool
