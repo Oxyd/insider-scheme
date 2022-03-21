@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cfenv>
 #include <cmath>
 #include <complex>
 #include <cstdlib>
@@ -711,7 +712,7 @@ bitshift_left_destructive(context& ctx, ptr<big_integer> i, std::size_t shift) {
 }
 
 static ptr<big_integer>
-bitshift_left(context& ctx, ptr<big_integer> i, unsigned k) {
+bitshift_left(context& ctx, ptr<big_integer> i, std::size_t k) {
   return bitshift_left_destructive(ctx, make<big_integer>(ctx, i), k);
 }
 
@@ -748,6 +749,14 @@ bitshift_right(context& ctx, ptr<> n, std::size_t k) {
     return integer_to_ptr(i->value() >> k);
   else
     return bitshift_right(ctx, assume<big_integer>(n), k);
+}
+
+static ptr<>
+bitshift_left(context& ctx, ptr<> n, std::size_t k) {
+  if (auto i = match<integer>(n))
+    return integer_to_ptr(i->value() << k);
+  else
+    return bitshift_left(ctx, assume<big_integer>(n), k);
 }
 
 static bool
@@ -2222,6 +2231,19 @@ abs(context& ctx, ptr<> x) {
     return x;
 }
 
+template <auto Fraction, auto FloatingPoint>
+static ptr<>
+rounder(context& ctx, ptr<> x) {
+  if (is_exact_integer(x))
+    return x;
+  else if (auto q = match<fraction>(x))
+    return Fraction(ctx, q);
+  else if (auto f = match<floating_point>(x))
+    return FloatingPoint(ctx, f);
+  else
+    throw std::runtime_error{"Expected a real number"};
+}
+
 static ptr<>
 floor_fraction(context& ctx, ptr<fraction> q) {
   ptr<> rem = truncate_remainder(ctx, q->numerator(), q->denominator());
@@ -2241,14 +2263,148 @@ floor_floating_point(context& ctx, ptr<floating_point> f) {
 
 ptr<>
 floor(context& ctx, ptr<> x) {
-  if (is_exact_integer(x))
-    return x;
-  else if (auto q = match<fraction>(x))
-    return floor_fraction(ctx, q);
-  else if (auto f = match<floating_point>(x))
-    return floor_floating_point(ctx, f);
+  return rounder<floor_fraction, floor_floating_point>(ctx, x);
+}
+
+static ptr<>
+ceiling_fraction(context& ctx, ptr<fraction> q) {
+  ptr<> rem = truncate_remainder(ctx, q->numerator(), q->denominator());
+  ptr<> num = add(ctx, q->numerator(), subtract(ctx, q->denominator(), rem));
+  if (is_negative(q))
+    num = subtract(ctx, num, q->denominator());
+  return divide(ctx, num, q->denominator());
+}
+
+static ptr<>
+ceiling_floating_point(context& ctx, ptr<floating_point> f) {
+  if (is_finite(f))
+    return make<floating_point>(ctx, std::ceil(f->value));
   else
-    throw std::runtime_error{"Expected real number"};
+    return f;
+}
+
+static ptr<>
+ceiling(context& ctx, ptr<> x) {
+  return rounder<ceiling_fraction, ceiling_floating_point>(ctx, x);
+}
+
+static ptr<>
+truncate_fraction(context& ctx, ptr<fraction> q) {
+  if (!is_negative(q))
+    return floor_fraction(ctx, q);
+  else
+    return ceiling_fraction(ctx, q);
+}
+
+static ptr<>
+truncate_floating_point(context& ctx, ptr<floating_point> f) {
+  if (is_finite(f))
+    return make<floating_point>(ctx, std::trunc(f->value));
+  else
+    return f;
+}
+
+static ptr<>
+truncate(context& ctx, ptr<> x) {
+  return rounder<truncate_fraction, truncate_floating_point>(ctx, x);
+}
+
+static ptr<>
+round_fraction_to_even(context& ctx, ptr<> numerator) {
+  // Fraction of the form n / 2. n is odd, otherwise the number would have been
+  // normalised to an integer.
+  //
+  // The two choices for the result are (n - 1) / 2, and (n + 1) / 2. The result
+  // is going to be even iff the numerator is a multiple of 4.
+  //
+  // Because the numerator is odd, the last two bits of its binary
+  // representation are either 01 or 11. To get a multiple of 4, we need them to
+  // be 00.
+  //
+  // Since division by 2 can be implemented as a bitshift, we can optimise
+  // things a little: First divide the numerator by two by shifting one bit to
+  // the right, this turns 01 into 0, and 11 into 1. In the former case we have
+  // an even value and we're done; in the latter case we add 1.
+
+  ptr<> value = bitshift_right(ctx, numerator, 1);
+  if (is_even(value))
+    return value;
+  else
+    return add(ctx, value, integer_to_ptr(1));
+}
+
+static ptr<>
+round_fraction_to_nearest(context& ctx, ptr<fraction> q) {
+  // Fraction of the form p / q, p and q don't have a common factor and q isn't
+  // 2.
+  //
+  // We divide p / q = dq + r, d = truncate(p / q), |r| < q. Because q is
+  // positive, either both dq and r are positive, or they are both negative.
+  //
+  // If p > 0, dq < p / q. If r < q / 2 then dq is the closest integer,
+  // otherwise it's dq + 1.
+  //
+  // If p < 0, |dq| = -dq < |p / q| = -p / q, so dq > p / q. If r < -q / 2 then
+  // dq is the closest integer, otherwise dq - 1 is.
+  //
+  // To avoid a division, we compare 2r against q to determine whether
+  // |r| < q / 2.
+
+  auto [dq, r] = quotient_remainder(ctx, q->numerator(), q->denominator());
+  auto twice_abs_r = abs(ctx, bitshift_left(ctx, r, 1));
+
+  if (compare(ctx, twice_abs_r, q->denominator()) == general_compare_result::less)
+    return dq;
+  else if (is_positive(q))
+    return add(ctx, dq, integer_to_ptr(1));
+  else
+    return subtract(ctx, dq, integer_to_ptr(1));
+}
+
+static ptr<>
+round_fraction(context& ctx, ptr<fraction> q) {
+  // Assuming the fraction is normalised, the in-between case can only happen
+  // when the denominator is 2. All other cases are either floor or ceil.
+
+  if (q->denominator() == integer_to_ptr(2))
+    return round_fraction_to_even(ctx, q->numerator());
+  else
+    return round_fraction_to_nearest(ctx, q);
+}
+
+namespace {
+
+  class rounding_mode_guard {
+  public:
+    explicit
+    rounding_mode_guard(int new_mode)
+      : old_mode_{std::fegetround()}
+    {
+      std::fesetround(new_mode);
+    }
+
+    ~rounding_mode_guard() {
+      std::fesetround(old_mode_);
+    }
+
+    rounding_mode_guard(rounding_mode_guard const&) = delete;
+    void operator = (rounding_mode_guard const&) = delete;
+
+  private:
+    int old_mode_;
+  };
+
+} // anonymous namespace
+
+static ptr<>
+round_floating_point(context& ctx, ptr<floating_point> f) {
+  rounding_mode_guard g{FE_TONEAREST};
+  return make<floating_point>(ctx, std::rint(f->value));
+}
+
+static ptr<>
+round(context& ctx, ptr<> x) {
+  return rounder<round_fraction, round_floating_point>(ctx, x);
 }
 
 ptr<>
@@ -2300,6 +2456,9 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "truncate-remainder", result, true, truncate_remainder);
   define_procedure(ctx, "abs", result, true, abs);
   define_procedure(ctx, "floor", result, true, floor);
+  define_procedure(ctx, "ceiling", result, true, ceiling);
+  define_procedure(ctx, "truncate", result, true, truncate);
+  define_procedure(ctx, "round", result, true, round);
   define_procedure(ctx, "inexact?", result, true, is_inexact);
   define_procedure(ctx, "exact?", result, true, is_exact);
   define_procedure(ctx, "inexact", result, true, inexact);

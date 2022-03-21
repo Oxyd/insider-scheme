@@ -74,12 +74,41 @@
     (test-false (negative? 1))
     (test-false (negative? 0))))
 
+(define (test-rounding)
+  (test-group "rounding"
+    (test-equal -5.0 (floor -4.3))
+    (test-equal 3.0 (floor 3.5))
+    (test-equal 1 (floor 12/7))
+    (test-equal -2 (floor -12/7))
+
+    (test-equal -4.0 (ceiling -4.3))
+    (test-equal 4.0 (ceiling 3.5))
+    (test-equal 2 (ceiling 12/7))
+    (test-equal -1 (ceiling -12/7))
+
+    (test-equal -4.0 (truncate -4.3))
+    (test-equal 3.0 (truncate 3.5))
+    (test-equal 1 (truncate 12/7))
+    (test-equal -1 (truncate -12/7))
+
+    (test-equal -4.0 (round -4.3))
+    (test-equal 4.0 (round 3.5))
+    (test-equal 2.0 (round 2.5))
+    (test-equal 13.0 (round 13.1))
+    (test-equal 13.0 (round 12.8))
+    (test-equal 4 (round 7/2))
+    (test-equal -4 (round -7/2))
+    (test-equal 2 (round 12/7))
+    (test-equal -2 (round -12/7))
+    (test-equal 7 (round 7))))
+
 (define (test-numeric)
   (test-group "numeric"
     (test-comparison)
     (test-division)
     (test-fraction)
-    (test-categories)))
+    (test-categories)
+    (test-rounding)))
 
 (when-main-module
  (test-numeric))
