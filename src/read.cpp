@@ -454,16 +454,29 @@ throw_if_exact_non_rational(ptr<> value, number_parse_mode mode) {
 }
 
 static ptr<>
+change_exactness(context& ctx, number_parse_mode mode, ptr<> value) {
+  if (mode.exactness == number_parse_mode::exactness_mode::make_inexact)
+    return inexact(ctx, value);
+  else {
+    throw_if_exact_non_rational(value, mode);
+    return value;
+  }
+}
+
+static ptr<>
 read_real(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
-  if (ptr<> result = read_real_preserve_exactness(ctx, mode, stream, loc)) {
-    if (mode.exactness == number_parse_mode::exactness_mode::make_inexact)
-      return inexact(ctx, result);
-    else {
-      throw_if_exact_non_rational(result, mode);
-      return result;
-    }
-  } else
+  if (ptr<> result = read_real_preserve_exactness(ctx, mode, stream, loc))
+    return change_exactness(ctx, mode, result);
+  else
     return {};
+}
+
+static ptr<>
+make_integer_constant(context& ctx, number_parse_mode mode, integer::value_type value) {
+  if (mode.exactness == number_parse_mode::exactness_mode::make_inexact)
+    return inexact(ctx, integer_to_ptr(value));
+  else
+    return integer_to_ptr(value);
 }
 
 static ptr<>
@@ -477,7 +490,10 @@ read_imaginary_part(context& ctx, number_parse_mode mode, ptr<> real,
     assert(sign == U'+' || sign == U'-');
 
     expect_either(stream, 'i', 'I');
-    return make_rectangular(ctx, real, sign == U'+' ? integer_to_ptr(1) : integer_to_ptr(-1));
+    return make_rectangular(ctx, real,
+                            sign == U'+'
+                            ? make_integer_constant(ctx, mode, 1)
+                            : make_integer_constant(ctx, mode, -1));
   }
 }
 
@@ -503,13 +519,13 @@ read_complex_after_first_part(context& ctx, number_parse_mode mode, ptr<> real,
     return read_angle(ctx, mode, real, stream, loc);
   else if (stream.peek() == U'i' || stream.peek() == U'I') {
     stream.read();
-    return make_rectangular(ctx, integer_to_ptr(0), real);
+    return make_rectangular(ctx, make_integer_constant(ctx, mode, 0), real);
   } else
     return real;
 }
 
 static ptr<>
-read_sign_followed_by_imaginary_unit(context& ctx, reader_stream& stream) {
+read_sign_followed_by_imaginary_unit(context& ctx, number_parse_mode mode, reader_stream& stream) {
   auto cp = stream.make_checkpoint();
 
   auto sign = stream.read();
@@ -518,7 +534,10 @@ read_sign_followed_by_imaginary_unit(context& ctx, reader_stream& stream) {
   auto imaginary_unit = stream.read();
   if (imaginary_unit == U'i' || imaginary_unit == U'I') {
     cp.commit();
-    return make_rectangular(ctx, integer_to_ptr(0), sign == U'+' ? integer_to_ptr(1) : integer_to_ptr(-1));
+    return make_rectangular(ctx, make_integer_constant(ctx, mode, 0),
+                            sign == U'+'
+                            ? make_integer_constant(ctx, mode, 1)
+                            : make_integer_constant(ctx, mode, -1));
   } else
     return {};
 }
@@ -535,7 +554,7 @@ read_complex(context& ctx, number_parse_mode mode, reader_stream& stream, source
   if (auto x = read_real(ctx, mode, stream, loc))
     return read_complex_after_first_part(ctx, mode, x, stream, loc);
   else if (stream.peek() == U'+' || stream.peek() == U'-')
-    return read_sign_followed_by_imaginary_unit(ctx, stream);
+    return read_sign_followed_by_imaginary_unit(ctx, mode, stream);
   else
     return {};
 }

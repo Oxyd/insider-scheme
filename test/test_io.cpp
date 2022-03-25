@@ -504,6 +504,8 @@ TEST_F(io, read_inexact) {
   EXPECT_TRUE(equal(read("#i0.25"), read("0.25")));
   EXPECT_TRUE(equal(read("#i#xa"), read("10.0")));
   EXPECT_TRUE(equal(read("#o#i10"), read("8.0")));
+  EXPECT_TRUE(equal(read("#i+i"), read("0.0+1.0i")));
+  EXPECT_TRUE(equal(read("#i1+i"), read("1.0+1.0i")));
 }
 
 TEST_F(io, read_exact) {
