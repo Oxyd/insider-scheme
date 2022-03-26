@@ -300,6 +300,13 @@ add_magnitude_to_limb_destructive(context& ctx, ptr<> lhs, limb_type rhs) {
   return add_big_magnitude_to_limb_destructive(ctx, {}, make<big_integer>(ctx, lhs_int), rhs);
 }
 
+static std::tuple<limb_type, limb_type>
+add_limbs(limb_type x, limb_type y, limb_type carry) {
+  limb_type s = x + y;
+  limb_type result = s + carry;
+  return {result, x > max_limb_value - y || s > max_limb_value - carry};
+}
+
 static ptr<big_integer>
 add_big_magnitude_destructive(context& ctx, ptr<big_integer> result, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   // lhs is always going to be the bigger of the two to simplify things in the
@@ -315,16 +322,11 @@ add_big_magnitude_destructive(context& ctx, ptr<big_integer> result, ptr<big_int
   limb_type* out = result->data();
   limb_type carry = 0;
 
-  for (std::size_t i = 0; i < rhs->length(); ++i) {
-    limb_type s = x[i] + y[i];
-    out[i] = s + carry;
-    carry = x[i] > max_limb_value - y[i] || s > max_limb_value - carry;
-  }
+  for (std::size_t i = 0; i < rhs->length(); ++i)
+    std::tie(out[i], carry) = add_limbs(x[i], y[i], carry);
 
-  for (std::size_t i = rhs->length(); i < lhs->length(); ++i) {
-    out[i] = x[i] + carry;
-    carry = x[i] > max_limb_value - carry;
-  }
+  for (std::size_t i = rhs->length(); i < lhs->length(); ++i)
+    std::tie(out[i], carry) = add_limbs(x[i], 0, carry);
 
   if (carry)
     return extend_big(ctx, result, limb_type{1});
