@@ -558,8 +558,9 @@ compile_application(context& ctx, procedure_context& proc, application_expressio
                     result_register& result) {
   if (auto* ref = std::get_if<top_level_reference_expression>(&stx.target->value))
     if (std::optional<special_top_level_tag> tag = ctx.find_tag(ref->location)) {
-      if (*tag == special_top_level_tag::plus || *tag == special_top_level_tag::minus
-          || *tag == special_top_level_tag::times || *tag == special_top_level_tag::divide) {
+      if ((*tag == special_top_level_tag::plus || *tag == special_top_level_tag::minus
+           || *tag == special_top_level_tag::times || *tag == special_top_level_tag::divide)
+          && stx.arguments.size() >= 2) {
         compile_arithmetic(ctx, proc, stx, *tag, result);
         return;
       } else if ((*tag == special_top_level_tag::less_than

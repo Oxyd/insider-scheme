@@ -15,6 +15,15 @@ TEST_F(compiler, compile_arithmetic) {
             2 + 3 + (5 * 9) + (9 - 8) + (8 / 2));
 }
 
+TEST_F(compiler, compile_unary_operators) {
+  ptr<> result1 = eval("(- 2)");
+  EXPECT_EQ(expect<integer>(result1).value(), -2);
+
+  ptr<> result2 = eval("(/ 3)");
+  EXPECT_EQ(expect<integer>(expect<fraction>(result2)->numerator()).value(), 1);
+  EXPECT_EQ(expect<integer>(expect<fraction>(result2)->denominator()).value(), 3);
+}
+
 TEST_F(compiler, compile_let) {
   ptr<> result = eval(
     R"(
