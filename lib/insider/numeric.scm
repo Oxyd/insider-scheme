@@ -27,7 +27,7 @@
  inexact? exact? exact-integer? real? rational? inexact exact expt
 
  ;; Defined here
- complex? floor/ floor-quotient floor-remainder min max
+ complex? floor/ floor-quotient floor-remainder modulo quotient remainder min max
  numerator denominator
  bitwise-if bit-set? copy-bit bit-swap any-bit-set? every-bit-set?
  bit-field bit-field-any? bit-field-every? bit-field-clear bit-field-set
@@ -50,6 +50,10 @@
 (define (floor-remainder n m)
   (let-values (((q r) (floor/ n m)))
     r))
+
+(define quotient truncate-quotient)
+(define remainder truncate-remainder)
+(define modulo floor-remainder)
 
 (define (min/inexact x xs)
   (if (eq? xs '())
