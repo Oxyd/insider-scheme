@@ -40,6 +40,7 @@ public:
 
   struct dont_initialize_t { } static constexpr dont_initialize{};
   using iterator = detail::limb_type*;
+  using const_iterator = detail::limb_type const*;
   using reverse_iterator = std::reverse_iterator<iterator>;
   using limb_type = detail::limb_type;
   static constexpr std::size_t limb_width = detail::limb_width;
@@ -81,6 +82,12 @@ public:
   iterator
   end();
 
+  const_iterator
+  begin() const;
+
+  const_iterator
+  end() const;
+
   reverse_iterator
   rbegin();
 
@@ -95,6 +102,15 @@ public:
 
   limb_type*
   data() { return begin(); }
+
+  limb_type const*
+  data() const { return begin(); }
+
+  limb_type&
+  nth_limb(std::size_t i) { return data()[i]; }
+
+  limb_type
+  nth_limb(std::size_t i) const { return data()[i]; }
 
   std::size_t
   length() const { return size(); }
@@ -407,7 +423,7 @@ ptr<>
 conjugate(context&, ptr<>);
 
 ptr<>
-arithmetic_shift(context&, ptr<>, ptr<>);
+arithmetic_shift(context&, ptr<>, integer);
 
 ptr<>
 bitwise_and(context&, ptr<>, ptr<>);

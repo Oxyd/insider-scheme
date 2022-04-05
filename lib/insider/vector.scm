@@ -1,6 +1,9 @@
 (library (insider vector))
 (import (insider syntax) (insider basic-procedures) (insider opt-lambda) (insider numeric) (insider list)
-        (except (insider internal) define let))
+        (insider control)
+        (only (insider internal)
+              vector list->vector vector->list vector-append vector->list
+              vector-ref vector-set! make-vector vector-length))
 (export vector make-vector list->vector vector->list vector-append vector-length vector-ref vector-set!
         vector? vector-tabulate vector-copy vector-copy! vector->list vector-fill!
         vector-for-each vector-map)

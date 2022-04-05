@@ -1,6 +1,8 @@
 (library (insider list))
 (import (insider syntax) (insider basic-procedures)
-        (except (insider internal) let define))
+        (only (insider internal)
+              car cdr set-car! set-cdr! cons cadr caddr cadddr cddr cdddr append
+              + - = apply values))
 (export
  ;; From core
  cons car cdr cadr caddr cadddr cddr cdddr set-car! set-cdr! append

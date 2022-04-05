@@ -1,6 +1,9 @@
 (library (insider char))
-(import (insider syntax) (insider list) (insider basic-procedures)
-        (except (insider internal) define let))
+(import (insider syntax) (insider list) (insider basic-procedures) (insider control)
+        (insider numeric)
+        (only (insider internal)
+              char->integer char-foldcase char-alphabetic? char-numeric? char-whitespace? char-upper-case?
+              char-lower-case? digit-value integer->char char-upcase char-downcase))
 (export
  char-alphabetic? char-numeric? char-whitespace? char-upper-case? char-lower-case? digit-value
  char->integer integer->char char-upcase char-downcase char-foldcase

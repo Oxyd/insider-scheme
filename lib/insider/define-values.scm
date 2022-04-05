@@ -1,6 +1,8 @@
 (library (insider define-values))
-(import (insider syntax) (insider list) (insider error) (insider basic-procedures)
-        (except (insider internal) define let))
+(import (insider syntax) (insider list) (insider error) (insider basic-procedures) (insider numeric)
+        (insider control)
+        (only (insider internal)
+              values-tuple-length values-tuple-ref))
 (export define-values)
 
 (define-type-predicate values-tuple? insider::values_tuple)

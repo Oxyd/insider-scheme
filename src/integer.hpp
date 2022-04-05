@@ -4,6 +4,7 @@
 #include "object.hpp"
 #include "ptr.hpp"
 
+#include <bit>
 #include <cstdint>
 #include <type_traits>
 
@@ -13,6 +14,7 @@ namespace insider {
 class integer {
 public:
   using value_type = std::int64_t;
+  using representation_type = std::uint64_t;
 
   static constexpr std::size_t storage_width = 64;
   static constexpr std::size_t value_width = 63;
@@ -40,6 +42,9 @@ ptr_to_integer(ptr<> x) {
 
 inline ptr<>
 integer_to_ptr(integer i) {
+  assert(static_cast<word_type>(i.value()) >> (integer::storage_width - 2) == 0b00
+         || static_cast<word_type>(i.value()) >> (integer::storage_width - 2) == 0b11);
+
   return immediate_to_ptr(static_cast<word_type>(i.value() << 1) | 1);
 }
 
@@ -53,6 +58,11 @@ in_fixnum_range(T value) {
     return value >= integer::min && value <= integer::max;
   else
     return value <= integer::max;
+}
+
+inline std::uint64_t
+integer_representation(integer i) {
+  return std::bit_cast<integer::representation_type>(i.value());
 }
 
 } // namespace insider

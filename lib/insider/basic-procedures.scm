@@ -1,10 +1,10 @@
 (library (insider basic-procedures))
-(import (insider syntax) (except (insider internal) let define))
+(import (insider syntax)
+        (only (insider internal)
+              eq? eqv? equal? type apply))
 (export
  ;; From core
  eq? eqv? equal?
- cons car cdr set-car! set-cdr!
- make-vector vector-ref vector-set! vector-length
  type
 
  ;; Defined here

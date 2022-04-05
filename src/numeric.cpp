@@ -91,7 +91,17 @@ big_integer::begin() -> iterator {
 }
 
 auto
-big_integer::end() -> iterator{
+big_integer::end() -> iterator {
+  return &storage_element(0) + size_;
+}
+
+auto
+big_integer::begin() const -> const_iterator {
+  return &storage_element(0);
+}
+
+auto
+big_integer::end() const -> const_iterator {
   return &storage_element(0) + size_;
 }
 
@@ -307,6 +317,12 @@ add_limbs(limb_type x, limb_type y, limb_type carry) {
   return {result, x > max_limb_value - y || s > max_limb_value - carry};
 }
 
+static std::tuple<limb_type, limb_type>
+add_limbs(limb_type x, limb_type carry) {
+  limb_type result = x + carry;
+  return {result, x > max_limb_value - carry};
+}
+
 static ptr<big_integer>
 add_big_magnitude_destructive(context& ctx, ptr<big_integer> result, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   // lhs is always going to be the bigger of the two to simplify things in the
@@ -326,7 +342,7 @@ add_big_magnitude_destructive(context& ctx, ptr<big_integer> result, ptr<big_int
     std::tie(out[i], carry) = add_limbs(x[i], y[i], carry);
 
   for (std::size_t i = rhs->length(); i < lhs->length(); ++i)
-    std::tie(out[i], carry) = add_limbs(x[i], 0, carry);
+    std::tie(out[i], carry) = add_limbs(x[i], carry);
 
   if (carry)
     return extend_big(ctx, result, limb_type{1});
@@ -689,24 +705,27 @@ bitshift_left_destructive(context& ctx, ptr<big_integer> i, std::size_t shift) {
   std::size_t k = shift % limb_width;
   std::size_t extra_limbs = shift / limb_width;
 
-  limb_type const top_k_bits = ~limb_type{0} << (limb_width - k);
-  if ((i->back() & top_k_bits) != 0)
-    i = extend_big(ctx, i, 0);
+  if (k > 0) {
+    limb_type const top_k_bits = ~limb_type{0} << (limb_width - k);
+    if ((i->back() & top_k_bits) != 0)
+      i = extend_big(ctx, i, 0);
 
-  for (std::size_t n = i->length(); n > 0; --n) {
-    limb_type& current = i->data()[n - 1];
-    current <<= k;
+    for (std::size_t n = i->length(); n > 0; --n) {
+      limb_type& current = i->data()[n - 1];
+      current <<= k;
 
-    if (n - 1 > 0) {
-      limb_type lower = i->data()[n - 2];
-      current |= (lower & top_k_bits) >> (limb_width - k);
+      if (n - 1 > 0) {
+        limb_type lower = i->data()[n - 2];
+        current |= (lower & top_k_bits) >> (limb_width - k);
+      }
     }
   }
 
   if (extra_limbs > 0) {
     auto result = make<big_integer>(ctx, i->length() + extra_limbs, big_integer::dont_initialize);
-    std::copy(i->begin(), i->end(), result->begin());
-    std::fill_n(result->begin() + i->length(), result->length() - i->length(), 0);
+    std::copy(i->begin(), i->end(), result->begin() + extra_limbs);
+    std::fill_n(result->begin(), result->length() - i->length(), 0);
+    result->set_positive(i->positive());
     return result;
   }
 
@@ -719,46 +738,139 @@ bitshift_left(context& ctx, ptr<big_integer> i, std::size_t k) {
 }
 
 static ptr<big_integer>
-bitshift_right_destructive(ptr<big_integer> i, std::size_t k) {
+make_big_zero(context& ctx) {
+  return make<big_integer>(ctx, 0);
+}
+
+static ptr<big_integer>
+bitshift_right_destructive(context& ctx, ptr<big_integer> i, std::size_t k) {
   if (k == 0)
     return i;
 
-  assert(k < limb_width);
+  std::size_t limb_shift = k / limb_width;
+  std::size_t bit_shift = k % limb_width;
 
-  limb_type const bottom_k_bits_mask = ~limb_type{1} >> (limb_width - k);
+  if (limb_shift >= i->length())
+    return make_big_zero(ctx);
 
-  for (std::size_t n = 0; n < i->length(); ++n) {
-    limb_type& current = i->data()[n];
-    current >>= k;
+  std::size_t dst_len = i->length() - limb_shift;
 
-    if (n + 1 < i->length()) {
-      limb_type upper = i->data()[n + 1];
-      current |= (upper & bottom_k_bits_mask) << (limb_width - k);
-    }
+  ptr<big_integer> src = i;
+  ptr<big_integer> dst;
+
+  if (limb_shift == 0)
+    dst = i;
+  else {
+    dst = make<big_integer>(ctx, dst_len, big_integer::dont_initialize);
+    dst->set_positive(src->positive());
   }
 
-  return i;
+  limb_type const bottom_k_bits_mask = ~limb_type{1} >> (limb_width - bit_shift);
+
+  for (std::size_t n = 0; n < dst_len; ++n) {
+    limb_type current = src->nth_limb(n + limb_shift);
+    current >>= bit_shift;
+
+    if (n + limb_shift + 1 < src->length()) {
+      limb_type upper = src->nth_limb(n + limb_shift + 1);
+      current |= (upper & bottom_k_bits_mask) << (limb_width - bit_shift);
+    }
+
+    dst->nth_limb(n) = current;
+  }
+
+  return dst;
 }
 
 static ptr<big_integer>
 bitshift_right(context& ctx, ptr<big_integer> i, std::size_t k) {
-  return bitshift_right_destructive(make<big_integer>(ctx, i), k);
+  return bitshift_right_destructive(ctx, make<big_integer>(ctx, i), k);
+}
+
+static ptr<>
+bitshift_right_negative(context& ctx, ptr<big_integer> i, std::size_t k) {
+  // Let #x be the 2's complement of a number, i.e. #x = ~x + 1.
+  // Lemma 1: #x = ~(x - 1)
+  // Lemma 2: ~(x >> n) = ~x >> n (assuming >> sign-extends)
+  //
+  // Proposition: #(#x >> n) = ((x - 1) >> n) + 1
+  // Proof: #(#x >> n)
+  //        = #(~(x - 1) >> n)        (lemma 1)
+  //        = #(~((x - 1) >> n))      (lemma 2)
+  //        = ~(~((x - 1)) >> n) + 1  (definition of #)
+  //        = ((x - 1) >> n) + 1
+  //
+  // Since we want to pretend that our bignum is represented in 2's complement,
+  // we need to work out the shift of #x >> n. Since we don't actually use 2's
+  // complement as our representation, we need to then undo the 2's
+  // complement. By the proposition above, this amounts to just doing some
+  // subtraction and addition.
+  //
+  // We are given a negative integer i, whose 2's complement representation is
+  // #|i|. Therefore, we need to evaluate
+  //
+  //   #(#|i| >> n) = ((|i| - 1) >> n) + 1
+
+  assert(!i->positive());
+
+  ptr<big_integer> x = sub_magnitude(ctx, i, make<big_integer>(ctx, integer{1}));
+  assert(x->positive()); // sub_magnitude ignores the sign of i
+
+  x = bitshift_right_destructive(ctx, x, k);
+  return multiply(ctx, integer_to_ptr(-1), add(ctx, x, integer_to_ptr(1)));
 }
 
 static ptr<>
 bitshift_right(context& ctx, ptr<> n, std::size_t k) {
   if (auto i = match<integer>(n))
     return integer_to_ptr(i->value() >> k);
+  else if (auto bi = match<big_integer>(n)) {
+    if (bi->positive())
+      return normalize(ctx, bitshift_right(ctx, bi, k));
+    else
+      return bitshift_right_negative(ctx, bi, k);
+  } else
+    throw std::runtime_error{"Expected an exact integer"};
+}
+
+// Number of bits required to represent a value in 2's complement.
+static std::size_t
+representation_width(integer::representation_type i) {
+  unsigned sign = i >> (integer::storage_width - 1);
+  if (sign == 0) // Positive in 2's complement.
+    return integer::storage_width - std::countl_zero(i);
   else
-    return bitshift_right(ctx, assume<big_integer>(n), k);
+    return integer::storage_width - std::countl_one(i);
+}
+
+static ptr<>
+bitshift_left_small(context& ctx, integer n, std::size_t k) {
+  auto bits = integer_representation(n);
+  std::size_t free_bits = integer::value_width - representation_width(bits);
+  if (k < free_bits)
+    return integer_to_ptr(n.value() << k);
+  else
+    return bitshift_left_destructive(ctx, make<big_integer>(ctx, n), k);
 }
 
 static ptr<>
 bitshift_left(context& ctx, ptr<> n, std::size_t k) {
   if (auto i = match<integer>(n))
-    return integer_to_ptr(i->value() << k);
+    return bitshift_left_small(ctx, *i, k);
+  else if (auto bi = match<big_integer>(n))
+    return bitshift_left(ctx, bi, k);
   else
-    return bitshift_left(ctx, assume<big_integer>(n), k);
+    throw std::runtime_error{"Expected an exact integer"};
+}
+
+ptr<>
+arithmetic_shift(context& ctx, ptr<> i, integer count) {
+  if (count.value() == 0)
+    return i;
+  else if (count.value() > 0)
+    return bitshift_left(ctx, i, count.value());
+  else
+    return bitshift_right(ctx, i, -count.value());
 }
 
 static bool
@@ -1436,68 +1548,202 @@ conjugate(context& ctx, ptr<> x) {
     return x;
 }
 
-template <auto Small>
+namespace {
+
+  class twos_complement_iterator {
+  public:
+    explicit
+    twos_complement_iterator(ptr<> value);
+
+    limb_type
+    operator * ();
+
+    twos_complement_iterator&
+    operator ++ ();
+
+    bool
+    done() const;
+
+    std::size_t
+    index() const { return i_; }
+
+  private:
+    ptr<>       value_;
+    std::size_t i_ = 0;
+    limb_type   current_ = 0;
+    limb_type   carry_ = 0;
+    bool        negative_;
+    bool        big_;
+
+    limb_type
+    prefix_value() const;
+
+    void
+    fill_current();
+
+    void
+    advance();
+  };
+
+} // anonymous namespace
+
+twos_complement_iterator::twos_complement_iterator(ptr<> value)
+  : value_{value}
+  , negative_{is_negative(value)}
+  , big_{is<big_integer>(value)}
+{
+  if (negative_)
+    carry_ = 1;
+  fill_current();
+}
+
+limb_type
+twos_complement_iterator::operator * () {
+  return current_;
+}
+
+twos_complement_iterator&
+twos_complement_iterator::operator ++ () {
+  ++i_;
+  fill_current();
+  return *this;
+}
+
+bool
+twos_complement_iterator::done() const {
+  if (big_)
+    return i_ >= assume<big_integer>(value_)->size();
+  else
+    return i_ >= 1;
+}
+
+limb_type
+twos_complement_iterator::prefix_value() const {
+  if (negative_)
+    return static_cast<limb_type>(-1);
+  else
+    return 0;
+}
+
+void
+twos_complement_iterator::fill_current() {
+  if (done())
+    current_ = prefix_value();
+  else if (!big_)
+    current_ = assume<integer>(value_).value();
+  else if (negative_)
+    std::tie(current_, carry_) = add_limbs(~assume<big_integer>(value_)->nth_limb(i_), carry_);
+  else
+    current_ = assume<big_integer>(value_)->nth_limb(i_);
+}
+
+static bool
+is_negative_in_twos_complement(ptr<big_integer> x) {
+  return x->back() >> (limb_width - 1);
+}
+
+// Number of limbs in a big_integer if it were signed extended for a 2's
+// complement representation.
+static std::size_t
+extended_length(ptr<big_integer> x) {
+  return x->length() + (is_negative_in_twos_complement(x) ? 1 : 0);
+}
+
+static std::size_t
+limb_length(ptr<> x) {
+  if (auto bi = match<big_integer>(x))
+    return extended_length(bi);
+  else
+    return 1;
+}
+
+static void
+negate_twos_complement(ptr<big_integer> x) {
+  x->set_positive(false);
+
+  limb_type carry = 1;
+  for (std::size_t i = 0; i < x->length(); ++i)
+    std::tie(x->nth_limb(i), carry) = add_limbs(~x->nth_limb(i), carry);
+}
+
+static ptr<>
+undo_twos_complement(context& ctx, ptr<big_integer> x) {
+  assert(x->positive());
+  if (is_negative_in_twos_complement(x))
+    negate_twos_complement(x);
+  return normalize(ctx, x);
+}
+
+template <typename T>
+static ptr<>
+bitwise_big(context& ctx, ptr<> x, ptr<> y, T op) {
+  std::size_t len = std::max(limb_length(x), limb_length(y));
+  auto result = make<big_integer>(ctx, len, big_integer::dont_initialize);
+
+  twos_complement_iterator x_it{x};
+  twos_complement_iterator y_it{y};
+  for (std::size_t i = 0; i < len; ++i, ++x_it, ++y_it)
+    result->nth_limb(i) = op(*x_it, *y_it);
+
+  return undo_twos_complement(ctx, result);
+}
+
+template <typename T>
 ptr<>
-bitwise_two(ptr<> lhs, ptr<> rhs) {
+bitwise_two(context& ctx, ptr<> lhs, ptr<> rhs, T op) {
   switch (find_common_type(lhs, rhs)) {
   case common_type::small_integer: {
     auto x = assume<integer>(lhs);
     auto y = assume<integer>(rhs);
-    integer::value_type value = Small(x, y);
+    integer::value_type value = op(x.value(), y.value());
 
-    if (overflow(value))
-      throw std::runtime_error("Overflow in arithmetic-shift");
-
+    assert(!overflow(value));
     return integer_to_ptr(integer{value});
   }
 
+  case common_type::big_integer:
+    return bitwise_big(ctx, lhs, rhs, op);
+
   default:
-    throw std::runtime_error("Only fixnums are supported");
+    throw std::runtime_error("Expected an exact integer");
   }
 
   assert(false);
   return {};
 }
 
-static integer::value_type
-arithmetic_shift_small(integer x, integer y) {
-  if (y.value() > 0)
-    return x.value() << y.value();
+ptr<>
+bitwise_and(context& ctx, ptr<> lhs, ptr<> rhs) {
+  return bitwise_two(ctx, lhs, rhs, [] (auto x, auto y) { return x & y; });
+}
+
+ptr<>
+bitwise_ior(context& ctx, ptr<> lhs, ptr<> rhs) {
+  return bitwise_two(ctx, lhs, rhs, [] (auto x, auto y) { return x | y; });
+}
+
+ptr<>
+bitwise_xor(context& ctx, ptr<> lhs, ptr<> rhs) {
+   return bitwise_two(ctx, lhs, rhs, [] (auto x, auto y) { return x ^ y; });
+}
+
+static ptr<>
+bitwise_not_big(context& ctx, ptr<big_integer> x) {
+  auto result = make<big_integer>(ctx, x->length(), big_integer::dont_initialize);
+  for (twos_complement_iterator it{x}; !it.done(); ++it)
+    result->nth_limb(it.index()) = ~*it;
+
+  return undo_twos_complement(ctx, result);
+}
+
+ptr<>
+bitwise_not(context& ctx, ptr<> x) {
+  if (auto i = match<integer>(x))
+    return integer_to_ptr(integer{~i->value()});
+  else if (auto bi = match<big_integer>(x))
+    return bitwise_not_big(ctx, bi);
   else
-    return x.value() >> -y.value();
-}
-
-static integer::value_type
-bitwise_and_small(integer x, integer y) {
-  return x.value() & y.value();
-}
-
-static integer::value_type
-bitwise_or_small(integer x, integer y) {
-  return x.value() | y.value();
-}
-
-ptr<>
-arithmetic_shift(context&, ptr<> lhs, ptr<> rhs) {
-  return bitwise_two<arithmetic_shift_small>(lhs, rhs);
-}
-
-ptr<>
-bitwise_and(context&, ptr<> lhs, ptr<> rhs) {
-  return bitwise_two<bitwise_and_small>(lhs, rhs);
-}
-
-ptr<>
-bitwise_or(context&, ptr<> lhs, ptr<> rhs) {
-  return bitwise_two<bitwise_or_small>(lhs, rhs);
-}
-
-ptr<>
-bitwise_not(context&, ptr<> x) {
-  if (auto value = match<integer>(x))
-    return integer_to_ptr(integer{~value->value()});
-  else
-    throw std::runtime_error{"Only fixnums are supported"};
+    throw std::runtime_error{"Expected an exact integer"};
 }
 
 static std::size_t
@@ -1539,7 +1785,63 @@ bit_length(context& ctx, ptr<> x) {
   else if (auto b = match<big_integer>(x))
     return big_integer_bit_length(ctx, b);
   else
-    throw std::runtime_error{"Expected integer"};
+    throw std::runtime_error{"Expected an exact integer"};
+}
+
+static std::size_t
+bit_count_small(integer i) {
+  auto bits = integer_representation(i);
+  if (i.value() >= 0)
+    return std::popcount(bits);
+  else
+    return std::popcount(~bits);
+}
+
+static std::size_t
+bit_count_big(ptr<big_integer> i) {
+  std::size_t result = 0;
+  for (twos_complement_iterator it{i}; !it.done(); ++it)
+    result += std::popcount(i->positive() ? *it : ~*it);
+  return result;
+}
+
+static std::size_t
+bit_count(ptr<> x) {
+  if (auto i = match<integer>(x))
+    return bit_count_small(*i);
+  else if (auto bi = match<big_integer>(x))
+    return bit_count_big(bi);
+  else
+    throw std::runtime_error{"Expected an exact integer"};
+}
+
+static int
+first_set_bit_small(integer i) {
+  if (i.value() == 0)
+    return -1;
+  else
+    return std::countr_zero(integer_representation(i));
+}
+
+static int
+first_set_bit_big(ptr<big_integer> i) {
+  int result = 0;
+  for (twos_complement_iterator it{i}; !it.done(); ++it)
+    if (*it != 0)
+      return result + std::countr_zero(*it);
+    else
+      result += limb_width;
+  return -1;
+}
+
+static int
+first_set_bit(ptr<> x) {
+  if (auto i = match<integer>(x))
+    return first_set_bit_small(*i);
+  else if (auto bi = match<big_integer>(x))
+    return first_set_bit_big(bi);
+  else
+    throw std::runtime_error{"Expected an exact integer"};
 }
 
 using primitive_relational_type = ptr<boolean>(context&, ptr<>, ptr<>);
@@ -1763,16 +2065,16 @@ gcd_big(context& ctx, ptr<big_integer> x, ptr<big_integer> y) {
   while (even(x) && even(y)) {
     assert(shift < std::numeric_limits<std::size_t>::max());
     ++shift;
-    x = bitshift_right_destructive(x, 1);
-    y = bitshift_right_destructive(y, 1);
+    x = bitshift_right_destructive(ctx, x, 1);
+    y = bitshift_right_destructive(ctx, y, 1);
   }
 
   while (even(x))
-    x = bitshift_right_destructive(x, 1);
+    x = bitshift_right_destructive(ctx, x, 1);
 
   while (!y->zero()) {
     while (even(y))
-      y = bitshift_right_destructive(y, 1);
+      y = bitshift_right_destructive(ctx, y, 1);
 
     if (compare_magnitude(x, y, normal_length(x), normal_length(y)) == exact_compare_result::greater)
       std::swap(x, y);
@@ -2438,8 +2740,12 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "gcd", result, true, gcd);
   define_procedure(ctx, "arithmetic-shift", result, true, arithmetic_shift);
   define_procedure(ctx, "bitwise-and", result, true, bitwise_and);
-  define_procedure(ctx, "bitwise-or", result, true, bitwise_or);
+  define_procedure(ctx, "bitwise-ior", result, true, bitwise_ior);
+  define_procedure(ctx, "bitwise-xor", result, true, bitwise_xor);
   define_procedure(ctx, "bitwise-not", result, true, bitwise_not);
+  define_procedure(ctx, "bit-count", result, true, bit_count);
+  define_procedure(ctx, "integer-length", result, true, integer_bit_length);
+  define_procedure(ctx, "first-set-bit", result, true, first_set_bit);
   define_procedure(ctx, "integer?", result, true, is_integer);
   define_procedure(ctx, "exact-integer?", result, true, is_exact_integer);
   define_procedure(ctx, "odd?", result, true, is_odd);

@@ -1,7 +1,16 @@
 (library (insider string))
 (import (insider syntax) (insider numeric) (insider basic-procedures) (scheme case-lambda) (insider opt-lambda)
         (insider vector) (insider control) (insider list) (insider error) (insider bytevector)
-        (except (insider internal) define let))
+        (insider char)
+        (only (insider internal)
+              string string-ref string-set! string-append string-null? string-length make-string
+              string-byte-length next-code-point-byte-index previous-code-point-byte-index
+              string-ref/byte-index string-set!/byte-index string-copy/byte-indexes
+              string-contains/byte-indexes string-contains-right/byte-indexes
+              string-append-char! string-append! string-reverse*
+              string=?/pair string<?/pair string<=?/pair string>?/pair string>=?/pair
+              string-foldcase string->utf8/byte-indexes utf8->string*
+              symbol->string number->string datum->string string->number string-upcase string-downcase))
 (export
  string?
 

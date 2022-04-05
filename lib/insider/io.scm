@@ -1,7 +1,17 @@
 (library (insider io))
 (import (insider syntax) (insider control) (insider syntax) (insider error) (insider list) (insider opt-lambda)
-        (insider string) (insider char) (insider basic-procedures)
-        (rename (except (insider internal) define let)
+        (insider string) (insider char) (insider basic-procedures) (insider numeric) (insider bytevector)
+        (rename (only (insider internal)
+                      read-char peek-char read-u8 peek-u8 write-u8 write-char
+                      flush-output-port char-ready? u8-ready?
+                      current-input-port-tag current-output-port-tag current-error-port-tag
+                      current-source-file-origin-tag port-open? close-port
+                      open-input-file open-input-string open-input-bytevector
+                      open-output-file open-output-string open-output-bytevector
+                      close-input-port close-output-port display
+                      get-output-bytevector get-output-string newline open-source-file-relative
+                      read read-syntax read-syntax-multiple read-syntax-multiple-ci
+                      write write-shared write-simple)
                 (read-char %read-char)
                 (peek-char %peek-char)
                 (read-u8 %read-u8)

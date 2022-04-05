@@ -9,6 +9,14 @@ using namespace insider;
 
 struct numeric : scheme_fixture { };
 
+TEST_F(numeric, integer_pointer_tagging) {
+  EXPECT_EQ(ptr_to_integer(integer_to_ptr(0)).value(), 0);
+  EXPECT_EQ(ptr_to_integer(integer_to_ptr(1)).value(), 1);
+  EXPECT_EQ(ptr_to_integer(integer_to_ptr(-1)).value(), -1);
+  EXPECT_EQ(ptr_to_integer(integer_to_ptr(integer::max)).value(), integer::max);
+  EXPECT_EQ(ptr_to_integer(integer_to_ptr(integer::min)).value(), integer::min);
+}
+
 TEST_F(numeric, bignum_add_subtract) {
   auto make_small = [&] (integer::value_type v) {
     return integer_to_ptr(integer{v});
