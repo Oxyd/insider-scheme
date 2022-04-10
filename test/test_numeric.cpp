@@ -193,6 +193,18 @@ TEST_F(numeric, bignum_multiply) {
 #undef TEST_MUL
 }
 
+TEST_F(numeric, bignum_multiplication_does_not_mutate_inputs) {
+  auto lhs = make_big(ctx, 1, 1);
+  auto rhs = make_big_negative(ctx, 1, 0);
+  EXPECT_TRUE(lhs->positive());
+  EXPECT_TRUE(!rhs->positive());
+
+  multiply(ctx, lhs, rhs);
+
+  EXPECT_TRUE(lhs->positive());
+  EXPECT_TRUE(!rhs->positive());
+}
+
 TEST_F(numeric, bignum_divide) {
   auto make_small = [&] (integer::value_type v) {
     return integer_to_ptr(integer{v});

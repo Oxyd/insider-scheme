@@ -596,7 +596,11 @@ mul_big_magnitude_by_limb_destructive(context& ctx, ptr<big_integer> result,
 
 static ptr<big_integer>
 mul_big_magnitude_by_limb(context& ctx, ptr<big_integer> lhs, limb_type rhs) {
-  return mul_big_magnitude_by_limb_destructive(ctx, {}, lhs, rhs);
+  auto result = mul_big_magnitude_by_limb_destructive(ctx, {}, lhs, rhs);
+  if (result == lhs)
+    return make<big_integer>(ctx, result);
+  else
+    return result;
 }
 
 static ptr<>
