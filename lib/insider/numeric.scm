@@ -15,7 +15,8 @@
                       values make-vector vector-ref vector-set! vector-length)
                 (bitwise-and %bitwise-and)
                 (bitwise-ior %bitwise-ior)
-                (bitwise-xor %bitwise-xor)))
+                (bitwise-xor %bitwise-xor)
+                (gcd %gcd)))
 (export
  ;; From core
  + - * / = < <= > >= truncate/ truncate-quotient truncate-remainder
@@ -36,7 +37,8 @@
  bits->list bits->vector list->bits vector->bits bits
  bitwise-fold bitwise-for-each bitwise-unfold
  make-bitwise-generator
- exact-integer-sqrt)
+ exact-integer-sqrt
+ lcm)
 
 (define complex? number?)
 
@@ -334,3 +336,26 @@
         (values root remainder)
         (values (inexact root) (inexact remainder)))))
 
+(define (maybe-make-inexact make-inexact? value)
+  (if make-inexact? (inexact value) value))
+
+(define (make-polyadic empty-result f)
+  (lambda ns
+    (if (null? ns)
+        empty-result
+        (let loop ((result (exact (car ns)))
+                   (all-exact? (exact? (car ns)))
+                   (ns (cdr ns)))
+          (if (null? ns)
+              (maybe-make-inexact (not all-exact?) result)
+              (let ((n (car ns)))
+                (loop (f result (exact n))
+                      (and all-exact? (exact? n))
+                      (cdr ns))))))))
+
+(define gcd (make-polyadic 0 %gcd))
+
+(define (lcm/2 a b)
+  (* (abs a) (/ (abs b) (%gcd a b))))
+
+(define lcm (make-polyadic 1 lcm/2))

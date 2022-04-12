@@ -323,6 +323,18 @@
     (test-equal 3.0 (sqrt 9))
     (test-equal 1.0i (sqrt -1))))
 
+(define (test-gcd/lcm)
+  (test-group "gcd/lcm"
+    (test-equal 4 (gcd 32 -36))
+    (test-equal 4.0 (gcd 32.0 -36))
+    (test-equal 0 (gcd))
+    (test-equal 2 (gcd 6 8 12))
+
+    (test-equal 288 (lcm 32 -36))
+    (test-equal 288.0 (lcm 32.0 -36))
+    (test-equal 1 (lcm))
+    (test-equal 24 (lcm 6 8 12))))
+
 (define (test-numeric)
   (test-group "numeric"
     (test-comparison)
@@ -331,7 +343,8 @@
     (test-categories)
     (test-rounding)
     (test-bitwise)
-    (test-squares)))
+    (test-squares)
+    (test-gcd/lcm)))
 
 (when-main-module
  (test-numeric))
