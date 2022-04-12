@@ -227,6 +227,15 @@ TEST_F(compiler, compile_if) {
   EXPECT_EQ(expect<integer>(result11).value(), 15);
 }
 
+TEST_F(compiler, let_does_not_mutate_variables) {
+  ptr<> result = eval(R"(
+    (let ((value 0))
+      (let ((other-value (if #f value (+ value 1))))
+        value))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 0);
+}
+
 TEST_F(compiler, compile_closure) {
   ptr<> result1 = eval(
     R"(

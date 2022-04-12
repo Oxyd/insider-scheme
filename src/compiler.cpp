@@ -242,7 +242,10 @@ namespace {
   class result_register {
   public:
     explicit
-    result_register(bool result_used = true) : used_{result_used} { }
+    result_register(bool result_used = true, bool may_alias = false)
+      : used_{result_used}
+      , may_alias_{may_alias}
+    { }
 
     bool
     result_used() const { return used_; }
@@ -256,9 +259,13 @@ namespace {
     void
     set(shared_register reg) { assert(!reg_); reg_ = reg; }
 
+    bool
+    may_alias() const { return may_alias_; }
+
   private:
     shared_register reg_;
     bool used_;
+    bool may_alias_;
   };
 }
 
@@ -288,6 +295,13 @@ static shared_register
 compile_expression_to_register(context& ctx, procedure_context& proc, expression const& stx, bool tail) {
   result_register result;
   compile_expression(ctx, proc, stx, tail, result);
+  return result.has_result() ? result.get(proc) : shared_register{};
+}
+
+static shared_register
+compile_expression_to_fresh_register(context& ctx, procedure_context& proc, expression const& stx) {
+  result_register result{true, false};
+  compile_expression(ctx, proc, stx, false, result);
   return result.has_result() ? result.get(proc) : shared_register{};
 }
 
@@ -429,7 +443,7 @@ static void
 compile_let(context& ctx, procedure_context& proc, let_expression const& stx, bool tail, result_register& result) {
   variable_bindings::scope scope;
   for (auto const& def : stx.definitions) {
-    shared_register value = compile_expression_to_register(ctx, proc, *def.expression, false);
+    shared_register value = compile_expression_to_fresh_register(ctx, proc, *def.expression);
     scope.emplace_back(variable_bindings::binding{def.variable, std::move(value)});
   }
 
@@ -501,17 +515,6 @@ static void
 compile_if(context& ctx, procedure_context& proc, if_expression const& stx, bool tail, result_register& result) {
   shared_register test_value = compile_expression_to_register(ctx, proc, *stx.test, false);
 
-  // The two subexpressions, then-expr and else-expr, will possibly place their
-  // result in a different register. We will handle this by appending a set to
-  // else-expr that moves its result to the same register then-expr uses. This
-  // works out nicely in the case this is a one-armed if, where we can simply
-  // set the then-expr's result register to #void if the else branch happens to
-  // be taken.
-  //
-  // Since both subexpressions are in tail position with respect to the if, it
-  // is possible that one or both will exit with a tail-call and as such, they
-  // won't have any value to return to the if.
-
   proc.bytecode_stack.emplace_back();
   compile_expression(ctx, proc, *stx.consequent, tail, result);
   std::size_t skip_num{};
@@ -519,7 +522,7 @@ compile_if(context& ctx, procedure_context& proc, if_expression const& stx, bool
   if (stx.alternative) {
     // If we got here by executing the then-branch, skip over the
     // else-branch. If the test condition was false, we'll jump right after this
-    // jump, skipping it. Again, we'll have to backpatch the actual offset.
+    // jump, skipping it. We'll have to backpatch the actual offset.
 
     proc.bytecode_stack.emplace_back();
     compile_expression(ctx, proc, *stx.alternative, tail, result);
@@ -621,7 +624,7 @@ compile_local_reference(procedure_context& proc, local_reference_expression cons
 
   shared_register var_reg = proc.bindings.lookup(stx.variable);
 
-  if (!result.has_result())
+  if (!result.has_result() && result.may_alias())
     result.set(var_reg);
   else {
     shared_register result_reg = result.get(proc);
