@@ -509,6 +509,9 @@ inexact_number_to_nondecimal_string(context& ctx, ptr<> z, unsigned base, ptr<te
 std::string
 number_to_string(context& ctx, ptr<> z, unsigned base) {
   throw_if_base_not_allowed(base);
+  if (!is_number(z))
+    throw std::runtime_error{"Expected a number"};
+
   auto p = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
 
   if (is_exact(z) || base == 10)

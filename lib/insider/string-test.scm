@@ -126,6 +126,10 @@
     (test-equal 100.0 (string->number "1e2"))
     (test-eq #f (string->number "1a"))
 
+    (test-equal "12" (number->string 12))
+    (test-equal "c" (number->string 12 16))
+    (test-error (number->string 'number))
+
     (test-equal "A" (utf8->string #u8(#x41)))
     (test-equal "příšerně žluťoučký kůň úpěl ďábelské ódy"
                 (utf8->string #u8(#x70 #xc5 #x99 #xc3 #xad #xc5 #xa1 #x65 #x72 #x6e #xc4 #x9b #x20 #xc5 #xbe #x6c #x75 #xc5 #xa5 #x6f #x75 #xc4 #x8d #x6b #xc3 #xbd #x20 #x6b #xc5 #xaf #xc5 #x88 #x20 #xc3 #xba #x70 #xc4 #x9b #x6c #x20 #xc4 #x8f #xc3 #xa1 #x62 #x65 #x6c #x73 #x6b #xc3 #xa9 #x20 #xc3 #xb3 #x64 #x79)))
