@@ -335,6 +335,11 @@
     (test-equal 1 (lcm))
     (test-equal 24 (lcm 6 8 12))))
 
+(define (test-rationalize)
+  (test-group "rationalize"
+    (test-equal 1/3 (rationalize 3/10 1/10))
+    (test-equal #i1/3 (rationalize 0.3 1/10))))
+
 (define (test-numeric)
   (test-group "numeric"
     (test-comparison)
@@ -344,7 +349,8 @@
     (test-rounding)
     (test-bitwise)
     (test-squares)
-    (test-gcd/lcm)))
+    (test-gcd/lcm)
+    (test-rationalize)))
 
 (when-main-module
  (test-numeric))

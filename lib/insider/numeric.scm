@@ -38,7 +38,8 @@
  bitwise-fold bitwise-for-each bitwise-unfold
  make-bitwise-generator
  exact-integer-sqrt
- lcm)
+ lcm
+ rationalize)
 
 (define complex? number?)
 
@@ -359,3 +360,42 @@
   (* (abs a) (/ (abs b) (%gcd a b))))
 
 (define lcm (make-polyadic 1 lcm/2))
+
+;; This implementation of rationalize is due to Alan Bawden:
+;; https://ml.cddddr.org/scheme/msg01498.html
+
+; Produces the simplest rational between X and Y inclusive.
+; (In the comments that follow, [x] means floor(x).)
+(define (simplest-rational x y)
+  (define (simplest-rational-internal x y)	; assumes 0 < X < Y
+    (let ((fx (floor x))	; [X] <= X < [X]+1
+	  (fy (floor y)))	; [Y] <= Y < [Y]+1, also [X] <= [Y]
+      (cond ((not (< fx x))
+	     ;; X is an integer so X is the answer:
+	     fx)
+	    ((= fx fy)
+	     ;; [Y] = [X] < X < Y so expand the next term in the continued
+	     ;; fraction:
+	     (+ fx (/ (simplest-rational-internal (/ (- y fy)) (/ (- x fx))))))
+	    (else
+	     ;; [X] < X < [X]+1 <= [Y] <= Y so [X]+1 is the answer:
+	     (+ 1 fx)))))
+  (cond ((< y x)
+	 ;; Y < X so swap and try again:
+	 (simplest-rational y x))
+	((not (< x y))
+	 ;; X = Y so if that is a rational that is the answer, otherwise
+	 ;; there is nothing we can return at all.
+	 (if (rational? x) x (error)))
+	((positive? x) 
+	 ;; 0 < X < Y which is what SIMPLEST-RATIONAL-INTERNAL expects:
+	 (simplest-rational-internal x y))
+	((negative? y)
+	 ;; X < Y < 0 so 0 < -Y < -X and we negate the answer:
+	 (- (simplest-rational-internal (- y) (- x))))
+	(else
+	 ;; X <= 0 <= Y so zero is the answer:
+	 0)))
+
+(define (rationalize x e)
+  (simplest-rational (- x e) (+ x e)))
