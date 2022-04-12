@@ -1,5 +1,4 @@
-(import (insider syntax) (insider basic-procedures) (insider list) (insider string) (insider error)
-        (srfi 64))
+(import (scheme base) (srfi 64))
 
 ;;;
 ;;;  This is a test suite written in the notation of 

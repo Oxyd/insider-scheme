@@ -80,11 +80,12 @@
   (failed-tests test-runner-failed-tests test-runner-failed-tests!))
 
 (define-record-type <test-group>
-  (make-test-group name expected-count actual-count skip-specifiers)
+  (make-test-group name expected-count actual-count failed? skip-specifiers)
   test-group?
   (name test-group-name)
   (expected-count test-group-expected-count)
   (actual-count test-group-actual-count test-group-actual-count!)
+  (failed? test-group-failed? test-group-set-failed!)
   (skip-specifiers test-group-skip-specifiers))
 
 (define (test-runner-get)
@@ -134,13 +135,7 @@
         name)))
 
 (define (test-on-test-begin-simple runner)
-  (display/colour
-   'green
-   (case (test-result-kind runner)
-     ((skip) "[ SKIP     ] ")
-     (else   "[ RUN      ] ")))
-  (display (test-name-for-display runner))
-  (newline))
+  #void)
 
 (define (fail-reason-comparison runner)
   (let ((expected (test-result-ref runner 'expected-value))
@@ -169,31 +164,40 @@
 (define (test-on-test-end-simple runner)
   (case (test-result-kind runner)
     ((pass)
-     (display/colour 'green "[       OK ]\n"))
+     #void)
     ((fail)
+     (display/colour 'red "[     FAIL ] ")
+     (display (test-name-for-display runner))
+     (newline)
      (display/colour 'red "[     FAIL ] ")
      (display (fail-reason runner))
      (newline))
     ((xpass)
      (display/colour 'red "[     FAIL ] ")
+     (display (test-name-for-display runner))
+     (newline)
+     (display/colour 'red "[     FAIL ] ")
      (display "Test was expected to fail, but it passed\n"))
     ((xfail)
+     (display/colour 'green "[  OK FAIL ] ")
+     (display (test-name-for-display runner))
+     (newline)
      (display/colour 'green "[  OK FAIL ] ")
      (display "Test was expected to fail, and did\n"))
     ((skip)
      #void)))
 
 (define (test-on-group-begin-simple runner suite-name count)
-  (display/colour 'green "[----------] ")
-  (display "Begin ")
-  (display suite-name)
+  (display/colour 'green "[ RUN      ] ")
+  (display (group-path-string runner))
   (newline))
 
 (define (test-on-group-end-simple runner)
   (let ((group (current-test-group runner)))
-    (display/colour 'green "[----------] ")
-    (display "End ")
-    (display (test-group-name group))
+    (if (test-group-failed? group)
+        (display/colour 'red "[     FAIL ] ")
+        (display/colour 'green "[       OK ] "))
+    (display (group-path-string runner))
     (display ": ran ")
     (display/plural (test-group-actual-count group) "test" "tests")
     (newline)))
@@ -283,7 +287,7 @@
 (define (push-test-group! runner group-name expected-count)
   (test-runner-current-groups! runner
                                (cons (make-test-group group-name
-                                                      expected-count 0
+                                                      expected-count 0 #f
                                                       (test-runner-skip-specifiers runner))
                                      (test-runner-current-groups runner))))
 
@@ -389,18 +393,23 @@
     ((pass) result)
     (else (invert-result result))))
 
-(define (test-path->string runner)
-  (define (group-path->string groups)
-    (cond ((null? groups)
-           "")
-          (else
-           (string-append (car groups) "/" (group-path->string (cdr groups))))))
-  (string-append (group-path->string (test-runner-group-path runner))
+(define (group-path-string runner)
+  (string-join (test-runner-group-path runner) "/"))
+
+(define (test-path-string runner)
+  (string-append (group-path-string runner)
+                 "/"
                  (test-name-for-display runner)))
 
+(define (mark-current-group-failed! runner)
+  (cond ((current-test-group runner)
+         => (lambda (group)
+              (test-group-set-failed! group #t)))))
+
 (define (record-failed-test! runner)
-  (test-runner-failed-tests! runner (cons (test-path->string runner)
-                                          (test-runner-failed-tests runner))))
+  (test-runner-failed-tests! runner (cons (test-path-string runner)
+                                          (test-runner-failed-tests runner)))
+  (mark-current-group-failed! runner))
 
 (define (record-result! runner result-kind)
   (case result-kind
