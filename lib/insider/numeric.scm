@@ -8,6 +8,7 @@
                       number? exp log
                       abs floor ceiling truncate round
                       inexact? exact? exact-integer? real? rational? inexact exact expt
+                      square sqrt
 
                       fraction-numerator fraction-denominator
 
@@ -24,7 +25,7 @@
  integer? odd? even? zero? positive? negative?
  number? exp log
  abs floor ceiling truncate round
- inexact? exact? exact-integer? real? rational? inexact exact expt
+ inexact? exact? exact-integer? real? rational? inexact exact expt square sqrt
 
  ;; Defined here
  complex? floor/ floor-quotient floor-remainder modulo quotient remainder min max
@@ -34,7 +35,8 @@
  bit-field-replace bit-field-replace-same bit-field-rotate bit-field-reverse
  bits->list bits->vector list->bits vector->bits bits
  bitwise-fold bitwise-for-each bitwise-unfold
- make-bitwise-generator)
+ make-bitwise-generator
+ exact-integer-sqrt)
 
 (define complex? number?)
 
@@ -296,3 +298,39 @@
     (let ((current (number->boolean (bitwise-and i 1))))
       (set! i (arithmetic-shift i -1))
       current)))
+
+(define (initial-sqrt-estimate i)
+  (arithmetic-shift i (- (truncate-quotient (integer-length i) 2))))
+
+(define (sqrt-error i estimate)
+  (/ (- i (square estimate)) (* 2 estimate)))
+
+(define (update-sqrt-estimate i old-estimate)
+  (round (* 1/2 (+ old-estimate (/ i old-estimate)))))
+
+(define (estimate-sqrt i)
+  (let loop ((estimate (initial-sqrt-estimate i)))
+    (let ((error (sqrt-error i estimate)))
+      (if (< (abs error) 1)
+          estimate
+          (loop (update-sqrt-estimate i estimate))))))
+
+(define (exact-iteger-sqrt/exact i)
+  (let* ((estimate (estimate-sqrt i))
+         (estimate-squared (square estimate)))
+    (let ((estimate* (if (<= estimate-squared i)
+                         estimate
+                         (- estimate 1)))
+          (estimate-squared* (if (<= estimate-squared i)
+                                 estimate-squared
+                                 (+ estimate-squared (* -2 estimate) 1))))
+      (values estimate* (- i estimate-squared*)))))
+
+(define (exact-integer-sqrt i)
+  (unless (and (integer? i) (>= i 0))
+    (error "Expected a non-negative integer"))
+  (let-values (((root remainder) (exact-iteger-sqrt/exact (exact i))))
+    (if (exact? i)
+        (values root remainder)
+        (values (inexact root) (inexact remainder)))))
+

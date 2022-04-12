@@ -4,6 +4,8 @@
 #include "define_procedure.hpp"
 #include "write.hpp"
 
+#include <csignal>
+
 namespace insider {
 
 void
@@ -191,6 +193,11 @@ make_internal_module(context& ctx) {
       ctx.store.verbose_collection = value->value();
     }
   );
+
+  define_procedure(ctx, "trap!", result, true,
+                   [] ([[maybe_unused]] ptr<> value) {
+                     raise(SIGTRAP);
+                   });
 
   return result;
 }

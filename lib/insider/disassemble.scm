@@ -1,5 +1,6 @@
 (library (insider disassemble))
-(import (insider syntax) (insider basic-procedures) (insider file) (insider string) (insider list)
+(import (insider syntax) (insider basic-procedures) (insider io) (insider string) (insider list)
+        (insider vector) (insider numeric)
         (only (insider internal)
               procedure-bytecode procedure-name opcodes instruction-opcode instruction-operands
               top-level-name static-value top-level-value closure-procedure))
@@ -55,20 +56,10 @@
     (string-append m
                    (make-string (- longest-mnemonic len) #\space))))
 
-(define (string-join strings)
-  (let loop ((result (make-string 0))
-             (strings strings)
-             (first? #t))
-    (if (null? strings)
-        result
-        (loop (string-append result (if first? "" ", ") (car strings))
-              (cdr strings)
-              #f))))
-
 (define (format-instruction instr)
   (string-append (format-mnemonic (instruction-mnemonic instr))
                  " "
-                 (string-join (map number->string (instruction-operands instr)))))
+                 (string-join (map number->string (instruction-operands instr)) ", ")))
 
 (define (format-related kind value)
   (string-append (symbol->string kind)

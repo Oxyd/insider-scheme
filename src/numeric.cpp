@@ -1768,6 +1768,35 @@ integer_bit_length(integer::value_type i) {
     return integer::storage_width - std::countl_one(static_cast<unsigned_type>(i));
 }
 
+static limb_type
+last_limb_in_twos_complement(ptr<big_integer> i) {
+  limb_type result{};
+  for (twos_complement_iterator it{i}; !it.done(); ++it)
+    result = *it;
+  return result;
+}
+
+static std::size_t
+big_integer_bit_length(ptr<big_integer> i) {
+  std::size_t result = limb_width * (i->size() - 1);
+  limb_type last_limb = last_limb_in_twos_complement(i);
+  if (i->positive())
+    result += limb_width - std::countl_zero(last_limb);
+  else
+    result += limb_width - std::countl_one(last_limb);
+  return result;
+}
+
+static std::size_t
+integer_length(ptr<> x) {
+  if (auto i = match<integer>(x))
+    return integer_bit_length(i->value());
+  else if (auto bi = match<big_integer>(x))
+    return big_integer_bit_length(bi);
+  else
+    throw std::runtime_error{"Expected an exact integer"};
+}
+
 static ptr<big_integer>
 big_complement(context& ctx, ptr<big_integer> b) {
   auto minus_one = make<big_integer>(ctx, std::vector{big_integer::limb_type{1}}, false);
@@ -2748,7 +2777,7 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "bitwise-xor", result, true, bitwise_xor);
   define_procedure(ctx, "bitwise-not", result, true, bitwise_not);
   define_procedure(ctx, "bit-count", result, true, bit_count);
-  define_procedure(ctx, "integer-length", result, true, integer_bit_length);
+  define_procedure(ctx, "integer-length", result, true, integer_length);
   define_procedure(ctx, "first-set-bit", result, true, first_set_bit);
   define_procedure(ctx, "integer?", result, true, is_integer);
   define_procedure(ctx, "exact-integer?", result, true, is_exact_integer);
@@ -2777,6 +2806,8 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "exact", result, true, exact);
   define_procedure(ctx, "fraction-numerator", result, true, &fraction::numerator);
   define_procedure(ctx, "fraction-denominator", result, true, &fraction::denominator);
+  define_procedure(ctx, "square", result, true, square);
+  define_procedure(ctx, "sqrt", result, true, sqrt);
 }
 
 } // namespace insider
