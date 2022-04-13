@@ -30,14 +30,15 @@ namespace detail {
       if (args.size() < min_args)
         throw std::runtime_error{fmt::format(
           "{}: Wrong number of arguments, expected {}{}, got {}",
-          name, min_args != max_args ? "at least" : "",
+          name, min_args != max_args ? "at least " : "",
           min_args, args.size()
         )};
 
       if (args.size() > max_args)
         throw std::runtime_error{fmt::format(
-          "{}: Wrong number of arguments, expected at most {}, got {}",
-          name, max_args, args.size()
+          "{}: Wrong number of arguments, expected {}{}, got {}",
+          name, min_args != max_args ? "at most " : "",
+          max_args, args.size()
         )};
     }
 
