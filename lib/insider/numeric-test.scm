@@ -72,7 +72,17 @@
     (test (negative? -1/2))
     (test (negative? -0.1))
     (test-false (negative? 1))
-    (test-false (negative? 0))))
+    (test-false (negative? 0))
+
+    (test-false (infinite? 3))
+    (test (infinite? +inf.0))
+    (test-false (infinite? +nan.0))
+    (test (infinite? 3.0+inf.0i))
+
+    (test (nan? +nan.0))
+    (test-false (nan? 32))
+    (test (nan? +nan.0+5.0i))
+    (test-false (nan? 1+2i))))
 
 (define (test-rounding)
   (test-group "rounding"
@@ -340,6 +350,55 @@
     (test-equal 1/3 (rationalize 3/10 1/10))
     (test-equal #i1/3 (rationalize 0.3 1/10))))
 
+(define (test-complex)
+  (test-group "complex"
+    (test-equal 1+2i (make-rectangular 1 2))
+    (test (< (magnitude (- 1.0+1.0i (make-polar (sqrt 2) (atan 1))))
+             1e-6))
+    (test-equal 1 (real-part 1+2i))
+    (test-equal 2 (imag-part 1+2i))
+    (test-equal (sqrt 2) (magnitude 1+1i))
+    (test-equal (atan 1) (angle 1+1i))))
+
+(define-syntax test-close
+  (syntax-rules ()
+    ((test-close expected expr error)
+     (test (< (magnitude (- expr expected)) error)))))
+
+(define (test-transcendental)
+  (test-group "transcendental"
+    (test-group "exp"
+      (test-equal 1.0 (exp 0))
+      (test-close 20.0855369231877 (exp 3) 1e-6)
+      (test-close -1.0 (exp (* -i (* 4 (atan 1)))) 1e-6))
+
+    (test-group "log"
+      (test-equal 0.0 (log 1))
+      (test-equal 1.0 (log (exp 1)))
+      (test-close 42.0 (log (exp 42)) 1e-6)
+      (test-close 2.0 (log 100 10) 1e-6)
+      (test-close 12.0 (log 4096 2) 1e-6))
+
+    (test-group "sin"
+      (test-equal 0.0 (sin 0))
+      (test-approximate 1.0 (sin 1.5707963267949) 1e-6))
+
+    (test-group "cos"
+      (test-equal 1.0 (cos 0))
+      (test-approximate -1.0 (cos 3.14159265358979) 1e-6))
+
+    (test-group "tan"
+      (test-equal 0.0 (tan 0))
+      (test-approximate 1.5574077246549 (tan 1) 1e-6))
+
+    (test-group "asin"
+      (test-equal 0.0 (asin 0))
+      (test-approximate 1.5707963267949 (asin 1) 1e-6))
+
+    (test-group "acos"
+      (test-equal 0.0 (acos 1))
+      (test-approximate 3.14159265358979 (acos -1) 1e-6))))
+
 (define (test-numeric)
   (test-group "numeric"
     (test-comparison)
@@ -350,7 +409,9 @@
     (test-bitwise)
     (test-squares)
     (test-gcd/lcm)
-    (test-rationalize)))
+    (test-rationalize)
+    (test-complex)
+    (test-transcendental)))
 
 (when-main-module
  (test-numeric))

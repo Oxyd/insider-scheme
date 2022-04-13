@@ -1,14 +1,15 @@
 (library (insider numeric))
-(import (insider syntax) (insider error) (insider list) (insider basic-procedures)
+(import (insider syntax) (insider error) (insider list) (insider basic-procedures) (scheme case-lambda)
         (rename (only (insider internal)
                       + - * / = < <= > >= truncate/ truncate-quotient truncate-remainder
                       gcd arithmetic-shift bitwise-and bitwise-ior bitwise-xor bitwise-not
                       bit-count integer-length first-set-bit
                       integer? odd? even? zero? positive? negative?
-                      number? exp log
-                      abs floor ceiling truncate round
+                      number? infinite? finite? nan?
+                      exp log abs floor ceiling truncate round
                       inexact? exact? exact-integer? real? rational? inexact exact expt
-                      square sqrt
+                      square sqrt angle magnitude make-rectangular make-polar real-part imag-part
+                      sin cos tan asin acos atan
 
                       fraction-numerator fraction-denominator
 
@@ -16,7 +17,8 @@
                 (bitwise-and %bitwise-and)
                 (bitwise-ior %bitwise-ior)
                 (bitwise-xor %bitwise-xor)
-                (gcd %gcd)))
+                (gcd %gcd)
+                (log %log)))
 (export
  ;; From core
  + - * / = < <= > >= truncate/ truncate-quotient truncate-remainder
@@ -24,9 +26,11 @@
  bitwise-nand bitwise-nor bitwise-andc1 bitwise-andc2 bitwise-orc1 bitwise-orc2
  bit-count integer-length first-set-bit
  integer? odd? even? zero? positive? negative?
- number? exp log
- abs floor ceiling truncate round
+ number? infinite? finite? nan?
+ exp abs floor ceiling truncate round
  inexact? exact? exact-integer? real? rational? inexact exact expt square sqrt
+ angle magnitude make-rectangular make-polar real-part imag-part
+ sin cos tan asin acos atan
 
  ;; Defined here
  complex? floor/ floor-quotient floor-remainder modulo quotient remainder min max
@@ -39,7 +43,8 @@
  make-bitwise-generator
  exact-integer-sqrt
  lcm
- rationalize)
+ rationalize
+ log)
 
 (define complex? number?)
 
@@ -399,3 +404,11 @@
 
 (define (rationalize x e)
   (simplest-rational (- x e) (+ x e)))
+
+(define log
+  (case-lambda
+   ((z)
+    (%log z))
+
+   ((z base)
+    (/ (%log z) (%log base)))))

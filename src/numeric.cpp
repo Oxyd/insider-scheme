@@ -2759,6 +2759,22 @@ read_integer(context& ctx, std::string const& digits, unsigned base) {
   return result;
 }
 
+static ptr<>
+real_part(ptr<> x) {
+  if (auto z = match<complex>(x))
+    return z->real();
+  else
+    return x;
+}
+
+static ptr<>
+imag_part(ptr<> x) {
+  if (auto z = match<complex>(x))
+    return z->imaginary();
+  else
+    return integer_to_ptr(0);
+}
+
 void
 export_numeric(context& ctx, module_& result) {
   export_native(ctx, result, "+", add, special_top_level_tag::plus);
@@ -2789,6 +2805,9 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "number?", result, true, is_number);
   define_procedure(ctx, "real?", result, true, is_real);
   define_procedure(ctx, "rational?", result, true, is_rational);
+  define_procedure(ctx, "finite?", result, true, is_finite);
+  define_procedure(ctx, "infinite?", result, true, is_infinite);
+  define_procedure(ctx, "nan?", result, true, is_nan);
   define_procedure(ctx, "exp", result, true, exp);
   define_procedure(ctx, "log", result, true, log);
   define_procedure(ctx, "expt", result, true, expt);
@@ -2808,6 +2827,18 @@ export_numeric(context& ctx, module_& result) {
   define_procedure(ctx, "fraction-denominator", result, true, &fraction::denominator);
   define_procedure(ctx, "square", result, true, square);
   define_procedure(ctx, "sqrt", result, true, sqrt);
+  define_procedure(ctx, "angle", result, true, angle);
+  define_procedure(ctx, "magnitude", result, true, magnitude);
+  define_procedure(ctx, "make-rectangular", result, true, make_rectangular);
+  define_procedure(ctx, "make-polar", result, true, make_polar);
+  define_procedure(ctx, "real-part", result, true, real_part);
+  define_procedure(ctx, "imag-part", result, true, imag_part);
+  define_procedure(ctx, "sin", result, true, sin);
+  define_procedure(ctx, "cos", result, true, cos);
+  define_procedure(ctx, "tan", result, true, tan);
+  define_procedure(ctx, "asin", result, true, asin);
+  define_procedure(ctx, "acos", result, true, acos);
+  define_procedure(ctx, "atan", result, true, atan);
 }
 
 } // namespace insider
