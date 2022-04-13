@@ -531,9 +531,9 @@
 (define-syntax test-approximate
   (syntax-rules ()
     ((test-approximate name expected expr error)
-     (let ((value expr))
-       (and (>= value (- expected error))
-            (<= value (+ expected error)))))
+     (let ((value expr) (ex expected) (er error))
+       (and (>= value (- ex er))
+            (<= value (+ ex er)))))
 
     ((test-approximate expected expr error)
      (test-approximate "" expected expr error))))
