@@ -6,12 +6,13 @@
                       flush-output-port char-ready? u8-ready?
                       current-input-port-tag current-output-port-tag current-error-port-tag
                       current-source-file-origin-tag port-open? close-port
-                      open-input-file open-input-string open-input-bytevector
-                      open-output-file open-output-string open-output-bytevector
+                      open-input-file open-binary-input-file open-input-string open-input-bytevector
+                      open-output-file open-binary-output-file open-output-string open-output-bytevector
                       close-input-port close-output-port display
                       get-output-bytevector get-output-string newline open-source-file-relative
                       read read-syntax read-syntax-multiple read-syntax-multiple-ci
-                      write write-shared write-simple)
+                      write write-shared write-simple
+                      file-exists? delete-file)
                 (read-char %read-char)
                 (peek-char %peek-char)
                 (read-u8 %read-u8)
@@ -20,19 +21,17 @@
                 (flush-output-port %flush-output-port)
                 (char-ready? %char-ready?)
                 (u8-ready? %u8-ready?)))
-(export
- binary-port? call-with-input-file call-with-output-file call-with-port
- char-ready? close-input-port close-output-port close-port current-error-port
- current-input-port current-output-port current-source-file-origin display
- eof-object eof-object? flush-output-port flush-output-port
- get-output-bytevector get-output-string input-port-open? input-port? newline
- open-input-bytevector open-input-file open-input-string open-output-bytevector
- open-output-file open-output-string open-source-file-relative output-port-open?
- output-port? peek-char peek-u8 port? read read-bytevector read-bytevector!
- read-char read-line read-string read-syntax read-syntax-multiple
- read-syntax-multiple-ci read-u8 textual-port? u8-ready? with-input-from-file
- with-output-to-file write write-bytevector write-char write-shared write-simple
- write-string write-u8)
+(export binary-port? call-with-input-file call-with-output-file call-with-port char-ready?
+        close-input-port close-output-port close-port current-error-port current-input-port
+        current-output-port current-source-file-origin delete-file display eof-object eof-object?
+        file-exists?  flush-output-port flush-output-port get-output-bytevector get-output-string
+        input-port-open?  input-port?  newline open-input-bytevector open-input-file open-input-string
+        open-binary-input-file open-binary-output-file open-output-bytevector open-output-file
+        open-output-string open-source-file-relative output-port-open?  output-port?  peek-char peek-u8
+        port?  read read-bytevector read-bytevector!  read-char read-line read-string read-syntax
+        read-syntax-multiple read-syntax-multiple-ci read-u8 textual-port?  u8-ready?  with-input-from-file
+        with-output-to-file write write-bytevector write-char write-shared write-simple write-string
+        write-u8)
 
 (define current-input-port (make-parameter-from-tag current-input-port-tag))
 (define current-output-port (make-parameter-from-tag current-output-port-tag))

@@ -372,10 +372,26 @@ open_input_file(context& ctx, std::filesystem::path const& path) {
     throw make<file_error>(ctx, fmt::format("Can't open {} for reading: {}", path.string(), strerror(errno)));
 }
 
+static ptr<binary_input_port>
+open_binary_input_file(context& ctx, std::filesystem::path const& path) {
+  if (std::FILE* f = open_file(path, _T("rb")))
+    return make<binary_input_port>(ctx, std::make_unique<file_port_source>(f));
+  else
+    throw make<file_error>(ctx, fmt::format("Can't open {} for reading: {}", path.string(), strerror(errno)));
+}
+
 static ptr<textual_output_port>
 open_output_file(context& ctx, std::string const& path) {
   if (std::FILE* f = open_file(path, _T("w")))
     return make<textual_output_port>(ctx, std::make_unique<file_port_sink>(f));
+  else
+    throw make<file_error>(ctx, fmt::format("Can't open {} for writing: {}", path, strerror(errno)));
+}
+
+static ptr<binary_output_port>
+open_binary_output_file(context& ctx, std::string const& path) {
+  if (std::FILE* f = open_file(path, _T("wb")))
+    return make<binary_output_port>(ctx, std::make_unique<file_port_sink>(f));
   else
     throw make<file_error>(ctx, fmt::format("Can't open {} for writing: {}", path, strerror(errno)));
 }
@@ -423,10 +439,32 @@ is_port_open(ptr<> port) {
     throw std::runtime_error{"Expected a port"};
 }
 
+template <typename Thunk>
+auto
+guard_filesystem_error(context& ctx, Thunk&& thunk) {
+  try {
+    return thunk();
+  } catch (std::filesystem::filesystem_error const& e) {
+    throw make<file_error>(ctx, e.what());
+  }
+}
+
+static bool
+file_exists(context& ctx, std::filesystem::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return std::filesystem::exists(p); });
+}
+
+static void
+delete_file(context& ctx, std::filesystem::path const& p) {
+  guard_filesystem_error(ctx, [&] { return std::filesystem::remove(p); });
+}
+
 void
 export_port(context& ctx, module_& result) {
   define_procedure(ctx, "open-input-file", result, true, open_input_file);
   define_procedure(ctx, "open-output-file", result, true, open_output_file);
+  define_procedure(ctx, "open-binary-input-file", result, true, open_binary_input_file);
+  define_procedure(ctx, "open-binary-output-file", result, true, open_binary_output_file);
   define_procedure(ctx, "close-port", result, true, close);
   define_procedure(ctx, "close-output-port", result, true, close);
   define_procedure(ctx, "close-input-port", result, true, close);
@@ -445,6 +483,8 @@ export_port(context& ctx, module_& result) {
   define_procedure(ctx, "port-open?", result, true, is_port_open);
   define_procedure(ctx, "char-ready?", result, true, &textual_input_port::char_ready);
   define_procedure(ctx, "u8-ready?", result, true, &binary_input_port::u8_ready);
+  define_procedure(ctx, "file-exists?", result, true, file_exists);
+  define_procedure(ctx, "delete-file", result, true, delete_file);
 }
 
 } // namespace insider
