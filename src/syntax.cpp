@@ -68,12 +68,6 @@ syntax::update_and_get_expression(context& ctx) {
   return expression_;
 }
 
-ptr<symbol>
-syntax::get_symbol() const {
-  assert(contains<symbol>());
-  return assume<symbol>(expression_);
-}
-
 ptr<syntax>
 syntax::update_scope(free_store& fs, ptr<scope> s, scope_set_operation op) const {
   scope_set new_scopes = scopes_;

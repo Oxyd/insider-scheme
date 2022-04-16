@@ -59,7 +59,10 @@ public:
   update_and_get_expression(context&);
 
   ptr<symbol>
-  get_symbol() const;
+  get_symbol() const {
+    assert(contains<symbol>());
+    return assume<symbol>(expression_);
+  }
 
   ptr<>
   get_expression_without_update() const { return expression_; }
