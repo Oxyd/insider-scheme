@@ -60,11 +60,15 @@ file_port_source::rewind() {
 
 bool
 file_port_source::byte_ready() const {
-#ifndef __WIN32__
+#ifndef WIN32
   pollfd pfd;
   pfd.fd = fileno(f_);
   pfd.events = POLLIN;
   return poll(&pfd, 1, 0) == 1;
+#else
+  // TODO: Fix this. This only makes sense for "interactive" ports -- the console and pipes, so they could be
+  // special-cased somehow.
+  return true;
 #endif
 }
 

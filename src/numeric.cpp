@@ -27,6 +27,8 @@ static constexpr limb_type max_limb_value = std::numeric_limits<limb_type>::max(
 static constexpr unsigned  limb_width = std::numeric_limits<limb_type>::digits;
 static constexpr double_limb_type limb_mask = (double_limb_type{1} << limb_width) - 1;
 
+static constexpr std::size_t limbs_in_fixnum = sizeof(integer::representation_type) / sizeof(limb_type);
+
 std::size_t
 big_integer::extra_elements(std::size_t length) {
   return length;
@@ -194,17 +196,15 @@ normalize(context& ctx, ptr<big_integer> i) {
     }
   }
   else {
-    if (new_length <= sizeof(integer::value_type) / sizeof(limb_type)) {
+    if (new_length <= limbs_in_fixnum) {
       integer::value_type small = 0;
       for (std::size_t k = i->length(); k > 0; --k)
         small = (small << limb_width) | i->data()[k - 1];
 
-      if (i->positive() && small <= integer::max)
+      if (!i->positive())
+        small = -small;
+      if (!overflow(small))
         return integer_to_ptr(integer{small});
-      else if (!i->positive() && small <= -integer::min) {
-        assert(small <= std::numeric_limits<integer::value_type>::max());
-        return integer_to_ptr(integer{-static_cast<integer::value_type>(small)});
-      }
     }
   }
 
@@ -922,6 +922,9 @@ div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divi
   dividend = bitshift_left(ctx, dividend, normalisation_shift);
   divisor = bitshift_left(ctx, divisor, normalisation_shift);
 
+  dividend->set_positive(true);
+  divisor->set_positive(true);
+
   std::size_t dividend_len = dividend->length();
   std::size_t divisor_len = divisor->length();
   assert(dividend_len >= divisor_len);
@@ -939,12 +942,11 @@ div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divi
 
   for (std::size_t i = dividend_len - divisor_len; i > 0; --i) {
     std::size_t j = i - 1;
-    assert(divisor_len + j < dividend->length());
     assert(divisor_len + j >= 1);
     assert(divisor->positive());
 
-    limb_type q = guess_quotient(dividend->data()[divisor_len + j],
-                                 dividend->data()[divisor_len + j - 1],
+    limb_type q = guess_quotient(dividend->nth_limb_or_zero(divisor_len + j),
+                                 dividend->nth_limb_or_zero(divisor_len + j - 1),
                                  divisor->back());
     ptr<big_integer> shifted_divisor = shift(ctx, divisor, j);
     dividend = sub_big(ctx, dividend, mul_big_magnitude_by_limb(ctx, shifted_divisor, q));
@@ -1584,9 +1586,6 @@ namespace {
 
     void
     fill_current();
-
-    void
-    advance();
   };
 
 } // anonymous namespace
@@ -1618,7 +1617,7 @@ twos_complement_iterator::done() const {
   if (big_)
     return i_ >= assume<big_integer>(value_)->size();
   else
-    return i_ >= 1;
+    return i_ >= limbs_in_fixnum;
 }
 
 limb_type
@@ -1634,7 +1633,7 @@ twos_complement_iterator::fill_current() {
   if (done())
     current_ = prefix_value();
   else if (!big_)
-    current_ = assume<integer>(value_).value();
+    current_ = static_cast<limb_type>(assume<integer>(value_).value() >> (i_ * limb_width));
   else if (negative_)
     std::tie(current_, carry_) = add_limbs(~assume<big_integer>(value_)->nth_limb(i_), carry_);
   else

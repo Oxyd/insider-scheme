@@ -409,7 +409,7 @@ export_basic_types(context& ctx, module_& result) {
                    [] (ptr<uncaught_exception> e) { return e->inner_exception; });
   define_procedure(ctx, "file-error-message", result, true, &file_error::message);
 
-  define_procedure(ctx, "make-bytevector", result, true, make_bytevector, [] (context&) { return 0; });
+  define_procedure(ctx, "make-bytevector", result, true, make_bytevector, [] (context&) -> bytevector::element_type { return 0; });
   define_raw_procedure(ctx, "bytevector", result, true, make_bytevector_elems);
   define_procedure(ctx, "bytevector-length", result, true, &bytevector::size);
   define_procedure(ctx, "bytevector-u8-ref", result, true, &bytevector::ref);

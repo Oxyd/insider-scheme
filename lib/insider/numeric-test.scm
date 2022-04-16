@@ -312,26 +312,29 @@
 
 (define (test-squares)
   (test-group "squares"
-    (test-equal 4 (square 2))
-    (test-equal (expt 2 64) (square (expt 2 32)))
-    (test-equal (expt 2 66) (square (expt 2 33)))
-    (test-equal (expt 2 128) (square (expt 2 64)))
-    (test-equal (expt 2 130) (square (expt 2 65)))
-    (test-equal 2658455991569831744034644674968146176 (square 1630477228166597776))
+    (test-group "square"
+      (test-equal 4 (square 2))
+      (test-equal (expt 2 64) (square (expt 2 32)))
+      (test-equal (expt 2 66) (square (expt 2 33)))
+      (test-equal (expt 2 128) (square (expt 2 64)))
+      (test-equal (expt 2 130) (square (expt 2 65)))
+      (test-equal 2658455991569831744034644674968146176 (square 1630477228166597776)))
 
-    (test-values-equal (2 0) (exact-integer-sqrt 4))
-    (test-values-equal (2 1) (exact-integer-sqrt 5))
-    (test-values-equal (100000000000000000000000000000 0) (exact-integer-sqrt 10000000000000000000000000000000000000000000000000000000000))
-    (test-values-equal (100000000000000000000000000000 500) (exact-integer-sqrt 10000000000000000000000000000000000000000000000000000000500))
-    (test-values-equal (2.0 1.0) (exact-integer-sqrt 5.0))
-    (test-values-equal (1152921504606846976 0) (exact-integer-sqrt (expt 2 120)))
-    (test-values-equal (1630477228166597776 1772969445592542976) (exact-integer-sqrt (expt 2 121)))
-    (test-values-equal (31622776601683793319 62545769258890964239) (exact-integer-sqrt (expt 10 39)))
-    (test-values-equal ((expt 2 70) 0) (exact-integer-sqrt (expt 2 140)))
+    (test-group "exact-integer-sqrt"
+      (test-values-equal (2 0) (exact-integer-sqrt 4))
+      (test-values-equal (2 1) (exact-integer-sqrt 5))
+      (test-values-equal (100000000000000000000000000000 0) (exact-integer-sqrt 10000000000000000000000000000000000000000000000000000000000))
+      (test-values-equal (100000000000000000000000000000 500) (exact-integer-sqrt 10000000000000000000000000000000000000000000000000000000500))
+      (test-values-equal (2.0 1.0) (exact-integer-sqrt 5.0))
+      (test-values-equal (1152921504606846976 0) (exact-integer-sqrt (expt 2 120)))
+      (test-values-equal (1630477228166597776 1772969445592542976) (exact-integer-sqrt (expt 2 121)))
+      (test-values-equal (31622776601683793319 62545769258890964239) (exact-integer-sqrt (expt 10 39)))
+      (test-values-equal ((expt 2 70) 0) (exact-integer-sqrt (expt 2 140))))
 
-    (test-equal 3.0 (sqrt 9.0))
-    (test-equal 3.0 (sqrt 9))
-    (test-equal 1.0i (sqrt -1))))
+    (test-group "sqrt"
+      (test-equal 3.0 (sqrt 9.0))
+      (test-equal 3.0 (sqrt 9))
+      (test-equal 1.0i (sqrt -1)))))
 
 (define (test-gcd/lcm)
   (test-group "gcd/lcm"

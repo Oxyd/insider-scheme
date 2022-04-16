@@ -107,10 +107,13 @@ public:
   data() const { return begin(); }
 
   limb_type&
-  nth_limb(std::size_t i) { return data()[i]; }
+  nth_limb(std::size_t i) { assert(i < size()); return data()[i]; }
 
   limb_type
-  nth_limb(std::size_t i) const { return data()[i]; }
+  nth_limb(std::size_t i) const { assert(i < size()); return data()[i]; }
+
+  limb_type
+  nth_limb_or_zero(std::size_t i) const { if (i < size()) return data()[i]; else return {}; }
 
   std::size_t
   length() const { return size(); }

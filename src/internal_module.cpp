@@ -4,7 +4,11 @@
 #include "define_procedure.hpp"
 #include "write.hpp"
 
+#ifndef WIN32
 #include <csignal>
+#else
+#include <intrin.h>
+#endif
 
 namespace insider {
 
@@ -196,7 +200,11 @@ make_internal_module(context& ctx) {
 
   define_procedure(ctx, "trap!", result, true,
                    [] ([[maybe_unused]] ptr<> value) {
+#ifndef WIN32
                      raise(SIGTRAP);
+#else
+                     __debugbreak();
+#endif
                    });
 
   return result;
