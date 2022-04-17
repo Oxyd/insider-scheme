@@ -12,7 +12,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STRE
   set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -ggdb3")
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -ggdb3")
   set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
-  set(CMAKE_Cxx_FLAGS_RELEASE "-O3 -DNDEBUG")
+  set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
@@ -28,6 +28,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
   add_compile_options("/MP")
   add_compile_options("/utf-8")
   add_compile_options("/bigobj")
+  add_compile_definitions("$<$<CONFIG:RELEASE>:NDEBUG>")
+  add_link_options("$<$<CONFIG:DEBUG>:/DYNAMICBASE:NO>")
   add_definitions(-DUNICODE -D_UNICODE)
 endif()
 
