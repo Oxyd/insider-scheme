@@ -28,7 +28,7 @@ scope::scope(context& ctx, std::string desc)
 
 void
 scope_set::add(ptr<scope> env) {
-  auto elem = insert_or_find(scopes_, env);
+  insert_or_find(scopes_, env);
   assert(std::is_sorted(scopes_.begin(), scopes_.end(), scope_comparator{}));
 }
 
