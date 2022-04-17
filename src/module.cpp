@@ -11,14 +11,14 @@
 namespace insider {
 
 module_::module_(context& ctx, std::optional<module_name> const& name)
-  : env_{make_tracked<insider::scope>(ctx,
+  : env_{make_tracked<insider::scope>(ctx, ctx,
                                       fmt::format("{} module top-level",
                                                   name ? module_name_to_string(*name) : "<unnamed module>"))}
 { }
 
 auto
 module_::find(ptr<symbol> identifier) const -> std::optional<binding_type> {
-  if (auto binding = lookup(identifier, {env_.get()}))
+  if (auto binding = lookup(identifier, scope_set{env_.get()}))
     return binding;
 
   return std::nullopt;
@@ -43,6 +43,15 @@ module_::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
 ptr<procedure>
 module_::top_level_procedure() const {
   return proc_.get();
+}
+
+std::vector<std::string>
+module_::top_level_names() const {
+  std::vector<std::string> result;
+  for (auto const& [identifier, binding] : *env_)
+    if (identifier->scopes().size() == 1)
+      result.push_back(identifier_name(identifier));
+  return result;
 }
 
 void

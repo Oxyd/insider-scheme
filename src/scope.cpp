@@ -1,70 +1,85 @@
 #include "scope.hpp"
 
 #include "basic_types.hpp"
+#include "context.hpp"
 #include "syntax.hpp"
 
 namespace insider {
 
-bool
-add_scope(scope_set& set, ptr<scope> env) {
-  if (std::find(set.begin(), set.end(), env) == set.end()) {
-    set.push_back(env);
-    return true;
-  } else
-    return false;
+static std::vector<ptr<scope>>::iterator
+insert_or_find(std::vector<ptr<scope>>& set, ptr<scope> env) {
+  for (auto where = set.begin(); where != set.end(); ++where) {
+    if (*where == env)
+      return where;
+    else if ((**where).id() > env->id()) {
+      set.insert(where, env);
+      return set.end();
+    }
+  }
+
+  set.push_back(env);
+  return set.end();
+}
+
+scope::scope(context& ctx, std::string desc)
+  : description_{std::move(desc)}
+  , id_{ctx.generate_scope_id()}
+{ }
+
+void
+scope_set::add(ptr<scope> env) {
+  auto elem = insert_or_find(scopes_, env);
+  assert(std::is_sorted(scopes_.begin(), scopes_.end(), scope_comparator{}));
 }
 
 void
-remove_scope(scope_set& set, ptr<scope> env) {
-  set.erase(std::remove(set.begin(), set.end(), env), set.end());
+scope_set::remove(ptr<scope> env) {
+  scopes_.erase(std::remove(scopes_.begin(), scopes_.end(), env), scopes_.end());
+  assert(std::is_sorted(scopes_.begin(), scopes_.end(), scope_comparator{}));
 }
 
-bool
-flip_scope(scope_set& set, ptr<scope> env) {
-  auto it = std::find(set.begin(), set.end(), env);
-  if (it == set.end()) {
-    set.push_back(env);
-    return true;
-  } else {
-    set.erase(it);
-    return false;
-  }
+void
+scope_set::flip(ptr<scope> env) {
+  auto it = insert_or_find(scopes_, env);
+  if (it != scopes_.end())
+    // Was in the set, and it points to it.
+    scopes_.erase(it);
+
+  assert(std::is_sorted(scopes_.begin(), scopes_.end(), scope_comparator{}));
+}
+
+void
+scope_set::visit_members(member_visitor const& f) {
+  for (ptr<scope>& scope : scopes_)
+    f(scope);
 }
 
 void
 update_scope_set(scope_set& set, scope_set_operation op, ptr<scope> s) {
   switch (op) {
   case scope_set_operation::add:
-    add_scope(set, s);
+    set.add(s);
     break;
 
   case scope_set_operation::remove:
-    remove_scope(set, s);
+    set.remove(s);
     break;
 
   case scope_set_operation::flip:
-    flip_scope(set, s);
+    set.flip(s);
     break;
   }
 }
 
 bool
 scope_sets_subseteq(scope_set const& lhs, scope_set const& rhs) {
-  for (ptr<scope> e : lhs)
-    if (std::find(rhs.begin(), rhs.end(), e) == rhs.end())
-      return false;
-  return true;
+  return std::includes(rhs.begin(), rhs.end(), lhs.begin(), lhs.end(),
+                       scope_comparator{});
 }
 
 bool
 scope_sets_equal(scope_set const& lhs, scope_set const& rhs) {
-  return scope_sets_subseteq(lhs, rhs) && scope_sets_subseteq(rhs, lhs);
-}
-
-void
-visit_members(scope_set& set, member_visitor const& f) {
-  for (ptr<scope>& scope : set)
-    f(scope);
+  return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
 
 void
@@ -112,17 +127,6 @@ scope::find_candidates(ptr<symbol> name, scope_set const& envs) const -> std::ve
   return result;
 }
 
-std::vector<std::string>
-scope::bound_names() const {
-  std::vector<std::string> result;
-  result.reserve(bindings_.size());
-
-  for (auto const& [identifier, binding] : bindings_)
-    result.push_back(identifier_name(identifier));
-
-  return result;
-}
-
 void
 scope::visit_members(member_visitor const& f) {
   for (auto& [identifier, binding] : bindings_) {
@@ -159,7 +163,7 @@ format_scope_set(scope_set const& set) {
 
 void
 define(free_store& fs, ptr<syntax> id, std::shared_ptr<variable> value) {
-  id->scopes().back()->add(fs, id, std::move(value));
+  id->scopes().back()->add(fs, id, value);
 }
 
 void

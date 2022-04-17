@@ -55,7 +55,7 @@ syntax::syntax(ptr<> expr, source_location loc, scope_set scopes, std::vector<up
 void
 syntax::visit_members(member_visitor const& f) {
   f(expression_);
-  insider::visit_members(scopes_, f);
+  scopes_.visit_members(f);
   for (update_record& ur : update_records_)
     f(ur.scope);
 }
@@ -292,16 +292,7 @@ bound_identifier_eq(context& ctx, ptr<syntax> x, ptr<syntax> y) {
   if (x->update_and_get_expression(ctx) != y->update_and_get_expression(ctx))
     return false;
 
-  scope_set x_scopes = x->scopes();
-  scope_set y_scopes = y->scopes();
-
-  if (x_scopes.size() != y_scopes.size())
-    return false;
-
-  std::sort(x_scopes.begin(), x_scopes.end());
-  std::sort(y_scopes.begin(), y_scopes.end());
-
-  return x_scopes == y_scopes;
+  return scope_sets_equal(x->scopes(), y->scopes());
 }
 
 void
@@ -309,7 +300,7 @@ export_syntax(context& ctx, module_& result) {
   define_procedure(ctx, "syntax-expression", result, true, &syntax::update_and_get_expression);
   define_procedure(ctx, "syntax-scopes", result, true,
                    [] (context& ctx, ptr<syntax> s) {
-                     return make_list_from_vector(ctx, s->scopes());
+                     return make_list_from_vector(ctx, s->scopes().data());
                    });
   define_procedure(ctx, "syntax-add-scope", result, true,
                    [] (context& ctx, ptr<syntax> stx, ptr<scope> s) {

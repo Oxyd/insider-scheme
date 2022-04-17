@@ -7,6 +7,7 @@
 #include "object.hpp"
 #include "operand.hpp"
 #include "ptr.hpp"
+#include "scope.hpp"
 
 #include <map>
 #include <tuple>
@@ -175,6 +176,9 @@ public:
   ptr<>
   features() const { return features_.get(); }
 
+  scope::id_type
+  generate_scope_id();
+
 private:
   std::unordered_map<std::string, weak_ptr<symbol>> interned_symbols_;
   std::vector<tracked_ptr<>> statics_;
@@ -185,6 +189,7 @@ private:
   std::map<module_name, std::unique_ptr<module_>> modules_;
   std::vector<std::unique_ptr<source_code_provider>> source_providers_;
   tracked_ptr<> features_;
+  scope::id_type next_scope_id_ = 0;
 };
 
 // Create an instance of an object using the context's free store.

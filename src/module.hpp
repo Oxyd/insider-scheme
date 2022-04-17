@@ -42,7 +42,7 @@ public:
   scope() const { return env_.get(); }
 
   std::vector<std::string>
-  top_level_names() const { return env_->bound_names(); }
+  top_level_names() const;
 
   bool
   active() const { return active_; }

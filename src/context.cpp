@@ -294,4 +294,9 @@ context::add_feature(std::string const& f) {
     features_ = track(*this, cons(*this, f_sym, features_.get()));
 }
 
+scope::id_type
+context::generate_scope_id() {
+  return next_scope_id_++;
+}
+
 } // namespace insider
