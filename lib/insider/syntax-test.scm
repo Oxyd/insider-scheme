@@ -18,6 +18,16 @@
              (cond ((assv 'b '((a 1) (b 2))) => cadr)
                    (else #f)))
 
+    (test-eq 'success
+             (cond (#f 'fail)
+                   (#t
+                    'discard
+                    'success)))
+
+    (test-eq #t
+             (cond (#t)
+                   (else 'fail)))
+
     (test-eq 'composite
              (case (* 2 3)
                ((2 3 5 7) 'prime)

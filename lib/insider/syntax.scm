@@ -118,7 +118,13 @@
     ((cond (test body0 body ...) rest ...)
      (if test
          (begin body0 body ...)
-         (cond rest ...)))))
+         (cond rest ...)))
+
+    ((cond (test) rest ...)
+     (let ((value test))
+       (if value
+           value
+           (cond rest ...))))))
 
 (define (memv key list)
   (cond ((eq? list '()) #f)
