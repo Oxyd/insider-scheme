@@ -214,6 +214,7 @@ TEST_F(io, read_comments) {
             2);
   EXPECT_EQ(expect<integer>(read("7 ;; A prime number")).value(), 7);
   EXPECT_EQ(expect<string>(read(R"("foo;bar;baz" ; string)"))->value(), "foo;bar;baz");
+  EXPECT_EQ(expect<symbol>(read("foo;comment"))->value(), "foo");
 }
 
 TEST_F(io, read_datum_comment) {

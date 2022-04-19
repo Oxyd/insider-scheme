@@ -107,7 +107,7 @@ delimiter(char32_t c) {
   return whitespace(c)
          || c == '(' || c == ')'
          || c == '\'' || c == '"' || c == '`'
-         || c == '#'
+         || c == '#' || c == ';'
          ;
 }
 
