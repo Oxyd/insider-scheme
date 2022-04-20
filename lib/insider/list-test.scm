@@ -88,10 +88,26 @@
       (test-equal '(2 4) (assoc 2.0 '((1 1) (2 4) (3 9)) =))
       (test-equal '(5 7) (assv 5 '((2 3) (5 7) (11 13)))))))
 
+(define (iterating)
+  (test-group "iterating"
+    (test-group "for-each"
+      (test-equal 6 (let ((result 0))
+                      (for-each (lambda (n) (set! result (+ result n))) '(1 2 3))
+                      result))
+
+      (test-equal 32 (let ((result 0))
+                       (for-each
+                        (lambda (x y)
+                          (set! result (+ result (* x y))))
+                        '(1 2 3)
+                        '(4 5 6))
+                       result)))))
+
 (define (test-list)
   (test-group "list"
     (basics)
-    (searching)))
+    (searching)
+    (iterating)))
 
 (when-main-module
  (test-list))

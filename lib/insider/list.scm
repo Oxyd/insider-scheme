@@ -184,7 +184,7 @@
          #void)
         (else
          (apply proc (map-1 car lists))
-         (for-each-1 proc (map-1 cdr lists)))))
+         (for-each-multi proc (map-1 cdr lists)))))
 
 (define (for-each proc list1 . lists)
   (cond ((null? lists)
