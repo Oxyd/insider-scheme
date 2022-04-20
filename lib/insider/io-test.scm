@@ -119,6 +119,7 @@
     (test-port-result (eof-object) "" port (read-string 1 port))
 
     (test-port-result (list 1 2 3) "(1 2 3)" port (read port))
+    (test-port-result (eof-object) "" port (read port))
 
     (test-port-error read-error? "(1 2" port (read port))
     (test-port-error read-error? "\"foo" port (read port))))

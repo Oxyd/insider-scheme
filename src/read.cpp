@@ -1383,11 +1383,19 @@ read(context& ctx, token first_token, reader_stream& stream, bool read_syntax,
   throw read_error{"Unimplemented token", first_token.location};
 }
 
-ptr<>
-read(context& ctx, ptr<textual_input_port> stream) {
+static ptr<>
+read_optional(context& ctx, ptr<textual_input_port> stream) {
   reader_stream s{track(ctx, stream)};
   datum_labels labels;
   return read(ctx, read_token(ctx, s), s, false, labels);
+}
+
+ptr<>
+read(context& ctx, ptr<textual_input_port> stream) {
+  if (ptr<> result = read_optional(ctx, stream))
+    return result;
+  else
+    return ctx.constants->eof.get();
 }
 
 ptr<>
@@ -1420,7 +1428,7 @@ read_syntax(context& ctx, std::string s) {
 std::vector<tracked_ptr<>>
 read_multiple(context& ctx, ptr<textual_input_port> in) {
   std::vector<tracked_ptr<>> result;
-  while (ptr<> elem = read(ctx, in))
+  while (ptr<> elem = read_optional(ctx, in))
     result.push_back(track(ctx, elem));
 
   return result;

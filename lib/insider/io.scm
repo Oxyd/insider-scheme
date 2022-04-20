@@ -12,7 +12,8 @@
                       get-output-bytevector get-output-string newline open-source-file-relative
                       read read-syntax read-syntax-multiple read-syntax-multiple-ci
                       write write-shared write-simple
-                      file-exists? delete-file)
+                      file-exists? delete-file
+                      <eof-object>)
                 (read-char %read-char)
                 (peek-char %peek-char)
                 (read-u8 %read-u8)
@@ -37,8 +38,6 @@
 (define current-output-port (make-parameter-from-tag current-output-port-tag))
 (define current-error-port (make-parameter-from-tag current-error-port-tag))
 (define current-source-file-origin (make-parameter-from-tag current-source-file-origin-tag))
-
-(define <eof-object> (list 'eof))
 
 (define-type-predicate textual-input-port? insider::textual_input_port)
 (define-type-predicate binary-input-port? insider::binary_input_port)

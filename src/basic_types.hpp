@@ -26,6 +26,13 @@ public:
   static constexpr char const* scheme_name = "insider::void_type";
 };
 
+// End of file sentinel value. Dummy value returned from I/O operations at the
+// end of input.
+class eof_type : public leaf_object<eof_type> {
+public:
+  static constexpr char const* scheme_name = "insider::eof_type";
+};
+
 // Dummy value for identifying parameters.
 class parameter_tag : public leaf_object<parameter_tag> {
 public:

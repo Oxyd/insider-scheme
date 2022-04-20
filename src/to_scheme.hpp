@@ -24,7 +24,10 @@ to_scheme(context& ctx, T const& t) {
 template <>
 struct to_scheme_converter<ptr<>> {
   static ptr<>
-  convert(context&, ptr<> o) { return o; }
+  convert(context&, ptr<> o) {
+    assert(o);
+    return o;
+  }
 };
 
 template <>

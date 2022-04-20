@@ -56,6 +56,7 @@ context::context()
   constants->void_ = make_tracked<void_type>(*this);
   constants->t = make_tracked<boolean>(*this, true);
   constants->f = make_tracked<boolean>(*this, false);
+  constants->eof = make_tracked<eof_type>(*this);
   constants->tail_call_tag = make_tracked<tail_call_tag_type>(*this);
 
   parameters = make_tracked<parameter_map>(*this);

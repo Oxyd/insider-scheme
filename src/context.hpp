@@ -41,14 +41,15 @@ private:
 class boolean;
 class context;
 class core_form_type;
+class eof_type;
 class integer;
 class module_;
 class null_type;
-class textual_output_port;
 class procedure;
 class scope;
 class symbol;
 class tail_call_tag_type;
+class textual_output_port;
 class transformer;
 class void_type;
 
@@ -79,7 +80,8 @@ public:
   struct constants {
     tracked_ptr<insider::null_type> null;
     tracked_ptr<insider::void_type> void_;
-    tracked_ptr<boolean>        t, f;     // #t and #f.
+    tracked_ptr<boolean>            t, f;     // #t and #f.
+    tracked_ptr<eof_type>           eof;
     tracked_ptr<tail_call_tag_type> tail_call_tag;
     tracked_ptr<core_form_type>
       let, letrec_star, set, lambda, if_, box, unbox, box_set, define, define_syntax,

@@ -207,6 +207,8 @@ make_internal_module(context& ctx) {
 #endif
                    });
 
+  define_top_level(ctx, "<eof-object>", result, true, ctx.constants->eof.get());
+
   return result;
 }
 
