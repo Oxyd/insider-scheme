@@ -155,22 +155,40 @@ large_space::move(std::size_t i, large_space& to) {
   allocations_[i].reset();
 }
 
+static void
+destroy(ptr<> o, type_descriptor const& type, std::size_t size) {
+  type.destroy(o);
+  std::uninitialized_fill_n(reinterpret_cast<std::byte*>(o.value()), size, std::byte{0xAA});
+}
+
 void
-large_space::deallocate(std::size_t i) {
+large_space::stage_for_deallocation(std::size_t i) {
   assert(allocations_[i]);
 
   std::byte* storage = allocations_[i].get();
   ptr<> o = reinterpret_cast<object*>(storage + sizeof(word_type));
   assert(is_alive(o));
 
-  bytes_used_ -= object_size(o) + sizeof(word_type);
-  object_type(o).destroy(o);
+  type_descriptor const& type = object_type(o);
+  std::size_t size = object_size(o);
 
-  allocations_[i].reset();
+  bytes_used_ -= size + sizeof(word_type);
+  destroy(o, type, size);
+  set_forwarding_address(o, nullptr);
+
+  to_deallocate_.push_back(i);
 }
 
 void
-large_space::remove_empty() {
+large_space::deallocate_staged() {
+  for (std::size_t index : to_deallocate_)
+    allocations_[index].reset();
+  to_deallocate_.clear();
+  compact();
+}
+
+void
+large_space::compact() {
   allocations_.erase(std::remove_if(allocations_.begin(), allocations_.end(),
                                     [] (auto const& storage) { return !storage; }),
                      allocations_.end());
@@ -296,7 +314,7 @@ static void
 move_survivors(dense_space& from, dense_space& to, generation to_gen, free_store::generations& gens,
                std::vector<ptr<>>* permanent_roots) {
   from.for_all([&] (ptr<> o) {
-    type_descriptor const& t = object_type(o);
+    type_descriptor const& type = object_type(o);
     std::size_t size = object_size(o);
 
     assert(object_color(o) != color::grey);
@@ -314,8 +332,7 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen, free_store
     } else
       set_forwarding_address(o, nullptr);
 
-    t.destroy(o);
-    std::uninitialized_fill_n(reinterpret_cast<std::byte*>(o.value()), size, std::byte{0xAA});
+    destroy(o, type, size);
   });
 }
 
@@ -344,10 +361,8 @@ promote(FromG& from, ToG& to, free_store::generations& gens, std::vector<ptr<>>*
           permanent_roots->push_back(o);
       }
     } else
-      large.deallocate(i);
+      large.stage_for_deallocation(i);
   }
-
-  large.remove_empty();
 
   return std::move(from.small);
 }
@@ -366,12 +381,10 @@ purge_mature(mature_generation& mature, free_store::generations& gens) {
     assert(object_color(o) != color::grey);
 
     if (object_color(o) == color::white)
-      large.deallocate(i);
+      large.stage_for_deallocation(i);
     else
       set_object_color(o, color::white);
   }
-
-  large.remove_empty();
 
   std::swap(mature.small, temp);
   return temp;
@@ -411,10 +424,12 @@ update_references(dense_space const& space) {
 
 static void
 update_references(large_space const& space) {
-  for (std::size_t i = 0; i < space.object_count(); ++i) {
-    ptr<> o = reinterpret_cast<object*>(space.get(i) + sizeof(word_type));
-    update_members(o);
-  }
+  for (std::size_t i = 0; i < space.object_count(); ++i)
+    if (std::byte* storage = space.get(i)) {
+      ptr<> o = reinterpret_cast<object*>(storage + sizeof(word_type));
+      if (is_alive(o))
+        update_members(o);
+    }
 }
 
 static void
@@ -477,7 +492,6 @@ free_store::collect_garbage(bool major) {
   dense_space old_nursery_1 = promote(generations_.nursery_1, generations_.nursery_2, generations_, nullptr);
 
   assert(generations_.nursery_1.small.empty());
-  assert(generations_.nursery_1.large.empty());
 
   // If we purged the mature generation, nursery-1 now has incoming arcs from
   // mature survivors and from nursery-2 survivors who have been promoted to
@@ -500,6 +514,10 @@ free_store::collect_garbage(bool major) {
   update_references(generations_.nursery_2.large);
   update_references(generations_.mature.large);
   update_references(generations_.stack);
+
+  generations_.nursery_1.large.deallocate_staged();
+  generations_.nursery_2.large.deallocate_staged();
+  generations_.mature.large.deallocate_staged();
 
   verify(generations_.nursery_1);
   verify(generations_.nursery_2);

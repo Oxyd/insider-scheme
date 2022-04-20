@@ -145,10 +145,10 @@ public:
   move(std::size_t i, large_space& to);
 
   void
-  deallocate(std::size_t i);
+  stage_for_deallocation(std::size_t i);
 
   void
-  remove_empty();
+  deallocate_staged();
 
   template <typename F>
   void
@@ -161,7 +161,11 @@ public:
 
 private:
   std::vector<std::unique_ptr<std::byte[]>> allocations_;
+  std::vector<std::size_t> to_deallocate_;
   std::size_t bytes_used_ = 0;
+
+  void
+  compact();
 };
 
 inline bool
