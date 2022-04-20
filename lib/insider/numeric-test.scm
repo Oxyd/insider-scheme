@@ -20,6 +20,7 @@
     (test-values-equal (-2 -1) (truncate/ -5 2))
     (test-values-equal (-2 1) (truncate/ 5 -2))
     (test-values-equal (2 -1) (truncate/ -5 -2))
+    (test-values-equal (0 1208925819614629174706176) (truncate/ 1208925819614629174706176 1606938044258990275541962092341162602522202993782792835301376))
 
     (test-values-equal (9223372036854775808 1) (truncate/ 18446744073709551617 2))
     (test-values-equal (-9223372036854775808 -1) (truncate/ -18446744073709551617 2))

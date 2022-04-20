@@ -918,6 +918,8 @@ div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divi
     return {quot, make<big_integer>(ctx, std::vector{rem})};
   }
 
+  ptr<big_integer> input_dividend = dividend;
+
   unsigned normalisation_shift = std::countl_zero(divisor->back());
   dividend = bitshift_left(ctx, dividend, normalisation_shift);
   divisor = bitshift_left(ctx, divisor, normalisation_shift);
@@ -927,6 +929,10 @@ div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divi
 
   std::size_t dividend_len = dividend->length();
   std::size_t divisor_len = divisor->length();
+
+  if (dividend_len < divisor_len)
+    return {make<big_integer>(ctx, integer{0}), input_dividend};
+
   assert(dividend_len >= divisor_len);
   assert(divisor_len >= 2);
   assert(divisor->positive());
