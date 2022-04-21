@@ -11,6 +11,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STRE
   set(CMAKE_CXX_FLAGS_DEBUG "-ggdb3")
   set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -ggdb3")
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -ggdb3")
+  set(CMAKE_C_FLAGS_PROFILE "-O3 -ggdb3 -DNDEBUG -fasynchronous-unwind-tables")
+  set(CMAKE_CXX_FLAGS_PROFILE "-O3 -ggdb3 -DNDEBUG -fasynchronous-unwind-tables")
   set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
   set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 endif()
