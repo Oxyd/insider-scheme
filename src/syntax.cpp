@@ -120,7 +120,7 @@ apply_update_records_to_list(context& ctx, ptr<pair> head, std::vector<syntax::u
 
 static ptr<vector>
 apply_update_records_to_vector(context& ctx, ptr<vector> v, std::vector<syntax::update_record> const& records) {
-  auto result = make<vector>(ctx, v->size(), ctx.constants->void_.get());
+  auto result = make<vector>(ctx, v->size(), ctx.constants->void_);
   for (std::size_t i = 0; i < v->size(); ++i)
     result->set(ctx.store, i, apply_update_records_if_syntax(ctx, v->ref(i), records));
   return result;
@@ -156,13 +156,13 @@ make_fresh_aggregates(context& ctx, ptr<syntax> stx) {
       current = stx->get_expression_without_update();
 
     if (auto p = match<pair>(current); p && !result.count(p)) {
-      auto new_p = cons(ctx, ctx.constants->null.get(), ctx.constants->null.get());
+      auto new_p = cons(ctx, ctx.constants->null, ctx.constants->null);
       result.emplace(p, new_p);
 
       stack.push_back(car(p));
       stack.push_back(cdr(p));
     } else if (auto v = match<vector>(current); v && !result.count(v)) {
-      auto new_v = make<vector>(ctx, v->size(), ctx.constants->null.get());
+      auto new_v = make<vector>(ctx, v->size(), ctx.constants->null);
       result.emplace(v, new_v);
 
       for (std::size_t i = 0; i < v->size(); ++i)
@@ -206,7 +206,7 @@ unwrap_syntaxes(context& ctx, ptr<syntax> stx, std::unordered_map<ptr<>, ptr<>> 
   auto unwrap_aggregate = [&] <typename T> (ptr<T> aggregate) {
     ptr<T> result = assume<T>(aggregates.at(aggregate));
     for (std::size_t i = 0; i < aggregate->size(); ++i)
-      if (result->ref(i) == ctx.constants->null.get()) {
+      if (result->ref(i) == ctx.constants->null) {
         result->set(ctx.store, i, unwrapped_value(aggregate->ref(i), aggregates));
         stack.push_back(unwrap(aggregate->ref(i)));
       }
@@ -242,7 +242,7 @@ datum_to_syntax(context& ctx, ptr<syntax> s, ptr<> datum) {
     ptr<syntax> tail = datum_to_syntax(ctx, s, cdr(p));
     return make<syntax>(ctx, cons(ctx, head, tail), s->location(), s->scopes());
   } else if (auto v = match<vector>(datum)) {
-    auto result_vec = make<vector>(ctx, v->size(), ctx.constants->void_.get());
+    auto result_vec = make<vector>(ctx, v->size(), ctx.constants->void_);
     for (std::size_t i = 0; i < v->size(); ++i)
       result_vec->set(ctx.store, i, datum_to_syntax(ctx, s, v->ref(i)));
     return make<syntax>(ctx, result_vec, s->location(), s->scopes());
@@ -255,17 +255,17 @@ datum_to_syntax(context& ctx, ptr<syntax> s, ptr<> datum) {
 ptr<>
 syntax_to_list(context& ctx, ptr<> stx) {
   if (semisyntax_is<null_type>(stx))
-    return ctx.constants->null.get();
+    return ctx.constants->null;
 
   if (!is<pair>(stx) && (!is<syntax>(stx) || !syntax_is<pair>(assume<syntax>(stx))))
     return nullptr;
 
-  ptr<pair> result = make<pair>(ctx, car(semisyntax_assume<pair>(ctx, stx)), ctx.constants->null.get());
+  ptr<pair> result = make<pair>(ctx, car(semisyntax_assume<pair>(ctx, stx)), ctx.constants->null);
   ptr<pair> tail = result;
   ptr<> datum = cdr(semisyntax_assume<pair>(ctx, stx));
 
   while (ptr<pair> p = semisyntax_match<pair>(ctx, datum)) {
-    auto new_pair = make<pair>(ctx, car(p), ctx.constants->null.get());
+    auto new_pair = make<pair>(ctx, car(p), ctx.constants->null);
     tail->set_cdr(ctx.store, new_pair);
     tail = new_pair;
 
@@ -313,7 +313,7 @@ export_syntax(context& ctx, module_& result) {
                      if (ptr<> r = syntax_to_list(ctx, stx))
                        return r;
                      else
-                       return ctx.constants->f.get();
+                       return ctx.constants->f;
                    });
 
   define_procedure(ctx, "datum->syntax", result, true,

@@ -143,19 +143,13 @@ inline ptr<>
 car(ptr<pair> x) { return x->car(); }
 
 inline tracked_ptr<>
-car(tracked_ptr<pair> const& x) { return {x.store(), car(x.get())}; }
+car(tracked_ptr<pair> const& x) { return {x.list(), car(x.get())}; }
 
 inline ptr<>
 cdr(ptr<pair> x) { return x->cdr(); }
 
 inline tracked_ptr<>
-cdr(tracked_ptr<pair> const& x) { return {x.store(), cdr(x.get())}; }
-
-inline void
-set_car(tracked_ptr<pair> const& p, ptr<> x) { p->set_car(p.store(), x); }
-
-inline void
-set_cdr(tracked_ptr<pair> const& p, ptr<> x) { p->set_cdr(p.store(), x); }
+cdr(tracked_ptr<pair> const& x) { return {x.list(), cdr(x.get())}; }
 
 ptr<>
 cadr(ptr<pair>);
@@ -179,7 +173,7 @@ make_list(context& ctx, Ts... ts) {
   constexpr std::size_t n = sizeof...(Ts);
   std::array<ptr<>, n> elements{std::move(ts)...};
 
-  ptr<> result = ctx.constants->null.get();
+  ptr<> result = ctx.constants->null;
   for (std::size_t i = n; i > 0; --i)
     result = make<pair>(ctx, elements[i - 1], result);
 
@@ -189,7 +183,7 @@ make_list(context& ctx, Ts... ts) {
 template <typename Container, typename Converter>
 ptr<>
 make_list_from_vector(context& ctx, Container const& values, Converter const& convert) {
-  ptr<> head = ctx.constants->null.get();
+  ptr<> head = ctx.constants->null;
 
   for (auto elem = values.rbegin(); elem != values.rend(); ++elem)
     head = cons(ctx, convert(*elem), head);
@@ -235,7 +229,7 @@ namespace detail {
       current = cdr(new_current);
     }
 
-    if (current != ctx.constants->null.get())
+    if (current != ctx.constants->null)
       tail->set_cdr(ctx.store, f(current));
 
     return new_head;
@@ -246,8 +240,8 @@ namespace detail {
 template <typename F>
 ptr<>
 map(context& ctx, ptr<> list, F&& f) {
-  if (list == ctx.constants->null.get())
-    return ctx.constants->null.get();
+  if (list == ctx.constants->null)
+    return ctx.constants->null;
   else
     return detail::map_non_empty_list(ctx, assume<pair>(list), std::forward<F>(f));
 }
@@ -276,13 +270,10 @@ public:
   set(free_store&, std::size_t, ptr<>);
 };
 
-inline void
-vector_set(tracked_ptr<vector> const& v, std::size_t i, ptr<> value) { v->set(v.store(), i, value); }
-
 template <typename It>
 ptr<vector>
 make_vector(context& ctx, It begin, It end) {
-  auto result = make<vector>(ctx, end - begin, ctx.constants->void_.get());
+  auto result = make<vector>(ctx, end - begin, ctx.constants->void_);
   for (It elem = begin; elem != end; ++elem)
     result->set(ctx.store, elem - begin, *elem);
 
@@ -297,7 +288,7 @@ make_vector(context& ctx, std::vector<ptr<>> const& elems) {
 template <typename Container, typename Converter>
 ptr<>
 make_vector(context& ctx, Container const& values, Converter const& convert) {
-  auto result = make<vector>(ctx, values.size(), ctx.constants->void_.get());
+  auto result = make<vector>(ctx, values.size(), ctx.constants->void_);
 
   for (std::size_t i = 0; i < values.size(); ++i)
     result->set(ctx.store, i, convert(values[i]));
@@ -383,9 +374,6 @@ private:
   ptr<> value_;
 };
 
-inline void
-box_set(tracked_ptr<box> const& b, ptr<> value) { b->set(b.store(), value); }
-
 // Callable bytecode container. Contains all the information necessary to create
 // a call frame inside the VM.
 class procedure : public leaf_object<procedure> {
@@ -436,9 +424,6 @@ public:
 private:
   ptr<insider::procedure> procedure_;
 };
-
-inline void
-closure_set(tracked_ptr<closure> const& c, std::size_t i, ptr<> v) { c->set(c.store(), i, v); }
 
 // Like procedure, but when invoked, it calls a C++ function.
 struct native_procedure : public leaf_object<native_procedure> {

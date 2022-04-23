@@ -5,6 +5,7 @@
 #include "error.hpp"
 #include "integer.hpp"
 #include "object.hpp"
+#include "tracked_ptr.hpp"
 
 namespace insider {
 
@@ -21,7 +22,7 @@ namespace detail {
 
     static tracked_ptr<T>
     expect(tracked_ptr<> const& x, std::string_view message) {
-      return {x.store(), expect(x.get(), message)};
+      return {x.list(), expect(x.get(), message)};
     }
   };
 
@@ -106,7 +107,7 @@ namespace detail {
     static tracked_ptr<T>
     assume(tracked_ptr<> const& x) {
       assert(is<T>(x));
-      return {x.store(), static_cast<T*>(x.get())};
+      return {x.list(), static_cast<T*>(x.get())};
     }
   };
 
@@ -160,7 +161,7 @@ namespace detail {
 
     static tracked_ptr<T>
     match(tracked_ptr<> const& x) {
-      return {x.store(), match(x.get())};
+      return {x.list(), match(x.get())};
     }
   };
 

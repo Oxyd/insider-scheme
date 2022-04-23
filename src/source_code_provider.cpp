@@ -49,7 +49,7 @@ export_source_code_provider(context& ctx, module_& result) {
                      if (auto f = find_source_relative(ctx, origin->value, path))
                        return f->port.release().get();
                      else
-                       return ctx.constants->f.get();
+                       return ctx.constants->f;
                    });
 }
 

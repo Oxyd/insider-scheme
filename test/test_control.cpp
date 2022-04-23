@@ -63,8 +63,8 @@ TEST_F(control, return_to_previous_frame) {
     result
   )");
   ASSERT_TRUE(is_list(result));
-  EXPECT_EQ(expect<insider::boolean>(car(expect<pair>(result))), ctx.constants->f.get());
-  EXPECT_EQ(expect<insider::boolean>(cadr(expect<pair>(result))), ctx.constants->t.get());
+  EXPECT_EQ(expect<insider::boolean>(car(expect<pair>(result))), ctx.constants->f);
+  EXPECT_EQ(expect<insider::boolean>(cadr(expect<pair>(result))), ctx.constants->t);
 }
 
 TEST_F(control, jump_to_inner_continuation) {
@@ -251,7 +251,7 @@ TEST_F(control, call_continuable_can_be_used_twice) {
             [] (context& ctx, ptr<> result) {
               return to_scheme(ctx, 2 * from_scheme<int>(ctx, result));
             }
-          ).get();
+          );
         }
       );
     }
@@ -273,9 +273,9 @@ TEST_F(control, continuation_jump_goes_to_the_correct_call_continuable_call) {
           return call_continuable(
             ctx, h.get(), {},
             [] (context&, ptr<> r) { return r; }
-          ).get();
+          );
         }
-      ).get();
+      );
     }
   );
 
@@ -325,7 +325,7 @@ TEST_F(control, barrier_does_not_prevent_jumps_within_it) {
                 (replace-stack! inner #t)
                 #f))))))
   )");
-  EXPECT_EQ(result, ctx.constants->t.get());
+  EXPECT_EQ(result, ctx.constants->t);
 }
 
 TEST_F(control, barrier_prevents_jump_in) {
@@ -399,7 +399,7 @@ TEST_F(control, dynamic_wind_calls_post_when_jumping_out) {
               (set! result #t)))))
       result)
   )");
-  EXPECT_EQ(result, ctx.constants->t.get());
+  EXPECT_EQ(result, ctx.constants->t);
 }
 
 TEST_F(control, dynamic_wind_calls_pre_when_jumping_in) {
@@ -682,7 +682,7 @@ TEST_F(control, cxx_exception_becomes_scheme_exception) {
 TEST_F(control, throwing_scheme_exception_raises_it_in_vm) {
   define_procedure(ctx, "f", ctx.internal_module, true,
                    [] (context& ctx) {
-                     throw make<error>(ctx, make<string>(ctx, "hi"), ctx.constants->null.get());
+                     throw make<error>(ctx, make<string>(ctx, "hi"), ctx.constants->null);
                    });
   auto result = eval(R"(
     (capture-stack
@@ -721,7 +721,7 @@ TEST_F(control, scheme_can_handle_exceptions_raised_by_instructions) {
           (lambda ()
             (vector-ref #() 5)))))
   )");
-  EXPECT_EQ(result.value(), ctx.constants->t.get().value());
+  EXPECT_EQ(result.value(), ctx.constants->t.value());
 }
 
 TEST_F(control, apply_with_single_argument) {
@@ -819,7 +819,7 @@ TEST_F(control, continuation_jump_to_native_tail_call) {
                      return call_continuable(
                        ctx, f, {},
                        [g = track(ctx, g)] (context& ctx, ptr<> result) {
-                         return tail_call(ctx, g.get(), {result}).get();
+                         return tail_call(ctx, g.get(), {result});
                        }
                      );
                    });

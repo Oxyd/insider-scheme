@@ -60,7 +60,7 @@ struct from_scheme_converter<bool> {
   static bool
   convert(context& ctx, ptr<> o) {
     ptr<boolean> b = expect<boolean>(o);
-    return b == ctx.constants->t.get();
+    return b == ctx.constants->t;
   }
 };
 
@@ -133,7 +133,7 @@ struct from_scheme_converter<std::vector<T>> {
     }
     else if (is_list(o)) {
       ptr<> elem = o;
-      while (elem != ctx.constants->null.get()) {
+      while (elem != ctx.constants->null) {
         auto p = assume<pair>(elem);
         result.emplace_back(from_scheme<T>(ctx, car(p)));
         elem = cdr(p);

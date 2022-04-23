@@ -78,21 +78,21 @@ enum class special_top_level_tag {
 class context {
 public:
   struct constants {
-    tracked_ptr<insider::null_type> null;
-    tracked_ptr<insider::void_type> void_;
-    tracked_ptr<boolean>            t, f;     // #t and #f.
-    tracked_ptr<eof_type>           eof;
-    tracked_ptr<tail_call_tag_type> tail_call_tag;
-    tracked_ptr<core_form_type>
+    ptr<insider::null_type> null;
+    ptr<insider::void_type> void_;
+    ptr<boolean>            t, f;     // #t and #f.
+    ptr<eof_type>           eof;
+    ptr<tail_call_tag_type> tail_call_tag;
+    ptr<core_form_type>
       let, letrec_star, set, lambda, if_, box, unbox, box_set, define, define_syntax,
       begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing,
       syntax, quasisyntax, unsyntax, unsyntax_splicing, syntax_trap, syntax_error,
       let_syntax, letrec_syntax;
-    tracked_ptr<parameter_tag> current_input_port_tag;
-    tracked_ptr<parameter_tag> current_output_port_tag;
-    tracked_ptr<parameter_tag> current_error_port_tag;
-    tracked_ptr<parameter_tag> current_source_file_origin_tag;
-    tracked_ptr<parameter_tag> is_main_module_tag;
+    ptr<parameter_tag> current_input_port_tag;
+    ptr<parameter_tag> current_output_port_tag;
+    ptr<parameter_tag> current_error_port_tag;
+    ptr<parameter_tag> current_source_file_origin_tag;
+    ptr<parameter_tag> is_main_module_tag;
   };
 
   struct statics_list {
@@ -112,7 +112,7 @@ public:
   std::string                      error_backtrace; // Built from actions during stack unwinding.
   bytecode                         program;
   std::unique_ptr<execution_state> current_execution;
-  tracked_ptr<parameter_map>       parameters;
+  ptr<parameter_map>               parameters;
 
   context();
   ~context();
@@ -128,19 +128,19 @@ public:
   intern(std::string const&);
 
   operand
-  intern_static(tracked_ptr<> const&);
+  intern_static(ptr<> const&);
 
   ptr<>
   get_static(operand i) const {
     assert(i < statics_.size());
-    return statics_[i].get();
+    return statics_[i];
   }
 
   ptr<>
   get_static_checked(operand) const;
 
   ptr<>
-  get_top_level(operand i) const { return top_level_objects_[i].get(); }
+  get_top_level(operand i) const { return top_level_objects_[i]; }
 
   ptr<>
   get_top_level_checked(operand) const;
@@ -176,21 +176,37 @@ public:
   add_feature(std::string const&);
 
   ptr<>
-  features() const { return features_.get(); }
+  features() const { return features_; }
 
   scope::id_type
   generate_scope_id();
 
 private:
-  std::unordered_map<std::string, weak_ptr<symbol>> interned_symbols_;
-  std::vector<tracked_ptr<>> statics_;
-  eqv_unordered_map<tracked_ptr<>, operand> statics_cache_;
-  std::vector<tracked_ptr<>> top_level_objects_;
+  class root_provider : public insider::root_provider {
+  public:
+    explicit
+    root_provider(context& ctx)
+      : insider::root_provider{ctx.store}
+      , ctx_{ctx}
+    { }
+
+  private:
+    context& ctx_;
+
+    void
+    visit_roots(member_visitor const&) override;
+  };
+
+  root_provider root_provider_{*this};
+  std::unordered_map<std::string, ptr<symbol>> interned_symbols_;
+  std::vector<ptr<>> statics_;
+  eqv_unordered_map<ptr<>, operand> statics_cache_;
+  std::vector<ptr<>> top_level_objects_;
   std::vector<std::string> top_level_binding_names_;
   std::unordered_map<operand, special_top_level_tag> top_level_tags_;
   std::map<module_name, std::unique_ptr<module_>> modules_;
   std::vector<std::unique_ptr<source_code_provider>> source_providers_;
-  tracked_ptr<> features_;
+  ptr<> features_;
   scope::id_type next_scope_id_ = 0;
 };
 

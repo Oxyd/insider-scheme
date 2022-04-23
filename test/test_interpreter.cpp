@@ -8,14 +8,14 @@ template <typename T, typename... Args>
 operand
 make_static(context& ctx, Args&&... args) {
   if constexpr (std::is_same_v<T, integer>)
-    return ctx.intern_static(track(ctx, integer_to_ptr(integer{args...})));
+    return ctx.intern_static(integer_to_ptr(integer{args...}));
   else
-    return ctx.intern_static(make_tracked<T>(ctx, std::forward<Args>(args)...));
+    return ctx.intern_static(make<T>(ctx, std::forward<Args>(args)...));
 }
 
 static operand
 make_static_procedure(context& ctx, bytecode const& bc, unsigned locals_size, unsigned min_args) {
-  return ctx.intern_static(track(ctx, make_procedure(ctx, bc, locals_size, min_args)));
+  return ctx.intern_static(make_procedure(ctx, bc, locals_size, min_args));
 }
 
 static bytecode
@@ -48,7 +48,7 @@ TEST_F(interpreter, exec_arithmetic) {
     0
   );
   auto result = call_with_continuation_barrier(ctx, proc, {});
-  EXPECT_EQ(assume<integer>(result).value(), 18);
+  EXPECT_EQ(assume<integer>(result.get()).value(), 18);
 }
 
 TEST_F(interpreter, exec_calls) {
@@ -92,7 +92,7 @@ TEST_F(interpreter, exec_calls) {
   auto result = call_with_continuation_barrier(ctx, global, {});
 
   auto native_f = [] (int x, int y) { return 2 * x + y; };
-  EXPECT_EQ(assume<integer>(result).value(),
+  EXPECT_EQ(assume<integer>(result.get()).value(),
             3 * native_f(5, 7) + native_f(2, native_f(3, 4)));
 }
 
@@ -125,7 +125,7 @@ TEST_F(interpreter, exec_tail_calls) {
     3,
     0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {});
+  auto result = call_with_continuation_barrier(ctx, global, {}).get();
   EXPECT_EQ(assume<integer>(result).value(), 12);
 }
 
@@ -155,7 +155,7 @@ TEST_F(interpreter, exec_loop) {
     6,
     0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {});
+  auto result = call_with_continuation_barrier(ctx, global, {}).get();
   EXPECT_EQ(assume<integer>(result).value(), 45);
 }
 
@@ -180,7 +180,7 @@ TEST_F(interpreter, exec_native_call) {
     5,
     0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {});
+  auto result = call_with_continuation_barrier(ctx, global, {}).get();
   EXPECT_EQ(assume<integer>(result).value(),
             2 * 10 + 3 * 20 + 5 * 30);
 }
@@ -205,7 +205,7 @@ TEST_F(interpreter, exec_closure_ref) {
                    instruction{opcode::ret,          operand{0}}}),
     5, 0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {});
+  auto result = call_with_continuation_barrier(ctx, global, {}).get();
   EXPECT_EQ(assume<integer>(result).value(), 5 + 3);
 }
 

@@ -231,7 +231,8 @@ free_store::transfer_to_nursery(page_allocator::page p, std::size_t used) {
 }
 
 static void
-trace(tracked_ptr<>* roots, std::vector<ptr<>> const& permanent_roots,
+trace(std::vector<ptr<>> const& permanent_roots,
+      root_list const& root_list,
       nursery_generation const& nursery_1, nursery_generation const& nursery_2,
       stack_cache const& stack_gen,
       generation max_generation) {
@@ -256,21 +257,24 @@ trace(tracked_ptr<>* roots, std::vector<ptr<>> const& permanent_roots,
     );
   };
 
-  for (tracked_ptr<>* root = roots; root; root = root->next())
-    if (root->get() && is_object_ptr(root->get())
-        && object_generation(root->get()) <= max_generation
-        && object_color(root->get()) == color::white) {
-      assert(is_alive(root->get()));
-      set_object_color(root->get(), color::grey);
-      stack.push_back(root->get());
-    }
-
   if (max_generation < generation::mature)
     for (ptr<> o : permanent_roots)
       if (object_color(o) == color::white) {
         set_object_color(o, color::grey);
         trace(o);
       }
+
+  root_list.visit_roots([&] (ptr_wrapper root) {
+    if (!root.weak
+        && root.value
+        && is_object_ptr(root.value)
+        && object_generation(root.value) <= max_generation
+        && object_color(root.value) == color::white) {
+      assert(is_alive(root.value));
+      set_object_color(root.value, color::grey);
+      stack.push_back(root.value);
+    }
+  });
 
   for (nursery_generation const* g : {&nursery_1, &nursery_2})
     for (ptr<> o : g->incoming_arcs)
@@ -405,13 +409,16 @@ move_incoming_arcs(std::unordered_set<ptr<>> const& arcs, nursery_generation& to
 }
 
 static void
+update_member(ptr_wrapper member) {
+  if (member.value && is_object_ptr(member.value) && !is_alive(member.value)) {
+    member.value.reset(forwarding_address(member.value));
+    assert(is_alive(member.value) || member.weak);
+  }
+}
+
+static void
 update_members(ptr<> o) {
-  object_type(o).visit_members(o, [] (ptr_wrapper member) {
-    if (member.value && is_object_ptr(member.value) && !is_alive(member.value)) {
-      member.value.reset(forwarding_address(member.value));
-      assert(is_alive(member.value) || member.weak);
-    }
-  });
+  object_type(o).visit_members(o, update_member);
 }
 
 static void
@@ -432,6 +439,11 @@ update_references(large_space const& space) {
 static void
 update_references(stack_cache const& stack_gen) {
   stack_gen.for_all(update_members);
+}
+
+static void
+update_references(root_list const& list) {
+  list.visit_roots(update_member);
 }
 
 static std::string
@@ -474,7 +486,7 @@ free_store::collect_garbage(bool major) {
   if (verbose_collection)
     fmt::print("GC: Old: {}\n", format_stats(generations_.nursery_1, generations_.nursery_2, generations_.mature));
 
-  trace(roots_, permanent_roots_, generations_.nursery_1, generations_.nursery_2, generations_.stack, max_generation);
+  trace(permanent_roots_, roots_, generations_.nursery_1, generations_.nursery_2, generations_.stack, max_generation);
 
   std::unordered_set<ptr<>> old_n1_incoming = std::move(generations_.nursery_1.incoming_arcs);
   generations_.nursery_1.incoming_arcs.clear();
@@ -520,8 +532,8 @@ free_store::collect_garbage(bool major) {
   verify(generations_.nursery_2);
   verify(generations_.mature);
 
-  update_roots();
   update_permanent_roots();
+  update_references(roots_);
   reset_colors(max_generation);
 
   requested_collection_level_ = std::nullopt;
@@ -534,6 +546,8 @@ free_store::collect_garbage(bool major) {
                                    + nursery_reserve_bytes);
 
   allocator_.keep_at_most(2 * target_nursery_pages_ + mature_reserve_pages);
+
+  roots_.compact();
 
   if (verbose_collection) {
     fmt::print("GC: New: {}\n", format_stats(generations_.nursery_1, generations_.nursery_2, generations_.mature));
@@ -565,25 +579,6 @@ free_store::allocate_object(std::size_t size, word_type type) {
   init_object_header(storage, type, next_hash_(), generation::nursery_1);
   std::byte* object_storage = storage + sizeof(word_type);
   return object_storage;
-}
-
-void
-free_store::update_roots() {
-  for (tracked_ptr<>* p = roots_; p; p = p->next()) {
-    if (p->get() && is_object_ptr(p->get()) && !is_alive(p->get())) {
-      p->value_ = forwarding_address(p->get()).value();
-      assert(p->value_ != nullptr);
-    }
-
-    assert(!p->get() || !is_object_ptr(p->get()) || is_alive(p->get()));
-    assert(!p->get() || !is_object_ptr(p->get()) || object_type(p->get()).permanent_root
-           || object_color(p->get()) == color::white);
-  }
-
-  for (weak_ptr<>* wp = weak_roots_; wp; wp = wp->next()) {
-    if (wp->get() && is_object_ptr(wp->get()) && !is_alive(wp->get()))
-      wp->value_ = forwarding_address(wp->get()).value();
-  }
 }
 
 void

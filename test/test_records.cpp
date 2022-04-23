@@ -76,7 +76,7 @@ TEST_F(records, test_record_type) {
   )");
   std::vector<ptr<>> result_v = list_to_std_vector(result);
   ASSERT_EQ(result_v.size(), 3);
-  EXPECT_EQ(result_v[0], ctx.constants->t.get());
-  EXPECT_EQ(result_v[1], ctx.constants->f.get());
-  EXPECT_EQ(result_v[2], ctx.constants->f.get());
+  EXPECT_EQ(result_v[0], ctx.constants->t);
+  EXPECT_EQ(result_v[1], ctx.constants->f);
+  EXPECT_EQ(result_v[2], ctx.constants->f);
 }

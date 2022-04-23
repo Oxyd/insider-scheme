@@ -930,7 +930,7 @@ read_datum_label(reader_stream& stream, source_location loc) {
 static token
 read_token(context& ctx, reader_stream& stream);
 
-using datum_labels = std::unordered_map<std::string, tracked_ptr<>>;
+using datum_labels = std::unordered_map<std::string, ptr<>>;
 
 static ptr<>
 read(context& ctx, token first_token, reader_stream& stream, bool read_syntax,
@@ -1120,7 +1120,7 @@ static ptr<>
 find_datum_label_reference(datum_labels const& labels, std::string const& label, source_location ref_location) {
   if (auto it = labels.find(label); it != labels.end()) {
     assert(it->second);
-    return it->second.get();
+    return it->second;
   } else
     throw read_error{fmt::format("Unknown datum label: {}", label), ref_location};
 }
@@ -1133,17 +1133,17 @@ read_and_wrap(context& ctx, token first_token, reader_stream& stream, bool read_
 }
 
 static void
-define_label(context& ctx, datum_labels& labels, std::string const& label, ptr<> value) {
+define_label(datum_labels& labels, std::string const& label, ptr<> value) {
   if (auto it = labels.find(label); it != labels.end())
-    it->second = track(ctx, value);
+    it->second = value;
   else
-    labels.emplace(label, track(ctx, value));
+    labels.emplace(label, value);
 }
 
 static void
-define_label(context& ctx, datum_labels& labels, std::optional<std::string> const& defining_label, ptr<> value) {
+define_label(datum_labels& labels, std::optional<std::string> const& defining_label, ptr<> value) {
   if (defining_label)
-    define_label(ctx, labels, *defining_label, value);
+    define_label(labels, *defining_label, value);
 }
 
 static ptr<>
@@ -1155,10 +1155,10 @@ read_list(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& l
   else if (std::holds_alternative<dot>(t.value))
     throw read_error{"Unexpected . token", t.location};
   else if (std::holds_alternative<right_paren>(t.value))
-    return ctx.constants->null.get();
+    return ctx.constants->null;
 
-  ptr<pair> result = make<pair>(ctx, ctx.constants->null.get(), ctx.constants->null.get());
-  define_label(ctx, labels, defining_label, result);
+  ptr<pair> result = make<pair>(ctx, ctx.constants->null, ctx.constants->null);
+  define_label(labels, defining_label, result);
 
   result->set_car(ctx.store, read_and_wrap(ctx, t, stream, read_syntax, labels));
   ptr<pair> tail = result;
@@ -1169,7 +1169,7 @@ read_list(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& l
          && !std::holds_alternative<dot>(t.value)) {
     ptr<pair> new_tail = make<pair>(ctx,
                                     read_and_wrap(ctx, t, stream, read_syntax, labels),
-                                    ctx.constants->null.get());
+                                    ctx.constants->null);
     tail->set_cdr(ctx.store, new_tail);
     tail = new_tail;
 
@@ -1270,18 +1270,18 @@ read_vector(context& ctx, reader_stream& stream, bool read_syntax, datum_labels&
     // create the result and recurse through all its elements replacing the
     // dummy empty vector value with the real one.
 
-    dummy_vector = make<vector>(ctx, 0, ctx.constants->void_.get());
-    define_label(ctx, labels, *defining_label, dummy_vector);
+    dummy_vector = make<vector>(ctx, 0, ctx.constants->void_);
+    define_label(labels, *defining_label, dummy_vector);
   }
 
   std::vector<ptr<>> elements = read_vector_elements(ctx, stream, read_syntax, labels);
-  ptr<vector> result = make<vector>(ctx, elements.size(), ctx.constants->void_.get());
+  ptr<vector> result = make<vector>(ctx, elements.size(), ctx.constants->void_);
   for (std::size_t i = 0; i < elements.size(); ++i)
     result->set(ctx.store, i, elements[i]);
 
   if (defining_label) {
     replace_value(ctx, result, dummy_vector, result);
-    labels[*defining_label] = track(ctx, result);
+    labels[*defining_label] = result;
   }
 
   return result;
@@ -1298,7 +1298,7 @@ read_bytevector(context& ctx, reader_stream& stream, bool read_syntax, datum_lab
     bv->set(i, static_cast<bytevector::element_type>(assume<integer>(elements[i]).value()));
 
   if (defining_label)
-    labels.emplace(*defining_label, track(ctx, bv));
+    labels.emplace(*defining_label, bv);
 
   return bv;
 }
@@ -1314,20 +1314,20 @@ read_shortcut(context& ctx, reader_stream& stream, token shortcut_token,
 
   ptr<pair> result = cons(ctx,
                           wrap(ctx, ctx.intern(expansion), shortcut_token.location, read_syntax),
-                          ctx.constants->null.get());
-  define_label(ctx, labels, defining_label, result);
+                          ctx.constants->null);
+  define_label(labels, defining_label, result);
 
   ptr<> body = read_and_wrap(ctx, t, stream, read_syntax, labels);
-  result->set_cdr(ctx.store, cons(ctx, body, ctx.constants->null.get()));
+  result->set_cdr(ctx.store, cons(ctx, body, ctx.constants->null));
 
   return result;
 }
 
 static ptr<>
-define_label_for_atomic_value(context& ctx, ptr<> value, datum_labels& labels,
+define_label_for_atomic_value(ptr<> value, datum_labels& labels,
                               std::optional<std::string> const& defining_label) {
   if (defining_label)
-    define_label(ctx, labels, *defining_label, value);
+    define_label(labels, *defining_label, value);
 
   return value;
 }
@@ -1360,16 +1360,15 @@ read(context& ctx, token first_token, reader_stream& stream, bool read_syntax,
   else if (std::holds_alternative<octothorpe_comma_at>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#,@", "unsyntax-splicing", read_syntax, labels, defining_label);
   else if (generic_literal* lit = std::get_if<generic_literal>(&first_token.value))
-    return define_label_for_atomic_value(ctx, lit->value, labels, defining_label);
+    return define_label_for_atomic_value(lit->value, labels, defining_label);
   else if (identifier* i = std::get_if<identifier>(&first_token.value))
-    return define_label_for_atomic_value(ctx, ctx.intern(i->value), labels, defining_label);
+    return define_label_for_atomic_value(ctx.intern(i->value), labels, defining_label);
   else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token.value))
-    return define_label_for_atomic_value(ctx,
-                                         b->value ? ctx.constants->t.get() : ctx.constants->f.get(),
+    return define_label_for_atomic_value(b->value ? ctx.constants->t : ctx.constants->f,
                                          labels,
                                          defining_label);
   else if (std::holds_alternative<void_literal>(first_token.value))
-    return define_label_for_atomic_value(ctx, ctx.constants->void_.get(), labels, defining_label);
+    return define_label_for_atomic_value(ctx.constants->void_, labels, defining_label);
   else if (std::holds_alternative<dot>(first_token.value))
     throw read_error{"Unexpected . token", first_token.location};
   else if (std::holds_alternative<right_paren>(first_token.value))
@@ -1395,7 +1394,7 @@ read(context& ctx, ptr<textual_input_port> stream) {
   if (ptr<> result = read_optional(ctx, stream))
     return result;
   else
-    return ctx.constants->eof.get();
+    return ctx.constants->eof;
 }
 
 ptr<>
@@ -1425,44 +1424,44 @@ read_syntax(context& ctx, std::string s) {
   return read_syntax(ctx, *h);
 }
 
-std::vector<tracked_ptr<>>
+std::vector<ptr<>>
 read_multiple(context& ctx, ptr<textual_input_port> in) {
-  std::vector<tracked_ptr<>> result;
+  std::vector<ptr<>> result;
   while (ptr<> elem = read_optional(ctx, in))
-    result.push_back(track(ctx, elem));
+    result.push_back(elem);
 
   return result;
 }
 
-std::vector<tracked_ptr<>>
+std::vector<ptr<>>
 read_multiple(context& ctx, std::string s) {
   unique_port_handle<ptr<textual_input_port>> h{open_input_string(ctx, std::move(s))};
   return read_multiple(ctx, *h);
 }
 
-static std::vector<tracked_ptr<syntax>>
+static std::vector<ptr<syntax>>
 read_syntax_multiple(context& ctx, reader_stream& stream) {
-  std::vector<tracked_ptr<syntax>> result;
+  std::vector<ptr<syntax>> result;
   while (ptr<syntax> elem = read_syntax(ctx, stream))
-    result.push_back(track(ctx, elem));
+    result.push_back(elem);
 
   return result;
 }
 
-std::vector<tracked_ptr<syntax>>
+std::vector<ptr<syntax>>
 read_syntax_multiple(context& ctx, ptr<textual_input_port> p) {
   reader_stream in{track(ctx, p)};
   return read_syntax_multiple(ctx, in);
 }
 
-std::vector<tracked_ptr<syntax>>
+std::vector<ptr<syntax>>
 read_syntax_multiple_ci(context& ctx, ptr<textual_input_port> p) {
   reader_stream in{track(ctx, p)};
   in.fold_case = true;
   return read_syntax_multiple(ctx, in);
 }
 
-std::vector<tracked_ptr<syntax>>
+std::vector<ptr<syntax>>
 read_syntax_multiple(context& ctx, std::string s) {
   unique_port_handle<ptr<textual_input_port>> h{open_input_string(ctx, std::move(s))};
   return read_syntax_multiple(ctx, *h);
@@ -1481,22 +1480,22 @@ string_to_number(context& ctx, std::string const& s, unsigned base) {
       if (!stream.read())
         return result;
       else
-        return ctx.constants->f.get();
+        return ctx.constants->f;
     } else
-      return ctx.constants->f.get();
+      return ctx.constants->f;
   } catch (read_error const&) {
-    return ctx.constants->f.get();
+    return ctx.constants->f;
   }
 }
 
 static ptr<textual_input_port>
 get_default_port(context& ctx) {
-  return expect<textual_input_port>(find_parameter_value(ctx, ctx.constants->current_input_port_tag.get()));
+  return expect<textual_input_port>(find_parameter_value(ctx, ctx.constants->current_input_port_tag));
 }
 
 void
 export_read(context& ctx, module_& result) {
-  define_top_level(ctx, "current-input-port-tag", result, true, ctx.constants->current_input_port_tag.get());
+  define_top_level(ctx, "current-input-port-tag", result, true, ctx.constants->current_input_port_tag);
   define_procedure(ctx, "read", result, true,
                    static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read),
                    get_default_port);
@@ -1505,14 +1504,12 @@ export_read(context& ctx, module_& result) {
                    get_default_port);
   define_procedure(ctx, "read-syntax-multiple", result, true,
                    [] (context& ctx, ptr<textual_input_port> p) {
-                     return make_list_from_vector(ctx, read_syntax_multiple(ctx, p),
-                                                  [] (tracked_ptr<syntax> s) { return s.get(); });
+                     return make_list_from_vector(ctx, read_syntax_multiple(ctx, p));
                    },
                    get_default_port);
   define_procedure(ctx, "read-syntax-multiple-ci", result, true,
                    [] (context& ctx, ptr<textual_input_port> p) {
-                     return make_list_from_vector(ctx, read_syntax_multiple_ci(ctx, p),
-                                                  [] (tracked_ptr<syntax> s) { return s.get(); });
+                     return make_list_from_vector(ctx, read_syntax_multiple_ci(ctx, p));
                    },
                    get_default_port);
   define_procedure(ctx, "string->number", result, true, string_to_number, [] (context&) { return 10; });
@@ -1521,8 +1518,8 @@ export_read(context& ctx, module_& result) {
 
 void
 init_read(context& ctx) {
-  auto default_input_port = make_tracked<textual_input_port>(ctx, std::make_unique<file_port_source>(stdin, false), "<stdin>");
-  ctx.constants->current_input_port_tag = track(ctx, create_parameter_tag(ctx, default_input_port.get()));
+  auto default_input_port = make<textual_input_port>(ctx, std::make_unique<file_port_source>(stdin, false), "<stdin>");
+  ctx.constants->current_input_port_tag = create_parameter_tag(ctx, default_input_port);
 }
 
 } // namespace insider

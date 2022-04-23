@@ -496,8 +496,8 @@ compile_lambda(context& ctx, procedure_context& parent, lambda_expression const&
     encode_instruction(proc.bytecode_stack.back(), instruction{opcode::ret, *body_result.get(proc)});
 
   assert(proc.bytecode_stack.size() == 1);
-  auto p = track(ctx, make_procedure(ctx, proc, static_cast<unsigned>(stx.parameters.size() - (stx.has_rest ? 1 : 0)),
-                                     stx.has_rest, stx.name));
+  auto p = make_procedure(ctx, proc, static_cast<unsigned>(stx.parameters.size() - (stx.has_rest ? 1 : 0)),
+                          stx.has_rest, stx.name);
 
   if (!stx.free_variables.empty()) {
     shared_register p_reg = compile_static_reference_to_register(parent, ctx.intern_static(p));
@@ -594,7 +594,7 @@ compile_application(context& ctx, procedure_context& proc, application_expressio
     f = global->location;
     oc = tail ? opcode::tail_call_top_level : opcode::call_top_level;
   } else if (auto* lit = std::get_if<literal_expression>(&stx.target->value)) {
-    f = ctx.intern_static(lit->value);
+    f = ctx.intern_static(lit->value.get());
     oc = tail ? opcode::tail_call_static : opcode::call_static;
   } else {
     f_reg = compile_expression_to_register(ctx, proc, *stx.target, false);
@@ -699,7 +699,7 @@ compile_make_vector(context& ctx, procedure_context& proc, make_vector_expressio
 static void
 compile_expression(context& ctx, procedure_context& proc, expression const& stx, bool tail, result_register& result) {
   if (auto* lit = std::get_if<literal_expression>(&stx.value))
-    compile_static_reference(proc, ctx.intern_static(lit->value), result);
+    compile_static_reference(proc, ctx.intern_static(lit->value.get()), result);
   else if (auto* local_ref = std::get_if<local_reference_expression>(&stx.value))
     compile_local_reference(proc, *local_ref, result);
   else if (auto* top_level_ref = std::get_if<top_level_reference_expression>(&stx.value))
@@ -767,7 +767,7 @@ compile_syntax(context& ctx, std::unique_ptr<expression> e, module_& mod) {
 }
 
 module_
-compile_module(context& ctx, std::vector<tracked_ptr<syntax>> const& data, source_file_origin const& origin,
+compile_module(context& ctx, std::vector<ptr<syntax>> const& data, source_file_origin const& origin,
                bool main_module) {
   simple_action a(ctx, "Analysing main module");
   protomodule pm = read_module(ctx, data, origin);
@@ -797,7 +797,7 @@ compile_module_body(context& ctx, module_& m, protomodule const& pm, bool main_m
     encode_instruction(proc.bytecode_stack.back(), instruction{opcode::ret, *result.get(proc)});
 
   assert(proc.bytecode_stack.size() == 1);
-  m.set_top_level_procedure(track(ctx, make_procedure(ctx, proc, 0, false, std::nullopt)));
+  m.set_top_level_procedure(make_procedure(ctx, proc, 0, false, std::nullopt));
 }
 
 } // namespace insider

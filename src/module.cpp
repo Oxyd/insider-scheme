@@ -11,14 +11,15 @@
 namespace insider {
 
 module_::module_(context& ctx, std::optional<module_name> const& name)
-  : env_{make_tracked<insider::scope>(ctx, ctx,
-                                      fmt::format("{} module top-level",
-                                                  name ? module_name_to_string(*name) : "<unnamed module>"))}
+  : root_provider{ctx.store}
+  , env_{make<insider::scope>(ctx, ctx,
+                              fmt::format("{} module top-level",
+                                          name ? module_name_to_string(*name) : "<unnamed module>"))}
 { }
 
 auto
 module_::find(ptr<symbol> identifier) const -> std::optional<binding_type> {
-  if (auto binding = lookup(identifier, scope_set{env_.get()}))
+  if (auto binding = lookup(identifier, scope_set{env_}))
     return binding;
 
   return std::nullopt;
@@ -34,15 +35,15 @@ module_::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
   }
 
   if (auto* var = std::get_if<std::shared_ptr<variable>>(&b))
-    env_->add(env_.store(), make<syntax>(ctx, identifier, scope_set{env_.get()}), *var);
+    env_->add(ctx.store, make<syntax>(ctx, identifier, scope_set{env_}), *var);
   else
-    env_->add(env_.store(), make<syntax>(ctx, identifier, scope_set{env_.get()}),
+    env_->add(ctx.store, make<syntax>(ctx, identifier, scope_set{env_}),
               std::get<ptr<transformer>>(b));
 }
 
 ptr<procedure>
 module_::top_level_procedure() const {
-  return proc_.get();
+  return proc_;
 }
 
 std::vector<std::string>
@@ -58,6 +59,12 @@ void
 module_::export_(ptr<symbol> name) {
   assert(find(name));
   exports_.emplace(name->value());
+}
+
+void
+module_::visit_roots(member_visitor const& f) {
+  f(env_);
+  f(proc_);
 }
 
 namespace {

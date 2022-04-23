@@ -98,7 +98,7 @@ make_internal_module(context& ctx) {
   define_procedure(
     ctx, "eq?", result, true,
     [] (context& ctx, ptr<> x, ptr<> y) {
-      return x == y ? ctx.constants->t.get() : ctx.constants->f.get();
+      return x == y ? ctx.constants->t : ctx.constants->f;
     }
   );
 
@@ -142,7 +142,7 @@ make_internal_module(context& ctx) {
       if (f->name)
         return make<string>(ctx, *f->name);
       else
-        return ctx.constants->f.get();
+        return ctx.constants->f;
     }
   );
 
@@ -207,7 +207,7 @@ make_internal_module(context& ctx) {
 #endif
                    });
 
-  define_top_level(ctx, "<eof-object>", result, true, ctx.constants->eof.get());
+  define_top_level(ctx, "<eof-object>", result, true, ctx.constants->eof);
 
   return result;
 }

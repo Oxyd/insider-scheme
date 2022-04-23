@@ -2,6 +2,7 @@
 #define INSIDER_OBJECT_HPP
 
 #include "ptr.hpp"
+#include "root_provider.hpp"
 
 #include <fmt/format.h>
 
@@ -15,25 +16,7 @@ namespace insider {
 class context;
 class integer;
 
-struct ptr_wrapper {
-  ptr<>& value;
-  bool   weak = false;
-
-  ptr_wrapper(ptr<>& value)
-    : value{value}
-  { }
-
-  ptr_wrapper(ptr<>& value, bool weak)
-    : value{value}
-    , weak{weak}
-  { }
-};
-
-inline ptr_wrapper
-weak(ptr<>& x) { return {x, true}; }
-
 using word_type = std::uint64_t;
-using member_visitor = std::function<void(ptr_wrapper)>;
 
 struct type_descriptor {
   char const* name;
@@ -324,12 +307,6 @@ word_type const dynamic_size_object<Derived, T, PermanentRoot>::type_index = new
   detail::size<Derived, T>,
   PermanentRoot
 });
-
-template <typename T>
-bool
-is(tracked_ptr<> const& x) {
-  return is<T>(x.get());
-}
 
 enum class generation : word_type {
   stack     = 0,

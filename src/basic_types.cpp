@@ -56,11 +56,11 @@ append(context& ctx, object_span xs) {
   // If all the lists are empty, we return the empty list as well.
 
   auto x = xs.begin();
-  while (x != xs.end() && *x == ctx.constants->null.get())
+  while (x != xs.end() && *x == ctx.constants->null)
     ++x;
 
   if (x == xs.end())
-    return ctx.constants->null.get();
+    return ctx.constants->null;
 
   if (x == xs.end() - 1)
     return *x;
@@ -68,15 +68,15 @@ append(context& ctx, object_span xs) {
   // We have more than one list, and at least the current list is non-empty. Do
   // the needful.
 
-  ptr<> new_head = ctx.constants->null.get();
+  ptr<> new_head = ctx.constants->null;
   ptr<pair> new_tail = nullptr;
   ptr<> current = expect<pair>(*x);
   for (; x != xs.end() - 1; ++x) {
     current = *x;
 
-    while (current != ctx.constants->null.get()) {
+    while (current != ctx.constants->null) {
       ptr<pair> c = expect<pair>(current);
-      ptr<pair> new_c = make<pair>(ctx, car(c), ctx.constants->null.get());
+      ptr<pair> new_c = make<pair>(ctx, car(c), ctx.constants->null);
 
       if (new_tail)
         new_tail->set_cdr(ctx.store, new_c);
@@ -145,12 +145,12 @@ vector::set(free_store& store, std::size_t i, ptr<> value) {
 static ptr<vector>
 list_to_vector(context& ctx, ptr<> lst) {
   std::size_t size = 0;
-  for (ptr<> e = lst; e != ctx.constants->null.get(); e = cdr(expect<pair>(e)))
+  for (ptr<> e = lst; e != ctx.constants->null; e = cdr(expect<pair>(e)))
     ++size;
 
-  auto result = make<vector>(ctx, size, ctx.constants->void_.get());
+  auto result = make<vector>(ctx, size, ctx.constants->void_);
   std::size_t i = 0;
-  for (ptr<> e = lst; e != ctx.constants->null.get(); e = cdr(assume<pair>(e)))
+  for (ptr<> e = lst; e != ctx.constants->null; e = cdr(assume<pair>(e)))
     result->set(ctx.store, i++, car(assume<pair>(e)));
 
   return result;
@@ -179,7 +179,7 @@ vector_to_list(context& ctx, object_span args) {
       || end > static_cast<integer::value_type>(v->size()))
     throw std::runtime_error{"Argument out of bounds"};
 
-  ptr<> result = ctx.constants->null.get();
+  ptr<> result = ctx.constants->null;
   for (integer::value_type i = end; i > start; --i)
     result = cons(ctx, v->ref(i - 1), result);
 
@@ -194,7 +194,7 @@ vector_append(context& ctx, object_span vs) {
     size += v->size();
   }
 
-  auto result = make<vector>(ctx, size, ctx.constants->void_.get());
+  auto result = make<vector>(ctx, size, ctx.constants->void_);
   std::size_t i = 0;
   for (ptr<> e : vs) {
     ptr<vector> v = assume<vector>(e);
@@ -388,7 +388,7 @@ export_basic_types(context& ctx, module_& result) {
     [] (context& ctx, std::size_t len, ptr<> fill) {
       return make<vector>(ctx, len, fill);
     },
-    [] (context& ctx) { return ctx.constants->void_.get(); }
+    [] (context& ctx) { return ctx.constants->void_; }
   );
   operand vector_ref_index = define_procedure(ctx, "vector-ref", result, true, &vector::ref);
   ctx.tag_top_level(vector_ref_index, special_top_level_tag::vector_ref);

@@ -9,32 +9,39 @@
 
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
 namespace insider {
 
 execution_state::execution_state(context& ctx)
-  : ctx{ctx}
+  : root_provider{ctx.store}
+  , ctx{ctx}
 { }
 
 void
 execution_state::set_current_frame(ptr<stack_frame> f) {
   assert(object_generation(f) != generation::stack || ctx.store.stack().is_at_top(f));
-  current_frame_ = track(ctx, f);
+  current_frame_ = f;
 }
 
 void
 execution_state::set_current_frame_to_parent() {
   assert(current_frame_);
 
-  ptr<stack_frame> old_frame = current_frame_.get();
-  current_frame_ = track(ctx, old_frame->parent);
+  ptr<stack_frame> old_frame = current_frame_;
+  current_frame_ = old_frame->parent;
   ctx.store.stack().deallocate(old_frame);
 
   assert(!current_frame_
-         || object_generation(current_frame_.get()) != generation::stack
-         || ctx.store.stack().is_at_top(current_frame_.get()));
+         || object_generation(current_frame_) != generation::stack
+         || ctx.store.stack().is_at_top(current_frame_));
+}
+
+void
+execution_state::visit_roots(member_visitor const& f) {
+  f(current_frame_);
 }
 
 static ptr<>
@@ -340,8 +347,8 @@ relational(opcode opcode, instruction_state& istate) {
   if (is<integer>(lhs) && is<integer>(rhs)) {
     integer::value_type x = assume<integer>(lhs).value();
     integer::value_type y = assume<integer>(rhs).value();
-    ptr<> t = istate.context().constants->t.get();
-    ptr<> f = istate.context().constants->f.get();
+    ptr<> t = istate.context().constants->t;
+    ptr<> f = istate.context().constants->f;
 
     switch (opcode) {
     case opcode::arith_equal:
@@ -478,11 +485,11 @@ namespace {
 template <typename F>
 static ptr<>
 convert_args_to_list(context& ctx, std::size_t num_rest, F& get_arg) {
-  ptr<pair> head = cons(ctx, get_arg(), ctx.constants->null.get());
+  ptr<pair> head = cons(ctx, get_arg(), ctx.constants->null);
   ptr<pair> last = head;
 
   for (std::size_t i = 1; i < num_rest; ++i) {
-    ptr<pair> new_tail = cons(ctx, get_arg(), ctx.constants->null.get());
+    ptr<pair> new_tail = cons(ctx, get_arg(), ctx.constants->null);
     last->set_cdr(ctx.store, new_tail);
     last = new_tail;
   }
@@ -498,7 +505,7 @@ push_rest_arg(context& ctx, frame_stack& stack, ptr<procedure> proc, std::size_t
   if (num_rest > 0)
     stack.push(convert_args_to_list(ctx, num_rest, get_arg));
   else
-    stack.push(ctx.constants->null.get());
+    stack.push(ctx.constants->null);
 }
 
 template <typename F>
@@ -618,7 +625,7 @@ call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
   ptr<> result;
   do
     result = call_native_frame_target(state.ctx, state.current_frame(), scheme_result);
-  while (is_native_frame(state.current_frame()) && result == state.ctx.constants->tail_call_tag.get());
+  while (is_native_frame(state.current_frame()) && result == state.ctx.constants->tail_call_tag);
 
   if (is_native_frame(state.current_frame()))
     // Return from a native call (potentially a different native call than
@@ -701,7 +708,7 @@ jump(opcode opcode, instruction_state& istate) {
     // The only false value in Scheme is #f. So we only jump if the test_value
     // is exactly #f.
 
-    if (test_value != istate.context().constants->f.get())
+    if (test_value != istate.context().constants->f)
       return;
   }
 
@@ -751,7 +758,7 @@ make_vector(instruction_state& istate) {
   operand dest = istate.reader.read_operand();
   operand num_elems = istate.reader.read_operand();
 
-  auto result = make<vector>(istate.context(), num_elems, istate.context().constants->void_.get());
+  auto result = make<vector>(istate.context(), num_elems, istate.context().constants->void_);
   for (std::size_t i = 0; i < num_elems; ++i)
     result->set(istate.context().store, i, istate.frame()->ref(istate.reader.read_operand()));
 
@@ -787,7 +794,7 @@ type(instruction_state& istate) {
   istate.frame()->set(istate.reader.read_operand(), type(istate.context(), o));
 }
 
-static tracked_ptr<>
+static ptr<>
 do_instruction(execution_state& state, gc_disabler& no_gc) {
   instruction_state istate{state};
   bytecode_reader& reader = istate.reader;
@@ -841,7 +848,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::tail_call_static: {
     ptr<> result = call(opcode, istate);
     if (result)
-      return track(state.ctx, result);
+      return result;
     no_gc.force_update();
     break;
   }
@@ -849,7 +856,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::ret: {
     ptr<> result = ret(istate);
     if (result)
-      return track(state.ctx, result);
+      return result;
     no_gc.force_update();
     break;
   }
@@ -904,13 +911,14 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   return {};
 }
 
-static tracked_ptr<tail_call_tag_type>
+static ptr<tail_call_tag_type>
 raise(context& ctx, ptr<> e);
 
 static tracked_ptr<>
 run(execution_state& state) {
   std::optional<execution_action> a;
   gc_disabler no_gc{state.ctx.store};
+  tracked_ptr<> result{state.ctx.store};
 
   if (!state.current_frame()->parent)
     // Only create an execution_action if this is the top-level execution.
@@ -918,12 +926,12 @@ run(execution_state& state) {
 
   while (true)
     try {
-      auto result = do_instruction(state, no_gc);
+      result = do_instruction(state, no_gc);
       if (result)
         return result;
     } catch (ptr<> e) {
       raise(state.ctx, e);
-    } catch (tracked_ptr<> e) {
+    } catch (tracked_ptr<> const& e) {
       raise(state.ctx, e.get());
     } catch (scheme_exception& e) {
       throw e;
@@ -934,7 +942,6 @@ run(execution_state& state) {
     }
 
   assert(false); // The only way the loop above will exit is via return.
-  return {};
 }
 
 static ptr<stack_frame>
@@ -987,7 +994,7 @@ setup_native_frame(execution_state& state, ptr<native_procedure> proc) {
 static tracked_ptr<>
 call_native_in_current_frame(execution_state& state, ptr<native_procedure> proc,
                              std::vector<ptr<>> const& arguments) {
-  tracked_ptr<> result = track(state.ctx, proc->target(state.ctx, object_span(arguments)));
+  tracked_ptr<> result{state.ctx.store, proc->target(state.ctx, object_span(arguments))};
   state.pc = state.current_frame()->previous_pc;
   state.set_current_frame_to_parent();
   return result;
@@ -1105,15 +1112,12 @@ call_parameterized_with_continuation_barrier(context& ctx, ptr<> callable, std::
   current_execution_setter ces{ctx};
   mark_frame_noncontinuable(ctx.current_execution->current_frame());
 
-  tracked_ptr<> result;
   if (auto native_proc = match<native_procedure>(callable))
-    result = call_native_with_continuation_barrier(*ctx.current_execution, native_proc, arguments,
-                                                   tag, parameter_value);
+    return call_native_with_continuation_barrier(*ctx.current_execution, native_proc, arguments,
+                                                 tag, parameter_value);
   else
-    result = call_scheme_with_continuation_barrier(*ctx.current_execution, callable, arguments,
-                                                   tag, parameter_value);
-
-  return result;
+    return call_scheme_with_continuation_barrier(*ctx.current_execution, callable, arguments,
+                                                 tag, parameter_value);
 }
 
 tracked_ptr<>
@@ -1121,14 +1125,14 @@ call_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> 
   return call_parameterized_with_continuation_barrier(ctx, callable, arguments, {}, {});
 }
 
-static tracked_ptr<>
+static ptr<>
 call_native_continuable(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments,
                         native_continuation_type cont) {
   tracked_ptr<> result = call_native(state, proc, arguments);
-  return track(state.ctx, cont(state.ctx, result.get()));
+  return cont(state.ctx, result.get());
 }
 
-static tracked_ptr<>
+static ptr<>
 call_scheme_continuable(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments,
                         native_continuation_type cont) {
   create_or_get_extra_data(state.ctx, state.current_frame())->native_continuations.emplace_back(std::move(cont));
@@ -1136,7 +1140,7 @@ call_scheme_continuable(execution_state& state, ptr<> callable, std::vector<ptr<
   return state.ctx.constants->tail_call_tag;
 }
 
-tracked_ptr<tail_call_tag_type>
+ptr<tail_call_tag_type>
 call_continuable(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments,
                  native_continuation_type cont) {
   expect_callable(callable);
@@ -1194,7 +1198,7 @@ install_call_frame(context& ctx, ptr<stack_frame> frame) {
   }
 }
 
-tracked_ptr<tail_call_tag_type>
+ptr<tail_call_tag_type>
 tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   install_call_frame(ctx, make_tail_call_frame(ctx, callable, arguments));
   return ctx.constants->tail_call_tag;
@@ -1222,7 +1226,7 @@ find_common_frame(ptr<stack_frame> current, ptr<stack_frame> continuation) {
   return {};
 }
 
-static tracked_ptr<tail_call_tag_type>
+static ptr<tail_call_tag_type>
 capture_stack(context& ctx, ptr<> receiver) {
   ctx.store.stack().transfer_to_nursery();
   auto cont = make<continuation>(ctx, ctx.current_execution->current_frame());
@@ -1332,7 +1336,7 @@ replace_stack(context& ctx, ptr<continuation> cont, ptr<> value) {
   return value;
 }
 
-static tracked_ptr<>
+static ptr<>
 call_with_continuation_barrier(context& ctx, bool allow_out, bool allow_in, ptr<> callable) {
   erect_barrier(ctx, ctx.current_execution->current_frame(), allow_out, allow_in);
 
@@ -1420,22 +1424,23 @@ push_dummy_frame(context& ctx) {
   return new_frame;
 }
 
-static tracked_ptr<stack_frame>
+static ptr<stack_frame>
 create_parameterization_frame(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
   auto frame = push_dummy_frame(ctx);
   add_parameter_value(ctx, frame, tag, value);
-  return track(ctx, frame);
+  return frame;
 }
 
 parameterize::parameterize(context& ctx, ptr<parameter_tag> tag, ptr<> new_value)
-  : ctx_{ctx}
+  : root_provider{ctx.store}
+  , ctx_{ctx}
 {
   if (ctx.current_execution)
     frame_ = create_parameterization_frame(ctx, tag, new_value);
   else {
-    tag_ = track(ctx, tag);
+    tag_ = tag;
     ptr<> value = ctx.parameters->find_value(tag);
-    original_value_ = track(ctx, value);
+    original_value_ = value;
     ctx.parameters->set_value(ctx.store, tag, new_value);
   }
 }
@@ -1443,21 +1448,28 @@ parameterize::parameterize(context& ctx, ptr<parameter_tag> tag, ptr<> new_value
 parameterize::~parameterize() {
   if (frame_) {
     assert(ctx_.current_execution);
-    assert(ctx_.current_execution->current_frame() == frame_.get());
+    assert(ctx_.current_execution->current_frame() == frame_);
     ctx_.current_execution->set_current_frame_to_parent();
   } else {
     assert(!ctx_.current_execution);
-    ctx_.parameters->set_value(ctx_.store, tag_.get(), original_value_.get());
+    ctx_.parameters->set_value(ctx_.store, tag_, original_value_);
   }
 }
 
-static tracked_ptr<tail_call_tag_type>
+void
+parameterize::visit_roots(member_visitor const& f) {
+  f(frame_);
+  f(tag_);
+  f(original_value_);
+}
+
+static ptr<tail_call_tag_type>
 call_parameterized(context& ctx, ptr<parameter_tag> tag, ptr<> value, ptr<> callable) {
   add_parameter_value(ctx, ctx.current_execution->current_frame(), tag, value);
   return call_continuable(ctx, callable, {}, [] (context&, ptr<> result) { return result; });
 }
 
-static tracked_ptr<>
+static ptr<>
 dynamic_wind(context& ctx, tracked_ptr<> before, tracked_ptr<> thunk, tracked_ptr<> after) {
   ptr<stack_frame_extra_data> e = create_or_get_extra_data(ctx, ctx.current_execution->current_frame());
   e->before_thunk = before.get();
@@ -1472,9 +1484,9 @@ dynamic_wind(context& ctx, tracked_ptr<> before, tracked_ptr<> thunk, tracked_pt
           return call_continuable(
             ctx, after.get(), {},
             [result = track(ctx, result)] (context&, ptr<>) { return result.get(); }
-          ).get();
+          );
         }
-      ).get();
+      );
     }
   );
 }
@@ -1497,7 +1509,7 @@ find_exception_handler_frame(ptr<stack_frame> frame) {
   return {};
 }
 
-static tracked_ptr<tail_call_tag_type>
+static ptr<tail_call_tag_type>
 with_exception_handler(context& ctx, ptr<> handler, ptr<> thunk) {
   call_continuable(ctx, thunk, {},
                    [] (context&, ptr<> result) { return result; });
@@ -1521,7 +1533,7 @@ setup_exception_handler_frame(context& ctx, ptr<stack_frame> invocation_frame, p
   invocation_extra->next_exception_handler_frame = definition_frame->parent;
 }
 
-static tracked_ptr<tail_call_tag_type>
+static ptr<tail_call_tag_type>
 call_continuable_exception_handler(context& ctx, ptr<stack_frame> handler_frame, ptr<> exception) {
   call_continuable(ctx, get_frame_exception_handler(handler_frame), {exception},
                    [] (context&, ptr<> result) { return result; });
@@ -1529,17 +1541,17 @@ call_continuable_exception_handler(context& ctx, ptr<stack_frame> handler_frame,
   return ctx.constants->tail_call_tag;
 }
 
-static tracked_ptr<tail_call_tag_type>
+static ptr<tail_call_tag_type>
 raise_from(context& ctx, ptr<> e, ptr<stack_frame> frame);
 
-static tracked_ptr<tail_call_tag_type>
+static ptr<tail_call_tag_type>
 call_noncontinuable_exception_handler(context& ctx, ptr<stack_frame> handler_frame, ptr<> exception) {
   call_continuable(ctx, get_frame_exception_handler(handler_frame), {exception},
                    [exception = track(ctx, exception),
                     handler_frame = track(ctx, handler_frame)] (context& ctx, ptr<>) {
                      return raise_from(ctx,
                                        make<uncaught_exception>(ctx, exception.get()),
-                                       handler_frame->parent).get();
+                                       handler_frame->parent);
                    });
   setup_exception_handler_frame(ctx, ctx.current_execution->current_frame(), handler_frame);
   return ctx.constants->tail_call_tag;
@@ -1553,7 +1565,7 @@ builtin_exception_handler(context& ctx, ptr<> e) {
     throw scheme_exception{ctx, e};
 }
 
-static tracked_ptr<tail_call_tag_type>
+static ptr<tail_call_tag_type>
 raise_from(context& ctx, ptr<> e, ptr<stack_frame> frame) {
   if (ptr<stack_frame> handler_frame = find_exception_handler_frame(frame))
     return call_noncontinuable_exception_handler(ctx, handler_frame, e);
@@ -1561,12 +1573,12 @@ raise_from(context& ctx, ptr<> e, ptr<stack_frame> frame) {
     builtin_exception_handler(ctx, e);
 }
 
-static tracked_ptr<tail_call_tag_type>
+static ptr<tail_call_tag_type>
 raise(context& ctx, ptr<> e) {
   return raise_from(ctx, e, ctx.current_execution->current_frame());
 }
 
-static tracked_ptr<tail_call_tag_type>
+static ptr<tail_call_tag_type>
 raise_continuable(context& ctx, ptr<> e) {
   if (ptr<stack_frame> handler_frame = find_exception_handler_frame(ctx.current_execution->current_frame()))
     return call_continuable_exception_handler(ctx, handler_frame, e);
@@ -1588,7 +1600,7 @@ apply(context& ctx, object_span args) {
   std::vector<ptr<>> tail_args_vector = list_to_std_vector(args.back());
   args_vector.insert(args_vector.end(), tail_args_vector.begin(), tail_args_vector.end());
 
-  return tail_call(ctx, f, args_vector).get();
+  return tail_call(ctx, f, args_vector);
 }
 
 static std::vector<ptr<>>
@@ -1603,12 +1615,12 @@ unpack_values(ptr<> v) {
     return {v};
 }
 
-static tracked_ptr<tail_call_tag_type>
+static ptr<tail_call_tag_type>
 call_with_values(context& ctx, ptr<> producer, ptr<> consumer) {
   return call_continuable(
     ctx, producer, {},
     [consumer = track(ctx, consumer)] (context& ctx, ptr<> producer_result) {
-      return tail_call(ctx, consumer.get(), unpack_values(producer_result)).get();
+      return tail_call(ctx, consumer.get(), unpack_values(producer_result));
     }
   );
 }
@@ -1629,7 +1641,7 @@ export_vm(context& ctx, module_& result) {
   define_procedure(ctx, "find-parameter-value", result, true, find_parameter_value);
   define_procedure(ctx, "set-parameter-value!", result, true, set_parameter_value);
   define_procedure(ctx, "call-with-continuation-barrier", result, true,
-                   static_cast<tracked_ptr<> (*)(context&, bool, bool, ptr<>)>(call_with_continuation_barrier));
+                   static_cast<ptr<> (*)(context&, bool, bool, ptr<>)>(call_with_continuation_barrier));
   define_procedure(ctx, "call-parameterized", result, true, call_parameterized);
   define_procedure(ctx, "dynamic-wind", result, true, dynamic_wind);
   define_procedure(ctx, "with-exception-handler", result, true, with_exception_handler);

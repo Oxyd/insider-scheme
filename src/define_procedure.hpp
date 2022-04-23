@@ -105,7 +105,7 @@ namespace detail {
 
           if constexpr (std::is_same_v<R, void>) {
             call(ctx, f, args, std::make_index_sequence<min_args>{}, defaults...);
-            return ctx.constants->void_.get();
+            return ctx.constants->void_;
           }
           else
             return to_scheme(ctx, call(ctx, f, args, std::make_index_sequence<min_args>{}, defaults...));

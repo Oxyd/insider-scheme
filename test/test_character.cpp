@@ -22,7 +22,7 @@ TEST_F(character_fixture, codepoint_hash) {
 TEST_F(character_fixture, digit_value) {
   EXPECT_EQ(expect<integer>(digit_value(ctx, '8')).value(), 8);
   EXPECT_EQ(expect<integer>(digit_value(ctx, 123638)).value(), 6);
-  EXPECT_EQ(digit_value(ctx, 'a'), ctx.constants->f.get());
+  EXPECT_EQ(digit_value(ctx, 'a'), ctx.constants->f);
 }
 
 TEST_F(character_fixture, is_alphabetic) {

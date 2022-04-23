@@ -29,7 +29,7 @@ TEST_F(macros, top_level_transformers) {
   )");
   auto result2p = expect<pair>(result2);
   EXPECT_EQ(expect<integer>(car(result2p)).value(), 40);
-  EXPECT_EQ(cdr(result2p), ctx.constants->f.get());
+  EXPECT_EQ(cdr(result2p), ctx.constants->f);
 }
 
 TEST_F(macros, internal_transformers) {
@@ -246,10 +246,10 @@ TEST_F(macros, recursive_syntax) {
 
 TEST_F(macros, free_identifier_eq) {
   ptr<> result1 = eval("(free-identifier=? #'x #'x)");
-  EXPECT_EQ(result1, ctx.constants->t.get());
+  EXPECT_EQ(result1, ctx.constants->t);
 
   ptr<> result2 = eval("(free-identifier=? #'x #'y)");
-  EXPECT_EQ(result2, ctx.constants->f.get());
+  EXPECT_EQ(result2, ctx.constants->f);
 
   ptr<> result3 = eval_module(R"(
     (import (insider internal))
@@ -273,12 +273,12 @@ TEST_F(macros, free_identifier_eq) {
             (let ((aux 5))
               (is-aux aux))))
   )");
-  EXPECT_EQ(car(expect<pair>(result3)), ctx.constants->t.get());
-  EXPECT_EQ(cadr(expect<pair>(result3)), ctx.constants->f.get());
-  EXPECT_EQ(caddr(expect<pair>(result3)), ctx.constants->f.get());
-  EXPECT_EQ(cadddr(expect<pair>(result3)), ctx.constants->t.get());
-  EXPECT_EQ(cadddr(expect<pair>(cdr(expect<pair>(result3)))), ctx.constants->f.get());
-  EXPECT_EQ(cadddr(expect<pair>(cdr(expect<pair>(cdr(expect<pair>(result3)))))), ctx.constants->f.get());
+  EXPECT_EQ(car(expect<pair>(result3)), ctx.constants->t);
+  EXPECT_EQ(cadr(expect<pair>(result3)), ctx.constants->f);
+  EXPECT_EQ(caddr(expect<pair>(result3)), ctx.constants->f);
+  EXPECT_EQ(cadddr(expect<pair>(result3)), ctx.constants->t);
+  EXPECT_EQ(cadddr(expect<pair>(cdr(expect<pair>(result3)))), ctx.constants->f);
+  EXPECT_EQ(cadddr(expect<pair>(cdr(expect<pair>(cdr(expect<pair>(result3)))))), ctx.constants->f);
 }
 
 TEST_F(macros, bound_identifier_eq) {
@@ -302,9 +302,9 @@ TEST_F(macros, bound_identifier_eq) {
                                       #`(check a #,x)))))
               (check-a a))))
   )"));
-  EXPECT_EQ(car(result1), ctx.constants->t.get());
-  EXPECT_EQ(cadr(result1), ctx.constants->f.get());
-  EXPECT_EQ(caddr(result1), ctx.constants->f.get());
+  EXPECT_EQ(car(result1), ctx.constants->t);
+  EXPECT_EQ(cadr(result1), ctx.constants->f);
+  EXPECT_EQ(caddr(result1), ctx.constants->f);
 }
 
 TEST_F(macros, exported_transformer_producing_another_transformer) {
@@ -329,7 +329,7 @@ TEST_F(macros, exported_transformer_producing_another_transformer) {
     (make-transformer x)
     (x)
   )");
-  EXPECT_EQ(result, ctx.constants->t.get());
+  EXPECT_EQ(result, ctx.constants->t);
 }
 
 TEST_F(macros, internal_definition_shadowing_macro_introduced_binding) {

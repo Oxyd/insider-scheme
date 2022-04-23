@@ -1,5 +1,7 @@
 #include "scheme_fixture.hpp"
 
+#include "root_provider.hpp"
+
 using namespace insider;
 
 struct gc : scheme_fixture { };
@@ -215,9 +217,119 @@ TEST_F(gc, weak_references_across_generations) {
   EXPECT_EQ(d->child, ptr<>{});
 }
 
+namespace {
+  struct simple_provider : root_provider {
+    ptr<aaa> a;
+
+    simple_provider(free_store& fs, ptr<aaa> a)
+      : root_provider{fs}
+      , a{a}
+    { }
+
+    void
+    visit_roots(member_visitor const& f) override {
+      f(a);
+    }
+  };
+} // anonymous namespace
+
+struct root_provider_fixture : scheme_fixture {
+  bool one{};
+  ptr<aaa> a = make<aaa>(ctx, &one);
+
+  bool two{};
+  ptr<aaa> b = make<aaa>(ctx, &two);
+
+  root_provider_fixture() {
+    EXPECT_TRUE(one);
+    EXPECT_TRUE(two);
+  }
+};
+
+TEST_F(root_provider_fixture, provides_roots) {
+  {
+    simple_provider p{ctx.store, a};
+    ctx.store.collect_garbage(true);
+    EXPECT_TRUE(one);
+    EXPECT_FALSE(two);
+  }
+
+  ctx.store.collect_garbage(true);
+  EXPECT_FALSE(one);
+}
+
+TEST_F(root_provider_fixture, copy) {
+  {
+    simple_provider p{ctx.store, a};
+    {
+      simple_provider copy{p};
+      ctx.store.collect_garbage(true);
+      EXPECT_TRUE(one);
+    }
+    ctx.store.collect_garbage(true);
+    EXPECT_TRUE(one);
+  }
+
+  ctx.store.collect_garbage(true);
+  EXPECT_FALSE(one);
+}
+
+TEST_F(root_provider_fixture, copy_assign) {
+  simple_provider p{ctx.store, a};
+  {
+    simple_provider q{ctx.store, b};
+    ctx.store.collect_garbage(true);
+    EXPECT_TRUE(one);
+    EXPECT_TRUE(two);
+
+    p = q;
+
+    // Now both provide b, so no one provides a.
+    ctx.store.collect_garbage(true);
+    EXPECT_FALSE(one);
+    EXPECT_TRUE(two);
+  }
+
+  ctx.store.collect_garbage(true);
+  EXPECT_TRUE(two);
+}
+
+TEST_F(root_provider_fixture, move) {
+  simple_provider p{ctx.store, a};
+  {
+    simple_provider q = std::move(p);
+    ctx.store.collect_garbage(true);
+    EXPECT_TRUE(one);
+    EXPECT_FALSE(two);
+  }
+
+  ctx.store.collect_garbage(true);
+  EXPECT_FALSE(one);
+}
+
+TEST_F(root_provider_fixture, move_assign) {
+  simple_provider p{ctx.store, a};
+  {
+    simple_provider q{ctx.store, b};
+    ctx.store.collect_garbage(true);
+    EXPECT_TRUE(one);
+    EXPECT_TRUE(two);
+
+    p = std::move(q);
+
+    // Now both provide b, so no one provides a.
+    ctx.store.collect_garbage(true);
+    EXPECT_FALSE(one);
+    EXPECT_TRUE(two);
+  }
+
+  ctx.store.collect_garbage(true);
+  EXPECT_TRUE(two);
+}
+
 TEST_F(gc, distinct_objects_have_distinct_hashes) {
-  auto a = make<pair>(ctx, ctx.constants->null.get(), ctx.constants->null.get());
-  auto b = make<pair>(ctx, ctx.constants->null.get(), ctx.constants->null.get());
+  auto a = make<pair>(ctx, ctx.constants->null, ctx.constants->null);
+  auto b = make<pair>(ctx, ctx.constants->null, ctx.constants->null);
   EXPECT_NE(object_hash(a), object_hash(b));
 }
 

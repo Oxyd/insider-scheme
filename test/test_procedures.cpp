@@ -8,9 +8,9 @@ using namespace insider;
 struct procedures : scheme_fixture { };
 
 TEST_F(procedures, type_predicates) {
-  ptr<pair> p = make<pair>(ctx, ctx.constants->null.get(), ctx.constants->null.get());
+  ptr<pair> p = make<pair>(ctx, ctx.constants->null, ctx.constants->null);
   ptr<> x = p;
-  ptr<> null = ctx.constants->null.get();
+  ptr<> null = ctx.constants->null;
 
   EXPECT_TRUE(is<pair>(x));
   EXPECT_FALSE(is<pair>(null));
@@ -38,7 +38,7 @@ TEST_F(procedures, is_list) {
                             integer_to_ptr(integer{1}),
                             make<pair>(ctx,
                                        integer_to_ptr(integer{2}),
-                                       ctx.constants->null.get()));
+                                       ctx.constants->null));
   EXPECT_TRUE(is_list(l2));
 
   // (0 1 2)
@@ -48,7 +48,7 @@ TEST_F(procedures, is_list) {
 
 TEST_F(procedures, make_list) {
   ptr<> empty = make_list(ctx);
-  EXPECT_TRUE(empty == ctx.constants->null.get());
+  EXPECT_TRUE(empty == ctx.constants->null);
 
   ptr<> l = make_list(ctx,
                             integer_to_ptr(integer{1}),
@@ -63,7 +63,7 @@ TEST_F(procedures, make_list) {
   auto third = expect<pair>(cdr(second));
   EXPECT_EQ(expect<integer>(car(third)).value(), 3);
 
-  EXPECT_EQ(cdr(third), ctx.constants->null.get());
+  EXPECT_EQ(cdr(third), ctx.constants->null);
 }
 
 TEST_F(procedures, equal) {
@@ -97,7 +97,7 @@ TEST_F(procedures, append) {
   EXPECT_EQ(cddr(expect<pair>(r4)), ctx.intern("tail"));
 
   auto r5 = eval("(append '() '() '() '())");
-  EXPECT_TRUE(equal(r5, ctx.constants->null.get()));
+  EXPECT_TRUE(equal(r5, ctx.constants->null));
 
   auto r6 = eval("(append '() '(a1 a2))");
   EXPECT_TRUE(equal(r6, read("(a1 a2)")));
@@ -110,7 +110,7 @@ TEST_F(procedures, append) {
 }
 
 TEST_F(procedures, syntax_to_datum_on_cyclic_input) {
-  auto p1 = cons(ctx, make<syntax>(ctx, integer_to_ptr(1)), ctx.constants->null.get());
+  auto p1 = cons(ctx, make<syntax>(ctx, integer_to_ptr(1)), ctx.constants->null);
   p1->set_cdr(ctx.store, p1);
   auto stx = make<syntax>(ctx, p1);
   auto datum = syntax_to_datum(ctx, stx);

@@ -75,7 +75,7 @@ struct to_scheme_converter<double> {
 template <>
 struct to_scheme_converter<bool> {
   static ptr<>
-  convert(context& ctx, bool b) { return b ? ctx.constants->t.get() : ctx.constants->f.get(); }
+  convert(context& ctx, bool b) { return b ? ctx.constants->t : ctx.constants->f; }
 };
 
 template <>
@@ -91,7 +91,7 @@ struct to_scheme_converter<std::optional<T>> {
     if (t)
       return to_scheme(ctx, *t);
     else
-      return ctx.constants->f.get();
+      return ctx.constants->f;
   }
 };
 

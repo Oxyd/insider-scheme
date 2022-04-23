@@ -45,6 +45,7 @@ public:
     : base{ctx}
     , format_{format}
     , args_{std::forward<Args>(args)...}
+    , irritant_{ctx.store}
   { }
 
   simple_action(context& ctx, tracked_ptr<> const& irritant, std::string_view format, Args... args)
@@ -71,7 +72,7 @@ public:
 private:
   std::string_view    format_;
   std::tuple<Args...> args_;
-  tracked_ptr<>         irritant_;
+  tracked_ptr<>       irritant_;
 
   template <std::size_t... Is>
   std::string

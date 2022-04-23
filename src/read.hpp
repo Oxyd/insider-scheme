@@ -52,19 +52,19 @@ ptr<syntax>
 read_syntax(context&, std::string);
 
 // Read multiple S-expressions until the end of the stream or string.
-std::vector<tracked_ptr<>>
+std::vector<ptr<>>
 read_multiple(context&, ptr<textual_input_port>);
 
-std::vector<tracked_ptr<>>
+std::vector<ptr<>>
 read_multiple(context&, std::string);
 
-std::vector<tracked_ptr<syntax>>
+std::vector<ptr<syntax>>
 read_syntax_multiple(context&, ptr<textual_input_port>);
 
-std::vector<tracked_ptr<syntax>>
+std::vector<ptr<syntax>>
 read_syntax_multiple_ci(context&, ptr<textual_input_port>);
 
-std::vector<tracked_ptr<syntax>>
+std::vector<ptr<syntax>>
 read_syntax_multiple(context&, std::string);
 
 ptr<>

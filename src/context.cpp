@@ -52,14 +52,14 @@ context::context()
   , statics_cache_{0, {}, eqv_compare{*this}}
 {
   constants = std::make_unique<struct constants>();
-  constants->null = make_tracked<null_type>(*this);
-  constants->void_ = make_tracked<void_type>(*this);
-  constants->t = make_tracked<boolean>(*this, true);
-  constants->f = make_tracked<boolean>(*this, false);
-  constants->eof = make_tracked<eof_type>(*this);
-  constants->tail_call_tag = make_tracked<tail_call_tag_type>(*this);
+  constants->null = make<null_type>(*this);
+  constants->void_ = make<void_type>(*this);
+  constants->t = make<boolean>(*this, true);
+  constants->f = make<boolean>(*this, false);
+  constants->eof = make<eof_type>(*this);
+  constants->tail_call_tag = make<tail_call_tag_type>(*this);
 
-  parameters = make_tracked<parameter_map>(*this);
+  parameters = make<parameter_map>(*this);
 
   init_read(*this);
   init_write(*this);
@@ -68,7 +68,7 @@ context::context()
   internal_module = make_internal_module(*this);
 
   struct {
-    tracked_ptr<core_form_type>& object;
+    ptr<core_form_type>& object;
     std::string          name;
   } core_forms[]{
     {constants->let,               "let"},
@@ -97,8 +97,8 @@ context::context()
     {constants->letrec_syntax,     "letrec-syntax"}
   };
   for (auto const& form : core_forms) {
-    form.object = make_tracked<core_form_type>(*this, form.name);
-    auto index = add_top_level(form.object.get(), form.name);
+    form.object = make<core_form_type>(*this, form.name);
+    auto index = add_top_level(form.object, form.name);
     auto name = intern(form.name);
     auto id = make<syntax>(*this, name, scope_set{internal_module.scope()});
     auto var = std::make_shared<variable>(form.name, index);
@@ -110,13 +110,10 @@ context::context()
   statics.void_ = intern_static(constants->void_);
   statics.t = intern_static(constants->t);
   statics.f = intern_static(constants->f);
-  statics.zero = intern_static(tracked_ptr<>{store, integer_to_ptr(0)});
-  statics.one = intern_static(tracked_ptr<>{store, integer_to_ptr(1)});
+  statics.zero = intern_static(integer_to_ptr(0));
+  statics.one = intern_static(integer_to_ptr(1));
 
-  features_ = track(*this,
-                    make_list(*this,
-                              intern("r7rs"),
-                              intern("full-unicode")));
+  features_ = make_list(*this, intern("r7rs"), intern("full-unicode"));
 }
 
 context::~context() {
@@ -127,23 +124,23 @@ ptr<symbol>
 context::intern(std::string const& s) {
   auto interned = interned_symbols_.find(s);
   if (interned != interned_symbols_.end()) {
-    if (tracked_ptr<symbol> sym = interned->second.lock())
-      return sym.get();
+    if (ptr<symbol> sym = interned->second)
+      return sym;
     else {
-      tracked_ptr<symbol> result = make_tracked<symbol>(*this, s);
+      ptr<symbol> result = make<symbol>(*this, s);
       interned->second = result;
-      return result.get();
+      return result;
     }
   }
 
-  tracked_ptr<symbol> result = make_tracked<symbol>(*this, s);
-  interned_symbols_.emplace(s, weak_ptr<symbol>{result});
+  ptr<symbol> result = make<symbol>(*this, s);
+  interned_symbols_.emplace(s, result);
 
-  return result.get();
+  return result;
 }
 
 operand
-context::intern_static(tracked_ptr<> const& x) {
+context::intern_static(ptr<> const& x) {
   auto it = statics_cache_.find(x);
   if (it == statics_cache_.end()) {
     statics_.push_back(x);
@@ -158,7 +155,7 @@ context::get_static_checked(operand i) const {
   if (i >= statics_.size())
     throw std::runtime_error{fmt::format("Nonexistent static object {}", i)};
 
-  return statics_[i].get();
+  return statics_[i];
 }
 
 ptr<>
@@ -166,18 +163,18 @@ context::get_top_level_checked(operand i) const {
   if (i >= top_level_objects_.size())
     throw std::runtime_error{fmt::format("Nonexistent top-level object {}", i)};
 
-  return top_level_objects_[i].get();
+  return top_level_objects_[i];
 }
 
 void
 context::set_top_level(operand i, ptr<> value) {
   assert(i < top_level_objects_.size());
-  top_level_objects_[i] = {store, value};
+  top_level_objects_[i] = value;
 }
 
 operand
 context::add_top_level(ptr<> x, std::string name) {
-  top_level_objects_.push_back({store, x});
+  top_level_objects_.push_back(x);
   top_level_binding_names_.emplace_back(std::move(name));
   return static_cast<operand>(top_level_objects_.size() - 1);
 }
@@ -291,13 +288,68 @@ context::append_source_code_provider(std::unique_ptr<source_code_provider> provi
 void
 context::add_feature(std::string const& f) {
   auto f_sym = intern(f);
-  if (!memq(f_sym, features_.get()))
-    features_ = track(*this, cons(*this, f_sym, features_.get()));
+  if (!memq(f_sym, features_))
+    features_ = cons(*this, f_sym, features_);
 }
 
 scope::id_type
 context::generate_scope_id() {
   return next_scope_id_++;
+}
+
+void
+context::root_provider::visit_roots(member_visitor const& f) {
+  f(ctx_.constants->null);
+  f(ctx_.constants->void_);
+  f(ctx_.constants->t);
+  f(ctx_.constants->f);     // #t and #f.
+  f(ctx_.constants->eof);
+  f(ctx_.constants->tail_call_tag);
+  f(ctx_.constants->let);
+  f(ctx_.constants->letrec_star);
+  f(ctx_.constants->set);
+  f(ctx_.constants->lambda);
+  f(ctx_.constants->if_);
+  f(ctx_.constants->box);
+  f(ctx_.constants->unbox);
+  f(ctx_.constants->box_set);
+  f(ctx_.constants->define);
+  f(ctx_.constants->define_syntax);
+  f(ctx_.constants->begin);
+  f(ctx_.constants->begin_for_syntax);
+  f(ctx_.constants->quote);
+  f(ctx_.constants->quasiquote);
+  f(ctx_.constants->unquote);
+  f(ctx_.constants->unquote_splicing);
+  f(ctx_.constants->syntax);
+  f(ctx_.constants->quasisyntax);
+  f(ctx_.constants->unsyntax);
+  f(ctx_.constants->unsyntax_splicing);
+  f(ctx_.constants->syntax_trap);
+  f(ctx_.constants->syntax_error);
+  f(ctx_.constants->let_syntax);
+  f(ctx_.constants->letrec_syntax);
+  f(ctx_.constants->current_input_port_tag);
+  f(ctx_.constants->current_output_port_tag);
+  f(ctx_.constants->current_error_port_tag);
+  f(ctx_.constants->current_source_file_origin_tag);
+  f(ctx_.constants->is_main_module_tag);
+
+  f(ctx_.parameters);
+
+  for (auto& [name, symbol] : ctx_.interned_symbols_)
+    f(weak(symbol));
+
+  for (ptr<>& s : ctx_.statics_)
+    f(s);
+
+  for (auto& [value, op] : ctx_.statics_cache_)
+    f(const_cast<ptr<>&>(value));
+
+  for (ptr<>& x : ctx_.top_level_objects_)
+    f(x);
+
+  f(ctx_.features_);
 }
 
 } // namespace insider

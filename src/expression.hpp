@@ -4,6 +4,7 @@
 #include "bytecode.hpp"
 #include "free_store.hpp"
 #include "module_name.hpp"
+#include "root_provider.hpp"
 #include "source_file_origin.hpp"
 
 #include <memory>
@@ -320,27 +321,35 @@ struct import_specifier {
 
 // Metainformation about a module -- its name, list of imports and exports, plus
 // its body as a list of unparsed data.
-struct protomodule {
-  std::optional<module_name>       name;
-  std::vector<import_specifier>    imports;
-  std::vector<std::string>         exports;
-  std::vector<tracked_ptr<syntax>> body;
-  source_file_origin               origin;
+struct protomodule : root_provider {
+  std::optional<module_name>    name;
+  std::vector<import_specifier> imports;
+  std::vector<std::string>      exports;
+  std::vector<ptr<syntax>>      body;
+  source_file_origin            origin;
 
-  explicit
-  protomodule(source_file_origin origin)
-    : origin{std::move(origin)}
+  protomodule(free_store& fs, source_file_origin origin)
+    : root_provider{fs}
+    , origin{std::move(origin)}
   { }
 
-  protomodule(std::optional<module_name> name, std::vector<import_specifier> imports,
-              std::vector<std::string> exports, std::vector<tracked_ptr<syntax>> body,
+  protomodule(free_store& fs,
+              std::optional<module_name> name, std::vector<import_specifier> imports,
+              std::vector<std::string> exports, std::vector<ptr<syntax>> body,
               source_file_origin origin)
-    : name{std::move(name)}
+    : root_provider{fs}
+    , name{std::move(name)}
     , imports{std::move(imports)}
     , exports{std::move(exports)}
     , body{std::move(body)}
     , origin{std::move(origin)}
   { }
+
+  void
+  visit_roots(member_visitor const& f) override {
+    for (ptr<syntax>& s : body)
+      f(s);
+  }
 };
 
 } // namespace insider

@@ -10,6 +10,7 @@
 
 namespace insider {
 
+class free_store;
 class scope;
 class symbol;
 class syntax;

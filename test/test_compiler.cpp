@@ -141,7 +141,7 @@ TEST_F(compiler, compile_if) {
   EXPECT_EQ(expect<integer>(result3).value(), 2);
 
   ptr<> result4 = eval("(if #f 2)");
-  EXPECT_EQ(result4, ctx.constants->void_.get());
+  EXPECT_EQ(result4, ctx.constants->void_);
 
   ptr<> result5 = eval(
     R"(
@@ -333,7 +333,7 @@ TEST_F(compiler, compile_module) {
     make<native_procedure>(ctx,
                            [&] (context& ctx, object_span args) {
                              sum += expect<integer>(args[0]).value();
-                             return ctx.constants->void_.get();
+                             return ctx.constants->void_;
                            })
   );
 

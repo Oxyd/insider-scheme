@@ -30,7 +30,7 @@ digit_value(context& ctx, char32_t c) {
   if (auto prop = find_properties(c))
     if (has_attribute(*prop, code_point_attribute::numeric))
       return integer_to_ptr(integer{prop->digit_value});
-  return ctx.constants->f.get();
+  return ctx.constants->f;
 }
 
 bool

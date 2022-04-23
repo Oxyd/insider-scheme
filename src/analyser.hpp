@@ -31,7 +31,7 @@ parse_module_name(context&, ptr<syntax>);
 
 // Interpret the given list of data as a module. This can be a library module, or main module.
 protomodule
-read_module(context&, std::vector<tracked_ptr<syntax>> const& contents,
+read_module(context&, std::vector<ptr<syntax>> const& contents,
             source_file_origin const&);
 
 std::optional<module_name>

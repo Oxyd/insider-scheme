@@ -5,6 +5,8 @@
 #include "object.hpp"
 #include "page_allocator.hpp"
 #include "ptr.hpp"
+#include "root_list.hpp"
+#include "tracked_ptr.hpp"
 
 #include <cassert>
 #include <cstddef>
@@ -285,11 +287,8 @@ public:
   void
   transfer_to_nursery(page_allocator::page, std::size_t used);
 
-  tracked_ptr<>*
+  insider::root_list&
   root_list() { return roots_; }
-
-  weak_ptr<>*
-  weak_root_list() { return weak_roots_; }
 
   void
   collect_garbage(bool major = false);
@@ -328,12 +327,7 @@ private:
   std::size_t target_nursery_bytes_ = 0;
   std::size_t collection_number_ = 0;
 
-  // Two doubly-linked lists with head.
-  tracked_ptr<>* roots_      = &root_head_;
-  tracked_ptr<>  root_head_;
-  weak_ptr<>*    weak_roots_ = &weak_head_;
-  weak_ptr<>     weak_head_;
-
+  insider::root_list roots_;
   std::vector<ptr<>> permanent_roots_;
 
   unsigned disable_level_ = 0;
@@ -346,9 +340,6 @@ private:
   // constructed in the storage.
   std::byte*
   allocate_object(std::size_t size, word_type type);
-
-  void
-  update_roots();
 
   void
   update_permanent_roots();

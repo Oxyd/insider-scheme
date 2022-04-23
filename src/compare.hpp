@@ -2,6 +2,7 @@
 #define INSIDER_COMPARE_HPP
 
 #include "ptr.hpp"
+#include "tracked_ptr.hpp"
 
 #include <cstdint>
 #include <unordered_map>
@@ -49,6 +50,11 @@ class eqv_compare {
 public:
   explicit
   eqv_compare(context& ctx) : ctx_{ctx} { }
+
+  bool
+  operator () (ptr<> x, ptr<> y) const {
+    return eqv(ctx_, x, y);
+  }
 
   bool
   operator () (tracked_ptr<> const& x, tracked_ptr<> const& y) const {

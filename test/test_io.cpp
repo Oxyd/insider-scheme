@@ -27,24 +27,24 @@ TEST_F(io, read_small_integer) {
 
 TEST_F(io, read_list) {
   ptr<> empty_1 = read("()");
-  EXPECT_EQ(empty_1, ctx.constants->null.get());
+  EXPECT_EQ(empty_1, ctx.constants->null);
 
   ptr<> empty_2 = read("(   )");
-  EXPECT_EQ(empty_2, ctx.constants->null.get());
+  EXPECT_EQ(empty_2, ctx.constants->null);
 
   ptr<> single_element = read("(1)");
   EXPECT_TRUE(is_list(single_element));
   EXPECT_EQ(expect<integer>(car(expect<pair>(single_element))).value(), 1);
-  EXPECT_EQ(cdr(expect<pair>(single_element)), ctx.constants->null.get());
+  EXPECT_EQ(cdr(expect<pair>(single_element)), ctx.constants->null);
 
   ptr<> two_elements = read("(1 2)");
   EXPECT_TRUE(is_list(two_elements));
   EXPECT_EQ(expect<integer>(car(expect<pair>(two_elements))).value(), 1);
   EXPECT_EQ(expect<integer>(car(expect<pair>(cdr(expect<pair>(two_elements))))).value(), 2);
-  EXPECT_EQ(cdr(expect<pair>(cdr(expect<pair>(two_elements)))), ctx.constants->null.get());
+  EXPECT_EQ(cdr(expect<pair>(cdr(expect<pair>(two_elements)))), ctx.constants->null);
 
   ptr<> no_elements = read("()");
-  EXPECT_EQ(no_elements, ctx.constants->null.get());
+  EXPECT_EQ(no_elements, ctx.constants->null);
 
   ptr<> nested = read("(1 (2 3))");
   EXPECT_TRUE(is_list(nested));
@@ -193,19 +193,19 @@ TEST_F(io, read_string) {
 }
 
 TEST_F(io, read_multiple) {
-  std::vector<tracked_ptr<>> result1 = read_multiple(ctx, "foo bar baz");
+  std::vector<ptr<>> result1 = read_multiple(ctx, "foo bar baz");
   ASSERT_EQ(result1.size(), 3);
   EXPECT_EQ(expect<symbol>(result1[0])->value(), "foo");
   EXPECT_EQ(expect<symbol>(result1[1])->value(), "bar");
   EXPECT_EQ(expect<symbol>(result1[2])->value(), "baz");
 
-  std::vector<tracked_ptr<>> result2 = read_multiple(ctx, "(foo) (bar 2)");
+  std::vector<ptr<>> result2 = read_multiple(ctx, "(foo) (bar 2)");
   ASSERT_EQ(result2.size(), 2);
-  EXPECT_TRUE(is_list(result2[0].get()));
-  EXPECT_EQ(list_length(result2[0].get()), 1);
+  EXPECT_TRUE(is_list(result2[0]));
+  EXPECT_EQ(list_length(result2[0]), 1);
 
-  EXPECT_TRUE(is_list(result2[1].get()));
-  EXPECT_EQ(list_length(result2[1].get()), 2);
+  EXPECT_TRUE(is_list(result2[1]));
+  EXPECT_EQ(list_length(result2[1]), 2);
 }
 
 TEST_F(io, read_comments) {
@@ -258,7 +258,7 @@ TEST_F(io, write) {
   auto p2 = make<pair>(ctx, integer_to_ptr(integer{0}), p1);
   EXPECT_EQ(to_string_simple(ctx, p2), "(0 1 . 2)");
 
-  auto v = make<vector>(ctx, 3, ctx.constants->void_.get());
+  auto v = make<vector>(ctx, 3, ctx.constants->void_);
   v->set(ctx.store, 0, character_to_ptr('r'));
   v->set(ctx.store, 1, p2);
   v->set(ctx.store, 2, make<string>(ctx, "foobar"));
@@ -270,10 +270,10 @@ TEST_F(io, write) {
 
   auto l = make_list(
     ctx,
-    ctx.constants->null.get(),
-    ctx.constants->void_.get(),
-    ctx.constants->t.get(),
-    ctx.constants->f.get(),
+    ctx.constants->null,
+    ctx.constants->void_,
+    ctx.constants->t,
+    ctx.constants->f,
     ctx.intern("symbol"),
     make<string>(ctx, "string"),
     character_to_ptr('c'),
@@ -631,9 +631,9 @@ TEST_F(io, string_to_number) {
   EXPECT_TRUE(equal(string_to_number(ctx, "2/3"), make<fraction>(ctx, integer_to_ptr(2), integer_to_ptr(3))));
   EXPECT_TRUE(equal(string_to_number(ctx, "#o10", 16), integer_to_ptr(8)));
 
-  EXPECT_EQ(string_to_number(ctx, "invalid"), ctx.constants->f.get());
-  EXPECT_EQ(string_to_number(ctx, "12+"), ctx.constants->f.get());
-  EXPECT_EQ(string_to_number(ctx, "#xabgh"), ctx.constants->f.get());
+  EXPECT_EQ(string_to_number(ctx, "invalid"), ctx.constants->f);
+  EXPECT_EQ(string_to_number(ctx, "12+"), ctx.constants->f);
+  EXPECT_EQ(string_to_number(ctx, "#xabgh"), ctx.constants->f);
 }
 
 TEST_F(io, string_with_embedded_newlines) {

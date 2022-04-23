@@ -2,6 +2,7 @@
 #define INSIDER_MODULE_HPP
 
 #include "module_name.hpp"
+#include "root_provider.hpp"
 #include "syntax.hpp"
 
 #include <filesystem>
@@ -13,7 +14,7 @@ class procedure;
 // A module is a map from symbols to top-level variable indices. It also
 // contains a top-level procedure which contains the code to be run when the
 // module is loaded.
-class module_ {
+class module_ : public root_provider{
 public:
   using binding_type = insider::scope::value_type;
 
@@ -36,10 +37,10 @@ public:
   top_level_procedure() const;
 
   void
-  set_top_level_procedure(tracked_ptr<procedure> const& p) { proc_ = p; }
+  set_top_level_procedure(ptr<procedure> const& p) { proc_ = p; }
 
   ptr<insider::scope>
-  scope() const { return env_.get(); }
+  scope() const { return env_; }
 
   std::vector<std::string>
   top_level_names() const;
@@ -51,10 +52,13 @@ public:
   mark_active() { active_ = true; }
 
 private:
-  tracked_ptr<insider::scope>     env_;
+  ptr<insider::scope>             env_;
   std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
-  tracked_ptr<procedure>          proc_;
+  ptr<procedure>                  proc_;
   bool                            active_ = false;
+
+  void
+  visit_roots(member_visitor const& f) override;
 };
 
 // Turn a protomodule into a module. First instantiate all uninstantiated

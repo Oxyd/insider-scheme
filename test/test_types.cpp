@@ -48,7 +48,7 @@ TEST_F(types, intern) {
 }
 
 TEST_F(types, vector) {
-  tracked_ptr<vector> v1 = make_tracked<vector>(ctx, 3, ctx.constants->void_.get());
+  tracked_ptr<vector> v1 = make_tracked<vector>(ctx, 3, ctx.constants->void_);
   v1->set(ctx.store, 0, integer_to_ptr(integer{1}));
   v1->set(ctx.store, 1, integer_to_ptr(integer{2}));
   v1->set(ctx.store, 2, integer_to_ptr(integer{3}));
@@ -62,7 +62,7 @@ TEST_F(types, vector) {
   EXPECT_THROW(v1->ref(3), std::runtime_error);
   EXPECT_THROW(v1->set(ctx.store, 4, integer_to_ptr(integer{4})), std::runtime_error);
 
-  tracked_ptr<vector> v2 = make_tracked<vector>(ctx, 2, ctx.constants->void_.get());
+  tracked_ptr<vector> v2 = make_tracked<vector>(ctx, 2, ctx.constants->void_);
   bool one{}, two{};
   v2->set(ctx.store, 0, make<aaa>(ctx, &one));
   v2->set(ctx.store, 1, make<aaa>(ctx, &two));

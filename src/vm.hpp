@@ -4,6 +4,7 @@
 #include "call_stack.hpp"
 #include "integer.hpp"
 #include "ptr.hpp"
+#include "root_provider.hpp"
 
 #include <vector>
 
@@ -15,7 +16,7 @@ class tail_call_tag_type;
 
 class root_stack;
 
-class execution_state {
+class execution_state : public root_provider {
 public:
   context&            ctx;
   integer::value_type pc = -1;
@@ -23,7 +24,7 @@ public:
   execution_state(context& ctx);
 
   ptr<stack_frame>
-  current_frame() const { return current_frame_.get(); }
+  current_frame() const { return current_frame_; }
 
   void
   set_current_frame(ptr<stack_frame> f);
@@ -32,7 +33,10 @@ public:
   set_current_frame_to_parent();
 
 private:
-  tracked_ptr<stack_frame> current_frame_;
+  ptr<stack_frame> current_frame_;
+
+  void
+  visit_roots(member_visitor const&) override;
 };
 
 // Add a call frame to the current execution state, and set the continuation for
@@ -48,7 +52,7 @@ private:
 //                         [=] (ptr<> result) { do something with result })
 //
 // Causes garbage collection.
-tracked_ptr<tail_call_tag_type>
+ptr<tail_call_tag_type>
 call_continuable(context&, ptr<> callable, std::vector<ptr<>> const& arguments,
                  native_continuation_type cont);
 
@@ -72,7 +76,7 @@ create_parameter_tag(context& ctx, ptr<> initial_value);
 ptr<>
 find_parameter_value(context&, ptr<parameter_tag>);
 
-class parameterize {
+class parameterize : public root_provider {
 public:
   parameterize(context&, ptr<parameter_tag>, ptr<> value);
   parameterize(parameterize const&) = delete;
@@ -82,10 +86,13 @@ public:
   operator = (parameterize const&) = delete;
 
 private:
-  context&                   ctx_;
-  tracked_ptr<stack_frame>   frame_;
-  tracked_ptr<parameter_tag> tag_;
-  tracked_ptr<>              original_value_;
+  context&           ctx_;
+  ptr<stack_frame>   frame_;
+  ptr<parameter_tag> tag_;
+  ptr<>              original_value_;
+
+  void
+  visit_roots(member_visitor const&) override;
 };
 
 // Pop the current call frame (which must be a native procedure frame), and
@@ -93,7 +100,7 @@ private:
 // implement native procedures tail-calling other procedures.
 //
 // Intended use is: return tail_call(ctx, f, {args...});
-tracked_ptr<tail_call_tag_type>
+ptr<tail_call_tag_type>
 tail_call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
 
 } // namespace insider

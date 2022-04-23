@@ -3,6 +3,7 @@
 
 #include "object.hpp"
 #include "ptr.hpp"
+#include "tracked_ptr.hpp"
 
 #include <exception>
 #include <stdexcept>

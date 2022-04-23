@@ -52,7 +52,7 @@ struct scheme_fixture : testing::Test {
 
   bool
   num_equal(insider::ptr<> lhs, insider::ptr<> rhs) {
-    return arith_equal(ctx, lhs, rhs) == ctx.constants->t.get();
+    return arith_equal(ctx, lhs, rhs) == ctx.constants->t;
   }
 
   insider::ptr<insider::fraction>

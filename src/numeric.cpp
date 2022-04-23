@@ -1893,13 +1893,13 @@ relational(context& ctx, object_span xs, std::string const& name) {
   ptr<> lhs = xs[0];
   for (std::size_t i = 1; i < xs.size(); ++i) {
     ptr<> rhs = xs[i];
-    if (F(ctx, lhs, rhs) == ctx.constants->f.get())
-      return ctx.constants->f.get();
+    if (F(ctx, lhs, rhs) == ctx.constants->f)
+      return ctx.constants->f;
 
     lhs = rhs;
   }
 
-  return ctx.constants->t.get();
+  return ctx.constants->t;
 }
 
 static bool
@@ -2015,7 +2015,7 @@ throw_if_not_real(ptr<> x) {
 
 ptr<boolean>
 arith_equal(context& ctx, ptr<> lhs, ptr<> rhs) {
-  return compare(ctx, lhs, rhs) == general_compare_result::equal ? ctx.constants->t.get() : ctx.constants->f.get();
+  return compare(ctx, lhs, rhs) == general_compare_result::equal ? ctx.constants->t : ctx.constants->f;
 }
 
 ptr<>
@@ -2027,7 +2027,7 @@ ptr<boolean>
 less(context& ctx, ptr<> lhs, ptr<> rhs) {
   throw_if_not_real(lhs);
   throw_if_not_real(rhs);
-  return compare(ctx, lhs, rhs) == general_compare_result::less ? ctx.constants->t.get() : ctx.constants->f.get();
+  return compare(ctx, lhs, rhs) == general_compare_result::less ? ctx.constants->t : ctx.constants->f;
 }
 
 ptr<>
@@ -2039,7 +2039,7 @@ ptr<boolean>
 greater(context& ctx, ptr<> lhs, ptr<> rhs) {
   throw_if_not_real(lhs);
   throw_if_not_real(rhs);
-  return compare(ctx, lhs, rhs) == general_compare_result::greater ? ctx.constants->t.get() : ctx.constants->f.get();
+  return compare(ctx, lhs, rhs) == general_compare_result::greater ? ctx.constants->t : ctx.constants->f;
 }
 
 ptr<>
@@ -2054,7 +2054,7 @@ less_or_equal(context& ctx, ptr<> lhs, ptr<> rhs) {
 
   general_compare_result cmp = compare(ctx, lhs, rhs);
   return (cmp == general_compare_result::less || cmp == general_compare_result::equal)
-         ? ctx.constants->t.get() : ctx.constants->f.get();
+         ? ctx.constants->t : ctx.constants->f;
 }
 
 ptr<>
@@ -2069,7 +2069,7 @@ greater_or_equal(context& ctx, ptr<> lhs, ptr<> rhs) {
 
   general_compare_result cmp = compare(ctx, lhs, rhs);
   return (cmp == general_compare_result::greater || cmp == general_compare_result::equal)
-         ? ctx.constants->t.get() : ctx.constants->f.get();
+         ? ctx.constants->t : ctx.constants->f;
 }
 
 ptr<>

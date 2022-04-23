@@ -198,13 +198,13 @@ write_number(context& ctx, ptr<> value, ptr<textual_output_port> out, unsigned b
 
 static void
 write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
-  if (datum == ctx.constants->null.get())
+  if (datum == ctx.constants->null)
     out->write("()");
-  else if (datum == ctx.constants->void_.get())
+  else if (datum == ctx.constants->void_)
     out->write("#void");
-  else if (datum == ctx.constants->t.get())
+  else if (datum == ctx.constants->t)
     out->write("#t");
-  else if (datum == ctx.constants->f.get())
+  else if (datum == ctx.constants->f)
     out->write("#f");
   else if (is_number(datum))
     write_number(ctx, datum, out);
@@ -419,7 +419,7 @@ output(context& ctx, ptr<> datum, ptr<textual_output_port> out, output_datum_lab
         if (is<insider::pair>(cdr(pair)) && !labels.is_shared(cdr(pair))) {
           out->write(' ');
           stack.push_back({cdr(pair), 0, true});
-        } else if (cdr(pair) == ctx.constants->null.get()) {
+        } else if (cdr(pair) == ctx.constants->null) {
           if (!top.omit_parens)
             out->write(')');
           stack.pop_back();
@@ -529,13 +529,13 @@ newline(ptr<textual_output_port> out) {
 
 static ptr<textual_output_port>
 get_default_port(context& ctx) {
-  return expect<textual_output_port>(find_parameter_value(ctx, ctx.constants->current_output_port_tag.get()));
+  return expect<textual_output_port>(find_parameter_value(ctx, ctx.constants->current_output_port_tag));
 }
 
 void
 export_write(context& ctx, module_& result) {
-  define_top_level(ctx, "current-output-port-tag", result, true, ctx.constants->current_output_port_tag.get());
-  define_top_level(ctx, "current-error-port-tag", result, true, ctx.constants->current_error_port_tag.get());
+  define_top_level(ctx, "current-output-port-tag", result, true, ctx.constants->current_output_port_tag);
+  define_top_level(ctx, "current-error-port-tag", result, true, ctx.constants->current_error_port_tag);
   define_procedure(ctx, "write", result, true, write, get_default_port);
   define_procedure(ctx, "write-simple", result, true, write_simple, get_default_port);
   define_procedure(ctx, "write-shared", result, true, write_shared, get_default_port);
@@ -550,11 +550,11 @@ export_write(context& ctx, module_& result) {
 
 void
 init_write(context& ctx) {
-  auto default_output_port = make_tracked<textual_output_port>(ctx, std::make_unique<file_port_sink>(stdout, false));
-  ctx.constants->current_output_port_tag = track(ctx, create_parameter_tag(ctx, default_output_port.get()));
+  auto default_output_port = make<textual_output_port>(ctx, std::make_unique<file_port_sink>(stdout, false));
+  ctx.constants->current_output_port_tag = create_parameter_tag(ctx, default_output_port);
 
-  auto default_error_port = make_tracked<textual_output_port>(ctx, std::make_unique<file_port_sink>(stderr, false));
-  ctx.constants->current_error_port_tag = track(ctx, create_parameter_tag(ctx, default_error_port.get()));
+  auto default_error_port = make<textual_output_port>(ctx, std::make_unique<file_port_sink>(stderr, false));
+  ctx.constants->current_error_port_tag = create_parameter_tag(ctx, default_error_port);
 }
 
 } // namespace insider

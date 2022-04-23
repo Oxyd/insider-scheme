@@ -58,16 +58,18 @@ set(scheme_sources
   src/numeric.cpp
   src/object.cpp
   src/port.cpp
-  src/ptr.cpp
   src/read.cpp
   src/reader_stream.cpp
   src/records.cpp
+  src/root_list.cpp
+  src/root_provider.cpp
   src/scope.cpp
   src/source_code_provider.cpp
   src/source_location.cpp
   src/string.cpp
   src/syntax.cpp
   src/time.cpp
+  src/tracked_ptr.cpp
   src/vm.cpp
   src/write.cpp
   )

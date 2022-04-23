@@ -51,7 +51,7 @@ eqv(context& ctx, ptr<> x, ptr<> y) {
     return false; // Either both are fixnums and not the same, or they're different types.
 
   if (is_number(x) && is_number(y) && is_exact(x) == is_exact(y))
-    return arith_equal(ctx, x, y) == ctx.constants->t.get();
+    return arith_equal(ctx, x, y) == ctx.constants->t;
 
   if (object_type_index(x) != object_type_index(y))
     return false;

@@ -3,6 +3,7 @@
 
 #include "ptr.hpp"
 #include "source_location.hpp"
+#include "tracked_ptr.hpp"
 
 #include <optional>
 
