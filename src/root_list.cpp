@@ -6,8 +6,6 @@ namespace insider {
 
 std::size_t
 root_list::add_provider(root_provider* provider) {
-  assert(std::find(providers_.begin(), providers_.end(), provider) == providers_.end());
-
   providers_.push_back(provider);
   return providers_.size() - 1;
 }
