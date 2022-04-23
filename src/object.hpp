@@ -15,8 +15,25 @@ namespace insider {
 class context;
 class integer;
 
+struct ptr_wrapper {
+  ptr<>& value;
+  bool   weak = false;
+
+  ptr_wrapper(ptr<>& value)
+    : value{value}
+  { }
+
+  ptr_wrapper(ptr<>& value, bool weak)
+    : value{value}
+    , weak{weak}
+  { }
+};
+
+inline ptr_wrapper
+weak(ptr<>& x) { return {x, true}; }
+
 using word_type = std::uint64_t;
-using member_visitor = std::function<void(ptr<>&)>;
+using member_visitor = std::function<void(ptr_wrapper)>;
 
 struct type_descriptor {
   char const* name;

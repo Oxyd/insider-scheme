@@ -241,14 +241,16 @@ trace(tracked_ptr<>* roots, std::vector<ptr<>> const& permanent_roots,
   auto trace = [&] (ptr<> object) {
     object_type(object).visit_members(
       object,
-      [&] (ptr<> member) {
-        if (member && is_object_ptr(member) && object_color(member) == color::white
-            && object_generation(member) <= max_generation) {
-          assert(is_alive(member));
-          assert(object_type_index(member) < types().size());
+      [&] (ptr_wrapper member) {
+        if (!member.weak
+            && member.value && is_object_ptr(member.value)
+            && object_color(member.value) == color::white
+            && object_generation(member.value) <= max_generation) {
+          assert(is_alive(member.value));
+          assert(object_type_index(member.value) < types().size());
 
-          stack.push_back(member);
-          set_object_color(member, color::grey);
+          stack.push_back(member.value);
+          set_object_color(member.value, color::grey);
         }
       }
     );
@@ -300,12 +302,12 @@ trace(tracked_ptr<>* roots, std::vector<ptr<>> const& permanent_roots,
 
 static void
 find_arcs_to_younger(ptr<> o, free_store::generations& gens) {
-  object_type(o).visit_members(o, [&] (ptr<> member) {
+  object_type(o).visit_members(o, [&] (ptr_wrapper member) {
     // We only consider arcs into nursery-1 here. This is called as part of the
     // general GC process, so nursery-2 will be moved to mature soon after. Only
     // arcs going into nursery-1 matter because that will become nursery-2.
 
-    if (member && is_object_ptr(member) && object_generation(member) == generation::nursery_1)
+    if (member.value && is_object_ptr(member.value) && object_generation(member.value) == generation::nursery_1)
       gens.nursery_1.incoming_arcs.emplace(o);
   });
 }
@@ -403,17 +405,12 @@ move_incoming_arcs(std::unordered_set<ptr<>> const& arcs, nursery_generation& to
 }
 
 static void
-update_reference(ptr<>& ref) {
-  if (ref && is_object_ptr(ref) && !is_alive(ref)) {
-    ref.reset(forwarding_address(ref));
-    assert(is_alive(ref));
-  }
-}
-
-static void
 update_members(ptr<> o) {
-  object_type(o).visit_members(o, [] (ptr<>& member) {
-    update_reference(member);
+  object_type(o).visit_members(o, [] (ptr_wrapper member) {
+    if (member.value && is_object_ptr(member.value) && !is_alive(member.value)) {
+      member.value.reset(forwarding_address(member.value));
+      assert(is_alive(member.value) || member.weak);
+    }
   });
 }
 

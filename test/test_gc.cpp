@@ -173,6 +173,48 @@ TEST_F(gc, weak_ptr) {
   EXPECT_FALSE(b);
 }
 
+struct ddd : composite_object<ddd> {
+  static constexpr char const* scheme_name = "insider::ddd";
+
+  explicit
+  ddd(ptr<aaa> a) : child{a} { }
+
+  ddd(ddd&& other) : child{other.child} { }
+
+  void
+  visit_members(member_visitor const& f) {
+    f(weak(child));
+  }
+
+  ptr<aaa> child;
+};
+
+TEST_F(gc, weak_references) {
+  bool one{};
+  tracked_ptr<ddd> d = make_tracked<ddd>(ctx, make<aaa>(ctx, &one));
+  EXPECT_TRUE(one);
+
+  ctx.store.collect_garbage(true);
+  EXPECT_FALSE(one);
+  EXPECT_EQ(d->child, ptr<>{});
+}
+
+TEST_F(gc, weak_references_across_generations) {
+  tracked_ptr<ddd> d = make_tracked<ddd>(ctx, ptr<aaa>{});
+  ctx.store.collect_garbage(true);
+  ctx.store.collect_garbage(true);
+  EXPECT_EQ(object_generation(d.get()), generation::mature);
+
+  bool one{};
+  d->child = make<aaa>(ctx, &one);
+  ctx.store.notify_arc(d.get(), d->child);
+  EXPECT_TRUE(one);
+
+  ctx.store.collect_garbage(false);
+  EXPECT_FALSE(one);
+  EXPECT_EQ(d->child, ptr<>{});
+}
+
 TEST_F(gc, distinct_objects_have_distinct_hashes) {
   auto a = make<pair>(ctx, ctx.constants->null.get(), ctx.constants->null.get());
   auto b = make<pair>(ctx, ctx.constants->null.get(), ctx.constants->null.get());
