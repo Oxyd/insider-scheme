@@ -14,11 +14,6 @@
                       write write-shared write-simple
                       file-exists? delete-file
                       <eof-object>)
-                (read-char %read-char)
-                (peek-char %peek-char)
-                (read-u8 %read-u8)
-                (peek-u8 %peek-u8)
-                (write-u8 %write-u8)
                 (flush-output-port %flush-output-port)
                 (char-ready? %char-ready?)
                 (u8-ready? %u8-ready?)))
@@ -95,26 +90,6 @@
 
 (define (coerce-value x)
   (or x <eof-object>))
-
-(define read-char
-  (opt-lambda ((port (current-input-port)))
-    (coerce-value (%read-char port))))
-
-(define peek-char
-  (opt-lambda ((port (current-input-port)))
-    (coerce-value (%peek-char port))))
-
-(define read-u8
-  (opt-lambda ((port (current-input-port)))
-    (coerce-value (%read-u8 port))))
-
-(define peek-u8
-  (opt-lambda ((port (current-input-port)))
-    (coerce-value (%peek-u8 port))))
-
-(define write-u8
-  (opt-lambda (byte (port (current-output-port)))
-    (%write-u8 port byte)))
 
 (define read-line
   (opt-lambda ((port (current-input-port)))

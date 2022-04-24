@@ -463,6 +463,58 @@ delete_file(context& ctx, std::filesystem::path const& p) {
   guard_filesystem_error(ctx, [&] { return std::filesystem::remove(p); });
 }
 
+static ptr<textual_input_port>
+get_default_textual_input_port(context& ctx) {
+  return expect<textual_input_port>(find_parameter_value(ctx, ctx.constants->current_input_port_tag));
+}
+
+static ptr<>
+read_char(context& ctx, ptr<textual_input_port> port) {
+  if (auto c = port->read_character())
+    return character_to_ptr(*c);
+  else
+    return ctx.constants->eof;
+}
+
+static ptr<>
+peek_char(context& ctx, ptr<textual_input_port> port) {
+  if (auto c = port->peek_character())
+    return character_to_ptr(*c);
+  else
+    return ctx.constants->eof;
+}
+
+static ptr<binary_input_port>
+get_default_binary_input_port(context& ctx) {
+  return expect<binary_input_port>(find_parameter_value(ctx, ctx.constants->current_input_port_tag));
+}
+
+static ptr<>
+read_u8(context& ctx, ptr<binary_input_port> port) {
+  if (auto b = port->read_u8())
+    return integer_to_ptr(*b);
+  else
+    return ctx.constants->eof;
+}
+
+static ptr<>
+peek_u8(context& ctx, ptr<binary_input_port> port) {
+  if (auto b = port->peek_u8())
+    return integer_to_ptr(*b);
+  else
+    return ctx.constants->eof;
+}
+
+static ptr<binary_output_port>
+get_default_binary_output_port(context& ctx) {
+  return expect<binary_output_port>(find_parameter_value(ctx, ctx.constants->current_output_port_tag));
+}
+
+static void
+write_u8(std::uint8_t byte, ptr<binary_output_port> port) {
+  port->write(byte);
+}
+
 void
 export_port(context& ctx, module_& result) {
   define_procedure(ctx, "open-input-file", result, true, open_input_file);
@@ -478,11 +530,11 @@ export_port(context& ctx, module_& result) {
   define_procedure(ctx, "open-output-bytevector", result, true, open_output_bytevector);
   define_procedure(ctx, "get-output-string", result, true, &textual_output_port::get_string);
   define_procedure(ctx, "get-output-bytevector", result, true, &binary_output_port::get_bytevector);
-  define_procedure(ctx, "read-char", result, true, &textual_input_port::read_character);
-  define_procedure(ctx, "peek-char", result, true, &textual_input_port::peek_character);
-  define_procedure(ctx, "read-u8", result, true, &binary_input_port::read_u8);
-  define_procedure(ctx, "peek-u8", result, true, &binary_input_port::peek_u8);
-  define_procedure(ctx, "write-u8", result, true, &binary_output_port::write);
+  define_procedure(ctx, "read-char", result, true, read_char, get_default_textual_input_port);
+  define_procedure(ctx, "peek-char", result, true, peek_char, get_default_textual_input_port);
+  define_procedure(ctx, "read-u8", result, true, read_u8, get_default_binary_input_port);
+  define_procedure(ctx, "peek-u8", result, true, peek_u8, get_default_binary_input_port);
+  define_procedure(ctx, "write-u8", result, true, write_u8, get_default_binary_output_port);
   define_procedure(ctx, "flush-output-port", result, true, flush_port);
   define_procedure(ctx, "port-open?", result, true, is_port_open);
   define_procedure(ctx, "char-ready?", result, true, &textual_input_port::char_ready);
