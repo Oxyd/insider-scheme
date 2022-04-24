@@ -10,7 +10,7 @@
 namespace insider {
 
 static constexpr std::size_t large_threshold = 256;
-static constexpr std::size_t min_nursery_pages = 1024;
+static constexpr std::size_t min_nursery_pages = 4096;
 static constexpr std::size_t min_nursery_size = 2 * min_nursery_pages * page_size;
 static constexpr std::size_t nursery_reserve_pages = 10;
 static constexpr std::size_t nursery_reserve_bytes = nursery_reserve_pages * page_size;

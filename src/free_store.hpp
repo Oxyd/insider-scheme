@@ -235,8 +235,6 @@ namespace detail {
 // Garbage-collected storage for Scheme objects.
 class free_store {
 public:
-  static constexpr std::size_t large_threshold = 256;
-
   struct generations {
     stack_cache        stack;
     nursery_generation nursery_1;
