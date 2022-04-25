@@ -13,7 +13,7 @@ namespace {
     bool* alive;
 
     explicit
-    aaa(bool* alive) : alive{alive} { *alive = true; }
+    aaa(bool* alive) : alive{alive} { if (alive) *alive = true; }
 
     aaa(aaa&& other) : alive{other.alive} { other.alive = nullptr; }
 
@@ -62,11 +62,13 @@ struct ccc : composite_object<ccc> {
     : alive{alive}
     , ref{ref}
   {
-    *alive = true;
+    if (alive)
+      *alive = true;
   }
 
   ~ccc() {
-    *alive = false;
+    if (alive)
+      *alive = false;
   }
 
   void
@@ -351,4 +353,15 @@ TEST_F(gc, objects_retain_hash_values_through_gc) {
   EXPECT_NE(old_b_addr, new_b_addr);
   EXPECT_EQ(object_hash(a.get()), old_a_hash);
   EXPECT_EQ(object_hash(b.get()), old_b_hash);
+}
+
+TEST_F(gc, references_are_updated_after_source_and_target_are_promoted_to_mature) {
+  tracked_ptr<ccc> old = make_tracked<ccc>(ctx, nullptr, nullptr);
+  old->ref = make<aaa>(ctx, nullptr);
+
+  ctx.store.collect_garbage(false);
+  ctx.store.collect_garbage(false);
+  EXPECT_EQ(object_generation(old.get()), generation::mature);
+  ASSERT_TRUE(is_alive(old->ref));
+  EXPECT_EQ(object_generation(old->ref), generation::mature);
 }

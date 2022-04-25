@@ -123,7 +123,7 @@ dense_space::has_preallocated_storage(std::size_t size) const {
   return !pages_.empty() && page_size - pages_.back().used >= size;
 }
 
-void
+dense_space::page&
 dense_space::take(page_allocator::page p, std::size_t used) {
   pages_.emplace_back(page{std::move(p)});
 
@@ -132,6 +132,7 @@ dense_space::take(page_allocator::page p, std::size_t used) {
   new_page.for_all([] (ptr<> o) { set_object_generation(o, generation::nursery_1); });
 
   total_used_ += used;
+  return new_page;
 }
 
 std::byte*
@@ -226,7 +227,11 @@ free_store::~free_store() {
 
 void
 free_store::transfer_to_nursery(page_allocator::page p, std::size_t used) {
-  generations_.nursery_1.small.take(std::move(p), used);
+  auto& taken_page = generations_.nursery_1.small.take(std::move(p), used);
+  taken_page.for_all([&] (ptr<> o) {
+    if (object_type(o).permanent_root)
+      permanent_roots_.push_back(o);
+  });
   check_nursery_size();
 }
 
@@ -259,7 +264,7 @@ trace(std::vector<ptr<>> const& permanent_roots,
 
   if (max_generation < generation::mature)
     for (ptr<> o : permanent_roots)
-      if (object_color(o) == color::white) {
+      if (object_color(o) == color::white && object_generation(o) == generation::mature) {
         set_object_color(o, color::grey);
         trace(o);
       }
@@ -318,7 +323,7 @@ find_arcs_to_younger(ptr<> o, free_store::generations& gens) {
 
 static void
 move_survivors(dense_space& from, dense_space& to, generation to_gen, free_store::generations& gens,
-               std::vector<ptr<>>* permanent_roots) {
+               std::vector<ptr<>>* moved_objects) {
   from.for_all([&] (ptr<> o) {
     type_descriptor const& type = object_type(o);
     std::size_t size = object_size(o);
@@ -329,12 +334,10 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen, free_store
       set_forwarding_address(o, target);
       set_object_generation(target, to_gen);
 
-      if (to_gen == generation::mature) {
+      if (to_gen == generation::mature)
         find_arcs_to_younger(target, gens);
-
-        if (permanent_roots && object_type(target).permanent_root)
-          permanent_roots->push_back(target);
-      }
+      if (moved_objects)
+        moved_objects->push_back(target);
     } else
       set_forwarding_address(o, nullptr);
 
@@ -347,8 +350,8 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen, free_store
 template <typename FromG, typename ToG>
 [[nodiscard]]
 static dense_space
-promote(FromG& from, ToG& to, free_store::generations& gens, std::vector<ptr<>>* permanent_roots) {
-  move_survivors(from.small, to.small, to.generation_number, gens, permanent_roots);
+promote(FromG& from, ToG& to, free_store::generations& gens, std::vector<ptr<>>* moved_objects) {
+  move_survivors(from.small, to.small, to.generation_number, gens, moved_objects);
 
   large_space& large = from.large;
   for (std::size_t i = 0; i < large.object_count(); ++i) {
@@ -360,12 +363,11 @@ promote(FromG& from, ToG& to, free_store::generations& gens, std::vector<ptr<>>*
       set_object_generation(o, to.generation_number);
       set_object_color(o, color::white);
 
-      if (to.generation_number == generation::mature) {
+      if (to.generation_number == generation::mature)
         find_arcs_to_younger(o, gens);
 
-        if (permanent_roots && object_type(o).permanent_root)
-          permanent_roots->push_back(o);
-      }
+      if (moved_objects)
+        moved_objects->push_back(o);
     } else
       large.stage_for_deallocation(i);
   }
@@ -446,6 +448,13 @@ update_references(root_list const& list) {
   list.visit_roots(update_member);
 }
 
+template <typename Container>
+static void
+update_references(Container const& incoming) {
+  for (ptr<> x : incoming)
+    update_members(x);
+}
+
 static std::string
 format_stats(nursery_generation const& nursery_1, nursery_generation const& nursery_2,
              mature_generation const& mature) {
@@ -497,7 +506,11 @@ free_store::collect_garbage(bool major) {
   dense_space old_mature;
   if (max_generation >= generation::mature)
     old_mature = purge_mature(generations_.mature, generations_);
-  dense_space old_nursery_2 = promote(generations_.nursery_2, generations_.mature, generations_, &permanent_roots_);
+
+  std::vector<ptr<>> new_mature_objects;
+
+  dense_space old_nursery_2 = promote(generations_.nursery_2, generations_.mature, generations_,
+                                      max_generation < generation::mature ? &new_mature_objects : nullptr);
   dense_space old_nursery_1 = promote(generations_.nursery_1, generations_.nursery_2, generations_, nullptr);
 
   assert(generations_.nursery_1.small.empty());
@@ -519,10 +532,17 @@ free_store::collect_garbage(bool major) {
     move_incoming_arcs(old_n1_incoming, generations_.nursery_2);
 
   update_references(generations_.nursery_2.small);
-  update_references(generations_.mature.small);
   update_references(generations_.nursery_2.large);
-  update_references(generations_.mature.large);
   update_references(generations_.stack);
+
+  if (max_generation == generation::mature) {
+    update_references(generations_.mature.small);
+    update_references(generations_.mature.large);
+  } else {
+    update_references(generations_.nursery_2.incoming_arcs);
+    update_references(old_n2_incoming);
+    update_references(new_mature_objects);
+  }
 
   generations_.nursery_1.large.deallocate_staged();
   generations_.nursery_2.large.deallocate_staged();
@@ -533,6 +553,7 @@ free_store::collect_garbage(bool major) {
   verify(generations_.mature);
 
   update_permanent_roots();
+  update_references(permanent_roots_);
   update_references(roots_);
   reset_colors(max_generation);
 
