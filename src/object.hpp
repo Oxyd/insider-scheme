@@ -36,22 +36,31 @@ public:
   static constexpr bool is_dynamic_size = false;
 };
 
-// Object header word:
+// Live object header word:
 //
-// Bits:   63    ..    32 ..  5    ..      3   ..   1       0
-// Fields: | hash code | type | generation | colour | alive |
+// Bits:   63     37           35       33          1       0
+// Fields: | type | generation | colour | hash code | alive |
+//
+// Things to note:
+//   - alive bit is the least significant one: This is because a dead object's
+//     header word will contain the forwarding address, whose least significant
+//     bit will be 0.
+//
+//   - type is most significant: This is so it can be accessed by a simple
+//     bit shift
 
-static constexpr word_type alive_shift = 0;
-static constexpr word_type color_shift = 1;
-static constexpr word_type generation_shift = 3;
-static constexpr word_type type_shift = 5;
-static constexpr word_type hash_shift = 32;
+static constexpr word_type color_shift = 33;
+static constexpr word_type generation_shift = 35;
+static constexpr word_type type_shift = 37;
+static constexpr word_type hash_shift = 1;
 static constexpr word_type hash_width = 32;
 
-static constexpr word_type alive_bit = 1 << alive_shift;
-static constexpr word_type color_bits = (1 << color_shift) | (1 << (color_shift + 1));
-static constexpr word_type generation_bits = (1 << generation_shift) | (1 << (generation_shift + 1));
-static constexpr word_type type_bits = static_cast<uint32_t>(-1) & ~((1 << type_shift) - 1);
+static constexpr word_type alive_bit = word_type{1};
+static constexpr word_type color_bits = (word_type{1} << color_shift)
+                                      | (word_type{1} << (color_shift + 1));
+static constexpr word_type generation_bits = (word_type{1} << generation_shift)
+                                           | (word_type{1} << (generation_shift + 1));
+static constexpr word_type hash_bits = ((word_type{1} << hash_width) - 1) << hash_shift;
 
 inline word_type
 clamp_hash(word_type h) { return h & ((static_cast<word_type>(1) << hash_width) - 1); }
@@ -92,7 +101,7 @@ header_word(ptr<> o) {
 }
 
 inline word_type
-type_index(word_type header) { return (header & type_bits) >> type_shift; }
+type_index(word_type header) { return header >> type_shift; }
 
 inline word_type
 object_type_index(ptr<> o) { return type_index(header_word(o)); }
@@ -107,7 +116,7 @@ inline type_descriptor const&
 object_type(ptr<> o) { return object_type(header_word(o)); }
 
 inline word_type
-object_hash(ptr<> o) { return header_word(o) >> hash_shift; }
+object_hash(ptr<> o) { return (header_word(o) & hash_bits) >> hash_shift; }
 
 inline word_type
 tagged_payload(ptr<> o) {
