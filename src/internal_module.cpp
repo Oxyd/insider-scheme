@@ -54,6 +54,101 @@ export_string(context&, module_&);
 void
 export_character(context&, module_&);
 
+static void
+set_car(context& ctx, ptr<pair> p, ptr<> new_car) {
+  p->set_car(ctx.store, new_car);
+}
+
+static void
+set_cdr(context& ctx, ptr<pair> p, ptr<> new_cdr) {
+  p->set_cdr(ctx.store, new_cdr);
+}
+
+static ptr<>
+eq(context& ctx, ptr<> x, ptr<> y) {
+  return x == y ? ctx.constants->t : ctx.constants->f;
+}
+
+static bool
+known_module(context& ctx, ptr<syntax> name) {
+  return ctx.knows_module(parse_module_name(ctx, name));
+}
+
+static ptr<>
+procedure_bytecode(context& ctx, ptr<procedure> f) {
+  integer::value_type pc = f->entry_pc;
+  std::vector<std::tuple<std::size_t, std::size_t, instruction>> instrs;
+
+  while (pc < f->entry_pc + static_cast<integer::value_type>(f->bytecode_size)) {
+    integer::value_type pos = pc;
+    instruction instr = read_instruction(ctx.program, pc);
+
+    instrs.emplace_back(pos, pc - pos, instr);
+  }
+
+  return make_list_from_vector(ctx, instrs,
+                               [&] (std::tuple<std::size_t, std::size_t, instruction> i) {
+                                 return make_list(ctx,
+                                                  integer_to_ptr(std::get<0>(i)),
+                                                  integer_to_ptr(std::get<1>(i)),
+                                                  make<opaque_value<instruction>>(ctx, std::get<2>(i)));
+                               });
+}
+
+static ptr<>
+procedure_name(context& ctx, ptr<procedure> f) {
+  if (f->name)
+    return make<string>(ctx, *f->name);
+  else
+    return ctx.constants->f;
+}
+
+static integer
+instruction_opcode(ptr<opaque_value<instruction>> i) {
+  return integer{static_cast<integer::value_type>(i->value.opcode)};
+}
+
+static ptr<>
+instruction_operands(context& ctx, ptr<opaque_value<instruction>> i) {
+  instruction instr = i->value;
+  return make_list_from_vector(ctx, instr.operands,
+                               [&] (operand o) { return integer_to_ptr(o); });
+}
+
+static ptr<string>
+top_level_name(context& ctx, operand op) {
+  return make<string>(ctx, ctx.get_top_level_name(op));
+}
+
+static ptr<>
+static_value(context& ctx, operand op) {
+  return ctx.get_static_checked(op);
+}
+
+static ptr<>
+top_level_value(context& ctx, operand op) {
+  return ctx.get_top_level_checked(op);
+}
+
+static void
+set_verbose_colleection(context& ctx, ptr<boolean> value) {
+  ctx.store.verbose_collection = value->value();
+}
+
+static void
+trap([[maybe_unused]] ptr<> value) {
+#ifndef WIN32
+  raise(SIGTRAP);
+#else
+  __debugbreak();
+#endif
+}
+
+static ptr<>
+features(context& ctx) {
+  return ctx.features();
+}
+
 module_
 make_internal_module(context& ctx) {
   module_ result{ctx};
@@ -74,138 +169,47 @@ make_internal_module(context& ctx) {
   export_string(ctx, result);
   export_character(ctx, result);
 
-  define_raw_procedure(ctx, "append", result, true, append);
-  define_procedure(ctx, "cons", result, true, cons);
-  define_procedure(ctx, "car", result, true, static_cast<ptr<> (*)(ptr<pair>)>(car));
-  define_procedure(ctx, "cdr", result, true, static_cast<ptr<> (*)(ptr<pair>)>(cdr));
-  define_procedure(ctx, "cadr", result, true, cadr);
-  define_procedure(ctx, "caddr", result, true, caddr);
-  define_procedure(ctx, "cadddr", result, true, cadddr);
-  define_procedure(ctx, "cddr", result, true, cddr);
-  define_procedure(ctx, "cdddr", result, true, cdddr);
-  define_procedure(ctx, "set-car!", result, true,
-                   [] (context& ctx, ptr<pair> p, ptr<> new_car) {
-                     p->set_car(ctx.store, new_car);
-                   });
-  define_procedure(ctx, "set-cdr!", result, true,
-                   [] (context& ctx, ptr<pair> p, ptr<> new_cdr) {
-                     p->set_cdr(ctx.store, new_cdr);
-                   });
+  define_raw_procedure<append>(ctx, "append", result, true);
+  define_procedure<cons>(ctx, "cons", result, true);
+  define_procedure<static_cast<ptr<> (*)(ptr<pair>)>(car)>(ctx, "car", result, true);
+  define_procedure<static_cast<ptr<> (*)(ptr<pair>)>(cdr)>(ctx, "cdr", result, true);
+  define_procedure<cadr>(ctx, "cadr", result, true);
+  define_procedure<caddr>(ctx, "caddr", result, true);
+  define_procedure<cadddr>(ctx, "cadddr", result, true);
+  define_procedure<cddr>(ctx, "cddr", result, true);
+  define_procedure<cdddr>(ctx, "cdddr", result, true);
+  define_procedure<set_car>(ctx, "set-car!", result, true);
+  define_procedure<set_cdr>(ctx, "set-cdr!", result, true);
 
-  operand type_index = define_procedure(ctx, "type", result, true, type);
+  operand type_index = define_procedure<type>(ctx, "type", result, true);
   ctx.tag_top_level(type_index, special_top_level_tag::type);
 
-  define_procedure(
-    ctx, "eq?", result, true,
-    [] (context& ctx, ptr<> x, ptr<> y) {
-      return x == y ? ctx.constants->t : ctx.constants->f;
-    }
-  );
+  define_procedure<eq>(ctx, "eq?", result, true);
+  define_procedure<eqv>(ctx, "eqv?", result, true);
+  define_procedure<equal>(ctx, "equal?", result, true);
 
-  define_procedure(ctx, "eqv?", result, true, eqv);
-  define_procedure(ctx, "equal?", result, true, equal);
+  define_procedure<features>(ctx, "features", result, true);
+  define_procedure<known_module>(ctx, "known-module?", result, true);
 
-  define_procedure(ctx, "features", result, true,
-                   [] (context& ctx) { return ctx.features(); });
+  define_procedure<procedure_bytecode>(ctx, "procedure-bytecode", result, true);
+  define_procedure<procedure_name>(ctx, "procedure-name", result, true);
+  define_procedure<&closure::procedure>(ctx, "closure-procedure", result, true);
 
-  define_procedure(ctx, "known-module?", result, true,
-                   [] (context& ctx, ptr<syntax> name) {
-                     return ctx.knows_module(parse_module_name(ctx, name));
-                   });
-
-  define_procedure(
-    ctx, "procedure-bytecode", result, true,
-    [] (context& ctx, ptr<procedure> f) {
-      integer::value_type pc = f->entry_pc;
-      std::vector<std::tuple<std::size_t, std::size_t, instruction>> instrs;
-
-      while (pc < f->entry_pc + static_cast<integer::value_type>(f->bytecode_size)) {
-        integer::value_type pos = pc;
-        instruction instr = read_instruction(ctx.program, pc);
-
-        instrs.emplace_back(pos, pc - pos, instr);
-      }
-
-      return make_list_from_vector(ctx, instrs,
-                                   [&] (std::tuple<std::size_t, std::size_t, instruction> i) {
-                                     return make_list(ctx,
-                                                      integer_to_ptr(std::get<0>(i)),
-                                                      integer_to_ptr(std::get<1>(i)),
-                                                      make<opaque_value<instruction>>(ctx, std::get<2>(i)));
-                                   });
-    }
-  );
-
-  define_procedure(
-    ctx, "procedure-name", result, true,
-    [] (context& ctx, ptr<procedure> f) -> ptr<> {
-      if (f->name)
-        return make<string>(ctx, *f->name);
-      else
-        return ctx.constants->f;
-    }
-  );
-
-  define_procedure(ctx, "closure-procedure", result, true, &closure::procedure);
-
-  define_procedure(
-    ctx, "instruction-opcode", result, true,
-    [] (ptr<opaque_value<instruction>> i) {
-      return integer{static_cast<integer::value_type>(i->value.opcode)};
-    }
-  );
-
-  define_procedure(
-    ctx, "instruction-operands", result, true,
-    [] (context& ctx, ptr<opaque_value<instruction>> i) {
-      instruction instr = i->value;
-      return make_list_from_vector(ctx, instr.operands,
-                                   [&] (operand o) { return integer_to_ptr(o); });
-    }
-  );
-
+  define_procedure<instruction_opcode>(ctx, "instruction-opcode", result, true);
+  define_procedure<instruction_operands>(ctx, "instruction-operands", result, true);
   define_top_level(ctx, "opcodes", result, true,
                    make_vector(ctx, opcode_value_to_info,
                                [&] (instruction_info const& info) {
                                  return ctx.intern(info.mnemonic);
                                }));
 
-  define_procedure(
-    ctx, "top-level-name", result, true,
-    [] (context& ctx, operand op) {
-      return make<string>(ctx, ctx.get_top_level_name(op));
-    }
-  );
+  define_procedure<top_level_name>(ctx, "top-level-name", result, true);
+  define_procedure<static_value>(ctx, "static-value", result, true);
+  define_procedure<top_level_value>(ctx, "top-level-value", result, true);
 
-  define_procedure(
-    ctx, "static-value", result, true,
-    [] (context& ctx, operand op) {
-      return ctx.get_static_checked(op);
-    }
-  );
+  define_procedure<set_verbose_colleection>(ctx, "set-verbose-collection!", result, true);
 
-  define_procedure(
-    ctx, "top-level-value", result, true,
-    [] (context& ctx, operand op) {
-      return ctx.get_top_level_checked(op);
-    }
-  );
-
-  define_procedure(
-    ctx, "set-verbose-collection!", result, true,
-    [] (context& ctx, ptr<boolean> value) {
-      ctx.store.verbose_collection = value->value();
-    }
-  );
-
-  define_procedure(ctx, "trap!", result, true,
-                   [] ([[maybe_unused]] ptr<> value) {
-#ifndef WIN32
-                     raise(SIGTRAP);
-#else
-                     __debugbreak();
-#endif
-                   });
+  define_procedure<trap>(ctx, "trap!", result, true);
 
   define_top_level(ctx, "<eof-object>", result, true, ctx.constants->eof);
 

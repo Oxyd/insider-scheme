@@ -376,7 +376,7 @@ make_string_byte_length(context& ctx, std::size_t length) {
   return make<string>(ctx, std::string(length, '\0'));
 }
 
-static ptr<string>
+static ptr<>
 string_append(context& ctx, object_span args) {
   std::string result;
   for (ptr<> s : args)
@@ -544,37 +544,37 @@ string_ge(ptr<string> lhs, ptr<string> rhs) {
 
 void
 export_string(context& ctx, module_& result) {
-  define_raw_procedure(ctx, "string", result, true, construct_string);
-  define_raw_procedure(ctx, "make-string", result, true, make_string);
-  define_procedure(ctx, "make-string/byte-length", result, true, make_string_byte_length);
-  define_procedure(ctx, "string-length", result, true, &string::length);
-  define_raw_procedure(ctx, "string-append", result, true, string_append);
-  define_procedure(ctx, "string-append!", result, true, string_append_in_place);
-  define_procedure(ctx, "symbol->string", result, true, symbol_to_string);
-  define_procedure(ctx, "string->symbol", result, true, string_to_symbol);
-  define_procedure(ctx, "string-byte-length", result, true, string_byte_length);
-  define_procedure(ctx, "next-code-point-byte-index", result, true, next_code_point_byte_index);
-  define_procedure(ctx, "previous-code-point-byte-index", result, true, previous_code_point_byte_index);
-  define_procedure(ctx, "string-ref", result, true, string_ref);
-  define_procedure(ctx, "string-set!", result, true, &string::set);
-  define_procedure(ctx, "string-set!/byte-index", result, true, &string::set_byte_index);
-  define_procedure(ctx, "string-append-char!", result, true, &string::append_char);
-  define_procedure(ctx, "string-ref/byte-index", result, true, string_ref_byte_index);
-  define_procedure(ctx, "string-null?", result, true, is_string_null);
-  define_procedure(ctx, "string-reverse*", result, true, string_reverse);
-  define_procedure(ctx, "string-copy/byte-indexes", result, true, string_copy_byte_indexes);
-  define_procedure(ctx, "string-contains/byte-indexes", result, true, string_contains_byte_indexes);
-  define_procedure(ctx, "string-contains-right/byte-indexes", result, true, string_contains_right_byte_indexes);
-  define_procedure(ctx, "string=?/pair", result, true, string_eq);
-  define_procedure(ctx, "string<?/pair", result, true, string_lt);
-  define_procedure(ctx, "string<=?/pair", result, true, string_le);
-  define_procedure(ctx, "string>?/pair", result, true, string_gt);
-  define_procedure(ctx, "string>=?/pair", result, true, string_ge);
-  define_procedure(ctx, "string-upcase", result, true, string_upcase);
-  define_procedure(ctx, "string-downcase", result, true, string_downcase);
-  define_procedure(ctx, "string-foldcase", result, true, static_cast<ptr<string> (*)(context&, ptr<string>)>(&string_foldcase));
-  define_procedure(ctx, "string->utf8/byte-indexes", result, true, string_to_utf8_byte_indexes);
-  define_procedure(ctx, "utf8->string*", result, true, utf8_to_string);
+  define_raw_procedure<construct_string>(ctx, "string", result, true);
+  define_raw_procedure<make_string>(ctx, "make-string", result, true);
+  define_procedure<make_string_byte_length>(ctx, "make-string/byte-length", result, true);
+  define_procedure<&string::length>(ctx, "string-length", result, true);
+  define_raw_procedure<string_append>(ctx, "string-append", result, true);
+  define_procedure<string_append_in_place>(ctx, "string-append!", result, true);
+  define_procedure<symbol_to_string>(ctx, "symbol->string", result, true);
+  define_procedure<string_to_symbol>(ctx, "string->symbol", result, true);
+  define_procedure<string_byte_length>(ctx, "string-byte-length", result, true);
+  define_procedure<next_code_point_byte_index>(ctx, "next-code-point-byte-index", result, true);
+  define_procedure<previous_code_point_byte_index>(ctx, "previous-code-point-byte-index", result, true);
+  define_procedure<string_ref>(ctx, "string-ref", result, true);
+  define_procedure<&string::set>(ctx, "string-set!", result, true);
+  define_procedure<&string::set_byte_index>(ctx, "string-set!/byte-index", result, true);
+  define_procedure<&string::append_char>(ctx, "string-append-char!", result, true);
+  define_procedure<string_ref_byte_index>(ctx, "string-ref/byte-index", result, true);
+  define_procedure<is_string_null>(ctx, "string-null?", result, true);
+  define_procedure<string_reverse>(ctx, "string-reverse*", result, true);
+  define_procedure<string_copy_byte_indexes>(ctx, "string-copy/byte-indexes", result, true);
+  define_procedure<string_contains_byte_indexes>(ctx, "string-contains/byte-indexes", result, true);
+  define_procedure<string_contains_right_byte_indexes>(ctx, "string-contains-right/byte-indexes", result, true);
+  define_procedure<string_eq>(ctx, "string=?/pair", result, true);
+  define_procedure<string_lt>(ctx, "string<?/pair", result, true);
+  define_procedure<string_le>(ctx, "string<=?/pair", result, true);
+  define_procedure<string_gt>(ctx, "string>?/pair", result, true);
+  define_procedure<string_ge>(ctx, "string>=?/pair", result, true);
+  define_procedure<string_upcase>(ctx, "string-upcase", result, true);
+  define_procedure<string_downcase>(ctx, "string-downcase", result, true);
+  define_procedure<static_cast<ptr<string> (*)(context&, ptr<string>)>(&string_foldcase)>(ctx, "string-foldcase", result, true);
+  define_procedure<string_to_utf8_byte_indexes>(ctx, "string->utf8/byte-indexes", result, true);
+  define_procedure<utf8_to_string>(ctx, "utf8->string*", result, true);
 }
 
 } // namespace insider

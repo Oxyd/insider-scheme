@@ -77,11 +77,13 @@ TEST_F(types, vector) {
   EXPECT_FALSE(two);
 }
 
+static ptr<opaque_value<int>>
+make_opaque_seven(context& ctx) {
+  return make<opaque_value<int>>(ctx, 7);
+}
+
 TEST_F(types, opaque_value) {
-  define_procedure(
-    ctx, "make-value", ctx.internal_module, true,
-    [] (context& ctx) { return make<opaque_value<int>>(ctx, 7); }
-  );
+  define_procedure<make_opaque_seven>(ctx, "make-value", ctx.internal_module, true);
   auto result = eval("(make-value)");
   EXPECT_EQ(expect<opaque_value<int>>(result)->value, 7);
 }

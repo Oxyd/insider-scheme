@@ -34,9 +34,9 @@ jiffies_per_second() {
 
 void
 export_time(context& ctx, module_& result) {
-  define_procedure(ctx, "current-second", result, true, current_second);
-  define_procedure(ctx, "current-jiffy", result, true, current_jiffy);
-  define_procedure(ctx, "jiffies-per-second", result, true, jiffies_per_second);
+  define_procedure<current_second>(ctx, "current-second", result, true);
+  define_procedure<current_jiffy>(ctx, "current-jiffy", result, true);
+  define_procedure<jiffies_per_second>(ctx, "jiffies-per-second", result, true);
 }
 
 } // namespace insider

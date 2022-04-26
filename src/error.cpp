@@ -26,7 +26,7 @@ cxx_exception::message() const {
 
 void
 export_error(context& ctx, module_& result) {
-  define_procedure(ctx, "cxx-exception-message", result, true, &cxx_exception::message);
+  define_procedure<&cxx_exception::message>(ctx, "cxx-exception-message", result, true);
 }
 
 } // namespace insider

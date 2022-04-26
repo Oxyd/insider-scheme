@@ -45,16 +45,18 @@ make_instance(context& ctx, ptr<record_type> type) {
   return make<record_instance>(ctx, type);
 }
 
+static ptr<record_type>
+make_record_type(context& ctx, std::size_t num_fields) {
+  return make<record_type>(ctx, num_fields);
+}
+
 void
 export_records(context& ctx, module_& result) {
-  define_procedure(ctx, "make-record-type", result, true,
-                   [] (context& ctx, std::size_t num_fields) {
-                     return make<record_type>(ctx, num_fields);
-                   });
-  define_procedure(ctx, "make-record-instance", result, true, make_instance);
-  define_procedure(ctx, "record-set!", result, true, &record_instance::set);
-  define_procedure(ctx, "record-ref", result, true, &record_instance::ref);
-  define_procedure(ctx, "record-type", result, true, &record_instance::type);
+  define_procedure<make_record_type>(ctx, "make-record-type", result, true);
+  define_procedure<make_instance>(ctx, "make-record-instance", result, true);
+  define_procedure<&record_instance::set>(ctx, "record-set!", result, true);
+  define_procedure<&record_instance::ref>(ctx, "record-ref", result, true);
+  define_procedure<&record_instance::type>(ctx, "record-type", result, true);
 }
 
 } // namespace insider

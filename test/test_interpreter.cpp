@@ -160,7 +160,7 @@ TEST_F(interpreter, exec_loop) {
 }
 
 TEST_F(interpreter, exec_native_call) {
-  auto native = [] (context&, object_span args) {
+  auto native = [] (context&, ptr<native_procedure>, object_span args) {
     return integer_to_ptr(integer{2 * expect<integer>(args[0]).value()
                                   + 3 * expect<integer>(args[1]).value()
                                   + 5 * expect<integer>(args[2]).value()});
@@ -247,11 +247,13 @@ TEST_F(interpreter, exec_make_vector) {
   EXPECT_TRUE(equal(result.get(), read("#(1 2 3)")));
 }
 
+static integer
+apply_and_double(context& ctx, ptr<procedure> f, ptr<> arg) {
+  return 2 * expect<integer>(call_with_continuation_barrier(ctx, f, {arg})).value();
+}
+
 TEST_F(interpreter, scheme_to_native_to_scheme) {
-  define_procedure(ctx, "apply-and-double", ctx.internal_module, true,
-                   [] (context& ctx, ptr<procedure> f, ptr<> arg) {
-                     return 2 * expect<integer>(call_with_continuation_barrier(ctx, f, {arg})).value();
-                   });
+  define_procedure<apply_and_double>(ctx, "apply-and-double", ctx.internal_module, true);
   ptr<> result1 = eval_module(
     R"(
       (import (insider internal))
@@ -286,16 +288,16 @@ TEST_F(interpreter, call_variadic_scheme_procedure_from_native) {
   EXPECT_TRUE(equal(result, read("(0 1 2)")));
 }
 
+static ptr<>
+do_recursion(context& ctx, int i, int accum, ptr<> recurse, ptr<> base) {
+  if (i == 0)
+    return tail_call(ctx, base, {to_scheme(ctx, accum)});
+  else
+    return tail_call(ctx, recurse, {to_scheme(ctx, i - 1), to_scheme(ctx, accum + i), recurse, base});
+}
+
 TEST_F(interpreter, native_tail_calls) {
-  define_procedure(
-    ctx, "f", ctx.internal_module, true,
-    [] (context& ctx, int i, int accum, ptr<> recurse, ptr<> base) {
-      if (i == 0)
-        return tail_call(ctx, base, {to_scheme(ctx, accum)});
-      else
-        return tail_call(ctx, recurse, {to_scheme(ctx, i - 1), to_scheme(ctx, accum + i), recurse, base});
-    }
-  );
+  define_procedure<do_recursion>(ctx, "f", ctx.internal_module, true);
 
   ptr<> result1 = eval_module(
     R"(

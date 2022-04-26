@@ -1854,12 +1854,14 @@ analyse_module(context& ctx, module_& m, protomodule const& pm, bool main_module
   return result;
 }
 
+static tracked_ptr<syntax>
+expand_proc(context& ctx, tracked_ptr<syntax> stx) {
+  return expand(ctx, stx, nullptr);
+}
+
 void
 export_analyser(context& ctx, module_& result) {
-  define_procedure(ctx, "expand", result, true,
-                   [] (context& ctx, tracked_ptr<syntax> stx) {
-                     return expand(ctx, stx, nullptr);
-                   });
+  define_procedure<expand_proc>(ctx, "expand", result, true);
   define_top_level(ctx, "current-source-file-origin-tag", result, true,
                    ctx.constants->current_source_file_origin_tag);
   define_top_level(ctx, "main-module?-tag", result, true,

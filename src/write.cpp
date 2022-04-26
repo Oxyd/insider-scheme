@@ -532,20 +532,23 @@ get_default_port(context& ctx) {
   return expect<textual_output_port>(find_parameter_value(ctx, ctx.constants->current_output_port_tag));
 }
 
+static void
+write_char_proc(char32_t c, ptr<textual_output_port> out) {
+  out->write(c);
+}
+
 void
 export_write(context& ctx, module_& result) {
   define_top_level(ctx, "current-output-port-tag", result, true, ctx.constants->current_output_port_tag);
   define_top_level(ctx, "current-error-port-tag", result, true, ctx.constants->current_error_port_tag);
-  define_procedure(ctx, "write", result, true, write, get_default_port);
-  define_procedure(ctx, "write-simple", result, true, write_simple, get_default_port);
-  define_procedure(ctx, "write-shared", result, true, write_shared, get_default_port);
-  define_procedure(ctx, "display", result, true, display, get_default_port);
-  define_procedure(ctx, "newline", result, true, newline, get_default_port);
-  define_procedure(ctx, "write-char", result, true,
-                   [] (char32_t c, ptr<textual_output_port> out) { out->write(c); },
-                   get_default_port);
-  define_procedure(ctx, "number->string", result, true, number_to_string, [] (context&) { return 10u; });
-  define_procedure(ctx, "datum->string", result, true, datum_to_string);
+  define_procedure<write>(ctx, "write", result, true, get_default_port);
+  define_procedure<write_simple>(ctx, "write-simple", result, true, get_default_port);
+  define_procedure<write_shared>(ctx, "write-shared", result, true, get_default_port);
+  define_procedure<display>(ctx, "display", result, true, get_default_port);
+  define_procedure<newline>(ctx, "newline", result, true, get_default_port);
+  define_procedure<write_char_proc>(ctx, "write-char", result, true, get_default_port);
+  define_procedure<number_to_string>(ctx, "number->string", result, true, [] (context&) { return 10u; });
+  define_procedure<datum_to_string>(ctx, "datum->string", result, true);
 }
 
 void

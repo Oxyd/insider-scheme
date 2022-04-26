@@ -13,15 +13,19 @@ times_2(int x) {
 }
 
 TEST_F(define_procedure_fixture, simple_procedure) {
-  define_procedure(ctx, "times-2", ctx.internal_module, true, times_2);
+  define_procedure<times_2>(ctx, "times-2", ctx.internal_module, true);
   auto result = eval("(times-2 4)");
   EXPECT_EQ(expect<integer>(result).value(), 8);
 }
 
+static int
+add_ints(int x, int y) {
+  return x + y;
+}
+
 TEST_F(define_procedure_fixture, procedure_with_one_default) {
-  define_procedure(ctx, "add", ctx.internal_module, true,
-                   [] (int x, int y) { return x + y; },
-                   [] (context&) { return 0; });
+  define_procedure<add_ints>(ctx, "add", ctx.internal_module, true,
+                             [] (context&) { return 0; });
   auto result1 = eval("(add 2 3)");
   EXPECT_EQ(expect<integer>(result1).value(), 5);
 
@@ -33,10 +37,9 @@ TEST_F(define_procedure_fixture, procedure_with_one_default) {
 }
 
 TEST_F(define_procedure_fixture, procedure_with_two_defaults) {
-  define_procedure(ctx, "add", ctx.internal_module, true,
-                   [] (int x, int y) { return x + y; },
-                   [] (context&) { return 0; },
-                   [] (context&) { return 0; });
+  define_procedure<add_ints>(ctx, "add", ctx.internal_module, true,
+                             [] (context&) { return 0; },
+                             [] (context&) { return 0; });
   EXPECT_EQ(expect<integer>(eval("(add)")).value(), 0);
   EXPECT_EQ(expect<integer>(eval("(add 1)")).value(), 1);
   EXPECT_EQ(expect<integer>(eval("(add 1 2)")).value(), 3);
@@ -46,11 +49,10 @@ TEST_F(define_procedure_fixture, procedure_with_two_defaults) {
 TEST_F(define_procedure_fixture, procedure_with_parameter_as_the_default) {
   auto n = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
   define_top_level(ctx, "n", ctx.internal_module, true, n.get());
-  define_procedure(ctx, "add", ctx.internal_module, true,
-                   [] (int x, int y) { return x + y; },
-                   [=] (context& ctx) {
-                     return static_cast<int>(expect<integer>(find_parameter_value(ctx, n.get())).value());
-                   });
+  define_procedure<add_ints>(ctx, "add", ctx.internal_module, true,
+                             [=] (context& ctx) {
+                               return static_cast<int>(expect<integer>(find_parameter_value(ctx, n.get())).value());
+                             });
 
   EXPECT_EQ(expect<integer>(eval("(add 1)")).value(), 1);
   EXPECT_EQ(expect<integer>(eval("(add 1 2)")).value(), 3);

@@ -186,7 +186,7 @@ vector_to_list(context& ctx, object_span args) {
   return result;
 }
 
-static ptr<vector>
+static ptr<>
 vector_append(context& ctx, object_span vs) {
   std::size_t size = 0;
   for (ptr<> e : vs) {
@@ -363,7 +363,7 @@ make_bytevector(context& ctx, std::size_t len, bytevector::element_type fill) {
   return result;
 }
 
-static ptr<bytevector>
+static ptr<>
 make_bytevector_elems(context& ctx, object_span args) {
   auto result = make<bytevector>(ctx, args.size());
   for (std::size_t i = 0; i < args.size(); ++i)
@@ -371,51 +371,61 @@ make_bytevector_elems(context& ctx, object_span args) {
   return result;
 }
 
-static ptr<vector>
-make_vector_proc(context& ctx, object_span args) {
+static ptr<>
+vector_proc(context& ctx, object_span args) {
   return make_vector(ctx, args.begin(), args.end());
+}
+
+static ptr<vector>
+make_vector_proc(context& ctx, std::size_t len, ptr<> fill) {
+  return make<vector>(ctx, len, fill);
+}
+
+static void
+vector_set(context& ctx, ptr<vector> v, std::size_t i, ptr<> o) {
+  v->set(ctx.store, i, o);
+}
+
+static ptr<error>
+make_error_proc(context& ctx, ptr<string> m, ptr<> i) {
+  return make<error>(ctx, m, i);
+}
+
+static ptr<>
+uncaught_exception_inner_exception(ptr<uncaught_exception> e) {
+  return e->inner_exception;
 }
 
 void
 export_basic_types(context& ctx, module_& result) {
-  define_procedure(ctx, "list->vector", result, true, list_to_vector);
-  define_raw_procedure(ctx, "vector->list", result, true, vector_to_list);
-  define_raw_procedure(ctx, "vector-append", result, true, vector_append);
-  define_procedure(ctx, "vector-length", result, true, &vector::size);
-  define_raw_procedure(ctx, "vector", result, true, make_vector_proc);
-  define_procedure(
+  define_procedure<list_to_vector>(ctx, "list->vector", result, true);
+  define_raw_procedure<vector_to_list>(ctx, "vector->list", result, true);
+  define_raw_procedure<vector_append>(ctx, "vector-append", result, true);
+  define_procedure<&vector::size>(ctx, "vector-length", result, true);
+  define_raw_procedure<vector_proc>(ctx, "vector", result, true);
+  define_procedure<make_vector_proc>(
     ctx, "make-vector", result, true,
-    [] (context& ctx, std::size_t len, ptr<> fill) {
-      return make<vector>(ctx, len, fill);
-    },
     [] (context& ctx) { return ctx.constants->void_; }
   );
-  operand vector_ref_index = define_procedure(ctx, "vector-ref", result, true, &vector::ref);
+  operand vector_ref_index = define_procedure<&vector::ref>(ctx, "vector-ref", result, true);
   ctx.tag_top_level(vector_ref_index, special_top_level_tag::vector_ref);
 
-  operand vector_set_index = define_procedure(
-    ctx, "vector-set!", result, true,
-    [] (context& ctx, ptr<vector> v, std::size_t i, ptr<> o) {
-      v->set(ctx.store, i, o);
-    }
-  );
+  operand vector_set_index = define_procedure<vector_set>(ctx, "vector-set!", result, true);
   ctx.tag_top_level(vector_set_index, special_top_level_tag::vector_set);
 
-  define_procedure(ctx, "make-error", result, true,
-                   [] (context& ctx, ptr<string> m, ptr<> i) { return make<error>(ctx, m, i); });
-  define_procedure(ctx, "error-message", result, true, &error::message);
-  define_procedure(ctx, "error-irritants", result, true, &error::irritants);
-  define_procedure(ctx, "uncaught-exception-inner-exception", result, true,
-                   [] (ptr<uncaught_exception> e) { return e->inner_exception; });
-  define_procedure(ctx, "file-error-message", result, true, &file_error::message);
+  define_procedure<make_error_proc>(ctx, "make-error", result, true);
+  define_procedure<&error::message>(ctx, "error-message", result, true);
+  define_procedure<&error::irritants>(ctx, "error-irritants", result, true);
+  define_procedure<uncaught_exception_inner_exception>(ctx, "uncaught-exception-inner-exception", result, true);
+  define_procedure<&file_error::message>(ctx, "file-error-message", result, true);
 
-  define_procedure(ctx, "make-bytevector", result, true, make_bytevector, [] (context&) -> bytevector::element_type { return 0; });
-  define_raw_procedure(ctx, "bytevector", result, true, make_bytevector_elems);
-  define_procedure(ctx, "bytevector-length", result, true, &bytevector::size);
-  define_procedure(ctx, "bytevector-u8-ref", result, true, &bytevector::ref);
-  define_procedure(ctx, "bytevector-u8-set!", result, true, &bytevector::set);
-  define_procedure(ctx, "values-tuple-length", result, true, &values_tuple::size);
-  define_procedure(ctx, "values-tuple-ref", result, true, &values_tuple::ref);
+  define_procedure<make_bytevector>(ctx, "make-bytevector", result, true, [] (context&) -> bytevector::element_type { return 0; });
+  define_raw_procedure<make_bytevector_elems>(ctx, "bytevector", result, true);
+  define_procedure<&bytevector::size>(ctx, "bytevector-length", result, true);
+  define_procedure<&bytevector::ref>(ctx, "bytevector-u8-ref", result, true);
+  define_procedure<&bytevector::set>(ctx, "bytevector-u8-set!", result, true);
+  define_procedure<&values_tuple::size>(ctx, "values-tuple-length", result, true);
+  define_procedure<&values_tuple::ref>(ctx, "values-tuple-ref", result, true);
 }
 
 } // namespace insider

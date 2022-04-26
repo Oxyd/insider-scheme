@@ -295,50 +295,51 @@ bound_identifier_eq(context& ctx, ptr<syntax> x, ptr<syntax> y) {
   return scope_sets_equal(x->scopes(), y->scopes());
 }
 
+static ptr<>
+syntax_scopes(context& ctx, ptr<syntax> s) {
+  return make_list_from_vector(ctx, s->scopes().data());
+}
+
+static ptr<syntax>
+syntax_add_scope(context& ctx, ptr<syntax> stx, ptr<scope> s) {
+  return stx->add_scope(ctx.store, s);
+}
+
+static ptr<>
+syntax_to_list_proc(context& ctx, ptr<> stx) {
+  if (ptr<> r = syntax_to_list(ctx, stx))
+    return r;
+  else
+    return ctx.constants->f;
+}
+
+static bool
+free_identifier_eq(ptr<syntax> x, ptr<syntax> y) {
+  if (!is_identifier(x) || !is_identifier(y))
+    throw std::runtime_error{"Expected two identifiers"};
+
+  auto x_binding = lookup(x);
+  auto y_binding = lookup(y);
+
+  if (x_binding && y_binding)
+    return *x_binding == *y_binding;
+  else if (!x_binding && !y_binding)
+    return identifier_name(x) == identifier_name(y);
+  else
+    return false;
+}
+
 void
 export_syntax(context& ctx, module_& result) {
-  define_procedure(ctx, "syntax-expression", result, true, &syntax::update_and_get_expression);
-  define_procedure(ctx, "syntax-scopes", result, true,
-                   [] (context& ctx, ptr<syntax> s) {
-                     return make_list_from_vector(ctx, s->scopes().data());
-                   });
-  define_procedure(ctx, "syntax-add-scope", result, true,
-                   [] (context& ctx, ptr<syntax> stx, ptr<scope> s) {
-                     return stx->add_scope(ctx.store, s);
-                   });
-
-  define_procedure(ctx, "syntax->datum", result, true, syntax_to_datum);
-  define_procedure(ctx, "syntax->list", result, true,
-                   [] (context& ctx, ptr<> stx) -> ptr<> {
-                     if (ptr<> r = syntax_to_list(ctx, stx))
-                       return r;
-                     else
-                       return ctx.constants->f;
-                   });
-
-  define_procedure(ctx, "datum->syntax", result, true,
-                   [] (context& ctx, ptr<syntax> s, ptr<> datum) {
-                     return datum_to_syntax(ctx, s, datum);
-                   });
-
-  define_procedure(ctx, "free-identifier=?", result, true,
-                   [] (ptr<syntax> x, ptr<syntax> y) {
-                     if (!is_identifier(x) || !is_identifier(y))
-                       throw std::runtime_error{"Expected two identifiers"};
-
-                     auto x_binding = lookup(x);
-                     auto y_binding = lookup(y);
-
-                     if (x_binding && y_binding)
-                       return *x_binding == *y_binding;
-                     else if (!x_binding && !y_binding)
-                       return identifier_name(x) == identifier_name(y);
-                     else
-                       return false;
-                   });
-
-  define_procedure(ctx, "bound-identifier=?", result, true, bound_identifier_eq);
-  define_procedure(ctx, "syntax-location", result, true, syntax_location);
+  define_procedure<&syntax::update_and_get_expression>(ctx, "syntax-expression", result, true);
+  define_procedure<syntax_scopes>(ctx, "syntax-scopes", result, true);
+  define_procedure<syntax_add_scope>(ctx, "syntax-add-scope", result, true);
+  define_procedure<syntax_to_datum>(ctx, "syntax->datum", result, true);
+  define_procedure<syntax_to_list_proc>(ctx, "syntax->list", result, true);
+  define_procedure<datum_to_syntax>(ctx, "datum->syntax", result, true);
+  define_procedure<free_identifier_eq>(ctx, "free-identifier=?", result, true);
+  define_procedure<bound_identifier_eq>(ctx, "bound-identifier=?", result, true);
+  define_procedure<syntax_location>(ctx, "syntax-location", result, true);
 }
 
 } // namespace insider

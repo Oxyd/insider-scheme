@@ -429,14 +429,29 @@ private:
 struct native_procedure : public leaf_object<native_procedure> {
   static constexpr char const* scheme_name = "insider::native_procedure";
 
-  using target_type = std::function<ptr<>(context&, object_span)>;
+  class extra_data {
+  public:
+    virtual
+    ~extra_data() { }
+  };
+
+  using target_type = ptr<> (*)(context&, ptr<native_procedure>, object_span);
   target_type target;
   char const* name;
+  std::unique_ptr<extra_data> extra;
 
   explicit
-  native_procedure(target_type f, char const* name = "<native procedure>")
+  native_procedure(target_type f, char const* name = "<native procedure>",
+                   std::unique_ptr<extra_data> extra = {})
     : target{std::move(f)}
     , name{name}
+    , extra{std::move(extra)}
+  { }
+
+  native_procedure(target_type f, std::unique_ptr<extra_data> extra)
+    : target{std::move(f)}
+    , name{"<native procedure>"}
+    , extra{std::move(extra)}
   { }
 };
 

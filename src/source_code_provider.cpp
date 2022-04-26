@@ -41,16 +41,18 @@ find_source_relative(context& ctx, source_file_origin origin, std::filesystem::p
   return origin.provider->find_file(ctx, origin.path.replace_filename(path));
 }
 
+static ptr<>
+open_source_file_relative(context& ctx, ptr<opaque_value<source_file_origin>> origin,
+                          std::filesystem::path const& path) {
+  if (auto f = find_source_relative(ctx, origin->value, path))
+    return f->port.release().get();
+  else
+    return ctx.constants->f;
+}
+
 void
 export_source_code_provider(context& ctx, module_& result) {
-  define_procedure(ctx, "open-source-file-relative", result, true,
-                   [] (context& ctx, ptr<opaque_value<source_file_origin>> origin,
-                       std::filesystem::path const& path) -> ptr<> {
-                     if (auto f = find_source_relative(ctx, origin->value, path))
-                       return f->port.release().get();
-                     else
-                       return ctx.constants->f;
-                   });
+  define_procedure<open_source_file_relative>(ctx, "open-source-file-relative", result, true);
 }
 
 } // namespace insider

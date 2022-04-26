@@ -2140,7 +2140,7 @@ gcd(context& ctx, ptr<> x, ptr<> y) {
 
 static void
 export_native(context& ctx, module_& m, char const* name,
-              ptr<> (*f)(context&, object_span), special_top_level_tag tag) {
+              ptr<> (*f)(context&, ptr<native_procedure>, object_span), special_top_level_tag tag) {
   auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f, name), name);
   ctx.tag_top_level(index, tag);
 
@@ -2782,68 +2782,68 @@ imag_part(ptr<> x) {
 
 void
 export_numeric(context& ctx, module_& result) {
-  export_native(ctx, result, "+", add, special_top_level_tag::plus);
-  export_native(ctx, result, "-", subtract, special_top_level_tag::minus);
-  export_native(ctx, result, "*", multiply, special_top_level_tag::times);
-  export_native(ctx, result, "/", divide, special_top_level_tag::divide);
-  export_native(ctx, result, "=", arith_equal, special_top_level_tag::arith_equal);
-  export_native(ctx, result, "<", less, special_top_level_tag::less_than);
-  export_native(ctx, result, "<=", less_or_equal, special_top_level_tag::less_or_equal);
-  export_native(ctx, result, ">", greater, special_top_level_tag::greater_than);
-  export_native(ctx, result, ">=", greater_or_equal, special_top_level_tag::greater_or_equal);
-  define_procedure(ctx, "gcd", result, true, gcd);
-  define_procedure(ctx, "arithmetic-shift", result, true, arithmetic_shift);
-  define_procedure(ctx, "bitwise-and", result, true, bitwise_and);
-  define_procedure(ctx, "bitwise-ior", result, true, bitwise_ior);
-  define_procedure(ctx, "bitwise-xor", result, true, bitwise_xor);
-  define_procedure(ctx, "bitwise-not", result, true, bitwise_not);
-  define_procedure(ctx, "bit-count", result, true, bit_count);
-  define_procedure(ctx, "integer-length", result, true, integer_length);
-  define_procedure(ctx, "first-set-bit", result, true, first_set_bit);
-  define_procedure(ctx, "integer?", result, true, is_integer);
-  define_procedure(ctx, "exact-integer?", result, true, is_exact_integer);
-  define_procedure(ctx, "odd?", result, true, is_odd);
-  define_procedure(ctx, "even?", result, true, is_even);
-  define_procedure(ctx, "zero?", result, true, is_zero);
-  define_procedure(ctx, "positive?", result, true, is_positive);
-  define_procedure(ctx, "negative?", result, true, is_negative);
-  define_procedure(ctx, "number?", result, true, is_number);
-  define_procedure(ctx, "real?", result, true, is_real);
-  define_procedure(ctx, "rational?", result, true, is_rational);
-  define_procedure(ctx, "finite?", result, true, is_finite);
-  define_procedure(ctx, "infinite?", result, true, is_infinite);
-  define_procedure(ctx, "nan?", result, true, is_nan);
-  define_procedure(ctx, "exp", result, true, exp);
-  define_procedure(ctx, "log", result, true, log);
-  define_procedure(ctx, "expt", result, true, expt);
-  define_procedure(ctx, "truncate/", result, true, truncate_div);
-  define_procedure(ctx, "truncate-quotient", result, true, truncate_quotient);
-  define_procedure(ctx, "truncate-remainder", result, true, truncate_remainder);
-  define_procedure(ctx, "abs", result, true, abs);
-  define_procedure(ctx, "floor", result, true, floor);
-  define_procedure(ctx, "ceiling", result, true, ceiling);
-  define_procedure(ctx, "truncate", result, true, truncate);
-  define_procedure(ctx, "round", result, true, round);
-  define_procedure(ctx, "inexact?", result, true, is_inexact);
-  define_procedure(ctx, "exact?", result, true, is_exact);
-  define_procedure(ctx, "inexact", result, true, inexact);
-  define_procedure(ctx, "exact", result, true, exact);
-  define_procedure(ctx, "fraction-numerator", result, true, &fraction::numerator);
-  define_procedure(ctx, "fraction-denominator", result, true, &fraction::denominator);
-  define_procedure(ctx, "square", result, true, square);
-  define_procedure(ctx, "sqrt", result, true, sqrt);
-  define_procedure(ctx, "angle", result, true, angle);
-  define_procedure(ctx, "magnitude", result, true, magnitude);
-  define_procedure(ctx, "make-rectangular", result, true, make_rectangular);
-  define_procedure(ctx, "make-polar", result, true, make_polar);
-  define_procedure(ctx, "real-part", result, true, real_part);
-  define_procedure(ctx, "imag-part", result, true, imag_part);
-  define_procedure(ctx, "sin", result, true, sin);
-  define_procedure(ctx, "cos", result, true, cos);
-  define_procedure(ctx, "tan", result, true, tan);
-  define_procedure(ctx, "asin", result, true, asin);
-  define_procedure(ctx, "acos", result, true, acos);
-  define_procedure(ctx, "atan", result, true, atan);
+  export_native(ctx, result, "+", add_native_proc_arg<add>, special_top_level_tag::plus);
+  export_native(ctx, result, "-", add_native_proc_arg<subtract>, special_top_level_tag::minus);
+  export_native(ctx, result, "*", add_native_proc_arg<multiply>, special_top_level_tag::times);
+  export_native(ctx, result, "/", add_native_proc_arg<divide>, special_top_level_tag::divide);
+  export_native(ctx, result, "=", add_native_proc_arg<arith_equal>, special_top_level_tag::arith_equal);
+  export_native(ctx, result, "<", add_native_proc_arg<less>, special_top_level_tag::less_than);
+  export_native(ctx, result, "<=", add_native_proc_arg<less_or_equal>, special_top_level_tag::less_or_equal);
+  export_native(ctx, result, ">", add_native_proc_arg<greater>, special_top_level_tag::greater_than);
+  export_native(ctx, result, ">=", add_native_proc_arg<greater_or_equal>, special_top_level_tag::greater_or_equal);
+  define_procedure<gcd>(ctx, "gcd", result, true);
+  define_procedure<arithmetic_shift>(ctx, "arithmetic-shift", result, true);
+  define_procedure<bitwise_and>(ctx, "bitwise-and", result, true);
+  define_procedure<bitwise_ior>(ctx, "bitwise-ior", result, true);
+  define_procedure<bitwise_xor>(ctx, "bitwise-xor", result, true);
+  define_procedure<bitwise_not>(ctx, "bitwise-not", result, true);
+  define_procedure<bit_count>(ctx, "bit-count", result, true);
+  define_procedure<integer_length>(ctx, "integer-length", result, true);
+  define_procedure<first_set_bit>(ctx, "first-set-bit", result, true);
+  define_procedure<is_integer>(ctx, "integer?", result, true);
+  define_procedure<is_exact_integer>(ctx, "exact-integer?", result, true);
+  define_procedure<is_odd>(ctx, "odd?", result, true);
+  define_procedure<is_even>(ctx, "even?", result, true);
+  define_procedure<is_zero>(ctx, "zero?", result, true);
+  define_procedure<is_positive>(ctx, "positive?", result, true);
+  define_procedure<is_negative>(ctx, "negative?", result, true);
+  define_procedure<is_number>(ctx, "number?", result, true);
+  define_procedure<is_real>(ctx, "real?", result, true);
+  define_procedure<is_rational>(ctx, "rational?", result, true);
+  define_procedure<is_finite>(ctx, "finite?", result, true);
+  define_procedure<is_infinite>(ctx, "infinite?", result, true);
+  define_procedure<is_nan>(ctx, "nan?", result, true);
+  define_procedure<exp>(ctx, "exp", result, true);
+  define_procedure<log>(ctx, "log", result, true);
+  define_procedure<expt>(ctx, "expt", result, true);
+  define_procedure<truncate_div>(ctx, "truncate/", result, true);
+  define_procedure<truncate_quotient>(ctx, "truncate-quotient", result, true);
+  define_procedure<truncate_remainder>(ctx, "truncate-remainder", result, true);
+  define_procedure<abs>(ctx, "abs", result, true);
+  define_procedure<floor>(ctx, "floor", result, true);
+  define_procedure<ceiling>(ctx, "ceiling", result, true);
+  define_procedure<truncate>(ctx, "truncate", result, true);
+  define_procedure<round>(ctx, "round", result, true);
+  define_procedure<is_inexact>(ctx, "inexact?", result, true);
+  define_procedure<is_exact>(ctx, "exact?", result, true);
+  define_procedure<inexact>(ctx, "inexact", result, true);
+  define_procedure<exact>(ctx, "exact", result, true);
+  define_procedure<&fraction::numerator>(ctx, "fraction-numerator", result, true);
+  define_procedure<&fraction::denominator>(ctx, "fraction-denominator", result, true);
+  define_procedure<square>(ctx, "square", result, true);
+  define_procedure<sqrt>(ctx, "sqrt", result, true);
+  define_procedure<angle>(ctx, "angle", result, true);
+  define_procedure<magnitude>(ctx, "magnitude", result, true);
+  define_procedure<make_rectangular>(ctx, "make-rectangular", result, true);
+  define_procedure<make_polar>(ctx, "make-polar", result, true);
+  define_procedure<real_part>(ctx, "real-part", result, true);
+  define_procedure<imag_part>(ctx, "imag-part", result, true);
+  define_procedure<sin>(ctx, "sin", result, true);
+  define_procedure<cos>(ctx, "cos", result, true);
+  define_procedure<tan>(ctx, "tan", result, true);
+  define_procedure<asin>(ctx, "asin", result, true);
+  define_procedure<acos>(ctx, "acos", result, true);
+  define_procedure<atan>(ctx, "atan", result, true);
 }
 
 } // namespace insider

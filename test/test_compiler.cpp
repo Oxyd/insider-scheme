@@ -328,13 +328,22 @@ TEST_F(compiler, compile_higher_order_arithmetic) {
 
 TEST_F(compiler, compile_module) {
   integer::value_type sum = 0;
+
+  struct sum_closure : native_procedure::extra_data {
+    integer::value_type* sum;
+
+    explicit
+    sum_closure(integer::value_type* s) : sum{s} { }
+  };
+
   define_top_level(
     ctx, "f", ctx.internal_module, true,
     make<native_procedure>(ctx,
-                           [&] (context& ctx, object_span args) {
-                             sum += expect<integer>(args[0]).value();
+                           [] (context& ctx, ptr<native_procedure> f, object_span args) -> ptr<> {
+                             *static_cast<sum_closure&>(*f->extra).sum += expect<integer>(args[0]).value();
                              return ctx.constants->void_;
-                           })
+                           },
+                           std::make_unique<sum_closure>(&sum))
   );
 
   eval_module(R"(
@@ -420,22 +429,26 @@ TEST_F(compiler, compile_internal_define) {
   EXPECT_EQ(expect<integer>(result2).value(), 4 + 5 + 4 * 5 + 4 * 4 + 5 * 5);
 }
 
+static int
+arith(int a, int b) {
+  return 2 * a + b;
+}
+
+static std::string
+int_to_string(int i) {
+  return std::to_string(i);
+}
+
 TEST_F(compiler, define_lambda) {
-  define_procedure(
-    ctx, "f", ctx.internal_module, true,
-    [] (int a, int b) { return 2 * a + b; }
-  );
+  define_procedure<arith>(ctx, "f", ctx.internal_module, true);
 
   int x = 0;
-  define_procedure<void(int)>(
+  define_closure<void(int)>(
     ctx, "g", ctx.internal_module, true,
     [&] (int a) { x += a; }
   );
 
-  define_procedure(
-    ctx, "to-string", ctx.internal_module, true,
-    [] (int i) { return std::to_string(i); }
-  );
+  define_procedure<int_to_string>(ctx, "to-string", ctx.internal_module, true);
 
   auto result1 = eval("(f 5 7)");
   EXPECT_EQ(expect<integer>(result1).value(), 2 * 5 + 7);

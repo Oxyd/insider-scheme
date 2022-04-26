@@ -584,8 +584,10 @@ static ptr<>
 call_native_frame_target(context& ctx, ptr<stack_frame> frame, ptr<> scheme_result) {
   if (native_continuation_type cont = find_current_native_continuation(frame))
     return cont(ctx, scheme_result);
-  else
-    return assume<native_procedure>(frame->callable)->target(ctx, frame->span(0, frame->size()));
+  else {
+    auto proc = assume<native_procedure>(frame->callable);
+    return proc->target(ctx, proc, frame->span(0, frame->size()));
+  }
 }
 
 static void
@@ -994,7 +996,7 @@ setup_native_frame(execution_state& state, ptr<native_procedure> proc) {
 static tracked_ptr<>
 call_native_in_current_frame(execution_state& state, ptr<native_procedure> proc,
                              std::vector<ptr<>> const& arguments) {
-  tracked_ptr<> result{state.ctx.store, proc->target(state.ctx, object_span(arguments))};
+  tracked_ptr<> result{state.ctx.store, proc->target(state.ctx, proc, object_span(arguments))};
   state.pc = state.current_frame()->previous_pc;
   state.set_current_frame_to_parent();
   return result;
@@ -1586,7 +1588,7 @@ raise_continuable(context& ctx, ptr<> e) {
     builtin_exception_handler(ctx, e);
 }
 
-static ptr<tail_call_tag_type>
+static ptr<>
 apply(context& ctx, object_span args) {
   if (args.size() < 2)
     throw std::runtime_error{"apply: Expected at least 2 arguments"};
@@ -1635,21 +1637,20 @@ values(context& ctx, object_span args) {
 
 void
 export_vm(context& ctx, module_& result) {
-  define_procedure(ctx, "capture-stack", result, true, capture_stack);
-  define_procedure(ctx, "replace-stack!", result, true, replace_stack);
-  define_procedure(ctx, "create-parameter-tag", result, true, create_parameter_tag);
-  define_procedure(ctx, "find-parameter-value", result, true, find_parameter_value);
-  define_procedure(ctx, "set-parameter-value!", result, true, set_parameter_value);
-  define_procedure(ctx, "call-with-continuation-barrier", result, true,
-                   static_cast<ptr<> (*)(context&, bool, bool, ptr<>)>(call_with_continuation_barrier));
-  define_procedure(ctx, "call-parameterized", result, true, call_parameterized);
-  define_procedure(ctx, "dynamic-wind", result, true, dynamic_wind);
-  define_procedure(ctx, "with-exception-handler", result, true, with_exception_handler);
-  define_procedure(ctx, "raise-continuable", result, true, raise_continuable);
-  define_procedure(ctx, "raise", result, true, raise);
-  define_raw_procedure(ctx, "apply", result, true, apply);
-  define_procedure(ctx, "call-with-values", result, true, call_with_values);
-  define_raw_procedure(ctx, "values", result, true, values);
+  define_procedure<capture_stack>(ctx, "capture-stack", result, true);
+  define_procedure<replace_stack>(ctx, "replace-stack!", result, true);
+  define_procedure<create_parameter_tag>(ctx, "create-parameter-tag", result, true);
+  define_procedure<find_parameter_value>(ctx, "find-parameter-value", result, true);
+  define_procedure<set_parameter_value>(ctx, "set-parameter-value!", result, true);
+  define_procedure<static_cast<ptr<> (*)(context&, bool, bool, ptr<>)>(call_with_continuation_barrier)>(ctx, "call-with-continuation-barrier", result, true);
+  define_procedure<call_parameterized>(ctx, "call-parameterized", result, true);
+  define_procedure<dynamic_wind>(ctx, "dynamic-wind", result, true);
+  define_procedure<with_exception_handler>(ctx, "with-exception-handler", result, true);
+  define_procedure<raise_continuable>(ctx, "raise-continuable", result, true);
+  define_procedure<raise>(ctx, "raise", result, true);
+  define_raw_procedure<apply>(ctx, "apply", result, true);
+  define_procedure<call_with_values>(ctx, "call-with-values", result, true);
+  define_raw_procedure<values>(ctx, "values", result, true);
 }
 
 } // namespace insider

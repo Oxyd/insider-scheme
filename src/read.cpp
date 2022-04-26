@@ -1493,27 +1493,33 @@ get_default_port(context& ctx) {
   return expect<textual_input_port>(find_parameter_value(ctx, ctx.constants->current_input_port_tag));
 }
 
+static ptr<>
+read_syntax_multiple_proc(context& ctx, ptr<textual_input_port> p) {
+  return make_list_from_vector(ctx, read_syntax_multiple(ctx, p));
+}
+
+static ptr<>
+read_syntax_multiple_ci_proc(context& ctx, ptr<textual_input_port> p) {
+  return make_list_from_vector(ctx, read_syntax_multiple_ci(ctx, p));
+}
+
 void
 export_read(context& ctx, module_& result) {
   define_top_level(ctx, "current-input-port-tag", result, true, ctx.constants->current_input_port_tag);
-  define_procedure(ctx, "read", result, true,
-                   static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read),
+  define_procedure<static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read)>(
+    ctx, "read", result, true,
+    get_default_port
+  );
+  define_procedure<static_cast<ptr<syntax> (*)(context&, ptr<textual_input_port>)>(read_syntax)>(
+    ctx, "read-syntax", result, true,
+    get_default_port
+  );
+  define_procedure<read_syntax_multiple_proc>(ctx, "read-syntax-multiple", result, true,
                    get_default_port);
-  define_procedure(ctx, "read-syntax", result, true,
-                   static_cast<ptr<syntax> (*)(context&, ptr<textual_input_port>)>(read_syntax),
+  define_procedure<read_syntax_multiple_ci_proc>(ctx, "read-syntax-multiple-ci", result, true,
                    get_default_port);
-  define_procedure(ctx, "read-syntax-multiple", result, true,
-                   [] (context& ctx, ptr<textual_input_port> p) {
-                     return make_list_from_vector(ctx, read_syntax_multiple(ctx, p));
-                   },
-                   get_default_port);
-  define_procedure(ctx, "read-syntax-multiple-ci", result, true,
-                   [] (context& ctx, ptr<textual_input_port> p) {
-                     return make_list_from_vector(ctx, read_syntax_multiple_ci(ctx, p));
-                   },
-                   get_default_port);
-  define_procedure(ctx, "string->number", result, true, string_to_number, [] (context&) { return 10; });
-  define_procedure(ctx, "read-error-message", result, true, &read_error::scheme_error::message);
+  define_procedure<string_to_number>(ctx, "string->number", result, true, [] (context&) { return 10; });
+  define_procedure<&read_error::scheme_error::message>(ctx, "read-error-message", result, true);
 }
 
 void
