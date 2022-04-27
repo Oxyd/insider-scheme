@@ -1,7 +1,7 @@
 #include "scheme_fixture.hpp"
 
-#include "port.hpp"
-#include "string.hpp"
+#include "io/port.hpp"
+#include "runtime/string.hpp"
 
 using namespace insider;
 

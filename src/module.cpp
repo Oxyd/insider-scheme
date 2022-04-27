@@ -1,12 +1,12 @@
 #include "module.hpp"
 
-#include "analyser.hpp"
-#include "basic_types.hpp"
-#include "compiler.hpp"
+#include "compiler/analyser.hpp"
+#include "compiler/compiler.hpp"
 #include "context.hpp"
-#include "port.hpp"
-#include "read.hpp"
-#include "vm.hpp"
+#include "io/port.hpp"
+#include "io/read.hpp"
+#include "runtime/basic_types.hpp"
+#include "vm/vm.hpp"
 
 namespace insider {
 

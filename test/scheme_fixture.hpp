@@ -1,13 +1,13 @@
 #ifndef INSIDER_TEST_SCHEME_FIXTURE_HPP
 #define INSIDER_TEST_SCHEME_FIXTURE_HPP
 
-#include "basic_types.hpp"
-#include "compiler.hpp"
+#include "compiler/compiler.hpp"
+#include "compiler/source_code_provider.hpp"
 #include "context.hpp"
-#include "numeric.hpp"
-#include "read.hpp"
-#include "source_code_provider.hpp"
-#include "vm.hpp"
+#include "io/read.hpp"
+#include "runtime/basic_types.hpp"
+#include "runtime/numeric.hpp"
+#include "vm/vm.hpp"
 
 #include <gtest/gtest.h>
 

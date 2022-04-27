@@ -40,38 +40,38 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(scheme_sources
-  src/analyser.cpp
-  src/basic_types.cpp
-  src/bytecode.cpp
-  src/call_stack.cpp
-  src/character.cpp
-  src/code_point_properties.cpp
-  src/compare.cpp
-  src/compiler.cpp
+  src/compiler/analyser.cpp
+  src/compiler/compiler.cpp
+  src/compiler/expression.cpp
+  src/compiler/module_name.cpp
+  src/compiler/scope.cpp
+  src/compiler/source_code_provider.cpp
+  src/compiler/source_location.cpp
   src/context.cpp
-  src/error.cpp
-  src/expression.cpp
-  src/free_store.cpp
-  src/internal_module.cpp
+  src/io/port.cpp
+  src/io/read.cpp
+  src/io/reader_stream.cpp
+  src/io/write.cpp
+  src/memory/free_store.cpp
+  src/memory/root_list.cpp
+  src/memory/root_provider.cpp
+  src/memory/tracked_ptr.cpp
   src/module.cpp
-  src/module_name.cpp
-  src/numeric.cpp
   src/object.cpp
-  src/port.cpp
-  src/read.cpp
-  src/reader_stream.cpp
-  src/records.cpp
-  src/root_list.cpp
-  src/root_provider.cpp
-  src/scope.cpp
-  src/source_code_provider.cpp
-  src/source_location.cpp
-  src/string.cpp
-  src/syntax.cpp
-  src/time.cpp
-  src/tracked_ptr.cpp
-  src/vm.cpp
-  src/write.cpp
+  src/runtime/basic_types.cpp
+  src/runtime/character.cpp
+  src/runtime/code_point_properties.cpp
+  src/runtime/compare.cpp
+  src/runtime/error.cpp
+  src/runtime/internal_module.cpp
+  src/runtime/numeric.cpp
+  src/runtime/records.cpp
+  src/runtime/string.cpp
+  src/runtime/syntax.cpp
+  src/runtime/time.cpp
+  src/vm/bytecode.cpp
+  src/vm/call_stack.cpp
+  src/vm/vm.cpp
   )
 
 set(test_sources
@@ -118,7 +118,7 @@ endif()
 add_library(scheme ${scheme_sources})
 
 target_link_libraries(scheme PUBLIC fmt::fmt-header-only)
-target_include_directories(scheme INTERFACE src)
+target_include_directories(scheme PUBLIC src)
 set_property(TARGET scheme PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")

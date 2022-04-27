@@ -1,6 +1,6 @@
 #include "scheme_fixture.hpp"
 
-#include "reader_stream.hpp"
+#include "io/reader_stream.hpp"
 
 using namespace insider;
 

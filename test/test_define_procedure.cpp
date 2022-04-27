@@ -1,7 +1,7 @@
 #include "scheme_fixture.hpp"
 
-#include "define_procedure.hpp"
-#include "vm.hpp"
+#include "util/define_procedure.hpp"
+#include "vm/vm.hpp"
 
 using namespace insider;
 

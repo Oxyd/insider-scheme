@@ -1,7 +1,7 @@
 #include "scheme_fixture.hpp"
 
-#include "character.hpp"
-#include "code_point_properties.hpp"
+#include "runtime/character.hpp"
+#include "runtime/code_point_properties.hpp"
 
 using namespace insider;
 

@@ -1,13 +1,13 @@
 #ifndef INSIDER_CONTEXT_HPP
 #define INSIDER_CONTEXT_HPP
 
-#include "compare.hpp"
-#include "free_store.hpp"
+#include "compiler/scope.hpp"
+#include "memory/free_store.hpp"
 #include "module.hpp"
 #include "object.hpp"
-#include "operand.hpp"
 #include "ptr.hpp"
-#include "scope.hpp"
+#include "runtime/compare.hpp"
+#include "vm/operand.hpp"
 
 #include <map>
 #include <tuple>

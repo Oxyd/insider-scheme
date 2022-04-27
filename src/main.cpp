@@ -1,10 +1,10 @@
-#include "action.hpp"
-#include "compiler.hpp"
+#include "compiler/compiler.hpp"
+#include "compiler/source_code_provider.hpp"
 #include "context.hpp"
-#include "port.hpp"
-#include "read.hpp"
-#include "source_code_provider.hpp"
-#include "vm.hpp"
+#include "io/port.hpp"
+#include "io/read.hpp"
+#include "runtime/action.hpp"
+#include "vm/vm.hpp"
 
 #include <fmt/format.h>
 

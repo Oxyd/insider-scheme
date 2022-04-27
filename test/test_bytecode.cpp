@@ -1,4 +1,4 @@
-#include "bytecode.hpp"
+#include "vm/bytecode.hpp"
 
 #include <gtest/gtest.h>
 

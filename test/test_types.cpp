@@ -1,7 +1,7 @@
 #include "scheme_fixture.hpp"
 
-#include "basic_types.hpp"
-#include "define_procedure.hpp"
+#include "runtime/basic_types.hpp"
+#include "util/define_procedure.hpp"
 
 using namespace insider;
 

@@ -1,6 +1,6 @@
 #include "scheme_fixture.hpp"
 
-#include "root_provider.hpp"
+#include "memory/root_provider.hpp"
 
 using namespace insider;
 

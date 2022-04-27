@@ -1,8 +1,8 @@
 #ifndef INSIDER_OBJECT_HPP
 #define INSIDER_OBJECT_HPP
 
+#include "memory/root_provider.hpp"
 #include "ptr.hpp"
-#include "root_provider.hpp"
 
 #include <fmt/format.h>
 

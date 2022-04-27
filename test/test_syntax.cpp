@@ -1,6 +1,6 @@
 #include "scheme_fixture.hpp"
 
-#include "syntax.hpp"
+#include "runtime/syntax.hpp"
 
 using namespace insider;
 

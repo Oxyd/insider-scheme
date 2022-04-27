@@ -1,14 +1,14 @@
 #include "context.hpp"
 
-#include "action.hpp"
-#include "analyser.hpp"
-#include "basic_types.hpp"
-#include "internal_module.hpp"
-#include "list_iterator.hpp"
-#include "port.hpp"
-#include "read.hpp"
-#include "source_code_provider.hpp"
-#include "vm.hpp"
+#include "compiler/analyser.hpp"
+#include "compiler/source_code_provider.hpp"
+#include "io/port.hpp"
+#include "io/read.hpp"
+#include "runtime/action.hpp"
+#include "runtime/basic_types.hpp"
+#include "runtime/internal_module.hpp"
+#include "util/list_iterator.hpp"
+#include "vm/vm.hpp"
 
 namespace insider {
 

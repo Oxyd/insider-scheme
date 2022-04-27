@@ -1,7 +1,7 @@
 #include "scheme_fixture.hpp"
 
-#include "define_procedure.hpp"
-#include "numeric.hpp"
+#include "runtime/numeric.hpp"
+#include "util/define_procedure.hpp"
 
 using namespace insider;
 

@@ -1,9 +1,9 @@
 #ifndef INSIDER_MODULE_HPP
 #define INSIDER_MODULE_HPP
 
-#include "module_name.hpp"
-#include "root_provider.hpp"
-#include "syntax.hpp"
+#include "compiler/module_name.hpp"
+#include "memory/root_provider.hpp"
+#include "runtime/syntax.hpp"
 
 #include <filesystem>
 

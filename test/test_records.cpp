@@ -1,8 +1,8 @@
 #include "scheme_fixture.hpp"
 
-#include "basic_types.hpp"
-#include "integer.hpp"
-#include "records.hpp"
+#include "runtime/basic_types.hpp"
+#include "runtime/integer.hpp"
+#include "runtime/records.hpp"
 
 using namespace insider;
 

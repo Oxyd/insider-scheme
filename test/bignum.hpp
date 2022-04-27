@@ -2,7 +2,7 @@
 #define INSIDER_TEST_BIGNUM_HPP
 
 #include "context.hpp"
-#include "numeric.hpp"
+#include "runtime/numeric.hpp"
 
 using limb_type = insider::big_integer::limb_type;
 using limb_vector = std::vector<limb_type>;

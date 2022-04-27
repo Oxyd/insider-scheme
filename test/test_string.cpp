@@ -1,9 +1,9 @@
 #include "scheme_fixture.hpp"
 
-#include "string.hpp"
+#include "runtime/string.hpp"
 
-#include "to_scheme.hpp"
-#include "write.hpp"
+#include "io/write.hpp"
+#include "util/to_scheme.hpp"
 
 using namespace insider;
 

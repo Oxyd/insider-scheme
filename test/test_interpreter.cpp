@@ -1,6 +1,6 @@
 #include "scheme_fixture.hpp"
 
-#include "define_procedure.hpp"
+#include "util/define_procedure.hpp"
 
 using namespace insider;
 

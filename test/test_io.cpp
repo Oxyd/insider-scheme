@@ -1,13 +1,13 @@
 #include "bignum.hpp"
 #include "scheme_fixture.hpp"
 
-#include "basic_types.hpp"
-#include "character.hpp"
-#include "numeric.hpp"
-#include "port.hpp"
-#include "read.hpp"
-#include "string.hpp"
-#include "write.hpp"
+#include "io/port.hpp"
+#include "io/read.hpp"
+#include "io/write.hpp"
+#include "runtime/basic_types.hpp"
+#include "runtime/character.hpp"
+#include "runtime/numeric.hpp"
+#include "runtime/string.hpp"
 
 using namespace insider;
 
