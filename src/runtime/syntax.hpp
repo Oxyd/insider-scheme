@@ -1,5 +1,5 @@
-#ifndef INSIDER_SYNTAX_HPP
-#define INSIDER_SYNTAX_HPP
+#ifndef INSIDER_RUNTIME_SYNTAX_HPP
+#define INSIDER_RUNTIME_SYNTAX_HPP
 
 #include "compiler/expression.hpp"
 #include "compiler/scope.hpp"

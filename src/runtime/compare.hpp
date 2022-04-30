@@ -1,5 +1,5 @@
-#ifndef INSIDER_COMPARE_HPP
-#define INSIDER_COMPARE_HPP
+#ifndef INSIDER_RUNTIME_COMPARE_HPP
+#define INSIDER_RUNTIME_COMPARE_HPP
 
 #include "memory/tracked_ptr.hpp"
 #include "ptr.hpp"

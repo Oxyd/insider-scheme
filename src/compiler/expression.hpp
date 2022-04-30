@@ -1,5 +1,5 @@
-#ifndef INSIDER_EXPRESSION_HPP
-#define INSIDER_EXPRESSION_HPP
+#ifndef INSIDER_COMPILER_EXPRESSION_HPP
+#define INSIDER_COMPILER_EXPRESSION_HPP
 
 #include "compiler/module_name.hpp"
 #include "compiler/source_file_origin.hpp"

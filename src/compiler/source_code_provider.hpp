@@ -1,5 +1,5 @@
-#ifndef INSIDER_SOURCE_CODE_PROVIDER_HPP
-#define INSIDER_SOURCE_CODE_PROVIDER_HPP
+#ifndef INSIDER_COMPILER_SOURCE_CODE_PROVIDER_HPP
+#define INSIDER_COMPILER_SOURCE_CODE_PROVIDER_HPP
 
 #include "compiler/expression.hpp"
 #include "compiler/source_file_origin.hpp"

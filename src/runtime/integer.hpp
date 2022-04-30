@@ -1,5 +1,5 @@
-#ifndef INSIDER_INTEGER_HPP
-#define INSIDER_INTEGER_HPP
+#ifndef INSIDER_RUNTIME_INTEGER_HPP
+#define INSIDER_RUNTIME_INTEGER_HPP
 
 #include "object.hpp"
 #include "ptr.hpp"

@@ -1,5 +1,5 @@
-#ifndef INSIDER_VM_HPP
-#define INSIDER_VM_HPP
+#ifndef INSIDER_VM_VM_HPP
+#define INSIDER_VM_VM_HPP
 
 #include "memory/root_provider.hpp"
 #include "ptr.hpp"

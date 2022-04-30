@@ -1,5 +1,5 @@
-#ifndef INSIDER_RECORDS_HPP
-#define INSIDER_RECORDS_HPP
+#ifndef INSIDER_RUNTIME_RECORDS_HPP
+#define INSIDER_RUNTIME_RECORDS_HPP
 
 #include "object.hpp"
 

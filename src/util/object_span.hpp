@@ -1,5 +1,5 @@
-#ifndef INSIDER_OBJECT_SPAN_HPP
-#define INSIDER_OBJECT_SPAN_HPP
+#ifndef INSIDER_UTIL_OBJECT_SPAN_HPP
+#define INSIDER_UTIL_OBJECT_SPAN_HPP
 
 #include "object_conversions.hpp"
 #include "ptr.hpp"

@@ -1,5 +1,5 @@
-#ifndef INSIDER_MODULE_NAME_HPP
-#define INSIDER_MODULE_NAME_HPP
+#ifndef INSIDER_COMPILER_MODULE_NAME_HPP
+#define INSIDER_COMPILER_MODULE_NAME_HPP
 
 #include <string>
 #include <vector>

@@ -1,5 +1,5 @@
-#ifndef INSIDER_TO_SCHEME_HPP
-#define INSIDER_TO_SCHEME_HPP
+#ifndef INSIDER_UTIL_TO_SCHEME_HPP
+#define INSIDER_UTIL_TO_SCHEME_HPP
 
 #include "context.hpp"
 #include "ptr.hpp"

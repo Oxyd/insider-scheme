@@ -1,5 +1,5 @@
-#ifndef INSIDER_FREE_STORE_HPP
-#define INSIDER_FREE_STORE_HPP
+#ifndef INSIDER_MEMORY_FREE_STORE_HPP
+#define INSIDER_MEMORY_FREE_STORE_HPP
 
 #include "memory/page_allocator.hpp"
 #include "memory/root_list.hpp"

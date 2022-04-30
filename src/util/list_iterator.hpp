@@ -1,5 +1,5 @@
-#ifndef INSIDER_LIST_ITERATOR_HPP
-#define INSIDER_LIST_ITERATOR_HPP
+#ifndef INSIDER_UTIL_LIST_ITERATOR_HPP
+#define INSIDER_UTIL_LIST_ITERATOR_HPP
 
 #include "object_conversions.hpp"
 #include "ptr.hpp"

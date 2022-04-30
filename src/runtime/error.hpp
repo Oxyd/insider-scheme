@@ -1,5 +1,5 @@
-#ifndef INSIDER_ERROR_HPP
-#define INSIDER_ERROR_HPP
+#ifndef INSIDER_RUNTIME_ERROR_HPP
+#define INSIDER_RUNTIME_ERROR_HPP
 
 #include "memory/tracked_ptr.hpp"
 #include "object.hpp"

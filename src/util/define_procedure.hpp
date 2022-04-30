@@ -1,5 +1,5 @@
-#ifndef INSIDER_DEFINE_PROCEDURE_HPP
-#define INSIDER_DEFINE_PROCEDURE_HPP
+#ifndef INSIDER_UTIL_DEFINE_PROCEDURE_HPP
+#define INSIDER_UTIL_DEFINE_PROCEDURE_HPP
 
 #include "context.hpp"
 #include "runtime/basic_types.hpp"

@@ -1,5 +1,5 @@
-#ifndef INSIDER_READER_STREAM_HPP
-#define INSIDER_READER_STREAM_HPP
+#ifndef INSIDER_IO_READER_STREAM_HPP
+#define INSIDER_IO_READER_STREAM_HPP
 
 #include "compiler/source_location.hpp"
 #include "memory/tracked_ptr.hpp"

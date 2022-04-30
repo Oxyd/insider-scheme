@@ -1,5 +1,5 @@
-#ifndef INSIDER_ANALYSER_HPP
-#define INSIDER_ANALYSER_HPP
+#ifndef INSIDER_COMPILER_ANALYSER_HPP
+#define INSIDER_COMPILER_ANALYSER_HPP
 
 #include "expression.hpp"
 #include "source_file_origin.hpp"

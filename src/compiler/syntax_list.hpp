@@ -1,5 +1,5 @@
-#ifndef INSIDER_SYNTAX_LIST_HPP
-#define INSIDER_SYNTAX_LIST_HPP
+#ifndef INSIDER_COMPILER_SYNTAX_LIST_HPP
+#define INSIDER_COMPILER_SYNTAX_LIST_HPP
 
 #include "runtime/basic_types.hpp"
 #include "runtime/syntax.hpp"

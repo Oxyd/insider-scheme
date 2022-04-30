@@ -1,5 +1,5 @@
-#ifndef INSIDER_COMPILER_HPP
-#define INSIDER_COMPILER_HPP
+#ifndef INSIDER_COMPILER_COMPILER_HPP
+#define INSIDER_COMPILER_COMPILER_HPP
 
 #include "compiler/source_file_origin.hpp"
 #include "module.hpp"

@@ -1,5 +1,5 @@
-#ifndef INSIDER_BASIC_TYPES_HPP
-#define INSIDER_BASIC_TYPES_HPP
+#ifndef INSIDER_RUNTIME_BASIC_TYPES_HPP
+#define INSIDER_RUNTIME_BASIC_TYPES_HPP
 
 #include "context.hpp"
 #include "memory/free_store.hpp"

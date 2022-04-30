@@ -1,5 +1,5 @@
-#ifndef INSIDER_ACTION_HPP
-#define INSIDER_ACTION_HPP
+#ifndef INSIDER_RUNTIME_ACTION_HPP
+#define INSIDER_RUNTIME_ACTION_HPP
 
 #include "context.hpp"
 #include "io/write.hpp"

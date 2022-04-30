@@ -1,5 +1,5 @@
-#ifndef INSIDER_OPERAND_HPP
-#define INSIDER_OPERAND_HPP
+#ifndef INSIDER_VM_OPERAND_HPP
+#define INSIDER_VM_OPERAND_HPP
 
 #include <cstdint>
 

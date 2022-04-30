@@ -1,5 +1,5 @@
-#ifndef INSIDER_OBJECT_CONVERSIONS_HPP
-#define INSIDER_OBJECT_CONVERSIONS_HPP
+#ifndef INSIDER_UTIL_OBJECT_CONVERSIONS_HPP
+#define INSIDER_UTIL_OBJECT_CONVERSIONS_HPP
 
 #include "memory/tracked_ptr.hpp"
 #include "object.hpp"

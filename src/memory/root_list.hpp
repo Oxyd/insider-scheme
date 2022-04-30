@@ -1,5 +1,5 @@
-#ifndef INSIDER_ROOT_LIST_HPP
-#define INSIDER_ROOT_LIST_HPP
+#ifndef INSIDER_MEMORY_ROOT_LIST_HPP
+#define INSIDER_MEMORY_ROOT_LIST_HPP
 
 #include "root_provider.hpp"
 

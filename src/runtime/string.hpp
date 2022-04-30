@@ -1,5 +1,5 @@
-#ifndef INSIDER_STRING_HPP
-#define INSIDER_STRING_HPP
+#ifndef INSIDER_RUNTIME_STRING_HPP
+#define INSIDER_RUNTIME_STRING_HPP
 
 #include "object.hpp"
 

@@ -1,5 +1,5 @@
-#ifndef INSIDER_TRACKED_PTR_HPP
-#define INSIDER_TRACKED_PTR_HPP
+#ifndef INSIDER_MEMORY_TRACKED_PTR_HPP
+#define INSIDER_MEMORY_TRACKED_PTR_HPP
 
 #include "object.hpp"
 #include "ptr.hpp"

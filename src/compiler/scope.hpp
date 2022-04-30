@@ -1,5 +1,5 @@
-#ifndef INSIDER_SCOPE_HPP
-#define INSIDER_SCOPE_HPP
+#ifndef INSIDER_COMPILER_SCOPE_HPP
+#define INSIDER_COMPILER_SCOPE_HPP
 
 #include "object.hpp"
 #include "ptr.hpp"

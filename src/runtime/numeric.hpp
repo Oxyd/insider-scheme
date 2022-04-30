@@ -1,5 +1,5 @@
-#ifndef INSIDER_NUMERIC_HPP
-#define INSIDER_NUMERIC_HPP
+#ifndef INSIDER_RUNTIME_NUMERIC_HPP
+#define INSIDER_RUNTIME_NUMERIC_HPP
 
 #include "memory/free_store.hpp"
 #include "runtime/integer.hpp"

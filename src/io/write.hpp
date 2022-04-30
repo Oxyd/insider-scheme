@@ -1,5 +1,5 @@
-#ifndef INSIDER_WRITE_HPP
-#define INSIDER_WRITE_HPP
+#ifndef INSIDER_IO_WRITE_HPP
+#define INSIDER_IO_WRITE_HPP
 
 #include "ptr.hpp"
 

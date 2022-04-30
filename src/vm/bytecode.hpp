@@ -1,5 +1,5 @@
-#ifndef INSIDER_BYTECODE_HPP
-#define INSIDER_BYTECODE_HPP
+#ifndef INSIDER_VM_BYTECODE_HPP
+#define INSIDER_VM_BYTECODE_HPP
 
 #include "runtime/integer.hpp"
 #include "vm/operand.hpp"
