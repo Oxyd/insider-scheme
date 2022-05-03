@@ -338,21 +338,6 @@ bytevector_eqv(ptr<bytevector>, ptr<bytevector>);
 std::vector<std::uint8_t>
 bytevector_data(ptr<bytevector>);
 
-// An immutable string, used for identifying Scheme objects.
-class symbol : public leaf_object<symbol> {
-public:
-  static constexpr char const* scheme_name = "insider::symbol";
-
-  explicit
-  symbol(std::string value) : value_{std::move(value)} { }
-
-  std::string
-  value() const { return value_; }
-
-private:
-  std::string value_;
-};
-
 // Mutable container for a single element. Essentially a pointer.
 class box : public composite_object<box> {
 public:
@@ -453,20 +438,6 @@ struct native_procedure : public leaf_object<native_procedure> {
     , name{"<native procedure>"}
     , extra{std::move(extra)}
   { }
-};
-
-// Captured part of the call stack.
-class continuation : public composite_object<continuation> {
-public:
-  static constexpr char const* scheme_name = "insider::continuation";
-
-  ptr<stack_frame> frame;
-
-  explicit
-  continuation(ptr<stack_frame> f) : frame{f} { }
-
-  void
-  visit_members(member_visitor const& f) { f(frame); }
 };
 
 template <typename T>

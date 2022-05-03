@@ -223,6 +223,12 @@ make_tracked(context& ctx, Args&&... args) {
   return tracked_ptr<T>{ctx.store, make<T>(ctx, std::forward<Args>(args)...)};
 }
 
+template <typename T, typename... Args>
+weak_ptr<T>
+make_weak(context& ctx, Args&&... args) {
+  return weak_ptr<T>{ctx.store, make<T>(ctx, std::forward<Args>(args)...)};
+}
+
 inline tracked_ptr<>
 track(context& ctx, ptr<> o) { return {ctx.store, o}; }
 

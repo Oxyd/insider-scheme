@@ -8,6 +8,7 @@
 #include "ptr.hpp"
 #include "runtime/compare.hpp"
 #include "runtime/error.hpp"
+#include "runtime/symbol.hpp"
 #include "util/object_conversions.hpp"
 
 #include <string>

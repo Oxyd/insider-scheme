@@ -100,13 +100,13 @@ namespace detail {
   struct assume_helper {
     static ptr<T>
     assume(ptr<> x) {
-      assert(is<T>(x));
+      assert(!x || is<T>(x));
       return ptr_cast<T>(x);
     }
 
     static tracked_ptr<T>
     assume(tracked_ptr<> const& x) {
-      assert(is<T>(x));
+      assert(!x || is<T>(x));
       return {x.list(), static_cast<T*>(x.get())};
     }
   };

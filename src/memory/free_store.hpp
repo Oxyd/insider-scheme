@@ -236,7 +236,6 @@ namespace detail {
 class free_store {
 public:
   struct generations {
-    stack_cache        stack;
     nursery_generation nursery_1;
     nursery_generation nursery_2;
     mature_generation  mature;
@@ -284,6 +283,9 @@ public:
   }
 
   void
+  make_permanent_arc(ptr<> from);
+
+  void
   transfer_to_nursery(page_allocator::page, std::size_t used);
 
   insider::root_list&
@@ -309,16 +311,12 @@ public:
       update();
   }
 
-  stack_cache&
-  stack() { return generations_.stack; }
-
   page_allocator&
   allocator() { return allocator_; }
 
 private:
   page_allocator allocator_;
-  generations    generations_{stack_cache{*this},
-                              {allocator_, generation::nursery_1},
+  generations    generations_{{allocator_, generation::nursery_1},
                               {allocator_, generation::nursery_2},
                               {allocator_}};
 

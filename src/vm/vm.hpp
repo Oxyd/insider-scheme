@@ -20,21 +20,11 @@ class execution_state : public root_provider {
 public:
   context&            ctx;
   integer::value_type pc = -1;
+  ptr<call_stack>     stack;
 
   execution_state(context& ctx);
 
-  ptr<stack_frame>
-  current_frame() const { return current_frame_; }
-
-  void
-  set_current_frame(ptr<stack_frame> f);
-
-  void
-  set_current_frame_to_parent();
-
 private:
-  ptr<stack_frame> current_frame_;
-
   void
   visit_roots(member_visitor const&) override;
 };
@@ -86,10 +76,10 @@ public:
   operator = (parameterize const&) = delete;
 
 private:
-  context&           ctx_;
-  ptr<stack_frame>   frame_;
-  ptr<parameter_tag> tag_;
-  ptr<>              original_value_;
+  context&            ctx_;
+  integer::value_type frame_idx_ = -1;
+  ptr<parameter_tag>  tag_;
+  ptr<>               original_value_;
 
   void
   visit_roots(member_visitor const&) override;

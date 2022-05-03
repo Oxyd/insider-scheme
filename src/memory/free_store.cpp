@@ -216,13 +216,17 @@ destroy_all_objects(Space& space) {
 }
 
 free_store::~free_store() {
-  generations_.stack.clear();
   destroy_all_objects(generations_.nursery_1.small);
   destroy_all_objects(generations_.nursery_1.large);
   destroy_all_objects(generations_.nursery_2.small);
   destroy_all_objects(generations_.nursery_2.large);
   destroy_all_objects(generations_.mature.small);
   destroy_all_objects(generations_.mature.large);
+}
+
+void
+free_store::make_permanent_arc(ptr<> from) {
+  permanent_roots_.push_back(from);
 }
 
 void
@@ -239,7 +243,6 @@ static void
 trace(std::vector<ptr<>> const& permanent_roots,
       root_list const& root_list,
       nursery_generation const& nursery_1, nursery_generation const& nursery_2,
-      stack_cache const& stack_gen,
       generation max_generation) {
   assert(max_generation >= generation::nursery_2);
 
@@ -289,13 +292,6 @@ trace(std::vector<ptr<>> const& permanent_roots,
 
         trace(o);
       }
-
-  stack_gen.for_all([&] (ptr<> o) {
-    if (object_color(o) == color::white) {
-      set_object_color(o, color::grey);
-      stack.push_back(o);
-    }
-  });
 
   while (!stack.empty()) {
     ptr<> top = stack.back();
@@ -439,11 +435,6 @@ update_references(large_space const& space) {
 }
 
 static void
-update_references(stack_cache const& stack_gen) {
-  stack_gen.for_all(update_members);
-}
-
-static void
 update_references(root_list const& list) {
   list.visit_roots(update_member);
 }
@@ -495,7 +486,7 @@ free_store::collect_garbage(bool major) {
   if (verbose_collection)
     fmt::print("GC: Old: {}\n", format_stats(generations_.nursery_1, generations_.nursery_2, generations_.mature));
 
-  trace(permanent_roots_, roots_, generations_.nursery_1, generations_.nursery_2, generations_.stack, max_generation);
+  trace(permanent_roots_, roots_, generations_.nursery_1, generations_.nursery_2, max_generation);
 
   std::unordered_set<ptr<>> old_n1_incoming = std::move(generations_.nursery_1.incoming_arcs);
   generations_.nursery_1.incoming_arcs.clear();
@@ -533,7 +524,6 @@ free_store::collect_garbage(bool major) {
 
   update_references(generations_.nursery_2.small);
   update_references(generations_.nursery_2.large);
-  update_references(generations_.stack);
 
   if (max_generation == generation::mature) {
     update_references(generations_.mature.small);
@@ -625,8 +615,6 @@ free_store::reset_colors(generation max_generation) {
     for (ptr<> o : permanent_roots_)
       set_object_color(o, color::white);
   }
-
-  generations_.stack.for_all([] (ptr<> o) { set_object_color(o, color::white); });
 
 #ifndef NDEBUG
   if (max_generation == generation::mature) {

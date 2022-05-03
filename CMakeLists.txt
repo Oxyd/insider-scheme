@@ -77,6 +77,7 @@ set(scheme_sources
 set(test_sources
   test/scheme_fixture.cpp
   test/test_bytecode.cpp
+  test/test_call_stack.cpp
   test/test_character.cpp
   test/test_compiler.cpp
   test/test_control.cpp
