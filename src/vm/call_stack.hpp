@@ -146,22 +146,34 @@ private:
 };
 
 inline ptr<>
-current_frame_callable(ptr<call_stack> stack) { return stack->callable(stack->current_frame_index()); }
+current_frame_callable(ptr<call_stack> stack) {
+  return stack->callable(stack->current_frame_index());
+}
 
 inline ptr<stack_frame_extra_data>
-current_frame_extra(ptr<call_stack> stack) { return stack->extra(stack->current_frame_index()); }
+current_frame_extra(ptr<call_stack> stack) {
+  return stack->extra(stack->current_frame_index());
+}
 
 inline void
-current_frame_set_extra(ptr<call_stack> stack, ptr<stack_frame_extra_data> e) { stack->set_extra(stack->current_frame_index(), e); }
+current_frame_set_extra(ptr<call_stack> stack, ptr<stack_frame_extra_data> e) {
+  stack->set_extra(stack->current_frame_index(), e);
+}
 
 inline ptr<>&
-current_frame_local(ptr<call_stack> stack, std::size_t i) { return stack->local(stack->current_frame_index(), i); }
+current_frame_local(ptr<call_stack> stack, std::size_t i) {
+  return stack->local(stack->current_frame_index(), i);
+}
 
 inline integer::value_type
-current_frame_parent(ptr<call_stack> stack) { return stack->parent(stack->current_frame_index()); }
+current_frame_parent(ptr<call_stack> stack) {
+  return stack->parent(stack->current_frame_index());
+}
 
 inline integer::value_type
-current_frame_previous_pc(ptr<call_stack> stack) { return stack->previous_pc(stack->current_frame_index()); }
+current_frame_previous_pc(ptr<call_stack> stack) {
+  return stack->previous_pc(stack->current_frame_index());
+}
 
 inline void
 current_frame_set_previous_pc(ptr<call_stack> stack, integer::value_type pc) {
@@ -187,13 +199,17 @@ public:
   extra() const { return stack_->extra(idx_); }
 
   void
-  set_extra(ptr<stack_frame_extra_data> value) const { stack_->set_extra(idx_, value); }
+  set_extra(ptr<stack_frame_extra_data> value) const {
+    stack_->set_extra(idx_, value);
+  }
 
   integer::value_type
   previous_pc() const { return stack_->previous_pc(idx_); }
 
   void
-  set_previous_pc(integer::value_type pc) const { stack_->set_previous_pc(idx_, pc); }
+  set_previous_pc(integer::value_type pc) const {
+    stack_->set_previous_pc(idx_, pc);
+  }
 
   frame_reference
   parent() const { return {stack_, stack_->parent(idx_)}; }
@@ -210,7 +226,9 @@ private:
 };
 
 inline frame_reference
-current_frame(ptr<call_stack> stack) { return {stack, stack->current_frame_index()}; }
+current_frame(ptr<call_stack> stack) {
+  return {stack, stack->current_frame_index()};
+}
 
 class call_stack_iterator {
 public:
