@@ -51,11 +51,30 @@ public:
     integer::value_type first_frame_base;
   };
 
-  void
-  push_frame(ptr<> callable, std::size_t locals_size);
+  call_stack();
+
+  call_stack(call_stack const&);
+
+  call_stack&
+  operator = (call_stack const&);
 
   void
-  pop_frame();
+  push_frame(ptr<> callable, std::size_t locals_size,
+             integer::value_type previous_pc);
+
+  void
+  pop_frame() {
+    integer::value_type old_base = current_base_;
+    current_base_ =
+      assume<integer>(data_[current_base_ + previous_base_offset]).value();
+    assert(current_base_ == -1
+           || old_base - current_base_
+              >= static_cast<integer::value_type>(stack_frame_header_size));
+    size_ = old_base;
+  }
+
+  void
+  resize_current_frame(std::size_t new_size);
 
   void
   move_current_frame_up();
@@ -84,7 +103,10 @@ public:
   }
 
   object_span
-  current_locals_span();
+  current_locals_span() {
+    std::size_t locals_start = current_base_ + stack_frame_header_size;
+    return {&data_[locals_start], size_ - locals_start};
+  }
 
   integer::value_type
   parent(integer::value_type frame) const {
@@ -103,15 +125,12 @@ public:
 
   void
   push(ptr<> x) {
-    data_.push_back(x);
+    ensure_additional_capacity(1);
+    data_[size_++] = x;
   }
 
   ptr<>
-  pop() {
-    auto result = data_.back();
-    data_.pop_back();
-    return result;
-  }
+  pop() { return data_[--size_]; }
 
   bool
   empty() const { return current_base_ == -1; }
@@ -120,7 +139,7 @@ public:
   frames(integer::value_type begin, integer::value_type end) const;
 
   integer::value_type
-  frames_end() const { return data_.size(); }
+  frames_end() const { return size_; }
 
   void
   append_frames(frame_span);
@@ -134,9 +153,21 @@ private:
   static constexpr integer::value_type callable_offset = 2;
   static constexpr integer::value_type extra_data_offset = 3;
   static constexpr std::size_t stack_frame_header_size = 4;
+  static constexpr std::size_t alloc_size = 4096;
 
-  std::vector<ptr<>>  data_;
-  integer::value_type current_base_ = -1;
+  std::unique_ptr<ptr<>[]> data_;
+  std::size_t              capacity_     = 0;
+  std::size_t              size_         = 0;
+  integer::value_type      current_base_ = -1;
+
+  void
+  ensure_additional_capacity(std::size_t additional_size);
+
+  void
+  grow_capacity(std::size_t requested_capacity);
+
+  std::size_t
+  find_new_capacity(std::size_t at_least) const;
 
   integer::value_type
   find_last_frame_base(integer::value_type end) const;
@@ -145,7 +176,7 @@ private:
   fix_base_offsets(frame_span const& frames);
 };
 
-inline ptr<>
+inline ptr<>&
 current_frame_callable(ptr<call_stack> stack) {
   return stack->callable(stack->current_frame_index());
 }

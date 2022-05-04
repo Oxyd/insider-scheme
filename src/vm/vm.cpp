@@ -499,8 +499,8 @@ jump_to_procedure(execution_state& state, ptr<procedure> proc) {
 
 static frame_reference
 make_scheme_frame(instruction_state& istate, ptr<procedure> proc) {
-  istate.execution_state.stack->push_frame(proc, proc->locals_size);
-  current_frame_set_previous_pc(istate.execution_state.stack, istate.reader.previous_pc());
+  istate.execution_state.stack->push_frame(proc, proc->locals_size,
+                                           istate.reader.previous_pc());
   return current_frame(istate.execution_state.stack);
 }
 
@@ -522,9 +522,9 @@ push_scheme_call_frame(ptr<procedure> proc, ptr<insider::closure> closure,
 
 static frame_reference
 make_native_frame(instruction_state& istate, operand num_args, ptr<native_procedure> proc, bool is_tail) {
-  istate.execution_state.stack->push_frame(proc, num_args);
+  istate.execution_state.stack->push_frame(proc, num_args,
+                                           istate.reader.previous_pc());
   auto new_frame = current_frame(istate.execution_state.stack);
-  new_frame.set_previous_pc(istate.reader.previous_pc());
   frame_stack args_stack{new_frame};
   push_mandatory_args(args_stack, num_args, instruction_argument_reader{istate});
 
@@ -912,19 +912,24 @@ run(execution_state& state) {
   assert(false); // The only way the loop above will exit is via return.
 }
 
-static frame_reference
-make_scheme_frame(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
-  ptr<insider::closure> closure;
-  if (auto cls = match<insider::closure>(callable)) {
-    closure = cls;
-    callable = cls->procedure();
-  }
+static std::tuple<ptr<procedure>, ptr<closure>>
+split_scheme_callable_into_procedure_and_closure(ptr<> callable) {
+  if (auto c = match<closure>(callable))
+    return {assume<procedure>(c->procedure()), c};
+  else
+    return {assume<procedure>(callable), {}};
+}
 
-  ptr<procedure> proc = assume<procedure>(callable);
+static frame_reference
+make_scheme_frame_for_call_from_native(execution_state& state, ptr<> callable,
+                                       std::vector<ptr<>> const& arguments,
+                                       integer::value_type previous_pc) {
+  auto [proc, closure] =
+    split_scheme_callable_into_procedure_and_closure(callable);
 
   throw_if_wrong_number_of_args(proc, arguments.size());
 
-  state.stack->push_frame(proc, proc->locals_size);
+  state.stack->push_frame(proc, proc->locals_size, previous_pc);
   auto new_frame = current_frame(state.stack);
 
   push_arguments_and_closure(state.ctx, proc, closure, new_frame, arguments.size(),
@@ -953,7 +958,7 @@ erect_barrier(context& ctx, frame_reference frame, bool allow_out, bool allow_in
 
 static frame_reference
 setup_native_frame(execution_state& state, ptr<native_procedure> proc) {
-  state.stack->push_frame(proc, 0);
+  state.stack->push_frame(proc, 0, -1);
   current_frame_set_previous_pc(state.stack, state.pc);
   return current_frame(state.stack);
 }
@@ -1001,35 +1006,35 @@ get_native_pc(frame_reference frame) {
     return -1;
 }
 
-static frame_reference
-setup_scheme_frame_for_call_from_native(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
-  assert(is_callable(callable));
-
+static long
+get_native_pc(execution_state& state) {
   auto parent = current_frame(state.stack);
-  auto frame = make_scheme_frame(state, callable, arguments);
-
-  if (parent) {
-    assert(is_native_frame(parent));
-    frame.set_previous_pc(get_native_pc(parent));
-  } else
-    frame.set_previous_pc(-1);
-
-  return frame;
+  if (parent && is_native_frame(parent))
+    return get_native_pc(parent);
+  else
+    return -1;
 }
 
 static frame_reference
-setup_scheme_frame_for_potential_call_from_native(execution_state& state, ptr<> callable,
-                                                  std::vector<ptr<>> const& arguments) {
-  if (!state.stack->empty() && is_native_frame(current_frame(state.stack)))
-    return setup_scheme_frame_for_call_from_native(state, callable, arguments);
-  else
-    return make_scheme_frame(state, callable, arguments);
+setup_scheme_frame_for_potential_call_from_native(
+  execution_state& state,
+  ptr<> callable,
+  std::vector<ptr<>> const& arguments
+) {
+  assert(is_callable(callable));
+  return make_scheme_frame_for_call_from_native(state, callable, arguments,
+                                                get_native_pc(state));
 }
 
 static tracked_ptr<>
-call_scheme_with_continuation_barrier(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments,
-                                      ptr<parameter_tag> parameter, ptr<> parameter_value) {
-  auto frame = setup_scheme_frame_for_call_from_native(state, callable, arguments);
+call_scheme_with_continuation_barrier(execution_state& state, ptr<> callable,
+                                      std::vector<ptr<>> const& arguments,
+                                      ptr<parameter_tag> parameter,
+                                      ptr<> parameter_value) {
+  assert(is_callable(callable));
+  auto frame = make_scheme_frame_for_call_from_native(state, callable,
+                                                      arguments,
+                                                      get_native_pc(state));
   if (frame.parent())
     erect_barrier(state.ctx, frame, false, false);
 
@@ -1131,29 +1136,47 @@ find_entry_pc(ptr<> callable) {
     return expect<procedure>(callable)->entry_pc;
 }
 
+static void
+make_native_tail_call_frame(ptr<call_stack> stack,
+                            ptr<native_procedure> callable,
+                            std::vector<ptr<>> const& arguments) {
+  stack->resize_current_frame(arguments.size());
+  for (std::size_t i = 0; i < arguments.size(); ++i)
+    current_frame_local(stack, i) = arguments[i];
+
+  current_frame_callable(stack) = callable;
+}
+
+static void
+make_scheme_tail_call_frame(context& ctx, ptr <call_stack> stack, ptr<> callable,
+                            std::vector<ptr<>> const& arguments) {
+  auto [proc, closure] =
+    split_scheme_callable_into_procedure_and_closure(callable);
+  stack->resize_current_frame(proc->locals_size);
+  push_arguments_and_closure(ctx, proc, closure,
+                             current_frame(stack),
+                             arguments.size(),
+                             [a = arguments.begin()] () mutable {
+                               return *a++;
+                             });
+  current_frame_callable(stack) = callable;
+}
+
 static frame_reference
-make_call_frame(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+make_tail_call_frame(context& ctx, ptr<> callable,
+                     std::vector<ptr<>> const& arguments) {
   if (!is_callable(callable))
     throw std::runtime_error{"Expected a callable"};
 
   assert(ctx.current_execution);
+  ptr<call_stack> stack = ctx.current_execution->stack;
 
-  if (auto native_proc = match<native_procedure>(callable)) {
-    ctx.current_execution->stack->push_frame(callable, arguments.size());
-    for (std::size_t i = 0; i < arguments.size(); ++i)
-      current_frame_local(ctx.current_execution->stack, i) = arguments[i];
+  if (auto native = match<native_procedure>(callable))
+    make_native_tail_call_frame(stack, native, arguments);
+  else
+    make_scheme_tail_call_frame(ctx, stack, callable, arguments);
 
-    return current_frame(ctx.current_execution->stack);
-  } else {
-    auto new_frame = make_scheme_frame(*ctx.current_execution, callable, arguments);
-    return new_frame;
-  }
-}
-
-static frame_reference
-make_tail_call_frame(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
-  make_call_frame(ctx, callable, arguments);
-  return make_tail_call(ctx.current_execution->stack);
+  return current_frame(stack);
 }
 
 static void
@@ -1421,7 +1444,7 @@ add_parameter_value(context& ctx, frame_reference frame, ptr<parameter_tag> tag,
 
 static frame_reference
 push_dummy_frame(context& ctx) {
-  ctx.current_execution->stack->push_frame({}, 0);
+  ctx.current_execution->stack->push_frame({}, 0, -1);
   return current_frame(ctx.current_execution->stack);
 }
 
