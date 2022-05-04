@@ -961,7 +961,9 @@ setup_native_frame(execution_state& state, ptr<native_procedure> proc) {
 static tracked_ptr<>
 call_native_in_current_frame(execution_state& state, ptr<native_procedure> proc,
                              std::vector<ptr<>> const& arguments) {
-  tracked_ptr<> result{state.ctx.store, proc->target(state.ctx, proc, object_span(arguments))};
+  tracked_ptr<> result{state.ctx.store,
+                       proc->target(state.ctx, proc,
+                                    object_span(arguments.begin(), arguments.end()))};
   state.pc = current_frame_previous_pc(state.stack);
   state.stack->pop_frame();
   return result;
