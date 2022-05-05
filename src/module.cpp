@@ -3,7 +3,6 @@
 #include "compiler/analyser.hpp"
 #include "compiler/compiler.hpp"
 #include "context.hpp"
-#include "io/port.hpp"
 #include "io/read.hpp"
 #include "runtime/basic_types.hpp"
 #include "vm/vm.hpp"
@@ -85,58 +84,87 @@ check_all_names_exist(std::vector<std::string> const& names, import_set const& s
 }
 
 static import_set
-parse_import_set(context& ctx, import_specifier const& spec) {
-  if (auto* mn = std::get_if<module_name>(&spec.value)) {
-    import_set result;
-    result.source = ctx.find_module(*mn);
+parse_import_set(context& ctx, import_specifier const& spec);
 
-    for (std::string const& name : result.source->exports())
-      result.names.push_back(std::tuple{name, name});
+static import_set
+parse_module_name_import_set(context& ctx, std::vector<std::string> const* mn) {
+  import_set result;
+  result.source = ctx.find_module(*mn);
 
-    return result;
-  }
-  else if (auto* o = std::get_if<import_specifier::only>(&spec.value)) {
-    import_set result = parse_import_set(ctx, *o->from);
-    check_all_names_exist(o->identifiers, result);
-    result.names.erase(std::remove_if(result.names.begin(), result.names.end(),
-                                      [&] (auto const& name) {
-                                        return std::find(o->identifiers.begin(), o->identifiers.end(),
-                                                         std::get<0>(name)) == o->identifiers.end();
-                                      }),
-                       result.names.end());
-    return result;
-  }
-  else if (auto* e = std::get_if<import_specifier::except>(&spec.value)) {
-    import_set result = parse_import_set(ctx, *e->from);
-    check_all_names_exist(e->identifiers, result);
-    result.names.erase(std::remove_if(result.names.begin(), result.names.end(),
-                                      [&] (auto const& name) {
-                                        return std::find(e->identifiers.begin(), e->identifiers.end(),
-                                                         std::get<0>(name)) != e->identifiers.end();
-                                      }),
-                       result.names.end());
-    return result;
-  }
-  else if (auto* p = std::get_if<import_specifier::prefix>(&spec.value)) {
-    import_set result = parse_import_set(ctx, *p->from);
-    for (auto& [target, source] : result.names)
-      target = p->prefix_ + target;
-    return result;
-  }
-  else if (auto* r = std::get_if<import_specifier::rename>(&spec.value)) {
-    import_set result = parse_import_set(ctx, *r->from);
+  for (std::string const& name : result.source->exports())
+    result.names.emplace_back(name, name);
 
-    for (auto& [target, source] : result.names) {
-      for (auto const& [rename_from, rename_to] : r->renames) {
-        if (source == rename_from) {
-          target = rename_to;
-          break;
-        }
+  return result;
+}
+
+static import_set
+parse_only_import_specifier(context& ctx, import_specifier::only const* o) {
+  import_set result = parse_import_set(ctx, *o->from);
+  check_all_names_exist(o->identifiers, result);
+  result.names.erase(
+    std::remove_if(result.names.begin(), result.names.end(),
+                   [&] (auto const& name) {
+                     return std::find(o->identifiers.begin(),
+                                      o->identifiers.end(),
+                                      std::get<0>(name)) == o->identifiers.end();
+                   }),
+    result.names.end()
+  );
+  return result;
+}
+
+import_set
+parse_except_import_specifier(context& ctx, import_specifier::except const* e) {
+  import_set result = parse_import_set(ctx, *e->from);
+  check_all_names_exist(e->identifiers, result);
+  result.names.erase(
+    std::remove_if(result.names.begin(), result.names.end(),
+                   [&] (auto const& name) {
+                     return std::find(e->identifiers.begin(),
+                                      e->identifiers.end(),
+                                      std::get<0>(name)) != e->identifiers.end();
+                   }),
+    result.names.end()
+  );
+  return result;
+}
+
+import_set
+parse_prefix_import_specifier(context& ctx, import_specifier::prefix const* p) {
+  import_set result = parse_import_set(ctx, *p->from);
+  for (auto& [target, source] : result.names)
+    target = p->prefix_ + target;
+  return result;
+}
+
+import_set
+parse_rename_import_specifier(context& ctx, import_specifier::rename const* r) {
+  import_set result = parse_import_set(ctx, *r->from);
+
+  for (auto& [target, source] : result.names) {
+    for (auto const& [rename_from, rename_to] : r->renames) {
+      if (source == rename_from) {
+        target = rename_to;
+        break;
       }
     }
-
-    return result;
   }
+
+  return result;
+}
+
+import_set
+parse_import_set(context& ctx, import_specifier const& spec) {
+  if (auto* mn = std::get_if<module_name>(&spec.value))
+    return parse_module_name_import_set(ctx, mn);
+  else if (auto* o = std::get_if<import_specifier::only>(&spec.value))
+    return parse_only_import_specifier(ctx, o);
+  else if (auto* e = std::get_if<import_specifier::except>(&spec.value))
+    return parse_except_import_specifier(ctx, e);
+  else if (auto* p = std::get_if<import_specifier::prefix>(&spec.value))
+    return parse_prefix_import_specifier(ctx, p);
+  else if (auto* r = std::get_if<import_specifier::rename>(&spec.value))
+    return parse_rename_import_specifier(ctx, r);
   else {
     assert(!"Can't happen");
     return {};
@@ -194,7 +222,7 @@ import_all_exported(context& ctx, module_& to, module_& from) {
   import_set is{&from, {}};
 
   for (std::string const& name : from.exports())
-    is.names.push_back(std::tuple{name, name});
+    is.names.emplace_back(name, name);
 
   perform_imports(ctx, to, is);
 }
@@ -204,7 +232,7 @@ import_all_top_level(context& ctx, module_& to, module_& from) {
   import_set is{&from, {}};
 
   for (std::string const& name : from.top_level_names())
-    is.names.push_back(std::tuple{name, name});
+    is.names.emplace_back(name, name);
 
   perform_imports(ctx, to, is);
 }

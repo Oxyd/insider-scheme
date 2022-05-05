@@ -1,15 +1,12 @@
 #include "compiler/compiler.hpp"
 #include "compiler/source_code_provider.hpp"
 #include "context.hpp"
-#include "io/port.hpp"
-#include "io/read.hpp"
 #include "runtime/action.hpp"
 #include "vm/vm.hpp"
 
 #include <fmt/format.h>
 
 #include <cstdio>
-#include <cstring>
 #include <string>
 
 #ifdef WIN32

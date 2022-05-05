@@ -342,9 +342,6 @@ namespace detail {
 inline generation
 object_generation(ptr<> o) { return detail::get_generation(header_word(o)); }
 
-generation
-object_generation(ptr<>);
-
 class hash_generator {
 public:
   word_type
