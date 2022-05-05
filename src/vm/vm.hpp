@@ -14,8 +14,6 @@ class context;
 class module_;
 class tail_call_tag_type;
 
-class root_stack;
-
 class execution_state : public root_provider {
 public:
   context&            ctx;

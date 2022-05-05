@@ -204,9 +204,6 @@ namespace {
     integer::value_type
     previous_pc() const { return previous_pc_; }
 
-    integer::value_type
-    current_pc() const { return pc_; }
-
   private:
     bytecode const&      bc_;
     integer::value_type& pc_;
