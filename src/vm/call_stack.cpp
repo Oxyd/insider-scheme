@@ -44,7 +44,7 @@ call_stack::operator = (call_stack const& other) {
 void
 call_stack::push_frame(ptr<> callable, std::size_t locals_size,
                        integer::value_type previous_pc) {
-  auto new_base = static_cast<integer::value_type>(size_);
+  auto new_base = static_cast<frame_index>(size_);
   ensure_additional_capacity(stack_frame_header_size + locals_size);
   size_ += stack_frame_header_size + locals_size;
 
@@ -64,8 +64,8 @@ call_stack::resize_current_frame(std::size_t new_size) {
 
 void
 call_stack::move_current_frame_up() {
-  integer::value_type old_base = current_base_;
-  integer::value_type new_base = parent(old_base);
+  frame_index old_base = current_base_;
+  frame_index new_base = parent(old_base);
   std::size_t current_frame_size = size_ - old_base;
 
   for (std::size_t i = stack_frame_header_size; i < current_frame_size; ++i)
@@ -76,7 +76,7 @@ call_stack::move_current_frame_up() {
 }
 
 auto
-call_stack::frames(integer::value_type begin, integer::value_type end) const
+call_stack::frames(frame_index begin, frame_index end) const
   -> frame_span
 {
   assert(end >= 0);
@@ -127,8 +127,8 @@ call_stack::find_new_capacity(std::size_t at_least) const {
   return result;
 }
 
-integer::value_type
-call_stack::find_last_frame_base(integer::value_type end) const {
+call_stack::frame_index
+call_stack::find_last_frame_base(frame_index end) const {
   if (static_cast<std::size_t>(end) < size_)
     return assume<integer>(data_[end + previous_base_offset]).value();
   else
@@ -137,12 +137,14 @@ call_stack::find_last_frame_base(integer::value_type end) const {
 
 void
 call_stack::fix_base_offsets(frame_span const& frames) {
-  integer::value_type old_end = size_ - frames.data.size();
-  integer::value_type base_delta = old_end - frames.first_frame_base;
+  frame_index old_end = size_ - frames.data.size();
+  frame_index base_delta = old_end - frames.first_frame_base;
 
-  integer::value_type current = frames.last_frame_base + base_delta;
+  frame_index current = frames.last_frame_base + base_delta;
   while (current > old_end) {
-    integer::value_type new_offset = expect<integer>(data_[current + previous_base_offset]).value() + base_delta;
+    frame_index new_offset = expect<integer>(
+      data_[current + previous_base_offset]
+    ).value() + base_delta;
     data_[current + previous_base_offset] = integer_to_ptr(new_offset);
     current = new_offset;
   }

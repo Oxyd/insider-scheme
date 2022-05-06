@@ -45,10 +45,12 @@ class call_stack : public composite_object<call_stack> {
 public:
   static constexpr char const* scheme_name = "insider::call_stack";
 
+  using frame_index = integer::value_type;
+
   struct frame_span {
-    object_span         data;
-    integer::value_type last_frame_base;
-    integer::value_type first_frame_base;
+    object_span data;
+    frame_index last_frame_base;
+    frame_index first_frame_base;
   };
 
   call_stack();
@@ -64,12 +66,12 @@ public:
 
   void
   pop_frame() {
-    integer::value_type old_base = current_base_;
+    frame_index old_base = current_base_;
     current_base_ =
       assume<integer>(data_[current_base_ + previous_base_offset]).value();
     assert(current_base_ == -1
            || old_base - current_base_
-              >= static_cast<integer::value_type>(stack_frame_header_size));
+              >= static_cast<frame_index>(stack_frame_header_size));
     size_ = old_base;
   }
 
@@ -79,26 +81,26 @@ public:
   void
   move_current_frame_up();
 
-  integer::value_type
+  frame_index
   current_frame_index() const { return current_base_; }
 
   ptr<>&
-  callable(integer::value_type frame) {
+  callable(frame_index frame) {
     return data_[frame + callable_offset];
   }
 
   ptr<stack_frame_extra_data>
-  extra(integer::value_type frame) {
+  extra(frame_index frame) {
     return assume<stack_frame_extra_data>(data_[frame + extra_data_offset]);
   }
 
   void
-  set_extra(integer::value_type frame, ptr<stack_frame_extra_data> value) {
+  set_extra(frame_index frame, ptr<stack_frame_extra_data> value) {
     data_[frame + extra_data_offset] = value;
   }
 
   ptr<>&
-  local(integer::value_type frame, std::size_t local) {
+  local(frame_index frame, std::size_t local) {
     return data_[frame + stack_frame_header_size + local];
   }
 
@@ -108,8 +110,8 @@ public:
     return {&data_[locals_start], size_ - locals_start};
   }
 
-  integer::value_type
-  parent(integer::value_type frame) const {
+  frame_index
+  parent(frame_index frame) const {
     return assume<integer>(data_[frame + previous_base_offset]).value();
   }
 
@@ -119,7 +121,7 @@ public:
   }
 
   void
-  set_previous_pc(integer::value_type frame, integer::value_type pc) {
+  set_previous_pc(frame_index frame, integer::value_type pc) {
     data_[frame + previous_pc_offset] = integer_to_ptr(pc);
   }
 
@@ -136,9 +138,9 @@ public:
   empty() const { return current_base_ == -1; }
 
   frame_span
-  frames(integer::value_type begin, integer::value_type end) const;
+  frames(frame_index begin, frame_index end) const;
 
-  integer::value_type
+  frame_index
   frames_end() const { return size_; }
 
   void
@@ -158,7 +160,7 @@ private:
   std::unique_ptr<ptr<>[]> data_;
   std::size_t              capacity_     = 0;
   std::size_t              size_         = 0;
-  integer::value_type      current_base_ = -1;
+  frame_index              current_base_ = -1;
 
   void
   ensure_additional_capacity(std::size_t additional_size);
@@ -169,8 +171,8 @@ private:
   std::size_t
   find_new_capacity(std::size_t at_least) const;
 
-  integer::value_type
-  find_last_frame_base(integer::value_type end) const;
+  frame_index
+  find_last_frame_base(frame_index end) const;
 
   void
   fix_base_offsets(frame_span const& frames);
@@ -196,7 +198,7 @@ current_frame_local(ptr<call_stack> stack, std::size_t i) {
   return stack->local(stack->current_frame_index(), i);
 }
 
-inline integer::value_type
+inline call_stack::frame_index
 current_frame_parent(ptr<call_stack> stack) {
   return stack->parent(stack->current_frame_index());
 }
@@ -215,7 +217,7 @@ class frame_reference {
 public:
   frame_reference() = default;
 
-  frame_reference(ptr<call_stack> stack, integer::value_type idx)
+  frame_reference(ptr<call_stack> stack, call_stack::frame_index idx)
     : stack_{stack}
     , idx_{idx}
   { }
@@ -245,15 +247,15 @@ public:
   frame_reference
   parent() const { return {stack_, stack_->parent(idx_)}; }
 
-  integer::value_type
+  call_stack::frame_index
   index() const { return idx_; }
 
   explicit
   operator bool () const { return idx_ != -1; }
 
 private:
-  ptr<call_stack>     stack_;
-  integer::value_type idx_ = -1;
+  ptr<call_stack>         stack_;
+  call_stack::frame_index idx_ = -1;
 };
 
 inline frame_reference
@@ -299,8 +301,8 @@ public:
   }
 
 private:
-  ptr<call_stack> stack_{};
-  integer::value_type current_ = -1;
+  ptr<call_stack>         stack_{};
+  call_stack::frame_index current_ = -1;
 };
 
 inline bool
