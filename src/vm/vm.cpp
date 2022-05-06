@@ -592,7 +592,8 @@ call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
   ptr<> result;
   do
     result = call_native_frame_target(state.ctx, state.stack, scheme_result);
-  while (is_native_frame(current_frame(state.stack)) && result == state.ctx.constants->tail_call_tag);
+  while (result == state.ctx.constants->tail_call_tag
+         && is_native_frame(current_frame(state.stack)));
 
   if (is_native_frame(current_frame(state.stack)))
     // Return from a native call (potentially a different native call than
