@@ -57,7 +57,7 @@ class execution_state;
 
 class source_code_provider;
 
-// SOME top-level values are tagged to let the compiler understand them and
+// Some top-level values are tagged to let the compiler understand them and
 // optimise them.
 enum class special_top_level_tag {
   plus,
@@ -71,7 +71,11 @@ enum class special_top_level_tag {
   greater_or_equal,
   vector_set,
   vector_ref,
-  type
+  type,
+  cons,
+  car,
+  cdr,
+  eq
 };
 
 // Evaluation context.

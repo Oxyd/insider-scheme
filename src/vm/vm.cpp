@@ -712,6 +712,28 @@ cons(instruction_state& istate) {
 }
 
 static void
+car(instruction_state& istate) {
+  ptr<pair> p = expect<pair>(istate.frame().local(istate.reader.read_operand()));
+  istate.frame().local(istate.reader.read_operand()) = car(p);
+}
+
+static void
+cdr(instruction_state& istate) {
+  ptr<pair> p = expect<pair>(istate.frame().local(istate.reader.read_operand()));
+  istate.frame().local(istate.reader.read_operand()) = cdr(p);
+}
+
+static void
+eq(instruction_state& istate) {
+  ptr<> lhs = istate.frame().local(istate.reader.read_operand());
+  ptr<> rhs = istate.frame().local(istate.reader.read_operand());
+  istate.frame().local(istate.reader.read_operand())
+    = lhs == rhs
+      ? istate.context().constants->t
+      : istate.context().constants->f;
+}
+
+static void
 make_vector(instruction_state& istate) {
   operand dest = istate.reader.read_operand();
   operand num_elems = istate.reader.read_operand();
@@ -844,6 +866,18 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
 
   case opcode::cons:
     cons(istate);
+    break;
+
+  case opcode::car:
+    car(istate);
+    break;
+
+  case opcode::cdr:
+    cdr(istate);
+    break;
+
+  case opcode::eq:
+    eq(istate);
     break;
 
   case opcode::make_vector:

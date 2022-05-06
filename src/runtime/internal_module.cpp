@@ -149,6 +149,14 @@ features(context& ctx) {
   return ctx.features();
 }
 
+template <auto F>
+static void
+define_tagged_procedure(context& ctx, char const* name, module_& result,
+                        special_top_level_tag tag) {
+  operand index = define_procedure<F>(ctx, name, result, true);
+  ctx.tag_top_level(index, tag);
+}
+
 module_
 make_internal_module(context& ctx) {
   module_ result{ctx};
@@ -170,9 +178,14 @@ make_internal_module(context& ctx) {
   export_character(ctx, result);
 
   define_raw_procedure<append>(ctx, "append", result, true);
-  define_procedure<cons>(ctx, "cons", result, true);
-  define_procedure<static_cast<ptr<> (*)(ptr<pair>)>(car)>(ctx, "car", result, true);
-  define_procedure<static_cast<ptr<> (*)(ptr<pair>)>(cdr)>(ctx, "cdr", result, true);
+  define_tagged_procedure<cons>(ctx, "cons", result,
+                                special_top_level_tag::cons);
+  define_tagged_procedure<static_cast<ptr<> (*)(ptr<pair>)>(car)>(
+    ctx, "car", result, special_top_level_tag::car
+  );
+  define_tagged_procedure<static_cast<ptr<> (*)(ptr<pair>)>(cdr)>(
+    ctx, "cdr", result, special_top_level_tag::cdr
+  );
   define_procedure<cadr>(ctx, "cadr", result, true);
   define_procedure<caddr>(ctx, "caddr", result, true);
   define_procedure<cadddr>(ctx, "cadddr", result, true);
@@ -181,10 +194,10 @@ make_internal_module(context& ctx) {
   define_procedure<set_car>(ctx, "set-car!", result, true);
   define_procedure<set_cdr>(ctx, "set-cdr!", result, true);
 
-  operand type_index = define_procedure<type>(ctx, "type", result, true);
-  ctx.tag_top_level(type_index, special_top_level_tag::type);
+  define_tagged_procedure<type>(ctx, "type", result,
+                                special_top_level_tag::type);
 
-  define_procedure<eq>(ctx, "eq?", result, true);
+  define_tagged_procedure<eq>(ctx, "eq?", result, special_top_level_tag::eq);
   define_procedure<eqv>(ctx, "eqv?", result, true);
   define_procedure<equal>(ctx, "equal?", result, true);
 

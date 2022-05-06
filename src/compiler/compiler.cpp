@@ -440,6 +440,81 @@ compile_type(context& ctx, procedure_context& proc, application_expression const
 }
 
 static void
+compile_cons_expression(context& ctx, procedure_context& proc, cons_expression const& stx, result_register& result) {
+  shared_register car = compile_expression_to_register(ctx, proc, *stx.car, false);
+  shared_register cdr = compile_expression_to_register(ctx, proc, *stx.cdr, false);
+  encode_instruction(proc.bytecode_stack.back(), instruction{opcode::cons, *car, *cdr, *result.get(proc)});
+}
+
+static void
+compile_cons_application(context& ctx, procedure_context& proc,
+                         application_expression const& stx,
+                         result_register& result) {
+  if (stx.arguments.size() != 2)
+    throw std::runtime_error{"cons: Expected exactly 2 arguments"};
+
+  shared_register car_reg
+    = compile_expression_to_register(ctx, proc, *stx.arguments[0], false);
+  shared_register cdr_reg
+    = compile_expression_to_register(ctx, proc, *stx.arguments[1], false);
+
+  if (result.result_used())
+    encode_instruction(proc.bytecode_stack.back(),
+                       instruction{opcode::cons,
+                                   *car_reg, *cdr_reg,
+                                   *result.get(proc)});
+}
+
+static void
+compile_car(context& ctx, procedure_context& proc,
+            application_expression const& stx,
+            result_register& result) {
+  if (stx.arguments.size() != 1)
+    throw std::runtime_error{"car: Expected exactly 1 argument"};
+
+  shared_register pair_reg
+    = compile_expression_to_register(ctx, proc, *stx.arguments[0], false);
+
+  if (result.result_used())
+    encode_instruction(proc.bytecode_stack.back(),
+                       instruction{opcode::car, *pair_reg, *result.get(proc)});
+}
+
+static void
+compile_cdr(context& ctx, procedure_context& proc,
+            application_expression const& stx,
+            result_register& result) {
+  if (stx.arguments.size() != 1)
+    throw std::runtime_error{"cdr: Expected exactly 1 argument"};
+
+  shared_register pair_reg
+    = compile_expression_to_register(ctx, proc, *stx.arguments[0], false);
+
+  if (result.result_used())
+    encode_instruction(proc.bytecode_stack.back(),
+                       instruction{opcode::cdr, *pair_reg, *result.get(proc)});
+}
+
+static void
+compile_eq(context& ctx, procedure_context& proc,
+           application_expression const& stx,
+           result_register& result) {
+  if (stx.arguments.size() != 2)
+    throw std::runtime_error{"eq?: Expected exactly 2 arguments"};
+
+  shared_register lhs_reg
+    = compile_expression_to_register(ctx, proc, *stx.arguments[0], false);
+  shared_register rhs_reg
+    = compile_expression_to_register(ctx, proc, *stx.arguments[1], false);
+
+  if (result.result_used())
+    encode_instruction(proc.bytecode_stack.back(),
+                       instruction{opcode::eq,
+                                   *lhs_reg, *rhs_reg,
+                                   *result.get(proc)});
+}
+
+static void
 compile_let(context& ctx, procedure_context& proc, let_expression const& stx, bool tail, result_register& result) {
   variable_bindings::scope scope;
   for (auto const& def : stx.definitions) {
@@ -583,6 +658,18 @@ compile_application(context& ctx, procedure_context& proc, application_expressio
       } else if (*tag == special_top_level_tag::type) {
         compile_type(ctx, proc, stx, result);
         return;
+      } else if (*tag == special_top_level_tag::cons) {
+        compile_cons_application(ctx, proc, stx, result);
+        return;
+      } else if (*tag == special_top_level_tag::car) {
+        compile_car(ctx, proc, stx, result);
+        return;
+      } else if (*tag == special_top_level_tag::cdr) {
+        compile_cdr(ctx, proc, stx, result);
+        return;
+      } else if (*tag == special_top_level_tag::eq) {
+        compile_eq(ctx, proc, stx, result);
+        return;
       }
     }
 
@@ -675,13 +762,6 @@ compile_box_set(context& ctx, procedure_context& proc, box_set_expression const&
 }
 
 static void
-compile_cons(context& ctx, procedure_context& proc, cons_expression const& stx, result_register& result) {
-  shared_register car = compile_expression_to_register(ctx, proc, *stx.car, false);
-  shared_register cdr = compile_expression_to_register(ctx, proc, *stx.cdr, false);
-  encode_instruction(proc.bytecode_stack.back(), instruction{opcode::cons, *car, *cdr, *result.get(proc)});
-}
-
-static void
 compile_make_vector(context& ctx, procedure_context& proc, make_vector_expression const& stx, result_register& result) {
   std::vector<shared_register> exprs;
   exprs.reserve(stx.elements.size());
@@ -723,7 +803,7 @@ compile_expression(context& ctx, procedure_context& proc, expression const& stx,
   else if (auto* box_set = std::get_if<box_set_expression>(&stx.value))
     compile_box_set(ctx, proc, *box_set, result);
   else if (auto* cons = std::get_if<cons_expression>(&stx.value))
-    compile_cons(ctx, proc, *cons, result);
+    compile_cons_expression(ctx, proc, *cons, result);
   else if (auto* make_vector = std::get_if<make_vector_expression>(&stx.value))
     compile_make_vector(ctx, proc, *make_vector, result);
   else if (auto* sequence = std::get_if<sequence_expression>(&stx.value))

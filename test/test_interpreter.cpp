@@ -229,6 +229,53 @@ TEST_F(interpreter, exec_cons) {
   EXPECT_TRUE(equal(result.get(), read("(1 2 3)")));
 }
 
+TEST_F(interpreter, exec_car_cdr) {
+  auto p = track(ctx, cons(ctx, integer_to_ptr(1), integer_to_ptr(2)));
+
+  auto first = make_procedure(
+    ctx,
+    make_bytecode({instruction{opcode::car, operand{0}, operand{1}},
+                   instruction{opcode::ret, operand{1}}}),
+    2, 1
+  );
+  auto result1 = call_with_continuation_barrier(ctx, first,
+                                                {p.get()});
+  EXPECT_EQ(expect<integer>(result1).value(), 1);
+
+  auto second = make_procedure(
+    ctx,
+    make_bytecode({instruction{opcode::cdr, operand{0}, operand{1}},
+                   instruction{opcode::ret, operand{1}}}),
+    2, 1
+  );
+  auto result2 = call_with_continuation_barrier(ctx, second,
+                                                {p.get()});
+  EXPECT_EQ(expect<integer>(result2).value(), 2);
+}
+
+TEST_F(interpreter, test_eq) {
+  auto are_eq = track(
+    ctx,
+    make_procedure(
+      ctx,
+      make_bytecode({instruction{opcode::eq,
+                                 operand{0}, operand{1}, operand{2}},
+                     instruction{opcode::ret, operand{2}}}),
+      3, 2
+    )
+  );
+
+  auto result1 = call_with_continuation_barrier(
+    ctx, are_eq.get(), {ctx.intern("foo"), ctx.intern("bar")}
+  );
+  EXPECT_EQ(result1.get(), ctx.constants->f);
+
+  auto result2 = call_with_continuation_barrier(
+    ctx, are_eq.get(), {ctx.intern("foo"), ctx.intern("foo")}
+  );
+  EXPECT_EQ(result2.get(), ctx.constants->t);
+}
+
 TEST_F(interpreter, exec_make_vector) {
   auto one = make_static<integer>(ctx, 1);
   auto two = make_static<integer>(ctx, 2);
