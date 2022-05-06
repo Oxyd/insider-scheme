@@ -6,8 +6,7 @@
 #include "runtime/action.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/internal_module.hpp"
-#include "util/list_iterator.hpp"
-#include "vm/vm.hpp"
+#include "vm/execution_state.hpp"
 
 namespace insider {
 

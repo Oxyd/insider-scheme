@@ -14,19 +14,6 @@ class context;
 class module_;
 class tail_call_tag_type;
 
-class execution_state : public root_provider {
-public:
-  context&            ctx;
-  integer::value_type pc = -1;
-  ptr<call_stack>     stack;
-
-  execution_state(context& ctx);
-
-private:
-  void
-  visit_roots(member_visitor const&) override;
-};
-
 // Add a call frame to the current execution state, and set the continuation for
 // the current frame. When the new frame finishes execution, it will call the
 // given continuation. This allows for continuation jumps in and out of the

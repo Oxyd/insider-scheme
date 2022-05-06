@@ -1,11 +1,16 @@
-#include "vm.hpp"
+#include "vm/vm.hpp"
 
 #include "io/write.hpp"
 #include "memory/free_store.hpp"
+#include "memory/root_provider.hpp"
+#include "ptr.hpp"
 #include "runtime/action.hpp"
 #include "runtime/error.hpp"
+#include "runtime/integer.hpp"
 #include "runtime/numeric.hpp"
 #include "util/define_procedure.hpp"
+#include "vm/call_stack.hpp"
+#include "vm/execution_state.hpp"
 
 #include <cassert>
 #include <cstdint>
@@ -14,19 +19,6 @@
 #include <vector>
 
 namespace insider {
-
-execution_state::execution_state(context& ctx)
-  : root_provider{ctx.store}
-  , ctx{ctx}
-  , stack{make<call_stack>(ctx)}
-{
-  ctx.store.make_permanent_arc(stack);
-}
-
-void
-execution_state::visit_roots(member_visitor const& f) {
-  f(stack);
-}
 
 static ptr<>
 find_callee_value(context& ctx, opcode opcode, frame_reference frame, operand reg) {

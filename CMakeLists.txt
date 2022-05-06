@@ -72,6 +72,7 @@ set(scheme_sources
   src/vm/bytecode.cpp
   src/vm/call_stack.cpp
   src/vm/vm.cpp
+  src/vm/execution_state.cpp
   )
 
 set(test_sources
