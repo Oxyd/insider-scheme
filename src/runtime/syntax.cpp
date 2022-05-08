@@ -278,6 +278,11 @@ syntax_to_list(context& ctx, ptr<> stx) {
   return result;
 }
 
+void
+transformer::visit_members(member_visitor const& f) {
+  f(callable_);
+}
+
 static ptr<>
 syntax_location(context& ctx, ptr<syntax> s) {
   source_location loc = s->location();

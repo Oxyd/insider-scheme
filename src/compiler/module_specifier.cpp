@@ -1,4 +1,4 @@
-#include "expression.hpp"
+#include "compiler/module_specifier.hpp"
 
 namespace insider {
 

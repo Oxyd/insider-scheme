@@ -7,6 +7,7 @@
 #include "runtime/character.hpp"
 #include "runtime/numeric.hpp"
 #include "runtime/string.hpp"
+#include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
 
 #include <fmt/format.h>

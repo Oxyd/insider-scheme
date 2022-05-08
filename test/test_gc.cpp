@@ -1,6 +1,7 @@
 #include "scheme_fixture.hpp"
 
 #include "memory/root_provider.hpp"
+#include "runtime/symbol.hpp"
 
 using namespace insider;
 

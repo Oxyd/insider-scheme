@@ -1,14 +1,20 @@
 #ifndef INSIDER_MODULE_HPP
 #define INSIDER_MODULE_HPP
 
+#include "compiler/expression.hpp"
 #include "compiler/module_name.hpp"
+#include "compiler/module_specifier.hpp"
+#include "compiler/scope.hpp"
 #include "memory/root_provider.hpp"
-#include "runtime/syntax.hpp"
 
 #include <filesystem>
+#include <optional>
+#include <unordered_set>
 
 namespace insider {
 
+class context;
+class symbol;
 class procedure;
 
 // A module is a map from symbols to top-level variable indices. It also

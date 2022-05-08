@@ -1,5 +1,7 @@
 #include "scheme_fixture.hpp"
 
+#include "runtime/symbol.hpp"
+
 using namespace insider;
 
 struct macros : scheme_fixture { };

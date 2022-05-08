@@ -2,6 +2,7 @@
 
 #include "compiler/analyser.hpp"
 #include "io/write.hpp"
+#include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
 
 #ifndef WIN32

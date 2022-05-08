@@ -42,8 +42,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(scheme_sources
   src/compiler/analyser.cpp
   src/compiler/compiler.cpp
-  src/compiler/expression.cpp
   src/compiler/module_name.cpp
+  src/compiler/module_specifier.cpp
   src/compiler/scope.cpp
   src/compiler/source_code_provider.cpp
   src/compiler/source_location.cpp
@@ -71,8 +71,8 @@ set(scheme_sources
   src/runtime/time.cpp
   src/vm/bytecode.cpp
   src/vm/call_stack.cpp
-  src/vm/vm.cpp
   src/vm/execution_state.cpp
+  src/vm/vm.cpp
   )
 
 set(test_sources

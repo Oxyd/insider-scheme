@@ -8,6 +8,8 @@
 #include "runtime/character.hpp"
 #include "runtime/numeric.hpp"
 #include "runtime/string.hpp"
+#include "runtime/symbol.hpp"
+#include "runtime/syntax.hpp"
 
 using namespace insider;
 

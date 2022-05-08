@@ -3,6 +3,7 @@
 #include "runtime/basic_types.hpp"
 #include "runtime/integer.hpp"
 #include "runtime/records.hpp"
+#include "runtime/symbol.hpp"
 
 using namespace insider;
 

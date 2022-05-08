@@ -3,6 +3,7 @@
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/code_point_properties.hpp"
+#include "runtime/symbol.hpp"
 #include "util/define_procedure.hpp"
 
 #include <algorithm>

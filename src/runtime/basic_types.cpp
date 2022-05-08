@@ -312,11 +312,6 @@ expect_callable(ptr<> x) {
 }
 
 void
-transformer::visit_members(member_visitor const& f) {
-  f(callable_);
-}
-
-void
 uncaught_exception::visit_members(member_visitor const& f) {
   f(inner_exception);
 }

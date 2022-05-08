@@ -1,6 +1,7 @@
 #ifndef INSIDER_COMPILER_ANALYSER_HPP
 #define INSIDER_COMPILER_ANALYSER_HPP
 
+#include "compiler/module_specifier.hpp"
 #include "expression.hpp"
 #include "source_file_origin.hpp"
 
@@ -12,8 +13,9 @@
 
 namespace insider {
 
-class textual_input_port;
 class module_;
+class module_specifier;
+class textual_input_port;
 
 // The analyser expects a Scheme datum (or a list of data) that represents a
 // program, and turns it into an internal representation, defined in expression.hpp.

@@ -1,6 +1,7 @@
 #include "scheme_fixture.hpp"
 
 #include "runtime/error.hpp"
+#include "runtime/symbol.hpp"
 #include "util/define_procedure.hpp"
 #include "util/from_scheme.hpp"
 #include "util/to_scheme.hpp"

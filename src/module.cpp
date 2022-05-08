@@ -5,6 +5,8 @@
 #include "context.hpp"
 #include "io/read.hpp"
 #include "runtime/basic_types.hpp"
+#include "runtime/symbol.hpp"
+#include "runtime/syntax.hpp"
 #include "vm/vm.hpp"
 
 namespace insider {
@@ -30,7 +32,8 @@ module_::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
     if (*v == b)
       return; // Re-importing the same variable under the same name is OK.
     else
-      throw std::runtime_error{fmt::format("Redefinition of {}", identifier->value())};
+      throw std::runtime_error{fmt::format("Redefinition of {}",
+                                           identifier->value())};
   }
 
   if (auto* var = std::get_if<std::shared_ptr<variable>>(&b))

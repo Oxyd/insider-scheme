@@ -2,6 +2,7 @@
 
 #include "runtime/basic_types.hpp"
 #include "runtime/string.hpp"
+#include "runtime/syntax.hpp"
 
 using namespace insider;
 

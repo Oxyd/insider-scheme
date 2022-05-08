@@ -2,6 +2,7 @@
 
 #include "io/port.hpp"
 #include "runtime/string.hpp"
+#include "runtime/syntax.hpp"
 
 using namespace insider;
 
