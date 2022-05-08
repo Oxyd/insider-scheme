@@ -359,6 +359,8 @@ TEST_F(io, read_write_float) {
   EXPECT_EQ(to_string_simple(ctx, make_float(floating_point::negative_infinity)), "-inf.0");
   EXPECT_EQ(to_string_simple(ctx, make_float(floating_point::positive_nan)), "+nan.0");
   EXPECT_EQ(to_string_simple(ctx, make_float(floating_point::negative_nan)), "-nan.0");
+
+  EXPECT_EQ(to_string_simple(ctx, make_float(203.523)), "203.523");
 }
 
 TEST_F(io, read_datum_label) {

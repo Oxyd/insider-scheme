@@ -12,6 +12,7 @@
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <iomanip>
 #include <limits>
 #include <locale>
 #include <optional>
@@ -121,17 +122,15 @@ write_fraction(context& ctx, ptr<fraction> value, ptr<textual_output_port> out, 
   write_number(ctx, value->denominator(), out, base);
 }
 
-static void
-write_float(ptr<floating_point> value, ptr<textual_output_port> out) {
-  // Same as with string_to_double: std::to_chars would be the ideal way to implement this, but we'll go with an
-  // std::ostringstream in its absence.
-
+static bool
+maybe_write_infinite_float(ptr<floating_point> value,
+                           ptr<textual_output_port> out) {
   if (value->value == floating_point::positive_infinity) {
     out->write("+inf.0");
-    return;
+    return true;
   } else if (value->value == floating_point::negative_infinity) {
     out->write("-inf.0");
-    return;
+    return true;
   } else if (std::isnan(value->value)) {
     if (std::signbit(value->value))
       out->write('-');
@@ -139,21 +138,60 @@ write_float(ptr<floating_point> value, ptr<textual_output_port> out) {
       out->write('+');
 
     out->write("nan.0");
-    return;
+    return true;
+  }
+  return false;
+}
+
+static std::string
+maybe_append_dot_zero(std::string const& s) {
+  if (s.find('.') == std::string::npos && s.find('e') == std::string::npos)
+    return s + ".0";
+  else
+    return s;
+}
+
+static std::string
+finite_float_to_string(ptr<floating_point> value, int width) {
+  std::ostringstream os;
+  os.imbue(std::locale{"C"});
+
+  os << std::setprecision(width) << value->value;
+  return maybe_append_dot_zero(os.str());
+}
+
+static bool
+lost_precision(floating_point::value_type value, std::string const& str) {
+  std::istringstream is{str};
+  is.imbue(std::locale{"C"});
+
+  floating_point::value_type read_back;
+  is >> read_back;
+
+  return value != read_back;
+}
+
+static void
+write_finite_float(ptr<floating_point> value, ptr<textual_output_port> out) {
+  // It's hard to predict how much precision we're going to need, so instead
+  // we'll just go from 15 to 17 until we get a precise result.
+
+  for (int width = 15; width <= 17; ++width) {
+    std::string candidate = finite_float_to_string(value, width);
+    if (!lost_precision(value->value, candidate)) {
+      out->write(candidate);
+      return;
+    }
   }
 
-  std::ostringstream os;
-  os.imbue(std::locale("C"));
+  assert(false);
+}
 
-  os << std::showpoint << std::fixed
-     << std::setprecision(std::numeric_limits<floating_point::value_type>::max_digits10 - 1)
-     << value->value;
-
-  std::string result = os.str();
-  std::string::size_type dot = result.find('.');
-  std::string::size_type last_nonzero = result.find_last_not_of('0');
-  std::string::size_type end = std::max(dot + 1, last_nonzero);
-  out->write(result.substr(0, end + 1));
+static void
+write_float(ptr<floating_point> value, ptr<textual_output_port> out) {
+  bool written = maybe_write_infinite_float(value, out);
+  if (!written)
+    write_finite_float(value, out);
 }
 
 template <int I>
