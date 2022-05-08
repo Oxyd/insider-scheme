@@ -1470,13 +1470,17 @@ parse_module_name(context& ctx, ptr<syntax> stx) {
 }
 
 static void
-perform_begin_for_syntax(parsing_context& pc, protomodule const& parent_pm, tracked_ptr<> const& body) {
+perform_begin_for_syntax(parsing_context& pc, module_specifier const& parent_pm,
+                         tracked_ptr<> const& body) {
   simple_action a(pc.ctx, "Analysing begin-for-syntax");
 
-  ptr<> body_without_scope = remove_scope_from_list(pc.ctx, body.get(), pc.module_.scope());
-  protomodule pm{pc.ctx.store, parent_pm.name, parent_pm.imports, {},
-                 from_scheme<std::vector<ptr<syntax>>>(pc.ctx, syntax_to_list(pc.ctx, body_without_scope)),
-                 pc.origin};
+  ptr<> body_without_scope
+    = remove_scope_from_list(pc.ctx, body.get(), pc.module_.scope());
+  module_specifier pm{pc.ctx.store, parent_pm.name, parent_pm.imports, {},
+                      from_scheme<std::vector<ptr<syntax>>>(
+                        pc.ctx, syntax_to_list(pc.ctx, body_without_scope)
+                      ),
+                      pc.origin};
   auto submodule = instantiate(pc.ctx, pm);
   execute(pc.ctx, *submodule);
   import_all_top_level(pc.ctx, pc.module_, *submodule);
@@ -1499,7 +1503,7 @@ add_module_scope_to_body(context& ctx, std::vector<ptr<syntax>> const& body, ptr
 //
 // Causes a garbage collection.
 static std::vector<tracked_ptr<syntax>>
-expand_top_level(parsing_context& pc, module_& m, protomodule const& pm) {
+expand_top_level(parsing_context& pc, module_& m, module_specifier const& pm) {
   simple_action a(pc.ctx, "Expanding module top-level");
 
   auto body = add_module_scope_to_body(pc.ctx, pm.body, m.scope());
@@ -1620,20 +1624,20 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
 }
 
 static void
-process_library_import(context& ctx, protomodule& result, ptr<syntax> stx) {
+process_library_import(context& ctx, module_specifier& result, ptr<syntax> stx) {
   for (ptr<> set : in_list{syntax_to_list(ctx, syntax_cdr(ctx, stx))})
     result.imports.push_back(parse_import_set(ctx, assume<syntax>(set)));
 }
 
 static void
-process_library_export(context& ctx, protomodule& result, ptr<syntax> stx) {
+process_library_export(context& ctx, module_specifier& result, ptr<syntax> stx) {
   for (ptr<> name : in_list{syntax_to_list(ctx, syntax_cdr(ctx, stx))})
     result.exports.push_back(syntax_expect_without_update<symbol>(assume<syntax>(name))->value());
 }
 
-static protomodule
+static module_specifier
 read_plain_module(context& ctx, std::vector<ptr<syntax>> const& contents, source_file_origin origin) {
-  protomodule result{ctx.store, std::move(origin)};
+  module_specifier result{ctx.store, std::move(origin)};
   auto current = contents.begin();
 
   while (current != contents.end())
@@ -1657,7 +1661,7 @@ read_plain_module(context& ctx, std::vector<ptr<syntax>> const& contents, source
 }
 
 static void
-process_library_body(context& ctx, protomodule& result, ptr<syntax> stx) {
+process_library_body(context& ctx, module_specifier& result, ptr<syntax> stx) {
   auto body = syntax_to_list(ctx, stx);
   result.body.reserve(result.body.size() + list_length(body) - 1);
 
@@ -1672,7 +1676,7 @@ process_library_body(context& ctx, protomodule& result, ptr<syntax> stx) {
 
 template <auto Reader>
 static void
-perform_library_include(context& ctx, protomodule& result, source_file_origin const& origin,
+perform_library_include(context& ctx, module_specifier& result, source_file_origin const& origin,
                         source_location const& loc, std::string const& name) {
   if (auto source = find_source_relative(ctx, origin, name)) {
     auto body = Reader(ctx, source->port.get().get());
@@ -1684,16 +1688,16 @@ perform_library_include(context& ctx, protomodule& result, source_file_origin co
 
 template <auto Reader>
 static void
-process_library_include(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> stx) {
+process_library_include(context& ctx, module_specifier& result, source_file_origin const& origin, ptr<syntax> stx) {
   for (ptr<> filename : in_list{cdr(expect<pair>(syntax_to_datum(ctx, stx)))})
     perform_library_include<Reader>(ctx, result, origin, stx->location(), expect<string>(filename)->value());
 }
 
 static void
-process_library_declaration(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> form);
+process_library_declaration(context& ctx, module_specifier& result, source_file_origin const& origin, ptr<syntax> form);
 
 static void
-process_include_library_declarations(context& ctx, protomodule& result,
+process_include_library_declarations(context& ctx, module_specifier& result,
                                      source_file_origin const& origin, ptr<syntax> stx) {
   for (ptr<> filename_obj : in_list{cdr(expect<pair>(syntax_to_datum(ctx, stx)))}) {
     std::string filename = expect<string>(filename_obj)->value();
@@ -1746,14 +1750,14 @@ eval_cond_expand_condition(context& ctx, ptr<syntax> condition) {
 }
 
 static void
-process_library_declarations(context& ctx, protomodule& result, source_file_origin const& origin,
+process_library_declarations(context& ctx, module_specifier& result, source_file_origin const& origin,
                              ptr<> list) {
   for (ptr<> decl : in_list{syntax_to_list(ctx, list)})
     process_library_declaration(ctx, result, origin, expect<syntax>(decl));
 }
 
 static bool
-process_cond_expand_clause(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> stx) {
+process_cond_expand_clause(context& ctx, module_specifier& result, source_file_origin const& origin, ptr<syntax> stx) {
   auto condition = syntax_car(ctx, stx);
   auto body = syntax_cdr(ctx, stx);
 
@@ -1765,7 +1769,7 @@ process_cond_expand_clause(context& ctx, protomodule& result, source_file_origin
 }
 
 static void
-process_cond_expand(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> stx) {
+process_cond_expand(context& ctx, module_specifier& result, source_file_origin const& origin, ptr<syntax> stx) {
   for (ptr<> clause : in_list{cdr(expect<pair>(syntax_to_list(ctx, stx)))}) {
     bool taken = process_cond_expand_clause(ctx, result, origin, expect<syntax>(clause));
     if (taken)
@@ -1774,7 +1778,7 @@ process_cond_expand(context& ctx, protomodule& result, source_file_origin const&
 }
 
 static void
-process_library_declaration(context& ctx, protomodule& result, source_file_origin const& origin, ptr<syntax> form) {
+process_library_declaration(context& ctx, module_specifier& result, source_file_origin const& origin, ptr<syntax> form) {
   static constexpr std::vector<ptr<syntax>> (*read_syntax_multiple)(context&, ptr<textual_input_port>) = &insider::read_syntax_multiple;
 
   if (is_directive(form, "import"))
@@ -1795,9 +1799,9 @@ process_library_declaration(context& ctx, protomodule& result, source_file_origi
     throw make_syntax_error(form, "Invalid library declaration");
 }
 
-static protomodule
+static module_specifier
 read_define_library(context& ctx, ptr<syntax> form, source_file_origin const& origin) {
-  protomodule result{ctx.store, origin};
+  module_specifier result{ctx.store, origin};
 
   assert(expect<syntax>(syntax_car(ctx, form))->get_symbol()->value() == "define-library");
   if (syntax_cdr(ctx, form) == ctx.constants->null)
@@ -1811,7 +1815,7 @@ read_define_library(context& ctx, ptr<syntax> form, source_file_origin const& or
   return result;
 }
 
-protomodule
+module_specifier
 read_module(context& ctx, std::vector<ptr<syntax>> const& contents, source_file_origin const& origin) {
   if (contents.empty())
     throw std::runtime_error("Empty module body");
@@ -1838,7 +1842,7 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
 }
 
 sequence_expression
-analyse_module(context& ctx, module_& m, protomodule const& pm, bool main_module) {
+analyse_module(context& ctx, module_& m, module_specifier const& pm, bool main_module) {
   parameterize origin_param{ctx, ctx.constants->current_source_file_origin_tag,
                             make<opaque_value<source_file_origin>>(ctx, pm.origin)};
   parameterize main_module_param{ctx, ctx.constants->is_main_module_tag,

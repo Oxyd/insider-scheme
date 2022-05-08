@@ -30,16 +30,17 @@ module_name
 parse_module_name(context&, ptr<syntax>);
 
 // Interpret the given list of data as a module. This can be a library module, or main module.
-protomodule
+module_specifier
 read_module(context&, std::vector<ptr<syntax>> const& contents,
             source_file_origin const&);
 
 std::optional<module_name>
 read_library_name(context&, ptr<textual_input_port>);
 
-// Analyse a protomodule's body in the given module.
+// Analyse a module's body in the given module.
 sequence_expression
-analyse_module(context&, module_&, protomodule const&, bool main_module = false);
+analyse_module(context&, module_&, module_specifier const&,
+               bool main_module = false);
 
 void
 init_analyser(context&);

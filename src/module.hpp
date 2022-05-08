@@ -61,10 +61,10 @@ private:
   visit_roots(member_visitor const& f) override;
 };
 
-// Turn a protomodule into a module. First instantiate all uninstantiated
-// dependencies of the protomodule, then compile its body.
+// Turn a module specifier into a module. First instantiate all uninstantiated
+// dependencies of the module, then compile its body.
 std::unique_ptr<module_>
-instantiate(context&, protomodule const&);
+instantiate(context&, module_specifier const&);
 
 // Import all exports from one module to another.
 void
@@ -74,10 +74,10 @@ import_all_exported(context&, module_& to, module_& from);
 void
 import_all_top_level(context&, module_& to, module_& from);
 
-// Given a protomodule, go through all of its import declarations and perform
-// them in the given module.
+// Given a module specifier, go through all of its import declarations and
+// perform them in the given module.
 void
-perform_imports(context&, module_& to, protomodule const& import_declarations);
+perform_imports(context&, module_& to, module_specifier const& import_declarations);
 
 operand
 define_top_level(context&, std::string const& name, module_&, bool export_, ptr<> object);

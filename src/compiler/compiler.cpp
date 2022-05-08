@@ -850,7 +850,7 @@ module_
 compile_module(context& ctx, std::vector<ptr<syntax>> const& data, source_file_origin const& origin,
                bool main_module) {
   simple_action a(ctx, "Analysing main module");
-  protomodule pm = read_module(ctx, data, origin);
+  module_specifier pm = read_module(ctx, data, origin);
   module_ result{ctx};
   perform_imports(ctx, result, pm);
   compile_module_body(ctx, result, pm, main_module);
@@ -867,7 +867,7 @@ compile_module(context& ctx, std::filesystem::path const& path, bool main_module
 }
 
 void
-compile_module_body(context& ctx, module_& m, protomodule const& pm, bool main_module) {
+compile_module_body(context& ctx, module_& m, module_specifier const& pm, bool main_module) {
   sequence_expression body = analyse_module(ctx, m, pm, main_module);
 
   procedure_context proc{nullptr, m};

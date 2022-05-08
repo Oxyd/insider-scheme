@@ -14,7 +14,7 @@ struct expression;
 class module_;
 class procedure;
 class syntax;
-struct protomodule;
+struct module_specifier;
 
 // Translate a single expression into bytecode. The resulting procedure will
 // take no arguments and will return the value of the expression. The module is
@@ -35,9 +35,10 @@ compile_module(context&, std::vector<ptr<syntax>> const& data, source_file_origi
 module_
 compile_module(context&, std::filesystem::path const&, bool main_module = false);
 
-// Translate a protomodule's body.
+// Translate a module's body.
 void
-compile_module_body(context&, module_&, protomodule const&, bool main_module = false);
+compile_module_body(context&, module_&, module_specifier const&,
+                    bool main_module = false);
 
 } // namespace insider
 

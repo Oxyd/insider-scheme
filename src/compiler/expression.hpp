@@ -321,22 +321,24 @@ struct import_specifier {
 
 // Metainformation about a module -- its name, list of imports and exports, plus
 // its body as a list of unparsed data.
-struct protomodule : root_provider {
+struct module_specifier : root_provider {
   std::optional<module_name>    name;
   std::vector<import_specifier> imports;
   std::vector<std::string>      exports;
   std::vector<ptr<syntax>>      body;
   source_file_origin            origin;
 
-  protomodule(free_store& fs, source_file_origin origin)
+  module_specifier(free_store& fs, source_file_origin origin)
     : root_provider{fs}
     , origin{std::move(origin)}
   { }
 
-  protomodule(free_store& fs,
-              std::optional<module_name> name, std::vector<import_specifier> imports,
-              std::vector<std::string> exports, std::vector<ptr<syntax>> body,
-              source_file_origin origin)
+  module_specifier(free_store& fs,
+                   std::optional<module_name> name,
+                   std::vector<import_specifier> imports,
+                   std::vector<std::string> exports,
+                   std::vector<ptr<syntax>> body,
+                   source_file_origin origin)
     : root_provider{fs}
     , name{std::move(name)}
     , imports{std::move(imports)}

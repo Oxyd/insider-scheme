@@ -204,7 +204,7 @@ check_all_defined(context& ctx, module_& m, std::vector<std::string> const& name
 }
 
 std::unique_ptr<module_>
-instantiate(context& ctx, protomodule const& pm) {
+instantiate(context& ctx, module_specifier const& pm) {
   auto result = std::make_unique<module_>(ctx, pm.name);
 
   perform_imports(ctx, *result, pm);
@@ -238,7 +238,7 @@ import_all_top_level(context& ctx, module_& to, module_& from) {
 }
 
 void
-perform_imports(context& ctx, module_& m, protomodule const& pm) {
+perform_imports(context& ctx, module_& m, module_specifier const& pm) {
   for (import_specifier const& spec : pm.imports)
     perform_imports(ctx, m, parse_import_set(ctx, spec));
 }

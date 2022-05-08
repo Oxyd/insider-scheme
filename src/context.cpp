@@ -214,22 +214,27 @@ find_module_in_provider(context& ctx, source_code_provider& provider, module_nam
 }
 
 static bool
-has_protomodule(context& ctx, module_name const& name,
-                std::vector<std::unique_ptr<source_code_provider>> const& providers) {
+any_provider_has_module(
+  context& ctx, module_name const& name,
+  std::vector<std::unique_ptr<source_code_provider>> const& providers
+) {
   for (std::unique_ptr<source_code_provider> const& provider : providers)
     if (find_module_in_provider(ctx, *provider, name))
       return true;
   return false;
 }
 
-static protomodule
-find_protomodule(context& ctx, module_name const& name,
-                 std::vector<std::unique_ptr<source_code_provider>> const& providers) {
+static module_specifier
+find_module(context& ctx, module_name const& name,
+            std::vector<std::unique_ptr<source_code_provider>> const& providers) {
   for (std::unique_ptr<source_code_provider> const& provider : providers)
     if (auto source = find_module_in_provider(ctx, *provider, name))
-      return read_module(ctx, read_syntax_multiple(ctx, source->port.get().get()), source->origin);
+      return read_module(ctx, read_syntax_multiple(ctx,
+                                                   source->port.get().get()),
+                         source->origin);
 
-  throw std::runtime_error{fmt::format("Unknown module {}", module_name_to_string(name))};
+  throw std::runtime_error{fmt::format("Unknown module {}",
+                                       module_name_to_string(name))};
 }
 
 static module_*
@@ -239,7 +244,7 @@ load_module(context& ctx,
             std::vector<std::unique_ptr<source_code_provider>> const& providers) {
   simple_action a(ctx, "Analysing module {}", module_name_to_string(name));
   modules.emplace(name, nullptr);
-  std::unique_ptr<module_> m = instantiate(ctx, find_protomodule(ctx, name, providers));
+  std::unique_ptr<module_> m = instantiate(ctx, find_module(ctx, name, providers));
   module_* result = m.get();
   modules.find(name)->second = std::move(m);
   return result;
@@ -254,7 +259,7 @@ context::knows_module(module_name const& name) {
   else if (auto mod_it = modules_.find(name); mod_it != modules_.end())
     return true;
   else
-    return has_protomodule(*this, name, source_providers_);
+    return any_provider_has_module(*this, name, source_providers_);
 }
 
 module_*
