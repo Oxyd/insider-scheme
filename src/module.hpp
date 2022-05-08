@@ -80,10 +80,8 @@ import_all_exported(context&, module_& to, module_& from);
 void
 import_all_top_level(context&, module_& to, module_& from);
 
-// Given a module specifier, go through all of its import declarations and
-// perform them in the given module.
 void
-perform_imports(context&, module_& to, module_specifier const& import_declarations);
+perform_imports(context&, module_& to, imports_list const&);
 
 operand
 define_top_level(context&, std::string const& name, module_&, bool export_, ptr<> object);

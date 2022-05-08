@@ -852,7 +852,7 @@ compile_module(context& ctx, std::vector<ptr<syntax>> const& data, source_file_o
   simple_action a(ctx, "Analysing main module");
   module_specifier pm = read_module(ctx, data, origin);
   module_ result{ctx};
-  perform_imports(ctx, result, pm);
+  perform_imports(ctx, result, pm.imports);
   compile_module_body(ctx, result, pm, main_module);
   return result;
 }

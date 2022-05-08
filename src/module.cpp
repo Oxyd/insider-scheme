@@ -2,6 +2,8 @@
 
 #include "compiler/analyser.hpp"
 #include "compiler/compiler.hpp"
+#include "compiler/module_name.hpp"
+#include "compiler/module_specifier.hpp"
 #include "context.hpp"
 #include "io/read.hpp"
 #include "runtime/basic_types.hpp"
@@ -90,7 +92,7 @@ static import_set
 parse_import_set(context& ctx, import_specifier const& spec);
 
 static import_set
-parse_module_name_import_set(context& ctx, std::vector<std::string> const* mn) {
+parse_module_name_import_set(context& ctx, module_name const* mn) {
   import_set result;
   result.source = ctx.find_module(*mn);
 
@@ -210,7 +212,7 @@ std::unique_ptr<module_>
 instantiate(context& ctx, module_specifier const& pm) {
   auto result = std::make_unique<module_>(ctx, pm.name);
 
-  perform_imports(ctx, *result, pm);
+  perform_imports(ctx, *result, pm.imports);
   compile_module_body(ctx, *result, pm);
 
   check_all_defined(ctx, *result, pm.exports);
@@ -241,8 +243,8 @@ import_all_top_level(context& ctx, module_& to, module_& from) {
 }
 
 void
-perform_imports(context& ctx, module_& m, module_specifier const& pm) {
-  for (import_specifier const& spec : pm.imports)
+perform_imports(context& ctx, module_& m, imports_list const& imports) {
+  for (import_specifier const& spec : imports)
     perform_imports(ctx, m, parse_import_set(ctx, spec));
 }
 
