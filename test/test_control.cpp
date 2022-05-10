@@ -171,7 +171,7 @@ indirect_call(context& ctx, ptr<> f, ptr<> arg) {
 }
 
 TEST_F(control, call_continuable_works_like_call) {
-  define_procedure<indirect_call>(ctx, "f", ctx.internal_module, true);
+  define_procedure<indirect_call>(ctx, "f", ctx.internal_module(), true);
 
   auto result = eval("(f (lambda (x) (+ x 1)) 3)");
   EXPECT_EQ(expect<integer>(result).value(), 8);
@@ -180,13 +180,15 @@ TEST_F(control, call_continuable_works_like_call) {
 TEST_F(control, call_continuable_allows_jump_up) {
   bool continuation_called = false;
   define_closure<ptr<>(context&, ptr<>, ptr<>)>(
-    ctx, "f", ctx.internal_module, true,
+    ctx, "f", ctx.internal_module(), true,
     [&] (context& ctx, ptr<> f, ptr<> arg) {
-      return call_continuable(ctx, f, {arg},
-                              [&] (context& ctx, ptr<> result) {
-                                continuation_called = true;
-                                return to_scheme(ctx, expect<integer>(result).value() * 2);
-                              });
+      return call_continuable(
+        ctx, f, {arg},
+        [&] (context& ctx, ptr<> result) {
+          continuation_called = true;
+          return to_scheme(ctx, expect<integer>(result).value() * 2);
+        }
+      );
     }
   );
   auto result = eval(R"(
@@ -201,7 +203,7 @@ TEST_F(control, call_continuable_allows_jump_up) {
 TEST_F(control, call_continuable_allows_jump_back_in) {
   unsigned continuation_counter = 0;
   define_closure<ptr<>(context&, ptr<>, ptr<>)>(
-    ctx, "f", ctx.internal_module, true,
+    ctx, "f", ctx.internal_module(), true,
     [&] (context& ctx, ptr<> f, ptr<> arg) {
       return call_continuable(ctx, f, {arg},
                               [&] (context& ctx, ptr<> result) {
@@ -258,7 +260,7 @@ f1(context& ctx, ptr<> f, ptr<> g) {
 }
 
 TEST_F(control, call_continuable_can_be_used_twice) {
-  define_procedure<f1>(ctx, "f", ctx.internal_module, true);
+  define_procedure<f1>(ctx, "f", ctx.internal_module(), true);
   auto result = eval("(f (lambda (x) (+ x 1)) (lambda (x) (+ x 2)))");
   EXPECT_EQ(expect<integer>(result).value(), 2 * ((2 + 1) + 2));
 }
@@ -280,7 +282,7 @@ TEST_F(control, continuation_jump_goes_to_the_correct_call_continuable_call) {
   // (define (f g h)
   //   (h (g)))
 
-  define_procedure<f2>(ctx, "f", ctx.internal_module, true);
+  define_procedure<f2>(ctx, "f", ctx.internal_module(), true);
 
   auto result = eval(R"(
     (let ((in-g #f) (g-count 0) (h-count 0) (jumped? #f))
@@ -353,7 +355,7 @@ f3(context& ctx, ptr<> g) {
 }
 
 TEST_F(control, call_with_continuation_barrier_erects_a_barrier) {
-  define_procedure<f3>(ctx, "f", ctx.internal_module, true);
+  define_procedure<f3>(ctx, "f", ctx.internal_module(), true);
 
   EXPECT_THROW(
     eval(R"(
@@ -663,7 +665,7 @@ f4() {
 }
 
 TEST_F(control, cxx_exception_becomes_scheme_exception) {
-  define_procedure<f4>(ctx, "f", ctx.internal_module, true);
+  define_procedure<f4>(ctx, "f", ctx.internal_module(), true);
   auto result = eval(R"(
     (capture-stack
       (lambda (return)
@@ -692,7 +694,7 @@ f5(context& ctx) {
 }
 
 TEST_F(control, throwing_scheme_exception_raises_it_in_vm) {
-  define_procedure<f5>(ctx, "f", ctx.internal_module, true);
+  define_procedure<f5>(ctx, "f", ctx.internal_module(), true);
   auto result = eval(R"(
     (capture-stack
       (lambda (return)
@@ -711,7 +713,7 @@ f6() {
 }
 
 TEST_F(control, cxx_exception_passes_through_if_not_handled) {
-  define_procedure<f6>(ctx, "f", ctx.internal_module, true);
+  define_procedure<f6>(ctx, "f", ctx.internal_module(), true);
   try {
     eval("(f)");
   } catch (std::runtime_error& e) {
@@ -840,8 +842,8 @@ static ptr<>
 identity(ptr<> value) { return value; }
 
 TEST_F(control, continuation_jump_to_native_tail_call) {
-  define_procedure<call_two>(ctx, "call-two", ctx.internal_module, true);
-  define_procedure<identity>(ctx, "f", ctx.internal_module, true);
+  define_procedure<call_two>(ctx, "call-two", ctx.internal_module(), true);
+  define_procedure<identity>(ctx, "f", ctx.internal_module(), true);
 
   auto result = eval_module(R"(
     (import (insider internal))
@@ -859,7 +861,7 @@ TEST_F(control, continuation_jump_to_native_tail_call) {
 
 TEST_F(control, call_parameterized_with_continuation_barrier_sets_parameter_in_scheme_frame) {
   auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
-  define_top_level(ctx, "p", ctx.internal_module, true, tag.get());
+  define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
   auto get_value = eval(R"(
     (lambda ()
@@ -875,7 +877,7 @@ TEST_F(control, call_parameterized_with_continuation_barrier_sets_parameter_in_s
 
 TEST_F(control, call_parameterized_with_continuation_brrier_sets_parameter_in_native_frame) {
   auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
-  define_top_level(ctx, "p", ctx.internal_module, true, tag.get());
+  define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
   struct tag_closure : native_procedure::extra_data {
     tracked_ptr<parameter_tag> tag;
@@ -902,7 +904,7 @@ TEST_F(control, call_parameterized_with_continuation_brrier_sets_parameter_in_na
 
 TEST_F(control, native_parameterize_sets_parameter_in_scheme_frame) {
   auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
-  define_top_level(ctx, "p", ctx.internal_module, true, tag.get());
+  define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
   auto get_value = eval(R"(
     (lambda ()
@@ -921,7 +923,7 @@ TEST_F(control, native_parameterize_sets_parameter_in_scheme_frame) {
 
 TEST_F(control, native_parameterization_sets_parameter_in_native_frame) {
   auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
-  define_top_level(ctx, "p", ctx.internal_module, true, tag.get());
+  define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
   struct tag_closure : native_procedure::extra_data {
     tracked_ptr<parameter_tag> tag;
@@ -951,18 +953,21 @@ TEST_F(control, native_parameterization_sets_parameter_in_native_frame) {
 
 TEST_F(control, native_parameterization_sets_parameter_value_when_called_from_scheme) {
   auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
-  define_top_level(ctx, "p", ctx.internal_module, true, tag.get());
+  define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
   auto get_value = eval(R"(
     (lambda ()
       (find-parameter-value p))
   )");
 
-  define_closure<ptr<>(context&)>(ctx, "get-value-parameterized", ctx.internal_module, true,
-                                  [&] (context& ctx) {
-                                    parameterize p{ctx, tag.get(), integer_to_ptr(4)};
-                                    return call_with_continuation_barrier(ctx, get_value, {});
-                                  });
+  define_closure<ptr<>(context&)>(
+    ctx, "get-value-parameterized", ctx.internal_module(),
+    true,
+    [&] (context& ctx) {
+      parameterize p{ctx, tag.get(), integer_to_ptr(4)};
+      return call_with_continuation_barrier(ctx, get_value, {});
+    }
+  );
 
   auto result = eval("(get-value-parameterized)");
   EXPECT_EQ(expect<integer>(result).value(), 4);

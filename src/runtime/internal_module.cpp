@@ -72,7 +72,7 @@ eq(context& ctx, ptr<> x, ptr<> y) {
 
 static bool
 known_module(context& ctx, ptr<syntax> name) {
-  return ctx.knows_module(parse_module_name(ctx, name));
+  return ctx.module_resolver().knows_module(ctx, parse_module_name(ctx, name));
 }
 
 static ptr<>

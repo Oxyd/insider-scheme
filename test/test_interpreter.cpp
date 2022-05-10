@@ -300,7 +300,9 @@ apply_and_double(context& ctx, ptr<procedure> f, ptr<> arg) {
 }
 
 TEST_F(interpreter, scheme_to_native_to_scheme) {
-  define_procedure<apply_and_double>(ctx, "apply-and-double", ctx.internal_module, true);
+  define_procedure<apply_and_double>(
+    ctx, "apply-and-double", ctx.internal_module(), true
+  );
   ptr<> result1 = eval_module(
     R"(
       (import (insider internal))
@@ -344,7 +346,7 @@ do_recursion(context& ctx, int i, int accum, ptr<> recurse, ptr<> base) {
 }
 
 TEST_F(interpreter, native_tail_calls) {
-  define_procedure<do_recursion>(ctx, "f", ctx.internal_module, true);
+  define_procedure<do_recursion>(ctx, "f", ctx.internal_module(), true);
 
   ptr<> result1 = eval_module(
     R"(

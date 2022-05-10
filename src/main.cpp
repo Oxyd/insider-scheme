@@ -68,7 +68,7 @@ main(int argc, char** argv) {
         }
 
         if (flag == "-I")
-          ctx.append_source_code_provider(
+          ctx.module_resolver().append_source_code_provider(
             std::make_unique<insider::filesystem_source_code_provider>(argument)
           );
         else {

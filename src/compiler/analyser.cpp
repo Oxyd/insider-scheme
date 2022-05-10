@@ -1084,7 +1084,7 @@ syntax_traits::is_qq_form(parsing_context& pc, ptr<> stx) {
 static std::unique_ptr<expression>
 make_internal_reference(context& ctx, std::string name) {
   std::optional<module_::binding_type> binding
-    = ctx.internal_module.find(ctx.intern(name));
+    = ctx.internal_module().find(ctx.intern(name));
   assert(binding);
   assert(std::holds_alternative<std::shared_ptr<variable>>(*binding));
 
@@ -1979,7 +1979,9 @@ eval_cond_expand_condition(context& ctx, ptr<syntax> condition) {
     else
       return memq(feature, ctx.features());
   } else if (is_directive(condition, "library"))
-    return ctx.knows_module(parse_module_name(ctx, syntax_cadr(ctx, condition)));
+    return ctx.module_resolver().knows_module(
+      ctx, parse_module_name(ctx, syntax_cadr(ctx, condition))
+    );
   else if (is_directive(condition, "not"))
     return !eval_cond_expand_condition(ctx, syntax_cadr(ctx, condition));
   else if (is_directive(condition, "or"))

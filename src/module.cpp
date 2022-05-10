@@ -98,7 +98,7 @@ parse_import_set(context& ctx, import_specifier const& spec);
 static import_set
 parse_module_name_import_set(context& ctx, module_name const* mn) {
   import_set result;
-  result.source = ctx.find_module(*mn);
+  result.source = ctx.module_resolver().find_module(ctx, *mn);
 
   for (std::string const& name : result.source->exports())
     result.names.emplace_back(name, name);

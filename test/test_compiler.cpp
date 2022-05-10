@@ -339,13 +339,16 @@ TEST_F(compiler, compile_module) {
   };
 
   define_top_level(
-    ctx, "f", ctx.internal_module, true,
-    make<native_procedure>(ctx,
-                           [] (context& ctx, ptr<native_procedure> f, object_span args) -> ptr<> {
-                             *static_cast<sum_closure&>(*f->extra).sum += expect<integer>(args[0]).value();
-                             return ctx.constants->void_;
-                           },
-                           std::make_unique<sum_closure>(&sum))
+    ctx, "f", ctx.internal_module(), true,
+    make<native_procedure>(
+      ctx,
+      [] (context& ctx, ptr<native_procedure> f, object_span args) -> ptr<> {
+        *static_cast<sum_closure&>(*f->extra).sum
+          += expect<integer>(args[0]).value();
+        return ctx.constants->void_;
+      },
+      std::make_unique<sum_closure>(&sum)
+    )
   );
 
   eval_module(R"(
@@ -442,15 +445,16 @@ int_to_string(int i) {
 }
 
 TEST_F(compiler, define_lambda) {
-  define_procedure<arith>(ctx, "f", ctx.internal_module, true);
+  define_procedure<arith>(ctx, "f", ctx.internal_module(), true);
 
   int x = 0;
   define_closure<void(int)>(
-    ctx, "g", ctx.internal_module, true,
+    ctx, "g", ctx.internal_module(), true,
     [&] (int a) { x += a; }
   );
 
-  define_procedure<int_to_string>(ctx, "to-string", ctx.internal_module, true);
+  define_procedure<int_to_string>(ctx, "to-string", ctx.internal_module(),
+                                  true);
 
   auto result1 = eval("(f 5 7)");
   EXPECT_EQ(expect<integer>(result1).value(), 2 * 5 + 7);

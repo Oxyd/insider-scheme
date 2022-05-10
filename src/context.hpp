@@ -4,6 +4,7 @@
 #include "compiler/scope.hpp"
 #include "memory/free_store.hpp"
 #include "module.hpp"
+#include "module_resolver.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
 #include "runtime/compare.hpp"
@@ -112,8 +113,6 @@ public:
   free_store                       store;
   std::unique_ptr<constants>       constants;
   statics_list                     statics{};
-  // (insider internal)
-  module_                          internal_module;
   // Built from actions during stack unwinding.
   std::string                      error_backtrace;
   bytecode                         program;
@@ -166,20 +165,14 @@ public:
   std::optional<special_top_level_tag>
   find_tag(operand) const;
 
-  bool
-  knows_module(module_name const&);
-
-  module_*
-  find_module(module_name const&);
-
-  void
-  prepend_source_code_provider(std::unique_ptr<source_code_provider>);
-
-  void
-  append_source_code_provider(std::unique_ptr<source_code_provider>);
-
   void
   add_feature(std::string const&);
+
+  insider::module_resolver&
+  module_resolver() { return module_resolver_; }
+
+  module_&
+  internal_module() { return module_resolver_.internal_module(); }
 
   ptr<>
   features() const { return features_; }
@@ -210,8 +203,8 @@ private:
   std::vector<ptr<>> top_level_objects_;
   std::vector<std::string> top_level_binding_names_;
   std::unordered_map<operand, special_top_level_tag> top_level_tags_;
-  std::map<module_name, std::unique_ptr<module_>> modules_;
-  std::vector<std::unique_ptr<source_code_provider>> source_providers_;
+  insider::module_resolver module_resolver_{*this};
+
   ptr<> features_;
   scope::id_type next_scope_id_ = 0;
 };

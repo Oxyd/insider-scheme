@@ -56,6 +56,7 @@ set(scheme_sources
   src/memory/root_list.cpp
   src/memory/root_provider.cpp
   src/module.cpp
+  src/module_resolver.cpp
   src/object.cpp
   src/runtime/basic_types.cpp
   src/runtime/character.cpp

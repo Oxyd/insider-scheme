@@ -49,8 +49,7 @@ parameter_map::visit_members(member_visitor const& f) {
 }
 
 context::context()
-  : internal_module{*this}
-  , statics_cache_{0, {}, eqv_compare{*this}}
+  : statics_cache_{0, {}, eqv_compare{*this}}
 {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);
@@ -66,7 +65,7 @@ context::context()
   init_write(*this);
   init_analyser(*this);
 
-  internal_module = make_internal_module(*this);
+  module_resolver().internal_module() = make_internal_module(*this);
 
   struct {
     ptr<core_form_type>& object;
@@ -101,10 +100,10 @@ context::context()
     form.object = make<core_form_type>(*this, form.name);
     auto index = add_top_level(form.object, form.name);
     auto name = intern(form.name);
-    auto id = make<syntax>(*this, name, scope_set{internal_module.scope()});
+    auto id = make<syntax>(*this, name, scope_set{internal_module().scope()});
     auto var = std::make_shared<variable>(form.name, index);
-    internal_module.scope()->add(store, id, std::move(var));
-    internal_module.export_(name);
+    internal_module().scope()->add(store, id, std::move(var));
+    internal_module().export_(name);
   }
 
   statics.null = intern_static(constants->null);
@@ -201,106 +200,6 @@ context::find_tag(operand i) const {
     return it->second;
   else
     return {};
-}
-
-static std::optional<source_file>
-find_module_in_provider(context& ctx, source_code_provider& provider,
-                        module_name const& name) {
-  std::filesystem::path path = module_name_to_path(name);
-  std::array<std::filesystem::path, 2> candidates{
-    path.replace_extension(".sld"),
-    path.replace_extension(".scm")
-  };
-  for (auto const& candidate : candidates)
-    if (auto source = provider.find_file(ctx, candidate))
-      if (read_library_name(ctx, source->port.get().get()) == name) {
-        source->port->rewind();
-        return source;
-      }
-
-  return std::nullopt;
-}
-
-using provider_list = std::vector<std::unique_ptr<source_code_provider>>;
-
-static bool
-any_provider_has_module(context& ctx, module_name const& name,
-                        provider_list const& providers) {
-  return std::ranges::any_of(
-    providers,
-    [&] (std::unique_ptr<source_code_provider> const& provider) {
-      return find_module_in_provider(ctx, *provider, name).has_value();
-    }
-  );
-}
-
-static module_specifier
-find_module(context& ctx, module_name const& name,
-            provider_list const& providers) {
-  for (std::unique_ptr<source_code_provider> const& provider : providers)
-    if (auto source = find_module_in_provider(ctx, *provider, name))
-      return read_module(ctx, read_syntax_multiple(ctx,
-                                                   source->port.get().get()),
-                         source->origin);
-
-  throw std::runtime_error{fmt::format("Unknown module {}",
-                                       module_name_to_string(name))};
-}
-
-static module_*
-load_module(context& ctx,
-            std::map<module_name, std::unique_ptr<module_>>& modules,
-            module_name const& name,
-            provider_list const& providers) {
-  simple_action a(ctx, "Analysing module {}", module_name_to_string(name));
-  modules.emplace(name, nullptr);
-  std::unique_ptr<module_> m = instantiate(ctx,
-                                           find_module(ctx, name, providers));
-  module_* result = m.get();
-  modules.find(name)->second = std::move(m);
-  return result;
-}
-
-bool
-context::knows_module(module_name const& name) {
-  using namespace std::literals;
-
-  if (name == std::vector{"insider"s, "internal"s})
-    return true;
-  else if (auto mod_it = modules_.find(name); mod_it != modules_.end())
-    return true;
-  else
-    return any_provider_has_module(*this, name, source_providers_);
-}
-
-module_*
-context::find_module(module_name const& name) {
-  using namespace std::literals;
-
-  if (name == std::vector{"insider"s, "internal"s})
-    return &internal_module;
-  else if (auto mod_it = modules_.find(name); mod_it != modules_.end()) {
-    if (!mod_it->second)
-      throw std::runtime_error{fmt::format("Module {} depends on itself",
-                                           module_name_to_string(name))};
-
-    return mod_it->second.get();
-  } else
-    return load_module(*this, modules_, name, source_providers_);
-}
-
-void
-context::prepend_source_code_provider(
-  std::unique_ptr<source_code_provider> provider
-) {
-  source_providers_.insert(source_providers_.begin(), std::move(provider));
-}
-
-void
-context::append_source_code_provider(
-  std::unique_ptr<source_code_provider> provider
-) {
-  source_providers_.push_back(std::move(provider));
 }
 
 void

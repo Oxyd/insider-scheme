@@ -12,7 +12,7 @@ struct modules : scheme_fixture { };
 TEST_F(modules, module_activation) {
   std::vector<int> trace;
   define_closure<void(int)>(
-    ctx, "leave-mark", ctx.internal_module, true,
+    ctx, "leave-mark", ctx.internal_module(), true,
     [&] (int value) { trace.push_back(value); }
   );
 

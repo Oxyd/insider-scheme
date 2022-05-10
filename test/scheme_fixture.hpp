@@ -18,7 +18,7 @@ struct scheme_fixture : testing::Test {
   scheme_fixture() {
     auto provider = std::make_unique<insider::virtual_filesystem_source_code_provider>();
     vfs_provider = provider.get();
-    ctx.append_source_code_provider(std::move(provider));
+    ctx.module_resolver().append_source_code_provider(std::move(provider));
   }
 
   insider::ptr<>
@@ -29,7 +29,7 @@ struct scheme_fixture : testing::Test {
   insider::ptr<>
   eval(std::string const& expr) {
     insider::module_ m{ctx};
-    import_all_exported(ctx, m, ctx.internal_module);
+    import_all_exported(ctx, m, ctx.internal_module());
 
     insider::null_source_code_provider provider;
     auto f = compile_expression(ctx, read_syntax(ctx, expr), m,
