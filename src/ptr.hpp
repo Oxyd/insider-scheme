@@ -36,6 +36,17 @@ public:
   object*
   value() const { return value_; }
 
+  friend auto
+  operator <=> (ptr const&, ptr const&) = default;
+
+  friend auto
+  operator <=> (ptr<> p, std::nullptr_t) {
+    if (p.value_ == nullptr)
+      return std::strong_ordering::equal;
+    else
+      return std::strong_ordering::greater;
+  }
+
 protected:
   object* value_ = nullptr;
 };
@@ -58,36 +69,6 @@ public:
   T*
   value() const { return static_cast<T*>(value_); }
 };
-
-template <typename T, typename U>
-bool
-operator == (ptr<T> lhs, ptr<U> rhs) { return lhs.value() == rhs.value(); }
-
-template <typename T>
-bool
-operator == (ptr<T> lhs, std::nullptr_t) { return lhs.value() == nullptr; }
-
-template <typename T>
-bool
-operator == (std::nullptr_t, ptr<T> rhs) { return rhs.value() == nullptr; }
-
-template <typename T, typename U>
-bool
-operator != (ptr<T> lhs, ptr<U> rhs) { return lhs.value() != rhs.value(); }
-
-template <typename T>
-bool
-operator != (ptr<T> lhs, std::nullptr_t) { return lhs.value() != nullptr; }
-
-template <typename T>
-bool
-operator != (std::nullptr_t, ptr<T> rhs) { return rhs.value() != nullptr; }
-
-template <typename T>
-bool
-operator < (ptr<T> lhs, ptr<T> rhs) {
-  return std::less<T*>{}(lhs.value(), rhs.value());
-}
 
 template <typename>
 bool

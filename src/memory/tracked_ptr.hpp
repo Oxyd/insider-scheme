@@ -95,6 +95,30 @@ private:
   }
 };
 
+template <typename T>
+bool
+operator == (tracked_ptr<T> const& lhs, tracked_ptr<T> const& rhs) {
+  return lhs.get() == rhs.get();
+}
+
+template <typename T>
+bool
+operator == (tracked_ptr<T> const& lhs, ptr<T> rhs) {
+  return lhs.get() == rhs;
+}
+
+template <typename T>
+auto
+operator <=> (tracked_ptr<T> const& lhs, tracked_ptr<T> const& rhs) {
+  return lhs.get() <=> rhs.get();
+}
+
+template <typename T>
+auto
+operator <=> (tracked_ptr<T> const& lhs, ptr<T> rhs) {
+  return lhs.get() <=> rhs;
+}
+
 // Like tracked_ptr, but does not keep an object alive.
 template <typename T = void>
 class weak_ptr : public detail::tracked_ptr_base<T> {
@@ -116,20 +140,6 @@ private:
     f(weak(this->value_));
   }
 };
-
-template <typename T>
-bool
-operator == (detail::tracked_ptr_base<T> const& lhs,
-             detail::tracked_ptr_base<T> const& rhs) {
-  return lhs.get() == rhs.get();
-}
-
-template <typename T>
-bool
-operator != (detail::tracked_ptr_base<T> const& lhs,
-             detail::tracked_ptr_base<T> const& rhs) {
-  return lhs.get() != rhs.get();
-}
 
 } // namespace insider
 

@@ -4,6 +4,8 @@
 #include "memory/free_store.hpp"
 #include "runtime/integer.hpp"
 
+#include <ranges>
+
 namespace insider {
 
 void
@@ -26,7 +28,7 @@ call_stack::call_stack(call_stack const& other)
   , size_{other.size_}
   , current_base_{other.current_base_}
 {
-  std::copy(other.data_.get(), other.data_.get() + size_, data_.get());
+  std::ranges::copy(std::views::counted(other.data_.get(), size_), data_.get());
 }
 
 call_stack&
@@ -93,7 +95,7 @@ call_stack::frames(frame_index begin, frame_index end) const
 void
 call_stack::append_frames(frame_span frames) {
   ensure_additional_capacity(frames.data.size());
-  std::copy(frames.data.begin(), frames.data.end(), data_.get() + size_);
+  std::ranges::copy(frames.data, data_.get() + size_);
   size_ += static_cast<frame_index>(frames.data.size());
   fix_base_offsets(frames);
 }
@@ -116,7 +118,7 @@ void
 call_stack::grow_capacity(std::size_t requested_capacity) {
   frame_index new_cap = find_new_capacity(requested_capacity);
   auto new_data = std::make_unique<ptr<>[]>(new_cap);
-  std::copy(data_.get(), data_.get() + size_, new_data.get());
+  std::ranges::copy(std::views::counted(data_.get(), size_), new_data.get());
   data_ = std::move(new_data);
   capacity_ = new_cap;
 }

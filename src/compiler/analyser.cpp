@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <iterator>
 #include <optional>
+#include <ranges>
 #include <set>
 #include <unordered_map>
 #include <utility>
@@ -36,13 +37,15 @@ syntax_to_string(context& ctx, ptr<syntax> stx) {
   return datum_to_string(ctx, syntax_to_datum(ctx, stx));
 }
 
+using use_site_scopes_list = std::vector<tracked_ptr<scope>>;
+
 namespace {
   struct parsing_context {
     context&                  ctx;
     insider::module_&         module_;
     source_file_origin const& origin;
     std::vector<std::vector<std::shared_ptr<variable>>> environment;
-    std::vector<std::vector<tracked_ptr<scope>>> use_site_scopes;
+    std::vector<use_site_scopes_list> use_site_scopes;
     bool record_use_site_scopes = false;
   };
 
@@ -178,23 +181,20 @@ lookup_transformer(ptr<syntax> id) {
   return {};
 }
 
+static bool
+scope_is_use_site(ptr<scope> s, use_site_scopes_list const& use_site_scopes) {
+  return std::ranges::find(use_site_scopes, s,
+                           &tracked_ptr<scope>::get) != use_site_scopes.end();
+}
+
 static ptr<syntax>
 remove_use_site_scopes(context& ctx, ptr<syntax> expr,
-                       std::vector<tracked_ptr<scope>> const& use_site_scopes) {
+                       use_site_scopes_list const& use_site_scopes) {
   assert(is_identifier(expr));
 
-  std::vector<ptr<scope>> to_remove;
-  std::copy_if(
-    expr->scopes().begin(), expr->scopes().end(),
-    std::back_inserter(to_remove),
-    [&] (ptr<scope> s) {
-      return std::find_if(use_site_scopes.begin(), use_site_scopes.end(),
-                          [&] (tracked_ptr<scope> const& uss) {
-                            return uss.get() == s;
-                          }) != use_site_scopes.end();
-    }
-  );
-
+  auto to_remove = expr->scopes() | std::views::filter([&] (ptr<scope> s) {
+    return scope_is_use_site(s, use_site_scopes);
+  });
   for (ptr<scope> s : to_remove)
     expr = expr->remove_scope(ctx.store, s);
 
@@ -323,7 +323,7 @@ expand_begin(parsing_context& pc, ptr<> stx,
   for (ptr<> e : in_list{cdr(assume<pair>(stx))})
     subforms.push_back(track(pc.ctx, expect<syntax>(e)));
 
-  std::copy(subforms.rbegin(), subforms.rend(), std::back_inserter(stack));
+  std::ranges::copy(std::views::reverse(subforms), std::back_inserter(stack));
 }
 
 static ptr<>
@@ -1712,7 +1712,7 @@ expand_top_level(parsing_context& pc, module_& m, module_specifier const& pm) {
 
   std::vector<tracked_ptr<syntax>> stack;
   stack.reserve(body.size());
-  std::copy(body.rbegin(), body.rend(), std::back_inserter(stack));
+  std::ranges::copy(std::views::reverse(body), std::back_inserter(stack));
 
   std::vector<tracked_ptr<syntax>> result;
   while (!stack.empty()) {
@@ -1917,7 +1917,7 @@ perform_library_include(context& ctx, module_specifier& result,
   if (auto source = find_source_relative(ctx, origin, name)) {
     auto body = Reader(ctx, source->port.get().get());
     result.body.reserve(result.body.size() + body.size());
-    std::copy(body.begin(), body.end(), std::back_inserter(result.body));
+    std::ranges::copy(body, std::back_inserter(result.body));
   } else
     throw make_syntax_error(loc, fmt::format("File {} not found", name));
 }

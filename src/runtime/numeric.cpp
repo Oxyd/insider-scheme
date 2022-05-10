@@ -15,6 +15,7 @@
 #include <locale>
 #include <numbers>
 #include <numeric>
+#include <ranges>
 #include <sstream>
 
 #undef small
@@ -72,14 +73,14 @@ big_integer::big_integer(std::vector<limb_type> const& limbs, bool positive)
 {
   assert(static_cast<std::vector<limb_type>::size_type>(end() - begin())
          == limbs.size());
-  std::copy(limbs.begin(), limbs.end(), begin());
+  std::ranges::copy(limbs, begin());
 }
 
 big_integer::big_integer(ptr<big_integer> i)
   : dynamic_size_object{i->length()}
   , positive_{i->positive()}
 {
-  std::copy(i->begin(), i->end(), begin());
+  std::ranges::copy(*i, begin());
 }
 
 big_integer::big_integer(integer i)
@@ -92,7 +93,7 @@ big_integer::big_integer(big_integer&& other) noexcept
   : dynamic_size_object{other.size_}
   , positive_{other.positive_}
 {
-  std::copy(other.begin(), other.end(), begin());
+  std::ranges::copy(other, begin());
 }
 
 auto
@@ -172,7 +173,7 @@ static ptr<big_integer>
 extend_big(context& ctx, ptr<big_integer> i, limb_type new_limb) {
   auto result = make<big_integer>(ctx, i->length() + 1,
                                   big_integer::dont_initialize);
-  std::copy(i->begin(), i->end(), result->begin());
+  std::ranges::copy(*i, result->begin());
   result->back() = new_limb;
   result->set_positive(i->positive());
   return result;
@@ -222,7 +223,8 @@ normalize(context& ctx, ptr<big_integer> i) {
     return i;
 
   auto result = make<big_integer>(ctx, new_length, big_integer::dont_initialize);
-  std::copy(i->begin(), i->begin() + new_length, result->begin());
+  std::ranges::copy(std::views::counted(i->begin(), new_length),
+                    result->begin());
   result->set_positive(i->positive());
   return result;
 }
@@ -649,7 +651,7 @@ shift(context& ctx, ptr<big_integer> i, std::size_t k) {
     return i;
 
   auto result = make<big_integer>(ctx, i->length() + k);
-  std::copy(i->begin(), i->end(), result->begin() + k);
+  std::ranges::copy(*i, result->begin() + k);
   result->set_positive(i->positive());
   return result;
 }
@@ -754,7 +756,7 @@ bitshift_left_destructive(context& ctx, ptr<big_integer> i, std::size_t shift) {
   if (extra_limbs > 0) {
     auto result = make<big_integer>(ctx, i->length() + extra_limbs,
                                     big_integer::dont_initialize);
-    std::copy(i->begin(), i->end(), result->begin() + extra_limbs);
+    std::ranges::copy(*i, result->begin() + extra_limbs);
     std::fill_n(result->begin(), result->length() - i->length(), 0);
     result->set_positive(i->positive());
     return result;
