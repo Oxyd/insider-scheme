@@ -38,7 +38,7 @@ namespace detail {
       , value_{other.value_}
     { }
 
-    tracked_ptr_base(tracked_ptr_base&& other)
+    tracked_ptr_base(tracked_ptr_base&& other) noexcept
       : root_provider{std::move(other)}
       , value_{other.value_}
     {
@@ -49,9 +49,10 @@ namespace detail {
     operator = (tracked_ptr_base const&) = default;
 
     tracked_ptr_base&
-    operator = (tracked_ptr_base&&) = default;
+    operator = (tracked_ptr_base&&)  noexcept = default;
 
-    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
+    template <typename U,
+              typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
     tracked_ptr_base&
     operator = (ptr<U> value) { value_ = value; return *this; }
 
@@ -72,13 +73,15 @@ namespace detail {
   };
 } // namespace detail
 
-// Untyped pointer to a Scheme object, registered with the garbage collector as a GC root.
+// Untyped pointer to a Scheme object, registered with the garbage collector as
+// a GC root.
 template <typename T = void>
 class tracked_ptr : public detail::tracked_ptr_base<T> {
 public:
   using detail::tracked_ptr_base<T>::tracked_ptr_base;
 
-  template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
+  template <typename U,
+            typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
   tracked_ptr(tracked_ptr<U> const& other)
     : detail::tracked_ptr_base<T>{other.list(), other.get()}
   { }
@@ -116,13 +119,15 @@ private:
 
 template <typename T>
 bool
-operator == (detail::tracked_ptr_base<T> const& lhs, detail::tracked_ptr_base<T> const& rhs) {
+operator == (detail::tracked_ptr_base<T> const& lhs,
+             detail::tracked_ptr_base<T> const& rhs) {
   return lhs.get() == rhs.get();
 }
 
 template <typename T>
 bool
-operator != (detail::tracked_ptr_base<T> const& lhs, detail::tracked_ptr_base<T> const& rhs) {
+operator != (detail::tracked_ptr_base<T> const& lhs,
+             detail::tracked_ptr_base<T> const& rhs) {
   return lhs.get() != rhs.get();
 }
 

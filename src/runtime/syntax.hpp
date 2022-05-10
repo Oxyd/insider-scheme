@@ -54,7 +54,8 @@ public:
   syntax(ptr<> expr);
   syntax(ptr<> expr, source_location loc);
   syntax(ptr<> expr, scope_set envs);
-  syntax(ptr<> expr, source_location loc, scope_set scopes, std::vector<update_record> update_records = {});
+  syntax(ptr<> expr, source_location loc, scope_set scopes,
+         std::vector<update_record> update_records = {});
 
   ptr<>
   update_and_get_expression(context&);
@@ -224,13 +225,16 @@ private:
 template <typename... Args>
 std::runtime_error
 make_syntax_error(ptr<syntax> stx, std::string_view fmt, Args&&... args) {
-  return make_error("{}: {}", format_location(stx->location()), fmt::format(fmt, std::forward<Args>(args)...));
+  return make_error("{}: {}", format_location(stx->location()),
+                    fmt::format(fmt, std::forward<Args>(args)...));
 }
 
 template <typename... Args>
 std::runtime_error
-make_syntax_error(source_location const& loc, std::string_view fmt, Args&&... args) {
-  return make_error("{}: {}", format_location(loc), fmt::format(fmt, std::forward<Args>(args)...));
+make_syntax_error(source_location const& loc, std::string_view fmt,
+                  Args&&... args) {
+  return make_error("{}: {}", format_location(loc),
+                    fmt::format(fmt, std::forward<Args>(args)...));
 }
 
 } // namespace insider

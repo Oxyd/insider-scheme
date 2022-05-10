@@ -141,7 +141,7 @@ public:
   frames(frame_index begin, frame_index end) const;
 
   frame_index
-  frames_end() const { return size_; }
+  frames_end() const { return static_cast<frame_index>(size_); }
 
   void
   append_frames(frame_span);
@@ -154,12 +154,12 @@ private:
   static constexpr integer::value_type previous_pc_offset = 1;
   static constexpr integer::value_type callable_offset = 2;
   static constexpr integer::value_type extra_data_offset = 3;
-  static constexpr std::size_t stack_frame_header_size = 4;
+  static constexpr integer::value_type stack_frame_header_size = 4;
   static constexpr std::size_t alloc_size = 4096;
 
   std::unique_ptr<ptr<>[]> data_;
-  std::size_t              capacity_     = 0;
-  std::size_t              size_         = 0;
+  frame_index              capacity_     = 0;
+  frame_index              size_         = 0;
   frame_index              current_base_ = -1;
 
   void
@@ -168,7 +168,7 @@ private:
   void
   grow_capacity(std::size_t requested_capacity);
 
-  std::size_t
+  frame_index
   find_new_capacity(std::size_t at_least) const;
 
   frame_index

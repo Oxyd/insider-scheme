@@ -21,7 +21,7 @@ root_provider::root_provider(root_provider const& other)
   add_to_list();
 }
 
-root_provider::root_provider(root_provider&& other)
+root_provider::root_provider(root_provider&& other) noexcept
   : list_{other.list_}
   , index_{other.index_}
 {
@@ -32,7 +32,7 @@ root_provider::root_provider(root_provider&& other)
 
 
 root_provider&
-root_provider::operator = (root_provider&& other) {
+root_provider::operator = (root_provider&& other) noexcept {
   if (this != &other) {
     if (list_)
       remove_from_list();

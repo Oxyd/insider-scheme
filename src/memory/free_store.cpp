@@ -11,9 +11,11 @@ namespace insider {
 
 static constexpr std::size_t large_threshold = 256;
 static constexpr std::size_t min_nursery_pages = 4096;
-static constexpr std::size_t min_nursery_size = 2 * min_nursery_pages * page_size;
+static constexpr std::size_t min_nursery_size
+  = 2 * min_nursery_pages * page_size;
 static constexpr std::size_t nursery_reserve_pages = 10;
-static constexpr std::size_t nursery_reserve_bytes = nursery_reserve_pages * page_size;
+static constexpr std::size_t nursery_reserve_bytes
+  = nursery_reserve_pages * page_size;
 static constexpr std::size_t mature_reserve_pages = 10;
 static constexpr std::size_t major_collection_frequency = 32;
 
@@ -33,18 +35,20 @@ object_color(ptr<> o) { return object_color(header_word(o)); }
 
 static void
 set_object_color(ptr<> o, color c) {
-  header_word(o) = (header_word(o) & ~color_bits) | (static_cast<word_type>(c) << color_shift);
+  header_word(o) = (header_word(o) & ~color_bits)
+                   | (static_cast<word_type>(c) << color_shift);
 }
 
 static bool
-is_alive(word_type header) { return header & alive_bit; }
+is_alive(word_type header) { return (header & alive_bit) != 0u; }
 
 bool
 is_alive(ptr<> o) { return o != nullptr && is_alive(header_word(o)); }
 
 static void
 set_object_generation(ptr<> o, generation gen) {
-  header_word(o) = (header_word(o) & ~generation_bits) | (static_cast<word_type>(gen) << generation_shift);
+  header_word(o) = (header_word(o) & ~generation_bits)
+                   | (static_cast<word_type>(gen) << generation_shift);
 }
 
 static ptr<>
@@ -129,7 +133,9 @@ dense_space::take(page_allocator::page p, std::size_t used) {
 
   page& new_page = pages_.back();
   new_page.used = used;
-  new_page.for_all([] (ptr<> o) { set_object_generation(o, generation::nursery_1); });
+  new_page.for_all([] (ptr<> o) {
+    set_object_generation(o, generation::nursery_1);
+  });
 
   total_used_ += used;
   return new_page;
@@ -137,7 +143,9 @@ dense_space::take(page_allocator::page p, std::size_t used) {
 
 std::byte*
 large_space::allocate(std::size_t size) {
-  std::byte* result = allocations_.emplace_back(std::make_unique<std::byte[]>(size)).get();
+  std::byte* result = allocations_.emplace_back(
+    std::make_unique<std::byte[]>(size)
+  ).get();
   bytes_used_ += size;
   return result;
 }
@@ -159,7 +167,8 @@ large_space::move(std::size_t i, large_space& to) {
 static void
 destroy(ptr<> o, type_descriptor const& type, std::size_t size) {
   type.destroy(o);
-  std::uninitialized_fill_n(reinterpret_cast<std::byte*>(o.value()), size, std::byte{0xAA});
+  std::uninitialized_fill_n(reinterpret_cast<std::byte*>(o.value()), size,
+                            std::byte{0xAA});
 }
 
 void
@@ -190,9 +199,11 @@ large_space::deallocate_staged() {
 
 void
 large_space::compact() {
-  allocations_.erase(std::remove_if(allocations_.begin(), allocations_.end(),
-                                    [] (auto const& storage) { return !storage; }),
-                     allocations_.end());
+  allocations_.erase(
+    std::remove_if(allocations_.begin(), allocations_.end(),
+                   [] (auto const& storage) { return !storage; }),
+    allocations_.end()
+  );
 }
 
 static ptr<>
@@ -267,7 +278,8 @@ trace(std::vector<ptr<>> const& permanent_roots,
 
   if (max_generation < generation::mature)
     for (ptr<> o : permanent_roots)
-      if (object_color(o) == color::white && object_generation(o) == generation::mature) {
+      if (object_color(o) == color::white
+          && object_generation(o) == generation::mature) {
         set_object_color(o, color::grey);
         trace(o);
       }
@@ -286,7 +298,8 @@ trace(std::vector<ptr<>> const& permanent_roots,
 
   for (nursery_generation const* g : {&nursery_1, &nursery_2})
     for (ptr<> o : g->incoming_arcs)
-      if (object_generation(o) > max_generation && object_color(o) == color::white) {
+      if (object_generation(o) > max_generation
+          && object_color(o) == color::white) {
         assert(is_object_ptr(o));
         assert(object_generation(o) > g->generation_number);
 
@@ -312,14 +325,15 @@ find_arcs_to_younger(ptr<> o, free_store::generations& gens) {
     // general GC process, so nursery-2 will be moved to mature soon after. Only
     // arcs going into nursery-1 matter because that will become nursery-2.
 
-    if (member.value && is_object_ptr(member.value) && object_generation(member.value) == generation::nursery_1)
+    if (member.value && is_object_ptr(member.value)
+        && object_generation(member.value) == generation::nursery_1)
       gens.nursery_1.incoming_arcs.emplace(o);
   });
 }
 
 static void
-move_survivors(dense_space& from, dense_space& to, generation to_gen, free_store::generations& gens,
-               std::vector<ptr<>>* moved_objects) {
+move_survivors(dense_space& from, dense_space& to, generation to_gen,
+               free_store::generations& gens, std::vector<ptr<>>* moved_objects) {
   from.for_all([&] (ptr<> o) {
     type_descriptor const& type = object_type(o);
     std::size_t size = object_size(o);
@@ -346,8 +360,10 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen, free_store
 template <typename FromG, typename ToG>
 [[nodiscard]]
 static dense_space
-promote(FromG& from, ToG& to, free_store::generations& gens, std::vector<ptr<>>* moved_objects) {
-  move_survivors(from.small, to.small, to.generation_number, gens, moved_objects);
+promote(FromG& from, ToG& to, free_store::generations& gens,
+        std::vector<ptr<>>* moved_objects) {
+  move_survivors(from.small, to.small, to.generation_number, gens,
+                 moved_objects);
 
   large_space& large = from.large;
   for (std::size_t i = 0; i < large.object_count(); ++i) {
@@ -395,7 +411,8 @@ purge_mature(mature_generation& mature, free_store::generations& gens) {
 }
 
 static void
-move_incoming_arcs(std::unordered_set<ptr<>> const& arcs, nursery_generation& to) {
+move_incoming_arcs(std::unordered_set<ptr<>> const& arcs,
+                   nursery_generation& to) {
   for (ptr<> o : arcs)
     if (is_alive(o)) {
       assert(object_generation(o) > to.generation_number);
@@ -447,18 +464,21 @@ update_references(Container const& incoming) {
 }
 
 static std::string
-format_stats(nursery_generation const& nursery_1, nursery_generation const& nursery_2,
+format_stats(nursery_generation const& nursery_1,
+             nursery_generation const& nursery_2,
              mature_generation const& mature) {
-  return fmt::format("\n"
-                     "  -- Nursery 1: {} pages, {} bytes, {} large objects, {} large bytes\n"
-                     "  -- Nursery 2: {} pages, {} bytes, {} large objects, {} large bytes\n"
-                     "  -- Mature: {} pages, {} bytes, {} large objects, {} large bytes",
-                     nursery_1.small.pages_used(), nursery_1.small.bytes_used(),
-                     nursery_1.large.object_count(), nursery_1.large.bytes_used(),
-                     nursery_2.small.pages_used(), nursery_2.small.bytes_used(),
-                     nursery_2.large.object_count(), nursery_2.large.bytes_used(),
-                     mature.small.pages_used(), mature.small.bytes_used(),
-                     mature.large.object_count(), mature.large.bytes_used());
+  return fmt::format(
+    "\n"
+    "  -- Nursery 1: {} pages, {} bytes, {} large objects, {} large bytes\n"
+    "  -- Nursery 2: {} pages, {} bytes, {} large objects, {} large bytes\n"
+    "  -- Mature: {} pages, {} bytes, {} large objects, {} large bytes",
+    nursery_1.small.pages_used(), nursery_1.small.bytes_used(),
+    nursery_1.large.object_count(), nursery_1.large.bytes_used(),
+    nursery_2.small.pages_used(), nursery_2.small.bytes_used(),
+    nursery_2.large.object_count(), nursery_2.large.bytes_used(),
+    mature.small.pages_used(), mature.small.bytes_used(),
+    mature.large.object_count(), mature.large.bytes_used()
+  );
 }
 
 template <typename Generation>
@@ -470,7 +490,11 @@ verify([[maybe_unused]] Generation const& g) {
   });
 
   for (std::size_t i = 0; i < g.large.object_count(); ++i)
-    assert(object_generation(reinterpret_cast<object*>(g.large.get(i) + sizeof(word_type))) == g.generation_number);
+    assert(
+      object_generation(
+        reinterpret_cast<object*>(g.large.get(i) + sizeof(word_type))
+      ) == g.generation_number
+    );
 #endif
 }
 
@@ -484,14 +508,19 @@ free_store::collect_garbage(bool major) {
   }
 
   if (verbose_collection)
-    fmt::print("GC: Old: {}\n", format_stats(generations_.nursery_1, generations_.nursery_2, generations_.mature));
+    fmt::print("GC: Old: {}\n",
+               format_stats(generations_.nursery_1, generations_.nursery_2,
+                            generations_.mature));
 
-  trace(permanent_roots_, roots_, generations_.nursery_1, generations_.nursery_2, max_generation);
+  trace(permanent_roots_, roots_, generations_.nursery_1, generations_.nursery_2,
+        max_generation);
 
-  std::unordered_set<ptr<>> old_n1_incoming = std::move(generations_.nursery_1.incoming_arcs);
+  std::unordered_set<ptr<>> old_n1_incoming
+    = std::move(generations_.nursery_1.incoming_arcs);
   generations_.nursery_1.incoming_arcs.clear();
 
-  std::unordered_set<ptr<>> old_n2_incoming = std::move(generations_.nursery_2.incoming_arcs);
+  std::unordered_set<ptr<>> old_n2_incoming
+    = std::move(generations_.nursery_2.incoming_arcs);
   generations_.nursery_2.incoming_arcs.clear();
 
   dense_space old_mature;
@@ -500,9 +529,14 @@ free_store::collect_garbage(bool major) {
 
   std::vector<ptr<>> new_mature_objects;
 
-  dense_space old_nursery_2 = promote(generations_.nursery_2, generations_.mature, generations_,
-                                      max_generation < generation::mature ? &new_mature_objects : nullptr);
-  dense_space old_nursery_1 = promote(generations_.nursery_1, generations_.nursery_2, generations_, nullptr);
+  dense_space old_nursery_2
+    = promote(generations_.nursery_2, generations_.mature, generations_,
+              max_generation < generation::mature
+                ? &new_mature_objects
+                : nullptr);
+  dense_space old_nursery_1
+    = promote(generations_.nursery_1, generations_.nursery_2, generations_,
+              nullptr);
 
   assert(generations_.nursery_1.small.empty());
 
@@ -517,7 +551,8 @@ free_store::collect_garbage(bool major) {
   // incoming arcs.
 
   assert(generations_.nursery_2.incoming_arcs.empty());
-  generations_.nursery_2.incoming_arcs = std::move(generations_.nursery_1.incoming_arcs);
+  generations_.nursery_2.incoming_arcs
+    = std::move(generations_.nursery_1.incoming_arcs);
 
   if (max_generation < generation::mature)
     move_incoming_arcs(old_n1_incoming, generations_.nursery_2);
@@ -549,8 +584,9 @@ free_store::collect_garbage(bool major) {
 
   requested_collection_level_ = std::nullopt;
 
-  target_nursery_pages_ = std::max(min_nursery_pages,
-                                   generations_.nursery_2.small.pages_used() + nursery_reserve_pages);
+  target_nursery_pages_
+    = std::max(min_nursery_pages,
+               generations_.nursery_2.small.pages_used() + nursery_reserve_pages);
   target_nursery_bytes_ = std::max(min_nursery_size,
                                    generations_.nursery_2.small.bytes_used()
                                    + generations_.nursery_2.large.bytes_used()
@@ -561,7 +597,9 @@ free_store::collect_garbage(bool major) {
   roots_.compact();
 
   if (verbose_collection) {
-    fmt::print("GC: New: {}\n", format_stats(generations_.nursery_1, generations_.nursery_2, generations_.mature));
+    fmt::print("GC: New: {}\n",
+               format_stats(generations_.nursery_1, generations_.nursery_2,
+                            generations_.mature));
     fmt::print("  -- target nursery pages: {}\n"
                "  -- target nursery bytes: {}\n"
                "  -- allocator reserve: {} pages\n"
@@ -608,7 +646,8 @@ free_store::update_permanent_roots() {
 void
 free_store::reset_colors(generation max_generation) {
   if (max_generation < generation::mature) {
-    for (nursery_generation* g : {&generations_.nursery_1, &generations_.nursery_2})
+    for (nursery_generation* g : {&generations_.nursery_1,
+                                  &generations_.nursery_2})
       for (ptr<> o : g->incoming_arcs)
         set_object_color(o, color::white);
 
@@ -618,7 +657,8 @@ free_store::reset_colors(generation max_generation) {
 
 #ifndef NDEBUG
   if (max_generation == generation::mature) {
-    for (nursery_generation* g : {&generations_.nursery_1, &generations_.nursery_2})
+    for (nursery_generation* g : {&generations_.nursery_1,
+                                  &generations_.nursery_2})
       for (ptr<> o : g->incoming_arcs)
         assert(object_color(o) == color::white);
 
@@ -631,7 +671,9 @@ free_store::reset_colors(generation max_generation) {
 void
 free_store::check_nursery_size() {
   if (generations_.nursery_1.small.pages_used() > target_nursery_pages_
-      || generations_.nursery_1.small.bytes_used() + generations_.nursery_1.large.bytes_used() > target_nursery_bytes_)
+      || generations_.nursery_1.small.bytes_used()
+         + generations_.nursery_1.large.bytes_used()
+         > target_nursery_bytes_)
     request_collection();
 }
 

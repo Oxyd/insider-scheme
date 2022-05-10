@@ -29,8 +29,8 @@ reader_stream::checkpoint::checkpoint(reader_stream& stream)
 { }
 
 reader_stream::reader_stream(tracked_ptr<textual_input_port> p)
-  : port_{p}
-  , loc_{p->name(), 1, 1}
+  : port_{std::move(p)}
+  , loc_{port_->name(), 1, 1}
 { }
 
 std::optional<char32_t>

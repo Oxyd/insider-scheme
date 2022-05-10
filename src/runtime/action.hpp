@@ -22,6 +22,8 @@ public:
   action(action const&) = delete;
   void operator = (action const&) = delete;
 
+  ~action() = default;
+
 protected:
   context& ctx_;
 
@@ -48,14 +50,16 @@ public:
     , irritant_{ctx.store}
   { }
 
-  simple_action(context& ctx, tracked_ptr<> const& irritant, std::string_view format, Args... args)
+  simple_action(context& ctx, tracked_ptr<> const& irritant,
+                std::string_view format, Args... args)
     : base{ctx}
     , format_{format}
     , args_{std::move(args)...}
     , irritant_{irritant}
   { }
 
-  simple_action(context& ctx, ptr<> irritant, std::string_view format, Args... args)
+  simple_action(context& ctx, ptr<> irritant, std::string_view format,
+                Args... args)
     : base{ctx}
     , format_{format}
     , args_{std::move(args)...}

@@ -61,13 +61,13 @@ file_port_source::rewind() {
 bool
 file_port_source::byte_ready() const {
 #ifndef WIN32
-  pollfd pfd;
+  pollfd pfd{};
   pfd.fd = fileno(f_);
   pfd.events = POLLIN;
   return poll(&pfd, 1, 0) == 1;
 #else
-  // TODO: Fix this. This only makes sense for "interactive" ports -- the console and pipes, so they could be
-  // special-cased somehow.
+  // TODO: Fix this. This only makes sense for "interactive" ports -- the
+  // console and pipes, so they could be special-cased somehow.
   return true;
 #endif
 }
@@ -122,7 +122,8 @@ bytevector_port_source::rewind() {
   position_ = 0;
 }
 
-textual_input_port::textual_input_port(std::unique_ptr<port_source> source, std::string name)
+textual_input_port::textual_input_port(std::unique_ptr<port_source> source,
+                                       std::string name)
   : source_{std::move(source)}
   , name_{std::move(name)}
 { }
@@ -202,7 +203,8 @@ textual_input_port::do_fill_read_buffer() {
 template <auto Read>
 bool
 textual_input_port::fill_subsequent_bytes_of_read_buffer() {
-  std::size_t required = utf8_code_point_byte_length(read_buffer_[0]);
+  std::size_t required
+    = utf8_code_point_byte_length(static_cast<char>(read_buffer_[0]));
   while (read_buffer_length_ < required)
     if (!(this->*Read)())
       return false;
@@ -212,7 +214,8 @@ textual_input_port::fill_subsequent_bytes_of_read_buffer() {
 
 char32_t
 textual_input_port::decode_read_buffer() {
-  return from_utf8(read_buffer_.begin(), read_buffer_.begin() + read_buffer_length_).code_point;
+  return from_utf8(read_buffer_.begin(),
+                   read_buffer_.begin() + read_buffer_length_).code_point;
 }
 
 char32_t
@@ -243,13 +246,19 @@ binary_input_port::u8_ready() const {
 
 ptr<textual_input_port>
 open_input_string(context& ctx, std::string data) {
-  return make<textual_input_port>(ctx, std::make_unique<string_port_source>(std::move(data)),
-                                  "<memory buffer>");
+  return make<textual_input_port>(
+    ctx,
+    std::make_unique<string_port_source>(std::move(data)),
+    "<memory buffer>"
+  );
 }
 
 static ptr<binary_input_port>
 open_input_bytevector(context& ctx, ptr<bytevector> data) {
-  return make<binary_input_port>(ctx, std::make_unique<bytevector_port_source>(bytevector_data(data)));
+  return make<binary_input_port>(
+    ctx,
+    std::make_unique<bytevector_port_source>(bytevector_data(data))
+  );
 }
 
 static ptr<binary_output_port>
@@ -258,7 +267,8 @@ open_output_bytevector(context& ctx) {
 }
 
 static FILE*
-open_file(std::filesystem::path const& path, std::filesystem::path::value_type const* mode) {
+open_file(std::filesystem::path const& path,
+          std::filesystem::path::value_type const* mode) {
 #ifndef WIN32
   return std::fopen(path.c_str(), mode);
 #else
@@ -270,7 +280,10 @@ ptr<textual_input_port>
 open_file_for_text_input(context& ctx, std::filesystem::path const& path) {
   FILE* f = open_file(path, _T("r"));
   if (f)
-    return make<textual_input_port>(ctx, std::make_unique<file_port_source>(f), path.string());
+    return make<textual_input_port>(
+      ctx,
+      std::make_unique<file_port_source>(f), path.string()
+    );
   else
     return {};
 }
@@ -307,7 +320,7 @@ file_port_sink::flush() {
 
 void
 string_port_sink::write(std::uint8_t byte) {
-  data_.push_back(byte);
+  data_.push_back(static_cast<char>(byte));
 }
 
 void
@@ -371,9 +384,16 @@ binary_output_port::get_bytevector(context& ctx) const {
 static ptr<textual_input_port>
 open_input_file(context& ctx, std::filesystem::path const& path) {
   if (std::FILE* f = open_file(path, _T("r")))
-    return make<textual_input_port>(ctx, std::make_unique<file_port_source>(f), path.string());
+    return make<textual_input_port>(
+      ctx,
+      std::make_unique<file_port_source>(f), path.string()
+    );
   else
-    throw make<file_error>(ctx, fmt::format("Can't open {} for reading: {}", path.string(), strerror(errno)));
+    throw make<file_error>(
+      ctx,
+      fmt::format("Can't open {} for reading: {}",
+                  path.string(), strerror(errno))
+    );
 }
 
 static ptr<binary_input_port>
@@ -381,7 +401,11 @@ open_binary_input_file(context& ctx, std::filesystem::path const& path) {
   if (std::FILE* f = open_file(path, _T("rb")))
     return make<binary_input_port>(ctx, std::make_unique<file_port_source>(f));
   else
-    throw make<file_error>(ctx, fmt::format("Can't open {} for reading: {}", path.string(), strerror(errno)));
+    throw make<file_error>(
+      ctx,
+      fmt::format("Can't open {} for reading: {}",
+                  path.string(), strerror(errno))
+    );
 }
 
 static ptr<textual_output_port>
@@ -389,7 +413,10 @@ open_output_file(context& ctx, std::string const& path) {
   if (std::FILE* f = open_file(path, _T("w")))
     return make<textual_output_port>(ctx, std::make_unique<file_port_sink>(f));
   else
-    throw make<file_error>(ctx, fmt::format("Can't open {} for writing: {}", path, strerror(errno)));
+    throw make<file_error>(
+      ctx,
+      fmt::format("Can't open {} for writing: {}", path, strerror(errno))
+    );
 }
 
 static ptr<binary_output_port>
@@ -397,7 +424,10 @@ open_binary_output_file(context& ctx, std::string const& path) {
   if (std::FILE* f = open_file(path, _T("wb")))
     return make<binary_output_port>(ctx, std::make_unique<file_port_sink>(f));
   else
-    throw make<file_error>(ctx, fmt::format("Can't open {} for writing: {}", path, strerror(errno)));
+    throw make<file_error>(
+      ctx,
+      fmt::format("Can't open {} for writing: {}", path, strerror(errno))
+    );
 }
 
 static void
@@ -465,7 +495,9 @@ delete_file(context& ctx, std::filesystem::path const& p) {
 
 static ptr<textual_input_port>
 get_default_textual_input_port(context& ctx) {
-  return expect<textual_input_port>(find_parameter_value(ctx, ctx.constants->current_input_port_tag));
+  return expect<textual_input_port>(
+    find_parameter_value(ctx, ctx.constants->current_input_port_tag)
+  );
 }
 
 static ptr<>
@@ -486,7 +518,9 @@ peek_char(context& ctx, ptr<textual_input_port> port) {
 
 static ptr<binary_input_port>
 get_default_binary_input_port(context& ctx) {
-  return expect<binary_input_port>(find_parameter_value(ctx, ctx.constants->current_input_port_tag));
+  return expect<binary_input_port>(
+    find_parameter_value(ctx, ctx.constants->current_input_port_tag)
+  );
 }
 
 static ptr<>
@@ -507,7 +541,9 @@ peek_u8(context& ctx, ptr<binary_input_port> port) {
 
 static ptr<binary_output_port>
 get_default_binary_output_port(context& ctx) {
-  return expect<binary_output_port>(find_parameter_value(ctx, ctx.constants->current_output_port_tag));
+  return expect<binary_output_port>(
+    find_parameter_value(ctx, ctx.constants->current_output_port_tag)
+  );
 }
 
 static void
@@ -519,25 +555,38 @@ void
 export_port(context& ctx, module_& result) {
   define_procedure<open_input_file>(ctx, "open-input-file", result, true);
   define_procedure<open_output_file>(ctx, "open-output-file", result, true);
-  define_procedure<open_binary_input_file>(ctx, "open-binary-input-file", result, true);
-  define_procedure<open_binary_output_file>(ctx, "open-binary-output-file", result, true);
+  define_procedure<open_binary_input_file>(ctx, "open-binary-input-file",
+                                           result, true);
+  define_procedure<open_binary_output_file>(ctx, "open-binary-output-file",
+                                            result, true);
   define_procedure<close>(ctx, "close-port", result, true);
   define_procedure<close>(ctx, "close-output-port", result, true);
   define_procedure<close>(ctx, "close-input-port", result, true);
   define_procedure<open_input_string>(ctx, "open-input-string", result, true);
   define_procedure<open_output_string>(ctx, "open-output-string", result, true);
-  define_procedure<open_input_bytevector>(ctx, "open-input-bytevector", result, true);
-  define_procedure<open_output_bytevector>(ctx, "open-output-bytevector", result, true);
-  define_procedure<&textual_output_port::get_string>(ctx, "get-output-string", result, true);
-  define_procedure<&binary_output_port::get_bytevector>(ctx, "get-output-bytevector", result, true);
-  define_procedure<read_char>(ctx, "read-char", result, true, get_default_textual_input_port);
-  define_procedure<peek_char>(ctx, "peek-char", result, true, get_default_textual_input_port);
-  define_procedure<read_u8>(ctx, "read-u8", result, true, get_default_binary_input_port);
-  define_procedure<peek_u8>(ctx, "peek-u8", result, true, get_default_binary_input_port);
-  define_procedure<write_u8>(ctx, "write-u8", result, true, get_default_binary_output_port);
+  define_procedure<open_input_bytevector>(ctx, "open-input-bytevector", result,
+                                          true);
+  define_procedure<open_output_bytevector>(ctx, "open-output-bytevector",
+                                           result, true);
+  define_procedure<&textual_output_port::get_string>(ctx, "get-output-string",
+                                                     result, true);
+  define_procedure<&binary_output_port::get_bytevector>(ctx,
+                                                        "get-output-bytevector",
+                                                        result, true);
+  define_procedure<read_char>(ctx, "read-char", result, true,
+                              get_default_textual_input_port);
+  define_procedure<peek_char>(ctx, "peek-char", result, true,
+                              get_default_textual_input_port);
+  define_procedure<read_u8>(ctx, "read-u8", result, true,
+                            get_default_binary_input_port);
+  define_procedure<peek_u8>(ctx, "peek-u8", result, true,
+                            get_default_binary_input_port);
+  define_procedure<write_u8>(ctx, "write-u8", result, true,
+                             get_default_binary_output_port);
   define_procedure<flush_port>(ctx, "flush-output-port", result, true);
   define_procedure<is_port_open>(ctx, "port-open?", result, true);
-  define_procedure<&textual_input_port::char_ready>(ctx, "char-ready?", result, true);
+  define_procedure<&textual_input_port::char_ready>(ctx, "char-ready?", result,
+                                                    true);
   define_procedure<&binary_input_port::u8_ready>(ctx, "u8-ready?", result, true);
   define_procedure<file_exists>(ctx, "file-exists?", result, true);
   define_procedure<delete_file>(ctx, "delete-file", result, true);

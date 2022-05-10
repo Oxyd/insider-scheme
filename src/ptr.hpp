@@ -85,7 +85,9 @@ operator != (std::nullptr_t, ptr<T> rhs) { return rhs.value() != nullptr; }
 
 template <typename T>
 bool
-operator < (ptr<T> lhs, ptr<T> rhs) { return std::less<T*>{}(lhs.value(), rhs.value()); }
+operator < (ptr<T> lhs, ptr<T> rhs) {
+  return std::less<T*>{}(lhs.value(), rhs.value());
+}
 
 template <typename>
 bool
@@ -108,7 +110,9 @@ namespace std {
   template <typename T>
   struct hash<insider::ptr<T>> {
     auto
-    operator () (insider::ptr<T> value) const { return std::hash<insider::object*>{}(value.value()); }
+    operator () (insider::ptr<T> value) const {
+      return std::hash<insider::object*>{}(value.value());
+    }
   };
 } // namespace std
 

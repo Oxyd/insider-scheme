@@ -70,10 +70,16 @@ public:
   }
 
   list_iterator
-  operator ++ (int) { list_iterator result{*this}; operator ++ (); return result; }
+  operator ++ (int) {
+    list_iterator result{*this};
+    operator ++ ();
+    return result;
+  }
 
   bool
-  operator == (list_iterator const& other) const { return current_ == other.current_; }
+  operator == (list_iterator const& other) const {
+    return current_ == other.current_;
+  }
 
   bool
   operator != (list_iterator const& other) { return !operator == (other); }

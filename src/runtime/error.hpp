@@ -23,7 +23,8 @@ make_error(std::string_view fmt, Args&&... args) {
 template <typename Expected>
 std::runtime_error
 make_type_error(ptr<> actual) {
-  throw make_error("Invalid type: expected {}, got {}", type_name<Expected>(), object_type_name(actual));
+  throw make_error("Invalid type: expected {}, got {}", type_name<Expected>(),
+                   object_type_name(actual));
 }
 
 // C++ exception type wrapping a Scheme exception.

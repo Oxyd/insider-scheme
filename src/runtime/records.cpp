@@ -15,7 +15,7 @@ record_instance::record_instance(ptr<record_type> type)
   , type_{type}
 { }
 
-record_instance::record_instance(record_instance&& other)
+record_instance::record_instance(record_instance&& other) noexcept
   : dynamic_size_object{other}
   , type_{other.type_}
 {

@@ -91,7 +91,7 @@ public:
   add(free_store& store, ptr<syntax> identifier, value_type const&);
 
   std::vector<binding>
-  find_candidates(ptr<symbol> name, scope_set const& scopess) const;
+  find_candidates(ptr<symbol> name, scope_set const& scopes) const;
 
   std::string const&
   description() const { return description_; }

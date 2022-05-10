@@ -115,8 +115,8 @@ public:
     store.notify_arc(this, p);
   }
 
-  std::size_t
-  size() const { return 2; }
+  static std::size_t
+  size() { return 2; }
 
   void
   visit_members(member_visitor const& f) { f(car_); f(cdr_); }
@@ -182,7 +182,8 @@ make_list(context& ctx, Ts... ts) {
 
 template <typename Container, typename Converter>
 ptr<>
-make_list_from_vector(context& ctx, Container const& values, Converter const& convert) {
+make_list_from_vector(context& ctx, Container const& values,
+                      Converter const& convert) {
   ptr<> head = ctx.constants->null;
 
   for (auto elem = values.rbegin(); elem != values.rend(); ++elem)
@@ -243,7 +244,8 @@ map(context& ctx, ptr<> list, F&& f) {
   if (list == ctx.constants->null)
     return ctx.constants->null;
   else
-    return detail::map_non_empty_list(ctx, assume<pair>(list), std::forward<F>(f));
+    return detail::map_non_empty_list(ctx, assume<pair>(list),
+                                      std::forward<F>(f));
 }
 
 // An array of a fixed, dynamic size. Elements are allocated as a part of this
@@ -258,7 +260,7 @@ public:
 
   vector(std::size_t, ptr<> fill);
 
-  vector(vector&&);
+  vector(vector&&) noexcept;
 
   void
   visit_members(member_visitor const&);
@@ -311,7 +313,7 @@ public:
 
   bytevector(std::size_t size);
 
-  bytevector(bytevector&&);
+  bytevector(bytevector&&) noexcept;
 
   void
   set(std::size_t index, element_type value) { storage_element(index) = value; }
@@ -350,7 +352,10 @@ public:
   get() const { return value_; }
 
   void
-  set(free_store& store, ptr<> value) { value_ = value; store.notify_arc(this, value); }
+  set(free_store& store, ptr<> value) {
+    value_ = value;
+    store.notify_arc(this, value);
+  }
 
   void
   visit_members(member_visitor const& f) { f(value_); }
@@ -372,13 +377,15 @@ public:
   bool                       has_rest;
   std::optional<std::string> name;
 
-  procedure(integer::value_type entry_pc, std::size_t bytecode_size, unsigned locals_size,
-            unsigned min_args, bool has_rest = false, std::optional<std::string> name = {});
+  procedure(integer::value_type entry_pc, std::size_t bytecode_size,
+            unsigned locals_size, unsigned min_args, bool has_rest = false,
+            std::optional<std::string> name = {});
 };
 
 ptr<procedure>
 make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
-               unsigned min_args = 0, bool has_rest = false, std::optional<std::string> name = {});
+               unsigned min_args = 0, bool has_rest = false,
+               std::optional<std::string> name = {});
 
 // A procedure plus a list of captured objects.
 class closure : public dynamic_size_object<closure, ptr<>> {
@@ -392,7 +399,7 @@ public:
 
   closure(ptr<insider::procedure>, std::size_t num_captures);
 
-  closure(closure&&);
+  closure(closure&&) noexcept;
 
   ptr<insider::procedure>
   procedure() const { return procedure_; }
@@ -428,29 +435,17 @@ struct native_procedure : public leaf_object<native_procedure> {
   explicit
   native_procedure(target_type f, char const* name = "<native procedure>",
                    std::unique_ptr<extra_data> extra = {})
-    : target{std::move(f)}
+    : target{f}
     , name{name}
     , extra{std::move(extra)}
   { }
 
   native_procedure(target_type f, std::unique_ptr<extra_data> extra)
-    : target{std::move(f)}
+    : target{f}
     , name{"<native procedure>"}
     , extra{std::move(extra)}
   { }
 };
-
-template <typename T>
-bool
-is(ptr<> x);
-
-template <typename T>
-auto
-match(ptr<> x);
-
-template <typename T>
-auto
-match(tracked_ptr<> const& x);
 
 bool
 is_callable(ptr<> x);
@@ -547,7 +542,7 @@ public:
     assign_elements(std::index_sequence_for<Ts...>{}, elems...);
   }
 
-  values_tuple(values_tuple&& other);
+  values_tuple(values_tuple&& other) noexcept;
 
   ptr<>
   ref(std::size_t i) const;

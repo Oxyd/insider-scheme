@@ -61,7 +61,9 @@ struct to_scheme_converter<char32_t> {
 };
 
 template <typename T>
-struct to_scheme_converter<T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>> {
+struct to_scheme_converter<
+  T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>
+> {
   static ptr<>
   convert(context& ctx, T t) { return integer_to_scheme(ctx, t); }
 };
@@ -69,13 +71,17 @@ struct to_scheme_converter<T, std::enable_if_t<std::is_integral_v<T> && !std::is
 template <>
 struct to_scheme_converter<double> {
   static ptr<>
-  convert(context& ctx, double value) { return make<floating_point>(ctx, value); }
+  convert(context& ctx, double value) {
+    return make<floating_point>(ctx, value);
+  }
 };
 
 template <>
 struct to_scheme_converter<bool> {
   static ptr<>
-  convert(context& ctx, bool b) { return b ? ctx.constants->t : ctx.constants->f; }
+  convert(context& ctx, bool b) {
+    return b ? ctx.constants->t : ctx.constants->f;
+  }
 };
 
 template <>

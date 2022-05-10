@@ -49,7 +49,9 @@ public:
   extra_elements(std::size_t length);
 
   static std::size_t
-  extra_elements(std::size_t length, dont_initialize_t) { return big_integer::extra_elements(length); }
+  extra_elements(std::size_t length, dont_initialize_t) {
+    return big_integer::extra_elements(length);
+  }
 
   static std::size_t
   extra_elements(std::vector<limb_type> const&, bool = true);
@@ -74,7 +76,7 @@ public:
   explicit
   big_integer(ptr<big_integer>);
 
-  big_integer(big_integer&&);
+  big_integer(big_integer&&) noexcept;
 
   iterator
   begin();
@@ -113,7 +115,12 @@ public:
   nth_limb(std::size_t i) const { assert(i < size()); return data()[i]; }
 
   limb_type
-  nth_limb_or_zero(std::size_t i) const { if (i < size()) return data()[i]; else return {}; }
+  nth_limb_or_zero(std::size_t i) const {
+    if (i < size())
+      return data()[i];
+    else
+      return {};
+  }
 
   std::size_t
   length() const { return size(); }
@@ -150,13 +157,22 @@ public:
   denominator() const { return denominator_; }
 
   void
-  set_numerator(free_store& store, ptr<> n) { numerator_ = n; store.notify_arc(this, n); }
+  set_numerator(free_store& store, ptr<> n) {
+    numerator_ = n;
+    store.notify_arc(this, n);
+  }
 
   void
-  set_denominator(free_store& store, ptr<> d) { denominator_ = d; store.notify_arc(this, d); }
+  set_denominator(free_store& store, ptr<> d) {
+    denominator_ = d;
+    store.notify_arc(this, d);
+  }
 
   void
-  visit_members(member_visitor const& f) { f(numerator_); f(denominator_); }
+  visit_members(member_visitor const& f) {
+    f(numerator_);
+    f(denominator_);
+  }
 
   std::size_t
   hash() const;
@@ -180,10 +196,14 @@ public:
 
   value_type value;
 
-  static constexpr value_type positive_infinity = std::numeric_limits<value_type>::infinity();
-  static constexpr value_type negative_infinity = -std::numeric_limits<value_type>::infinity();
-  static constexpr value_type positive_nan      = std::numeric_limits<value_type>::quiet_NaN();
-  static constexpr value_type negative_nan      = -std::numeric_limits<value_type>::quiet_NaN();
+  static constexpr value_type positive_infinity
+    = std::numeric_limits<value_type>::infinity();
+  static constexpr value_type negative_infinity
+    = -std::numeric_limits<value_type>::infinity();
+  static constexpr value_type positive_nan
+    = std::numeric_limits<value_type>::quiet_NaN();
+  static constexpr value_type negative_nan
+    = -std::numeric_limits<value_type>::quiet_NaN();
 
   explicit
   floating_point(double v) : value{v} { }
@@ -205,13 +225,22 @@ public:
   imaginary() const { return imaginary_; }
 
   void
-  set_real(free_store& fs, ptr<> r) { real_ = r; fs.notify_arc(this, r); }
+  set_real(free_store& fs, ptr<> r) {
+    real_ = r;
+    fs.notify_arc(this, r);
+  }
 
   void
-  set_imaginary(free_store& fs, ptr<> i) { imaginary_ = i; fs.notify_arc(this, i); }
+  set_imaginary(free_store& fs, ptr<> i) {
+    imaginary_ = i;
+    fs.notify_arc(this, i);
+  }
 
   void
-  visit_members(member_visitor const& f) { f(real_); f(imaginary_); }
+  visit_members(member_visitor const& f) {
+    f(real_);
+    f(imaginary_);
+  }
 
   std::size_t
   hash() const;
@@ -262,7 +291,8 @@ namespace detail {
     if constexpr (sizeof(T) <= sizeof(limb_type))
       b.front() = magnitude;
     else {
-      constexpr double_limb_type limb_mask = (double_limb_type{1} << limb_width) - 1;
+      constexpr double_limb_type limb_mask
+        = (double_limb_type{1} << limb_width) - 1;
 
       auto it = b.begin();
       for (std::size_t k = 0; k < b.length(); ++k) {

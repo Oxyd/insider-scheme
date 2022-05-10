@@ -36,13 +36,16 @@ call_continuable(context&, ptr<> callable, std::vector<ptr<>> const& arguments,
 // exist. A full continuation barrier is installed around the call frame unless
 // it's the root frame.
 tracked_ptr<>
-call_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments);
+call_with_continuation_barrier(context& ctx, ptr<> callable,
+                               std::vector<ptr<>> const& arguments);
 
 // Like call_with_continuation_barrier but also sets a parameter in the created
 // call frame.
 tracked_ptr<>
-call_parameterized_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments,
-                                             ptr<parameter_tag>, ptr<> parameter_value);
+call_parameterized_with_continuation_barrier(context& ctx, ptr<> callable,
+                                             std::vector<ptr<>> const& arguments,
+                                             ptr<parameter_tag>,
+                                             ptr<> parameter_value);
 
 // Make a new parameter tag and set its top-level value in the context.
 ptr<parameter_tag>
@@ -55,7 +58,7 @@ class parameterize : public root_provider {
 public:
   parameterize(context&, ptr<parameter_tag>, ptr<> value);
   parameterize(parameterize const&) = delete;
-  ~parameterize();
+  ~parameterize() override;
 
   void
   operator = (parameterize const&) = delete;

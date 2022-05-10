@@ -42,8 +42,10 @@ ptr_to_integer(ptr<> x) {
 
 inline ptr<>
 integer_to_ptr(integer i) {
-  assert(static_cast<word_type>(i.value()) >> (integer::storage_width - 2) == 0b00
-         || static_cast<word_type>(i.value()) >> (integer::storage_width - 2) == 0b11);
+  assert(
+    static_cast<word_type>(i.value()) >> (integer::storage_width - 2) == 0b00
+    || static_cast<word_type>(i.value()) >> (integer::storage_width - 2) == 0b11
+  );
 
   return immediate_to_ptr(static_cast<word_type>(i.value() << 1) | 1);
 }

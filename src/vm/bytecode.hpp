@@ -65,8 +65,8 @@ enum class opcode : std::uint16_t {
 struct instruction_info {
   std::string     mnemonic;
   insider::opcode opcode{};
-  std::size_t     num_operands;
-  bool            extra_operands;
+  std::size_t     num_operands{};
+  bool            extra_operands{};
 
   instruction_info() = default;
 
@@ -186,7 +186,7 @@ instructions{
              opcode::eq,                  std::size_t{3}, false}
 };
 
-inline auto // std::array<instruction_info, N>
+inline auto const // std::array<instruction_info, N>
 opcode_value_to_info = detail::make_opcodes(instructions);
 
 inline auto
@@ -196,14 +196,16 @@ instruction_info
 mnemonic_to_info(std::string_view);
 
 struct instruction {
-  insider::opcode opcode;
+  insider::opcode opcode{};
   std::vector<operand> operands;
 
   instruction() = default;
+
   explicit
   instruction(insider::opcode oc)
     : opcode{oc}
   { }
+
   instruction(insider::opcode oc, std::vector<operand> operands)
     : opcode{oc}
     , operands{std::move(operands)}
@@ -244,7 +246,8 @@ namespace std {
   struct hash<insider::instruction> {
     std::size_t
     operator () (insider::instruction i) const {
-      return std::hash<insider::opcode>{}(i.opcode) ^ (!i.operands.empty() ? i.operands.front() : 0);
+      return std::hash<insider::opcode>{}(i.opcode)
+             ^ (!i.operands.empty() ? i.operands.front() : 0);
     }
   };
 }

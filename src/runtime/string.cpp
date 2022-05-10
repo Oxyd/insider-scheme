@@ -112,7 +112,9 @@ namespace {
     operator == (code_point_iterator other) const;
 
     bool
-    operator != (code_point_iterator other) const { return !operator == (other); }
+    operator != (code_point_iterator other) const {
+      return !operator == (other);
+    }
 
     char const*
     base() const { return current_; }
@@ -120,7 +122,7 @@ namespace {
   private:
     char const* current_;
     char const* end_;
-    value_type  value_;
+    value_type  value_{};
 
     void
     read_value();
@@ -164,13 +166,16 @@ code_points_begin(std::string const& data) {
 
 static code_point_iterator
 code_points_end(std::string const& data) {
-  return code_point_iterator{data.data() + data.length(), data.data() + data.length()};
+  return code_point_iterator{data.data() + data.length(),
+                             data.data() + data.length()};
 }
 
 template <typename F>
 void
 for_each_code_point(std::string const& data, F&& f) {
-  for (auto it = code_points_begin(data), e = code_points_end(data); it != e; ++it)
+  for (auto it = code_points_begin(data), e = code_points_end(data);
+       it != e;
+       ++it)
     f(*it);
 }
 
@@ -181,7 +186,8 @@ string_upcase(context& ctx, ptr<string> s) {
   new_data.reserve(old_data.length());
   for_each_code_point(old_data, [&] (char32_t cp) {
     if (auto prop = find_properties(cp))
-      for (char32_t const* upcase_cp = prop->complex_uppercase; *upcase_cp; ++upcase_cp)
+      for (char32_t const* upcase_cp = prop->complex_uppercase;
+           *upcase_cp; ++upcase_cp)
         append(new_data, *upcase_cp);
     else
       append(new_data, cp);
@@ -190,7 +196,8 @@ string_upcase(context& ctx, ptr<string> s) {
 }
 
 static void
-update_is_preceded_by_cased_letter(bool& is_preceded_by_cased_letter, char32_t cp) {
+update_is_preceded_by_cased_letter(bool& is_preceded_by_cased_letter,
+                                   char32_t cp) {
   if (auto prop = find_properties(cp)) {
     if (has_attribute(*prop, code_point_attribute::cased_letter))
       is_preceded_by_cased_letter = true;
@@ -206,7 +213,8 @@ update_is_preceded_by_cased_letter(bool& is_preceded_by_cased_letter, char32_t c
 
 static bool
 is_followed_by_cased_letter(char const* begin, char const* end) {
-  for (auto it = code_point_iterator{begin, end}, e = code_point_iterator{end, end}; it != e; ++it)
+  auto end_it = code_point_iterator{end, end};
+  for (auto it = code_point_iterator{begin, end}; it != end_it; ++it)
     if (auto prop = find_properties(*it)) {
       if (has_attribute(*prop, code_point_attribute::cased_letter))
         return true;
@@ -235,14 +243,15 @@ string_downcase(context& ctx, ptr<string> s) {
   //      characters, followed by a cased letter.
 
   bool is_preceded_by_cased_letter = false;
-
-  for (auto cp = code_points_begin(old_data), e = code_points_end(old_data); cp != e; ++cp)
+  auto end_it = code_points_end(old_data);
+  for (auto cp = code_points_begin(old_data); cp != end_it; ++cp)
     if (*cp != uppercase_sigma) {
       update_is_preceded_by_cased_letter(is_preceded_by_cased_letter, *cp);
       append(new_data, char_downcase(*cp));
     } else {
       if (is_preceded_by_cased_letter
-          && !is_followed_by_cased_letter(cp.base(), old_data.data() + old_data.length()))
+          && !is_followed_by_cased_letter(cp.base(),
+                                          old_data.data() + old_data.length()))
         append(new_data, lowercase_final_sigma);
       else
         append(new_data, lowercase_medial_sigma);
@@ -293,7 +302,8 @@ check_utf8(ptr<bytevector> bv, std::size_t start, std::size_t end) {
 }
 
 ptr<string>
-utf8_to_string(context& ctx, ptr<bytevector> bv, std::size_t start, std::size_t end) {
+utf8_to_string(context& ctx, ptr<bytevector> bv,
+               std::size_t start, std::size_t end) {
   assert(start <= end);
   assert(start < bv->size());
   assert(end <= bv->size());
@@ -303,7 +313,9 @@ utf8_to_string(context& ctx, ptr<bytevector> bv, std::size_t start, std::size_t 
 }
 
 std::tuple<std::size_t, std::size_t>
-find_code_point_byte_range(std::string const& data, std::size_t code_point_start, std::size_t code_point_end) {
+find_code_point_byte_range(std::string const& data,
+                           std::size_t code_point_start,
+                           std::size_t code_point_end) {
   std::size_t byte_index = 0;
   std::size_t code_point_index = 0;
 
@@ -314,7 +326,8 @@ find_code_point_byte_range(std::string const& data, std::size_t code_point_start
     if (code_point_index == code_point_start)
       start_index = byte_index;
 
-    byte_index += from_utf8(data.data() + byte_index, data.data() + data.size()).length;
+    byte_index += from_utf8(data.data() + byte_index,
+                            data.data() + data.size()).length;
     ++code_point_index;
 
     if (code_point_index == code_point_end) {
@@ -327,7 +340,8 @@ find_code_point_byte_range(std::string const& data, std::size_t code_point_start
 }
 
 ptr<bytevector>
-string_to_utf8_byte_indexes(context& ctx, ptr<string> s, std::size_t start, std::size_t end) {
+string_to_utf8_byte_indexes(context& ctx, ptr<string> s,
+                            std::size_t start, std::size_t end) {
   std::string const& data = s->value();
 
   auto result = make<bytevector>(ctx, end - start);
@@ -344,7 +358,9 @@ construct_string(context& ctx, object_span args) {
   result.reserve(length);
 
   for (std::size_t i = 0; i < length; ++i)
-    to_utf8(expect<char32_t>(args[i]), [&] (char byte) { result.push_back(byte); });
+    to_utf8(expect<char32_t>(args[i]), [&] (char byte) {
+      result.push_back(byte);
+    });
 
   result.shrink_to_fit();
   return make<string>(ctx, std::move(result));
@@ -455,7 +471,10 @@ string_reverse(context& ctx, ptr<string> s, std::size_t begin, std::size_t end) 
     assert(output_index >= r.length);
 
     output_index -= r.length;
-    to_utf8(r.code_point, [&, o = output_index] (char byte) mutable { output[o++] = byte; });
+    to_utf8(r.code_point,
+            [&, o = output_index] (char byte) mutable {
+              output[o++] = byte;
+            });
 
     input_index += r.length;
   }
@@ -464,7 +483,8 @@ string_reverse(context& ctx, ptr<string> s, std::size_t begin, std::size_t end) 
 }
 
 static ptr<string>
-string_copy_byte_indexes(context& ctx, ptr<string> s, std::size_t begin, std::size_t end) {
+string_copy_byte_indexes(context& ctx, ptr<string> s,
+                         std::size_t begin, std::size_t end) {
   std::string const& value = s->value();
   if (begin > end)
     throw std::runtime_error{"Invalid index"};
@@ -479,41 +499,55 @@ string_append_in_place(ptr<string> s, ptr<string> t) {
 
 static integer
 string_contains_byte_indexes(ptr<string> haystack, ptr<string> needle,
-                             std::size_t haystack_start, std::size_t haystack_end,
-                             std::size_t needle_start, std::size_t needle_end) {
+                             std::size_t haystack_start,
+                             std::size_t haystack_end,
+                             std::size_t needle_start,
+                             std::size_t needle_end) {
   std::string const& h = haystack->value();
   std::string const& n = needle->value();
 
-  if (haystack_start > h.size() || haystack_end > h.size() || haystack_start > haystack_end
-      || needle_start > n.size() || needle_end > n.size() || needle_start > needle_end)
+  if (haystack_start > h.size()
+      || haystack_end > h.size()
+      || haystack_start > haystack_end
+      || needle_start > n.size()
+      || needle_end > n.size()
+      || needle_start > needle_end)
     throw std::runtime_error{"Invalid index"};
 
-  auto result = h.find(n.data() + needle_start, haystack_start, needle_end - needle_start);
+  auto result = h.find(n.data() + needle_start, haystack_start,
+                       needle_end - needle_start);
   if (result == std::string::npos || result > haystack_end)
-    return haystack_end;
+    return static_cast<integer::value_type>(haystack_end);
   else
     return integer{static_cast<integer::value_type>(result)};
 }
 
 static integer
 string_contains_right_byte_indexes(ptr<string> haystack, ptr<string> needle,
-                                   std::size_t haystack_start, std::size_t haystack_end,
-                                   std::size_t needle_start, std::size_t needle_end) {
+                                   std::size_t haystack_start,
+                                   std::size_t haystack_end,
+                                   std::size_t needle_start,
+                                   std::size_t needle_end) {
   std::string const& h = haystack->value();
   std::string const& n = needle->value();
 
-  if (haystack_start > h.size() || haystack_end > h.size() || haystack_start > haystack_end
-      || needle_start > n.size() || needle_end > n.size() || needle_start > needle_end)
+  if (haystack_start > h.size()
+      || haystack_end > h.size()
+      || haystack_start > haystack_end
+      || needle_start > n.size()
+      || needle_end > n.size()
+      || needle_start > needle_end)
     throw std::runtime_error{"Invalid index"};
 
   std::size_t haystack_size = haystack_end - haystack_start;
   std::size_t needle_size = needle_end - needle_start;
   if (needle_size > haystack_size)
-    return haystack_end;
+    return static_cast<integer::value_type>(haystack_end);
 
-  auto result = h.rfind(n.data() + needle_start, haystack_end - needle_size, needle_size);
+  auto result = h.rfind(n.data() + needle_start, haystack_end - needle_size,
+                        needle_size);
   if (result == std::string::npos || result < haystack_start)
-    return haystack_end;
+    return static_cast<integer::value_type>(haystack_end);
   else
     return integer{static_cast<integer::value_type>(result)};
 }
@@ -547,25 +581,37 @@ void
 export_string(context& ctx, module_& result) {
   define_raw_procedure<construct_string>(ctx, "string", result, true);
   define_raw_procedure<make_string>(ctx, "make-string", result, true);
-  define_procedure<make_string_byte_length>(ctx, "make-string/byte-length", result, true);
+  define_procedure<make_string_byte_length>(ctx, "make-string/byte-length",
+                                            result, true);
   define_procedure<&string::length>(ctx, "string-length", result, true);
   define_raw_procedure<string_append>(ctx, "string-append", result, true);
   define_procedure<string_append_in_place>(ctx, "string-append!", result, true);
   define_procedure<symbol_to_string>(ctx, "symbol->string", result, true);
   define_procedure<string_to_symbol>(ctx, "string->symbol", result, true);
   define_procedure<string_byte_length>(ctx, "string-byte-length", result, true);
-  define_procedure<next_code_point_byte_index>(ctx, "next-code-point-byte-index", result, true);
-  define_procedure<previous_code_point_byte_index>(ctx, "previous-code-point-byte-index", result, true);
+  define_procedure<next_code_point_byte_index>(ctx, "next-code-point-byte-index",
+                                               result, true);
+  define_procedure<previous_code_point_byte_index>(
+    ctx, "previous-code-point-byte-index", result, true
+  );
   define_procedure<string_ref>(ctx, "string-ref", result, true);
   define_procedure<&string::set>(ctx, "string-set!", result, true);
-  define_procedure<&string::set_byte_index>(ctx, "string-set!/byte-index", result, true);
-  define_procedure<&string::append_char>(ctx, "string-append-char!", result, true);
-  define_procedure<string_ref_byte_index>(ctx, "string-ref/byte-index", result, true);
+  define_procedure<&string::set_byte_index>(ctx, "string-set!/byte-index",
+                                            result, true);
+  define_procedure<&string::append_char>(ctx, "string-append-char!", result,
+                                         true);
+  define_procedure<string_ref_byte_index>(ctx, "string-ref/byte-index", result,
+                                          true);
   define_procedure<is_string_null>(ctx, "string-null?", result, true);
   define_procedure<string_reverse>(ctx, "string-reverse*", result, true);
-  define_procedure<string_copy_byte_indexes>(ctx, "string-copy/byte-indexes", result, true);
-  define_procedure<string_contains_byte_indexes>(ctx, "string-contains/byte-indexes", result, true);
-  define_procedure<string_contains_right_byte_indexes>(ctx, "string-contains-right/byte-indexes", result, true);
+  define_procedure<string_copy_byte_indexes>(ctx, "string-copy/byte-indexes",
+                                             result, true);
+  define_procedure<string_contains_byte_indexes>(
+    ctx, "string-contains/byte-indexes", result, true
+  );
+  define_procedure<string_contains_right_byte_indexes>(
+    ctx, "string-contains-right/byte-indexes", result, true
+  );
   define_procedure<string_eq>(ctx, "string=?/pair", result, true);
   define_procedure<string_lt>(ctx, "string<?/pair", result, true);
   define_procedure<string_le>(ctx, "string<=?/pair", result, true);
@@ -573,8 +619,11 @@ export_string(context& ctx, module_& result) {
   define_procedure<string_ge>(ctx, "string>=?/pair", result, true);
   define_procedure<string_upcase>(ctx, "string-upcase", result, true);
   define_procedure<string_downcase>(ctx, "string-downcase", result, true);
-  define_procedure<static_cast<ptr<string> (*)(context&, ptr<string>)>(&string_foldcase)>(ctx, "string-foldcase", result, true);
-  define_procedure<string_to_utf8_byte_indexes>(ctx, "string->utf8/byte-indexes", result, true);
+  define_procedure<
+    static_cast<ptr<string> (*)(context&, ptr<string>)>(&string_foldcase)
+  >(ctx, "string-foldcase", result, true);
+  define_procedure<string_to_utf8_byte_indexes>(ctx, "string->utf8/byte-indexes",
+                                                result, true);
   define_procedure<utf8_to_string>(ctx, "utf8->string*", result, true);
 }
 

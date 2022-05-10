@@ -8,7 +8,8 @@
 
 namespace insider {
 
-instruction::instruction(std::string_view mnemonic, std::vector<operand> operands)
+instruction::instruction(std::string_view mnemonic,
+                         std::vector<operand> operands)
   : opcode{mnemonic_to_info(mnemonic).opcode}
   , operands{std::move(operands)}
 { }
@@ -65,7 +66,10 @@ encode_instruction(bytecode& bc, instruction const& instr) {
     encode(bc, instr.operands[i]);
 
   if (info.extra_operands) {
-    encode(bc, static_cast<insider::operand>(instr.operands.size() - info.num_operands));
+    encode(
+      bc,
+      static_cast<insider::operand>(instr.operands.size() - info.num_operands)
+    );
     for (std::size_t i = info.num_operands; i < instr.operands.size(); ++i)
       encode(bc, instr.operands[i]);
   }

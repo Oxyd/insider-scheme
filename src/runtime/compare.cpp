@@ -48,7 +48,8 @@ eqv(context& ctx, ptr<> x, ptr<> y) {
     return true;
 
   if (!is_object_ptr(x) || !is_object_ptr(y))
-    return false; // Either both are fixnums and not the same, or they're different types.
+    return false; // Either both are fixnums and not the same, or they're
+                  // different types.
 
   if (is_number(x) && is_number(y) && is_exact(x) == is_exact(y))
     return arith_equal(ctx, x, y) == ctx.constants->t;
@@ -88,8 +89,8 @@ namespace {
   private:
     struct node {
       ptr<>       value;
-      std::size_t index;
-      std::size_t parent_index;
+      std::size_t index{};
+      std::size_t parent_index{};
       std::size_t size = 1;
     };
 
@@ -187,7 +188,8 @@ equal(context& ctx, ptr<> x, ptr<> y) {
     if (eqv(ctx, current.left, current.right))
       return true;
 
-    bool made_new_assumption = assumed_equivalence_classes.merge(current.left, current.right);
+    bool made_new_assumption
+      = assumed_equivalence_classes.merge(current.left, current.right);
     if (!made_new_assumption)
       return true;
 

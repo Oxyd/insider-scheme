@@ -17,7 +17,9 @@ namespace detail {
       if (is<T>(x))
         return ptr_cast<T>(x);
       else
-        throw !message.empty() ? std::runtime_error{std::string(message)} : make_type_error<T>(x);
+        throw !message.empty()
+              ? std::runtime_error{std::string(message)}
+              : make_type_error<T>(x);
     }
 
     static tracked_ptr<T>
@@ -33,20 +35,26 @@ namespace detail {
       if (is<ImmediateT>(x))
         return Converter(x);
       else
-        throw !message.empty() ? std::runtime_error{std::string(message)} : make_type_error<ImmediateT>(x);
+        throw !message.empty()
+              ? std::runtime_error{std::string(message)}
+              : make_type_error<ImmediateT>(x);
     }
 
     static ImmediateT
-    expect(tracked_ptr<> x, std::string_view message) {
+    expect(tracked_ptr<> const& x, std::string_view message) {
       return expect(x.get(), message);
     }
   };
 
   template <>
-  struct expect_helper<integer> : immediate_expect_helper<integer, ptr_to_integer> { };
+  struct expect_helper<integer>
+    : immediate_expect_helper<integer, ptr_to_integer>
+  { };
 
   template <>
-  struct expect_helper<char32_t> : immediate_expect_helper<char32_t, ptr_to_character> { };
+  struct expect_helper<char32_t>
+    : immediate_expect_helper<char32_t, ptr_to_character>
+  { };
 }
 
 template <typename T>
@@ -127,10 +135,14 @@ namespace detail {
   };
 
   template <>
-  struct assume_helper<integer> : immediate_assume_helper<integer, ptr_to_integer> { };
+  struct assume_helper<integer>
+    : immediate_assume_helper<integer, ptr_to_integer>
+  { };
 
   template <>
-  struct assume_helper<char32_t> : immediate_assume_helper<char32_t, ptr_to_character> { };
+  struct assume_helper<char32_t>
+    : immediate_assume_helper<char32_t, ptr_to_character>
+  { };
 }
 
 // Assert that an object is of a given type and return the appropriate typed
@@ -177,10 +189,14 @@ namespace detail {
   };
 
   template <>
-  struct match_helper<integer> : immediate_match_helper<integer, ptr_to_integer> { };
+  struct match_helper<integer>
+    : immediate_match_helper<integer, ptr_to_integer>
+  { };
 
   template <>
-  struct match_helper<char32_t> : immediate_match_helper<char32_t, ptr_to_character> { };
+  struct match_helper<char32_t>
+    : immediate_match_helper<char32_t, ptr_to_character>
+  { };
 }
 
 // If an object is of the given type, return the typed pointer to it; otherwise,

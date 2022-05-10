@@ -17,7 +17,7 @@ class module_;
 class port_source {
 public:
   virtual
-  ~port_source() { }
+  ~port_source() = default;
 
   virtual std::optional<std::uint8_t>
   read() = 0;
@@ -132,7 +132,7 @@ public:
 
 private:
   std::unique_ptr<port_source> source_;
-  std::array<char, 4>          read_buffer_;
+  std::array<std::uint8_t, 4>  read_buffer_{};
   std::size_t                  read_buffer_length_ = 0;
   std::string                  name_;
 
@@ -198,7 +198,7 @@ private:
 class port_sink {
 public:
   virtual
-  ~port_sink() { }
+  ~port_sink() = default;
 
   virtual void
   write(std::uint8_t) = 0;
@@ -321,7 +321,7 @@ public:
   explicit
   unique_port_handle(PortPtr p) : ptr_{std::move(p)} { }
 
-  unique_port_handle(unique_port_handle&& other)
+  unique_port_handle(unique_port_handle&& other) noexcept
     : ptr_{std::move(other.ptr_)}
   {
     other.ptr_.reset();
@@ -330,7 +330,7 @@ public:
   ~unique_port_handle() { if (ptr_) ptr_->close(); }
 
   unique_port_handle&
-  operator = (unique_port_handle&& other) {
+  operator = (unique_port_handle&& other) noexcept {
     if (this == &other)
       return *this;
 

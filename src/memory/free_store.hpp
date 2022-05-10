@@ -224,7 +224,8 @@ namespace detail {
   allocation_size([[maybe_unused]] Args&&... args) {
     if constexpr (T::is_dynamic_size) {
       std::size_t elements = T::extra_elements(args...);
-      return detail::round_to_words(sizeof(T) + elements * sizeof(typename T::element_type));
+      return detail::round_to_words(sizeof(T) +
+                                    elements * sizeof(typename T::element_type));
     } else {
       static_assert(sizeof(T) % sizeof(word_type) == 0);
       return sizeof(T);
@@ -265,7 +266,8 @@ public:
   notify_arc(ptr<> from, ptr<> to) {
     assert(!object_type(from).permanent_root);
 
-    if (to && is_object_ptr(to) && object_generation(from) > object_generation(to)) {
+    if (to && is_object_ptr(to)
+        && object_generation(from) > object_generation(to)) {
       switch (object_generation(to)) {
       case generation::nursery_1:
         generations_.nursery_1.incoming_arcs.emplace(from);

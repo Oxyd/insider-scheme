@@ -24,11 +24,17 @@ namespace insider {
 using limb_type = detail::limb_type;
 using double_limb_type = detail::double_limb_type;
 
-static constexpr limb_type max_limb_value = std::numeric_limits<limb_type>::max();
-static constexpr unsigned  limb_width = std::numeric_limits<limb_type>::digits;
-static constexpr double_limb_type limb_mask = (double_limb_type{1} << limb_width) - 1;
+static constexpr limb_type max_limb_value
+  = std::numeric_limits<limb_type>::max();
 
-static constexpr std::size_t limbs_in_fixnum = sizeof(integer::representation_type) / sizeof(limb_type);
+static constexpr unsigned  limb_width
+  = std::numeric_limits<limb_type>::digits;
+
+static constexpr double_limb_type limb_mask
+  = (double_limb_type{1} << limb_width) - 1;
+
+static constexpr std::size_t limbs_in_fixnum
+  = sizeof(integer::representation_type) / sizeof(limb_type);
 
 std::size_t
 big_integer::extra_elements(std::size_t length) {
@@ -64,7 +70,8 @@ big_integer::big_integer(std::vector<limb_type> const& limbs, bool positive)
   : dynamic_size_object{limbs.size()}
   , positive_{positive}
 {
-  assert(static_cast<std::vector<limb_type>::size_type>(end() - begin()) == limbs.size());
+  assert(static_cast<std::vector<limb_type>::size_type>(end() - begin())
+         == limbs.size());
   std::copy(limbs.begin(), limbs.end(), begin());
 }
 
@@ -81,7 +88,7 @@ big_integer::big_integer(integer i)
   detail::make_bignum_limbs_from_integer(*this, i.value());
 }
 
-big_integer::big_integer(big_integer&& other)
+big_integer::big_integer(big_integer&& other) noexcept
   : dynamic_size_object{other.size_}
   , positive_{other.positive_}
 {
@@ -163,7 +170,8 @@ digit_value(char32_t c) {
 
 static ptr<big_integer>
 extend_big(context& ctx, ptr<big_integer> i, limb_type new_limb) {
-  auto result = make<big_integer>(ctx, i->length() + 1, big_integer::dont_initialize);
+  auto result = make<big_integer>(ctx, i->length() + 1,
+                                  big_integer::dont_initialize);
   std::copy(i->begin(), i->end(), result->begin());
   result->back() = new_limb;
   result->set_positive(i->positive());
@@ -200,7 +208,8 @@ normalize(context& ctx, ptr<big_integer> i) {
     if (new_length <= limbs_in_fixnum) {
       integer::value_type small = 0;
       for (std::size_t k = i->length(); k > 0; --k)
-        small = (small << limb_width) | i->data()[k - 1];
+        small = (small << limb_width)
+                | static_cast<integer::value_type>(i->data()[k - 1]);
 
       if (!i->positive())
         small = -small;
@@ -242,7 +251,9 @@ normalize_fraction(context& ctx, ptr<fraction> q) {
   }
 
   if (is_negative(den))
-    return normalize_fraction(ctx, make<fraction>(ctx, negate(ctx, num), negate(ctx, den)));
+    return normalize_fraction(ctx, make<fraction>(ctx,
+                                                  negate(ctx, num),
+                                                  negate(ctx, den)));
 
   ptr<> com_den = gcd(ctx, num, den);
   if (auto c = match<integer>(com_den)) {
@@ -282,15 +293,15 @@ add_big_magnitude_to_limb_destructive(context& ctx, ptr<big_integer> result,
   limb_type* out = result->data();
   limb_type x_0 = x[0];
   out[0] = x_0 + rhs;
-  limb_type carry = x_0 > max_limb_value - rhs;
+  auto carry = static_cast<insider::limb_type>(x_0 > max_limb_value - rhs);
 
   for (std::size_t i = 1; i < lhs->length(); ++i) {
     limb_type x_i = x[i];
     out[i] = x_i + carry;
-    carry = x_i > max_limb_value - carry;
+    carry = static_cast<unsigned long>(x_i > max_limb_value - carry);
   }
 
-  if (carry)
+  if (carry != 0u)
     return extend_big(ctx, result, limb_type{1});
   else
     return result;
@@ -308,7 +319,9 @@ add_magnitude_to_limb_destructive(context& ctx, ptr<> lhs, limb_type rhs) {
     return integer_to_ptr(lhs_int);
   }
 
-  return add_big_magnitude_to_limb_destructive(ctx, {}, make<big_integer>(ctx, lhs_int), rhs);
+  return add_big_magnitude_to_limb_destructive(
+    ctx, {}, make<big_integer>(ctx, lhs_int), rhs
+  );
 }
 
 static std::tuple<limb_type, limb_type>
@@ -325,7 +338,8 @@ add_limbs(limb_type x, limb_type carry) {
 }
 
 static ptr<big_integer>
-add_big_magnitude_destructive(context& ctx, ptr<big_integer> result, ptr<big_integer> lhs, ptr<big_integer> rhs) {
+add_big_magnitude_destructive(context& ctx, ptr<big_integer> result,
+                              ptr<big_integer> lhs, ptr<big_integer> rhs) {
   // lhs is always going to be the bigger of the two to simplify things in the
   // implementation.
 
@@ -345,7 +359,7 @@ add_big_magnitude_destructive(context& ctx, ptr<big_integer> result, ptr<big_int
   for (std::size_t i = rhs->length(); i < lhs->length(); ++i)
     std::tie(out[i], carry) = add_limbs(x[i], carry);
 
-  if (carry)
+  if (carry != 0u)
     return extend_big(ctx, result, limb_type{1});
   else
     return result;
@@ -422,12 +436,12 @@ sub_magnitude(context& ctx, ptr<big_integer> lhs, ptr<big_integer> rhs) {
   for (std::size_t i = 0; i < rhs_length; ++i) {
     limb_type d = x[i] - y[i];
     out[i] = d - borrow;
-    borrow = x[i] < y[i] || d < borrow;
+    borrow = static_cast<insider::limb_type>(x[i] < y[i] || d < borrow);
   }
 
   for (std::size_t i = rhs_length; i < lhs_length; ++i) {
     out[i] = x[i] - borrow;
-    borrow = x[i] < borrow;
+    borrow = static_cast<insider::limb_type>(x[i] < borrow);
   }
 
   assert(!borrow);
@@ -474,7 +488,8 @@ static ptr<>
 add_small(context& ctx, integer lhs, integer rhs) {
   integer::value_type sum = lhs.value() + rhs.value();
   if (overflow(sum))
-    return add_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
+    return add_big(ctx, make<big_integer>(ctx, lhs),
+                   make<big_integer>(ctx, rhs));
   else
     return integer_to_ptr(integer{sum});
 }
@@ -530,7 +545,8 @@ static ptr<>
 sub_small(context& ctx, integer lhs, integer rhs) {
   integer::value_type dif = lhs.value() - rhs.value();
   if (overflow(dif))
-    return sub_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
+    return sub_big(ctx, make<big_integer>(ctx, lhs),
+                   make<big_integer>(ctx, rhs));
   else
     return integer_to_ptr(integer{dif});
 }
@@ -589,7 +605,7 @@ mul_big_magnitude_by_limb_destructive(context& ctx, ptr<big_integer> result,
     carry = new_carry;
   }
 
-  if (carry)
+  if (carry != 0u)
     return extend_big(ctx, result, carry);
   else
     return result;
@@ -605,7 +621,8 @@ mul_big_magnitude_by_limb(context& ctx, ptr<big_integer> lhs, limb_type rhs) {
 }
 
 static ptr<>
-mul_magnitude_by_limb_destructive(context& ctx, ptr<> lhs, limb_type rhs) {
+mul_magnitude_by_limb_destructive(context& ctx, ptr<> lhs,
+                                  integer::value_type rhs) {
   if (auto b = match<big_integer>(lhs))
     return mul_big_magnitude_by_limb_destructive(ctx, b, b, rhs);
 
@@ -613,7 +630,9 @@ mul_magnitude_by_limb_destructive(context& ctx, ptr<> lhs, limb_type rhs) {
   assert(lhs_int.value() >= 0);
 
   if (small_mul_overflow(lhs_int.value(), rhs))
-    return mul_big_magnitude_by_limb_destructive(ctx, {}, make<big_integer>(ctx, lhs_int), rhs);
+    return mul_big_magnitude_by_limb_destructive(
+      ctx, {}, make<big_integer>(ctx, lhs_int), rhs
+    );
 
   lhs_int.set_value(lhs_int.value() * rhs);
   return integer_to_ptr(lhs_int);
@@ -674,7 +693,9 @@ mul_small(context& ctx, integer lhs, integer rhs) {
   bool result_positive = (lhs.value() > 0) == (rhs.value() > 0);
 
   if (small_mul_overflow(x, y))
-    return mul_big(ctx, make<big_integer>(ctx, lhs), make<big_integer>(ctx, rhs));
+    return mul_big(ctx,
+                   make<big_integer>(ctx, lhs),
+                   make<big_integer>(ctx, rhs));
 
   integer::value_type product = x * y;
   return integer_to_ptr(integer{result_positive ? product : -product});
@@ -697,8 +718,12 @@ mul_complex(context& ctx, ptr<complex> lhs, ptr<complex> rhs) {
   // (a + bi)(c + di) = (ac - bd) + (bc + ad)i
   return make<complex>(
     ctx,
-    subtract(ctx, multiply(ctx, lhs->real(), rhs->real()), multiply(ctx, lhs->imaginary(), rhs->imaginary())),
-    add(ctx, multiply(ctx, lhs->imaginary(), rhs->real()), multiply(ctx, lhs->real(), rhs->imaginary()))
+    subtract(ctx,
+             multiply(ctx, lhs->real(), rhs->real()),
+             multiply(ctx, lhs->imaginary(), rhs->imaginary())),
+    add(ctx,
+        multiply(ctx, lhs->imaginary(), rhs->real()),
+        multiply(ctx, lhs->real(), rhs->imaginary()))
   );
 }
 
@@ -727,7 +752,8 @@ bitshift_left_destructive(context& ctx, ptr<big_integer> i, std::size_t shift) {
   }
 
   if (extra_limbs > 0) {
-    auto result = make<big_integer>(ctx, i->length() + extra_limbs, big_integer::dont_initialize);
+    auto result = make<big_integer>(ctx, i->length() + extra_limbs,
+                                    big_integer::dont_initialize);
     std::copy(i->begin(), i->end(), result->begin() + extra_limbs);
     std::fill_n(result->begin(), result->length() - i->length(), 0);
     result->set_positive(i->positive());
@@ -881,9 +907,9 @@ arithmetic_shift(context& ctx, ptr<> i, integer count) {
 static bool
 least_significant_bit(ptr<> n) {
   if (auto i = match<integer>(n))
-    return i->value() & 1;
+    return (i->value() & 1) != 0;
   else
-    return assume<big_integer>(n)->front() & 1;
+    return (assume<big_integer>(n)->front() & 1) != 0u;
 }
 
 static limb_type
@@ -894,13 +920,14 @@ guess_quotient(limb_type a_hi, limb_type a_lo, limb_type b) {
 }
 
 static std::tuple<ptr<big_integer>, limb_type>
-div_rem_by_limb_magnitude(context& ctx, ptr<big_integer> dividend, limb_type divisor) {
+div_rem_by_limb_magnitude(context& ctx, ptr<big_integer> dividend,
+                          limb_type divisor) {
   auto quotient = make<big_integer>(ctx, dividend->length());
   double_limb_type d{};
 
   for (std::size_t i = dividend->length(); i > 0; --i) {
     d = (d << limb_width) | dividend->data()[i - 1];
-    limb_type q = static_cast<limb_type>(d / divisor);
+    auto q = static_cast<limb_type>(d / divisor);
     quotient->data()[i - 1] = q;
     d -= double_limb_type{q} * double_limb_type{divisor};
     assert(d <= max_limb_value);
@@ -910,12 +937,14 @@ div_rem_by_limb_magnitude(context& ctx, ptr<big_integer> dividend, limb_type div
 }
 
 static std::tuple<ptr<big_integer>, ptr<big_integer>>
-div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divisor) {
+div_rem_magnitude(context& ctx, ptr<big_integer> dividend,
+                  ptr<big_integer> divisor) {
   assert(!divisor->zero());
   assert(divisor->back() != 0);
 
   if (divisor->length() == 1) {
-    auto [quot, rem] = div_rem_by_limb_magnitude(ctx, dividend, divisor->front());
+    auto [quot, rem]
+      = div_rem_by_limb_magnitude(ctx, dividend, divisor->front());
     return {quot, make<big_integer>(ctx, std::vector{rem})};
   }
 
@@ -941,8 +970,10 @@ div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divi
 
   auto quotient = make<big_integer>(ctx, dividend_len - divisor_len + 1);
 
-  ptr<big_integer> first_shifted_divisor = shift(ctx, divisor, dividend_len - divisor_len);
-  if (compare_magnitude(dividend, first_shifted_divisor) != exact_compare_result::less) {
+  ptr<big_integer> first_shifted_divisor
+    = shift(ctx, divisor, dividend_len - divisor_len);
+  if (compare_magnitude(dividend, first_shifted_divisor)
+      != exact_compare_result::less) {
     quotient->data()[dividend_len - divisor_len] = 1;
     dividend = sub_big(ctx, dividend, first_shifted_divisor);
   }
@@ -956,7 +987,9 @@ div_rem_magnitude(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divi
                                  dividend->nth_limb_or_zero(divisor_len + j - 1),
                                  divisor->back());
     ptr<big_integer> shifted_divisor = shift(ctx, divisor, j);
-    dividend = sub_big(ctx, dividend, mul_big_magnitude_by_limb(ctx, shifted_divisor, q));
+    dividend = sub_big(ctx,
+                       dividend,
+                       mul_big_magnitude_by_limb(ctx, shifted_divisor, q));
 
     while (!dividend->positive()) {
       --q;
@@ -991,13 +1024,15 @@ div_rem_big(context& ctx, ptr<big_integer> dividend, ptr<big_integer> divisor) {
   // quot and rem to get rid of the absolute values.
   //
   // dividend < 0, divisor > 0:
-  // dividend = -|dividend| = -(quot * divisor + rem) = (-quot) * divisor + (-rem)
+  // dividend = -|dividend| = -(quot * divisor + rem)
+  //          = (-quot) * divisor + (-rem)
   //
   // dividend > 0, divisor < 0:
   // dividend = quot * (-divisor) + rem = (-quot) * divisor + rem
   //
   // dividend < 0, divisor < 0:
-  // dividend = -|dividend| = -(quot * (-divisor) + rem) = (-quot) * (-divisor) + (-rem)
+  // dividend = -|dividend| = -(quot * (-divisor) + rem)
+  //          = (-quot) * (-divisor) + (-rem)
   //          = quot * divisor + (-rem)
 
   bool quot_positive = dividend->positive() == divisor->positive();
@@ -1017,7 +1052,8 @@ static bool
 is_floating_integer(ptr<> x);
 
 static std::tuple<ptr<>, ptr<>>
-div_rem_float(context& ctx, ptr<floating_point> dividend, ptr<floating_point> divisor) {
+div_rem_float(context& ctx, ptr<floating_point> dividend,
+              ptr<floating_point> divisor) {
   if (!is_floating_integer(dividend) || !is_floating_integer(divisor))
     throw std::runtime_error{"Expected integer"};
 
@@ -1061,9 +1097,11 @@ namespace {
 static common_type
 find_common_type(ptr<> lhs, ptr<> rhs) {
   if (!is_number(lhs))
-    throw std::runtime_error{fmt::format("Expected number, got {}", object_type_name(lhs))};
+    throw std::runtime_error{fmt::format("Expected number, got {}",
+                                         object_type_name(lhs))};
   if (!is_number(rhs))
-    throw std::runtime_error{fmt::format("Expected number, got {}", object_type_name(rhs))};
+    throw std::runtime_error{fmt::format("Expected number, got {}",
+                                         object_type_name(rhs))};
 
   if (is<complex>(lhs) || is<complex>(rhs))
     return common_type::complex;
@@ -1120,7 +1158,8 @@ big_to_float_value(ptr<big_integer> n) {
   floating_point::value_type result = 0;
 
   for (std::size_t i = n->length(); i > 0; --i)
-    result = result * (static_cast<double>(max_limb_value) + 1.0) + n->data()[i - 1];
+    result *= (static_cast<double>(max_limb_value) + 1.0)
+              + static_cast<double>(n->data()[i - 1]);
 
   if (n->positive())
     return result;
@@ -1145,7 +1184,8 @@ to_float_value(ptr<> x) {
   else if (auto n = match<big_integer>(x))
     return big_to_float_value(n);
   else if (auto q = match<fraction>(x))
-    return integer_to_float_value(q->numerator()) / integer_to_float_value(q->denominator());
+    return integer_to_float_value(q->numerator())
+           / integer_to_float_value(q->denominator());
   else if (auto z = match<complex>(x)) {
     assert(is_real(z));
     return to_float_value(z->real());
@@ -1162,7 +1202,8 @@ make_float(context& ctx, ptr<> x) {
 
 template <auto F>
 ptr<>
-arithmetic(context& ctx, object_span xs, bool allow_empty, integer::value_type neutral) {
+arithmetic(context& ctx, object_span xs, bool allow_empty,
+           integer::value_type neutral) {
   if (xs.empty()) {
     if (allow_empty)
       return integer_to_ptr(integer{neutral});
@@ -1199,11 +1240,13 @@ arithmetic_two(context& ctx, ptr<> lhs, ptr<> rhs) {
   case common_type::big_integer:
     return normalize(ctx, Big(ctx, make_big(ctx, lhs), make_big(ctx, rhs)));
   case common_type::fraction:
-    return normalize_fraction(ctx, Fraction(ctx, make_fraction(ctx, lhs), make_fraction(ctx, rhs)));
+    return normalize_fraction(ctx, Fraction(ctx, make_fraction(ctx, lhs),
+                                            make_fraction(ctx, rhs)));
   case common_type::floating_point:
     return Float(ctx, make_float(ctx, lhs), make_float(ctx, rhs));
   case common_type::complex:
-    return normalize_complex(Complex(ctx, make_complex(ctx, lhs), make_complex(ctx, rhs)));
+    return normalize_complex(Complex(ctx, make_complex(ctx, lhs),
+                                     make_complex(ctx, rhs)));
   }
 
   assert(false);
@@ -1217,9 +1260,11 @@ make_rectangular(context& ctx, ptr<> real, ptr<> imaginary) {
 
 ptr<>
 make_polar(context& ctx, ptr<> magnitude, ptr<> angle) {
-  return normalize_complex(make<complex>(ctx,
-                                         multiply(ctx, magnitude, cos(ctx, angle)),
-                                         multiply(ctx, magnitude, sin(ctx, angle))));
+  return normalize_complex(
+    make<complex>(ctx,
+                  multiply(ctx, magnitude, cos(ctx, angle)),
+                  multiply(ctx, magnitude, sin(ctx, angle)))
+  );
 }
 
 static ptr<>
@@ -1293,7 +1338,8 @@ is_integer(ptr<> x) {
 
 bool
 is_number(ptr<> x) {
-  return is_exact_integer(x) || is<fraction>(x) || is<floating_point>(x) || is<complex>(x);
+  return is_exact_integer(x) || is<fraction>(x) || is<floating_point>(x)
+         || is<complex>(x);
 }
 
 bool
@@ -1431,32 +1477,44 @@ negate(context& ctx, ptr<> x) {
 
 ptr<>
 add(context& ctx, ptr<> lhs, ptr<> rhs) {
-  return arithmetic_two<add_small, add_big, add_fraction, add_float, add_complex>(ctx, lhs, rhs);
+  return arithmetic_two<
+    add_small, add_big, add_fraction, add_float, add_complex
+  >(ctx, lhs, rhs);
 }
 
 ptr<>
 add(context& ctx, object_span xs) {
-  return arithmetic<static_cast<primitive_arithmetic_type*>(&add)>(ctx, xs, true, 0);
+  return arithmetic<
+    static_cast<primitive_arithmetic_type*>(&add)
+  >(ctx, xs, true, 0);
 }
 
 ptr<>
 subtract(context& ctx, ptr<> lhs, ptr<> rhs) {
-  return arithmetic_two<sub_small, sub_big, sub_fraction, sub_float, sub_complex>(ctx, lhs, rhs);
+  return arithmetic_two<
+    sub_small, sub_big, sub_fraction, sub_float, sub_complex
+  >(ctx, lhs, rhs);
 }
 
 ptr<>
 subtract(context& ctx, object_span xs) {
-  return arithmetic<static_cast<primitive_arithmetic_type*>(&subtract)>(ctx, xs, false, 0);
+  return arithmetic<
+    static_cast<primitive_arithmetic_type*>(&subtract)
+  >(ctx, xs, false, 0);
 }
 
 ptr<>
 multiply(context& ctx, ptr<> lhs, ptr<> rhs) {
-  return arithmetic_two<mul_small, mul_big, mul_fraction, mul_float, mul_complex>(ctx, lhs, rhs);
+  return arithmetic_two<
+    mul_small, mul_big, mul_fraction, mul_float, mul_complex
+  >(ctx, lhs, rhs);
 }
 
 ptr<>
 multiply(context& ctx, object_span xs) {
-  return arithmetic<static_cast<primitive_arithmetic_type*>(&multiply)>(ctx, xs, true, 1);
+  return arithmetic<
+    static_cast<primitive_arithmetic_type*>(&multiply)
+  >(ctx, xs, true, 1);
 }
 
 static ptr<>
@@ -1510,7 +1568,9 @@ div_float(context& ctx, ptr<floating_point> x, ptr<floating_point> y) {
 static ptr<>
 div_complex_by_real(context& ctx, ptr<complex> lhs, ptr<> rhs) {
   assert(is_real(rhs));
-  return make_rectangular(ctx, divide(ctx, lhs->real(), rhs), divide(ctx, lhs->imaginary(), rhs));
+  return make_rectangular(ctx,
+                          divide(ctx, lhs->real(), rhs),
+                          divide(ctx, lhs->imaginary(), rhs));
 }
 
 static ptr<>
@@ -1519,11 +1579,13 @@ div_complex(context& ctx, ptr<complex> lhs, ptr<complex> rhs) {
   // ------ = -----------------
   // c + di       c^2 + d^2
 
-  return div_complex_by_real(ctx,
-                             make_complex(ctx, multiply(ctx, lhs, conjugate(ctx, rhs))),
-                             add(ctx,
-                                 multiply(ctx, rhs->real(), rhs->real()),
-                                 multiply(ctx, rhs->imaginary(), rhs->imaginary())));
+  return div_complex_by_real(
+    ctx,
+    make_complex(ctx, multiply(ctx, lhs, conjugate(ctx, rhs))),
+    add(ctx,
+        multiply(ctx, rhs->real(), rhs->real()),
+        multiply(ctx, rhs->imaginary(), rhs->imaginary()))
+  );
 }
 
 ptr<>
@@ -1550,13 +1612,16 @@ divide(context& ctx, ptr<> lhs, ptr<> rhs) {
 
 ptr<>
 divide(context& ctx, object_span xs) {
-  return arithmetic<static_cast<primitive_arithmetic_type*>(&divide)>(ctx, xs, false, 1);
+  return arithmetic<
+    static_cast<primitive_arithmetic_type*>(&divide)
+  >(ctx, xs, false, 1);
 }
 
 ptr<>
 conjugate(context& ctx, ptr<> x) {
   if (auto z = match<complex>(x))
-    return make<complex>(ctx, z->real(), subtract(ctx, integer_to_ptr(0), z->imaginary()));
+    return make<complex>(ctx, z->real(),
+                         subtract(ctx, integer_to_ptr(0), z->imaginary()));
   else
     return x;
 }
@@ -1569,7 +1634,7 @@ namespace {
     twos_complement_iterator(ptr<> value);
 
     limb_type
-    operator * ();
+    operator * () const;
 
     twos_complement_iterator&
     operator ++ ();
@@ -1608,7 +1673,7 @@ twos_complement_iterator::twos_complement_iterator(ptr<> value)
 }
 
 limb_type
-twos_complement_iterator::operator * () {
+twos_complement_iterator::operator * () const {
   return current_;
 }
 
@@ -1640,16 +1705,18 @@ twos_complement_iterator::fill_current() {
   if (done())
     current_ = prefix_value();
   else if (!big_)
-    current_ = static_cast<limb_type>(assume<integer>(value_).value() >> (i_ * limb_width));
+    current_ = static_cast<limb_type>(assume<integer>(value_).value()
+                                      >> (i_ * limb_width));
   else if (negative_)
-    std::tie(current_, carry_) = add_limbs(~assume<big_integer>(value_)->nth_limb(i_), carry_);
+    std::tie(current_, carry_)
+      = add_limbs(~assume<big_integer>(value_)->nth_limb(i_), carry_);
   else
     current_ = assume<big_integer>(value_)->nth_limb(i_);
 }
 
 static bool
 is_negative_in_twos_complement(ptr<big_integer> x) {
-  return x->back() >> (limb_width - 1);
+  return (x->back() >> (limb_width - 1)) != 0u;
 }
 
 // Number of limbs in a big_integer if it were signed extended for a 2's
@@ -1739,7 +1806,8 @@ bitwise_xor(context& ctx, ptr<> lhs, ptr<> rhs) {
 
 static ptr<>
 bitwise_not_big(context& ctx, ptr<big_integer> x) {
-  auto result = make<big_integer>(ctx, x->length(), big_integer::dont_initialize);
+  auto result = make<big_integer>(ctx, x->length(),
+                                  big_integer::dont_initialize);
   for (twos_complement_iterator it{x}; !it.done(); ++it)
     result->nth_limb(it.index()) = ~*it;
 
@@ -1767,11 +1835,12 @@ integer_bit_length(integer::value_type i) {
   // minus the number of leading ones.
 
   using unsigned_type = std::make_unsigned_t<integer::value_type>;
+  auto u_i = static_cast<unsigned_type>(i);
 
   if (i >= 0)
-    return integer::storage_width - std::countl_zero(static_cast<unsigned_type>(i));
+    return integer::storage_width - std::countl_zero(u_i);
   else
-    return integer::storage_width - std::countl_one(static_cast<unsigned_type>(i));
+    return integer::storage_width - std::countl_one(u_i);
 }
 
 static limb_type
@@ -1805,7 +1874,8 @@ integer_length(ptr<> x) {
 
 static ptr<big_integer>
 big_complement(context& ctx, ptr<big_integer> b) {
-  auto minus_one = make<big_integer>(ctx, std::vector{big_integer::limb_type{1}}, false);
+  auto minus_one = make<big_integer>(ctx, std::vector{big_integer::limb_type{1}},
+                                     false);
   return sub_big(ctx, minus_one, b);
 }
 
@@ -2016,7 +2086,8 @@ throw_if_not_real(ptr<> x) {
 
 ptr<boolean>
 arith_equal(context& ctx, ptr<> lhs, ptr<> rhs) {
-  return compare(ctx, lhs, rhs) == general_compare_result::equal ? ctx.constants->t : ctx.constants->f;
+  return compare(ctx, lhs, rhs) == general_compare_result::equal
+           ? ctx.constants->t : ctx.constants->f;
 }
 
 ptr<>
@@ -2028,7 +2099,8 @@ ptr<boolean>
 less(context& ctx, ptr<> lhs, ptr<> rhs) {
   throw_if_not_real(lhs);
   throw_if_not_real(rhs);
-  return compare(ctx, lhs, rhs) == general_compare_result::less ? ctx.constants->t : ctx.constants->f;
+  return compare(ctx, lhs, rhs) == general_compare_result::less
+           ? ctx.constants->t : ctx.constants->f;
 }
 
 ptr<>
@@ -2040,7 +2112,8 @@ ptr<boolean>
 greater(context& ctx, ptr<> lhs, ptr<> rhs) {
   throw_if_not_real(lhs);
   throw_if_not_real(rhs);
-  return compare(ctx, lhs, rhs) == general_compare_result::greater ? ctx.constants->t : ctx.constants->f;
+  return compare(ctx, lhs, rhs) == general_compare_result::greater
+           ? ctx.constants->t : ctx.constants->f;
 }
 
 ptr<>
@@ -2054,7 +2127,8 @@ less_or_equal(context& ctx, ptr<> lhs, ptr<> rhs) {
   throw_if_not_real(rhs);
 
   general_compare_result cmp = compare(ctx, lhs, rhs);
-  return (cmp == general_compare_result::less || cmp == general_compare_result::equal)
+  return (cmp == general_compare_result::less
+          || cmp == general_compare_result::equal)
          ? ctx.constants->t : ctx.constants->f;
 }
 
@@ -2069,7 +2143,8 @@ greater_or_equal(context& ctx, ptr<> lhs, ptr<> rhs) {
   throw_if_not_real(rhs);
 
   general_compare_result cmp = compare(ctx, lhs, rhs);
-  return (cmp == general_compare_result::greater || cmp == general_compare_result::equal)
+  return (cmp == general_compare_result::greater
+          || cmp == general_compare_result::equal)
          ? ctx.constants->t : ctx.constants->f;
 }
 
@@ -2082,7 +2157,7 @@ static bool
 odd(ptr<big_integer> i) {
   if (i->zero())
     return false;
-  return i->front() & 1;
+  return (i->front() & 1) != 0u;
 }
 
 static bool
@@ -2115,7 +2190,8 @@ gcd_big(context& ctx, ptr<big_integer> x, ptr<big_integer> y) {
     while (even(y))
       y = bitshift_right_destructive(ctx, y, 1);
 
-    if (compare_magnitude(x, y, normal_length(x), normal_length(y)) == exact_compare_result::greater)
+    if (compare_magnitude(x, y, normal_length(x), normal_length(y))
+        == exact_compare_result::greater)
       std::swap(x, y);
 
     y = sub_magnitude(ctx, y, x);
@@ -2128,7 +2204,8 @@ ptr<>
 gcd(context& ctx, ptr<> x, ptr<> y) {
   switch (find_common_type(x, y)) {
   case common_type::small_integer:
-    return integer_to_ptr(integer{std::gcd(assume<integer>(x).value(), assume<integer>(y).value())});
+    return integer_to_ptr(integer{std::gcd(assume<integer>(x).value(),
+                                           assume<integer>(y).value())});
   case common_type::big_integer:
     return gcd_big(ctx, make_big_copy(ctx, x), make_big_copy(ctx, y));
   default:
@@ -2141,8 +2218,10 @@ gcd(context& ctx, ptr<> x, ptr<> y) {
 
 static void
 export_native(context& ctx, module_& m, char const* name,
-              ptr<> (*f)(context&, ptr<native_procedure>, object_span), special_top_level_tag tag) {
-  auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f, name), name);
+              ptr<> (*f)(context&, ptr<native_procedure>, object_span),
+              special_top_level_tag tag) {
+  auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f, name),
+                                 name);
   ctx.tag_top_level(index, tag);
 
   auto name_sym = ctx.intern(name);
@@ -2158,7 +2237,8 @@ small_integer_to_floating_point(context& ctx, integer::value_type i) {
 
 static void
 check_fit_in_floating_point(context& ctx, ptr<big_integer> b) {
-  if (bit_length(ctx, b) > std::numeric_limits<floating_point::value_type>::max_exponent)
+  if (bit_length(ctx, b)
+      > std::numeric_limits<floating_point::value_type>::max_exponent)
     throw std::runtime_error{"Value too large to fit into inexact number"};
 }
 
@@ -2210,7 +2290,8 @@ inexact(context& ctx, ptr<> x) {
   else if (auto fp = match<floating_point>(x))
     return fp;
   else if (auto z = match<complex>(x))
-    return make<complex>(ctx, inexact(ctx, z->real()), inexact(ctx, z->imaginary()));
+    return make<complex>(ctx, inexact(ctx, z->real()),
+                         inexact(ctx, z->imaginary()));
   else
     throw std::runtime_error{"Expected a number"};
 }
@@ -2253,7 +2334,8 @@ floating_point_to_exact(context& ctx, ptr<floating_point> value) {
   int exponent;
   floating_point::value_type f = std::frexp(std::fabs(value->value), &exponent);
 
-  // f = 0 . d1 d2 ... dn * r^e, where di are digits in base-r, r is the radix, e the exponent.
+  // f = 0 . d1 d2 ... dn * r^e, where di are digits in base-r, r is the radix,
+  // e the exponent.
 
   ptr<> numerator = integer_to_ptr(0);
 
@@ -2311,7 +2393,9 @@ from_std_complex(context& ctx, std_complex z) {
   if (z.imag() == 0.0)
     return make<floating_point>(ctx, z.real());
   else
-    return make<complex>(ctx, make<floating_point>(ctx, z.real()), make<floating_point>(ctx, z.imag()));
+    return make<complex>(ctx,
+                         make<floating_point>(ctx, z.real()),
+                         make<floating_point>(ctx, z.imag()));
 }
 
 ptr<>
@@ -2497,12 +2581,14 @@ to_inexact_complex(ptr<> x) {
 
 static ptr<>
 real_expt(context& ctx, ptr<> base, ptr<> exponent) {
-  return make<floating_point>(ctx, std::pow(to_float_value(base), to_float_value(exponent)));
+  return make<floating_point>(ctx, std::pow(to_float_value(base),
+                                            to_float_value(exponent)));
 }
 
 static ptr<>
 complex_expt(context& ctx, ptr<> base, ptr<> exponent) {
-  return from_std_complex(ctx, std::pow(to_inexact_complex(base), to_inexact_complex(exponent)));
+  return from_std_complex(ctx, std::pow(to_inexact_complex(base),
+                                        to_inexact_complex(exponent)));
 }
 
 static ptr<>
@@ -2518,11 +2604,15 @@ exact_integral_expt_of_generic_base(context& ctx, ptr<> base, ptr<> exponent) {
   // b^(a_n 2^n + a_(n - 1) 2^(n - 1) + ... + a_0)
   // = b^(a_n 2^n) * b^(a_(n - 1) 2^(n - 1)) * ... * 2^(a_0)
   // = b^(2^(k_1)) * b^(2^(k_2)) * ... b^(2^(k_m)),
-  // where k_i is the maximal subsequence of (1, ..., n) such that a_(k_i) is 1 for all i.
+  // where k_i is the maximal subsequence of (1, ..., n) such that a_(k_i) is 1
+  // for all i.
 
   ptr<> result = integer_to_ptr(1);
-  ptr<> abs_exponent = is_negative(exponent) ? multiply(ctx, exponent, integer_to_ptr(-1)) : exponent;
-  ptr<> base_to_2i = base; // b^(2^i) where i is the number of iterations of the while loop below
+  ptr<> abs_exponent = is_negative(exponent)
+                       ? multiply(ctx, exponent, integer_to_ptr(-1))
+                       : exponent;
+  ptr<> base_to_2i = base; // b^(2^i) where i is the number of iterations of the
+                           // while loop below
 
   while (!is_zero(abs_exponent)) {
     if (least_significant_bit(abs_exponent))
@@ -2533,7 +2623,8 @@ exact_integral_expt_of_generic_base(context& ctx, ptr<> base, ptr<> exponent) {
   }
 
   if (is_negative(exponent))
-    return normalize_fraction(ctx, make<fraction>(ctx, integer_to_ptr(1), result));
+    return normalize_fraction(ctx,
+                              make<fraction>(ctx, integer_to_ptr(1), result));
   else
     return result;
 }
@@ -2550,8 +2641,11 @@ static ptr<>
 exact_integral_expt(context& ctx, ptr<> base, ptr<> exponent) {
   assert(is_exact_integer(exponent));
 
-  if (base == integer_to_ptr(2) && is<integer>(exponent) && !is_negative(exponent))
-    return integer_power<2>(ctx, static_cast<unsigned>(assume<integer>(exponent).value()));
+  if (base == integer_to_ptr(2) && is<integer>(exponent)
+      && !is_negative(exponent))
+    return integer_power<2>(
+      ctx, static_cast<unsigned>(assume<integer>(exponent).value())
+    );
   else if (base == integer_to_ptr(-1))
     return integer_power_of_negative_1(exponent);
   else
@@ -2696,7 +2790,8 @@ round_fraction_to_nearest(context& ctx, ptr<fraction> q) {
   auto [dq, r] = quotient_remainder(ctx, q->numerator(), q->denominator());
   auto twice_abs_r = abs(ctx, bitshift_left(ctx, r, 1));
 
-  if (compare(ctx, twice_abs_r, q->denominator()) == general_compare_result::less)
+  if (compare(ctx, twice_abs_r, q->denominator())
+      == general_compare_result::less)
     return dq;
   else if (is_positive(q))
     return add(ctx, dq, integer_to_ptr(1));
@@ -2783,15 +2878,24 @@ imag_part(ptr<> x) {
 
 void
 export_numeric(context& ctx, module_& result) {
-  export_native(ctx, result, "+", add_native_proc_arg<add>, special_top_level_tag::plus);
-  export_native(ctx, result, "-", add_native_proc_arg<subtract>, special_top_level_tag::minus);
-  export_native(ctx, result, "*", add_native_proc_arg<multiply>, special_top_level_tag::times);
-  export_native(ctx, result, "/", add_native_proc_arg<divide>, special_top_level_tag::divide);
-  export_native(ctx, result, "=", add_native_proc_arg<arith_equal>, special_top_level_tag::arith_equal);
-  export_native(ctx, result, "<", add_native_proc_arg<less>, special_top_level_tag::less_than);
-  export_native(ctx, result, "<=", add_native_proc_arg<less_or_equal>, special_top_level_tag::less_or_equal);
-  export_native(ctx, result, ">", add_native_proc_arg<greater>, special_top_level_tag::greater_than);
-  export_native(ctx, result, ">=", add_native_proc_arg<greater_or_equal>, special_top_level_tag::greater_or_equal);
+  export_native(ctx, result, "+", add_native_proc_arg<add>,
+                special_top_level_tag::plus);
+  export_native(ctx, result, "-", add_native_proc_arg<subtract>,
+                special_top_level_tag::minus);
+  export_native(ctx, result, "*", add_native_proc_arg<multiply>,
+                special_top_level_tag::times);
+  export_native(ctx, result, "/", add_native_proc_arg<divide>,
+                special_top_level_tag::divide);
+  export_native(ctx, result, "=", add_native_proc_arg<arith_equal>,
+                special_top_level_tag::arith_equal);
+  export_native(ctx, result, "<", add_native_proc_arg<less>,
+                special_top_level_tag::less_than);
+  export_native(ctx, result, "<=", add_native_proc_arg<less_or_equal>,
+                special_top_level_tag::less_or_equal);
+  export_native(ctx, result, ">", add_native_proc_arg<greater>,
+                special_top_level_tag::greater_than);
+  export_native(ctx, result, ">=", add_native_proc_arg<greater_or_equal>,
+                special_top_level_tag::greater_or_equal);
   define_procedure<gcd>(ctx, "gcd", result, true);
   define_procedure<arithmetic_shift>(ctx, "arithmetic-shift", result, true);
   define_procedure<bitwise_and>(ctx, "bitwise-and", result, true);
@@ -2829,8 +2933,10 @@ export_numeric(context& ctx, module_& result) {
   define_procedure<is_exact>(ctx, "exact?", result, true);
   define_procedure<inexact>(ctx, "inexact", result, true);
   define_procedure<exact>(ctx, "exact", result, true);
-  define_procedure<&fraction::numerator>(ctx, "fraction-numerator", result, true);
-  define_procedure<&fraction::denominator>(ctx, "fraction-denominator", result, true);
+  define_procedure<&fraction::numerator>(ctx, "fraction-numerator", result,
+                                         true);
+  define_procedure<&fraction::denominator>(ctx, "fraction-denominator", result,
+                                           true);
   define_procedure<square>(ctx, "square", result, true);
   define_procedure<sqrt>(ctx, "sqrt", result, true);
   define_procedure<angle>(ctx, "angle", result, true);

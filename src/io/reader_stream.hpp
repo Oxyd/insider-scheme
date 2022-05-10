@@ -62,7 +62,9 @@ private:
   unsigned                        checkpoints_active_ = 0;
 
   bool
-  reading_from_rollback_buffer() const { return rollback_pos_ < rollback_buffer_.size(); }
+  reading_from_rollback_buffer() const {
+    return rollback_pos_ < rollback_buffer_.size();
+  }
 
   std::optional<char32_t>
   read_source();

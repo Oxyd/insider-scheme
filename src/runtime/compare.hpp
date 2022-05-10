@@ -72,7 +72,8 @@ template <typename Key>
 using eq_unordered_set = std::unordered_set<Key, ptr_hash>;
 
 template <typename Key, typename Value>
-using eqv_unordered_map = std::unordered_map<Key, Value, ptr_hasheqv, eqv_compare>;
+using eqv_unordered_map
+  = std::unordered_map<Key, Value, ptr_hasheqv, eqv_compare>;
 
 } // namespace insider
 

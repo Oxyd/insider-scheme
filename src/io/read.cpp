@@ -230,7 +230,8 @@ read_sign(reader_stream& stream) {
 
 static ptr<>
 read_fraction(context& ctx, number_parse_mode mode,
-              std::string const& numerator_digits, reader_stream& stream, source_location loc) {
+              std::string const& numerator_digits, reader_stream& stream,
+              source_location const& loc) {
   std::string denominator_digits = read_digits(stream, mode.base);
   if (denominator_digits.empty())
     throw read_error{"Invalid fraction literal", loc};
@@ -246,7 +247,7 @@ can_begin_decimal_suffix(reader_stream& stream) {
 }
 
 static std::string
-read_suffix(reader_stream& stream, source_location loc) {
+read_suffix(reader_stream& stream, source_location const& loc) {
   // <suffix> -> <empty>
   //           | e <sign> <digit 10>+
   //
@@ -291,7 +292,7 @@ string_to_floating_point(context& ctx, std::string const& s) {
 }
 
 static void
-check_mode_for_decimal(number_parse_mode mode, source_location loc) {
+check_mode_for_decimal(number_parse_mode mode, source_location const& loc) {
   if (mode.base != 10)
     throw read_error{"Decimal number literals can only use base 10", loc};
 }
@@ -341,7 +342,8 @@ string_to_decimal(context& ctx, number_parse_mode mode,
 
 static ptr<>
 read_decimal(context& ctx, number_parse_mode mode,
-             std::string const& whole_part, reader_stream& stream, source_location loc) {
+             std::string const& whole_part, reader_stream& stream,
+             source_location const& loc) {
   check_mode_for_decimal(mode, loc);
 
   consume(stream, '.');
@@ -350,11 +352,13 @@ read_decimal(context& ctx, number_parse_mode mode,
   if (whole_part.empty() && fractional_part.empty())
     return {};
 
-  return string_to_decimal(ctx, mode, whole_part, fractional_part, read_suffix(stream, loc));
+  return string_to_decimal(ctx, mode, whole_part, fractional_part,
+                           read_suffix(stream, loc));
 }
 
 static ptr<>
-read_ureal(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
+read_ureal(context& ctx, number_parse_mode mode, reader_stream& stream,
+           source_location const& loc) {
   // <ureal R> -> <uinteger R>
   //            | <uinteger R> / <uinteger R>
   //            | <decimal R>
@@ -386,7 +390,8 @@ read_ureal(context& ctx, number_parse_mode mode, reader_stream& stream, source_l
 }
 
 static ptr<>
-read_signed_real(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
+read_signed_real(context& ctx, number_parse_mode mode, reader_stream& stream,
+                 source_location const& loc) {
   // <sign> <ureal R>
 
   auto cp = stream.make_checkpoint();
@@ -433,7 +438,9 @@ read_infnan(context& ctx, reader_stream& stream) {
 }
 
 static ptr<>
-read_real_preserve_exactness(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
+read_real_preserve_exactness(context& ctx, number_parse_mode mode,
+                             reader_stream& stream,
+                             source_location const& loc) {
   // <real R> -> <sign> <ureal R>
   //           | <infnan>
 
@@ -465,7 +472,8 @@ change_exactness(context& ctx, number_parse_mode mode, ptr<> value) {
 }
 
 static ptr<>
-read_real(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
+read_real(context& ctx, number_parse_mode mode, reader_stream& stream,
+          source_location const& loc) {
   if (ptr<> result = read_real_preserve_exactness(ctx, mode, stream, loc))
     return change_exactness(ctx, mode, result);
   else
@@ -473,7 +481,8 @@ read_real(context& ctx, number_parse_mode mode, reader_stream& stream, source_lo
 }
 
 static ptr<>
-make_integer_constant(context& ctx, number_parse_mode mode, integer::value_type value) {
+make_integer_constant(context& ctx, number_parse_mode mode,
+                      integer::value_type value) {
   if (mode.exactness == number_parse_mode::exactness_mode::make_inexact)
     return inexact(ctx, integer_to_ptr(value));
   else
@@ -482,7 +491,7 @@ make_integer_constant(context& ctx, number_parse_mode mode, integer::value_type 
 
 static ptr<>
 read_imaginary_part(context& ctx, number_parse_mode mode, ptr<> real,
-                    reader_stream& stream, source_location loc) {
+                    reader_stream& stream, source_location const& loc) {
   if (auto imag = read_real(ctx, mode, stream, loc)) {
     expect_either(stream, 'i', 'I');
     return make_rectangular(ctx, real, imag);
@@ -500,7 +509,7 @@ read_imaginary_part(context& ctx, number_parse_mode mode, ptr<> real,
 
 static ptr<>
 read_angle(context& ctx, number_parse_mode mode, ptr<> magnitude,
-           reader_stream& stream, source_location loc) {
+           reader_stream& stream, source_location const& loc) {
   consume(stream, '@');
   if (ptr<> angle = read_real(ctx, mode, stream, loc)) {
     if (is_exactly_equal_to(angle, 0))
@@ -513,7 +522,7 @@ read_angle(context& ctx, number_parse_mode mode, ptr<> magnitude,
 
 static ptr<>
 read_complex_after_first_part(context& ctx, number_parse_mode mode, ptr<> real,
-                             reader_stream& stream, source_location loc) {
+                             reader_stream& stream, source_location const& loc) {
   if (stream.peek() == U'+' || stream.peek() == U'-')
     return read_imaginary_part(ctx, mode, real, stream, loc);
   else if (stream.peek() == U'@')
@@ -526,7 +535,8 @@ read_complex_after_first_part(context& ctx, number_parse_mode mode, ptr<> real,
 }
 
 static ptr<>
-read_sign_followed_by_imaginary_unit(context& ctx, number_parse_mode mode, reader_stream& stream) {
+read_sign_followed_by_imaginary_unit(context& ctx, number_parse_mode mode,
+                                     reader_stream& stream) {
   auto cp = stream.make_checkpoint();
 
   auto sign = stream.read();
@@ -544,7 +554,8 @@ read_sign_followed_by_imaginary_unit(context& ctx, number_parse_mode mode, reade
 }
 
 static ptr<>
-read_complex(context& ctx, number_parse_mode mode, reader_stream& stream, source_location loc) {
+read_complex(context& ctx, number_parse_mode mode, reader_stream& stream,
+             source_location const& loc) {
   // <complex R> -> <real R>
   //              | <real R> @ <real R>
   //              | <real R> + <ureal R> i | <real R> - <ureal R> i
@@ -620,26 +631,34 @@ read_number_prefix(reader_stream& stream, unsigned default_radix) {
 
   if (auto radix = read_radix(stream)) {
     auto exactness = read_exactness(stream);
-    return {*radix, exactness ? *exactness : number_parse_mode::exactness_mode::no_change};
+    return {*radix,
+            exactness
+              ? *exactness
+              : number_parse_mode::exactness_mode::no_change};
   } else if (auto exactness = read_exactness(stream)) {
     auto radix = read_radix(stream);
     return {radix ? *radix : default_radix, *exactness};
   } else
-    return number_parse_mode{default_radix, number_parse_mode::exactness_mode::no_change};
+    return number_parse_mode{default_radix,
+                             number_parse_mode::exactness_mode::no_change};
 }
 
 static void
-throw_if_no_delimiter_after_number(reader_stream& stream, source_location loc) {
+throw_if_no_delimiter_after_number(reader_stream& stream,
+                                   source_location const& loc) {
   auto c = stream.peek();
   if (c && !delimiter(*c))
-    throw read_error{fmt::format("{} unexpected following a numeric literal", to_utf8(*c)), loc};
+    throw read_error{fmt::format("{} unexpected following a numeric literal",
+                                 to_utf8(*c)), loc};
 }
 
 static ptr<>
-read_number(context& ctx, reader_stream& stream, source_location loc, unsigned default_base = 10) {
+read_number(context& ctx, reader_stream& stream, source_location const& loc,
+            unsigned default_base = 10) {
   // <num R> -> <prefix R> <complex R>
 
-  if (auto result = read_complex(ctx, read_number_prefix(stream, default_base), stream, loc)) {
+  if (auto result = read_complex(ctx, read_number_prefix(stream, default_base),
+                                 stream, loc)) {
     throw_if_no_delimiter_after_number(stream, loc);
     return result;
   } else
@@ -704,7 +723,8 @@ read_character(context& ctx, reader_stream& stream) {
       if (auto it = character_names.find(literal); it != character_names.end())
         return {generic_literal{character_to_ptr(it->second)}, loc};
       else
-        throw read_error{fmt::format("Unknown character literal #\\{}", to_utf8(literal)), loc};
+        throw read_error{fmt::format("Unknown character literal #\\{}",
+                                     to_utf8(literal)), loc};
     }
   }
   else {
@@ -712,7 +732,12 @@ read_character(context& ctx, reader_stream& stream) {
     std::u32string digits = read_hexdigits(stream);
 
     if (!digits.empty())
-      return {generic_literal{character_to_ptr(read_character_from_hexdigits(ctx, digits))}, loc};
+      return {
+        generic_literal{
+          character_to_ptr(read_character_from_hexdigits(ctx, digits))
+        },
+        loc
+      };
     else
       return {generic_literal{character_to_ptr('x')}, loc};
   }
@@ -732,8 +757,10 @@ read_special_literal(context& ctx, reader_stream& stream) {
     // These can be either #t or #f, or #true or #false.
     std::u32string literal = read_until_delimiter(stream);
 
-    if (literal != U"t" && literal != U"f" && literal != U"true" && literal != U"false")
-      throw read_error{fmt::format("Invalid literal: {}", to_utf8(literal)), loc};
+    if (literal != U"t" && literal != U"f"
+        && literal != U"true" && literal != U"false")
+      throw read_error{fmt::format("Invalid literal: {}", to_utf8(literal)),
+                       loc};
 
     if (*c == 't')
       return {boolean_literal{true}, loc};
@@ -744,7 +771,8 @@ read_special_literal(context& ctx, reader_stream& stream) {
   case 'v': {
     std::u32string literal = read_until_delimiter(stream);
     if (literal != U"void")
-      throw read_error{fmt::format("Invalid literal: {}", to_utf8(literal)), loc};
+      throw read_error{fmt::format("Invalid literal: {}", to_utf8(literal)),
+                       loc};
 
     return {void_literal{}, loc};
   }
@@ -793,7 +821,8 @@ read_common_escape(context& ctx, reader_stream& stream) {
   case '|': return '|';
   case 'x': return read_hex_escape(ctx, stream);
   default:
-    throw read_error{fmt::format("Unrecognised escape sequence \\{}", to_utf8(escape)), loc};
+    throw read_error{fmt::format("Unrecognised escape sequence \\{}",
+                                 to_utf8(escape)), loc};
   }
 }
 
@@ -817,7 +846,8 @@ read_string_escape(context& ctx, reader_stream& stream) {
         return {};
       }
 
-    throw read_error{fmt::format("Unrecognised escape sequence \\{}", to_utf8(escape)), loc};
+    throw read_error{fmt::format("Unrecognised escape sequence \\{}",
+                                 to_utf8(escape)), loc};
   } else {
     cp.revert();
     return read_common_escape(ctx, stream);
@@ -870,7 +900,7 @@ read_string_literal(context& ctx, reader_stream& stream) {
 }
 
 static token
-read_token_after_comma(reader_stream& stream, source_location loc) {
+read_token_after_comma(reader_stream& stream, source_location const& loc) {
   std::optional<char32_t> c = stream.peek();
   if (c && *c == '@') {
     stream.read();
@@ -913,7 +943,7 @@ read_datum_label_value(reader_stream& stream) {
 }
 
 static token
-read_datum_label(reader_stream& stream, source_location loc) {
+read_datum_label(reader_stream& stream, source_location const& loc) {
   std::string label = read_datum_label_value(stream);
 
   std::optional<char32_t> c = stream.read();
@@ -925,7 +955,8 @@ read_datum_label(reader_stream& stream, source_location loc) {
   else if (*c == '#')
     return {datum_label_reference{std::move(label)}, loc};
   else
-    throw read_error{"Unexpected character after datum label", stream.location()};
+    throw read_error{"Unexpected character after datum label",
+                     stream.location()};
 }
 
 static token
@@ -934,8 +965,9 @@ read_token(context& ctx, reader_stream& stream);
 using datum_labels = std::unordered_map<std::string, ptr<>>;
 
 static ptr<>
-read(context& ctx, token first_token, reader_stream& stream, bool read_syntax,
-     datum_labels& labels, std::optional<std::string> defining_label = {});
+read(context& ctx, token first_token, reader_stream& stream,
+     bool read_syntax, datum_labels& labels,
+     std::optional<std::string> const& defining_label = {});
 
 static token
 read_datum_comment(context& ctx, reader_stream& stream) {
@@ -978,13 +1010,15 @@ read_directive(context& ctx, reader_stream& stream) {
   else if (directive == U"no-fold-case")
     stream.fold_case = false;
   else
-    throw read_error{fmt::format("Invalid directive: {}", to_utf8(directive)), loc};
+    throw read_error{fmt::format("Invalid directive: {}", to_utf8(directive)),
+                     loc};
 
   return read_token(ctx, stream);
 }
 
 static token
-read_token_after_octothorpe(context& ctx, reader_stream& stream, source_location loc) {
+read_token_after_octothorpe(context& ctx, reader_stream& stream,
+                            source_location const& loc) {
   std::optional<char32_t> c = stream.peek();
   if (!c)
     throw read_error{"Unexpected end of input", stream.location()};
@@ -1118,7 +1152,8 @@ unwrap(ptr<> value) {
 }
 
 static ptr<>
-find_datum_label_reference(datum_labels const& labels, std::string const& label, source_location ref_location) {
+find_datum_label_reference(datum_labels const& labels, std::string const& label,
+                           source_location const& ref_location) {
   if (auto it = labels.find(label); it != labels.end()) {
     assert(it->second);
     return it->second;
@@ -1127,7 +1162,8 @@ find_datum_label_reference(datum_labels const& labels, std::string const& label,
 }
 
 static ptr<>
-read_and_wrap(context& ctx, token first_token, reader_stream& stream, bool read_syntax, datum_labels& labels) {
+read_and_wrap(context& ctx, token const& first_token, reader_stream& stream,
+              bool read_syntax, datum_labels& labels) {
   return wrap(ctx,
               read(ctx, first_token, stream, read_syntax, labels),
               first_token.location, read_syntax);
@@ -1142,13 +1178,16 @@ define_label(datum_labels& labels, std::string const& label, ptr<> value) {
 }
 
 static void
-define_label(datum_labels& labels, std::optional<std::string> const& defining_label, ptr<> value) {
+define_label(datum_labels& labels,
+             std::optional<std::string> const& defining_label,
+             ptr<> value) {
   if (defining_label)
     define_label(labels, *defining_label, value);
 }
 
 static ptr<>
-read_list(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& labels,
+read_list(context& ctx, reader_stream& stream, bool read_syntax,
+          datum_labels& labels,
           std::optional<std::string> const& defining_label) {
   token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t.value))
@@ -1169,7 +1208,8 @@ read_list(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& l
          && !std::holds_alternative<right_paren>(t.value)
          && !std::holds_alternative<dot>(t.value)) {
     ptr<pair> new_tail = make<pair>(ctx,
-                                    read_and_wrap(ctx, t, stream, read_syntax, labels),
+                                    read_and_wrap(ctx, t, stream, read_syntax,
+                                                  labels),
                                     ctx.constants->null);
     tail->set_cdr(ctx.store, new_tail);
     tail = new_tail;
@@ -1203,14 +1243,15 @@ valid_bytevector_element(ptr<> e) {
 }
 
 static std::vector<ptr<>>
-read_vector_elements(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& labels,
-                     bool bytevector = false) {
+read_vector_elements(context& ctx, reader_stream& stream, bool read_syntax,
+                     datum_labels& labels, bool bytevector = false) {
   consume(stream, '(');
 
   std::vector<ptr<>> elements;
 
   token t = read_token(ctx, stream);
-  while (!std::holds_alternative<end>(t.value) && !std::holds_alternative<right_paren>(t.value)) {
+  while (!std::holds_alternative<end>(t.value)
+         && !std::holds_alternative<right_paren>(t.value)) {
     source_location loc = stream.location();
     elements.push_back(read_and_wrap(ctx, t, stream, read_syntax, labels));
 
@@ -1259,7 +1300,8 @@ replace_value(context& ctx, ptr<vector> v, ptr<> from, ptr<> to) {
 }
 
 static ptr<>
-read_vector(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& labels,
+read_vector(context& ctx, reader_stream& stream, bool read_syntax,
+            datum_labels& labels,
             std::optional<std::string> const& defining_label) {
   ptr<> dummy_vector;
   if (defining_label) {
@@ -1275,7 +1317,8 @@ read_vector(context& ctx, reader_stream& stream, bool read_syntax, datum_labels&
     define_label(labels, *defining_label, dummy_vector);
   }
 
-  std::vector<ptr<>> elements = read_vector_elements(ctx, stream, read_syntax, labels);
+  std::vector<ptr<>> elements = read_vector_elements(ctx, stream, read_syntax,
+                                                     labels);
   ptr<vector> result = make<vector>(ctx, elements.size(), ctx.constants->void_);
   for (std::size_t i = 0; i < elements.size(); ++i)
     result->set(ctx.store, i, elements[i]);
@@ -1289,14 +1332,19 @@ read_vector(context& ctx, reader_stream& stream, bool read_syntax, datum_labels&
 }
 
 static ptr<>
-read_bytevector(context& ctx, reader_stream& stream, bool read_syntax, datum_labels& labels,
+read_bytevector(context& ctx, reader_stream& stream, bool read_syntax,
+                datum_labels& labels,
                 std::optional<std::string> const& defining_label) {
   source_location loc = stream.location();
-  std::vector<ptr<>> elements = read_vector_elements(ctx, stream, read_syntax, labels, true);
+  std::vector<ptr<>> elements = read_vector_elements(ctx, stream, read_syntax,
+                                                     labels, true);
 
   auto bv = make<bytevector>(ctx, elements.size());
   for (std::size_t i = 0; i < elements.size(); ++i)
-    bv->set(i, static_cast<bytevector::element_type>(assume<integer>(elements[i]).value()));
+    bv->set(
+      i,
+      static_cast<bytevector::element_type>(assume<integer>(elements[i]).value())
+    );
 
   if (defining_label)
     labels.emplace(*defining_label, bv);
@@ -1305,16 +1353,18 @@ read_bytevector(context& ctx, reader_stream& stream, bool read_syntax, datum_lab
 }
 
 static ptr<>
-read_shortcut(context& ctx, reader_stream& stream, token shortcut_token,
+read_shortcut(context& ctx, reader_stream& stream, token const& shortcut_token,
               std::string const& shortcut, std::string const& expansion,
               bool read_syntax, datum_labels& labels,
               std::optional<std::string> const& defining_label) {
   token t = read_token(ctx, stream);
   if (std::holds_alternative<end>(t.value))
-    throw read_error{fmt::format("Expected token after {}", shortcut), t.location};
+    throw read_error{fmt::format("Expected token after {}", shortcut),
+                     t.location};
 
   ptr<pair> result = cons(ctx,
-                          wrap(ctx, ctx.intern(expansion), shortcut_token.location, read_syntax),
+                          wrap(ctx, ctx.intern(expansion),
+                               shortcut_token.location, read_syntax),
                           ctx.constants->null);
   define_label(labels, defining_label, result);
 
@@ -1334,8 +1384,9 @@ define_label_for_atomic_value(ptr<> value, datum_labels& labels,
 }
 
 static ptr<>
-read(context& ctx, token first_token, reader_stream& stream, bool read_syntax,
-     datum_labels& labels, std::optional<std::string> defining_label) {
+read(context& ctx, token first_token, reader_stream& stream,
+     bool read_syntax, datum_labels& labels,
+     std::optional<std::string> const& defining_label) {
   if (std::holds_alternative<end>(first_token.value))
     return {};
   else if (std::holds_alternative<left_paren>(first_token.value))
@@ -1345,38 +1396,54 @@ read(context& ctx, token first_token, reader_stream& stream, bool read_syntax,
   else if (std::holds_alternative<octothorpe_u8>(first_token.value))
     return read_bytevector(ctx, stream, read_syntax, labels, defining_label);
   else if (std::holds_alternative<quote>(first_token.value))
-    return read_shortcut(ctx, stream, first_token, "'", "quote", read_syntax, labels, defining_label);
+    return read_shortcut(ctx, stream, first_token, "'", "quote", read_syntax,
+                         labels, defining_label);
   else if (std::holds_alternative<octothorpe_quote>(first_token.value))
-    return read_shortcut(ctx, stream, first_token, "#'", "syntax", read_syntax, labels, defining_label);
+    return read_shortcut(ctx, stream, first_token, "#'", "syntax", read_syntax,
+                         labels, defining_label);
   else if (std::holds_alternative<backquote>(first_token.value))
-    return read_shortcut(ctx, stream, first_token, "`", "quasiquote", read_syntax, labels, defining_label);
+    return read_shortcut(ctx, stream, first_token, "`", "quasiquote",
+                         read_syntax, labels, defining_label);
   else if (std::holds_alternative<octothorpe_backquote>(first_token.value))
-    return read_shortcut(ctx, stream, first_token, "#`", "quasisyntax", read_syntax, labels, defining_label);
+    return read_shortcut(ctx, stream, first_token, "#`", "quasisyntax",
+                         read_syntax, labels, defining_label);
   else if (std::holds_alternative<comma>(first_token.value))
-    return read_shortcut(ctx, stream, first_token, ",", "unquote", read_syntax, labels, defining_label);
+    return read_shortcut(ctx, stream, first_token, ",", "unquote", read_syntax,
+                         labels, defining_label);
   else if (std::holds_alternative<octothorpe_comma>(first_token.value))
-    return read_shortcut(ctx, stream, first_token, "#,", "unsyntax", read_syntax, labels, defining_label);
+    return read_shortcut(ctx, stream, first_token, "#,", "unsyntax", read_syntax,
+                         labels, defining_label);
   else if (std::holds_alternative<comma_at>(first_token.value))
-    return read_shortcut(ctx, stream, first_token, ",@", "unquote-splicing", read_syntax, labels, defining_label);
+    return read_shortcut(ctx, stream, first_token, ",@", "unquote-splicing",
+                         read_syntax, labels, defining_label);
   else if (std::holds_alternative<octothorpe_comma_at>(first_token.value))
-    return read_shortcut(ctx, stream, first_token, "#,@", "unsyntax-splicing", read_syntax, labels, defining_label);
-  else if (generic_literal* lit = std::get_if<generic_literal>(&first_token.value))
+    return read_shortcut(ctx, stream, first_token, "#,@", "unsyntax-splicing",
+                         read_syntax, labels, defining_label);
+  else if (generic_literal* lit
+             = std::get_if<generic_literal>(&first_token.value))
     return define_label_for_atomic_value(lit->value, labels, defining_label);
   else if (identifier* i = std::get_if<identifier>(&first_token.value))
-    return define_label_for_atomic_value(ctx.intern(i->value), labels, defining_label);
-  else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token.value))
-    return define_label_for_atomic_value(b->value ? ctx.constants->t : ctx.constants->f,
-                                         labels,
+    return define_label_for_atomic_value(ctx.intern(i->value), labels,
                                          defining_label);
+  else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token.value))
+    return define_label_for_atomic_value(
+      b->value ? ctx.constants->t : ctx.constants->f,
+      labels,
+      defining_label
+    );
   else if (std::holds_alternative<void_literal>(first_token.value))
-    return define_label_for_atomic_value(ctx.constants->void_, labels, defining_label);
+    return define_label_for_atomic_value(ctx.constants->void_, labels,
+                                         defining_label);
   else if (std::holds_alternative<dot>(first_token.value))
     throw read_error{"Unexpected . token", first_token.location};
   else if (std::holds_alternative<right_paren>(first_token.value))
     throw read_error{"Unexpected ) token", first_token.location};
-  else if (datum_label_definition* dldef = std::get_if<datum_label_definition>(&first_token.value))
-    return read(ctx, read_token(ctx, stream), stream, read_syntax, labels, dldef->label);
-  else if (datum_label_reference* dlref = std::get_if<datum_label_reference>(&first_token.value))
+  else if (datum_label_definition* dldef
+             = std::get_if<datum_label_definition>(&first_token.value))
+    return read(ctx, read_token(ctx, stream), stream, read_syntax, labels,
+                dldef->label);
+  else if (datum_label_reference* dlref
+             = std::get_if<datum_label_reference>(&first_token.value))
     return find_datum_label_reference(labels, dlref->label, first_token.location);
 
   assert(false); // Unimplemented token
@@ -1421,7 +1488,9 @@ read_syntax(context& ctx, ptr<textual_input_port> stream) {
 
 ptr<syntax>
 read_syntax(context& ctx, std::string s) {
-  unique_port_handle<ptr<textual_input_port>> h{open_input_string(ctx, std::move(s))};
+  unique_port_handle<ptr<textual_input_port>> h{
+    open_input_string(ctx, std::move(s))
+  };
   return read_syntax(ctx, *h);
 }
 
@@ -1436,7 +1505,9 @@ read_multiple(context& ctx, ptr<textual_input_port> in) {
 
 std::vector<ptr<>>
 read_multiple(context& ctx, std::string s) {
-  unique_port_handle<ptr<textual_input_port>> h{open_input_string(ctx, std::move(s))};
+  unique_port_handle<ptr<textual_input_port>> h{
+    open_input_string(ctx, std::move(s))
+  };
   return read_multiple(ctx, *h);
 }
 
@@ -1464,7 +1535,9 @@ read_syntax_multiple_ci(context& ctx, ptr<textual_input_port> p) {
 
 std::vector<ptr<syntax>>
 read_syntax_multiple(context& ctx, std::string s) {
-  unique_port_handle<ptr<textual_input_port>> h{open_input_string(ctx, std::move(s))};
+  unique_port_handle<ptr<textual_input_port>> h{
+    open_input_string(ctx, std::move(s))
+  };
   return read_syntax_multiple(ctx, *h);
 }
 
@@ -1491,7 +1564,9 @@ string_to_number(context& ctx, std::string const& s, unsigned base) {
 
 static ptr<textual_input_port>
 get_default_port(context& ctx) {
-  return expect<textual_input_port>(find_parameter_value(ctx, ctx.constants->current_input_port_tag));
+  return expect<textual_input_port>(
+    find_parameter_value(ctx, ctx.constants->current_input_port_tag)
+  );
 }
 
 static ptr<>
@@ -1506,27 +1581,40 @@ read_syntax_multiple_ci_proc(context& ctx, ptr<textual_input_port> p) {
 
 void
 export_read(context& ctx, module_& result) {
-  define_top_level(ctx, "current-input-port-tag", result, true, ctx.constants->current_input_port_tag);
-  define_procedure<static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read)>(
+  define_top_level(ctx, "current-input-port-tag", result, true,
+                   ctx.constants->current_input_port_tag);
+  define_procedure<
+    static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read)
+   >(
     ctx, "read", result, true,
     get_default_port
   );
-  define_procedure<static_cast<ptr<syntax> (*)(context&, ptr<textual_input_port>)>(read_syntax)>(
+  define_procedure<
+    static_cast<ptr<syntax> (*)(context&, ptr<textual_input_port>)>(read_syntax)
+  >(
     ctx, "read-syntax", result, true,
     get_default_port
   );
-  define_procedure<read_syntax_multiple_proc>(ctx, "read-syntax-multiple", result, true,
-                   get_default_port);
-  define_procedure<read_syntax_multiple_ci_proc>(ctx, "read-syntax-multiple-ci", result, true,
-                   get_default_port);
-  define_procedure<string_to_number>(ctx, "string->number", result, true, [] (context&) { return 10; });
-  define_procedure<&read_error::scheme_error::message>(ctx, "read-error-message", result, true);
+  define_procedure<read_syntax_multiple_proc>(
+    ctx, "read-syntax-multiple", result, true, get_default_port
+  );
+  define_procedure<read_syntax_multiple_ci_proc>(
+    ctx, "read-syntax-multiple-ci", result, true, get_default_port
+  );
+  define_procedure<string_to_number>(ctx, "string->number", result, true,
+                                     [] (context&) { return 10; });
+  define_procedure<&read_error::scheme_error::message>(
+    ctx, "read-error-message", result, true
+  );
 }
 
 void
 init_read(context& ctx) {
-  auto default_input_port = make<textual_input_port>(ctx, std::make_unique<file_port_source>(stdin, false), "<stdin>");
-  ctx.constants->current_input_port_tag = create_parameter_tag(ctx, default_input_port);
+  auto default_input_port = make<textual_input_port>(
+    ctx, std::make_unique<file_port_source>(stdin, false), "<stdin>"
+  );
+  ctx.constants->current_input_port_tag
+    = create_parameter_tag(ctx, default_input_port);
 }
 
 } // namespace insider

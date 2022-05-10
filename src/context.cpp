@@ -8,6 +8,7 @@
 #include "runtime/internal_module.hpp"
 #include "runtime/syntax.hpp"
 #include "vm/execution_state.hpp"
+#include <memory>
 
 namespace insider {
 
@@ -22,7 +23,8 @@ parameter_map::find_value(ptr<parameter_tag> tag) {
 }
 
 void
-parameter_map::set_value(free_store& fs, ptr<parameter_tag> tag, ptr<> new_value) {
+parameter_map::set_value(free_store& fs, ptr<parameter_tag> tag,
+                         ptr<> new_value) {
   for (auto& [key, value] : values_)
     if (key == tag) {
       value = new_value;
@@ -143,7 +145,9 @@ context::intern_static(ptr<> const& x) {
   auto it = statics_cache_.find(x);
   if (it == statics_cache_.end()) {
     statics_.push_back(x);
-    it = statics_cache_.emplace(x, static_cast<operand>(statics_.size() - 1)).first;
+    it = statics_cache_.emplace(
+      x, static_cast<operand>(statics_.size() - 1)
+    ).first;
   }
 
   return it->second;
@@ -200,10 +204,13 @@ context::find_tag(operand i) const {
 }
 
 static std::optional<source_file>
-find_module_in_provider(context& ctx, source_code_provider& provider, module_name const& name) {
+find_module_in_provider(context& ctx, source_code_provider& provider,
+                        module_name const& name) {
   std::filesystem::path path = module_name_to_path(name);
-  std::array<std::filesystem::path, 2> candidates{path.replace_extension(".sld"),
-                                                  path.replace_extension(".scm")};
+  std::array<std::filesystem::path, 2> candidates{
+    path.replace_extension(".sld"),
+    path.replace_extension(".scm")
+  };
   for (auto const& candidate : candidates)
     if (auto source = provider.find_file(ctx, candidate))
       if (read_library_name(ctx, source->port.get().get()) == name) {
@@ -214,20 +221,22 @@ find_module_in_provider(context& ctx, source_code_provider& provider, module_nam
   return std::nullopt;
 }
 
+using provider_list = std::vector<std::unique_ptr<source_code_provider>>;
+
 static bool
-any_provider_has_module(
-  context& ctx, module_name const& name,
-  std::vector<std::unique_ptr<source_code_provider>> const& providers
-) {
-  for (std::unique_ptr<source_code_provider> const& provider : providers)
-    if (find_module_in_provider(ctx, *provider, name))
-      return true;
-  return false;
+any_provider_has_module(context& ctx, module_name const& name,
+                        provider_list const& providers) {
+  return std::ranges::any_of(
+    providers,
+    [&] (std::unique_ptr<source_code_provider> const& provider) {
+      return find_module_in_provider(ctx, *provider, name).has_value();
+    }
+  );
 }
 
 static module_specifier
 find_module(context& ctx, module_name const& name,
-            std::vector<std::unique_ptr<source_code_provider>> const& providers) {
+            provider_list const& providers) {
   for (std::unique_ptr<source_code_provider> const& provider : providers)
     if (auto source = find_module_in_provider(ctx, *provider, name))
       return read_module(ctx, read_syntax_multiple(ctx,
@@ -242,10 +251,11 @@ static module_*
 load_module(context& ctx,
             std::map<module_name, std::unique_ptr<module_>>& modules,
             module_name const& name,
-            std::vector<std::unique_ptr<source_code_provider>> const& providers) {
+            provider_list const& providers) {
   simple_action a(ctx, "Analysing module {}", module_name_to_string(name));
   modules.emplace(name, nullptr);
-  std::unique_ptr<module_> m = instantiate(ctx, find_module(ctx, name, providers));
+  std::unique_ptr<module_> m = instantiate(ctx,
+                                           find_module(ctx, name, providers));
   module_* result = m.get();
   modules.find(name)->second = std::move(m);
   return result;
@@ -280,12 +290,16 @@ context::find_module(module_name const& name) {
 }
 
 void
-context::prepend_source_code_provider(std::unique_ptr<source_code_provider> provider) {
+context::prepend_source_code_provider(
+  std::unique_ptr<source_code_provider> provider
+) {
   source_providers_.insert(source_providers_.begin(), std::move(provider));
 }
 
 void
-context::append_source_code_provider(std::unique_ptr<source_code_provider> provider) {
+context::append_source_code_provider(
+  std::unique_ptr<source_code_provider> provider
+) {
   source_providers_.push_back(std::move(provider));
 }
 

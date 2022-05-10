@@ -58,12 +58,16 @@ static constexpr word_type hash_width = 32;
 static constexpr word_type alive_bit = word_type{1};
 static constexpr word_type color_bits = (word_type{1} << color_shift)
                                       | (word_type{1} << (color_shift + 1));
-static constexpr word_type generation_bits = (word_type{1} << generation_shift)
-                                           | (word_type{1} << (generation_shift + 1));
-static constexpr word_type hash_bits = ((word_type{1} << hash_width) - 1) << hash_shift;
+static constexpr word_type generation_bits
+  = (word_type{1} << generation_shift)
+    | (word_type{1} << (generation_shift + 1));
+static constexpr word_type hash_bits
+  = ((word_type{1} << hash_width) - 1) << hash_shift;
 
 inline word_type
-clamp_hash(word_type h) { return h & ((static_cast<word_type>(1) << hash_width) - 1); }
+clamp_hash(word_type h) {
+  return h & ((static_cast<word_type>(1) << hash_width) - 1);
+}
 
 inline std::vector<type_descriptor>&
 types() {
@@ -97,7 +101,9 @@ is_character(ptr<> o) {
 inline word_type&
 header_word(ptr<> o) {
   assert(is_object_ptr(o));
-  return *reinterpret_cast<word_type*>(reinterpret_cast<std::byte*>(o.value()) - sizeof(word_type));
+  return *reinterpret_cast<word_type*>(
+    reinterpret_cast<std::byte*>(o.value()) - sizeof(word_type)
+  );
 }
 
 inline word_type
@@ -215,7 +221,10 @@ namespace detail {
   template <typename T, typename U>
   std::size_t
   size(ptr<> o) {
-    return sizeof(T) + detail::round_to_words(static_cast<T*>(o.value())->size_ * sizeof(U));
+    return sizeof(T)
+           + detail::round_to_words(
+               static_cast<T*>(o.value())->size_ * sizeof(U)
+             );
   }
 }
 
@@ -294,12 +303,16 @@ protected:
 
   T&
   storage_element(std::size_t i) {
-    return reinterpret_cast<T*>(reinterpret_cast<std::byte*>(this) + sizeof(Derived))[i];
+    return reinterpret_cast<T*>(
+      reinterpret_cast<std::byte*>(this) + sizeof(Derived)
+    )[i];
   }
 
   T const&
   storage_element(std::size_t i) const {
-    return reinterpret_cast<T const*>(reinterpret_cast<std::byte const*>(this) + sizeof(Derived))[i];
+    return reinterpret_cast<T const*>(
+      reinterpret_cast<std::byte const*>(this) + sizeof(Derived)
+    )[i];
   }
 
   std::size_t size_;
@@ -325,7 +338,8 @@ enum class generation : word_type {
 };
 
 inline void
-init_object_header(std::byte* storage, word_type type, word_type hash, generation gen = generation::nursery_1) {
+init_object_header(std::byte* storage, word_type type, word_type hash,
+                   generation gen = generation::nursery_1) {
   new (storage) word_type((type << type_shift)
                           | alive_bit
                           | (static_cast<word_type>(gen) << generation_shift)
@@ -335,7 +349,9 @@ init_object_header(std::byte* storage, word_type type, word_type hash, generatio
 namespace detail {
   inline generation
   get_generation(word_type header) {
-    return static_cast<generation>((header & generation_bits) >> generation_shift);
+    return static_cast<generation>(
+      (header & generation_bits) >> generation_shift
+    );
   }
 }
 

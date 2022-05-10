@@ -88,10 +88,10 @@ public:
     ptr<eof_type>           eof;
     ptr<tail_call_tag_type> tail_call_tag;
     ptr<core_form_type>
-      let, letrec_star, set, lambda, if_, box, unbox, box_set, define, define_syntax,
-      begin, begin_for_syntax, quote, quasiquote, unquote, unquote_splicing,
-      syntax, quasisyntax, unsyntax, unsyntax_splicing, syntax_trap, syntax_error,
-      let_syntax, letrec_syntax;
+      let, letrec_star, set, lambda, if_, box, unbox, box_set, define,
+      define_syntax, begin, begin_for_syntax, quote, quasiquote, unquote,
+      unquote_splicing, syntax, quasisyntax, unsyntax, unsyntax_splicing,
+      syntax_trap, syntax_error, let_syntax, letrec_syntax;
     ptr<parameter_tag> current_input_port_tag;
     ptr<parameter_tag> current_output_port_tag;
     ptr<parameter_tag> current_error_port_tag;
@@ -111,9 +111,11 @@ public:
 
   free_store                       store;
   std::unique_ptr<constants>       constants;
-  statics_list                     statics;
-  module_                          internal_module; // (insider internal)
-  std::string                      error_backtrace; // Built from actions during stack unwinding.
+  statics_list                     statics{};
+  // (insider internal)
+  module_                          internal_module;
+  // Built from actions during stack unwinding.
+  std::string                      error_backtrace;
   bytecode                         program;
   std::unique_ptr<execution_state> current_execution;
   ptr<parameter_map>               parameters;

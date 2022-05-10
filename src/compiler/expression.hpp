@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -98,9 +99,10 @@ struct definition_pair_expression {
   std::shared_ptr<insider::variable>   variable;
   std::unique_ptr<insider::expression> expression;
 
-  definition_pair_expression(tracked_ptr<syntax> id, std::shared_ptr<insider::variable> var,
+  definition_pair_expression(tracked_ptr<syntax> id,
+                             std::shared_ptr<insider::variable> var,
                              std::unique_ptr<insider::expression> expr)
-    : id{id}
+    : id{std::move(id)}
     , variable{std::move(var)}
     , expression{std::move(expr)}
   { }
@@ -110,7 +112,8 @@ struct let_expression {
   std::vector<definition_pair_expression> definitions;
   sequence_expression body;
 
-  let_expression(std::vector<definition_pair_expression> defs, sequence_expression body)
+  let_expression(std::vector<definition_pair_expression> defs,
+                 sequence_expression body)
     : definitions{std::move(defs)}
     , body{std::move(body)}
   { }
@@ -120,7 +123,8 @@ struct local_set_expression {
   std::shared_ptr<variable>            target;
   std::unique_ptr<insider::expression> expression;
 
-  local_set_expression(std::shared_ptr<variable> target, std::unique_ptr<insider::expression> expr)
+  local_set_expression(std::shared_ptr<variable> target,
+                       std::unique_ptr<insider::expression> expr)
     : target{std::move(target)}
     , expression{std::move(expr)}
   { }
@@ -130,7 +134,8 @@ struct top_level_set_expression {
   operand location;
   std::unique_ptr<insider::expression> expression;
 
-  top_level_set_expression(operand location, std::unique_ptr<insider::expression> expr)
+  top_level_set_expression(operand location,
+                           std::unique_ptr<insider::expression> expr)
     : location{location}
     , expression{std::move(expr)}
   { }
@@ -194,7 +199,8 @@ struct box_set_expression {
   std::unique_ptr<expression> box_expr;
   std::unique_ptr<expression> value_expr;
 
-  box_set_expression(std::unique_ptr<expression> box_expr, std::unique_ptr<expression> value_expr)
+  box_set_expression(std::unique_ptr<expression> box_expr,
+                     std::unique_ptr<expression> value_expr)
     : box_expr{std::move(box_expr)}
     , value_expr{std::move(value_expr)}
   { }
@@ -204,7 +210,8 @@ struct cons_expression {
   std::unique_ptr<expression> car;
   std::unique_ptr<expression> cdr;
 
-  cons_expression(std::unique_ptr<expression> car, std::unique_ptr<expression> cdr)
+  cons_expression(std::unique_ptr<expression> car,
+                  std::unique_ptr<expression> cdr)
     : car{std::move(car)}
     , cdr{std::move(cdr)}
   { }

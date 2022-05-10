@@ -18,7 +18,8 @@ class module_specifier;
 class textual_input_port;
 
 // The analyser expects a Scheme datum (or a list of data) that represents a
-// program, and turns it into an internal representation, defined in expression.hpp.
+// program, and turns it into an internal representation, defined in
+// expression.hpp.
 
 // Analyse a datum within a given module. The module provides the top-level
 // bindings visible to S-expression. The module is modified by adding a new
@@ -31,7 +32,8 @@ analyse(context&, ptr<syntax> stx, module_&, source_file_origin const&);
 module_name
 parse_module_name(context&, ptr<syntax>);
 
-// Interpret the given list of data as a module. This can be a library module, or main module.
+// Interpret the given list of data as a module. This can be a library module,
+// or main module.
 module_specifier
 read_module(context&, std::vector<ptr<syntax>> const& contents,
             source_file_origin const&);

@@ -16,7 +16,9 @@ struct from_scheme_converter;
 template <typename T>
 auto
 from_scheme(context& ctx, ptr<> o) {
-  return from_scheme_converter<std::remove_cv_t<std::remove_reference_t<T>>>::convert(ctx, o);
+  return from_scheme_converter<
+    std::remove_cv_t<std::remove_reference_t<T>>
+  >::convert(ctx, o);
 }
 
 template <typename T>
@@ -100,7 +102,8 @@ struct from_scheme_converter<T, std::enable_if_t<std::is_integral_v<T>>> {
   static bool
   in_range(integer::value_type value) {
     if constexpr (std::is_signed_v<T>)
-      return value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max();
+      return value >= std::numeric_limits<T>::min()
+             && value <= std::numeric_limits<T>::max();
     else
       return value >= 0
              && static_cast<std::make_unsigned_t<integer::value_type>>(value)
@@ -117,7 +120,9 @@ struct from_scheme_converter<std::string> {
 template <>
 struct from_scheme_converter<std::filesystem::path> {
   static std::filesystem::path
-  convert(context&, ptr<> o) { return std::filesystem::path{expect<string>(o)->value()}; }
+  convert(context&, ptr<> o) {
+    return std::filesystem::path{expect<string>(o)->value()};
+  }
 };
 
 template <typename T>

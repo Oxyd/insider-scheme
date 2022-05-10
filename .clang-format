@@ -1,0 +1,8 @@
+BasedOnStyle: LLVM
+AlignEscapedNewlines: Left
+AlignOperands: AlignAfterOperator
+AlwaysBreakAfterReturnType: All
+ColumnLimit: 80
+DerivePointerAlignment: false
+PointerAlignment: Left
+SpaceInEmptyBlock: true

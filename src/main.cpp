@@ -16,7 +16,8 @@
 #ifdef WIN32
 static void
 enable_virtual_terminal_processing() {
-  if (HANDLE stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE); stdout_handle != INVALID_HANDLE_VALUE) {
+  if (HANDLE stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
+      stdout_handle != INVALID_HANDLE_VALUE) {
     DWORD mode = 0;
     GetConsoleMode(stdout_handle, &mode);
     SetConsoleMode(stdout_handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
@@ -67,7 +68,9 @@ main(int argc, char** argv) {
         }
 
         if (flag == "-I")
-          ctx.append_source_code_provider(std::make_unique<insider::filesystem_source_code_provider>(argument));
+          ctx.append_source_code_provider(
+            std::make_unique<insider::filesystem_source_code_provider>(argument)
+          );
         else {
           print_usage(argv[0]);
           return 1;

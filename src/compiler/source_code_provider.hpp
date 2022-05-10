@@ -41,7 +41,8 @@ public:
 class filesystem_source_code_provider : public source_code_provider {
 public:
   explicit
-  filesystem_source_code_provider(std::filesystem::path root) : root_{std::move(root)} { }
+  filesystem_source_code_provider(std::filesystem::path root)
+    : root_{std::move(root)} { }
 
   std::optional<source_file>
   find_file(context&, std::filesystem::path const&) override;
@@ -63,7 +64,9 @@ public:
 private:
   struct hash {
     std::size_t
-    operator () (std::filesystem::path const& p) const { return std::filesystem::hash_value(p); }
+    operator () (std::filesystem::path const& p) const {
+      return std::filesystem::hash_value(p);
+    }
   };
 
   std::unordered_map<std::filesystem::path, std::string, hash> files_;
@@ -73,7 +76,9 @@ private:
 class null_source_code_provider : public source_code_provider {
 public:
   std::optional<source_file>
-  find_file(context&, std::filesystem::path const&) override { return std::nullopt; }
+  find_file(context&, std::filesystem::path const&) override {
+    return std::nullopt;
+  }
 };
 
 std::filesystem::path

@@ -33,7 +33,7 @@ public:
   explicit
   record_instance(ptr<record_type> type);
 
-  record_instance(record_instance&&);
+  record_instance(record_instance&&) noexcept;
 
   ptr<record_type>
   type() const { return type_; }

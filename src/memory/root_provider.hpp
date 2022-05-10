@@ -41,13 +41,13 @@ public:
   root_provider(root_list&);
 
   root_provider(root_provider const&);
-  root_provider(root_provider&&);
+  root_provider(root_provider&&) noexcept;
 
   root_provider&
   operator = (root_provider const&) { return *this; }
 
   root_provider&
-  operator = (root_provider&& other);
+  operator = (root_provider&& other) noexcept;
 
   virtual
   ~root_provider();

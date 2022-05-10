@@ -17,7 +17,9 @@ module_::module_(context& ctx, std::optional<module_name> const& name)
   : root_provider{ctx.store}
   , env_{make<insider::scope>(ctx, ctx,
                               fmt::format("{} module top-level",
-                                          name ? module_name_to_string(*name) : "<unnamed module>"))}
+                                          name
+                                            ? module_name_to_string(*name)
+                                            : "<unnamed module>"))}
 { }
 
 auto
@@ -73,19 +75,21 @@ module_::visit_roots(member_visitor const& f) {
 
 namespace {
   struct import_set {
-    module_* source;
+    module_* source{};
     std::vector<std::tuple<std::string, std::string>> names;
   };
 }
 
 static void
-check_all_names_exist(std::vector<std::string> const& names, import_set const& set) {
+check_all_names_exist(std::vector<std::string> const& names,
+                      import_set const& set) {
   for (auto const& name : names)
     if (std::none_of(set.names.begin(), set.names.end(),
                      [&] (auto const& set_name) {
                        return std::get<0>(set_name) == name;
                      }))
-      throw std::runtime_error{fmt::format("Identifier {} is not exported", name)};
+      throw std::runtime_error{fmt::format("Identifier {} is not exported",
+                                           name)};
 }
 
 static import_set
@@ -160,15 +164,15 @@ parse_rename_import_specifier(context& ctx, import_specifier::rename const* r) {
 
 import_set
 parse_import_set(context& ctx, import_specifier const& spec) {
-  if (auto* mn = std::get_if<module_name>(&spec.value))
+  if (auto const* mn = std::get_if<module_name>(&spec.value))
     return parse_module_name_import_set(ctx, mn);
-  else if (auto* o = std::get_if<import_specifier::only>(&spec.value))
+  else if (auto const* o = std::get_if<import_specifier::only>(&spec.value))
     return parse_only_import_specifier(ctx, o);
-  else if (auto* e = std::get_if<import_specifier::except>(&spec.value))
+  else if (auto const* e = std::get_if<import_specifier::except>(&spec.value))
     return parse_except_import_specifier(ctx, e);
-  else if (auto* p = std::get_if<import_specifier::prefix>(&spec.value))
+  else if (auto const* p = std::get_if<import_specifier::prefix>(&spec.value))
     return parse_prefix_import_specifier(ctx, p);
-  else if (auto* r = std::get_if<import_specifier::rename>(&spec.value))
+  else if (auto const* r = std::get_if<import_specifier::rename>(&spec.value))
     return parse_rename_import_specifier(ctx, r);
   else {
     assert(!"Can't happen");
@@ -180,7 +184,11 @@ static void
 perform_imports(context& ctx, module_& m, import_set const& set) {
   for (auto const& [to_name, from_name] : set.names) {
     if (auto b = set.source->find(ctx.intern(from_name)))
-      m.scope()->add(ctx.store, make<syntax>(ctx, ctx.intern(to_name), scope_set{m.scope()}), *b);
+      m.scope()->add(
+        ctx.store,
+        make<syntax>(ctx, ctx.intern(to_name), scope_set{m.scope()}),
+        *b
+      );
     else
       assert(!"Trying to import a nonexistent symbol");
   }
@@ -190,7 +198,8 @@ perform_imports(context& ctx, module_& m, import_set const& set) {
 }
 
 static void
-check_all_defined(context& ctx, module_& m, std::vector<std::string> const& names) {
+check_all_defined(context& ctx, module_& m,
+                  std::vector<std::string> const& names) {
   std::vector<std::string> undefined;
   for (std::string const& name : names)
     if (!m.find(ctx.intern(name)))
@@ -198,12 +207,14 @@ check_all_defined(context& ctx, module_& m, std::vector<std::string> const& name
 
   if (!undefined.empty()) {
     if (undefined.size() == 1)
-      throw std::runtime_error{fmt::format("Can't export undefined symbol {}", undefined.front())};
+      throw std::runtime_error{fmt::format("Can't export undefined symbol {}",
+                                           undefined.front())};
     else {
       std::string names = undefined.front();
       for (auto n = undefined.begin() + 1; n != undefined.end(); ++n)
         names += ", " + *n;
-      throw std::runtime_error{fmt::format("Can't export undefined symbols: {}", names)};
+      throw std::runtime_error{fmt::format("Can't export undefined symbols: {}",
+                                           names)};
     }
   }
 }
@@ -243,17 +254,20 @@ import_all_top_level(context& ctx, module_& to, module_& from) {
 }
 
 void
-perform_imports(context& ctx, module_& m, imports_list const& imports) {
+perform_imports(context& ctx, module_& to, imports_list const& imports) {
   for (import_specifier const& spec : imports)
-    perform_imports(ctx, m, parse_import_set(ctx, spec));
+    perform_imports(ctx, to, parse_import_set(ctx, spec));
 }
 
 operand
-define_top_level(context& ctx, std::string const& name, module_& m, bool export_, ptr<> object) {
+define_top_level(context& ctx, std::string const& name, module_& m, bool export_,
+                 ptr<> object) {
   auto index = ctx.add_top_level(object, name);
   auto name_sym = ctx.intern(name);
   auto var = std::make_shared<variable>(name, index);
-  m.scope()->add(ctx.store, make<syntax>(ctx, name_sym, scope_set{m.scope()}), var);
+  m.scope()->add(ctx.store,
+                 make<syntax>(ctx, name_sym, scope_set{m.scope()}),
+                 var);
 
   if (export_)
     m.export_(name_sym);

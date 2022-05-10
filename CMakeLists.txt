@@ -6,7 +6,7 @@ option(UBSAN "Enable UB sanitizer" OFF)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_C_FLAGS "-Wall -Wextra -pedantic -fno-omit-frame-pointer")
-  set(CMAKE_CXX_FLAGS "-Wall -Wextra -pedantic -fno-omit-frame-pointer")
+  set(CMAKE_CXX_FLAGS "-Wall -Wextra -pedantic -fno-omit-frame-pointer -Wsuggest-override")
   set(CMAKE_C_FLAGS_DEBUG "-ggdb3")
   set(CMAKE_CXX_FLAGS_DEBUG "-ggdb3")
   set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -ggdb3")
@@ -55,7 +55,6 @@ set(scheme_sources
   src/memory/free_store.cpp
   src/memory/root_list.cpp
   src/memory/root_provider.cpp
-  src/memory/tracked_ptr.cpp
   src/module.cpp
   src/object.cpp
   src/runtime/basic_types.cpp

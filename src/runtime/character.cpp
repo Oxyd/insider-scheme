@@ -124,8 +124,10 @@ utf8_code_point_byte_length(char first_byte) {
   else if ((first_byte & 0b1111'1000) == 0b1111'0000)
     return 4;
   else
-    throw std::runtime_error{fmt::format("Invalid initial byte in UTF-8 encoding: {}",
-                                         static_cast<uint32_t>(first_byte))};
+    throw std::runtime_error{
+      fmt::format("Invalid initial byte in UTF-8 encoding: {}",
+                  static_cast<uint32_t>(first_byte))
+    };
 }
 
 static integer

@@ -3,6 +3,9 @@
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/syntax.hpp"
+#include <bits/ranges_algo.h>
+
+#include <utility>
 
 namespace insider {
 
@@ -83,11 +86,13 @@ scope_sets_equal(scope_set const& lhs, scope_set const& rhs) {
 }
 
 void
-scope::add(free_store& store, ptr<syntax> identifier, std::shared_ptr<variable> var) {
+scope::add(free_store& store, ptr<syntax> identifier,
+           std::shared_ptr<variable> var) {
   assert(is_identifier(identifier));
 
   if (is_redefinition(identifier, var))
-    throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
+    throw std::runtime_error{fmt::format("Redefinition of {}",
+                                         identifier_name(identifier))};
 
   bindings_.emplace_back(binding{identifier, std::move(var)});
   store.notify_arc(this, identifier);
@@ -99,7 +104,8 @@ scope::add(free_store& store, ptr<syntax> identifier, ptr<transformer> tr) {
   assert(tr != nullptr);
 
   if (is_redefinition(identifier, tr))
-    throw std::runtime_error{fmt::format("Redefinition of {}", identifier_name(identifier))};
+    throw std::runtime_error{fmt::format("Redefinition of {}",
+                                         identifier_name(identifier))};
 
   bindings_.emplace_back(binding{identifier, tr});
 
@@ -109,18 +115,20 @@ scope::add(free_store& store, ptr<syntax> identifier, ptr<transformer> tr) {
 
 void
 scope::add(free_store& store, ptr<syntax> identifier, value_type const& value) {
-  if (auto var = std::get_if<std::shared_ptr<variable>>(&value))
+  if (auto const* var = std::get_if<std::shared_ptr<variable>>(&value))
     add(store, identifier, *var);
   else
     add(store, identifier, std::get<ptr<transformer>>(value));
 }
 
 auto
-scope::find_candidates(ptr<symbol> name, scope_set const& envs) const -> std::vector<binding> {
+scope::find_candidates(ptr<symbol> name, scope_set const& scopes) const
+  -> std::vector<binding>
+{
   std::vector<binding> result;
   for (binding const& e : bindings_) {
     ptr<syntax> s = std::get<ptr<syntax>>(e);
-    if (s->get_symbol() == name && scope_sets_subseteq(s->scopes(), envs))
+    if (s->get_symbol() == name && scope_sets_subseteq(s->scopes(), scopes))
       result.push_back(e);
   }
 
@@ -138,12 +146,16 @@ scope::visit_members(member_visitor const& f) {
 
 bool
 scope::is_redefinition(ptr<syntax> id, value_type const& intended_value) const {
-  for (binding const& b : bindings_)
-    if (std::get<ptr<syntax>>(b)->get_symbol()->value() == id->get_symbol()->value()
-        && scope_sets_equal(id->scopes(), std::get<ptr<syntax>>(b)->scopes())
-        && std::get<value_type>(b) != intended_value)
-      return true;
-  return false;
+  return std::ranges::any_of(
+    bindings_,
+    [&] (binding const& b) {
+      auto const& [stx, value] = b;
+      return stx->get_symbol()->value() == id->get_symbol()->value()
+             && scope_sets_equal(id->scopes(),
+                                 std::get<ptr<syntax>>(b)->scopes())
+             && value != intended_value;
+    }
+  );
 }
 
 static std::string
@@ -163,7 +175,7 @@ format_scope_set(scope_set const& set) {
 
 void
 define(free_store& fs, ptr<syntax> id, std::shared_ptr<variable> value) {
-  id->scopes().back()->add(fs, id, value);
+  id->scopes().back()->add(fs, id, std::move(value));
 }
 
 void
@@ -172,13 +184,13 @@ define(free_store& fs, ptr<syntax> id, ptr<transformer> value) {
 }
 
 std::optional<scope::value_type>
-lookup(ptr<symbol> name, scope_set const& envs) {
+lookup(ptr<symbol> id, scope_set const& envs) {
   std::optional<scope::value_type> result;
   scope_set maximal_scope_set;
   std::optional<scope_set> ambiguous_other_candidate_set;
 
   for (ptr<scope> e : envs)
-    for (scope::binding const& b : e->find_candidates(name, envs)) {
+    for (scope::binding const& b : e->find_candidates(id, envs)) {
       scope_set const& binding_set = std::get<ptr<syntax>>(b)->scopes();
 
       if (scope_sets_subseteq(maximal_scope_set, binding_set)) {
@@ -194,7 +206,7 @@ lookup(ptr<symbol> name, scope_set const& envs) {
                      "  Reference scopes:     {};\n"
                      "  1st candidate scopes: {};\n"
                      "  2nd candidate scopes: {}.",
-                     name->value(),
+                     id->value(),
                      format_scope_set(envs),
                      format_scope_set(maximal_scope_set),
                      format_scope_set(*ambiguous_other_candidate_set));

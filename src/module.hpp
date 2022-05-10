@@ -59,7 +59,8 @@ public:
 
 private:
   ptr<insider::scope>             env_;
-  std::unordered_set<std::string> exports_; // Bindings available for export to other modules.
+  // Bindings available for export to other modules.
+  std::unordered_set<std::string> exports_;
   ptr<procedure>                  proc_;
   bool                            active_ = false;
 
@@ -76,7 +77,8 @@ instantiate(context&, module_specifier const&);
 void
 import_all_exported(context&, module_& to, module_& from);
 
-// Import all top-level bindings (whether exported or not) from one module to another.
+// Import all top-level bindings (whether exported or not) from one module to
+// another.
 void
 import_all_top_level(context&, module_& to, module_& from);
 
@@ -84,7 +86,8 @@ void
 perform_imports(context&, module_& to, imports_list const&);
 
 operand
-define_top_level(context&, std::string const& name, module_&, bool export_, ptr<> object);
+define_top_level(context&, std::string const& name, module_&, bool export_,
+                 ptr<> object);
 
 // Recursively activate all dependencies of the given module, execute the
 // module's body and return the result of the last expression in its body.

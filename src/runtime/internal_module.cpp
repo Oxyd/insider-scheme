@@ -87,13 +87,17 @@ procedure_bytecode(context& ctx, ptr<procedure> f) {
     instrs.emplace_back(pos, pc - pos, instr);
   }
 
-  return make_list_from_vector(ctx, instrs,
-                               [&] (std::tuple<std::size_t, std::size_t, instruction> i) {
-                                 return make_list(ctx,
-                                                  integer_to_ptr(std::get<0>(i)),
-                                                  integer_to_ptr(std::get<1>(i)),
-                                                  make<opaque_value<instruction>>(ctx, std::get<2>(i)));
-                               });
+  return make_list_from_vector(
+    ctx, instrs,
+    [&] (std::tuple<std::size_t, std::size_t, instruction> i) {
+      return make_list(
+        ctx,
+        integer_to_ptr(static_cast<integer::value_type>(std::get<0>(i))),
+        integer_to_ptr(static_cast<integer::value_type>(std::get<1>(i))),
+        make<opaque_value<instruction>>(ctx, std::get<2>(i))
+      );
+    }
+  );
 }
 
 static ptr<>
@@ -210,7 +214,8 @@ make_internal_module(context& ctx) {
   define_procedure<&closure::procedure>(ctx, "closure-procedure", result, true);
 
   define_procedure<instruction_opcode>(ctx, "instruction-opcode", result, true);
-  define_procedure<instruction_operands>(ctx, "instruction-operands", result, true);
+  define_procedure<instruction_operands>(ctx, "instruction-operands", result,
+                                         true);
   define_top_level(ctx, "opcodes", result, true,
                    make_vector(ctx, opcode_value_to_info,
                                [&] (instruction_info const& info) {
@@ -221,7 +226,8 @@ make_internal_module(context& ctx) {
   define_procedure<static_value>(ctx, "static-value", result, true);
   define_procedure<top_level_value>(ctx, "top-level-value", result, true);
 
-  define_procedure<set_verbose_colleection>(ctx, "set-verbose-collection!", result, true);
+  define_procedure<set_verbose_colleection>(ctx, "set-verbose-collection!",
+                                            result, true);
 
   define_procedure<trap>(ctx, "trap!", result, true);
 

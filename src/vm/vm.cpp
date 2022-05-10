@@ -21,7 +21,8 @@
 namespace insider {
 
 static ptr<>
-find_callee_value(context& ctx, opcode opcode, frame_reference frame, operand reg) {
+find_callee_value(context& ctx, opcode opcode, frame_reference frame,
+                  operand reg) {
   switch (opcode) {
   case opcode::call:
   case opcode::tail_call:
@@ -46,7 +47,9 @@ get_call_target(context& ctx, frame_reference frame, integer::value_type pc) {
   bytecode const& bc = ctx.program;
 
   opcode opcode = read_opcode(bc, pc);
-  assert(opcode == opcode::call || opcode == opcode::call_top_level || opcode == opcode::call_static);
+  assert(opcode == opcode::call
+         || opcode == opcode::call_top_level
+         || opcode == opcode::call_static);
 
   return find_callee_value(ctx, opcode, frame, read_operand(bc, pc));
 }
@@ -57,7 +60,9 @@ get_destination_register(execution_state& state) {
   integer::value_type& pc = state.pc;
 
   [[maybe_unused]] opcode opcode = read_opcode(bc, pc);
-  assert(opcode == opcode::call || opcode == opcode::call_top_level || opcode == opcode::call_static);
+  assert(opcode == opcode::call
+         || opcode == opcode::call_top_level
+         || opcode == opcode::call_static);
 
   read_operand(bc, pc); // Call target.
   operand dest = read_operand(bc, pc);
@@ -94,7 +99,9 @@ namespace {
       std::string result;
 
       bool first = true;
-      for (call_stack_iterator it{state_.stack}; it != call_stack_iterator{}; ++it) {
+      for (call_stack_iterator it{state_.stack};
+           it != call_stack_iterator{};
+           ++it) {
         if (!first)
           result += '\n';
 
@@ -103,10 +110,12 @@ namespace {
 
         result += format_callable(proc);
 
-        if (previous_frame_idx != -1 && !is_native_frame({state_.stack, previous_frame_idx})) {
-          ptr<> parent_target = get_call_target(state_.ctx,
-                                                {state_.stack, previous_frame_idx},
-                                                state_.stack->previous_pc(*it));
+        if (previous_frame_idx != -1
+            && !is_native_frame({state_.stack, previous_frame_idx})) {
+          ptr<> parent_target
+            = get_call_target(state_.ctx,
+                              {state_.stack, previous_frame_idx},
+                              state_.stack->previous_pc(*it));
           if (parent_target != proc)
             result += '\n' + format_callable(parent_target);
         }
@@ -120,8 +129,8 @@ namespace {
   private:
     execution_state& state_;
 
-    std::string
-    format_callable(ptr<> proc) const {
+    static std::string
+    format_callable(ptr<> proc)  {
       if (auto cls = match<closure>(proc))
         proc = cls->procedure();
 
@@ -130,7 +139,8 @@ namespace {
         return fmt::format("in {}", name ? *name : "<lambda>");
       } else {
         assert(is<native_procedure>(proc));
-        return fmt::format("in native procedure {}", assume<native_procedure>(proc)->name);
+        return fmt::format("in native procedure {}",
+                           assume<native_procedure>(proc)->name);
       }
     }
   };
@@ -142,7 +152,8 @@ throw_if_wrong_number_of_args(ptr<> callable, std::size_t num_args) {
     return throw_if_wrong_number_of_args(cls->procedure(), num_args);
   else {
     auto proc = assume<procedure>(callable);
-    if (num_args < proc->min_args || (!proc->has_rest && num_args > proc->min_args))
+    if (num_args < proc->min_args
+        || (!proc->has_rest && num_args > proc->min_args))
       throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
                        proc->name ? *proc->name : "<lambda>",
                        proc->has_rest ? "at least " : "",
@@ -250,21 +261,24 @@ arithmetic(opcode opcode, instruction_state& istate) {
   if (is<integer>(lhs) && is<integer>(rhs) && opcode != opcode::divide) {
     switch (opcode) {
     case opcode::add:
-      if (ptr<> result = add_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
+      if (ptr<> result = add_fixnums(assume<integer>(lhs).value(),
+                                     assume<integer>(rhs).value()))
         istate.frame().local(dest) = result;
       else
         istate.frame().local(dest) = add(istate.context(), lhs, rhs);
       break;
 
     case opcode::subtract:
-      if (ptr<> result = subtract_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
+      if (ptr<> result = subtract_fixnums(assume<integer>(lhs).value(),
+                                          assume<integer>(rhs).value()))
         istate.frame().local(dest) = result;
       else
         istate.frame().local(dest) = subtract(istate.context(), lhs, rhs);
       break;
 
     case opcode::multiply:
-      if (ptr<> result = multiply_fixnums(assume<integer>(lhs).value(), assume<integer>(rhs).value()))
+      if (ptr<> result = multiply_fixnums(assume<integer>(lhs).value(),
+                                          assume<integer>(rhs).value()))
         istate.frame().local(dest) = result;
       else
         istate.frame().local(dest) = multiply(istate.context(), lhs, rhs);
@@ -359,7 +373,8 @@ relational(opcode opcode, instruction_state& istate) {
 
 static ptr<>
 find_callee(opcode opcode, instruction_state& istate) {
-  return find_callee_value(istate.context(), opcode, istate.frame(), istate.reader.read_operand());
+  return find_callee_value(istate.context(), opcode, istate.frame(),
+                           istate.reader.read_operand());
 }
 
 static std::tuple<ptr<>, ptr<closure>>
@@ -427,7 +442,8 @@ namespace {
     explicit
     instruction_argument_reader(instruction_state& istate)
       : istate_{istate}
-      , parent_frame_{istate_.execution_state.stack, current_frame_parent(istate.execution_state.stack)}
+      , parent_frame_{istate_.execution_state.stack,
+                      current_frame_parent(istate.execution_state.stack)}
     { }
 
     ptr<>
@@ -458,7 +474,8 @@ convert_args_to_list(context& ctx, std::size_t num_rest, F& get_arg) {
 
 template <typename F>
 static void
-push_rest_arg(context& ctx, frame_stack& stack, ptr<procedure> proc, std::size_t num_args, F& get_arg) {
+push_rest_arg(context& ctx, frame_stack& stack, ptr<procedure> proc,
+              std::size_t num_args, F& get_arg) {
   std::size_t num_rest = num_args - proc->min_args;
 
   if (num_rest > 0)
@@ -500,7 +517,8 @@ push_scheme_call_frame(ptr<procedure> proc, ptr<insider::closure> closure,
   throw_if_wrong_number_of_args(proc, num_args);
 
   auto new_frame = make_scheme_frame(istate, proc);
-  push_arguments_and_closure(istate.context(), proc, closure, new_frame, num_args,
+  push_arguments_and_closure(istate.context(), proc, closure, new_frame,
+                             num_args,
                              instruction_argument_reader{istate});
 
   if (is_tail)
@@ -510,7 +528,8 @@ push_scheme_call_frame(ptr<procedure> proc, ptr<insider::closure> closure,
 }
 
 static frame_reference
-make_native_frame(instruction_state& istate, operand num_args, ptr<native_procedure> proc, bool is_tail) {
+make_native_frame(instruction_state& istate, operand num_args,
+                  ptr<native_procedure> proc, bool is_tail) {
   istate.execution_state.stack->push_frame(proc, num_args,
                                            istate.reader.previous_pc());
   auto new_frame = current_frame(istate.execution_state.stack);
@@ -524,7 +543,8 @@ make_native_frame(instruction_state& istate, operand num_args, ptr<native_proced
 }
 
 static void
-discard_later_native_continuations(ptr<stack_frame_extra_data> e, integer::value_type pc) {
+discard_later_native_continuations(ptr<stack_frame_extra_data> e,
+                                   integer::value_type pc) {
   if (e)
     e->native_continuations.resize(pc);
 }
@@ -539,8 +559,10 @@ find_current_native_continuation(frame_reference frame) {
 }
 
 static ptr<>
-call_native_frame_target(context& ctx, ptr<call_stack> stack, ptr<> scheme_result) {
-  if (native_continuation_type cont = find_current_native_continuation(current_frame(stack)))
+call_native_frame_target(context& ctx, ptr<call_stack> stack,
+                         ptr<> scheme_result) {
+  if (native_continuation_type cont
+        = find_current_native_continuation(current_frame(stack)))
     return cont(ctx, scheme_result);
   else {
     auto proc = assume<native_procedure>(current_frame_callable(stack));
@@ -598,7 +620,8 @@ call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
 }
 
 static ptr<>
-do_native_call(ptr<native_procedure> proc, instruction_state& istate, bool is_tail) {
+do_native_call(ptr<native_procedure> proc, instruction_state& istate,
+               bool is_tail) {
   operand num_args = read_num_args(istate, is_tail);
   make_native_frame(istate, num_args, proc, is_tail);
   return call_native_procedure(istate.execution_state);
@@ -622,7 +645,8 @@ call(opcode opcode, instruction_state& istate) {
     assert(!closure);
     return do_native_call(native_proc, istate, is_tail(opcode));
   } else
-    throw make_error("Application: Not a procedure: {}", datum_to_string(istate.context(), call_target));
+    throw make_error("Application: Not a procedure: {}",
+                     datum_to_string(istate.context(), call_target));
 }
 
 static ptr<>
@@ -630,7 +654,8 @@ resume_native_call(execution_state& state, ptr<> scheme_result) {
   auto frame = current_frame(state.stack);
   discard_later_native_continuations(frame.extra(), state.pc);
 
-  if (native_continuation_type const& nc = find_current_native_continuation(frame))
+  if (native_continuation_type const& nc
+      = find_current_native_continuation(frame))
     return call_native_procedure(state, scheme_result);
   else
     // Return to a non-continuable native procedure. We'll abandon run()
@@ -659,7 +684,8 @@ jump(opcode opcode, instruction_state& istate) {
     off = istate.reader.read_operand();
   }
 
-  int offset = (opcode == opcode::jump_back || opcode == opcode::jump_back_unless) ? -off : off;
+  int offset = (opcode == opcode::jump_back
+                || opcode == opcode::jump_back_unless) ? -off : off;
   if (opcode == opcode::jump_unless || opcode == opcode::jump_back_unless) {
     ptr<> test_value = istate.frame().local(condition_reg);
 
@@ -675,13 +701,16 @@ jump(opcode opcode, instruction_state& istate) {
 
 static void
 make_closure(instruction_state& istate) {
-  ptr<procedure> proc = assume<procedure>(istate.frame().local(istate.reader.read_operand()));
+  ptr<procedure> proc
+    = assume<procedure>(istate.frame().local(istate.reader.read_operand()));
   operand dest = istate.reader.read_operand();
   operand num_captures = istate.reader.read_operand();
 
   auto result = make<closure>(istate.context(), proc, num_captures);
   for (std::size_t i = 0; i < num_captures; ++i)
-    result->set(istate.context().store, i, istate.frame().local(istate.reader.read_operand()));
+    result->set(istate.context().store,
+                i,
+                istate.frame().local(istate.reader.read_operand()));
 
   istate.frame().local(dest) = result;
 }
@@ -689,26 +718,31 @@ make_closure(instruction_state& istate) {
 static void
 make_box(instruction_state& istate) {
   ptr<> value = istate.frame().local(istate.reader.read_operand());
-  istate.frame().local(istate.reader.read_operand()) = istate.context().store.make<box>(value);
+  istate.frame().local(istate.reader.read_operand())
+    = istate.context().store.make<box>(value);
 }
 
 static void
 unbox(instruction_state& istate) {
-  auto box = expect<insider::box>(istate.frame().local(istate.reader.read_operand()));
+  auto box
+    = expect<insider::box>(istate.frame().local(istate.reader.read_operand()));
   istate.frame().local(istate.reader.read_operand()) = box->get();
 }
 
 static void
 box_set(instruction_state& istate) {
-  auto box = expect<insider::box>(istate.frame().local(istate.reader.read_operand()));
-  box->set(istate.context().store, istate.frame().local(istate.reader.read_operand()));
+  auto box
+    = expect<insider::box>(istate.frame().local(istate.reader.read_operand()));
+  box->set(istate.context().store,
+           istate.frame().local(istate.reader.read_operand()));
 }
 
 static void
 cons(instruction_state& istate) {
   ptr<> car = istate.frame().local(istate.reader.read_operand());
   ptr<> cdr = istate.frame().local(istate.reader.read_operand());
-  istate.frame().local(istate.reader.read_operand()) = make<pair>(istate.context(), car, cdr);
+  istate.frame().local(istate.reader.read_operand())
+    = make<pair>(istate.context(), car, cdr);
 }
 
 static void
@@ -738,17 +772,24 @@ make_vector(instruction_state& istate) {
   operand dest = istate.reader.read_operand();
   operand num_elems = istate.reader.read_operand();
 
-  auto result = make<vector>(istate.context(), num_elems, istate.context().constants->void_);
+  auto result = make<vector>(
+    istate.context(), num_elems, istate.context().constants->void_
+  );
   for (std::size_t i = 0; i < num_elems; ++i)
-    result->set(istate.context().store, i, istate.frame().local(istate.reader.read_operand()));
+    result->set(istate.context().store,
+                i,
+                istate.frame().local(istate.reader.read_operand()));
 
   istate.frame().local(dest) = result;
 }
 
 static void
 vector_set(instruction_state& istate) {
-  ptr<vector> v = expect<vector>(istate.frame().local(istate.reader.read_operand()));
-  integer::value_type i = expect<integer>(istate.frame().local(istate.reader.read_operand())).value();
+  ptr<vector> v
+    = expect<vector>(istate.frame().local(istate.reader.read_operand()));
+  integer::value_type i = expect<integer>(
+    istate.frame().local(istate.reader.read_operand())
+  ).value();
   ptr<> o = istate.frame().local(istate.reader.read_operand());
 
   if (i < 0)
@@ -759,8 +800,11 @@ vector_set(instruction_state& istate) {
 
 static void
 vector_ref(instruction_state& istate) {
-  ptr<vector> v = expect<vector>(istate.frame().local(istate.reader.read_operand()));
-  integer::value_type i = expect<integer>(istate.frame().local(istate.reader.read_operand())).value();
+  ptr<vector> v
+    = expect<vector>(istate.frame().local(istate.reader.read_operand()));
+  integer::value_type i = expect<integer>(
+    istate.frame().local(istate.reader.read_operand())
+  ).value();
 
   if (i < 0)
     throw std::runtime_error{"vector-ref: Negative index"};
@@ -956,8 +1000,11 @@ make_scheme_frame_for_call_from_native(execution_state& state, ptr<> callable,
   state.stack->push_frame(proc, proc->locals_size, previous_pc);
   auto new_frame = current_frame(state.stack);
 
-  push_arguments_and_closure(state.ctx, proc, closure, new_frame, arguments.size(),
-                             [a = arguments.begin()] () mutable { return *a++; });
+  push_arguments_and_closure(state.ctx, proc, closure, new_frame,
+                             arguments.size(),
+                             [a = arguments.begin()] () mutable {
+                               return *a++;
+                             });
   state.pc = proc->entry_pc;
 
   return new_frame;
@@ -974,7 +1021,8 @@ create_or_get_extra_data(context& ctx, frame_reference frame) {
 }
 
 static void
-erect_barrier(context& ctx, frame_reference frame, bool allow_out, bool allow_in) {
+erect_barrier(context& ctx, frame_reference frame,
+              bool allow_out, bool allow_in) {
   ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, frame);
   extra->allow_jump_out = allow_out;
   extra->allow_jump_in = allow_in;
@@ -992,14 +1040,16 @@ call_native_in_current_frame(execution_state& state, ptr<native_procedure> proc,
                              std::vector<ptr<>> const& arguments) {
   tracked_ptr<> result{state.ctx.store,
                        proc->target(state.ctx, proc,
-                                    object_span(arguments.begin(), arguments.end()))};
+                                    object_span(arguments.begin(),
+                                                arguments.end()))};
   state.pc = current_frame_previous_pc(state.stack);
   state.stack->pop_frame();
   return result;
 }
 
 static tracked_ptr<>
-call_native(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments) {
+call_native(execution_state& state, ptr<native_procedure> proc,
+            std::vector<ptr<>> const& arguments) {
   setup_native_frame(state, proc);
   return call_native_in_current_frame(state, proc, arguments);
 }
@@ -1008,9 +1058,11 @@ static void
 set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value);
 
 static tracked_ptr<>
-call_native_with_continuation_barrier(execution_state& state, ptr<native_procedure> proc,
+call_native_with_continuation_barrier(execution_state& state,
+                                      ptr<native_procedure> proc,
                                       std::vector<ptr<>> const& arguments,
-                                      ptr<parameter_tag> parameter, ptr<> parameter_value) {
+                                      ptr<parameter_tag> parameter,
+                                      ptr<> parameter_value) {
   auto frame = setup_native_frame(state, proc);
 
   if (current_frame_parent(state.stack) != -1)
@@ -1103,51 +1155,63 @@ mark_frame_noncontinuable(frame_reference frame) {
 }
 
 tracked_ptr<>
-call_parameterized_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments,
-                                             ptr<parameter_tag> tag, ptr<> parameter_value) {
+call_parameterized_with_continuation_barrier(
+  context& ctx, ptr<> callable,
+  std::vector<ptr<>> const& arguments,
+  ptr<parameter_tag> tag, ptr<> parameter_value
+) {
   expect_callable(callable);
 
   current_execution_setter ces{ctx};
   mark_frame_noncontinuable(current_frame(ctx.current_execution->stack));
 
   if (auto native_proc = match<native_procedure>(callable))
-    return call_native_with_continuation_barrier(*ctx.current_execution, native_proc, arguments,
-                                                 tag, parameter_value);
+    return call_native_with_continuation_barrier(
+      *ctx.current_execution, native_proc, arguments, tag, parameter_value
+    );
   else
-    return call_scheme_with_continuation_barrier(*ctx.current_execution, callable, arguments,
-                                                 tag, parameter_value);
+    return call_scheme_with_continuation_barrier(
+      *ctx.current_execution, callable, arguments, tag, parameter_value
+    );
 }
 
 tracked_ptr<>
-call_with_continuation_barrier(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+call_with_continuation_barrier(context& ctx, ptr<> callable,
+                               std::vector<ptr<>> const& arguments) {
   return call_parameterized_with_continuation_barrier(ctx, callable, arguments, {}, {});
 }
 
 static ptr<>
-call_native_continuable(execution_state& state, ptr<native_procedure> proc, std::vector<ptr<>> const& arguments,
-                        native_continuation_type cont) {
+call_native_continuable(execution_state& state, ptr<native_procedure> proc,
+                        std::vector<ptr<>> const& arguments,
+                        native_continuation_type const& cont) {
   tracked_ptr<> result = call_native(state, proc, arguments);
   return cont(state.ctx, result.get());
 }
 
 static ptr<>
-call_scheme_continuable(execution_state& state, ptr<> callable, std::vector<ptr<>> const& arguments,
+call_scheme_continuable(execution_state& state, ptr<> callable,
+                        std::vector<ptr<>> const& arguments,
                         native_continuation_type cont) {
-  create_or_get_extra_data(state.ctx, current_frame(state.stack))->native_continuations.emplace_back(std::move(cont));
+  create_or_get_extra_data(state.ctx, current_frame(state.stack))
+    ->native_continuations.emplace_back(std::move(cont));
   setup_scheme_frame_for_potential_call_from_native(state, callable, arguments);
   return state.ctx.constants->tail_call_tag;
 }
 
 ptr<tail_call_tag_type>
-call_continuable(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments,
+call_continuable(context& ctx, ptr<> callable,
+                 std::vector<ptr<>> const& arguments,
                  native_continuation_type cont) {
   expect_callable(callable);
   current_execution_setter ces{ctx};
 
   if (auto native_proc = match<native_procedure>(callable))
-    call_native_continuable(*ctx.current_execution, native_proc, arguments, std::move(cont));
+    call_native_continuable(*ctx.current_execution, native_proc, arguments,
+                            cont);
   else
-    call_scheme_continuable(*ctx.current_execution, callable, arguments, std::move(cont));
+    call_scheme_continuable(*ctx.current_execution, callable, arguments,
+                            std::move(cont));
 
   return ctx.constants->tail_call_tag;
 }
@@ -1231,7 +1295,8 @@ namespace {
   struct stack_segment {
     ptr<stack_frame_extra_data> extra;
     integer::value_type         begin;
-    integer::value_type         end; // Index *past* the last frame of this segment
+    integer::value_type         end; // Index *past* the last frame of this
+                                     // segment
   };
 
   struct stack_segments {
@@ -1268,7 +1333,8 @@ decompose_into_segments(ptr<call_stack> stack) {
 }
 
 static std::size_t
-common_prefix_length(std::vector<stack_segment> const& x, std::vector<stack_segment> const& y) {
+common_prefix_length(std::vector<stack_segment> const& x,
+                     std::vector<stack_segment> const& y) {
   std::size_t result = 0;
   while (result < x.size() && result < y.size()
          && x[result].extra && y[result].extra
@@ -1293,7 +1359,9 @@ capture_stack(context& ctx, ptr<> receiver) {
 
 template <typename Pred>
 static bool
-all_frames(ptr<call_stack> stack, integer::value_type begin, integer::value_type end, Pred pred) {
+all_frames(ptr<call_stack> stack,
+           integer::value_type begin, integer::value_type end,
+           Pred pred) {
   while (begin != end)
     if (!pred(frame_reference{stack, begin}))
       return false;
@@ -1315,22 +1383,30 @@ allows_jump_in(frame_reference f) {
 
 static bool
 jump_out_allowed(ptr<call_stack> stack, integer::value_type common) {
-  return all_frames(stack, stack->current_frame_index(), common, allows_jump_out);
+  return all_frames(stack, stack->current_frame_index(), common,
+                    allows_jump_out);
 }
 
 static bool
 jump_in_allowed(ptr<call_stack> stack, integer::value_type common) {
-  return all_frames(stack, stack->current_frame_index(), common, allows_jump_in);
+  return all_frames(stack, stack->current_frame_index(), common,
+                    allows_jump_in);
 }
 
 static bool
-continuation_jump_allowed(ptr<call_stack> current_stack, ptr<call_stack> new_stack, integer::value_type common) {
-  return jump_out_allowed(current_stack, common) && jump_in_allowed(new_stack, common);
+continuation_jump_allowed(ptr<call_stack> current_stack,
+                          ptr<call_stack> new_stack,
+                          integer::value_type common) {
+  return jump_out_allowed(current_stack, common)
+         && jump_in_allowed(new_stack, common);
 }
 
 static void
-throw_if_jump_not_allowed(context& ctx, ptr<call_stack> new_stack, integer::value_type common) {
-  if (!continuation_jump_allowed(ctx.current_execution->stack, new_stack, common))
+throw_if_jump_not_allowed(context& ctx,
+                          ptr<call_stack> new_stack,
+                          integer::value_type common) {
+  if (!continuation_jump_allowed(ctx.current_execution->stack, new_stack,
+                                 common))
     throw std::runtime_error{"Continuation jump across barrier not allowed"};
 }
 
@@ -1361,10 +1437,13 @@ unwind_stack(execution_state& state, integer::value_type end) {
 }
 
 static void
-rewind_stack(execution_state& state, stack_segments const& new_segments, std::size_t common_prefix) {
+rewind_stack(execution_state& state, stack_segments const& new_segments,
+             std::size_t common_prefix) {
   for (std::size_t i = common_prefix; i < new_segments.segments.size(); ++i) {
-    state.stack->append_frames(new_segments.stack->frames(new_segments.segments[i].begin,
-                                                          new_segments.segments[i].end));
+    state.stack->append_frames(
+      new_segments.stack->frames(new_segments.segments[i].begin,
+                                 new_segments.segments[i].end)
+    );
     if (ptr<> thunk = get_before_thunk(current_frame(state.stack)))
       call_with_continuation_barrier(state.ctx, thunk, {});
   }
@@ -1373,10 +1452,13 @@ rewind_stack(execution_state& state, stack_segments const& new_segments, std::si
 
 static ptr<>
 replace_stack(context& ctx, ptr<call_stack> cont, ptr<> value) {
-  stack_segments current_segments = decompose_into_segments(ctx.current_execution->stack);
+  stack_segments current_segments
+    = decompose_into_segments(ctx.current_execution->stack);
   stack_segments new_segments = decompose_into_segments(cont);
-  std::size_t prefix = common_prefix_length(current_segments.segments, new_segments.segments);
-  integer::value_type common_frame_idx = common_frame_index(current_segments, prefix);
+  std::size_t prefix
+    = common_prefix_length(current_segments.segments, new_segments.segments);
+  integer::value_type common_frame_idx
+    = common_frame_index(current_segments, prefix);
   throw_if_jump_not_allowed(ctx, cont, common_frame_idx);
 
   unwind_stack(*ctx.current_execution, common_frame_idx);
@@ -1386,8 +1468,10 @@ replace_stack(context& ctx, ptr<call_stack> cont, ptr<> value) {
 }
 
 static ptr<>
-call_with_continuation_barrier(context& ctx, bool allow_out, bool allow_in, ptr<> callable) {
-  erect_barrier(ctx, current_frame(ctx.current_execution->stack), allow_out, allow_in);
+call_with_continuation_barrier(context& ctx, bool allow_out, bool allow_in,
+                               ptr<> callable) {
+  erect_barrier(ctx, current_frame(ctx.current_execution->stack),
+                allow_out, allow_in);
 
   // Non-tail call even though there is nothing to do after this. This is to
   // preserve this frame on the stack because it holds information about the
@@ -1413,7 +1497,8 @@ find_parameter_in_frame(frame_reference frame, ptr<parameter_tag> tag) {
 }
 
 static frame_reference
-find_stack_frame_for_parameter(frame_reference current_frame, ptr<parameter_tag> tag) {
+find_stack_frame_for_parameter(frame_reference current_frame,
+                               ptr<parameter_tag> tag) {
   frame_reference frame = current_frame;
   while (frame)
     if (find_parameter_in_frame(frame, tag))
@@ -1426,7 +1511,9 @@ find_stack_frame_for_parameter(frame_reference current_frame, ptr<parameter_tag>
 
 static void
 set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
-  if (frame_reference frame = find_stack_frame_for_parameter(current_frame(ctx.current_execution->stack), tag)) {
+  auto current_frame = insider::current_frame(ctx.current_execution->stack);
+  frame_reference frame = find_stack_frame_for_parameter(current_frame, tag);
+  if (frame) {
     assert(frame.extra());
     assert(frame.extra()->parameter_tag == tag);
 
@@ -1437,7 +1524,8 @@ set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
 
 static ptr<>
 find_parameter_value_in_stack(context& ctx, ptr<parameter_tag> tag) {
-  frame_reference current_frame = insider::current_frame(ctx.current_execution->stack);
+  frame_reference current_frame
+    = insider::current_frame(ctx.current_execution->stack);
 
   while (current_frame) {
     if (auto value = find_parameter_in_frame(current_frame, tag))
@@ -1458,7 +1546,8 @@ find_parameter_value(context& ctx, ptr<parameter_tag> tag) {
 }
 
 static void
-add_parameter_value(context& ctx, frame_reference frame, ptr<parameter_tag> tag, ptr<> value) {
+add_parameter_value(context& ctx, frame_reference frame, ptr<parameter_tag> tag,
+                    ptr<> value) {
   ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, frame);
 
   assert(!extra->parameter_tag);
@@ -1473,7 +1562,8 @@ push_dummy_frame(context& ctx) {
 }
 
 static frame_reference
-create_parameterization_frame(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
+create_parameterization_frame(context& ctx, ptr<parameter_tag> tag,
+                              ptr<> value) {
   auto frame = push_dummy_frame(ctx);
   add_parameter_value(ctx, frame, tag, value);
   return frame;
@@ -1517,8 +1607,12 @@ call_parameterized(context& ctx, ptr<parameter_tag> tag, ptr<> value, ptr<> call
 }
 
 static ptr<>
-dynamic_wind(context& ctx, tracked_ptr<> before, tracked_ptr<> thunk, tracked_ptr<> after) {
-  ptr<stack_frame_extra_data> e = create_or_get_extra_data(ctx, current_frame(ctx.current_execution->stack));
+dynamic_wind(context& ctx,
+             tracked_ptr<> const& before,
+             tracked_ptr<> const& thunk,
+             tracked_ptr<> const& after) {
+  ptr<stack_frame_extra_data> e
+    = create_or_get_extra_data(ctx, current_frame(ctx.current_execution->stack));
   e->before_thunk = before.get();
   e->after_thunk = after.get();
 
@@ -1530,7 +1624,9 @@ dynamic_wind(context& ctx, tracked_ptr<> before, tracked_ptr<> thunk, tracked_pt
         [=] (context& ctx, ptr<> result) {
           return call_continuable(
             ctx, after.get(), {},
-            [result = track(ctx, result)] (context&, ptr<>) { return result.get(); }
+            [result = track(ctx, result)] (context&, ptr<>) {
+              return result.get();
+            }
           );
         }
       );
@@ -1561,7 +1657,8 @@ with_exception_handler(context& ctx, ptr<> handler, ptr<> thunk) {
   call_continuable(ctx, thunk, {},
                    [] (context&, ptr<> result) { return result; });
 
-  ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, current_frame(ctx.current_execution->stack));
+  ptr<stack_frame_extra_data> extra
+    = create_or_get_extra_data(ctx, current_frame(ctx.current_execution->stack));
   extra->exception_handler = handler;
 
   return ctx.constants->tail_call_tag;
@@ -1575,16 +1672,23 @@ get_frame_exception_handler(frame_reference frame) {
 }
 
 static void
-setup_exception_handler_frame(context& ctx, frame_reference invocation_frame, frame_reference definition_frame) {
-  ptr<stack_frame_extra_data> invocation_extra = create_or_get_extra_data(ctx, invocation_frame);
-  invocation_extra->next_exception_handler_frame = definition_frame.parent().index();
+setup_exception_handler_frame(context& ctx,
+                              frame_reference invocation_frame,
+                              frame_reference definition_frame) {
+  ptr<stack_frame_extra_data> invocation_extra
+    = create_or_get_extra_data(ctx, invocation_frame);
+  invocation_extra->next_exception_handler_frame
+    = definition_frame.parent().index();
 }
 
 static ptr<tail_call_tag_type>
-call_continuable_exception_handler(context& ctx, frame_reference handler_frame, ptr<> exception) {
+call_continuable_exception_handler(context& ctx, frame_reference handler_frame,
+                                   ptr<> exception) {
   call_continuable(ctx, get_frame_exception_handler(handler_frame), {exception},
                    [] (context&, ptr<> result) { return result; });
-  setup_exception_handler_frame(ctx, current_frame(ctx.current_execution->stack), handler_frame);
+  setup_exception_handler_frame(
+    ctx, current_frame(ctx.current_execution->stack), handler_frame
+  );
   return ctx.constants->tail_call_tag;
 }
 
@@ -1592,15 +1696,22 @@ static ptr<tail_call_tag_type>
 raise_from(context& ctx, ptr<> e, frame_reference frame);
 
 static ptr<tail_call_tag_type>
-call_noncontinuable_exception_handler(context& ctx, frame_reference handler_frame, ptr<> exception) {
-  call_continuable(ctx, get_frame_exception_handler(handler_frame), {exception},
-                   [exception = track(ctx, exception),
-                    handler_frame_idx = handler_frame.index()] (context& ctx, ptr<>) {
-                     return raise_from(ctx,
-                                       make<uncaught_exception>(ctx, exception.get()),
-                                       frame_reference{ctx.current_execution->stack, handler_frame_idx}.parent());
-                   });
-  setup_exception_handler_frame(ctx, current_frame(ctx.current_execution->stack), handler_frame);
+call_noncontinuable_exception_handler(context& ctx,
+                                      frame_reference handler_frame,
+                                      ptr<> exception) {
+  call_continuable(
+    ctx, get_frame_exception_handler(handler_frame), {exception},
+    [exception = track(ctx, exception),
+     handler_frame_idx = handler_frame.index()] (context& ctx, ptr<>) {
+      return raise_from(ctx,
+                        make<uncaught_exception>(ctx, exception.get()),
+                        frame_reference{ctx.current_execution->stack,
+                                        handler_frame_idx}.parent());
+    }
+  );
+  setup_exception_handler_frame(ctx,
+                                current_frame(ctx.current_execution->stack),
+                                handler_frame);
   return ctx.constants->tail_call_tag;
 }
 
@@ -1614,7 +1725,8 @@ builtin_exception_handler(context& ctx, ptr<> e) {
 
 static ptr<tail_call_tag_type>
 raise_from(context& ctx, ptr<> e, frame_reference frame) {
-  if (frame_reference handler_frame = find_exception_handler_frame(ctx.current_execution->stack, frame))
+  if (frame_reference handler_frame
+      = find_exception_handler_frame(ctx.current_execution->stack, frame))
     return call_noncontinuable_exception_handler(ctx, handler_frame, e);
   else
     builtin_exception_handler(ctx, e);
@@ -1627,8 +1739,11 @@ raise(context& ctx, ptr<> e) {
 
 static ptr<tail_call_tag_type>
 raise_continuable(context& ctx, ptr<> e) {
-  if (frame_reference handler_frame = find_exception_handler_frame(ctx.current_execution->stack,
-                                                                   current_frame(ctx.current_execution->stack)))
+  frame_reference handler_frame = find_exception_handler_frame(
+    ctx.current_execution->stack,
+    current_frame(ctx.current_execution->stack)
+  );
+  if (handler_frame)
     return call_continuable_exception_handler(ctx, handler_frame, e);
   else
     builtin_exception_handler(ctx, e);
@@ -1646,7 +1761,8 @@ apply(context& ctx, object_span args) {
     args_vector.push_back(args[i]);
 
   std::vector<ptr<>> tail_args_vector = list_to_std_vector(args.back());
-  args_vector.insert(args_vector.end(), tail_args_vector.begin(), tail_args_vector.end());
+  args_vector.insert(args_vector.end(), tail_args_vector.begin(),
+                     tail_args_vector.end());
 
   return tail_call(ctx, f, args_vector);
 }
@@ -1685,13 +1801,21 @@ void
 export_vm(context& ctx, module_& result) {
   define_procedure<capture_stack>(ctx, "capture-stack", result, true);
   define_procedure<replace_stack>(ctx, "replace-stack!", result, true);
-  define_procedure<create_parameter_tag>(ctx, "create-parameter-tag", result, true);
-  define_procedure<find_parameter_value>(ctx, "find-parameter-value", result, true);
-  define_procedure<set_parameter_value>(ctx, "set-parameter-value!", result, true);
-  define_procedure<static_cast<ptr<> (*)(context&, bool, bool, ptr<>)>(call_with_continuation_barrier)>(ctx, "call-with-continuation-barrier", result, true);
+  define_procedure<create_parameter_tag>(ctx, "create-parameter-tag", result,
+                                         true);
+  define_procedure<find_parameter_value>(ctx, "find-parameter-value", result,
+                                         true);
+  define_procedure<set_parameter_value>(ctx, "set-parameter-value!", result,
+                                        true);
+  define_procedure<
+    static_cast<ptr<> (*)(context&, bool, bool, ptr<>)>(
+      call_with_continuation_barrier
+    )
+  >(ctx, "call-with-continuation-barrier", result, true);
   define_procedure<call_parameterized>(ctx, "call-parameterized", result, true);
   define_procedure<dynamic_wind>(ctx, "dynamic-wind", result, true);
-  define_procedure<with_exception_handler>(ctx, "with-exception-handler", result, true);
+  define_procedure<with_exception_handler>(ctx, "with-exception-handler",
+                                           result, true);
   define_procedure<raise_continuable>(ctx, "raise-continuable", result, true);
   define_procedure<raise>(ctx, "raise", result, true);
   define_raw_procedure<apply>(ctx, "apply", result, true);

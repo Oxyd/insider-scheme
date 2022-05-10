@@ -49,7 +49,8 @@ write_char(char32_t c, ptr<textual_output_port> out) {
 }
 
 static void
-write_number(context& ctx, ptr<> value, ptr<textual_output_port> out, unsigned base = 10);
+write_number(context& ctx, ptr<> value, ptr<textual_output_port> out,
+             unsigned base = 10);
 
 static char
 digit_to_letter(unsigned d) {
@@ -92,7 +93,8 @@ write_small(integer value, ptr<textual_output_port> out, unsigned base) {
 }
 
 static void
-write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out, unsigned base) {
+write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out,
+          unsigned base) {
   if (value->zero()) {
     out->write('0');
     return;
@@ -107,7 +109,9 @@ write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out, un
   std::string buffer;
   while (is<big_integer>(v)) {
     auto [quot, rem] = quotient_remainder(ctx, v, integer_to_ptr(base));
-    buffer.push_back(digit_to_letter(static_cast<unsigned>(assume<integer>(rem).value())));
+    buffer.push_back(
+      digit_to_letter(static_cast<unsigned>(assume<integer>(rem).value()))
+    );
     v = quot;
   }
 
@@ -118,7 +122,8 @@ write_big(context& ctx, ptr<big_integer> value, ptr<textual_output_port> out, un
 }
 
 static void
-write_fraction(context& ctx, ptr<fraction> value, ptr<textual_output_port> out, unsigned base) {
+write_fraction(context& ctx, ptr<fraction> value, ptr<textual_output_port> out,
+               unsigned base) {
   write_number(ctx, value->numerator(), out, base);
   out->write('/');
   write_number(ctx, value->denominator(), out, base);
@@ -170,7 +175,7 @@ lost_precision(floating_point::value_type value, std::string const& str) {
   floating_point::value_type read_back;
   is >> read_back;
 
-  return value != read_back;
+  return !is || value != read_back;
 }
 
 static void
@@ -199,11 +204,13 @@ write_float(ptr<floating_point> value, ptr<textual_output_port> out) {
 template <int I>
 static bool
 is_exact_equal(ptr<> x) {
-  return is_exact_integer(x) && is<integer>(x) && assume<integer>(x).value() == I;
+  return is_exact_integer(x) && is<integer>(x)
+         && assume<integer>(x).value() == I;
 }
 
 static void
-write_complex(context& ctx, ptr<complex> z, ptr<textual_output_port> out, unsigned base) {
+write_complex(context& ctx, ptr<complex> z, ptr<textual_output_port> out,
+              unsigned base) {
   if (!is_exact_equal<0>(z->real()))
     write_number(ctx, z->real(), out, base);
 
@@ -212,7 +219,8 @@ write_complex(context& ctx, ptr<complex> z, ptr<textual_output_port> out, unsign
   else if (is_exact_equal<-1>(z->imaginary()))
     out->write("-i");
   else {
-    if (!is_negative(z->imaginary()) && !is_exact_equal<0>(z->real()) && is_finite(z->imaginary()))
+    if (!is_negative(z->imaginary()) && !is_exact_equal<0>(z->real())
+        && is_finite(z->imaginary()))
       out->write('+');
 
     write_number(ctx, z->imaginary(), out, base);
@@ -221,7 +229,8 @@ write_complex(context& ctx, ptr<complex> z, ptr<textual_output_port> out, unsign
 }
 
 static void
-write_number(context& ctx, ptr<> value, ptr<textual_output_port> out, unsigned base) {
+write_number(context& ctx, ptr<> value, ptr<textual_output_port> out,
+             unsigned base) {
   if (auto s = match<integer>(value))
     write_small(*s, out, base);
   else if (auto b = match<big_integer>(value))
@@ -284,7 +293,8 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   } else if (auto core = match<core_form_type>(datum)) {
     out->write(fmt::format("<core form {}>", core->name));
   } else if (auto e = match<error>(datum)) {
-    out->write(fmt::format("<error: {} {}>", e->message(ctx)->value(), datum_to_string(ctx, e->irritants(ctx))));
+    out->write(fmt::format("<error: {} {}>", e->message(ctx)->value(),
+                           datum_to_string(ctx, e->irritants(ctx))));
   } else if (auto fe = match<file_error>(datum)) {
     out->write(fmt::format("<file error: {}>", fe->message()));
   } else if (auto v = match<values_tuple>(datum)) {
@@ -322,7 +332,7 @@ namespace {
   class output_datum_labels {
   public:
     bool
-    is_shared(ptr<> x) const { return labels_.count(x); }
+    is_shared(ptr<> x) const { return labels_.count(x) != 0u; }
 
     void
     mark_shared(ptr<> x) { labels_.emplace(x, std::optional<std::size_t>{}); }
@@ -351,7 +361,7 @@ namespace {
 
   struct find_shared_result {
     output_datum_labels labels;
-    bool                has_cycle;
+    bool                has_cycle{};
   };
 }
 
@@ -424,7 +434,8 @@ find_shared(ptr<> datum) {
 
 template <auto OutputAtomic>
 static void
-output(context& ctx, ptr<> datum, ptr<textual_output_port> out, output_datum_labels labels) {
+output(context& ctx, ptr<> datum, ptr<textual_output_port> out,
+       output_datum_labels labels) {
   struct record {
     ptr<>       datum;
     std::size_t written = 0;
@@ -538,7 +549,8 @@ throw_if_base_not_allowed(unsigned base) {
 }
 
 static void
-inexact_number_to_nondecimal_string(context& ctx, ptr<> z, unsigned base, ptr<textual_output_port> out) {
+inexact_number_to_nondecimal_string(context& ctx, ptr<> z, unsigned base,
+                                    ptr<textual_output_port> out) {
   if (is_finite(z)) {
     out->write("#i");
     write_number(ctx, exact(ctx, z), out, base);
@@ -569,7 +581,9 @@ newline(ptr<textual_output_port> out) {
 
 static ptr<textual_output_port>
 get_default_port(context& ctx) {
-  return expect<textual_output_port>(find_parameter_value(ctx, ctx.constants->current_output_port_tag));
+  return expect<textual_output_port>(
+    find_parameter_value(ctx, ctx.constants->current_output_port_tag)
+  );
 }
 
 static void
@@ -579,25 +593,37 @@ write_char_proc(char32_t c, ptr<textual_output_port> out) {
 
 void
 export_write(context& ctx, module_& result) {
-  define_top_level(ctx, "current-output-port-tag", result, true, ctx.constants->current_output_port_tag);
-  define_top_level(ctx, "current-error-port-tag", result, true, ctx.constants->current_error_port_tag);
+  define_top_level(ctx, "current-output-port-tag", result, true,
+                   ctx.constants->current_output_port_tag);
+  define_top_level(ctx, "current-error-port-tag", result, true,
+                   ctx.constants->current_error_port_tag);
   define_procedure<write>(ctx, "write", result, true, get_default_port);
-  define_procedure<write_simple>(ctx, "write-simple", result, true, get_default_port);
-  define_procedure<write_shared>(ctx, "write-shared", result, true, get_default_port);
+  define_procedure<write_simple>(ctx, "write-simple", result, true,
+                                 get_default_port);
+  define_procedure<write_shared>(ctx, "write-shared", result, true,
+                                 get_default_port);
   define_procedure<display>(ctx, "display", result, true, get_default_port);
   define_procedure<newline>(ctx, "newline", result, true, get_default_port);
-  define_procedure<write_char_proc>(ctx, "write-char", result, true, get_default_port);
-  define_procedure<number_to_string>(ctx, "number->string", result, true, [] (context&) { return 10u; });
+  define_procedure<write_char_proc>(ctx, "write-char", result, true,
+                                    get_default_port);
+  define_procedure<number_to_string>(ctx, "number->string", result, true,
+                                     [] (context&) { return 10u; });
   define_procedure<datum_to_string>(ctx, "datum->string", result, true);
 }
 
 void
 init_write(context& ctx) {
-  auto default_output_port = make<textual_output_port>(ctx, std::make_unique<file_port_sink>(stdout, false));
-  ctx.constants->current_output_port_tag = create_parameter_tag(ctx, default_output_port);
+  auto default_output_port = make<textual_output_port>(
+    ctx, std::make_unique<file_port_sink>(stdout, false)
+  );
+  ctx.constants->current_output_port_tag
+    = create_parameter_tag(ctx, default_output_port);
 
-  auto default_error_port = make<textual_output_port>(ctx, std::make_unique<file_port_sink>(stderr, false));
-  ctx.constants->current_error_port_tag = create_parameter_tag(ctx, default_error_port);
+  auto default_error_port = make<textual_output_port>(
+    ctx, std::make_unique<file_port_sink>(stderr, false)
+  );
+  ctx.constants->current_error_port_tag
+    = create_parameter_tag(ctx, default_error_port);
 }
 
 } // namespace insider

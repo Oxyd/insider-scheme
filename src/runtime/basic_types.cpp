@@ -2,6 +2,7 @@
 
 #include "util/define_procedure.hpp"
 #include "util/list_iterator.hpp"
+#include <bits/ranges_algo.h>
 
 namespace insider {
 
@@ -99,10 +100,8 @@ append(context& ctx, object_span xs) {
 
 bool
 memq(ptr<> element, ptr<> list) {
-  for (ptr<> f : in_list{list})
-    if (f == element)
-      return true;
-  return false;
+  return std::ranges::any_of(in_list{list},
+                             [&] (ptr<> f) { return f == element; });
 }
 
 vector::vector(std::size_t size, ptr<> fill)
@@ -112,7 +111,7 @@ vector::vector(std::size_t size, ptr<> fill)
     storage_element(i) = fill;
 }
 
-vector::vector(vector&& other)
+vector::vector(vector&& other) noexcept
   : dynamic_size_object{other.size_}
 {
   for (std::size_t i = 0; i < size_; ++i)
@@ -128,7 +127,9 @@ vector::visit_members(member_visitor const& f) {
 ptr<>
 vector::ref(std::size_t i) const {
   if (i >= size_)
-    throw std::runtime_error{fmt::format("Vector access out of bounds: index = {}, size = {}", i, size_)};
+    throw std::runtime_error{fmt::format(
+      "Vector access out of bounds: index = {}, size = {}", i, size_
+    )};
 
   return storage_element(i);
 }
@@ -136,7 +137,9 @@ vector::ref(std::size_t i) const {
 void
 vector::set(free_store& store, std::size_t i, ptr<> value) {
   if (i >= size_)
-    throw std::runtime_error{fmt::format("Vector access out of bounds: index = {}, size = {}", i, size_)};
+    throw std::runtime_error{fmt::format(
+      "Vector access out of bounds: index = {}, size = {}", i, size_
+    )};
 
   storage_element(i) = value;
   store.notify_arc(this, value);
@@ -170,7 +173,9 @@ vector_to_list(context& ctx, object_span args) {
   require_arg_count(args, 1, 3);
   ptr<vector> v = require_arg<vector>(args, 0);
   integer::value_type start = optional_arg<integer>(args, 1, 0).value();
-  integer::value_type end = optional_arg<integer>(args, 2, v->size()).value();
+  integer::value_type end = optional_arg<integer>(
+    args, 2, static_cast<integer::value_type>(v->size())
+  ).value();
 
   if (start > end)
     throw std::runtime_error{"Start can't be larger than end"};
@@ -209,7 +214,7 @@ bytevector::bytevector(std::size_t size)
   : dynamic_size_object{size}
 { }
 
-bytevector::bytevector(bytevector&& other)
+bytevector::bytevector(bytevector&& other) noexcept
   : dynamic_size_object{other.size()}
 {
   for (std::size_t i = 0; i < size(); ++i)
@@ -245,8 +250,9 @@ box::box(ptr<> value)
   : value_{value}
 { }
 
-procedure::procedure(integer::value_type entry_pc, std::size_t bytecode_size, unsigned locals_size,
-                     unsigned min_args, bool has_rest, std::optional<std::string> name)
+procedure::procedure(integer::value_type entry_pc, std::size_t bytecode_size,
+                     unsigned locals_size, unsigned min_args, bool has_rest,
+                     std::optional<std::string> name)
   : entry_pc{entry_pc}
   , bytecode_size{bytecode_size}
   , locals_size{locals_size}
@@ -257,10 +263,12 @@ procedure::procedure(integer::value_type entry_pc, std::size_t bytecode_size, un
 
 ptr<procedure>
 make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
-               unsigned min_args, bool has_rest, std::optional<std::string> name) {
+               unsigned min_args, bool has_rest,
+               std::optional<std::string> name) {
   std::size_t entry = ctx.program.size();
   ctx.program.insert(ctx.program.end(), bc.begin(), bc.end());
-  return make<procedure>(ctx, entry, bc.size(), locals_size, min_args, has_rest, std::move(name));
+  return make<procedure>(ctx, entry, bc.size(), locals_size, min_args, has_rest,
+                         std::move(name));
 }
 
 closure::closure(ptr<insider::procedure> p, std::size_t num_captures)
@@ -268,7 +276,7 @@ closure::closure(ptr<insider::procedure> p, std::size_t num_captures)
   , procedure_{p}
 { }
 
-closure::closure(closure&& other)
+closure::closure(closure&& other) noexcept
   : dynamic_size_object{other.size_}
   , procedure_{other.procedure_}
 {
@@ -329,7 +337,7 @@ values_tuple::values_tuple(object_span values)
     storage_element(i) = values[i];
 }
 
-values_tuple::values_tuple(values_tuple&& other)
+values_tuple::values_tuple(values_tuple&& other) noexcept
   : dynamic_size_object{other.size_}
 {
   for (std::size_t i = 0; i < size_; ++i)
@@ -402,19 +410,26 @@ export_basic_types(context& ctx, module_& result) {
     ctx, "make-vector", result, true,
     [] (context& ctx) { return ctx.constants->void_; }
   );
-  operand vector_ref_index = define_procedure<&vector::ref>(ctx, "vector-ref", result, true);
+  operand vector_ref_index = define_procedure<&vector::ref>(ctx, "vector-ref",
+                                                            result, true);
   ctx.tag_top_level(vector_ref_index, special_top_level_tag::vector_ref);
 
-  operand vector_set_index = define_procedure<vector_set>(ctx, "vector-set!", result, true);
+  operand vector_set_index = define_procedure<vector_set>(ctx, "vector-set!",
+                                                          result, true);
   ctx.tag_top_level(vector_set_index, special_top_level_tag::vector_set);
 
   define_procedure<make_error_proc>(ctx, "make-error", result, true);
   define_procedure<&error::message>(ctx, "error-message", result, true);
   define_procedure<&error::irritants>(ctx, "error-irritants", result, true);
-  define_procedure<uncaught_exception_inner_exception>(ctx, "uncaught-exception-inner-exception", result, true);
+  define_procedure<uncaught_exception_inner_exception>(
+    ctx, "uncaught-exception-inner-exception", result, true
+  );
   define_procedure<&file_error::message>(ctx, "file-error-message", result, true);
 
-  define_procedure<make_bytevector>(ctx, "make-bytevector", result, true, [] (context&) -> bytevector::element_type { return 0; });
+  define_procedure<make_bytevector>(ctx, "make-bytevector", result, true,
+                                    [] (context&) -> bytevector::element_type {
+                                      return 0;
+                                    });
   define_raw_procedure<make_bytevector_elems>(ctx, "bytevector", result, true);
   define_procedure<&bytevector::size>(ctx, "bytevector-length", result, true);
   define_procedure<&bytevector::ref>(ctx, "bytevector-u8-ref", result, true);

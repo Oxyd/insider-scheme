@@ -95,7 +95,8 @@ using imports_list = std::vector<import_specifier>;
 
 // Metainformation about a module -- its name, list of imports and exports, plus
 // its body as a list of unparsed data.
-struct module_specifier : root_provider {
+class module_specifier : root_provider {
+public:
   std::optional<module_name> name;
   imports_list               imports;
   std::vector<std::string>   exports;

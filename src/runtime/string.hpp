@@ -23,7 +23,7 @@ public:
   set(std::size_t i, char32_t c);
 
   void
-  set_byte_index(std::size_t bi, char32_t c);
+  set_byte_index(std::size_t byte_index, char32_t c);
 
   char32_t
   ref(std::size_t) const;
@@ -66,10 +66,11 @@ ptr<string>
 utf8_to_string(context&, ptr<bytevector>, std::size_t start, std::size_t end);
 
 ptr<bytevector>
-string_to_utf8_byte_indexes(context&, ptr<string>, std::size_t start, std::size_t end);
+string_to_utf8_byte_indexes(context&, ptr<string>, std::size_t start,
+                            std::size_t end);
 
 ptr<string>
-string_reverse(context&, ptr<string>, std::size_t start, std::size_t end);
+string_reverse(context&, ptr<string>, std::size_t begin, std::size_t end);
 
 } // namespace insider
 

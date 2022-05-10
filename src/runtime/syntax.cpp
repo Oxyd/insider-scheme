@@ -45,7 +45,8 @@ syntax::syntax(ptr<> expr, scope_set envs)
   , scopes_{std::move(envs)}
 { }
 
-syntax::syntax(ptr<> expr, source_location loc, scope_set scopes, std::vector<update_record> update_records)
+syntax::syntax(ptr<> expr, source_location loc, scope_set scopes,
+               std::vector<update_record> update_records)
   : expression_{expr}
   , location_{std::move(loc)}
   , scopes_{std::move(scopes)}
@@ -69,10 +70,12 @@ syntax::update_and_get_expression(context& ctx) {
 }
 
 ptr<syntax>
-syntax::update_scope(free_store& fs, ptr<scope> s, scope_set_operation op) const {
+syntax::update_scope(free_store& fs, ptr<scope> s,
+                     scope_set_operation op) const {
   scope_set new_scopes = scopes_;
   update_scope_set(new_scopes, op, s);
-  auto result = fs.make<syntax>(expression_, location_, std::move(new_scopes), update_records_);
+  auto result = fs.make<syntax>(expression_, location_, std::move(new_scopes),
+                                update_records_);
   result->update_records_.emplace_back(op, s);
   return result;
 }
@@ -92,10 +95,16 @@ syntax::flip_scope(free_store& fs, ptr<scope> s) const {
   return update_scope(fs, s, scope_set_operation::flip);
 }
 
+using update_record_list = std::vector<syntax::update_record>;
+
 static ptr<syntax>
-apply_update_records_to_syntax(context& ctx, ptr<syntax> stx, std::vector<syntax::update_record> const& records) {
-  std::vector<syntax::update_record> effective_update_records = stx->update_records();
-  effective_update_records.insert(effective_update_records.end(), records.begin(), records.end());
+apply_update_records_to_syntax(
+  context& ctx, ptr<syntax> stx, update_record_list const& records
+) {
+  std::vector<syntax::update_record> effective_update_records
+    = stx->update_records();
+  effective_update_records.insert(effective_update_records.end(),
+                                  records.begin(), records.end());
 
   scope_set set = stx->scopes();
   for (syntax::update_record const& ur : records)
@@ -106,7 +115,8 @@ apply_update_records_to_syntax(context& ctx, ptr<syntax> stx, std::vector<syntax
 }
 
 static ptr<>
-apply_update_records_if_syntax(context& ctx, ptr<> x, std::vector<syntax::update_record> const& records) {
+apply_update_records_if_syntax(context& ctx, ptr<> x,
+                               update_record_list const& records) {
   if (auto stx = match<syntax>(x))
     return apply_update_records_to_syntax(ctx, stx, records);
   else
@@ -114,15 +124,20 @@ apply_update_records_if_syntax(context& ctx, ptr<> x, std::vector<syntax::update
 }
 
 static ptr<>
-apply_update_records_to_list(context& ctx, ptr<pair> head, std::vector<syntax::update_record> const& records) {
-  return map(ctx, head, [&] (ptr<> x) { return apply_update_records_if_syntax(ctx, x, records); });
+apply_update_records_to_list(context& ctx, ptr<pair> head,
+                             update_record_list const& records) {
+  return map(ctx, head, [&] (ptr<> x) {
+    return apply_update_records_if_syntax(ctx, x, records);
+  });
 }
 
 static ptr<vector>
-apply_update_records_to_vector(context& ctx, ptr<vector> v, std::vector<syntax::update_record> const& records) {
+apply_update_records_to_vector(context& ctx, ptr<vector> v,
+                               update_record_list const& records) {
   auto result = make<vector>(ctx, v->size(), ctx.constants->void_);
   for (std::size_t i = 0; i < v->size(); ++i)
-    result->set(ctx.store, i, apply_update_records_if_syntax(ctx, v->ref(i), records));
+    result->set(ctx.store, i,
+                apply_update_records_if_syntax(ctx, v->ref(i), records));
   return result;
 }
 
@@ -200,14 +215,16 @@ semisyntax_match_without_update(ptr<> x) {
 }
 
 static void
-unwrap_syntaxes(context& ctx, ptr<syntax> stx, std::unordered_map<ptr<>, ptr<>> const& aggregates) {
+unwrap_syntaxes(context& ctx, ptr<syntax> stx,
+                std::unordered_map<ptr<>, ptr<>> const& aggregates) {
   std::vector<ptr<>> stack{stx};
 
   auto unwrap_aggregate = [&] <typename T> (ptr<T> aggregate) {
     ptr<T> result = assume<T>(aggregates.at(aggregate));
     for (std::size_t i = 0; i < aggregate->size(); ++i)
       if (result->ref(i) == ctx.constants->null) {
-        result->set(ctx.store, i, unwrapped_value(aggregate->ref(i), aggregates));
+        result->set(ctx.store, i,
+                    unwrapped_value(aggregate->ref(i), aggregates));
         stack.push_back(unwrap(aggregate->ref(i)));
       }
   };
@@ -257,10 +274,13 @@ syntax_to_list(context& ctx, ptr<> stx) {
   if (semisyntax_is<null_type>(stx))
     return ctx.constants->null;
 
-  if (!is<pair>(stx) && (!is<syntax>(stx) || !syntax_is<pair>(assume<syntax>(stx))))
+  if (!is<pair>(stx)
+      && (!is<syntax>(stx) || !syntax_is<pair>(assume<syntax>(stx))))
     return nullptr;
 
-  ptr<pair> result = make<pair>(ctx, car(semisyntax_assume<pair>(ctx, stx)), ctx.constants->null);
+  ptr<pair> result = make<pair>(ctx,
+                                car(semisyntax_assume<pair>(ctx, stx)),
+                                ctx.constants->null);
   ptr<pair> tail = result;
   ptr<> datum = cdr(semisyntax_assume<pair>(ctx, stx));
 
@@ -336,7 +356,8 @@ free_identifier_eq(ptr<syntax> x, ptr<syntax> y) {
 
 void
 export_syntax(context& ctx, module_& result) {
-  define_procedure<&syntax::update_and_get_expression>(ctx, "syntax-expression", result, true);
+  define_procedure<&syntax::update_and_get_expression>(ctx, "syntax-expression",
+                                                       result, true);
   define_procedure<syntax_scopes>(ctx, "syntax-scopes", result, true);
   define_procedure<syntax_add_scope>(ctx, "syntax-add-scope", result, true);
   define_procedure<syntax_to_datum>(ctx, "syntax->datum", result, true);
