@@ -5,7 +5,7 @@
 #include "ptr.hpp"
 #include "root_provider.hpp"
 
-#include <type_traits>
+#include <concepts>
 
 namespace insider {
 
@@ -51,8 +51,8 @@ namespace detail {
     tracked_ptr_base&
     operator = (tracked_ptr_base&&)  noexcept = default;
 
-    template <typename U,
-              typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
+    template <typename U>
+    requires std::convertible_to<U*, T*>
     tracked_ptr_base&
     operator = (ptr<U> value) { value_ = value; return *this; }
 
@@ -80,8 +80,8 @@ class tracked_ptr : public detail::tracked_ptr_base<T> {
 public:
   using detail::tracked_ptr_base<T>::tracked_ptr_base;
 
-  template <typename U,
-            typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
+  template <typename U>
+  requires std::convertible_to<U*, T*>
   tracked_ptr(tracked_ptr<U> const& other)
     : detail::tracked_ptr_base<T>{other.list(), other.get()}
   { }

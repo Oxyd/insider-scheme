@@ -6,11 +6,12 @@
 #include "runtime/basic_types.hpp"
 #include "runtime/string.hpp"
 
+#include <concepts>
 #include <filesystem>
 
 namespace insider {
 
-template <typename T, typename Enable = void>
+template <typename>
 struct from_scheme_converter;
 
 template <typename T>
@@ -86,8 +87,8 @@ struct from_scheme_converter<char> {
   }
 };
 
-template <typename T>
-struct from_scheme_converter<T, std::enable_if_t<std::is_integral_v<T>>> {
+template <std::integral T>
+struct from_scheme_converter<T> {
   static T
   convert(context&, ptr<> o) {
     integer::value_type value = expect<integer>(o).value();

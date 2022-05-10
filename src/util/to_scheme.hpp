@@ -8,11 +8,12 @@
 #include "runtime/numeric.hpp"
 #include "runtime/string.hpp"
 
+#include <concepts>
 #include <optional>
 
 namespace insider {
 
-template <typename T, typename Enable = void>
+template <typename>
 struct to_scheme_converter;
 
 template <typename T>
@@ -60,10 +61,16 @@ struct to_scheme_converter<char32_t> {
   convert(context&, char32_t c) { return character_to_ptr(c); }
 };
 
-template <typename T>
-struct to_scheme_converter<
-  T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>
-> {
+template <>
+struct to_scheme_converter<bool> {
+  static ptr<>
+  convert(context& ctx, bool b) {
+    return b ? ctx.constants->t : ctx.constants->f;
+  }
+};
+
+template <std::integral T>
+struct to_scheme_converter<T> {
   static ptr<>
   convert(context& ctx, T t) { return integer_to_scheme(ctx, t); }
 };
@@ -73,14 +80,6 @@ struct to_scheme_converter<double> {
   static ptr<>
   convert(context& ctx, double value) {
     return make<floating_point>(ctx, value);
-  }
-};
-
-template <>
-struct to_scheme_converter<bool> {
-  static ptr<>
-  convert(context& ctx, bool b) {
-    return b ? ctx.constants->t : ctx.constants->f;
   }
 };
 
