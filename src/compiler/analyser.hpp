@@ -27,7 +27,8 @@ class textual_input_port;
 // modified by updating the scope sets of it and all the syntaxes it recursively
 // contains.
 std::unique_ptr<expression>
-analyse(context&, ptr<syntax> stx, module_&, source_file_origin const&);
+analyse(context&, ptr<syntax> stx, tracked_ptr<module_> const&,
+        source_file_origin const&);
 
 module_name
 parse_module_name(context&, ptr<syntax>);
@@ -43,7 +44,7 @@ read_library_name(context&, ptr<textual_input_port>);
 
 // Analyse a module's body in the given module.
 sequence_expression
-analyse_module(context&, module_&, module_specifier const&,
+analyse_module(context&, tracked_ptr<module_>, module_specifier const&,
                bool main_module = false);
 
 void

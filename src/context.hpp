@@ -171,8 +171,11 @@ public:
   insider::module_resolver&
   module_resolver() { return module_resolver_; }
 
-  module_&
+  ptr<module_>
   internal_module() { return module_resolver_.internal_module(); }
+
+  tracked_ptr<module_>
+  internal_module_tracked();
 
   ptr<>
   features() const { return features_; }

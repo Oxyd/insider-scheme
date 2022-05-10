@@ -1580,7 +1580,7 @@ read_syntax_multiple_ci_proc(context& ctx, ptr<textual_input_port> p) {
 }
 
 void
-export_read(context& ctx, module_& result) {
+export_read(context& ctx, ptr<module_> result) {
   define_top_level(ctx, "current-input-port-tag", result, true,
                    ctx.constants->current_input_port_tag);
   define_procedure<

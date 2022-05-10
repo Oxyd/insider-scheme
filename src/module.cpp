@@ -14,8 +14,7 @@
 namespace insider {
 
 module_::module_(context& ctx, std::optional<module_name> const& name)
-  : root_provider{ctx.store}
-  , env_{make<insider::scope>(ctx, ctx,
+  : env_{make<insider::scope>(ctx, ctx,
                               fmt::format("{} module top-level",
                                           name
                                             ? module_name_to_string(*name)
@@ -68,15 +67,26 @@ module_::export_(ptr<symbol> name) {
 }
 
 void
-module_::visit_roots(member_visitor const& f) {
+module_::visit_members(member_visitor const& f) {
   f(env_);
   f(proc_);
 }
 
 namespace {
   struct import_set {
-    module_* source{};
+    tracked_ptr<module_> source;
     std::vector<std::tuple<std::string, std::string>> names;
+
+    explicit
+    import_set(context& ctx)
+      : source{ctx.store}
+    { }
+
+    import_set(tracked_ptr<module_> source,
+               std::vector<std::tuple<std::string, std::string>> names)
+      : source{std::move(source)}
+      , names{std::move(names)}
+    { }
   };
 }
 
@@ -97,7 +107,7 @@ parse_import_set(context& ctx, import_specifier const& spec);
 
 static import_set
 parse_module_name_import_set(context& ctx, module_name const* mn) {
-  import_set result;
+  import_set result{ctx};
   result.source = ctx.module_resolver().find_module(ctx, *mn);
 
   for (std::string const& name : result.source->exports())
@@ -176,17 +186,18 @@ parse_import_set(context& ctx, import_specifier const& spec) {
     return parse_rename_import_specifier(ctx, r);
   else {
     assert(!"Can't happen");
-    return {};
+    return import_set{ctx};
   }
 }
 
 static void
-perform_imports(context& ctx, module_& m, import_set const& set) {
+perform_imports(context& ctx, tracked_ptr<module_> const& m,
+                import_set const& set) {
   for (auto const& [to_name, from_name] : set.names) {
     if (auto b = set.source->find(ctx.intern(from_name)))
-      m.scope()->add(
+      m->scope()->add(
         ctx.store,
-        make<syntax>(ctx, ctx.intern(to_name), scope_set{m.scope()}),
+        make<syntax>(ctx, ctx.intern(to_name), scope_set{m->scope()}),
         *b
       );
     else
@@ -194,15 +205,15 @@ perform_imports(context& ctx, module_& m, import_set const& set) {
   }
 
   if (!set.source->active())
-    execute(ctx, *set.source);
+    execute(ctx, set.source);
 }
 
 static void
-check_all_defined(context& ctx, module_& m,
+check_all_defined(context& ctx, ptr<module_> m,
                   std::vector<std::string> const& names) {
   std::vector<std::string> undefined;
   for (std::string const& name : names)
-    if (!m.find(ctx.intern(name)))
+    if (!m->find(ctx.intern(name)))
       undefined.push_back(name);
 
   if (!undefined.empty()) {
@@ -219,14 +230,14 @@ check_all_defined(context& ctx, module_& m,
   }
 }
 
-std::unique_ptr<module_>
+tracked_ptr<module_>
 instantiate(context& ctx, module_specifier const& pm) {
-  auto result = std::make_unique<module_>(ctx, pm.name);
+  auto result = make_tracked<module_>(ctx, ctx, pm.name);
 
-  perform_imports(ctx, *result, pm.imports);
-  compile_module_body(ctx, *result, pm);
+  perform_imports(ctx, result, pm.imports);
+  compile_module_body(ctx, result, pm);
 
-  check_all_defined(ctx, *result, pm.exports);
+  check_all_defined(ctx, result.get(), pm.exports);
   for (std::string const& name : pm.exports)
     result->export_(ctx.intern(name));
 
@@ -234,56 +245,63 @@ instantiate(context& ctx, module_specifier const& pm) {
 }
 
 void
-import_all_exported(context& ctx, module_& to, module_& from) {
-  import_set is{&from, {}};
+import_all_exported(context& ctx,
+                    tracked_ptr<module_> const& to,
+                    tracked_ptr<module_> const& from) {
+  import_set is{from, {}};
 
-  for (std::string const& name : from.exports())
+  for (std::string const& name : from->exports())
     is.names.emplace_back(name, name);
 
   perform_imports(ctx, to, is);
 }
 
 void
-import_all_top_level(context& ctx, module_& to, module_& from) {
-  import_set is{&from, {}};
+import_all_top_level(context& ctx,
+                     tracked_ptr<module_> const& to,
+                     tracked_ptr<module_> const& from) {
+  import_set is{from, {}};
 
-  for (std::string const& name : from.top_level_names())
+  for (std::string const& name : from->top_level_names())
     is.names.emplace_back(name, name);
 
   perform_imports(ctx, to, is);
 }
 
 void
-perform_imports(context& ctx, module_& to, imports_list const& imports) {
-  for (import_specifier const& spec : imports)
-    perform_imports(ctx, to, parse_import_set(ctx, spec));
+perform_imports(context& ctx, tracked_ptr<module_> const& to,
+                imports_list const& imports) {
+  for (import_specifier const& spec : imports) {
+    import_set const& set = parse_import_set(ctx, spec); // GC
+    perform_imports(ctx, to, set);
+  }
 }
 
 operand
-define_top_level(context& ctx, std::string const& name, module_& m, bool export_,
-                 ptr<> object) {
+define_top_level(context& ctx, std::string const& name, ptr<module_> m,
+                 bool export_, ptr<> object) {
   auto index = ctx.add_top_level(object, name);
   auto name_sym = ctx.intern(name);
   auto var = std::make_shared<variable>(name, index);
-  m.scope()->add(ctx.store,
-                 make<syntax>(ctx, name_sym, scope_set{m.scope()}),
-                 var);
+  m->scope()->add(ctx.store,
+                  make<syntax>(ctx, name_sym, scope_set{m->scope()}),
+                  var);
 
   if (export_)
-    m.export_(name_sym);
+    m->export_(name_sym);
 
   return index;
 }
 
 static tracked_ptr<>
-run_module(context& ctx, module_& m) {
-  return call_with_continuation_barrier(ctx, m.top_level_procedure(), {});
+run_module(context& ctx, ptr<module_> m) {
+  return call_with_continuation_barrier(ctx, m->top_level_procedure(), {});
 }
 
 tracked_ptr<>
-execute(context& ctx, module_& mod) {
-  tracked_ptr<> result = run_module(ctx, mod);
-  mod.mark_active();
+execute(context& ctx, tracked_ptr<module_> const& mod) {
+  tracked_ptr<> result = run_module(ctx, mod.get());
+  mod->mark_active();
 
   return result;
 }

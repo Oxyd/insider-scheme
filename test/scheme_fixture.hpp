@@ -28,8 +28,8 @@ struct scheme_fixture : testing::Test {
 
   insider::ptr<>
   eval(std::string const& expr) {
-    insider::module_ m{ctx};
-    import_all_exported(ctx, m, ctx.internal_module());
+    auto m = insider::make_tracked<insider::module_>(ctx, ctx);
+    import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     insider::null_source_code_provider provider;
     auto f = compile_expression(ctx, read_syntax(ctx, expr), m,
@@ -40,8 +40,10 @@ struct scheme_fixture : testing::Test {
   insider::ptr<>
   eval_module(std::string const& expr) {
     insider::null_source_code_provider provider;
-    insider::module_ m = compile_module(ctx, read_syntax_multiple(ctx, expr),
-                                             {&provider, "<unit test main module>"});
+    insider::tracked_ptr<insider::module_> m = compile_module(
+      ctx, read_syntax_multiple(ctx, expr),
+      {&provider, "<unit test main module>"}
+    );
     return execute(ctx, m).get();
   }
 

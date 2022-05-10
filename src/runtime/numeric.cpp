@@ -2219,7 +2219,7 @@ gcd(context& ctx, ptr<> x, ptr<> y) {
 }
 
 static void
-export_native(context& ctx, module_& m, char const* name,
+export_native(context& ctx, ptr<module_> m, char const* name,
               ptr<> (*f)(context&, ptr<native_procedure>, object_span),
               special_top_level_tag tag) {
   auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f, name),
@@ -2227,9 +2227,9 @@ export_native(context& ctx, module_& m, char const* name,
   ctx.tag_top_level(index, tag);
 
   auto name_sym = ctx.intern(name);
-  auto id = make<syntax>(ctx, name_sym, scope_set{m.scope()});
-  m.scope()->add(ctx.store, id, std::make_shared<variable>(name, index));
-  m.export_(name_sym);
+  auto id = make<syntax>(ctx, name_sym, scope_set{m->scope()});
+  m->scope()->add(ctx.store, id, std::make_shared<variable>(name, index));
+  m->export_(name_sym);
 }
 
 static ptr<floating_point>
@@ -2879,7 +2879,7 @@ imag_part(ptr<> x) {
 }
 
 void
-export_numeric(context& ctx, module_& result) {
+export_numeric(context& ctx, ptr<module_> result) {
   export_native(ctx, result, "+", add_native_proc_arg<add>,
                 special_top_level_tag::plus);
   export_native(ctx, result, "-", add_native_proc_arg<subtract>,

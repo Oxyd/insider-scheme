@@ -21,25 +21,26 @@ struct expression;
 // modified by adding a top-level binding if the datum is a top-level
 // definition.
 ptr<procedure>
-compile_expression(context&, ptr<syntax> datum, module_&,
+compile_expression(context&, ptr<syntax> datum, tracked_ptr<module_> const&,
                    source_file_origin const&);
 
 ptr<procedure>
-compile_syntax(context&, std::unique_ptr<expression>, module_&);
+compile_syntax(context&, std::unique_ptr<expression>,
+  tracked_ptr<module_> const&);
 
 // Interpret a list of expressions and import declarations as a module and
 // create the module.
-module_
+tracked_ptr<module_>
 compile_module(context&, std::vector<ptr<syntax>> const& data,
                source_file_origin const&, bool main_module = false);
 
-module_
+tracked_ptr<module_>
 compile_module(context&, std::filesystem::path const&, bool main_module = false);
 
 // Translate a module's body.
 void
-compile_module_body(context&, module_&, module_specifier const&,
-                    bool main_module = false);
+compile_module_body(context&, tracked_ptr<module_> const&,
+                    module_specifier const&, bool main_module = false);
 
 } // namespace insider
 

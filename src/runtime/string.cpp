@@ -578,7 +578,7 @@ string_ge(ptr<string> lhs, ptr<string> rhs) {
 }
 
 void
-export_string(context& ctx, module_& result) {
+export_string(context& ctx, ptr<module_> result) {
   define_raw_procedure<construct_string>(ctx, "string", result, true);
   define_raw_procedure<make_string>(ctx, "make-string", result, true);
   define_procedure<make_string_byte_length>(ctx, "make-string/byte-length",

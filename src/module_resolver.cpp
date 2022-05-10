@@ -10,7 +10,7 @@
 namespace insider {
 
 module_resolver::module_resolver(context& ctx)
-  : internal_module_{ctx}
+  : root_provider{ctx.store}
 { }
 
 bool
@@ -25,18 +25,18 @@ module_resolver::knows_module(context& ctx, module_name const& name) {
     return any_provider_has_module(ctx, name);
 }
 
-module_*
+ptr<module_>
 module_resolver::find_module(context& ctx, module_name const& name) {
   using namespace std::literals;
 
   if (name == std::vector{"insider"s, "internal"s})
-    return &internal_module_;
+    return internal_module_;
   else if (auto mod_it = modules_.find(name); mod_it != modules_.end()) {
     if (!mod_it->second)
       throw std::runtime_error{fmt::format("Module {} depends on itself",
                                            module_name_to_string(name))};
 
-    return mod_it->second.get();
+    return mod_it->second;
   } else
     return load_module(ctx, name);
 }
@@ -53,6 +53,13 @@ module_resolver::append_source_code_provider(
   std::unique_ptr<source_code_provider> provider
 ) {
   source_providers_.push_back(std::move(provider));
+}
+
+void
+module_resolver::visit_roots(member_visitor const& f) {
+  f(internal_module_);
+  for (auto& [name, m] : modules_)
+    f(m);
 }
 
 static std::optional<source_file>
@@ -100,17 +107,16 @@ module_resolver::find_module_in_providers(context& ctx,
                                        module_name_to_string(name))};
 }
 
-module_*
+ptr<module_>
 module_resolver::load_module(context& ctx, module_name const& name) {
   simple_action a(ctx, "Analysing module {}", module_name_to_string(name));
   modules_.emplace(name, nullptr);
-  std::unique_ptr<module_> m = instantiate(
+  tracked_ptr<module_> m = instantiate(
     ctx,
     find_module_in_providers(ctx, name)
   );
-  module_* result = m.get();
-  modules_.find(name)->second = std::move(m);
-  return result;
+  modules_.find(name)->second = m.get();
+  return m.get();
 }
 
 } // insider

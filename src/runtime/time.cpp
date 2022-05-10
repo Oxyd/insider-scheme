@@ -33,7 +33,7 @@ jiffies_per_second() {
 }
 
 void
-export_time(context& ctx, module_& result) {
+export_time(context& ctx, ptr<module_> result) {
   define_procedure<current_second>(ctx, "current-second", result, true);
   define_procedure<current_jiffy>(ctx, "current-jiffy", result, true);
   define_procedure<jiffies_per_second>(ctx, "jiffies-per-second", result, true);

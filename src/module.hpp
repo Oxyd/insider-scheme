@@ -5,7 +5,8 @@
 #include "compiler/module_name.hpp"
 #include "compiler/module_specifier.hpp"
 #include "compiler/scope.hpp"
-#include "memory/root_provider.hpp"
+#include "object.hpp"
+#include "ptr.hpp"
 
 #include <filesystem>
 #include <optional>
@@ -20,8 +21,10 @@ class procedure;
 // A module is a map from symbols to top-level variable indices. It also
 // contains a top-level procedure which contains the code to be run when the
 // module is loaded.
-class module_ : public root_provider{
+class module_ : public composite_object<module_> {
 public:
+  static constexpr char const* scheme_name = "insider::module";
+
   using binding_type = insider::scope::value_type;
 
   explicit
@@ -43,7 +46,10 @@ public:
   top_level_procedure() const;
 
   void
-  set_top_level_procedure(ptr<procedure> const& p) { proc_ = p; }
+  set_top_level_procedure(free_store& fs, ptr<procedure> const& p) {
+    proc_ = p;
+    fs.notify_arc(this, p);
+  }
 
   ptr<insider::scope>
   scope() const { return env_; }
@@ -57,36 +63,40 @@ public:
   void
   mark_active() { active_ = true; }
 
+  void
+  visit_members(member_visitor const& f);
+
 private:
   ptr<insider::scope>             env_;
   // Bindings available for export to other modules.
   std::unordered_set<std::string> exports_;
   ptr<procedure>                  proc_;
   bool                            active_ = false;
-
-  void
-  visit_roots(member_visitor const& f) override;
 };
 
 // Turn a module specifier into a module. First instantiate all uninstantiated
 // dependencies of the module, then compile its body.
-std::unique_ptr<module_>
+tracked_ptr<module_>
 instantiate(context&, module_specifier const&);
 
 // Import all exports from one module to another.
 void
-import_all_exported(context&, module_& to, module_& from);
+import_all_exported(context&,
+                    tracked_ptr<module_> const& to,
+                    tracked_ptr<module_> const& from);
 
 // Import all top-level bindings (whether exported or not) from one module to
 // another.
 void
-import_all_top_level(context&, module_& to, module_& from);
+import_all_top_level(context&,
+                     tracked_ptr<module_> const& to,
+                     tracked_ptr<module_> const& from);
 
 void
-perform_imports(context&, module_& to, imports_list const&);
+perform_imports(context&, tracked_ptr<module_> const& to, imports_list const&);
 
 operand
-define_top_level(context&, std::string const& name, module_&, bool export_,
+define_top_level(context&, std::string const& name, ptr<module_>, bool export_,
                  ptr<> object);
 
 // Recursively activate all dependencies of the given module, execute the
@@ -94,7 +104,7 @@ define_top_level(context&, std::string const& name, module_&, bool export_,
 //
 // Causes garbage collection.
 tracked_ptr<>
-execute(context&, module_&);
+execute(context&, tracked_ptr<module_> const&);
 
 } // namespace insider
 

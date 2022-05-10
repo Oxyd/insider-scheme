@@ -552,7 +552,7 @@ write_u8(std::uint8_t byte, ptr<binary_output_port> port) {
 }
 
 void
-export_port(context& ctx, module_& result) {
+export_port(context& ctx, ptr<module_> result) {
   define_procedure<open_input_file>(ctx, "open-input-file", result, true);
   define_procedure<open_output_file>(ctx, "open-output-file", result, true);
   define_procedure<open_binary_input_file>(ctx, "open-binary-input-file",

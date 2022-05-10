@@ -25,7 +25,7 @@ cxx_exception::message() const {
 }
 
 void
-export_error(context& ctx, module_& result) {
+export_error(context& ctx, ptr<module_> result) {
   define_procedure<&cxx_exception::message>(ctx, "cxx-exception-message",
                                             result, true);
 }

@@ -41,8 +41,8 @@ using use_site_scopes_list = std::vector<tracked_ptr<scope>>;
 
 namespace {
   struct parsing_context {
-    context&                  ctx;
-    insider::module_&         module_;
+    context& ctx;
+    tracked_ptr<insider::module_> module_;
     source_file_origin const& origin;
     std::vector<std::vector<std::shared_ptr<variable>>> environment;
     std::vector<use_site_scopes_list> use_site_scopes;
@@ -1084,7 +1084,7 @@ syntax_traits::is_qq_form(parsing_context& pc, ptr<> stx) {
 static std::unique_ptr<expression>
 make_internal_reference(context& ctx, std::string name) {
   std::optional<module_::binding_type> binding
-    = ctx.internal_module().find(ctx.intern(name));
+    = ctx.internal_module()->find(ctx.intern(name));
   assert(binding);
   assert(std::holds_alternative<std::shared_ptr<variable>>(*binding));
 
@@ -1628,12 +1628,12 @@ analyse_transformer(parsing_context& pc, ptr<syntax> transformer_stx) {
 }
 
 std::unique_ptr<expression>
-analyse(context& ctx, ptr<syntax> stx, module_& m,
+analyse(context& ctx, ptr<syntax> stx, tracked_ptr<module_> const& m,
         source_file_origin const& origin) {
   parameterize origin_param{ctx, ctx.constants->current_source_file_origin_tag,
                             make<opaque_value<source_file_origin>>(ctx, origin)};
   parsing_context pc{ctx, m, origin, {}, {}};
-  stx = stx->add_scope(ctx.store, m.scope());
+  stx = stx->add_scope(ctx.store, m->scope());
   return analyse_internal(pc, stx);
 }
 
@@ -1675,15 +1675,15 @@ perform_begin_for_syntax(parsing_context& pc, module_specifier const& parent_pm,
   simple_action a(pc.ctx, "Analysing begin-for-syntax");
 
   ptr<> body_without_scope
-    = remove_scope_from_list(pc.ctx, body.get(), pc.module_.scope());
+    = remove_scope_from_list(pc.ctx, body.get(), pc.module_->scope());
   module_specifier pm{pc.ctx.store, parent_pm.name, parent_pm.imports, {},
                       from_scheme<std::vector<ptr<syntax>>>(
                         pc.ctx, syntax_to_list(pc.ctx, body_without_scope)
                       ),
                       pc.origin};
   auto submodule = instantiate(pc.ctx, pm);
-  execute(pc.ctx, *submodule);
-  import_all_top_level(pc.ctx, pc.module_, *submodule);
+  execute(pc.ctx, submodule);
+  import_all_top_level(pc.ctx, pc.module_, submodule);
 }
 
 static std::vector<tracked_ptr<syntax>>
@@ -1704,10 +1704,11 @@ add_module_scope_to_body(context& ctx, std::vector<ptr<syntax>> const& body,
 //
 // Causes a garbage collection.
 static std::vector<tracked_ptr<syntax>>
-expand_top_level(parsing_context& pc, module_& m, module_specifier const& pm) {
+expand_top_level(parsing_context& pc, tracked_ptr<module_> m,
+                 module_specifier const& pm) {
   simple_action a(pc.ctx, "Expanding module top-level");
 
-  auto body = add_module_scope_to_body(pc.ctx, pm.body, m.scope());
+  auto body = add_module_scope_to_body(pc.ctx, pm.body, m->scope());
   internal_definition_context_guard idc{pc};
 
   std::vector<tracked_ptr<syntax>> stack;
@@ -2097,7 +2098,7 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
 }
 
 sequence_expression
-analyse_module(context& ctx, module_& m, module_specifier const& pm,
+analyse_module(context& ctx, tracked_ptr<module_> m, module_specifier const& pm,
                bool main_module) {
   parameterize origin_param{
     ctx, ctx.constants->current_source_file_origin_tag,
@@ -2124,7 +2125,7 @@ expand_proc(context& ctx, tracked_ptr<syntax> stx) {
 }
 
 void
-export_analyser(context& ctx, module_& result) {
+export_analyser(context& ctx, ptr<module_> result) {
   define_procedure<expand_proc>(ctx, "expand", result, true);
   define_top_level(ctx, "current-source-file-origin-tag", result, true,
                    ctx.constants->current_source_file_origin_tag);

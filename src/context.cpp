@@ -65,7 +65,7 @@ context::context()
   init_write(*this);
   init_analyser(*this);
 
-  module_resolver().internal_module() = make_internal_module(*this);
+  module_resolver().set_internal_module(make_internal_module(*this));
 
   struct {
     ptr<core_form_type>& object;
@@ -100,10 +100,10 @@ context::context()
     form.object = make<core_form_type>(*this, form.name);
     auto index = add_top_level(form.object, form.name);
     auto name = intern(form.name);
-    auto id = make<syntax>(*this, name, scope_set{internal_module().scope()});
+    auto id = make<syntax>(*this, name, scope_set{internal_module()->scope()});
     auto var = std::make_shared<variable>(form.name, index);
-    internal_module().scope()->add(store, id, std::move(var));
-    internal_module().export_(name);
+    internal_module()->scope()->add(store, id, std::move(var));
+    internal_module()->export_(name);
   }
 
   statics.null = intern_static(constants->null);
@@ -207,6 +207,11 @@ context::add_feature(std::string const& f) {
   auto f_sym = intern(f);
   if (!memq(f_sym, features_))
     features_ = cons(*this, f_sym, features_);
+}
+
+tracked_ptr<module_>
+context::internal_module_tracked() {
+  return track(*this, internal_module());
 }
 
 scope::id_type

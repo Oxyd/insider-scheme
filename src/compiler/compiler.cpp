@@ -129,11 +129,12 @@ namespace {
     variable_bindings              bindings;
     // Stack of bytecodes to facilitate compiling ifs.
     std::vector<insider::bytecode> bytecode_stack;
-    insider::module_&              module_;
+    tracked_ptr<insider::module_>  module_;
 
-    procedure_context(procedure_context* parent, insider::module_& m)
+    procedure_context(procedure_context* parent,
+                      tracked_ptr<insider::module_> m)
       : parent{parent}
-      , module_{m}
+      , module_{std::move(m)}
     {
       bytecode_stack.emplace_back();
     }
@@ -963,13 +964,15 @@ compile_sequence(context& ctx, procedure_context& proc,
 }
 
 ptr<procedure>
-compile_expression(context& ctx, ptr<syntax> datum, module_& mod,
+compile_expression(context& ctx, ptr<syntax> datum,
+                   tracked_ptr<module_> const& mod,
                    source_file_origin const& origin) {
   return compile_syntax(ctx, analyse(ctx, datum, mod, origin), mod);
 }
 
 ptr<procedure>
-compile_syntax(context& ctx, std::unique_ptr<expression> e, module_& mod) {
+compile_syntax(context& ctx, std::unique_ptr<expression> e,
+               tracked_ptr<module_> const& mod) {
   procedure_context proc{nullptr, mod};
   shared_register result = compile_expression_to_register(ctx, proc, *e, true);
   if (result)
@@ -980,19 +983,19 @@ compile_syntax(context& ctx, std::unique_ptr<expression> e, module_& mod) {
   return make_procedure(ctx, proc, 0, false, std::nullopt);
 }
 
-module_
+tracked_ptr<module_>
 compile_module(context& ctx, std::vector<ptr<syntax>> const& data,
                source_file_origin const& origin,
                bool main_module) {
   simple_action a(ctx, "Analysing main module");
   module_specifier pm = read_module(ctx, data, origin);
-  module_ result{ctx};
+  auto result = make_tracked<module_>(ctx, ctx, pm.name);
   perform_imports(ctx, result, pm.imports);
   compile_module_body(ctx, result, pm, main_module);
   return result;
 }
 
-module_
+tracked_ptr<module_>
 compile_module(context& ctx, std::filesystem::path const& path,
                bool main_module) {
   filesystem_source_code_provider provider{"."};
@@ -1007,8 +1010,8 @@ compile_module(context& ctx, std::filesystem::path const& path,
 }
 
 void
-compile_module_body(context& ctx, module_& m, module_specifier const& pm,
-                    bool main_module) {
+compile_module_body(context& ctx, tracked_ptr<module_> const& m,
+                    module_specifier const& pm, bool main_module) {
   sequence_expression body = analyse_module(ctx, m, pm, main_module);
 
   procedure_context proc{nullptr, m};
@@ -1019,7 +1022,8 @@ compile_module_body(context& ctx, module_& m, module_specifier const& pm,
                        instruction{opcode::ret, *result.get(proc)});
 
   assert(proc.bytecode_stack.size() == 1);
-  m.set_top_level_procedure(make_procedure(ctx, proc, 0, false, std::nullopt));
+  m->set_top_level_procedure(ctx.store,
+                             make_procedure(ctx, proc, 0, false, std::nullopt));
 }
 
 } // namespace insider

@@ -400,7 +400,7 @@ uncaught_exception_inner_exception(ptr<uncaught_exception> e) {
 }
 
 void
-export_basic_types(context& ctx, module_& result) {
+export_basic_types(context& ctx, ptr<module_> result) {
   define_procedure<list_to_vector>(ctx, "list->vector", result, true);
   define_raw_procedure<vector_to_list>(ctx, "vector->list", result, true);
   define_raw_procedure<vector_append>(ctx, "vector-append", result, true);

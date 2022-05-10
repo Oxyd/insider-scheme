@@ -592,7 +592,7 @@ write_char_proc(char32_t c, ptr<textual_output_port> out) {
 }
 
 void
-export_write(context& ctx, module_& result) {
+export_write(context& ctx, ptr<module_> result) {
   define_top_level(ctx, "current-output-port-tag", result, true,
                    ctx.constants->current_output_port_tag);
   define_top_level(ctx, "current-error-port-tag", result, true,

@@ -141,7 +141,7 @@ integer_to_char(integer i) {
 }
 
 void
-export_character(context& ctx, module_& result) {
+export_character(context& ctx, ptr<module_> result) {
   define_procedure<is_alphabetic>(ctx, "char-alphabetic?", result, true);
   define_procedure<is_numeric>(ctx, "char-numeric?", result, true);
   define_procedure<is_white_space>(ctx, "char-whitespace?", result, true);

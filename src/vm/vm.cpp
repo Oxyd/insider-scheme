@@ -1798,7 +1798,7 @@ values(context& ctx, object_span args) {
 }
 
 void
-export_vm(context& ctx, module_& result) {
+export_vm(context& ctx, ptr<module_> result) {
   define_procedure<capture_stack>(ctx, "capture-stack", result, true);
   define_procedure<replace_stack>(ctx, "replace-stack!", result, true);
   define_procedure<create_parameter_tag>(ctx, "create-parameter-tag", result,

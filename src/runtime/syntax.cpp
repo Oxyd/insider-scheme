@@ -355,7 +355,7 @@ free_identifier_eq(ptr<syntax> x, ptr<syntax> y) {
 }
 
 void
-export_syntax(context& ctx, module_& result) {
+export_syntax(context& ctx, ptr<module_> result) {
   define_procedure<&syntax::update_and_get_expression>(ctx, "syntax-expression",
                                                        result, true);
   define_procedure<syntax_scopes>(ctx, "syntax-scopes", result, true);

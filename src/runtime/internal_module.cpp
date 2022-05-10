@@ -14,46 +14,46 @@
 namespace insider {
 
 void
-export_numeric(context&, module_&);
+export_numeric(context&, ptr<module_>);
 
 void
-export_vm(context&, module_&);
+export_vm(context&, ptr<module_>);
 
 void
-export_records(context&, module_&);
+export_records(context&, ptr<module_>);
 
 void
-export_write(context&, module_&);
+export_write(context&, ptr<module_>);
 
 void
-export_analyser(context&, module_&);
+export_analyser(context&, ptr<module_>);
 
 void
-export_port(context&, module_&);
+export_port(context&, ptr<module_>);
 
 void
-export_basic_types(context&, module_&);
+export_basic_types(context&, ptr<module_>);
 
 void
-export_read(context&, module_&);
+export_read(context&, ptr<module_>);
 
 void
-export_source_code_provider(context&, module_&);
+export_source_code_provider(context&, ptr<module_>);
 
 void
-export_syntax(context&, module_&);
+export_syntax(context&, ptr<module_>);
 
 void
-export_time(context&, module_&);
+export_time(context&, ptr<module_>);
 
 void
-export_error(context&, module_&);
+export_error(context&, ptr<module_>);
 
 void
-export_string(context&, module_&);
+export_string(context&, ptr<module_>);
 
 void
-export_character(context&, module_&);
+export_character(context&, ptr<module_>);
 
 static void
 set_car(context& ctx, ptr<pair> p, ptr<> new_car) {
@@ -156,16 +156,16 @@ features(context& ctx) {
 
 template <auto F>
 static void
-define_tagged_procedure(context& ctx, char const* name, module_& result,
+define_tagged_procedure(context& ctx, char const* name, ptr<module_> result,
                         special_top_level_tag tag) {
   operand index = define_procedure<F>(ctx, name, result, true);
   ctx.tag_top_level(index, tag);
 }
 
-module_
+ptr<module_>
 make_internal_module(context& ctx) {
-  module_ result{ctx};
-  result.mark_active();
+  auto result = make<module_>(ctx, ctx, module_name{"insider", "internal"});
+  result->mark_active();
 
   export_numeric(ctx, result);
   export_vm(ctx, result);
