@@ -45,6 +45,6 @@ Checks:          '-*,
 FormatStyle:     file
 CheckOptions:
   - key: readability-implicit-bool-conversion.AllowIntegerConditions
-    value: true
+    value: "true"
   - key: readability-implicit-bool-conversion.AllowPointerConditions
-    value: true
+    value: "true"
