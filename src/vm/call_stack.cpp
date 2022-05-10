@@ -61,7 +61,7 @@ void
 call_stack::resize_current_frame(std::size_t new_size) {
   size_ = current_base_ + stack_frame_header_size
           + static_cast<integer::value_type>(new_size);
-  if (size_ < capacity_)
+  if (size_ > capacity_) [[unlikely]]
     grow_capacity(size_);
 }
 
@@ -106,7 +106,9 @@ call_stack::visit_members(member_visitor const& f) {
 
 void
 call_stack::ensure_additional_capacity(std::size_t additional_size) {
-  if (size_ + static_cast<integer::value_type>(additional_size) >= capacity_)
+  integer::value_type required_size
+    = size_ + static_cast<integer::value_type>(additional_size);
+  if (required_size >= capacity_) [[unlikely]]
     grow_capacity(size_ + additional_size);
 }
 
