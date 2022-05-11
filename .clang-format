@@ -1,4 +1,5 @@
 BasedOnStyle: LLVM
+IndentWidth: 2
 AlignEscapedNewlines: Left
 AlignOperands: AlignAfterOperator
 AlwaysBreakAfterReturnType: All
