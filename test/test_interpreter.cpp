@@ -367,3 +367,13 @@ TEST_F(interpreter, native_tail_calls) {
   );
   EXPECT_EQ(expect<integer>(result2).value(), 2 * 55);
 }
+
+TEST_F(interpreter, eval_simple_expression) {
+  ptr<> result = eval("(eval '(* 7 3) (environment '(insider internal)))");
+  EXPECT_EQ(expect<integer>(result).value(), 21);
+}
+
+TEST_F(interpreter, cant_define_in_immutable_environment) {
+  EXPECT_THROW(eval("(eval '(define foo 1) (environment '(insider internal)))"),
+               std::runtime_error);
+}

@@ -1,5 +1,7 @@
 #include "vm/vm.hpp"
 
+#include "compiler/compiler.hpp"
+#include "compiler/source_code_provider.hpp"
 #include "io/write.hpp"
 #include "memory/free_store.hpp"
 #include "memory/root_provider.hpp"
@@ -8,6 +10,7 @@
 #include "runtime/error.hpp"
 #include "runtime/integer.hpp"
 #include "runtime/numeric.hpp"
+#include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
 #include "vm/call_stack.hpp"
 #include "vm/execution_state.hpp"
@@ -1797,6 +1800,14 @@ values(context& ctx, object_span args) {
     return make<values_tuple>(ctx, args);
 }
 
+static ptr<tail_call_tag_type>
+eval(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
+  ptr<syntax> stx = datum_to_syntax(ctx, {}, expr);
+  insider::null_source_code_provider provider;
+  auto f = compile_expression(ctx, stx, m, {&provider, "<eval expression>"});
+  return tail_call(ctx, f, {});
+}
+
 void
 export_vm(context& ctx, ptr<module_> result) {
   define_procedure<capture_stack>(ctx, "capture-stack", result, true);
@@ -1821,6 +1832,7 @@ export_vm(context& ctx, ptr<module_> result) {
   define_raw_procedure<apply>(ctx, "apply", result, true);
   define_procedure<call_with_values>(ctx, "call-with-values", result, true);
   define_raw_procedure<values>(ctx, "values", result, true);
+  define_procedure<eval>(ctx, "eval", result, true);
 }
 
 } // namespace insider

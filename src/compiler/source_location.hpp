@@ -11,6 +11,9 @@ struct source_location {
   std::string file_name;
   unsigned    line;
   unsigned    column;
+
+  friend bool
+  operator == (source_location const&, source_location const&) = default;
 };
 
 inline source_location const source_location::unknown{"<unknown>", 0, 0};

@@ -4,11 +4,14 @@
 #include "compiler/compiler.hpp"
 #include "compiler/module_name.hpp"
 #include "compiler/module_specifier.hpp"
+#include "compiler/source_code_provider.hpp"
 #include "context.hpp"
 #include "io/read.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
+#include "util/define_procedure.hpp"
+#include "util/list_iterator.hpp"
 #include "vm/vm.hpp"
 
 namespace insider {
@@ -300,6 +303,29 @@ execute(context& ctx, tracked_ptr<module_> const& mod) {
   mod->mark_active();
 
   return result;
+}
+
+static imports_list
+parse_imports(context& ctx, object_span imports) {
+  imports_list result;
+  for (ptr<> import : imports)
+    result.push_back(
+      parse_import_specifier(ctx, datum_to_syntax(ctx, {}, import))
+    );
+  return result;
+}
+
+static ptr<>
+environment(context& ctx, ptr<native_procedure>, object_span args) {
+  auto result = make_tracked<module_>(ctx, ctx);
+  perform_imports(ctx, result, parse_imports(ctx, args));
+  result->make_immutable();
+  return result.get();
+}
+
+void
+export_module(context& ctx, ptr<module_> result) {
+  define_raw_procedure<environment>(ctx, "environment", result, true);
 }
 
 } // namespace insider

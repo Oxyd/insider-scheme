@@ -917,6 +917,19 @@ parse_define_or_set(parsing_context& pc, ptr<syntax> stx,
 }
 
 static std::unique_ptr<expression>
+parse_define(parsing_context& pc, ptr<syntax> stx) {
+  if (pc.module_->is_mutable())
+    return parse_define_or_set(pc, stx, "define");
+  else
+    throw std::runtime_error{"Can't define in immutable environment"};
+}
+
+static std::unique_ptr<expression>
+parse_set(parsing_context& pc, ptr<syntax> stx) {
+  return parse_define_or_set(pc, stx, "set!");
+}
+
+static std::unique_ptr<expression>
 parse_syntax_trap(parsing_context& pc, ptr<syntax> stx) {
 #ifndef WIN32
   raise(SIGTRAP);
@@ -1385,7 +1398,7 @@ parse(parsing_context& pc, ptr<syntax> s) {
       if (form == pc.ctx.constants->letrec_star)
         return parse_letrec_star(pc, stx);
       else if (form == pc.ctx.constants->set)
-        return parse_define_or_set(pc, stx, "set!");
+        return parse_set(pc, stx);
       else if (form == pc.ctx.constants->lambda)
         return parse_lambda(pc, stx);
       else if (form == pc.ctx.constants->if_)
@@ -1399,7 +1412,7 @@ parse(parsing_context& pc, ptr<syntax> s) {
       else if (form == pc.ctx.constants->begin)
         return parse_sequence(pc, syntax_cdr(pc.ctx, stx));
       else if (form == pc.ctx.constants->define)
-        return parse_define_or_set(pc, stx, "define");
+        return parse_define(pc, stx);
       else if (form == pc.ctx.constants->quote)
         return make_expression<literal_expression>(
           track(pc.ctx, syntax_to_datum(pc.ctx, syntax_cadr(pc.ctx, stx)))
@@ -1774,8 +1787,8 @@ expand_top_level(parsing_context& pc, tracked_ptr<module_> m,
   return result;
 }
 
-static import_specifier
-parse_import_set(context& ctx, ptr<syntax> stx) {
+import_specifier
+parse_import_specifier(context& ctx, ptr<syntax> stx) {
   ptr<> spec = syntax_to_list(ctx, stx);
   if (!spec)
     throw make_syntax_error(stx, "import: Expected a non-empty list");
@@ -1786,7 +1799,7 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
     if (head->value() == "only") {
       import_specifier::only result;
       result.from = std::make_unique<import_specifier>(
-        parse_import_set(ctx, expect<syntax>(cadr(p)))
+        parse_import_specifier(ctx, expect<syntax>(cadr(p)))
       );
 
       for (ptr<> identifier : in_list{cddr(p)})
@@ -1801,7 +1814,7 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
     else if (head->value() == "except") {
       import_specifier::except result;
       result.from = std::make_unique<import_specifier>(
-        parse_import_set(ctx, expect<syntax>(cadr(p)))
+        parse_import_specifier(ctx, expect<syntax>(cadr(p)))
       );
 
       for (ptr<> identifier : in_list{cddr(p)})
@@ -1816,7 +1829,7 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
     else if (head->value() == "prefix") {
       import_specifier::prefix result;
       result.from = std::make_unique<import_specifier>(
-        parse_import_set(ctx, expect<syntax>(cadr(p)))
+        parse_import_specifier(ctx, expect<syntax>(cadr(p)))
       );
       result.prefix_ = syntax_expect_without_update<symbol>(
         expect<syntax>(caddr(p))
@@ -1827,7 +1840,7 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
     else if (head->value() == "rename") {
       import_specifier::rename result;
       result.from = std::make_unique<import_specifier>(
-        parse_import_set(ctx, expect<syntax>(cadr(p)))
+        parse_import_specifier(ctx, expect<syntax>(cadr(p)))
       );
 
       for (ptr<> name_pair_stx : in_list{cddr(p)}) {
@@ -1859,7 +1872,7 @@ parse_import_set(context& ctx, ptr<syntax> stx) {
 static void
 process_library_import(context& ctx, module_specifier& result, ptr<syntax> stx) {
   for (ptr<> set : in_list{syntax_to_list(ctx, syntax_cdr(ctx, stx))})
-    result.imports.push_back(parse_import_set(ctx, assume<syntax>(set)));
+    result.imports.push_back(parse_import_specifier(ctx, assume<syntax>(set)));
 }
 
 static void

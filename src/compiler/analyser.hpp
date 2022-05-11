@@ -33,6 +33,9 @@ analyse(context&, ptr<syntax> stx, tracked_ptr<module_> const&,
 module_name
 parse_module_name(context&, ptr<syntax>);
 
+import_specifier
+parse_import_specifier(context& ctx, ptr<syntax> stx);
+
 // Interpret the given list of data as a module. This can be a library module,
 // or main module.
 module_specifier

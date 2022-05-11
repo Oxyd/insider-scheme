@@ -55,6 +55,9 @@ export_string(context&, ptr<module_>);
 void
 export_character(context&, ptr<module_>);
 
+void
+export_module(context&, ptr<module_>);
+
 static void
 set_car(context& ctx, ptr<pair> p, ptr<> new_car) {
   p->set_car(ctx.store, new_car);
@@ -181,6 +184,7 @@ make_internal_module(context& ctx) {
   export_error(ctx, result);
   export_string(ctx, result);
   export_character(ctx, result);
+  export_module(ctx, result);
 
   define_raw_procedure<append>(ctx, "append", result, true);
   define_tagged_procedure<cons>(ctx, "cons", result,

@@ -63,6 +63,12 @@ public:
   void
   mark_active() { active_ = true; }
 
+  bool
+  is_mutable() const { return mutable_; }
+
+  void
+  make_immutable() { mutable_ = false; }
+
   void
   visit_members(member_visitor const& f);
 
@@ -72,6 +78,7 @@ private:
   std::unordered_set<std::string> exports_;
   ptr<procedure>                  proc_;
   bool                            active_ = false;
+  bool                            mutable_ = true;
 };
 
 // Turn a module specifier into a module. First instantiate all uninstantiated

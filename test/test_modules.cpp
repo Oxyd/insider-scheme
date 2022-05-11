@@ -1,9 +1,11 @@
 #include "scheme_fixture.hpp"
 
 #include "runtime/symbol.hpp"
+#include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
 
 #include <memory>
+#include <ranges>
 
 using namespace insider;
 
@@ -521,4 +523,35 @@ TEST_F(modules, circular_import) {
     )"),
     std::runtime_error
   );
+}
+
+TEST_F(modules, environment) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export one)
+      (define one 1)
+    )"
+  );
+  add_source_file(
+    "bar.scm",
+    R"(
+      (library (bar))
+      (import (insider internal))
+      (export two)
+      (define two 2)
+    )"
+  );
+
+  auto m = expect<module_>(
+    eval("(environment '(foo) '(rename (bar) (two too)))")
+  );
+  auto sc = m->scope();
+  auto names = *sc | std::views::transform([] (scope::binding b) {
+    return std::get<ptr<syntax>>(b)->get_symbol()->value();
+  });
+  EXPECT_EQ(std::set(std::ranges::begin(names), std::ranges::end(names)),
+            (std::set<std::string>{"one", "too"}));
 }

@@ -3,6 +3,7 @@
 
 #include "context.hpp"
 #include "memory/free_store.hpp"
+#include "module.hpp"
 #include "object.hpp"
 #include "runtime/compare.hpp"
 #include "vm/bytecode.hpp"

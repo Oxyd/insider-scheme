@@ -43,3 +43,35 @@ TEST_F(syntax_fixture, scopes_propagate_through_multiple_levels) {
 
   EXPECT_FALSE(inner_with_scope->scopes().empty());
 }
+
+TEST_F(syntax_fixture, datum_to_syntax_copies_location_and_scopes) {
+  auto scp = make<scope>(ctx, ctx, "scope");
+  auto src_stx = make<syntax>(
+    ctx,
+    ctx.intern("foo"),
+    source_location{.file_name="foo", .line=10, .column=20},
+    scope_set{scp}
+  );
+
+  auto datum = ctx.intern("bar");
+  auto new_stx = datum_to_syntax(ctx, src_stx, datum);
+
+  ASSERT_TRUE(new_stx->contains<symbol>());
+  EXPECT_EQ(
+    expect<symbol>(new_stx->update_and_get_expression(ctx))->value(),
+    "bar"
+  );
+  ASSERT_EQ(new_stx->scopes().size(), 1);
+  EXPECT_EQ(new_stx->scopes().back()->description(), "scope");
+
+  EXPECT_EQ(new_stx->location(),
+            (source_location{.file_name="foo", .line=10, .column=20}));
+}
+
+TEST_F(syntax_fixture, datum_to_syntax_with_no_source_syntax) {
+  auto datum = ctx.intern("foo");
+  auto stx = datum_to_syntax(ctx, {}, datum);
+
+  EXPECT_TRUE(stx->scopes().empty());
+  EXPECT_EQ(stx->location(), source_location{});
+}

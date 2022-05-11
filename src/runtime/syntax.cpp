@@ -252,21 +252,42 @@ syntax_to_datum(context& ctx, ptr<syntax> stx) {
     return expr;
 }
 
-ptr<syntax>
-datum_to_syntax(context& ctx, ptr<syntax> s, ptr<> datum) {
+static ptr<syntax>
+datum_to_syntax(context& ctx, ptr<> datum,
+                source_location const& loc, scope_set const& scopes) {
   if (auto p = match<pair>(datum)) {
-    ptr<syntax> head = datum_to_syntax(ctx, s, car(p));
-    ptr<syntax> tail = datum_to_syntax(ctx, s, cdr(p));
-    return make<syntax>(ctx, cons(ctx, head, tail), s->location(), s->scopes());
+    ptr<syntax> head = datum_to_syntax(ctx, car(p), loc, scopes);
+    ptr<syntax> tail = datum_to_syntax(ctx, cdr(p), loc, scopes);
+    return make<syntax>(ctx, cons(ctx, head, tail), loc, scopes);
   } else if (auto v = match<vector>(datum)) {
     auto result_vec = make<vector>(ctx, v->size(), ctx.constants->void_);
     for (std::size_t i = 0; i < v->size(); ++i)
-      result_vec->set(ctx.store, i, datum_to_syntax(ctx, s, v->ref(i)));
-    return make<syntax>(ctx, result_vec, s->location(), s->scopes());
+      result_vec->set(ctx.store, i,
+                      datum_to_syntax(ctx, v->ref(i), loc, scopes));
+    return make<syntax>(ctx, result_vec, loc, scopes);
   } else if (auto stx = match<syntax>(datum)) {
     return stx;
   } else
-    return make<syntax>(ctx, datum, s->location(), s->scopes());
+    return make<syntax>(ctx, datum, loc, scopes);
+}
+
+ptr<syntax>
+datum_to_syntax(context& ctx, ptr<syntax> s, ptr<> datum) {
+  if (s)
+    return datum_to_syntax(ctx, datum, s->location(), s->scopes());
+  else
+    return datum_to_syntax(ctx, datum, source_location{}, scope_set{});
+}
+
+static ptr<syntax>
+datum_to_syntax_proc(context& ctx, ptr<> stx, ptr<> datum) {
+  return datum_to_syntax(
+    ctx,
+    stx == ctx.constants->f
+      ? ptr<syntax>{}
+      : expect<syntax>(stx),
+    datum
+  );
 }
 
 ptr<>
@@ -362,9 +383,10 @@ export_syntax(context& ctx, ptr<module_> result) {
   define_procedure<syntax_add_scope>(ctx, "syntax-add-scope", result, true);
   define_procedure<syntax_to_datum>(ctx, "syntax->datum", result, true);
   define_procedure<syntax_to_list_proc>(ctx, "syntax->list", result, true);
-  define_procedure<datum_to_syntax>(ctx, "datum->syntax", result, true);
+  define_procedure<datum_to_syntax_proc>(ctx, "datum->syntax", result, true);
   define_procedure<free_identifier_eq>(ctx, "free-identifier=?", result, true);
-  define_procedure<bound_identifier_eq>(ctx, "bound-identifier=?", result, true);
+  define_procedure<bound_identifier_eq>(ctx, "bound-identifier=?", result,
+                                        true);
   define_procedure<syntax_location>(ctx, "syntax-location", result, true);
 }
 
