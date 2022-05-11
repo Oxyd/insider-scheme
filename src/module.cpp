@@ -220,13 +220,9 @@ check_all_defined(context& ctx, ptr<module_> m,
     if (undefined.size() == 1)
       throw std::runtime_error{fmt::format("Can't export undefined symbol {}",
                                            undefined.front())};
-    else {
-      std::string names = undefined.front();
-      for (auto n = undefined.begin() + 1; n != undefined.end(); ++n)
-        names += ", " + *n;
+    else
       throw std::runtime_error{fmt::format("Can't export undefined symbols: {}",
-                                           names)};
-    }
+                                           fmt::join(undefined, ", "))};
   }
 }
 
