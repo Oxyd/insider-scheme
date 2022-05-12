@@ -220,9 +220,8 @@ free_store::free_store()
   : target_nursery_pages_{min_nursery_pages}
 { }
 
-template <typename Space>
 static void
-destroy_all_objects(Space& space) {
+destroy_all_objects(auto& space) {
   space.for_all([] (ptr<> o) { object_type(o).destroy(o); });
 }
 
@@ -357,10 +356,9 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen,
 
 // Move live objects from one generation to another. Returns a space containing
 // all the dead objects and forwarding addresses to moved objects.
-template <typename FromG, typename ToG>
 [[nodiscard]]
 static dense_space
-promote(FromG& from, ToG& to, free_store::generations& gens,
+promote(auto& from, auto& to, free_store::generations& gens,
         std::vector<ptr<>>* moved_objects) {
   move_survivors(from.small, to.small, to.generation_number, gens,
                  moved_objects);
@@ -456,9 +454,8 @@ update_references(root_list const& list) {
   list.visit_roots(update_member);
 }
 
-template <typename Container>
 static void
-update_references(Container const& incoming) {
+update_references(auto const& incoming) {
   for (ptr<> x : incoming)
     update_members(x);
 }
@@ -481,9 +478,8 @@ format_stats(nursery_generation const& nursery_1,
   );
 }
 
-template <typename Generation>
 static void
-verify([[maybe_unused]] Generation const& g) {
+verify([[maybe_unused]] auto const& g) {
 #ifndef NDEBUG
   g.small.for_all([&] (ptr<> o) {
     assert(!is_object_ptr(o) || object_generation(o) == g.generation_number);

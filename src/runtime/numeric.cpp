@@ -1753,9 +1753,8 @@ undo_twos_complement(context& ctx, ptr<big_integer> x) {
   return normalize(ctx, x);
 }
 
-template <typename T>
 static ptr<>
-bitwise_big(context& ctx, ptr<> x, ptr<> y, T op) {
+bitwise_big(context& ctx, ptr<> x, ptr<> y, auto op) {
   std::size_t len = std::max(limb_length(x), limb_length(y));
   auto result = make<big_integer>(ctx, len, big_integer::dont_initialize);
 
@@ -1767,9 +1766,8 @@ bitwise_big(context& ctx, ptr<> x, ptr<> y, T op) {
   return undo_twos_complement(ctx, result);
 }
 
-template <typename T>
 ptr<>
-bitwise_two(context& ctx, ptr<> lhs, ptr<> rhs, T op) {
+bitwise_two(context& ctx, ptr<> lhs, ptr<> rhs, auto op) {
   switch (find_common_type(lhs, rhs)) {
   case common_type::small_integer: {
     auto x = assume<integer>(lhs);

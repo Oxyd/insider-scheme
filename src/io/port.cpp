@@ -473,9 +473,8 @@ is_port_open(ptr<> port) {
     throw std::runtime_error{"Expected a port"};
 }
 
-template <typename Thunk>
 auto
-guard_filesystem_error(context& ctx, Thunk&& thunk) {
+guard_filesystem_error(context& ctx, auto&& thunk) {
   try {
     return thunk();
   } catch (std::filesystem::filesystem_error const& e) {

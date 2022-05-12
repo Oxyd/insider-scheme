@@ -170,9 +170,8 @@ code_points_end(std::string const& data) {
                              data.data() + data.length()};
 }
 
-template <typename F>
 void
-for_each_code_point(std::string const& data, F&& f) {
+for_each_code_point(std::string const& data, auto&& f) {
   for (auto it = code_points_begin(data), e = code_points_end(data);
        it != e;
        ++it)
