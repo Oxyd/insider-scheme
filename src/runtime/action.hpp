@@ -82,10 +82,12 @@ private:
   std::string
   format_helper(std::index_sequence<Is...>) const {
     if (irritant_)
-      return fmt::format("{}: {}", fmt::format(format_, std::get<Is>(args_)...),
+      return fmt::format("{}: {}",
+                         fmt::format(fmt::runtime(format_),
+                                     std::get<Is>(args_)...),
                          datum_to_string(this->ctx_, irritant_.get()));
     else
-      return fmt::format(format_, std::get<Is>(args_)...);
+      return fmt::format(fmt::runtime(format_), std::get<Is>(args_)...);
   }
 };
 

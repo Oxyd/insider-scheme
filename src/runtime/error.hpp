@@ -17,7 +17,8 @@ class string;
 template <typename... Args>
 std::runtime_error
 make_error(std::string_view fmt, Args&&... args) {
-  return std::runtime_error{fmt::format(fmt, std::forward<Args>(args)...)};
+  return std::runtime_error{fmt::format(fmt::runtime(fmt),
+                                        std::forward<Args>(args)...)};
 }
 
 template <typename Expected>

@@ -76,7 +76,7 @@ syntax::update_scope(free_store& fs, ptr<scope> s,
   update_scope_set(new_scopes, op, s);
   auto result = fs.make<syntax>(expression_, location_, std::move(new_scopes),
                                 update_records_);
-  result->update_records_.emplace_back(op, s);
+  result->update_records_.emplace_back(update_record{op, s});
   return result;
 }
 
