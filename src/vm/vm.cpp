@@ -250,6 +250,28 @@ load_top_level(instruction_state& istate) {
 }
 
 static void
+load_dynamic_top_level(instruction_state& istate) {
+  operand id_idx = istate.reader.read_operand();
+  operand dest = istate.reader.read_operand();
+
+  auto id = assume<syntax>(istate.context().get_static(id_idx));
+  assert(id->contains<symbol>());
+
+  if (auto binding = lookup(id))
+    if (auto maybe_var = std::get_if<std::shared_ptr<variable>>(&*binding)) {
+      std::shared_ptr<variable> const& var = *maybe_var;
+      assert(var->global);
+
+      istate.frame().local(dest) = istate.context().get_top_level(*var->global);
+      return;
+    }
+
+  throw std::runtime_error{fmt::format(
+    "Identifier {} not bound to variable", id->get_symbol()->value()
+  )};
+}
+
+static void
 store_top_level(instruction_state& istate) {
   operand reg = istate.reader.read_operand();
   operand global_num = istate.reader.read_operand();
@@ -836,6 +858,10 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
 
   case opcode::load_top_level:
     load_top_level(istate);
+    break;
+
+  case opcode::load_dynamic_top_level:
+    load_dynamic_top_level(istate);
     break;
 
   case opcode::store_top_level:
@@ -1805,8 +1831,7 @@ eval_proc(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
 }
 
 tracked_ptr<>
-eval(context& ctx, std::string const& expr,
-          tracked_ptr<module_> const& mod) {
+eval(context& ctx, tracked_ptr<module_> const& mod, std::string const& expr) {
   insider::null_source_code_provider provider;
   auto f = compile_expression(ctx, read_syntax(ctx, expr), mod,
                               {&provider, "<eval expression>"});

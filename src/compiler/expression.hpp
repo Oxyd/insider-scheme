@@ -64,6 +64,15 @@ struct top_level_reference_expression {
   { }
 };
 
+struct unknown_reference_expression {
+  tracked_ptr<syntax> name;
+
+  explicit
+  unknown_reference_expression(tracked_ptr<syntax> name)
+    : name{std::move(name)}
+  { }
+};
+
 struct application_expression {
   std::unique_ptr<expression> target;
   std::vector<std::unique_ptr<expression>> arguments;
@@ -231,6 +240,7 @@ struct expression {
     literal_expression,
     local_reference_expression,
     top_level_reference_expression,
+    unknown_reference_expression,
     application_expression,
     let_expression,
     local_set_expression,

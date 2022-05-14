@@ -868,14 +868,29 @@ parse_sequence(parsing_context& pc, ptr<> stx) {
 }
 
 static std::unique_ptr<expression>
+parse_unknown_reference_in_interactive_module(parsing_context& pc,
+                                              ptr<syntax> id) {
+  return make_expression<unknown_reference_expression>(
+    track(pc.ctx, id)
+  );
+}
+
+static std::unique_ptr<expression>
+parse_unknown_reference(parsing_context& pc, ptr<syntax> id) {
+  if (pc.module_->get_type() == module_::type::interactive)
+    return parse_unknown_reference_in_interactive_module(pc, id);
+  else
+    throw make_syntax_error(id, "Identifier {} not bound to a variable",
+                            identifier_name(id));
+}
+
+static std::unique_ptr<expression>
 parse_reference(parsing_context& pc, ptr<syntax> id) {
   auto var = lookup_variable(pc, id);
 
   if (!var)
-    throw make_syntax_error(id, "Identifier {} not bound to a variable",
-                            identifier_name(id));
-
-  if (!var->global)
+    return parse_unknown_reference(pc, id);
+  else if (!var->global)
     return make_expression<local_reference_expression>(std::move(var));
   else
     return make_expression<top_level_reference_expression>(*var->global,
@@ -1510,7 +1525,8 @@ void
 recurse(expression* s, Args&... args) {
   if (std::holds_alternative<literal_expression>(s->value)
       || std::holds_alternative<local_reference_expression>(s->value)
-      || std::holds_alternative<top_level_reference_expression>(s->value)) {
+      || std::holds_alternative<top_level_reference_expression>(s->value)
+      || std::holds_alternative<unknown_reference_expression>(s->value)) {
     // Nothing to recurse into.
   }
   else if (auto* app = std::get_if<application_expression>(&s->value)) {
@@ -1564,7 +1580,7 @@ recurse(expression* s, Args&... args) {
       F(e.get(), args...);
   }
   else
-    assert(!"Forgot a syntax");
+    assert(!"Forgot an expression type");
 }
 
 static void

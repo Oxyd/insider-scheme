@@ -1,5 +1,7 @@
 #include "scheme_fixture.hpp"
 
+#include "runtime/symbol.hpp"
+#include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
 
 using namespace insider;
@@ -294,6 +296,27 @@ TEST_F(interpreter, exec_make_vector) {
   EXPECT_TRUE(equal(result.get(), read("#(1 2 3)")));
 }
 
+TEST_F(interpreter, exec_load_dynamic_top_level) {
+  operand index = ctx.add_top_level(ctx.intern("foo"), "top-level");
+  auto var = std::make_shared<variable>("top-level", index);
+  auto top_level_scope = make<scope>(ctx, ctx, "top-level-scope");
+  auto id = make<syntax>(ctx, ctx.intern("top-level"),
+                         scope_set{top_level_scope});
+  define(ctx.store, id, std::move(var));
+  operand id_index = ctx.intern_static(id);
+
+  auto f = make_procedure(
+    ctx,
+    make_bytecode({
+      instruction{opcode::load_dynamic_top_level, id_index, operand{0}},
+      instruction{opcode::ret, operand{0}}
+    }),
+    1, 0
+  );
+  auto result = call_with_continuation_barrier(ctx, f, {});
+  EXPECT_EQ(expect<symbol>(result)->value(), "foo");
+}
+
 static integer
 apply_and_double(context& ctx, ptr<procedure> f, ptr<> arg) {
   return 2 * expect<integer>(call_with_continuation_barrier(ctx, f, {arg})).value();
@@ -387,13 +410,33 @@ struct repl_fixture : interpreter {
 };
 
 TEST_F(repl_fixture, eval_simple_expression_in_interactive_module) {
-  ptr<> result = insider::eval(ctx, "(* 7 3)", m).get();
+  ptr<> result = insider::eval(ctx, m, "(* 7 3)").get();
   EXPECT_EQ(expect<integer>(result).value(), 21);
 }
 
 TEST_F(repl_fixture, define_top_level_in_interactive_module) {
-  insider::eval(ctx, "(define x 7)", m);
-  insider::eval(ctx, "(define y 3)", m);
-  ptr<> result = insider::eval(ctx, "(* x y)", m).get();
+  insider::eval(ctx, m, "(define x 7)");
+  insider::eval(ctx, m, "(define y 3)");
+  ptr<> result = insider::eval(ctx, m, "(* x y)").get();
   EXPECT_EQ(expect<integer>(result).value(), 21);
+}
+
+TEST_F(repl_fixture, reference_variable_before_definition) {
+  insider::eval(ctx, m, "(define f (lambda () (* a 2)))");
+  EXPECT_THROW(insider::eval(ctx, m, "(f)"), std::runtime_error);
+  insider::eval(ctx, m, "(define a 4)");
+  ptr<> result = insider::eval(ctx, m, "(f)").get();
+  EXPECT_EQ(expect<integer>(result).value(), 8);
+}
+
+TEST_F(repl_fixture, reference_to_top_level_variable_doesnt_bind_to_local) {
+  insider::eval(ctx, m, "(define f (lambda () (* a 2)))");
+  EXPECT_THROW(insider::eval(ctx, m, "(let ((a 4)) (f))"), std::runtime_error);
+}
+
+TEST_F(repl_fixture, reference_procedure_before_definition) {
+  insider::eval(ctx, m, "(define f (lambda () (a 2)))");
+  insider::eval(ctx, m, "(define a (lambda (x) (* 2 x)))");
+  ptr<> result = insider::eval(ctx, m, "(f)").get();
+  EXPECT_EQ(expect<integer>(result).value(), 4);
 }

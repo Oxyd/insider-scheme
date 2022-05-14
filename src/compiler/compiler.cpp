@@ -856,6 +856,21 @@ compile_global_reference(procedure_context& proc,
 }
 
 static void
+compile_unknown_reference(context& ctx,
+                          procedure_context& proc,
+                          unknown_reference_expression const& stx,
+                          result_register& result) {
+  if (!result.result_used())
+    return;
+
+  operand id_index = ctx.intern_static(stx.name.get());
+  encode_instruction(proc.bytecode_stack.back(),
+                     instruction{opcode::load_dynamic_top_level,
+                                 id_index,
+                                 *result.get(proc)});
+}
+
+static void
 compile_box(context& ctx, procedure_context& proc, box_expression const& stx,
             result_register& result) {
   shared_register value
@@ -912,6 +927,9 @@ compile_expression(context& ctx, procedure_context& proc, expression const& stx,
   else if (auto const* top_level_ref
            = std::get_if<top_level_reference_expression>(&stx.value))
     compile_global_reference(proc, *top_level_ref, result);
+  else if (auto const* unknown_ref
+             = std::get_if<unknown_reference_expression>(&stx.value))
+    compile_unknown_reference(ctx, proc, *unknown_ref, result);
   else if (auto const* app = std::get_if<application_expression>(&stx.value))
     compile_application(ctx, proc, *app, tail, result);
   else if (auto const* let = std::get_if<let_expression>(&stx.value))

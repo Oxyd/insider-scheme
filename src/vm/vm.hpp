@@ -83,7 +83,7 @@ tail_call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
 
 // Parse a string as an expression and evaluate it in the given module.
 tracked_ptr<>
-eval(context& ctx, std::string const& expr, tracked_ptr<module_> const&);
+eval(context& ctx, tracked_ptr <module_> const&, std::string const& expr);
 
 } // namespace insider
 
