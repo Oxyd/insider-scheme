@@ -1,10 +1,13 @@
 #include "analyser.hpp"
 
 #include "compiler/compiler.hpp"
+#include "compiler/expression.hpp"
+#include "compiler/module_specifier.hpp"
 #include "compiler/source_code_provider.hpp"
 #include "compiler/syntax_list.hpp"
 #include "io/read.hpp"
 #include "io/write.hpp"
+#include "memory/tracked_ptr.hpp"
 #include "runtime/action.hpp"
 #include "runtime/integer.hpp"
 #include "runtime/symbol.hpp"
@@ -17,6 +20,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <ranges>
 #include <set>
@@ -878,30 +882,22 @@ parse_reference(parsing_context& pc, ptr<syntax> id) {
                                                            identifier_name(id));
 }
 
-static std::unique_ptr<expression>
-parse_define_or_set(parsing_context& pc, ptr<syntax> stx,
-                    std::string const& form_name) {
-  // Defines are processed in two passes: First all the define'd variables are
-  // declared within the module or scope and initialised to #void; second, they
-  // are assigned their values as if by set!.
-  //
-  // This function can be therefore be used for both set! and define forms -- in
-  // either case, we emit a set! syntax.
-
+static std::tuple<tracked_ptr<syntax>, ptr<syntax>>
+parse_define_or_set_name_and_expr(parsing_context& pc, ptr<syntax> stx,
+                                  std::string const& form_name) {
   ptr<> datum = syntax_to_list(pc.ctx, stx);
+  auto name = track(
+      pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))))
+    );
+  auto expr = expect<syntax>(caddr(assume<pair>(datum)));
   if (!datum || list_length(datum) != 3)
     throw make_syntax_error(stx, "Invalid {} syntax", form_name);
+  return {std::move(name), expr};
+}
 
-  auto name = track(
-    pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))))
-  );
-  ptr<syntax> expr = expect<syntax>(caddr(assume<pair>(datum)));
-
-  auto var = lookup_variable(pc, name.get());
-  if (!var)
-    throw make_syntax_error(name.get(), "Identifier {} not bound to a variable",
-                            identifier_name(name.get()));
-
+static std::unique_ptr<expression>
+make_set_expression(parsing_context& pc, tracked_ptr<syntax> const& name,
+                    ptr<syntax> expr, std::shared_ptr<variable> var) {
   auto initialiser = parse(pc, expr);
   if (auto* l = std::get_if<lambda_expression>(&initialiser->value))
     l->name = identifier_name(name.get());
@@ -917,11 +913,67 @@ parse_define_or_set(parsing_context& pc, ptr<syntax> stx,
 }
 
 static std::unique_ptr<expression>
-parse_define(parsing_context& pc, ptr<syntax> stx) {
-  if (pc.module_->is_mutable())
-    return parse_define_or_set(pc, stx, "define");
+parse_define_or_set(parsing_context& pc, ptr<syntax> stx,
+                    std::string const& form_name) {
+  // Defines are processed in two passes: First all the define'd variables are
+  // declared within the module or scope and initialised to #void; second, they
+  // are assigned their values as if by set!.
+  //
+  // This function can be therefore be used for both set! and define forms -- in
+  // either case, we emit a set! syntax.
+
+  auto [name, expr] = parse_define_or_set_name_and_expr(pc, stx, form_name);
+
+  auto var = lookup_variable(pc, name.get());
+  if (!var)
+    throw make_syntax_error(name.get(), "Identifier {} not bound to a variable",
+                            identifier_name(name.get()));
+
+  return make_set_expression(pc, name, expr, std::move(var));
+}
+
+static std::unique_ptr<expression>
+parse_define_in_loaded_module(parsing_context& pc, ptr<syntax> stx) {
+  return parse_define_or_set(pc, stx, "define");
+}
+
+static std::unique_ptr<expression>
+define_new_toplevel_in_interactive_module(parsing_context& pc,
+                                          tracked_ptr<syntax> const& id,
+                                          ptr<syntax> expr) {
+  std::string name = identifier_name(id.get());
+  operand index = pc.ctx.add_top_level(pc.ctx.constants->void_, name);
+  auto var = std::make_shared<variable>(name, index);
+  define(pc.ctx.store, id.get(), var);
+  return make_set_expression(pc, id, expr, std::move(var));
+}
+
+static std::unique_ptr<expression>
+parse_define_in_interactive_module(parsing_context& pc, ptr<syntax> stx) {
+  auto [name, expr] = parse_define_or_set_name_and_expr(pc, stx, "define");
+
+  auto var = lookup_variable(pc, name.get());
+  if (!var)
+    return define_new_toplevel_in_interactive_module(pc, name, expr);
   else
-    throw std::runtime_error{"Can't define in immutable environment"};
+    return make_set_expression(pc, name, expr, std::move(var));
+}
+
+static std::unique_ptr<expression>
+parse_define(parsing_context& pc, ptr<syntax> stx) {
+  switch (pc.module_->get_type()) {
+  case module_::type::loaded:
+    return parse_define_in_loaded_module(pc, stx);
+
+  case module_::type::interactive:
+    return parse_define_in_interactive_module(pc, stx);
+
+  case module_::type::immutable:
+    throw std::runtime_error{"Can't mutate an immutable environment"};
+  }
+
+  assert(!"Invalid module type");
+  return {};
 }
 
 static std::unique_ptr<expression>
@@ -1711,80 +1763,109 @@ add_module_scope_to_body(context& ctx, std::vector<ptr<syntax>> const& body,
   return result;
 }
 
+static void
+perform_top_level_define_syntax(parsing_context& pc, ptr<pair> p) {
+  auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
+  auto name_without_scope = track(
+    pc.ctx, remove_use_site_scopes(pc.ctx, name,
+                                   pc.use_site_scopes.back())
+  );
+  auto transformer_proc
+    = eval_transformer(pc, expect<syntax>(caddr(p))); // GC
+  auto tr = make<transformer>(pc.ctx, transformer_proc);
+  define(pc.ctx.store, name_without_scope.get(), tr);
+}
+
+static void
+perform_top_level_define(parsing_context& pc, tracked_ptr<syntax> const& stx,
+                         tracked_ptr<> const& lst, ptr<pair> p) {
+  if (list_length(lst.get()) != 3)
+    throw make_syntax_error(stx.get(), "Invalid define syntax");
+
+  auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
+  auto name_without_scope
+    = remove_use_site_scopes(pc.ctx, name, pc.use_site_scopes.back());
+
+  auto index = pc.ctx.add_top_level(
+    pc.ctx.constants->void_,
+    identifier_name(name_without_scope)
+  );
+  define(pc.ctx.store, name_without_scope,
+         std::make_shared<variable>(identifier_name(name_without_scope),
+                                    index));
+}
+
+static bool
+process_top_level_form(parsing_context& pc, module_specifier const& pm,
+                       std::vector<tracked_ptr<syntax>>& stack,
+                       tracked_ptr<syntax> const& stx) {
+  if (auto lst = track(pc.ctx, syntax_to_list(pc.ctx, stx.get()))) {
+    if (lst.get() == pc.ctx.constants->null)
+      throw make_syntax_error(stx.get(), "Empty application");
+
+    ptr<pair> p = assume<pair>(lst.get());
+    if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
+      if (form == pc.ctx.constants->define_syntax) {
+        perform_top_level_define_syntax(pc, p);
+        return false;
+      }
+      else if (form == pc.ctx.constants->define) {
+        perform_top_level_define(pc, stx, lst, p);
+        return true;
+      }
+      else if (form == pc.ctx.constants->begin) {
+        expand_begin(pc, p, stack);
+        return false;
+      }
+      else if (form == pc.ctx.constants->begin_for_syntax) {
+        perform_begin_for_syntax(pc, pm, track(pc.ctx, cdr(p)));
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+static std::vector<tracked_ptr<syntax>>
+body_to_stack(std::vector<tracked_ptr<syntax>> const& body) {
+  std::vector<tracked_ptr<syntax>> stack;
+  stack.reserve(body.size());
+  std::ranges::copy(std::views::reverse(body), std::back_inserter(stack));
+  return stack;
+}
+
+static std::vector<tracked_ptr<syntax>>
+process_top_level_forms(parsing_context& pc, module_specifier const& pm,
+                        std::vector<tracked_ptr<syntax>> const& body) {
+  std::vector<tracked_ptr<syntax>> stack = body_to_stack(body);
+  std::vector<tracked_ptr<syntax>> result;
+  while (!stack.empty()) {
+    tracked_ptr<syntax> stx = expand(pc, stack.back()); // GC
+    stack.pop_back();
+
+    bool emit = process_top_level_form(pc, pm, stack, stx);
+    if (emit)
+      result.push_back(stx);
+  }
+
+  return result;
+}
+
 // Gather syntax and top-level variable definitions, expand top-level macro
 // uses. Adds the found top-level syntaxes and variables to the module. Returns
 // a list of the expanded top-level commands.
 //
 // Causes a garbage collection.
 static std::vector<tracked_ptr<syntax>>
-expand_top_level(parsing_context& pc, tracked_ptr<module_> m,
+expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
                  module_specifier const& pm) {
   simple_action a(pc.ctx, "Expanding module top-level");
 
   auto body = add_module_scope_to_body(pc.ctx, pm.body, m->scope());
+
   internal_definition_context_guard idc{pc};
-
-  std::vector<tracked_ptr<syntax>> stack;
-  stack.reserve(body.size());
-  std::ranges::copy(std::views::reverse(body), std::back_inserter(stack));
-
-  std::vector<tracked_ptr<syntax>> result;
-  while (!stack.empty()) {
-    tracked_ptr<syntax> stx = expand(pc, stack.back()); // GC
-    stack.pop_back();
-
-    if (auto lst = track(pc.ctx, syntax_to_list(pc.ctx, stx.get()))) {
-      if (lst.get() == pc.ctx.constants->null)
-        throw make_syntax_error(stx.get(), "Empty application");
-
-      ptr<pair> p = assume<pair>(lst.get());
-      if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
-        if (form == pc.ctx.constants->define_syntax) {
-          auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
-          auto name_without_scope = track(
-            pc.ctx, remove_use_site_scopes(pc.ctx, name,
-                                           pc.use_site_scopes.back())
-          );
-
-          auto transformer_proc
-            = eval_transformer(pc, expect<syntax>(caddr(p))); // GC
-          auto transformer
-            = make<insider::transformer>(pc.ctx, transformer_proc);
-          define(pc.ctx.store, name_without_scope.get(), transformer);
-
-          continue;
-        }
-        else if (form == pc.ctx.constants->define) {
-          if (list_length(lst.get()) != 3)
-            throw make_syntax_error(stx.get(), "Invalid define syntax");
-
-          auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
-          auto name_without_scope
-            = remove_use_site_scopes(pc.ctx, name, pc.use_site_scopes.back());
-
-          auto index = pc.ctx.add_top_level(
-            pc.ctx.constants->void_,
-            identifier_name(name_without_scope)
-          );
-          define(pc.ctx.store, name_without_scope,
-                 std::make_shared<variable>(identifier_name(name_without_scope),
-                                            index));
-        }
-        else if (form == pc.ctx.constants->begin) {
-          expand_begin(pc, p, stack);
-          continue;
-        }
-        else if (form == pc.ctx.constants->begin_for_syntax) {
-          perform_begin_for_syntax(pc, pm, track(pc.ctx, cdr(p)));
-          continue;
-        }
-      }
-    }
-
-    result.push_back(stx);
-  }
-
-  return result;
+  return process_top_level_forms(pc, pm, body);
 }
 
 import_specifier

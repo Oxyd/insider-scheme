@@ -93,6 +93,13 @@ struct import_specifier {
 
 using imports_list = std::vector<import_specifier>;
 
+// Build an imports_list that simply imports everything from each of the given
+// modules.
+imports_list
+import_modules(auto const&... names) {
+  return {import_specifier{names}...};
+}
+
 // Metainformation about a module -- its name, list of imports and exports, plus
 // its body as a list of unparsed data.
 class module_specifier : root_provider {

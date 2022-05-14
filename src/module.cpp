@@ -7,6 +7,7 @@
 #include "compiler/source_code_provider.hpp"
 #include "context.hpp"
 #include "io/read.hpp"
+#include "memory/tracked_ptr.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
@@ -23,6 +24,12 @@ module_::module_(context& ctx, std::optional<module_name> const& name)
                                             ? module_name_to_string(*name)
                                             : "<unnamed module>"))}
 { }
+
+module_::module_(context& ctx, type t)
+  : module_{ctx}
+{
+  type_ = t;
+}
 
 auto
 module_::find(ptr<symbol> identifier) const -> std::optional<binding_type> {
@@ -317,10 +324,16 @@ parse_imports(context& ctx, object_span imports) {
 
 static ptr<>
 environment(context& ctx, ptr<native_procedure>, object_span args) {
-  auto result = make_tracked<module_>(ctx, ctx);
+  auto result = make_tracked<module_>(ctx, ctx, module_::type::immutable);
   perform_imports(ctx, result, parse_imports(ctx, args));
-  result->make_immutable();
   return result.get();
+}
+
+tracked_ptr<module_>
+make_interactive_module(context& ctx, imports_list const& imports) {
+  auto result = make_tracked<module_>(ctx, ctx, module_::type::interactive);
+  perform_imports(ctx, result, imports);
+  return result;
 }
 
 void

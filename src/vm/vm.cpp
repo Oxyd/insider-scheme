@@ -2,6 +2,7 @@
 
 #include "compiler/compiler.hpp"
 #include "compiler/source_code_provider.hpp"
+#include "io/read.hpp"
 #include "io/write.hpp"
 #include "memory/free_store.hpp"
 #include "memory/root_provider.hpp"
@@ -1796,11 +1797,20 @@ values(context& ctx, object_span args) {
 }
 
 static ptr<tail_call_tag_type>
-eval(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
+eval_proc(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
   ptr<syntax> stx = datum_to_syntax(ctx, {}, expr);
   insider::null_source_code_provider provider;
   auto f = compile_expression(ctx, stx, m, {&provider, "<eval expression>"});
   return tail_call(ctx, f, {});
+}
+
+tracked_ptr<>
+eval(context& ctx, std::string const& expr,
+          tracked_ptr<module_> const& mod) {
+  insider::null_source_code_provider provider;
+  auto f = compile_expression(ctx, read_syntax(ctx, expr), mod,
+                              {&provider, "<eval expression>"});
+  return call_with_continuation_barrier(ctx, f, {});
 }
 
 void
@@ -1827,7 +1837,7 @@ export_vm(context& ctx, ptr<module_> result) {
   define_raw_procedure<apply>(ctx, "apply", result, true);
   define_procedure<call_with_values>(ctx, "call-with-values", result, true);
   define_raw_procedure<values>(ctx, "values", result, true);
-  define_procedure<eval>(ctx, "eval", result, true);
+  define_procedure<eval_proc>(ctx, "eval", result, true);
 }
 
 } // namespace insider

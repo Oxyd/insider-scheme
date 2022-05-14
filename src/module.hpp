@@ -5,6 +5,7 @@
 #include "compiler/module_name.hpp"
 #include "compiler/module_specifier.hpp"
 #include "compiler/scope.hpp"
+#include "memory/tracked_ptr.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
 
@@ -27,8 +28,16 @@ public:
 
   using binding_type = insider::scope::value_type;
 
+  enum class type {
+    loaded,      // Loaded from a file; the default
+    immutable,   // Immutable, returned by `environment`
+    interactive  // Used by the REPL
+  };
+
   explicit
   module_(context&, std::optional<module_name> const& = {});
+
+  module_(context&, type);
 
   std::optional<binding_type>
   find(ptr<symbol>) const;
@@ -63,11 +72,8 @@ public:
   void
   mark_active() { active_ = true; }
 
-  bool
-  is_mutable() const { return mutable_; }
-
-  void
-  make_immutable() { mutable_ = false; }
+  type
+  get_type() const { return type_; }
 
   void
   visit_members(member_visitor const& f);
@@ -78,7 +84,7 @@ private:
   std::unordered_set<std::string> exports_;
   ptr<procedure>                  proc_;
   bool                            active_ = false;
-  bool                            mutable_ = true;
+  type                            type_ = type::loaded;
 };
 
 // Turn a module specifier into a module. First instantiate all uninstantiated
@@ -112,6 +118,9 @@ define_top_level(context&, std::string const& name, ptr<module_>, bool export_,
 // Causes garbage collection.
 tracked_ptr<>
 execute(context&, tracked_ptr<module_> const&);
+
+tracked_ptr<module_>
+make_interactive_module(context&, imports_list const&);
 
 } // namespace insider
 

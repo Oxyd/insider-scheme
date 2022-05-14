@@ -377,3 +377,23 @@ TEST_F(interpreter, cant_define_in_immutable_environment) {
   EXPECT_THROW(eval("(eval '(define foo 1) (environment '(insider internal)))"),
                std::runtime_error);
 }
+
+struct repl_fixture : interpreter {
+  tracked_ptr<module_> m
+    = make_interactive_module(
+        ctx,
+        import_modules(module_name{"insider", "internal"})
+      );
+};
+
+TEST_F(repl_fixture, eval_simple_expression_in_interactive_module) {
+  ptr<> result = insider::eval(ctx, "(* 7 3)", m).get();
+  EXPECT_EQ(expect<integer>(result).value(), 21);
+}
+
+TEST_F(repl_fixture, define_top_level_in_interactive_module) {
+  insider::eval(ctx, "(define x 7)", m);
+  insider::eval(ctx, "(define y 3)", m);
+  ptr<> result = insider::eval(ctx, "(* x y)", m).get();
+  EXPECT_EQ(expect<integer>(result).value(), 21);
+}
