@@ -11,8 +11,8 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU|Clang")
           -pedantic
           -fno-omit-frame-pointer
           -Wsuggest-override
-          $<$<STREQUAL:${CMAKE_CXX_COMPILER_ID},GCC>:-Wno-stringop-overflow>
-          $<$<STREQUAL:${CMAKE_CXX_COMPILER_ID},GCC>:-Wno-restrict>
+          $<$<CXX_COMPILER_ID:GNU>:-Wno-stringop-overflow>
+          $<$<CXX_COMPILER_ID:GNU>:-Wno-restrict>
           $<$<CONFIG:DEBUG>:-ggdb3>
           $<$<CONFIG:RELWITHDEBINFO>:-O3 -ggdb3>
           $<$<CONFIG:RELEASE>:-O3 -DNDEBUG>
