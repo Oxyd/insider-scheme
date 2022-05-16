@@ -19,6 +19,10 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU|Clang")
           $<$<CONFIG:PROFILE>:-O3 -DNDEBUG -ggdb3>
           $<$<BOOL:${ASAN}>:-fsanitize=address>
           $<$<BOOL:${UBSAN}>:-fsanitize=undefined>)
+
+  set(link_flags
+          $<$<BOOL:${ASAN}>:-fsanitize=address>
+          $<$<BOOL:${UBSAN}>:-fsanitize=undefined>)
 else()
   set(compile_flags
           /W4
@@ -118,6 +122,7 @@ set_property(TARGET scheme PROPERTY
 
 add_executable(tests ${test_sources})
 target_compile_options(tests PRIVATE ${compile_flags})
+target_link_options(tests PRIVATE ${link_flags})
 target_link_libraries(tests
   PUBLIC scheme
   PRIVATE gtest_main)
@@ -126,6 +131,7 @@ set_property(TARGET tests PROPERTY
 
 add_executable(insider ${program_sources})
 target_compile_options(insider PRIVATE ${compile_flags})
+target_link_options(insider PRIVATE ${link_flags})
 target_link_libraries(insider
   PUBLIC scheme)
 set_property(TARGET insider PROPERTY
