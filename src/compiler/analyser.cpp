@@ -103,13 +103,9 @@ namespace {
 static environment_extender
 extend_environment(parsing_context& pc, ptr<scope> s) {
   std::vector<std::shared_ptr<variable>> ext;
-  for (scope::binding b : *s) {
-    auto* var = std::get_if<std::shared_ptr<variable>>(
-      &std::get<scope::value_type>(b)
-    );
-    if (var)
-      ext.push_back(*var);
-  }
+  for (scope::binding const& b : *s)
+    if (b.variable)
+      ext.push_back(b.variable);
 
   return environment_extender{pc, std::move(ext)};
 }
@@ -130,8 +126,8 @@ is_in_scope(parsing_context& pc, std::shared_ptr<variable> const& var) {
 static std::shared_ptr<variable>
 lookup_variable_binding(ptr<syntax> id) {
   if (auto binding = lookup(id))
-    if (auto* var = std::get_if<std::shared_ptr<variable>>(&*binding))
-      return *var;
+    if (binding->variable)
+      return binding->variable;
 
   return {};
 }
@@ -176,8 +172,8 @@ make_expression(Args&&... args) {
 static ptr<transformer>
 lookup_transformer(ptr<syntax> id) {
   if (auto binding = lookup(id)) {
-    if (auto* tr = std::get_if<ptr<transformer>>(&*binding))
-      return *tr;
+    if (binding->transformer)
+      return binding->transformer;
     else
       return {};
   }
@@ -295,6 +291,13 @@ eval_transformer(parsing_context& pc, ptr<syntax> datum) {
   return call_with_continuation_barrier(pc.ctx, proc, {}).get();
 }
 
+// Causes a garbage collection
+static ptr<transformer>
+make_transformer(parsing_context& pc, ptr<syntax> expr) {
+  auto transformer_proc = eval_transformer(pc, expr); // GC
+  return make<transformer>(pc.ctx, transformer_proc);
+}
+
 static std::unique_ptr<expression>
 parse(parsing_context& pc, ptr<syntax> stx);
 
@@ -404,9 +407,8 @@ process_internal_defines(parsing_context& pc, ptr<> data,
           remove_use_site_scopes(pc.ctx, name.get(), pc.use_site_scopes.back())
         );
 
-        auto transformer_proc
-          = eval_transformer(pc, expect<syntax>(caddr(assume<pair>(p)))); // GC
-        auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
+        auto transformer
+          = make_transformer(pc, expect<syntax>(caddr(assume<pair>(p)))); // GC
         define(pc.ctx.store, name.get(), transformer);
 
         continue;
@@ -676,8 +678,7 @@ parse_let_syntax(parsing_context& pc, ptr<syntax> stx) {
     tracked_ptr<syntax> id
       = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope.get()));
 
-    auto transformer_proc = eval_transformer(pc, dp.expression.get()); // GC
-    auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
+    auto transformer = make_transformer(pc, dp.expression.get()); // GC
     define(pc.ctx.store, id.get(), transformer);
   }
 
@@ -706,8 +707,7 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
       = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope.get()));
     ptr<syntax> expression
       = dp.expression->add_scope(pc.ctx.store, subscope.get());
-    auto transformer_proc = eval_transformer(pc, expression); // GC
-    auto transformer = make<insider::transformer>(pc.ctx, transformer_proc);
+    auto transformer = make_transformer(pc, expression);
     define(pc.ctx.store, id.get(), transformer);
   }
 
@@ -898,12 +898,12 @@ parse_reference(parsing_context& pc, ptr<syntax> id) {
 }
 
 static std::tuple<tracked_ptr<syntax>, ptr<syntax>>
-parse_define_or_set_name_and_expr(parsing_context& pc, ptr<syntax> stx,
-                                  std::string const& form_name) {
+parse_name_and_expr(parsing_context& pc, ptr<syntax> stx,
+                    std::string const& form_name) {
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   auto name = track(
-      pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))))
-    );
+    pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))))
+  );
   auto expr = expect<syntax>(caddr(assume<pair>(datum)));
   if (!datum || list_length(datum) != 3)
     throw make_syntax_error(stx, "Invalid {} syntax", form_name);
@@ -937,7 +937,7 @@ parse_define_or_set(parsing_context& pc, ptr<syntax> stx,
   // This function can be therefore be used for both set! and define forms -- in
   // either case, we emit a set! syntax.
 
-  auto [name, expr] = parse_define_or_set_name_and_expr(pc, stx, form_name);
+  auto [name, expr] = parse_name_and_expr(pc, stx, form_name);
 
   auto var = lookup_variable(pc, name.get());
   if (!var)
@@ -965,7 +965,7 @@ define_new_toplevel_in_interactive_module(parsing_context& pc,
 
 static std::unique_ptr<expression>
 parse_define_in_interactive_module(parsing_context& pc, ptr<syntax> stx) {
-  auto [name, expr] = parse_define_or_set_name_and_expr(pc, stx, "define");
+  auto [name, expr] = parse_name_and_expr(pc, stx, "define");
 
   auto var = lookup_variable(pc, name.get());
   if (!var)
@@ -985,6 +985,41 @@ parse_define(parsing_context& pc, ptr<syntax> stx) {
 
   case module_::type::immutable:
     throw std::runtime_error{"Can't mutate an immutable environment"};
+  }
+
+  assert(!"Invalid module type");
+  return {};
+}
+
+static std::unique_ptr<expression>
+make_void_expression(parsing_context& pc) {
+  return make_expression<literal_expression>(
+    track(pc.ctx, pc.ctx.constants->void_)
+  );
+}
+
+static std::unique_ptr<expression>
+define_syntax_in_interactive_module(parsing_context& pc, ptr<syntax> stx) {
+  auto [name, expr] = parse_name_and_expr(pc, stx, "define-syntax");
+  auto new_tr = make_transformer(pc, expr); // GC
+  if (lookup_transformer(name.get()))
+    redefine(pc.ctx.store, name.get(), new_tr);
+  else
+    define(pc.ctx.store, name.get(), new_tr);
+  return make_void_expression(pc);
+}
+
+static std::unique_ptr<expression>
+parse_define_syntax(parsing_context& pc, ptr<syntax> stx) {
+  switch (pc.module_->get_type()) {
+  case module_::type::interactive:
+    return define_syntax_in_interactive_module(pc, stx);
+
+  case module_::type::immutable:
+    throw std::runtime_error{"Can't mutate an immutable environment"};
+
+  case module_::type::loaded:
+    assert(!"Can't happen");
   }
 
   assert(!"Invalid module type");
@@ -1166,13 +1201,13 @@ make_internal_reference(context& ctx, std::string name) {
   std::optional<module_::binding_type> binding
     = ctx.internal_module()->find(ctx.intern(name));
   assert(binding);
-  assert(std::holds_alternative<std::shared_ptr<variable>>(*binding));
+  assert(binding->variable);
+  assert(binding->variable->global);
 
-  auto var = std::get<std::shared_ptr<variable>>(*binding);
-  assert(var->global);
-
-  return make_expression<top_level_reference_expression>(*var->global,
-                                                         std::move(name));
+  return make_expression<top_level_reference_expression>(
+    *binding->variable->global,
+    std::move(name)
+  );
 }
 
 template <typename... Args>
@@ -1480,6 +1515,8 @@ parse(parsing_context& pc, ptr<syntax> s) {
         return parse_sequence(pc, syntax_cdr(pc.ctx, stx));
       else if (form == pc.ctx.constants->define)
         return parse_define(pc, stx);
+      else if (form == pc.ctx.constants->define_syntax)
+        return parse_define_syntax(pc, stx);
       else if (form == pc.ctx.constants->quote)
         return make_expression<literal_expression>(
           track(pc.ctx, syntax_to_datum(pc.ctx, syntax_cadr(pc.ctx, stx)))
@@ -1786,9 +1823,7 @@ perform_top_level_define_syntax(parsing_context& pc, ptr<pair> p) {
     pc.ctx, remove_use_site_scopes(pc.ctx, name,
                                    pc.use_site_scopes.back())
   );
-  auto transformer_proc
-    = eval_transformer(pc, expect<syntax>(caddr(p))); // GC
-  auto tr = make<transformer>(pc.ctx, transformer_proc);
+  auto tr = make_transformer(pc, expect<syntax>(caddr(p))); // GC
   define(pc.ctx.store, name_without_scope.get(), tr);
 }
 

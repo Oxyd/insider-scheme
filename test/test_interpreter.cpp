@@ -440,3 +440,40 @@ TEST_F(repl_fixture, reference_procedure_before_definition) {
   ptr<> result = insider::eval(ctx, m, "(f)").get();
   EXPECT_EQ(expect<integer>(result).value(), 4);
 }
+
+TEST_F(repl_fixture, define_syntax_in_repl) {
+  insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'4))");
+  ptr<> result = insider::eval(ctx, m, "(a)").get();
+  EXPECT_EQ(expect<integer>(result).value(), 4);
+}
+
+TEST_F(repl_fixture, reference_to_unknown_variable_doesnt_bind_to_syntax) {
+  insider::eval(ctx, m, "(define f (lambda () (a 2)))");
+  insider::eval(
+    ctx, m,
+    R"(
+      (define-syntax a
+        (lambda (stx)
+          (let ((name (cadr (syntax->list stx))))
+            #`(* 2 #,name))))
+    )"
+  );
+  EXPECT_THROW(insider::eval(ctx, m, "(f)"), std::runtime_error);
+}
+
+TEST_F(repl_fixture, redefine_syntax_in_repl) {
+  insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'4))");
+  insider::eval(ctx, m, "(define f (lambda () (a)))");
+  ptr<> result1 = insider::eval(ctx, m, "(f)").get();
+  EXPECT_EQ(expect<integer>(result1).value(), 4);
+
+  // f still uses the definition that was visible when it was defined.
+  insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'8))");
+  ptr<> result2 = insider::eval(ctx, m, "(f)").get();
+  EXPECT_EQ(expect<integer>(result2).value(), 4);
+
+  // The new definition of f will use the new definition of a.
+  insider::eval(ctx, m, "(define f (lambda () (a)))");
+  ptr<> result3 = insider::eval(ctx, m, "(f)").get();
+  EXPECT_EQ(expect<integer>(result3).value(), 8);
+}

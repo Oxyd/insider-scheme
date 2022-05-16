@@ -550,7 +550,7 @@ TEST_F(modules, environment) {
   );
   auto sc = m->scope();
   auto names = *sc | std::views::transform([] (scope::binding b) {
-    return std::get<ptr<syntax>>(b)->get_symbol()->value();
+    return b.id->get_symbol()->value();
   });
   EXPECT_EQ(std::set(std::ranges::begin(names), std::ranges::end(names)),
             (std::set<std::string>{"one", "too"}));

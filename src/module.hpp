@@ -26,7 +26,7 @@ class module_ : public composite_object<module_> {
 public:
   static constexpr char const* scheme_name = "insider::module";
 
-  using binding_type = insider::scope::value_type;
+  using binding_type = insider::scope::binding;
 
   enum class type {
     loaded,      // Loaded from a file; the default

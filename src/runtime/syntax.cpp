@@ -23,11 +23,10 @@ identifier_name(ptr<syntax> x) {
     return x->get_symbol()->value();
 }
 
-std::optional<scope::value_type>
+std::optional<scope::binding>
 lookup(ptr<syntax> id) {
   return lookup(id->get_symbol(), id->scopes());
 }
-
 
 syntax::syntax(ptr<> expr)
   : expression_{expr}
@@ -368,7 +367,7 @@ free_identifier_eq(ptr<syntax> x, ptr<syntax> y) {
   auto y_binding = lookup(y);
 
   if (x_binding && y_binding)
-    return *x_binding == *y_binding;
+    return binding_targets_equal(*x_binding, *y_binding);
   else if (!x_binding && !y_binding)
     return identifier_name(x) == identifier_name(y);
   else

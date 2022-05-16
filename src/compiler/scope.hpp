@@ -75,8 +75,22 @@ class scope : public composite_object<scope> {
 public:
   static constexpr char const* scheme_name = "insider::scope";
 
-  using value_type = std::variant<std::shared_ptr<variable>, ptr<transformer>>;
-  using binding = std::tuple<ptr<syntax>, value_type>;
+  struct binding {
+    ptr<syntax>                        id;
+    std::shared_ptr<insider::variable> variable;
+    ptr<insider::transformer>          transformer;
+
+    binding(ptr<syntax> id, std::shared_ptr<insider::variable> var)
+      : id{id}
+      , variable{std::move(var)}
+    { }
+
+    binding(ptr<syntax> id, ptr<insider::transformer> tr)
+      : id{id}
+      , transformer{tr}
+    { }
+  };
+
   using id_type = std::uint64_t;
 
   scope(context& ctx, std::string desc);
@@ -88,7 +102,7 @@ public:
   add(free_store& store, ptr<syntax> identifier, ptr<transformer>);
 
   void
-  add(free_store& store, ptr<syntax> identifier, value_type const&);
+  replace(free_store&, ptr<syntax> identifier, ptr<transformer>);
 
   std::vector<binding>
   find_candidates(ptr<symbol> name, scope_set const& scopes) const;
@@ -114,8 +128,18 @@ private:
   id_type              id_;
 
   bool
-  is_redefinition(ptr<syntax>, value_type const& intended_value) const;
+  is_redefinition(ptr<syntax>, auto const& intended_value) const;
 };
+
+void
+add_binding(free_store& store, ptr<scope>, ptr<syntax> identifier,
+            scope::binding const&);
+
+inline bool
+binding_targets_equal(scope::binding const& lhs, scope::binding const& rhs) {
+  return lhs.variable == rhs.variable
+         && lhs.transformer == rhs.transformer;
+}
 
 void
 define(free_store&, ptr<syntax> id, std::shared_ptr<variable>);
@@ -123,7 +147,10 @@ define(free_store&, ptr<syntax> id, std::shared_ptr<variable>);
 void
 define(free_store&, ptr<syntax> id, ptr<transformer>);
 
-std::optional<scope::value_type>
+void
+redefine(free_store&, ptr<syntax> id, ptr<transformer>);
+
+std::optional<scope::binding>
 lookup(ptr<symbol> id, scope_set const& envs);
 
 struct scope_comparator {

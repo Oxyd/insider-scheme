@@ -258,11 +258,11 @@ load_dynamic_top_level(instruction_state& istate) {
   assert(id->contains<symbol>());
 
   if (auto binding = lookup(id))
-    if (auto maybe_var = std::get_if<std::shared_ptr<variable>>(&*binding)) {
-      std::shared_ptr<variable> const& var = *maybe_var;
-      assert(var->global);
+    if (binding->variable) {
+      assert(binding->variable->global);
 
-      istate.frame().local(dest) = istate.context().get_top_level(*var->global);
+      istate.frame().local(dest)
+        = istate.context().get_top_level(*binding->variable->global);
       return;
     }
 

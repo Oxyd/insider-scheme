@@ -42,18 +42,19 @@ module_::find(ptr<symbol> identifier) const -> std::optional<binding_type> {
 void
 module_::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
   if (auto v = find(identifier)) {
-    if (*v == b)
+    if (binding_targets_equal(b, *v))
       return; // Re-importing the same variable under the same name is OK.
     else
       throw std::runtime_error{fmt::format("Redefinition of {}",
                                            identifier->value())};
   }
 
-  if (auto* var = std::get_if<std::shared_ptr<variable>>(&b))
-    env_->add(ctx.store, make<syntax>(ctx, identifier, scope_set{env_}), *var);
+  if (b.variable)
+    env_->add(ctx.store, make<syntax>(ctx, identifier, scope_set{env_}),
+              b.variable);
   else
     env_->add(ctx.store, make<syntax>(ctx, identifier, scope_set{env_}),
-              std::get<ptr<transformer>>(b));
+              b.transformer);
 }
 
 ptr<procedure>
@@ -64,9 +65,9 @@ module_::top_level_procedure() const {
 std::vector<std::string>
 module_::top_level_names() const {
   std::vector<std::string> result;
-  for (auto const& [identifier, binding] : *env_)
-    if (identifier->scopes().size() == 1)
-      result.push_back(identifier_name(identifier));
+  for (scope::binding const& b : *env_)
+    if (b.id->scopes().size() == 1)
+      result.push_back(identifier_name(b.id));
   return result;
 }
 
@@ -205,8 +206,9 @@ perform_imports(context& ctx, tracked_ptr<module_> const& m,
                 import_set const& set) {
   for (auto const& [to_name, from_name] : set.names) {
     if (auto b = set.source->find(ctx.intern(from_name)))
-      m->scope()->add(
+      add_binding(
         ctx.store,
+        m->scope(),
         make<syntax>(ctx, ctx.intern(to_name), scope_set{m->scope()}),
         *b
       );

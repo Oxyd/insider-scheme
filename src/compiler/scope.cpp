@@ -3,7 +3,6 @@
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/syntax.hpp"
-#include <bits/ranges_algo.h>
 
 #include <utility>
 
@@ -114,11 +113,20 @@ scope::add(free_store& store, ptr<syntax> identifier, ptr<transformer> tr) {
 }
 
 void
-scope::add(free_store& store, ptr<syntax> identifier, value_type const& value) {
-  if (auto const* var = std::get_if<std::shared_ptr<variable>>(&value))
-    add(store, identifier, *var);
-  else
-    add(store, identifier, std::get<ptr<transformer>>(value));
+scope::replace(free_store& store, ptr<syntax> identifier,
+               ptr<transformer> new_tr) {
+  auto b = std::ranges::find_if(bindings_, [&] (binding const& b) {
+    return b.id->get_symbol() == identifier->get_symbol();
+  });
+  assert(b != bindings_.end());
+
+  if (b->transformer) {
+    b->transformer = new_tr;
+    store.notify_arc(this, new_tr);
+  } else
+    throw std::runtime_error{fmt::format(
+      "Can't redefine {} as syntax", identifier->get_symbol()->value()
+    )};
 }
 
 auto
@@ -126,36 +134,54 @@ scope::find_candidates(ptr<symbol> name, scope_set const& scopes) const
   -> std::vector<binding>
 {
   std::vector<binding> result;
-  for (binding const& e : bindings_) {
-    ptr<syntax> s = std::get<ptr<syntax>>(e);
-    if (s->get_symbol() == name && scope_sets_subseteq(s->scopes(), scopes))
+  for (binding const& e : bindings_)
+    if (e.id->get_symbol() == name
+        && scope_sets_subseteq(e.id->scopes(), scopes))
       result.push_back(e);
-  }
 
   return result;
 }
 
 void
 scope::visit_members(member_visitor const& f) {
-  for (auto& [identifier, binding] : bindings_) {
-    f(identifier);
-    if (ptr<transformer>* tr = std::get_if<ptr<transformer>>(&binding))
-      f(*tr);
+  for (auto& b : bindings_) {
+    f(b.id);
+    f(b.transformer);
   }
 }
 
+static bool
+binding_values_equal(scope::binding const& binding,
+                     std::shared_ptr<variable> const& var) {
+  return binding.variable == var;
+}
+
+static bool
+binding_values_equal(scope::binding const& binding, ptr<transformer> tr) {
+  return binding.transformer == tr;
+}
+
 bool
-scope::is_redefinition(ptr<syntax> id, value_type const& intended_value) const {
+scope::is_redefinition(ptr<syntax> id, auto const& intended_value) const {
   return std::ranges::any_of(
     bindings_,
     [&] (binding const& b) {
-      auto const& [stx, value] = b;
-      return stx->get_symbol()->value() == id->get_symbol()->value()
-             && scope_sets_equal(id->scopes(),
-                                 std::get<ptr<syntax>>(b)->scopes())
-             && value != intended_value;
+      return b.id->get_symbol()->value() == id->get_symbol()->value()
+             && scope_sets_equal(id->scopes(), b.id->scopes())
+             && !binding_values_equal(b, intended_value);
     }
   );
+}
+
+void
+add_binding(free_store& store, ptr<scope> sc, ptr<syntax> identifier,
+            scope::binding const& b) {
+  if (b.variable)
+    sc->add(store, identifier, b.variable);
+  else {
+    assert(b.transformer);
+    sc->add(store, identifier, b.transformer);
+  }
 }
 
 static std::string
@@ -183,20 +209,29 @@ define(free_store& fs, ptr<syntax> id, ptr<transformer> value) {
   id->scopes().back()->add(fs, id, value);
 }
 
-std::optional<scope::value_type>
-lookup(ptr<symbol> id, scope_set const& envs) {
-  std::optional<scope::value_type> result;
+namespace {
+  struct lookup_result {
+    ptr<insider::scope> scope;
+    scope::binding      binding;
+  };
+}
+
+static std::optional<lookup_result>
+lookup_scope_and_binding(ptr<symbol> id, scope_set const& envs) {
+  std::optional<scope::binding> result;
+  ptr<scope> binding_scope{};
   scope_set maximal_scope_set;
   std::optional<scope_set> ambiguous_other_candidate_set;
 
   for (ptr<scope> e : envs)
     for (scope::binding const& b : e->find_candidates(id, envs)) {
-      scope_set const& binding_set = std::get<ptr<syntax>>(b)->scopes();
+      scope_set const& binding_set = b.id->scopes();
 
       if (scope_sets_subseteq(maximal_scope_set, binding_set)) {
         ambiguous_other_candidate_set = std::nullopt;
         maximal_scope_set = binding_set;
-        result = std::get<scope::value_type>(b);
+        result = b;
+        binding_scope = e;
       } else if (!scope_sets_subseteq(binding_set, maximal_scope_set))
         ambiguous_other_candidate_set = binding_set;
     }
@@ -211,7 +246,26 @@ lookup(ptr<symbol> id, scope_set const& envs) {
                      format_scope_set(maximal_scope_set),
                      format_scope_set(*ambiguous_other_candidate_set));
 
-  return result;
+  if (result)
+    return lookup_result{binding_scope, *result};
+  else
+    return std::nullopt;
+}
+
+void
+redefine(free_store& fs, ptr<syntax> id, ptr<transformer> tr) {
+  auto result = lookup_scope_and_binding(id->get_symbol(), id->scopes());
+  assert(result);
+
+  result->scope->replace(fs, id, tr);
+}
+
+std::optional<scope::binding>
+lookup(ptr<symbol> id, scope_set const& envs) {
+  if (auto result = lookup_scope_and_binding(id, envs))
+    return result->binding;
+  else
+    return std::nullopt;
 }
 
 } // namespace insider

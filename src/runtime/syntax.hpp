@@ -26,7 +26,7 @@ is_identifier(ptr<>);
 std::string
 identifier_name(ptr<syntax> x);
 
-std::optional<scope::value_type>
+std::optional<scope::binding>
 lookup(ptr<syntax> id);
 
 // Part of the program source code. It is an expression together with
