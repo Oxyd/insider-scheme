@@ -4,6 +4,7 @@
 #include "runtime/basic_types.hpp"
 #include "runtime/syntax.hpp"
 
+#include <ranges>
 #include <utility>
 
 namespace insider {
@@ -129,19 +130,6 @@ scope::replace(free_store& store, ptr<syntax> identifier,
     )};
 }
 
-auto
-scope::find_candidates(ptr<symbol> name, scope_set const& scopes) const
-  -> std::vector<binding>
-{
-  std::vector<binding> result;
-  for (binding const& e : bindings_)
-    if (e.id->get_symbol() == name
-        && scope_sets_subseteq(e.id->scopes(), scopes))
-      result.push_back(e);
-
-  return result;
-}
-
 void
 scope::visit_members(member_visitor const& f) {
   for (auto& b : bindings_) {
@@ -216,6 +204,32 @@ namespace {
   };
 }
 
+static auto
+candidate_bindings(ptr<scope> s, ptr<symbol> name, scope_set const& scopes)
+{
+  return *s | std::views::filter([=] (scope::binding const& b) {
+    return b.id->get_symbol() == name
+           && scope_sets_subseteq(b.id->scopes(), scopes);
+  });
+}
+
+static void
+throw_ambiguous_reference_error(
+  ptr<symbol> id,
+  scope_set const& envs,
+  scope_set const& maximal_scope_set,
+  scope_set const& ambiguous_other_candidate_set
+) {
+  throw make_error("Ambiguous reference to {}\n"
+                   "  Reference scopes:     {};\n"
+                   "  1st candidate scopes: {};\n"
+                   "  2nd candidate scopes: {}.",
+                   id->value(),
+                   format_scope_set(envs),
+                   format_scope_set(maximal_scope_set),
+                   format_scope_set(ambiguous_other_candidate_set));
+}
+
 static std::optional<lookup_result>
 lookup_scope_and_binding(ptr<symbol> id, scope_set const& envs) {
   std::optional<scope::binding> result;
@@ -224,7 +238,7 @@ lookup_scope_and_binding(ptr<symbol> id, scope_set const& envs) {
   std::optional<scope_set> ambiguous_other_candidate_set;
 
   for (ptr<scope> e : envs)
-    for (scope::binding const& b : e->find_candidates(id, envs)) {
+    for (scope::binding const& b : candidate_bindings(e, id, envs)) {
       scope_set const& binding_set = b.id->scopes();
 
       if (scope_sets_subseteq(maximal_scope_set, binding_set)) {
@@ -237,14 +251,10 @@ lookup_scope_and_binding(ptr<symbol> id, scope_set const& envs) {
     }
 
   if (ambiguous_other_candidate_set)
-    throw make_error("Ambiguous reference to {}\n"
-                     "  Reference scopes:     {};\n"
-                     "  1st candidate scopes: {};\n"
-                     "  2nd candidate scopes: {}.",
-                     id->value(),
-                     format_scope_set(envs),
-                     format_scope_set(maximal_scope_set),
-                     format_scope_set(*ambiguous_other_candidate_set));
+    throw_ambiguous_reference_error(id,
+                                    envs,
+                                    maximal_scope_set,
+                                    *ambiguous_other_candidate_set);
 
   if (result)
     return lookup_result{binding_scope, *result};

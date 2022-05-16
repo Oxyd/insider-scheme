@@ -104,9 +104,6 @@ public:
   void
   replace(free_store&, ptr<syntax> identifier, ptr<transformer>);
 
-  std::vector<binding>
-  find_candidates(ptr<symbol> name, scope_set const& scopes) const;
-
   std::string const&
   description() const { return description_; }
 

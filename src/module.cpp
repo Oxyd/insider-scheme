@@ -15,6 +15,8 @@
 #include "util/list_iterator.hpp"
 #include "vm/vm.hpp"
 
+#include <ranges>
+
 namespace insider {
 
 module_::module_(context& ctx, std::optional<module_name> const& name)
@@ -60,15 +62,6 @@ module_::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
 ptr<procedure>
 module_::top_level_procedure() const {
   return proc_;
-}
-
-std::vector<std::string>
-module_::top_level_names() const {
-  std::vector<std::string> result;
-  for (scope::binding const& b : *env_)
-    if (b.id->scopes().size() == 1)
-      result.push_back(identifier_name(b.id));
-  return result;
 }
 
 void
@@ -264,13 +257,25 @@ import_all_exported(context& ctx,
   perform_imports(ctx, to, is);
 }
 
+static auto
+top_level_names(ptr<module_> m) {
+  return
+    *m->scope()
+      | std::views::filter([] (scope::binding const& b) {
+        return b.id->scopes().size() == 1;
+      })
+      | std::views::transform([] (scope::binding const& b) {
+        return b.id->get_symbol()->value();
+      });
+}
+
 void
 import_all_top_level(context& ctx,
                      tracked_ptr<module_> const& to,
                      tracked_ptr<module_> const& from) {
   import_set is{from, {}};
 
-  for (std::string const& name : from->top_level_names())
+  for (std::string const& name : top_level_names(from.get()))
     is.names.emplace_back(name, name);
 
   perform_imports(ctx, to, is);

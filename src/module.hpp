@@ -63,9 +63,6 @@ public:
   ptr<insider::scope>
   scope() const { return env_; }
 
-  std::vector<std::string>
-  top_level_names() const;
-
   bool
   active() const { return active_; }
 

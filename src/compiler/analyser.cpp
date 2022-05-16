@@ -458,13 +458,11 @@ process_internal_defines(parsing_context& pc, ptr<> data,
 static std::vector<std::unique_ptr<expression>>
 parse_expression_list(parsing_context& pc,
                       std::vector<tracked_ptr<syntax>> const& exprs) {
-  std::vector<std::unique_ptr<expression>> result;
-  result.reserve(exprs.size());
-
-  for (tracked_ptr<syntax> const& e : exprs)
-    result.push_back(parse(pc, e.get()));
-
-  return result;
+  auto parsed
+    = exprs | std::views::transform([&] (tracked_ptr<syntax> const& e) {
+      return parse(pc, e.get());
+    });
+  return {parsed.begin(), parsed.end()};
 }
 
 static sequence_expression
