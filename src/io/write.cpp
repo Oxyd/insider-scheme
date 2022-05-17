@@ -593,6 +593,18 @@ write_char_proc(char32_t c, ptr<textual_output_port> out) {
 
 void
 export_write(context& ctx, ptr<module_> result) {
+  auto default_output_port = make<textual_output_port>(
+    ctx, std::make_unique<file_port_sink>(stdout, false)
+  );
+  ctx.constants->current_output_port_tag
+    = create_parameter_tag(ctx, default_output_port);
+
+  auto default_error_port = make<textual_output_port>(
+    ctx, std::make_unique<file_port_sink>(stderr, false)
+  );
+  ctx.constants->current_error_port_tag
+    = create_parameter_tag(ctx, default_error_port);
+
   define_top_level(ctx, "current-output-port-tag", result, true,
                    ctx.constants->current_output_port_tag);
   define_top_level(ctx, "current-error-port-tag", result, true,
@@ -609,21 +621,6 @@ export_write(context& ctx, ptr<module_> result) {
   define_procedure<number_to_string>(ctx, "number->string", result, true,
                                      [] (context&) { return 10u; });
   define_procedure<datum_to_string>(ctx, "datum->string", result, true);
-}
-
-void
-init_write(context& ctx) {
-  auto default_output_port = make<textual_output_port>(
-    ctx, std::make_unique<file_port_sink>(stdout, false)
-  );
-  ctx.constants->current_output_port_tag
-    = create_parameter_tag(ctx, default_output_port);
-
-  auto default_error_port = make<textual_output_port>(
-    ctx, std::make_unique<file_port_sink>(stderr, false)
-  );
-  ctx.constants->current_error_port_tag
-    = create_parameter_tag(ctx, default_error_port);
 }
 
 } // namespace insider

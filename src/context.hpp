@@ -98,6 +98,7 @@ public:
     ptr<parameter_tag> current_error_port_tag;
     ptr<parameter_tag> current_source_file_origin_tag;
     ptr<parameter_tag> is_main_module_tag;
+    ptr<parameter_tag> current_expand_module_tag;
   };
 
   struct statics_list {

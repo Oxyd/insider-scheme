@@ -1581,6 +1581,12 @@ read_syntax_multiple_ci_proc(context& ctx, ptr<textual_input_port> p) {
 
 void
 export_read(context& ctx, ptr<module_> result) {
+  auto default_input_port = make<textual_input_port>(
+    ctx, std::make_unique<file_port_source>(stdin, false), "<stdin>"
+  );
+  ctx.constants->current_input_port_tag
+    = create_parameter_tag(ctx, default_input_port);
+
   define_top_level(ctx, "current-input-port-tag", result, true,
                    ctx.constants->current_input_port_tag);
   define_procedure<
@@ -1606,15 +1612,6 @@ export_read(context& ctx, ptr<module_> result) {
   define_procedure<&read_error::scheme_error::message>(
     ctx, "read-error-message", result, true
   );
-}
-
-void
-init_read(context& ctx) {
-  auto default_input_port = make<textual_input_port>(
-    ctx, std::make_unique<file_port_source>(stdin, false), "<stdin>"
-  );
-  ctx.constants->current_input_port_tag
-    = create_parameter_tag(ctx, default_input_port);
 }
 
 } // namespace insider

@@ -70,9 +70,6 @@ read_syntax_multiple(context&, std::string);
 ptr<>
 string_to_number(context&, std::string const&, unsigned base = 10);
 
-void
-init_read(context&);
-
 } // namespace insider
 
 #endif

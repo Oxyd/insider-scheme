@@ -50,9 +50,6 @@ sequence_expression
 analyse_module(context&, tracked_ptr<module_>, module_specifier const&,
                bool main_module = false);
 
-void
-init_analyser(context&);
-
 } // namespace insider
 
 #endif

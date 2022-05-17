@@ -401,6 +401,17 @@ TEST_F(interpreter, cant_define_in_immutable_environment) {
                std::runtime_error);
 }
 
+static ptr<>
+return_true(context& ctx) {
+  return ctx.constants->t;
+}
+
+TEST_F(interpreter, eval_tail_call_to_native) {
+  define_procedure<return_true>(ctx, "return-t", ctx.internal_module(), true);
+  ptr<> result = eval("(eval '(return-t) (environment '(insider internal)))");
+  EXPECT_EQ(result, ctx.constants->t);
+}
+
 struct repl_fixture : interpreter {
   tracked_ptr<module_> m
     = make_interactive_module(
@@ -476,4 +487,53 @@ TEST_F(repl_fixture, redefine_syntax_in_repl) {
   insider::eval(ctx, m, "(define f (lambda () (a)))");
   ptr<> result3 = insider::eval(ctx, m, "(f)").get();
   EXPECT_EQ(expect<integer>(result3).value(), 8);
+}
+
+TEST_F(repl_fixture, eval_sets_current_module_parameter) {
+  ptr<> result
+    = insider::eval(
+      ctx, m,
+      R"(
+        (let-syntax ((s (lambda (stx)
+                          (datum->syntax
+                           #f
+                           (find-parameter-value
+                            current-expand-module-tag)))))
+          (s))
+      )").get();
+  EXPECT_EQ(result, m.get());
+}
+
+TEST_F(interpreter, scheme_eval_sets_current_module_parameter) {
+  ptr<> result = eval(
+    R"(
+      (let-syntax ((s (lambda (stx)
+                        (datum->syntax
+                         #f
+                         (find-parameter-value
+                          current-expand-module-tag)))))
+        (s))
+    )"
+  );
+  EXPECT_TRUE(is<module_>(result));
+}
+
+TEST_F(repl_fixture, dynamic_import_performs_imports) {
+  define_top_level(ctx, "m", m.get(), true, m.get());
+  // Not yet imported
+  EXPECT_THROW(insider::eval(ctx, m, "var"), std::runtime_error);
+
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export var)
+      (define var 13)
+    )"
+  );
+
+  insider::eval(ctx, m, "(dynamic-import m '(foo))");
+  ptr<> result = insider::eval(ctx, m, "var").get();
+  EXPECT_EQ(expect<integer>(result).value(), 13);
 }

@@ -1748,6 +1748,8 @@ analyse(context& ctx, ptr<syntax> stx, tracked_ptr<module_> const& m,
         source_file_origin const& origin) {
   parameterize origin_param{ctx, ctx.constants->current_source_file_origin_tag,
                             make<opaque_value<source_file_origin>>(ctx, origin)};
+  parameterize module_param{ctx, ctx.constants->current_expand_module_tag,
+                            m.get()};
   parsing_context pc{ctx, m, origin, {}, {}};
   stx = stx->add_scope(ctx.store, m->scope());
   return analyse_internal(pc, stx);
@@ -2251,6 +2253,9 @@ analyse_module(context& ctx, tracked_ptr<module_> m, module_specifier const& pm,
     ctx, ctx.constants->is_main_module_tag,
     main_module ? ctx.constants->t : ctx.constants->f
   };
+  parameterize module_param{
+    ctx, ctx.constants->current_expand_module_tag, m.get()
+  };
   parsing_context pc{ctx, m, pm.origin, {}, {}};
 
   std::vector<tracked_ptr<syntax>> body = expand_top_level(pc, m, pm);
@@ -2269,19 +2274,20 @@ expand_proc(context& ctx, tracked_ptr<syntax> stx) {
 
 void
 export_analyser(context& ctx, ptr<module_> result) {
+  ctx.constants->current_source_file_origin_tag
+    = create_parameter_tag(ctx, ctx.constants->f);
+  ctx.constants->is_main_module_tag
+    = create_parameter_tag(ctx, ctx.constants->f);
+  ctx.constants->current_expand_module_tag
+    = create_parameter_tag(ctx, ctx.constants->f);
+
   define_procedure<expand_proc>(ctx, "expand", result, true);
   define_top_level(ctx, "current-source-file-origin-tag", result, true,
                    ctx.constants->current_source_file_origin_tag);
   define_top_level(ctx, "main-module?-tag", result, true,
                    ctx.constants->is_main_module_tag);
-}
-
-void
-init_analyser(context& ctx) {
-  ctx.constants->current_source_file_origin_tag
-    = create_parameter_tag(ctx, ctx.constants->f);
-  ctx.constants->is_main_module_tag
-    = create_parameter_tag(ctx, ctx.constants->f);
+  define_top_level(ctx, "current-expand-module-tag", result, true,
+                   ctx.constants->current_expand_module_tag);
 }
 
 } // namespace insider

@@ -343,9 +343,19 @@ make_interactive_module(context& ctx, imports_list const& imports) {
   return result;
 }
 
+static ptr<>
+dynamic_import(context& ctx, ptr<native_procedure>, object_span args) {
+  require_arg_count(args, 2);
+  auto m = expect<module_>(args[0]);
+  auto imports = parse_imports(ctx, args.subspan(1));
+  perform_imports(ctx, track(ctx, m), imports);
+  return ctx.constants->void_;
+}
+
 void
 export_module(context& ctx, ptr<module_> result) {
   define_raw_procedure<environment>(ctx, "environment", result, true);
+  define_raw_procedure<dynamic_import>(ctx, "dynamic-import", result, true);
 }
 
 } // namespace insider

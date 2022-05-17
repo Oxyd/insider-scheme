@@ -8,6 +8,7 @@
 #include "runtime/internal_module.hpp"
 #include "runtime/syntax.hpp"
 #include "vm/execution_state.hpp"
+
 #include <memory>
 
 namespace insider {
@@ -60,10 +61,6 @@ context::context()
   constants->tail_call_tag = make<tail_call_tag_type>(*this);
 
   parameters = make<parameter_map>(*this);
-
-  init_read(*this);
-  init_write(*this);
-  init_analyser(*this);
 
   module_resolver().set_internal_module(make_internal_module(*this));
 
@@ -256,6 +253,7 @@ context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.constants->current_error_port_tag);
   f(ctx_.constants->current_source_file_origin_tag);
   f(ctx_.constants->is_main_module_tag);
+  f(ctx_.constants->current_expand_module_tag);
 
   f(ctx_.parameters);
 
