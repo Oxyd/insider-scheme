@@ -14,7 +14,7 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU|Clang")
           $<$<CXX_COMPILER_ID:GNU>:-Wno-stringop-overflow>
           $<$<CXX_COMPILER_ID:GNU>:-Wno-restrict>
           $<$<CONFIG:DEBUG>:-ggdb3>
-          $<$<CONFIG:RELWITHDEBINFO>:-O3 -ggdb3>
+          $<$<CONFIG:RELWITHDEBINFO>:-O3 -ggdb3 -UNDEBUG>
           $<$<CONFIG:RELEASE>:-O3 -DNDEBUG>
           $<$<CONFIG:PROFILE>:-O3 -DNDEBUG -ggdb3>
           $<$<BOOL:${ASAN}>:-fsanitize=address>
