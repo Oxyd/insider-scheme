@@ -281,21 +281,21 @@ expand(parsing_context& pc, tracked_ptr<syntax> const& stx) {
 }
 
 static std::unique_ptr<expression>
-analyse_transformer(parsing_context&, ptr<syntax>);
+analyse_meta(parsing_context& pc, ptr<syntax> transformer_stx);
 
 // Causes a garbage collection.
-static ptr<>
-eval_transformer(parsing_context& pc, ptr<syntax> datum) {
-  simple_action a(pc.ctx, datum, "Evaluating transformer");
-  auto proc = compile_syntax(pc.ctx, analyse_transformer(pc, datum), pc.module_);
-  return call_with_continuation_barrier(pc.ctx, proc, {}).get();
+static tracked_ptr<>
+eval_meta(parsing_context& pc, ptr<syntax> datum) {
+  auto proc = compile_syntax(pc.ctx, analyse_meta(pc, datum), pc.module_);
+  return call_with_continuation_barrier(pc.ctx, proc, {});
 }
 
 // Causes a garbage collection
 static ptr<transformer>
 make_transformer(parsing_context& pc, ptr<syntax> expr) {
-  auto transformer_proc = eval_transformer(pc, expr); // GC
-  return make<transformer>(pc.ctx, transformer_proc);
+  simple_action a(pc.ctx, expr, "Evaluating transformer");
+  auto transformer_proc = eval_meta(pc, expr); // GC
+  return make<transformer>(pc.ctx, transformer_proc.get());
 }
 
 static std::unique_ptr<expression>
@@ -946,14 +946,9 @@ parse_define_or_set(parsing_context& pc, ptr<syntax> stx,
 }
 
 static std::unique_ptr<expression>
-parse_define_in_loaded_module(parsing_context& pc, ptr<syntax> stx) {
-  return parse_define_or_set(pc, stx, "define");
-}
-
-static std::unique_ptr<expression>
-define_new_toplevel_in_interactive_module(parsing_context& pc,
-                                          tracked_ptr<syntax> const& id,
-                                          ptr<syntax> expr) {
+define_new_toplevel(parsing_context& pc,
+                    tracked_ptr<syntax> const& id,
+                    ptr<syntax> expr) {
   std::string name = identifier_name(id.get());
   operand index = pc.ctx.add_top_level(pc.ctx.constants->void_, name);
   auto var = std::make_shared<variable>(name, index);
@@ -962,31 +957,16 @@ define_new_toplevel_in_interactive_module(parsing_context& pc,
 }
 
 static std::unique_ptr<expression>
-parse_define_in_interactive_module(parsing_context& pc, ptr<syntax> stx) {
-  auto [name, expr] = parse_name_and_expr(pc, stx, "define");
+parse_define(parsing_context& pc, ptr<syntax> stx) {
+  if (pc.module_->get_type() == module_::type::immutable)
+    throw std::runtime_error{"Can't mutate an immutable environment"};
 
+  auto [name, expr] = parse_name_and_expr(pc, stx, "define");
   auto var = lookup_variable(pc, name.get());
   if (!var)
-    return define_new_toplevel_in_interactive_module(pc, name, expr);
+    return define_new_toplevel(pc, name, expr);
   else
     return make_set_expression(pc, name, expr, std::move(var));
-}
-
-static std::unique_ptr<expression>
-parse_define(parsing_context& pc, ptr<syntax> stx) {
-  switch (pc.module_->get_type()) {
-  case module_::type::loaded:
-    return parse_define_in_loaded_module(pc, stx);
-
-  case module_::type::interactive:
-    return parse_define_in_interactive_module(pc, stx);
-
-  case module_::type::immutable:
-    throw std::runtime_error{"Can't mutate an immutable environment"};
-  }
-
-  assert(!"Invalid module type");
-  return {};
 }
 
 static std::unique_ptr<expression>
@@ -1484,6 +1464,22 @@ parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
   );
 }
 
+ptr<syntax>
+syntax_tail(context& ctx, ptr<syntax> stx) {
+  ptr<> tail = cdr(syntax_expect<pair>(ctx, stx));
+  if (auto tail_stx = match<syntax>(tail))
+    return tail_stx;
+  else
+    return make<syntax>(ctx, tail, stx->location(), stx->scopes());
+}
+
+static std::unique_ptr<expression>
+parse_meta(parsing_context& pc, ptr<syntax> stx) {
+  simple_action a{pc.ctx, stx, "Evaluating meta expression"};
+  tracked_ptr<> value = eval_meta(pc, syntax_tail(pc.ctx, stx));
+  return make_expression<literal_expression>(value);
+}
+
 static std::unique_ptr<expression>
 parse(parsing_context& pc, ptr<syntax> s) {
   ptr<syntax> stx = expand(pc, track(pc.ctx, s)).get(); // GC
@@ -1545,6 +1541,8 @@ parse(parsing_context& pc, ptr<syntax> s) {
         return parse_let_syntax(pc, stx);
       else if (form == pc.ctx.constants->letrec_syntax)
         return parse_letrec_syntax(pc, stx);
+      else if (form == pc.ctx.constants->meta)
+        return parse_meta(pc, stx);
     }
 
     return parse_application(pc, stx);
@@ -1738,7 +1736,7 @@ analyse_internal(parsing_context& pc, ptr<syntax> stx) {
 }
 
 static std::unique_ptr<expression>
-analyse_transformer(parsing_context& pc, ptr<syntax> transformer_stx) {
+analyse_meta(parsing_context& pc, ptr<syntax> transformer_stx) {
   parsing_context transformer_pc{pc.ctx, pc.module_, pc.origin, {}, {}};
   return analyse_internal(transformer_pc, transformer_stx);
 }
@@ -1859,17 +1857,17 @@ process_top_level_form(parsing_context& pc, module_specifier const& pm,
       if (form == pc.ctx.constants->define_syntax) {
         perform_top_level_define_syntax(pc, p);
         return false;
-      }
-      else if (form == pc.ctx.constants->define) {
+      } else if (form == pc.ctx.constants->define) {
         perform_top_level_define(pc, stx, lst, p);
         return true;
-      }
-      else if (form == pc.ctx.constants->begin) {
+      } else if (form == pc.ctx.constants->begin) {
         expand_begin(pc, p, stack);
         return false;
-      }
-      else if (form == pc.ctx.constants->begin_for_syntax) {
+      } else if (form == pc.ctx.constants->begin_for_syntax) {
         perform_begin_for_syntax(pc, pm, track(pc.ctx, cdr(p)));
+        return false;
+      } else if (form == pc.ctx.constants->meta) {
+        eval_meta(pc, stx.get());
         return false;
       }
     }

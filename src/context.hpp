@@ -92,7 +92,7 @@ public:
       let, letrec_star, set, lambda, if_, box, unbox, box_set, define,
       define_syntax, begin, begin_for_syntax, quote, quasiquote, unquote,
       unquote_splicing, syntax, quasisyntax, unsyntax, unsyntax_splicing,
-      syntax_trap, syntax_error, let_syntax, letrec_syntax;
+      syntax_trap, syntax_error, let_syntax, letrec_syntax, meta;
     ptr<parameter_tag> current_input_port_tag;
     ptr<parameter_tag> current_output_port_tag;
     ptr<parameter_tag> current_error_port_tag;

@@ -537,3 +537,38 @@ TEST_F(repl_fixture, dynamic_import_performs_imports) {
   ptr<> result = insider::eval(ctx, m, "var").get();
   EXPECT_EQ(expect<integer>(result).value(), 13);
 }
+
+TEST_F(interpreter, meta_eval_simple_expression) {
+  ptr<> result = eval("(meta + 2 3)");
+  EXPECT_EQ(expect<integer>(result).value(), 5);
+}
+
+TEST_F(interpreter, meta_eval_definition) {
+  ptr<> result = eval_module(R"(
+    (import (insider internal))
+    (meta define foo 12)
+    (* foo 2)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 24);
+}
+
+TEST_F(interpreter, meta_definitions_are_visible_in_transformers) {
+  ptr<> result = eval_module(R"(
+    (import (insider internal))
+
+    (meta define second
+      (lambda (stx)
+        (cadr (syntax->list stx))))
+
+    (meta define third
+      (lambda (stx)
+        (caddr (syntax->list stx))))
+
+    (define-syntax backward
+      (lambda (stx)
+        #`(#,(third stx) #,(second stx))))
+
+    (backward 2 -)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), -2);
+}

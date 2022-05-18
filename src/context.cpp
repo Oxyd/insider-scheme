@@ -91,7 +91,8 @@ context::context()
     {constants->syntax_trap,       "syntax-trap"},
     {constants->syntax_error,      "syntax-error"},
     {constants->let_syntax,        "let-syntax"},
-    {constants->letrec_syntax,     "letrec-syntax"}
+    {constants->letrec_syntax,     "letrec-syntax"},
+    {constants->meta,              "meta"}
   };
   for (auto const& form : core_forms) {
     form.object = make<core_form_type>(*this, form.name);
@@ -248,6 +249,7 @@ context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.constants->syntax_error);
   f(ctx_.constants->let_syntax);
   f(ctx_.constants->letrec_syntax);
+  f(ctx_.constants->meta);
   f(ctx_.constants->current_input_port_tag);
   f(ctx_.constants->current_output_port_tag);
   f(ctx_.constants->current_error_port_tag);
