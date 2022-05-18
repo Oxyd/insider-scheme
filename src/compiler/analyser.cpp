@@ -977,7 +977,10 @@ make_void_expression(parsing_context& pc) {
 }
 
 static std::unique_ptr<expression>
-define_syntax_in_interactive_module(parsing_context& pc, ptr<syntax> stx) {
+parse_define_syntax(parsing_context& pc, ptr<syntax> stx) {
+  if (pc.module_->get_type() == module_::type::immutable)
+    throw std::runtime_error{"Can't mutate an immutable environment"};
+
   auto [name, expr] = parse_name_and_expr(pc, stx, "define-syntax");
   auto new_tr = make_transformer(pc, expr); // GC
   if (lookup_transformer(name.get()))
@@ -985,23 +988,6 @@ define_syntax_in_interactive_module(parsing_context& pc, ptr<syntax> stx) {
   else
     define(pc.ctx.store, name.get(), new_tr);
   return make_void_expression(pc);
-}
-
-static std::unique_ptr<expression>
-parse_define_syntax(parsing_context& pc, ptr<syntax> stx) {
-  switch (pc.module_->get_type()) {
-  case module_::type::interactive:
-    return define_syntax_in_interactive_module(pc, stx);
-
-  case module_::type::immutable:
-    throw std::runtime_error{"Can't mutate an immutable environment"};
-
-  case module_::type::loaded:
-    assert(!"Can't happen");
-  }
-
-  assert(!"Invalid module type");
-  return {};
 }
 
 static std::unique_ptr<expression>

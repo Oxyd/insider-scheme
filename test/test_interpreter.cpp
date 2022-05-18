@@ -572,3 +572,28 @@ TEST_F(interpreter, meta_definitions_are_visible_in_transformers) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), -2);
 }
+
+TEST_F(interpreter, meta_syntax_definitions_are_visible_in_transformers) {
+  ptr<> result = eval_module(R"(
+    (import (insider internal))
+
+    (meta define-syntax if*
+      (lambda (stx)
+        (let ((exprs (syntax->list stx)))
+          #`(if . #,(cdr exprs)))))
+
+    (define-syntax introduce
+      (lambda (stx)
+        (let ((exprs (syntax->list stx)))
+          (let ((name (cadr exprs))
+                (value (if* (eq? (cddr exprs) '())
+                            #'0
+                            (caddr exprs))))
+            #`(define #,name #,value)))))
+
+    (introduce foo)
+    (introduce bar 2)
+    (+ foo bar)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 2);
+}
