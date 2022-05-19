@@ -539,14 +539,14 @@ TEST_F(repl_fixture, dynamic_import_performs_imports) {
 }
 
 TEST_F(interpreter, meta_eval_simple_expression) {
-  ptr<> result = eval("(meta + 2 3)");
+  ptr<> result = eval("(meta (+ 2 3))");
   EXPECT_EQ(expect<integer>(result).value(), 5);
 }
 
 TEST_F(interpreter, meta_eval_definition) {
   ptr<> result = eval_module(R"(
     (import (insider internal))
-    (meta define foo 12)
+    (meta (define foo 12))
     (* foo 2)
   )");
   EXPECT_EQ(expect<integer>(result).value(), 24);
@@ -556,13 +556,15 @@ TEST_F(interpreter, meta_definitions_are_visible_in_transformers) {
   ptr<> result = eval_module(R"(
     (import (insider internal))
 
-    (meta define second
-      (lambda (stx)
-        (cadr (syntax->list stx))))
+    (meta
+      (define second
+        (lambda (stx)
+          (cadr (syntax->list stx)))))
 
-    (meta define third
-      (lambda (stx)
-        (caddr (syntax->list stx))))
+    (meta
+      (define third
+        (lambda (stx)
+          (caddr (syntax->list stx)))))
 
     (define-syntax backward
       (lambda (stx)
@@ -577,10 +579,11 @@ TEST_F(interpreter, meta_syntax_definitions_are_visible_in_transformers) {
   ptr<> result = eval_module(R"(
     (import (insider internal))
 
-    (meta define-syntax if*
-      (lambda (stx)
-        (let ((exprs (syntax->list stx)))
-          #`(if . #,(cdr exprs)))))
+    (meta
+      (define-syntax if*
+        (lambda (stx)
+          (let ((exprs (syntax->list stx)))
+            #`(if . #,(cdr exprs))))))
 
     (define-syntax introduce
       (lambda (stx)
@@ -594,6 +597,24 @@ TEST_F(interpreter, meta_syntax_definitions_are_visible_in_transformers) {
     (introduce foo)
     (introduce bar 2)
     (+ foo bar)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 2);
+}
+
+TEST_F(interpreter, right_hand_side_of_meta_is_macro_expanded) {
+  ptr<> result = eval_module(R"(
+    (import (insider internal))
+
+    (meta
+      (define-syntax make-def
+        (lambda (stx)
+          (let ((exprs (syntax->list stx)))
+            (let ((name (cadr exprs))
+                  (value (caddr exprs)))
+              #`(define #,name #,value))))))
+
+    (meta (make-def foo 2))
+    foo
   )");
   EXPECT_EQ(expect<integer>(result).value(), 2);
 }

@@ -50,7 +50,11 @@ namespace {
     source_file_origin const& origin;
     std::vector<std::vector<std::shared_ptr<variable>>> environment;
     std::vector<use_site_scopes_list> use_site_scopes;
-    bool record_use_site_scopes = false;
+
+    bool
+    record_use_site_scopes() const {
+      return !use_site_scopes.empty();
+    }
   };
 
   class environment_extender {
@@ -80,15 +84,11 @@ namespace {
     internal_definition_context_guard(parsing_context& pc)
       : pc_{pc}
     {
-      assert(!pc_.record_use_site_scopes);
-
       pc_.use_site_scopes.emplace_back();
-      pc_.record_use_site_scopes = true;
     }
 
     ~internal_definition_context_guard() {
       pc_.use_site_scopes.pop_back();
-      pc_.record_use_site_scopes = false;
     }
 
     internal_definition_context_guard(internal_definition_context_guard const&)
@@ -202,6 +202,14 @@ remove_use_site_scopes(context& ctx, ptr<syntax> expr,
 }
 
 static ptr<syntax>
+maybe_remove_use_site_scopes(parsing_context& pc, ptr<syntax> name) {
+  if (!pc.use_site_scopes.empty())
+    return remove_use_site_scopes(pc.ctx, name, pc.use_site_scopes.back());
+  else
+    return name;
+}
+
+static ptr<syntax>
 call_transformer_with_continuation_barrier(context& ctx, ptr<> callable,
                                            tracked_ptr<syntax> const& stx) {
   ptr<> result
@@ -269,7 +277,7 @@ expand(context& ctx, tracked_ptr<syntax> stx,
 
 static tracked_ptr<syntax>
 expand(parsing_context& pc, tracked_ptr<syntax> const& stx) {
-  if (pc.record_use_site_scopes) {
+  if (pc.record_use_site_scopes()) {
     std::vector<tracked_ptr<scope>> use_site_scopes;
     tracked_ptr<syntax> result = expand(pc.ctx, stx, &use_site_scopes);
     pc.use_site_scopes.back().insert(pc.use_site_scopes.back().end(),
@@ -281,7 +289,7 @@ expand(parsing_context& pc, tracked_ptr<syntax> const& stx) {
 }
 
 static std::unique_ptr<expression>
-analyse_meta(parsing_context& pc, ptr<syntax> transformer_stx);
+analyse_meta(parsing_context& pc, ptr<syntax> stx);
 
 // Causes a garbage collection.
 static tracked_ptr<>
@@ -372,7 +380,6 @@ process_internal_defines(parsing_context& pc, ptr<> data,
   data = add_scope_to_list(pc.ctx, data, outside_scope.get());
 
   environment_extender internal_env{pc, {}};
-  auto& internal_vars = pc.environment.back();
 
   internal_definition_context_guard idc{pc};
 
@@ -429,7 +436,7 @@ process_internal_defines(parsing_context& pc, ptr<> data,
                                           var}
         );
         define(pc.ctx.store, id, var);
-        internal_vars.emplace_back(std::move(var));
+        pc.environment.back().emplace_back(std::move(var));
 
         continue;
       }
@@ -899,13 +906,12 @@ static std::tuple<tracked_ptr<syntax>, ptr<syntax>>
 parse_name_and_expr(parsing_context& pc, ptr<syntax> stx,
                     std::string const& form_name) {
   ptr<> datum = syntax_to_list(pc.ctx, stx);
-  auto name = track(
-    pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))))
-  );
+  auto name = expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))));
+  auto name_without_scope = maybe_remove_use_site_scopes(pc, name);
   auto expr = expect<syntax>(caddr(assume<pair>(datum)));
   if (!datum || list_length(datum) != 3)
     throw make_syntax_error(stx, "Invalid {} syntax", form_name);
-  return {std::move(name), expr};
+  return {track(pc.ctx, name_without_scope), expr};
 }
 
 static std::unique_ptr<expression>
@@ -1450,20 +1456,20 @@ parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
   );
 }
 
-ptr<syntax>
-syntax_tail(context& ctx, ptr<syntax> stx) {
-  ptr<> tail = cdr(syntax_expect<pair>(ctx, stx));
-  if (auto tail_stx = match<syntax>(tail))
-    return tail_stx;
-  else
-    return make<syntax>(ctx, tail, stx->location(), stx->scopes());
+static tracked_ptr<>
+eval_meta_expression(parsing_context& pc, ptr <syntax> stx) {
+  simple_action a{pc.ctx, stx, "Evaluating meta expression"};
+  ptr<> datum = syntax_to_list(pc.ctx, stx);
+  if (!datum || list_length(datum) != 2)
+    throw std::runtime_error{"Invalid meta syntax"};
+
+  ptr<syntax> expr = expect<syntax>(cadr(assume<pair>(datum)));
+  return eval_meta(pc, expr);
 }
 
 static std::unique_ptr<expression>
 parse_meta(parsing_context& pc, ptr<syntax> stx) {
-  simple_action a{pc.ctx, stx, "Evaluating meta expression"};
-  tracked_ptr<> value = eval_meta(pc, syntax_tail(pc.ctx, stx));
-  return make_expression<literal_expression>(value);
+  return make_expression<literal_expression>(eval_meta_expression(pc, stx));
 }
 
 static std::unique_ptr<expression>
@@ -1722,9 +1728,9 @@ analyse_internal(parsing_context& pc, ptr<syntax> stx) {
 }
 
 static std::unique_ptr<expression>
-analyse_meta(parsing_context& pc, ptr<syntax> transformer_stx) {
-  parsing_context transformer_pc{pc.ctx, pc.module_, pc.origin, {}, {}};
-  return analyse_internal(transformer_pc, transformer_stx);
+analyse_meta(parsing_context& pc, ptr<syntax> stx) {
+  tracked_ptr<syntax> expanded_stx = expand(pc, track(pc.ctx, stx));
+  return analyse_internal(pc, expanded_stx.get());
 }
 
 std::unique_ptr<expression>
@@ -1853,7 +1859,7 @@ process_top_level_form(parsing_context& pc, module_specifier const& pm,
         perform_begin_for_syntax(pc, pm, track(pc.ctx, cdr(p)));
         return false;
       } else if (form == pc.ctx.constants->meta) {
-        eval_meta(pc, stx.get());
+        eval_meta_expression(pc, stx.get());
         return false;
       }
     }

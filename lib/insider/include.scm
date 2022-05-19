@@ -10,44 +10,49 @@
         (insider vector))
 (export include include-ci)
 
-(begin-for-syntax
- (define (read-source-file reader name)
-   (let* ((name* (syntax->datum name))
-          (port (open-source-file-relative (current-source-file-origin) name*)))
-     (if port
-         (call-with-port port reader)
-         (error (string-append "Can't open " name* " for inclusion")))))
+(meta
+  (define (read-source-file reader name)
+    (let* ((name* (syntax->datum name))
+           (port (open-source-file-relative (current-source-file-origin) name*)))
+      (if port
+          (call-with-port port reader)
+          (error (string-append "Can't open " name* " for inclusion"))))))
 
- (define (reader name)
-   (read-source-file read-syntax-multiple name))
+(meta
+  (define (reader name)
+    (read-source-file read-syntax-multiple name)))
 
- (define (reader-ci name)
-   (read-source-file read-syntax-multiple-ci name))
+(meta
+  (define (reader-ci name)
+    (read-source-file read-syntax-multiple-ci name)))
 
- (define (add-scope x scope)
-   (cond ((pair? x)
-          (cons (add-scope (car x) scope) (add-scope (cdr x) scope)))
-         ((vector? x)
-          (vector-map (lambda (elem) (add-scope elem scope)) x))
-         ((syntax? x)
-          (syntax-add-scope x scope))
-         (else
-          x)))
+(meta
+  (define (add-scope x scope)
+    (cond ((pair? x)
+           (cons (add-scope (car x) scope) (add-scope (cdr x) scope)))
+          ((vector? x)
+           (vector-map (lambda (elem) (add-scope elem scope)) x))
+          ((syntax? x)
+           (syntax-add-scope x scope))
+          (else
+           x))))
 
- (define (add-scopes x scopes)
-   (if (null? scopes)
-       x
-       (add-scopes (add-scope x (car scopes)) (cdr scopes))))
+(meta
+  (define (add-scopes x scopes)
+    (if (null? scopes)
+        x
+        (add-scopes (add-scope x (car scopes)) (cdr scopes)))))
 
- (define (do-include stx reader)
-   (syntax-match stx ()
-     ((_ file-names ...)
-      (let ((scopes (syntax-scopes stx))
-            (expressions (apply append (map reader file-names))))
-        #`(begin
-            #,@(map (lambda (stx)
-                      (add-scopes stx scopes))
-                    expressions)))))))
+(meta
+  (define (do-include stx reader)
+    (syntax-match stx ()
+      ((_ file-names ...)
+       (let ((scopes (syntax-scopes stx))
+             (expressions (apply append (map reader file-names))))
+         #`(begin
+             #,@(map (lambda (stx)
+                       (add-scopes stx scopes))
+                     expressions)))))))
 
 (define-syntax include
   (lambda (stx)

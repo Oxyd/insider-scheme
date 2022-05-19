@@ -34,8 +34,8 @@ TEST_F(macros, top_level_transformers) {
   EXPECT_EQ(cdr(result2p), ctx.constants->f);
 }
 
-TEST_F(macros, internal_transformers) {
-  auto result1 = eval_module(R"(
+TEST_F(macros, internal_transformer_producing_simple_macro) {
+  auto result = eval_module(R"(
     (import (insider internal))
     (define foo
       (lambda (x)
@@ -46,9 +46,11 @@ TEST_F(macros, internal_transformers) {
         (+ x (double x))))
     (foo 5)
   )");
-  EXPECT_EQ(expect<integer>(result1).value(), 5 + 2 * 5);
+  EXPECT_EQ(expect<integer>(result).value(), 5 + 2 * 5);
+}
 
-  auto result2 = eval_module(R"(
+TEST_F(macros, internal_transformer_producing_definition) {
+  auto result = eval_module(R"(
     (import (insider internal))
     (define foo
       (lambda (x)
@@ -62,7 +64,7 @@ TEST_F(macros, internal_transformers) {
         result))
     (foo 8)
   )");
-  EXPECT_EQ(expect<integer>(result2).value(), 16);
+  EXPECT_EQ(expect<integer>(result).value(), 16);
 }
 
 TEST_F(macros, hygiene) {
