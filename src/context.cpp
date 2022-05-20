@@ -79,7 +79,6 @@ context::context()
     {constants->define,            "define"},
     {constants->define_syntax,     "define-syntax"},
     {constants->begin,             "begin"},
-    {constants->begin_for_syntax,  "begin-for-syntax"},
     {constants->quote,             "quote"},
     {constants->quasiquote,        "quasiquote"},
     {constants->unquote,           "unquote"},
@@ -236,7 +235,6 @@ context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.constants->define);
   f(ctx_.constants->define_syntax);
   f(ctx_.constants->begin);
-  f(ctx_.constants->begin_for_syntax);
   f(ctx_.constants->quote);
   f(ctx_.constants->quasiquote);
   f(ctx_.constants->unquote);

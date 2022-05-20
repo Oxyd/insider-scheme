@@ -194,34 +194,6 @@ TEST_F(modules, import_specifiers) {
   EXPECT_EQ(expect<integer>(result5).value(), 1 + 2);
 }
 
-TEST_F(modules, begin_for_syntax) {
-  auto result1 = eval_module(R"(
-    (import (insider internal))
-    (begin-for-syntax
-      (define x 21))
-    (* x 2)
-  )");
-  EXPECT_EQ(expect<integer>(result1).value(), 42);
-
-  auto result2 = eval_module(R"(
-    (import (insider internal))
-
-    (begin-for-syntax
-      (define big?
-        (lambda (x)
-          (> x 10))))
-
-    (define-syntax is-big?
-      (lambda (stx)
-        (if (big? (syntax->datum (cadr (syntax->list stx))))
-            #''yes
-            #''no)))
-
-    (is-big? 12)
-  )");
-  EXPECT_EQ(expect<symbol>(result2)->value(), "yes");
-}
-
 TEST_F(modules, find_module_file) {
   add_source_file(
     "foo.scm",

@@ -360,16 +360,6 @@ add_scope_to_list(context& ctx, ptr<> x, ptr<scope> s) {
     });
 }
 
-static ptr<>
-remove_scope_from_list(context& ctx, ptr<> x, ptr<scope> s) {
-  if (auto stx = match<syntax>(x))
-    return stx->remove_scope(ctx.store, s);
-  else
-    return map(ctx, x, [&] (ptr<> elem) {
-      return expect<syntax>(elem)->remove_scope(ctx.store, s);
-    });
-}
-
 static std::tuple<tracked_ptr<syntax>, ptr<syntax>>
 parse_name_and_expr(parsing_context& pc, ptr<syntax> stx,
                     std::string const& form_name) {
@@ -1538,8 +1528,6 @@ parse(parsing_context& pc, ptr<syntax> s) {
         return parse_quasiquote(pc, stx);
       else if (form == pc.ctx.constants->quasisyntax)
         return parse_quasisyntax(pc, stx);
-      else if (form == pc.ctx.constants->begin_for_syntax)
-        throw make_syntax_error(stx, "begin-for-syntax not at top level");
       else if (form == pc.ctx.constants->syntax_trap)
         return parse_syntax_trap(pc, stx);
       else if (form == pc.ctx.constants->syntax_error)
@@ -1800,23 +1788,6 @@ parse_module_name(context& ctx, ptr<syntax> stx) {
   return result;
 }
 
-static void
-perform_begin_for_syntax(parsing_context& pc, module_specifier const& parent_pm,
-                         tracked_ptr<> const& body) {
-  simple_action a(pc.ctx, "Analysing begin-for-syntax");
-
-  ptr<> body_without_scope
-    = remove_scope_from_list(pc.ctx, body.get(), pc.module_->scope());
-  module_specifier pm{pc.ctx.store, parent_pm.name, parent_pm.imports, {},
-                      from_scheme<std::vector<ptr<syntax>>>(
-                        pc.ctx, syntax_to_list(pc.ctx, body_without_scope)
-                      ),
-                      pc.origin};
-  auto submodule = instantiate(pc.ctx, pm);
-  execute(pc.ctx, submodule);
-  import_all_top_level(pc.ctx, pc.module_, submodule);
-}
-
 static std::vector<tracked_ptr<syntax>>
 add_module_scope_to_body(context& ctx, std::vector<ptr<syntax>> const& body,
                          ptr<scope> s) {
@@ -1840,7 +1811,7 @@ process_top_level_define(parsing_context& pc, tracked_ptr<syntax> const& stx) {
 }
 
 static bool
-process_top_level_form(parsing_context& pc, module_specifier const& pm,
+process_top_level_form(parsing_context& pc,
                        std::vector<tracked_ptr<syntax>>& stack,
                        tracked_ptr<syntax> const& stx) {
   if (auto lst = track(pc.ctx, syntax_to_list(pc.ctx, stx.get()))) {
@@ -1857,9 +1828,6 @@ process_top_level_form(parsing_context& pc, module_specifier const& pm,
         return true;
       } else if (form == pc.ctx.constants->begin) {
         expand_begin(pc, stx.get(), stack);
-        return false;
-      } else if (form == pc.ctx.constants->begin_for_syntax) {
-        perform_begin_for_syntax(pc, pm, track(pc.ctx, cdr(p)));
         return false;
       } else if (form == pc.ctx.constants->meta) {
         eval_meta_expression(pc, stx.get());
@@ -1880,7 +1848,7 @@ body_to_stack(std::vector<tracked_ptr<syntax>> const& body) {
 }
 
 static std::vector<tracked_ptr<syntax>>
-process_top_level_forms(parsing_context& pc, module_specifier const& pm,
+process_top_level_forms(parsing_context& pc,
                         std::vector<tracked_ptr<syntax>> const& body) {
   std::vector<tracked_ptr<syntax>> stack = body_to_stack(body);
   std::vector<tracked_ptr<syntax>> result;
@@ -1888,7 +1856,7 @@ process_top_level_forms(parsing_context& pc, module_specifier const& pm,
     tracked_ptr<syntax> stx = expand(pc, stack.back()); // GC
     stack.pop_back();
 
-    bool emit = process_top_level_form(pc, pm, stack, stx);
+    bool emit = process_top_level_form(pc, stack, stx);
     if (emit)
       result.push_back(stx);
   }
@@ -1909,7 +1877,7 @@ expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
   auto body = add_module_scope_to_body(pc.ctx, pm.body, m->scope());
 
   internal_definition_context_guard idc{pc};
-  return process_top_level_forms(pc, pm, body);
+  return process_top_level_forms(pc, body);
 }
 
 import_specifier
