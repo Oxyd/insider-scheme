@@ -618,3 +618,15 @@ TEST_F(interpreter, right_hand_side_of_meta_is_macro_expanded) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 2);
 }
+
+TEST_F(interpreter, internal_meta_definition_is_visible_in_transformer) {
+  ptr<> result = eval(R"(
+    (let ()
+      (meta (define x 2))
+      (define-syntax foo
+        (lambda (stx)
+          (datum->syntax stx x)))
+      (foo))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 2);
+}

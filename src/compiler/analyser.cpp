@@ -331,11 +331,20 @@ match_core_form(parsing_context& pc, ptr<syntax> stx) {
   return {};
 }
 
+static ptr<core_form_type>
+match_core_form_in_head_of_list(parsing_context& pc, ptr<syntax> stx) {
+  if (auto p = syntax_match<pair>(pc.ctx, stx))
+    return match_core_form(pc, expect<syntax>(car(p)));
+  else
+    return {};
+}
+
 static void
-expand_begin(parsing_context& pc, ptr<> stx,
+expand_begin(parsing_context& pc, ptr<syntax> stx,
              std::vector<tracked_ptr<syntax>>& stack) {
+  ptr<> lst = syntax_to_list(pc.ctx, stx);
   std::vector<tracked_ptr<syntax>> subforms;
-  for (ptr<> e : in_list{cdr(assume<pair>(stx))})
+  for (ptr<> e : in_list{cdr(assume<pair>(lst))})
     subforms.push_back(track(pc.ctx, expect<syntax>(e)));
 
   std::ranges::copy(std::views::reverse(subforms), std::back_inserter(stack));
@@ -361,6 +370,109 @@ remove_scope_from_list(context& ctx, ptr<> x, ptr<scope> s) {
     });
 }
 
+static std::tuple<tracked_ptr<syntax>, ptr<syntax>>
+parse_name_and_expr(parsing_context& pc, ptr<syntax> stx,
+                    std::string const& form_name) {
+  ptr<> datum = syntax_to_list(pc.ctx, stx);
+  auto name = expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))));
+  auto name_without_scope = maybe_remove_use_site_scopes(pc, name);
+  auto expr = expect<syntax>(caddr(assume<pair>(datum)));
+  if (!datum || list_length(datum) != 3)
+    throw make_syntax_error(stx, "Invalid {} syntax", form_name);
+  return {track(pc.ctx, name_without_scope), expr};
+}
+
+static void
+process_internal_define(
+  parsing_context& pc,
+  std::vector<body_content::internal_variable>& internal_variables,
+  tracked_ptr<syntax> const& expr
+) {
+  auto [id, init] = parse_name_and_expr(pc, expr.get(), "define");
+  auto var = std::make_shared<variable>(identifier_name(id.get()));
+  internal_variables.emplace_back(
+    body_content::internal_variable{id, track(pc.ctx, init), var}
+  );
+  define(pc.ctx.store, id.get(), var);
+  pc.environment.back().emplace_back(std::move(var));
+}
+
+static void
+process_define_syntax(parsing_context& pc, ptr<syntax> stx) {
+  auto p = assume<pair>(syntax_to_list(pc.ctx, stx));
+  auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
+  auto name_without_scope = track(
+    pc.ctx, remove_use_site_scopes(pc.ctx, name,
+                                   pc.use_site_scopes.back())
+  );
+  auto tr = make_transformer(pc, expect<syntax>(caddr(p))); // GC
+  define(pc.ctx.store, name_without_scope.get(), tr);
+}
+
+static tracked_ptr<>
+eval_meta_expression(parsing_context& pc, ptr <syntax> stx) {
+  simple_action a{pc.ctx, stx, "Evaluating meta expression"};
+  ptr<> datum = syntax_to_list(pc.ctx, stx);
+  if (!datum || list_length(datum) != 2)
+    throw std::runtime_error{"Invalid meta syntax"};
+
+  ptr<syntax> expr = expect<syntax>(cadr(assume<pair>(datum)));
+  return eval_meta(pc, expr);
+}
+
+static bool
+is_definition_form(context& ctx, ptr<core_form_type> f) {
+  return f == ctx.constants->define || f == ctx.constants->define_syntax;
+}
+
+static bool
+process_stack_of_internal_defines(parsing_context& pc, body_content& result,
+                                  std::vector<tracked_ptr<syntax>> stack) {
+  environment_extender internal_env{pc, {}};
+  internal_definition_context_guard idc{pc};
+
+  bool seen_expression = false;
+  while (!stack.empty()) {
+    tracked_ptr<syntax> expr = expand(pc, stack.back()); // GC
+    stack.pop_back();
+
+    ptr<core_form_type> form = match_core_form_in_head_of_list(pc, expr.get());
+    if (is_definition_form(pc.ctx, form) && seen_expression)
+      throw make_syntax_error(expr.get(),
+                              "{} after a nondefinition",
+                              form->name);
+
+    if (form == pc.ctx.constants->define_syntax)
+      process_define_syntax(pc, expr.get());
+    else if (form == pc.ctx.constants->define)
+      process_internal_define(pc, result.internal_variable_defs, expr);
+    else if (form == pc.ctx.constants->begin)
+      expand_begin(pc, expr.get(), stack);
+    else if (form == pc.ctx.constants->meta)
+      eval_meta_expression(pc, expr.get());
+    else {
+      seen_expression = true;
+      result.forms.push_back(expr);
+    }
+  }
+
+  return seen_expression;
+}
+
+static std::vector<insider::tracked_ptr<syntax>>
+body_expressions_to_stack(parsing_context& pc, ptr<> body_exprs,
+                          source_location const& loc) {
+  ptr<> list = syntax_to_list(pc.ctx, body_exprs);
+  if (!list)
+    throw make_syntax_error(loc, "Expected list of expressions");
+
+  std::vector<tracked_ptr<syntax>> stack;
+  for (ptr<> e : in_list{list})
+    stack.push_back(track(pc.ctx, expect<syntax>(e)));
+  std::reverse(stack.begin(), stack.end());
+  return stack;
+}
+
 // Process the beginning of a body by adding new transformer and variable
 // definitions to the environment and expanding the heads of each form in the
 // list. Also checks that the list is followed by at least one expression and
@@ -370,85 +482,19 @@ remove_scope_from_list(context& ctx, ptr<> x, ptr<scope> s) {
 //
 // Causes a garbage collection.
 static body_content
-process_internal_defines(parsing_context& pc, ptr<> data,
+process_internal_defines(parsing_context& pc, ptr<> body_exprs,
                          source_location const& loc) {
-  body_content result;
-  auto outside_scope = make_tracked<scope>(
-    pc.ctx, pc.ctx,
-    fmt::format("outside edge scope at {}", format_location(loc))
+  body_exprs = add_scope_to_list(
+    pc.ctx, body_exprs,
+    make<scope>(pc.ctx, pc.ctx,
+                fmt::format("outside edge scope at {}", format_location(loc)))
   );
-  data = add_scope_to_list(pc.ctx, data, outside_scope.get());
-
-  environment_extender internal_env{pc, {}};
-
-  internal_definition_context_guard idc{pc};
-
-  ptr<> list = syntax_to_list(pc.ctx, data);
-  if (!list)
-    throw make_syntax_error(loc, "Expected list of expressions");
-
-  std::vector<tracked_ptr<syntax>> stack;
-  for (ptr<> e : in_list{list})
-    stack.push_back(track(pc.ctx, expect<syntax>(e)));
-  std::reverse(stack.begin(), stack.end());
-
-  bool seen_expression = false;
-  while (!stack.empty()) {
-    tracked_ptr<syntax> expr = expand(pc, stack.back()); // GC
-    stack.pop_back();
-
-    if (auto p = syntax_to_list(pc.ctx, expr.get())) {
-      ptr<core_form_type> form
-        = match_core_form(pc, expect<syntax>(car(expect<pair>(p))));
-
-      if (form == pc.ctx.constants->define_syntax) {
-        if (seen_expression)
-          throw make_syntax_error(expr.get(),
-                                  "define-syntax after a nondefinition");
-
-        auto name = track(
-          pc.ctx, expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p))))
-        );
-        name = track(
-          pc.ctx,
-          remove_use_site_scopes(pc.ctx, name.get(), pc.use_site_scopes.back())
-        );
-
-        auto transformer
-          = make_transformer(pc, expect<syntax>(caddr(assume<pair>(p)))); // GC
-        define(pc.ctx.store, name.get(), transformer);
-
-        continue;
-      }
-      else if (form == pc.ctx.constants->define) {
-        if (seen_expression)
-          throw make_syntax_error(expr.get(), "define after a nondefinition");
-
-        auto id = expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(p))));
-        id = remove_use_site_scopes(pc.ctx, id, pc.use_site_scopes.back());
-
-        auto init = expect<syntax>(caddr(assume<pair>(p)));
-        auto var = std::make_shared<variable>(identifier_name(id));
-
-        result.internal_variable_defs.emplace_back(
-          body_content::internal_variable{track(pc.ctx, id),
-                                          track(pc.ctx, init),
-                                          var}
-        );
-        define(pc.ctx.store, id, var);
-        pc.environment.back().emplace_back(std::move(var));
-
-        continue;
-      }
-      else if (form == pc.ctx.constants->begin) {
-        expand_begin(pc, p, stack);
-        continue;
-      }
-    }
-
-    seen_expression = true;
-    result.forms.push_back(expr);
-  }
+  body_content result;
+  bool seen_expression
+    = process_stack_of_internal_defines(
+        pc, result,
+        body_expressions_to_stack(pc, body_exprs, loc)
+      );
 
   if (!seen_expression) {
     if (!result.forms.empty())
@@ -900,18 +946,6 @@ parse_reference(parsing_context& pc, ptr<syntax> id) {
   else
     return make_expression<top_level_reference_expression>(*var->global,
                                                            identifier_name(id));
-}
-
-static std::tuple<tracked_ptr<syntax>, ptr<syntax>>
-parse_name_and_expr(parsing_context& pc, ptr<syntax> stx,
-                    std::string const& form_name) {
-  ptr<> datum = syntax_to_list(pc.ctx, stx);
-  auto name = expect_id(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))));
-  auto name_without_scope = maybe_remove_use_site_scopes(pc, name);
-  auto expr = expect<syntax>(caddr(assume<pair>(datum)));
-  if (!datum || list_length(datum) != 3)
-    throw make_syntax_error(stx, "Invalid {} syntax", form_name);
-  return {track(pc.ctx, name_without_scope), expr};
 }
 
 static std::unique_ptr<expression>
@@ -1456,17 +1490,6 @@ parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
   );
 }
 
-static tracked_ptr<>
-eval_meta_expression(parsing_context& pc, ptr <syntax> stx) {
-  simple_action a{pc.ctx, stx, "Evaluating meta expression"};
-  ptr<> datum = syntax_to_list(pc.ctx, stx);
-  if (!datum || list_length(datum) != 2)
-    throw std::runtime_error{"Invalid meta syntax"};
-
-  ptr<syntax> expr = expect<syntax>(cadr(assume<pair>(datum)));
-  return eval_meta(pc, expr);
-}
-
 static std::unique_ptr<expression>
 parse_meta(parsing_context& pc, ptr<syntax> stx) {
   return make_expression<literal_expression>(eval_meta_expression(pc, stx));
@@ -1807,33 +1830,13 @@ add_module_scope_to_body(context& ctx, std::vector<ptr<syntax>> const& body,
 }
 
 static void
-perform_top_level_define_syntax(parsing_context& pc, ptr<pair> p) {
-  auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
-  auto name_without_scope = track(
-    pc.ctx, remove_use_site_scopes(pc.ctx, name,
-                                   pc.use_site_scopes.back())
-  );
-  auto tr = make_transformer(pc, expect<syntax>(caddr(p))); // GC
-  define(pc.ctx.store, name_without_scope.get(), tr);
-}
-
-static void
-perform_top_level_define(parsing_context& pc, tracked_ptr<syntax> const& stx,
-                         tracked_ptr<> const& lst, ptr<pair> p) {
-  if (list_length(lst.get()) != 3)
-    throw make_syntax_error(stx.get(), "Invalid define syntax");
-
-  auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
-  auto name_without_scope
-    = remove_use_site_scopes(pc.ctx, name, pc.use_site_scopes.back());
-
-  auto index = pc.ctx.add_top_level(
-    pc.ctx.constants->void_,
-    identifier_name(name_without_scope)
-  );
-  define(pc.ctx.store, name_without_scope,
-         std::make_shared<variable>(identifier_name(name_without_scope),
-                                    index));
+process_top_level_define(parsing_context& pc, tracked_ptr<syntax> const& stx) {
+  auto [name, expr] = parse_name_and_expr(pc, stx.get(), "define");
+  auto index = pc.ctx.add_top_level(pc.ctx.constants->void_,
+                                    identifier_name(name.get()));
+  auto var = std::make_shared<variable>(identifier_name(name.get()),
+                                        index);
+  define(pc.ctx.store, name.get(), std::move(var));
 }
 
 static bool
@@ -1847,13 +1850,13 @@ process_top_level_form(parsing_context& pc, module_specifier const& pm,
     ptr<pair> p = assume<pair>(lst.get());
     if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
       if (form == pc.ctx.constants->define_syntax) {
-        perform_top_level_define_syntax(pc, p);
+        process_define_syntax(pc, stx.get());
         return false;
       } else if (form == pc.ctx.constants->define) {
-        perform_top_level_define(pc, stx, lst, p);
+        process_top_level_define(pc, stx);
         return true;
       } else if (form == pc.ctx.constants->begin) {
-        expand_begin(pc, p, stack);
+        expand_begin(pc, stx.get(), stack);
         return false;
       } else if (form == pc.ctx.constants->begin_for_syntax) {
         perform_begin_for_syntax(pc, pm, track(pc.ctx, cdr(p)));
