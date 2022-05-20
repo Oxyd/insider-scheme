@@ -27,6 +27,10 @@ public:
 
 private:
   std::vector<root_provider*> providers_;
+  std::vector<std::size_t>    free_indices_;
+
+  std::size_t
+  find_free_index();
 };
 
 } // namespace insider
