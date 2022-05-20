@@ -630,3 +630,13 @@ TEST_F(interpreter, internal_meta_definition_is_visible_in_transformer) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 2);
 }
+
+TEST_F(interpreter, can_get_expand_time_parameter_through_meta) {
+  ptr<> result_without_meta
+    = eval("(find-parameter-value current-expand-module-tag)");
+  EXPECT_EQ(result_without_meta, ctx.constants->f);
+
+  ptr<> result_from_meta
+    = eval("(meta (find-parameter-value current-expand-module-tag))");
+  EXPECT_TRUE(is<module_>(result_from_meta));
+}
