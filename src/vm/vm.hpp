@@ -12,6 +12,7 @@ namespace insider {
 
 class context;
 class module_;
+class syntax;
 class tail_call_tag_type;
 
 // Add a call frame to the current execution state, and set the continuation for
@@ -81,9 +82,13 @@ private:
 ptr<tail_call_tag_type>
 tail_call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
 
+// Compile an expression and evaluate it in the given module.
+tracked_ptr<>
+eval(context& ctx, tracked_ptr<module_> const&, ptr<syntax>);
+
 // Parse a string as an expression and evaluate it in the given module.
 tracked_ptr<>
-eval(context& ctx, tracked_ptr <module_> const&, std::string const& expr);
+eval(context& ctx, tracked_ptr<module_> const&, std::string const& expr);
 
 } // namespace insider
 

@@ -7,6 +7,7 @@
 #include "io/read.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/numeric.hpp"
+#include "runtime/syntax.hpp"
 #include "vm/vm.hpp"
 
 #include <gtest/gtest.h>
@@ -32,7 +33,12 @@ struct scheme_fixture : testing::Test {
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     insider::null_source_code_provider provider;
-    auto f = compile_expression(ctx, read_syntax(ctx, expr), m,
+    insider::ptr<> expr_stx = read_syntax(ctx, expr);
+    if (expr_stx == ctx.constants->eof)
+      throw std::runtime_error{"EOF"};
+    auto f = compile_expression(ctx,
+                                insider::assume<insider::syntax>(expr_stx),
+                                m,
                                 {&provider, "<unit test expression>"});
     return call_with_continuation_barrier(ctx, f, {}).get();
   }

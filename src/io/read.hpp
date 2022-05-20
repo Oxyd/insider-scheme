@@ -45,10 +45,10 @@ read(context&, ptr<textual_input_port>);
 ptr<>
 read(context&, std::string);
 
-ptr<syntax>
+ptr<>
 read_syntax(context&, ptr<textual_input_port>);
 
-ptr<syntax>
+ptr<>
 read_syntax(context&, std::string);
 
 // Read multiple S-expressions until the end of the stream or string.

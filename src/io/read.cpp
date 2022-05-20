@@ -1472,21 +1472,28 @@ read(context& ctx, std::string s) {
 }
 
 static ptr<syntax>
-read_syntax(context& ctx, reader_stream& s) {
+read_syntax_optional(context& ctx, reader_stream& s) {
   datum_labels labels;
-  if (ptr<> result = read_and_wrap(ctx, read_token(ctx, s), s, true, labels))
-    return assume<syntax>(result);
-  else
-    return nullptr;
+  return assume<syntax>(
+    read_and_wrap(ctx, read_token(ctx, s), s, true, labels)
+  );
 }
 
-ptr<syntax>
+static ptr<>
+read_syntax(context& ctx, reader_stream& s) {
+  if (auto stx = read_syntax_optional(ctx, s))
+    return stx;
+  else
+    return ctx.constants->eof;
+}
+
+ptr<>
 read_syntax(context& ctx, ptr<textual_input_port> stream) {
   reader_stream s{track(ctx, stream)};
   return read_syntax(ctx, s);
 }
 
-ptr<syntax>
+ptr<>
 read_syntax(context& ctx, std::string s) {
   unique_port_handle<ptr<textual_input_port>> h{
     open_input_string(ctx, std::move(s))
@@ -1514,7 +1521,7 @@ read_multiple(context& ctx, std::string s) {
 static std::vector<ptr<syntax>>
 read_syntax_multiple(context& ctx, reader_stream& stream) {
   std::vector<ptr<syntax>> result;
-  while (ptr<syntax> elem = read_syntax(ctx, stream))
+  while (ptr<syntax> elem = read_syntax_optional(ctx, stream))
     result.push_back(elem);
 
   return result;
@@ -1562,13 +1569,6 @@ string_to_number(context& ctx, std::string const& s, unsigned base) {
   }
 }
 
-static ptr<textual_input_port>
-get_default_port(context& ctx) {
-  return expect<textual_input_port>(
-    find_parameter_value(ctx, ctx.constants->current_input_port_tag)
-  );
-}
-
 static ptr<>
 read_syntax_multiple_proc(context& ctx, ptr<textual_input_port> p) {
   return make_list_from_vector(ctx, read_syntax_multiple(ctx, p));
@@ -1591,21 +1591,25 @@ export_read(context& ctx, ptr<module_> result) {
                    ctx.constants->current_input_port_tag);
   define_procedure<
     static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read)
-   >(
+  >(
     ctx, "read", result, true,
-    get_default_port
+    get_current_textual_input_port
   );
   define_procedure<
-    static_cast<ptr<syntax> (*)(context&, ptr<textual_input_port>)>(read_syntax)
+    static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read_syntax)
   >(
     ctx, "read-syntax", result, true,
-    get_default_port
+    get_current_textual_input_port
   );
   define_procedure<read_syntax_multiple_proc>(
-    ctx, "read-syntax-multiple", result, true, get_default_port
+    ctx, "read-syntax-multiple", result, true, get_current_textual_input_port
   );
   define_procedure<read_syntax_multiple_ci_proc>(
-    ctx, "read-syntax-multiple-ci", result, true, get_default_port
+    ctx,
+    "read-syntax-multiple-ci",
+    result,
+    true,
+    get_current_textual_input_port
   );
   define_procedure<string_to_number>(ctx, "string->number", result, true,
                                      [] (context&) { return 10; });

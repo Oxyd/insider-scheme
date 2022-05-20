@@ -238,9 +238,13 @@ TEST_F(io, case_folding) {
 }
 
 TEST_F(io, read_syntax_with_shared_data) {
-  auto stx = read_syntax(ctx, "(#0=(1 2) #0#)");
-  auto first = expect<syntax>(car(expect<pair>(stx->update_and_get_expression(ctx))))->update_and_get_expression(ctx);
-  auto second = expect<syntax>(cadr(expect<pair>(stx->update_and_get_expression(ctx))))->update_and_get_expression(ctx);
+  auto stx = assume<syntax>(read_syntax(ctx, "(#0=(1 2) #0#)"));
+  auto first = expect<syntax>(
+    car(expect<pair>(stx->update_and_get_expression(ctx)))
+  )->update_and_get_expression(ctx);
+  auto second = expect<syntax>(
+    cadr(expect<pair>(stx->update_and_get_expression(ctx)))
+  )->update_and_get_expression(ctx);
   EXPECT_EQ(first, second);
 }
 
@@ -644,4 +648,12 @@ TEST_F(io, string_with_embedded_newlines) {
   EXPECT_EQ(datum_to_string(ctx, read(R"("foo\nbar")")), R"("foo\nbar")");
   EXPECT_EQ(datum_to_string(ctx, read(R"("foo\rbar")")), R"("foo\rbar")");
   EXPECT_EQ(datum_to_string(ctx, read(R"("foo\r\nbar")")), R"("foo\r\nbar")");
+}
+
+TEST_F(io, read_returns_eof_on_end) {
+  EXPECT_EQ(insider::read(ctx, ""), ctx.constants->eof);
+}
+
+TEST_F(io, read_syntax_returns_eof_on_end) {
+  EXPECT_EQ(read_syntax(ctx, ""), ctx.constants->eof);
 }

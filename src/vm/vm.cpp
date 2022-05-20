@@ -1549,6 +1549,9 @@ set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
 
 static ptr<>
 find_parameter_value_in_stack(context& ctx, ptr<parameter_tag> tag) {
+  if (!ctx.current_execution)
+    return {};
+
   frame_reference current_frame
     = insider::current_frame(ctx.current_execution->stack);
 
@@ -1831,11 +1834,19 @@ eval_proc(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
 }
 
 tracked_ptr<>
-eval(context& ctx, tracked_ptr<module_> const& mod, std::string const& expr) {
+eval(context& ctx, tracked_ptr<module_> const& mod, ptr<syntax> expr) {
   insider::null_source_code_provider provider;
-  auto f = compile_expression(ctx, read_syntax(ctx, expr), mod,
+  auto f = compile_expression(ctx, expr, mod,
                               {&provider, "<eval expression>"});
   return call_with_continuation_barrier(ctx, f, {});
+}
+
+tracked_ptr<>
+eval(context& ctx, tracked_ptr<module_> const& mod, std::string const& expr) {
+  if (auto stx = match<syntax>(read_syntax(ctx, expr)))
+    return eval(ctx, mod, stx);
+  else
+    throw std::runtime_error{"Unexpected EOF"};
 }
 
 void

@@ -119,7 +119,7 @@ TEST_F(procedures, syntax_to_datum_on_cyclic_input) {
 }
 
 TEST_F(procedures, syntax_to_datum_preserves_sharing) {
-  auto stx = read_syntax(ctx, "(#0=(1 2) #0#)");
+  auto stx = assume<syntax>(read_syntax(ctx, "(#0=(1 2) #0#)"));
   auto datum = expect<pair>(syntax_to_datum(ctx, stx));
   EXPECT_EQ(car(datum), cadr(datum));
 }

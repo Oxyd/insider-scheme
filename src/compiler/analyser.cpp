@@ -2190,11 +2190,13 @@ read_module(context& ctx, std::vector<ptr<syntax>> const& contents,
 std::optional<module_name>
 read_library_name(context& ctx, ptr<textual_input_port> in) {
   try {
-    ptr<syntax> first_datum = read_syntax(ctx, in);
-    if (is_directive(first_datum, "library")
-        || is_directive(first_datum, "define-library"))
-      return parse_module_name(ctx, syntax_cadr(ctx, first_datum));
-    else
+    if (auto first_datum = match<syntax>(read_syntax(ctx, in))) {
+      if (is_directive(first_datum, "library")
+          || is_directive(first_datum, "define-library"))
+        return parse_module_name(ctx, syntax_cadr(ctx, first_datum));
+      else
+        return {};
+    } else
       return {};
   }
   catch (read_error const&) {

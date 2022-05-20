@@ -492,10 +492,17 @@ delete_file(context& ctx, std::filesystem::path const& p) {
   guard_filesystem_error(ctx, [&] { return std::filesystem::remove(p); });
 }
 
-static ptr<textual_input_port>
-get_default_textual_input_port(context& ctx) {
+ptr<textual_input_port>
+get_current_textual_input_port(context& ctx) {
   return expect<textual_input_port>(
     find_parameter_value(ctx, ctx.constants->current_input_port_tag)
+  );
+}
+
+ptr<textual_output_port>
+get_current_textual_output_port(context& ctx) {
+  return expect<textual_output_port>(
+    find_parameter_value(ctx, ctx.constants->current_output_port_tag)
   );
 }
 
@@ -573,9 +580,9 @@ export_port(context& ctx, ptr<module_> result) {
                                                         "get-output-bytevector",
                                                         result, true);
   define_procedure<read_char>(ctx, "read-char", result, true,
-                              get_default_textual_input_port);
+                              get_current_textual_input_port);
   define_procedure<peek_char>(ctx, "peek-char", result, true,
-                              get_default_textual_input_port);
+                              get_current_textual_input_port);
   define_procedure<read_u8>(ctx, "read-u8", result, true,
                             get_default_binary_input_port);
   define_procedure<peek_u8>(ctx, "peek-u8", result, true,

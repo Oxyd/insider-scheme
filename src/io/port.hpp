@@ -169,6 +169,12 @@ open_input_string(context&, std::string);
 ptr<textual_input_port>
 open_file_for_text_input(context&, std::filesystem::path const&);
 
+ptr<textual_input_port>
+get_current_textual_input_port(context& ctx);
+
+ptr<textual_output_port>
+get_current_textual_output_port(context& ctx);
+
 class binary_input_port : public leaf_object<binary_input_port> {
 public:
   static constexpr char const* scheme_name = "insider::binary_input_port";

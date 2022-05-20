@@ -579,13 +579,6 @@ newline(ptr<textual_output_port> out) {
   out->write(U'\n');
 }
 
-static ptr<textual_output_port>
-get_default_port(context& ctx) {
-  return expect<textual_output_port>(
-    find_parameter_value(ctx, ctx.constants->current_output_port_tag)
-  );
-}
-
 static void
 write_char_proc(char32_t c, ptr<textual_output_port> out) {
   out->write(c);
@@ -609,15 +602,27 @@ export_write(context& ctx, ptr<module_> result) {
                    ctx.constants->current_output_port_tag);
   define_top_level(ctx, "current-error-port-tag", result, true,
                    ctx.constants->current_error_port_tag);
-  define_procedure<write>(ctx, "write", result, true, get_default_port);
+  define_procedure<write>(ctx,
+                          "write",
+                          result,
+                          true,
+                          get_current_textual_output_port);
   define_procedure<write_simple>(ctx, "write-simple", result, true,
-                                 get_default_port);
+                                 get_current_textual_output_port);
   define_procedure<write_shared>(ctx, "write-shared", result, true,
-                                 get_default_port);
-  define_procedure<display>(ctx, "display", result, true, get_default_port);
-  define_procedure<newline>(ctx, "newline", result, true, get_default_port);
+                                 get_current_textual_output_port);
+  define_procedure<display>(ctx,
+                            "display",
+                            result,
+                            true,
+                            get_current_textual_output_port);
+  define_procedure<newline>(ctx,
+                            "newline",
+                            result,
+                            true,
+                            get_current_textual_output_port);
   define_procedure<write_char_proc>(ctx, "write-char", result, true,
-                                    get_default_port);
+                                    get_current_textual_output_port);
   define_procedure<number_to_string>(ctx, "number->string", result, true,
                                      [] (context&) { return 10u; });
   define_procedure<datum_to_string>(ctx, "datum->string", result, true);

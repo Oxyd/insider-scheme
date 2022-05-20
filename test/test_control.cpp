@@ -972,3 +972,9 @@ TEST_F(control, native_parameterization_sets_parameter_value_when_called_from_sc
   auto result = eval("(get-value-parameterized)");
   EXPECT_EQ(expect<integer>(result).value(), 4);
 }
+
+TEST_F(control, can_get_parameter_value_with_no_scheme_frame) {
+  auto tag = create_parameter_tag(ctx, integer_to_ptr(0));
+  ptr<> result = find_parameter_value(ctx, tag);
+  EXPECT_EQ(expect<integer>(result).value(), 0);
+}
