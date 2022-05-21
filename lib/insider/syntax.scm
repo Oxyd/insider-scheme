@@ -10,7 +10,7 @@
  syntax-error letrec* let-syntax letrec-syntax
 
  syntax-expression syntax-scopes syntax-add-scope syntax->datum syntax->list
- datum->syntax free-identifier=? bound-identifier=? syntax-location meta
+ datum->syntax free-identifier=? bound-identifier=? syntax-location
 
  ;; From (insider syntax-rules)
  syntax-match syntax-rules

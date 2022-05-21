@@ -109,7 +109,7 @@ run_repl(insider::context& ctx) {
   insider::tracked_ptr<insider::module_> repl_mod
     = insider::make_interactive_module(
         ctx,
-        insider::import_modules(insider::module_name{"insider", "internal"})
+        insider::import_modules(insider::module_name{"insider", "interactive"})
       );
   insider::tracked_ptr<insider::textual_input_port> input_port
     = insider::track(ctx, insider::get_current_textual_input_port(ctx));

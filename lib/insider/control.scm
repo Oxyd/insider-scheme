@@ -7,11 +7,13 @@
               eq? capture-stack replace-stack! create-parameter-tag
               find-parameter-value set-parameter-value! call-parameterized apply
               values call-with-values with-exception-handler raise
-              raise-continuable dynamic-wind main-module?-tag environment eval))
+              raise-continuable dynamic-wind main-module?-tag environment eval
+              meta current-expand-module-tag dynamic-import))
 (export call-with-current-continuation call/cc let/cc make-parameter
         make-parameter-from-tag parameterize apply values call-with-values
         with-exception-handler raise raise-continuable dynamic-wind guard
-        when-main-module environment eval)
+        when-main-module environment eval meta current-expand-module
+        dynamic-import)
 
 (define (call-with-current-continuation f)
   (capture-stack
@@ -160,3 +162,6 @@
        (if (main-module?)
            #`(begin . #,body)
            #'(begin))))))
+
+(define current-expand-module
+  (make-parameter-from-tag current-expand-module-tag))
