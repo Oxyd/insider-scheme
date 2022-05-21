@@ -91,7 +91,31 @@ struct import_specifier {
   operator = (import_specifier&&) = default;
 };
 
+struct export_specifier {
+  struct name {
+    std::string identifier;
+  };
+
+  struct all_imported_from {
+    module_name module;
+
+    explicit
+    all_imported_from(module_name name)
+      : module{std::move(name)}
+    { }
+  };
+
+  using value_type = std::variant<name, all_imported_from>;
+
+  value_type value;
+
+  template <typename T>
+  explicit
+  export_specifier(T value) : value{std::move(value)} { }
+};
+
 using imports_list = std::vector<import_specifier>;
+using exports_list = std::vector<export_specifier>;
 
 // Build an imports_list that simply imports everything from each of the given
 // modules.
@@ -106,7 +130,7 @@ class module_specifier : root_provider {
 public:
   std::optional<module_name> name;
   imports_list               imports;
-  std::vector<std::string>   exports;
+  exports_list               exports;
   std::vector<ptr<syntax>>   body;
   source_file_origin         origin;
 
@@ -117,8 +141,8 @@ public:
 
   module_specifier(free_store& fs,
                    std::optional<module_name> name,
-                   std::vector<import_specifier> imports,
-                   std::vector<std::string> exports,
+                   imports_list imports,
+                   exports_list exports,
                    std::vector<ptr<syntax>> body,
                    source_file_origin origin)
     : root_provider{fs}

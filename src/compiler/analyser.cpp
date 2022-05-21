@@ -1881,6 +1881,77 @@ expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
 }
 
 import_specifier
+parse_only_import_specifier(context& ctx, ptr<pair> spec) {
+  import_specifier::only result;
+  result.from = std::make_unique<import_specifier>(
+    parse_import_specifier(ctx, expect<syntax>(cadr(spec)))
+  );
+
+  for (ptr<> identifier : in_list{cddr(spec)})
+    result.identifiers.push_back(
+      syntax_expect_without_update<symbol>(
+        expect<syntax>(identifier)
+      )->value()
+    );
+
+  return import_specifier{std::move(result)};
+}
+
+import_specifier
+parse_except_import_specifier(context& ctx, ptr<pair> spec) {
+  import_specifier::except result;
+  result.from = std::make_unique<import_specifier>(
+    parse_import_specifier(ctx, expect<syntax>(cadr(spec)))
+  );
+
+  for (ptr<> identifier : in_list{cddr(spec)})
+    result.identifiers.push_back(
+      syntax_expect_without_update<symbol>(
+        expect<syntax>(identifier)
+      )->value()
+    );
+
+  return import_specifier{std::move(result)};
+}
+
+import_specifier
+parse_prefix_import_specifier(context& ctx, ptr<pair> spec) {
+  import_specifier::prefix result;
+  result.from = std::make_unique<import_specifier>(
+    parse_import_specifier(ctx, expect<syntax>(cadr(spec)))
+  );
+  result.prefix_ = syntax_expect_without_update<symbol>(
+    expect<syntax>(caddr(spec))
+  )->value();
+
+  return import_specifier{std::move(result)};
+}
+
+import_specifier
+parse_rename_import_specifier(context& ctx, ptr<pair> spec) {
+  import_specifier::rename result;
+  result.from = std::make_unique<import_specifier>(
+    parse_import_specifier(ctx, expect<syntax>(cadr(spec)))
+  );
+
+  for (ptr<> name_pair_stx : in_list{cddr(spec)}) {
+    ptr<> name_pair = syntax_to_list(ctx, expect<syntax>(name_pair_stx));
+    if (list_length(name_pair) != 2)
+      throw make_syntax_error(expect<syntax>(name_pair_stx),
+                              "import: rename: Expected a list of length 2");
+
+    auto np = assume<pair>(name_pair);
+
+    result.renames.emplace_back(
+      syntax_expect_without_update<symbol>(expect<syntax>(car(np)))->value(),
+      syntax_expect_without_update<symbol>(expect<syntax>(cadr(np)))->value()
+    );
+  }
+
+  return import_specifier{std::move(result)};
+}
+
+import_specifier
 parse_import_specifier(context& ctx, ptr<syntax> stx) {
   ptr<> spec = syntax_to_list(ctx, stx);
   if (!spec)
@@ -1889,69 +1960,14 @@ parse_import_specifier(context& ctx, ptr<syntax> stx) {
   auto p = assume<pair>(spec);
 
   if (auto head = syntax_match_without_update<symbol>(expect<syntax>(car(p)))) {
-    if (head->value() == "only") {
-      import_specifier::only result;
-      result.from = std::make_unique<import_specifier>(
-        parse_import_specifier(ctx, expect<syntax>(cadr(p)))
-      );
-
-      for (ptr<> identifier : in_list{cddr(p)})
-        result.identifiers.push_back(
-          syntax_expect_without_update<symbol>(
-            expect<syntax>(identifier)
-          )->value()
-        );
-
-      return import_specifier{std::move(result)};
-    }
-    else if (head->value() == "except") {
-      import_specifier::except result;
-      result.from = std::make_unique<import_specifier>(
-        parse_import_specifier(ctx, expect<syntax>(cadr(p)))
-      );
-
-      for (ptr<> identifier : in_list{cddr(p)})
-        result.identifiers.push_back(
-          syntax_expect_without_update<symbol>(
-            expect<syntax>(identifier)
-          )->value()
-        );
-
-      return import_specifier{std::move(result)};
-    }
-    else if (head->value() == "prefix") {
-      import_specifier::prefix result;
-      result.from = std::make_unique<import_specifier>(
-        parse_import_specifier(ctx, expect<syntax>(cadr(p)))
-      );
-      result.prefix_ = syntax_expect_without_update<symbol>(
-        expect<syntax>(caddr(p))
-      )->value();
-
-      return import_specifier{std::move(result)};
-    }
-    else if (head->value() == "rename") {
-      import_specifier::rename result;
-      result.from = std::make_unique<import_specifier>(
-        parse_import_specifier(ctx, expect<syntax>(cadr(p)))
-      );
-
-      for (ptr<> name_pair_stx : in_list{cddr(p)}) {
-        ptr<> name_pair = syntax_to_list(ctx, expect<syntax>(name_pair_stx));
-        if (list_length(name_pair) != 2)
-          throw make_syntax_error(expect<syntax>(name_pair_stx),
-                                  "import: rename: Expected a list of length 2");
-
-        auto np = assume<pair>(name_pair);
-
-        result.renames.emplace_back(
-          syntax_expect_without_update<symbol>(expect<syntax>(car(np)))->value(),
-          syntax_expect_without_update<symbol>(expect<syntax>(cadr(np)))->value()
-        );
-      }
-
-      return import_specifier{std::move(result)};
-    }
+    if (head->value() == "only")
+      return parse_only_import_specifier(ctx, p);
+    else if (head->value() == "except")
+      return parse_except_import_specifier(ctx, p);
+    else if (head->value() == "prefix")
+      return parse_prefix_import_specifier(ctx, p);
+    else if (head->value() == "rename")
+      return parse_rename_import_specifier(ctx, p);
     else
       return import_specifier{parse_module_name(ctx, stx)};
   }
@@ -1968,12 +1984,44 @@ process_library_import(context& ctx, module_specifier& result, ptr<syntax> stx) 
     result.imports.push_back(parse_import_specifier(ctx, assume<syntax>(set)));
 }
 
+static export_specifier
+parse_all_imported_from_export_specifier(context& ctx,
+                                         source_location const& loc,
+                                         ptr<pair> spec) {
+  if (list_length(spec) == 2)
+    return export_specifier{export_specifier::all_imported_from{
+      parse_module_name(ctx, expect<syntax>(cadr(spec)))
+    }};
+  else
+    throw make_syntax_error(loc, "Invalid all-imported-from syntax");
+}
+
+static export_specifier
+parse_export_specifier(context& ctx, ptr<syntax> stx) {
+  if (auto head = syntax_match_without_update<symbol>(stx)) {
+    return export_specifier{export_specifier::name{
+      syntax_expect_without_update<symbol>(stx)->value()
+    }};
+  } else {
+    if (ptr<> spec = syntax_to_list(ctx, stx); spec && is<pair>(spec)) {
+      auto spec_lst = assume<pair>(spec);
+      auto head_stx = expect<syntax>(car(spec_lst));
+      if (auto head = syntax_match_without_update<symbol>(head_stx)) {
+        if (head->value() == "all-imported-from")
+          return parse_all_imported_from_export_specifier(ctx, stx->location(),
+                                                          spec_lst);
+      }
+    }
+
+    throw make_syntax_error(stx, "Invalid export specifier");
+  }
+}
+
 static void
-process_library_export(context& ctx, module_specifier& result, ptr<syntax> stx) {
+process_library_export(context& ctx, module_specifier& result,
+                       ptr<syntax> stx) {
   for (ptr<> name : in_list{syntax_to_list(ctx, syntax_cdr(ctx, stx))})
-    result.exports.push_back(
-      syntax_expect_without_update<symbol>(assume<syntax>(name))->value()
-    );
+    result.exports.push_back(parse_export_specifier(ctx, assume<syntax>(name)));
 }
 
 static module_specifier

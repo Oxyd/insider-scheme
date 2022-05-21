@@ -19,12 +19,13 @@
 
 namespace insider {
 
-module_::module_(context& ctx, std::optional<module_name> const& name)
+module_::module_(context& ctx, std::optional<module_name> name)
   : env_{make<insider::scope>(ctx, ctx,
                               fmt::format("{} module top-level",
                                           name
                                             ? module_name_to_string(*name)
                                             : "<unnamed module>"))}
+  , name_{std::move(name)}
 { }
 
 module_::module_(context& ctx, type t)
@@ -78,16 +79,20 @@ module_::visit_members(member_visitor const& f) {
 
 namespace {
   struct import_set {
-    tracked_ptr<module_> source;
-    std::vector<std::tuple<std::string, std::string>> names;
+    struct imported_name {
+      std::string target;
+      std::string source;
+    };
+
+    tracked_ptr<module_>       source;
+    std::vector<imported_name> names;
 
     explicit
     import_set(context& ctx)
       : source{ctx.store}
     { }
 
-    import_set(tracked_ptr<module_> source,
-               std::vector<std::tuple<std::string, std::string>> names)
+    import_set(tracked_ptr<module_> source, std::vector<imported_name> names)
       : source{std::move(source)}
       , names{std::move(names)}
     { }
@@ -100,7 +105,7 @@ check_all_names_exist(std::vector<std::string> const& names,
   for (auto const& name : names)
     if (std::none_of(set.names.begin(), set.names.end(),
                      [&] (auto const& set_name) {
-                       return std::get<0>(set_name) == name;
+                       return set_name.target == name;
                      }))
       throw std::runtime_error{fmt::format("Identifier {} is not exported",
                                            name)};
@@ -129,7 +134,7 @@ parse_only_import_specifier(context& ctx, import_specifier::only const* o) {
                    [&] (auto const& name) {
                      return std::find(o->identifiers.begin(),
                                       o->identifiers.end(),
-                                      std::get<0>(name)) == o->identifiers.end();
+                                      name.target) == o->identifiers.end();
                    }),
     result.names.end()
   );
@@ -145,7 +150,7 @@ parse_except_import_specifier(context& ctx, import_specifier::except const* e) {
                    [&] (auto const& name) {
                      return std::find(e->identifiers.begin(),
                                       e->identifiers.end(),
-                                      std::get<0>(name)) != e->identifiers.end();
+                                      name.target) != e->identifiers.end();
                    }),
     result.names.end()
   );
@@ -231,15 +236,57 @@ check_all_defined(context& ctx, ptr<module_> m,
   }
 }
 
+static std::vector<std::string>
+exports_list_to_exported_names(std::vector<import_set> const& import_sets,
+                               exports_list const& list) {
+  std::vector<std::string> result;
+  for (export_specifier const& spec : list) {
+    if (auto const* n = std::get_if<export_specifier::name>(&spec.value))
+      result.push_back(n->identifier);
+    else if (auto const* aif
+             = std::get_if<export_specifier::all_imported_from>(&spec.value)) {
+      for (import_set const& is : import_sets)
+        if (is.source->name() == aif->module)
+          for (auto const& name : is.names)
+            result.push_back(name.target);
+    } else
+      assert(!"Unhandled export specifier");
+  }
+
+  return result;
+}
+
+static std::vector<import_set>
+imports_list_to_import_sets(context& ctx, imports_list const& imports) {
+  std::vector<import_set> result;
+  result.reserve(imports.size());
+
+  for (import_specifier const& spec : imports)
+    result.push_back(parse_import_set(ctx, spec));
+
+  return result;
+}
+
+static void
+perform_imports(context& ctx, tracked_ptr<module_> const& to,
+                std::vector<import_set> const& import_sets) {
+  for (import_set const& set : import_sets)
+    perform_imports(ctx, to, set);
+}
+
 tracked_ptr<module_>
 instantiate(context& ctx, module_specifier const& pm) {
   auto result = make_tracked<module_>(ctx, ctx, pm.name);
 
-  perform_imports(ctx, result, pm.imports);
+  std::vector<import_set> import_sets
+    = imports_list_to_import_sets(ctx, pm.imports);
+
+  perform_imports(ctx, result, import_sets);
   compile_module_body(ctx, result, pm);
 
-  check_all_defined(ctx, result.get(), pm.exports);
-  for (std::string const& name : pm.exports)
+  auto exported_names = exports_list_to_exported_names(import_sets, pm.exports);
+  check_all_defined(ctx, result.get(), exported_names);
+  for (std::string const& name : exported_names)
     result->export_(ctx.intern(name));
 
   return result;
@@ -285,7 +332,7 @@ void
 perform_imports(context& ctx, tracked_ptr<module_> const& to,
                 imports_list const& imports) {
   for (import_specifier const& spec : imports) {
-    import_set const& set = parse_import_set(ctx, spec); // GC
+    import_set set = parse_import_set(ctx, spec); // GC
     perform_imports(ctx, to, set);
   }
 }

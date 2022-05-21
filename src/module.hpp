@@ -35,7 +35,7 @@ public:
   };
 
   explicit
-  module_(context&, std::optional<module_name> const& = {});
+  module_(context&, std::optional<module_name> = {});
 
   module_(context&, type);
 
@@ -72,6 +72,9 @@ public:
   type
   get_type() const { return type_; }
 
+  std::optional<module_name> const&
+  name() const { return name_; }
+
   void
   visit_members(member_visitor const& f);
 
@@ -82,6 +85,7 @@ private:
   ptr<procedure>                  proc_;
   bool                            active_ = false;
   type                            type_ = type::loaded;
+  std::optional<module_name>      name_;
 };
 
 // Turn a module specifier into a module. First instantiate all uninstantiated

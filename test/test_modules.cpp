@@ -527,3 +527,64 @@ TEST_F(modules, environment) {
   EXPECT_EQ(std::set(std::ranges::begin(names), std::ranges::end(names)),
             (std::set<std::string>{"one", "too"}));
 }
+
+struct export_all_imported_fixture : modules {
+  export_all_imported_fixture() {
+    add_source_file(
+      "foo.scm",
+      R"(
+      (library (foo))
+      (import (insider internal))
+      (export one two)
+      (define one 1)
+      (define two 2)
+    )"
+    );
+  }
+
+  void
+  check_exported_names(auto const&... names) {
+    using namespace std::literals;
+    auto m = ctx.module_resolver().find_module(ctx, module_name{"bar"s});
+    EXPECT_EQ(m->exports(), (std::unordered_set{std::string{names}...}));
+  }
+};
+
+TEST_F(export_all_imported_fixture, basic) {
+  add_source_file(
+    "bar.scm",
+    R"(
+      (library (bar))
+      (import (foo))
+      (export (all-imported-from (foo)))
+    )"
+  );
+
+  check_exported_names("one", "two");
+}
+
+TEST_F(export_all_imported_fixture, renames) {
+  add_source_file(
+    "bar.scm",
+    R"(
+      (library (bar))
+      (import (rename (foo) (one a) (two b)))
+      (export (all-imported-from (foo)))
+    )"
+  );
+
+  check_exported_names("a", "b");
+}
+
+TEST_F(export_all_imported_fixture, imports_with_only_specifier) {
+  add_source_file(
+    "bar.scm",
+    R"(
+      (library (bar))
+      (import (only (foo) one))
+      (export (all-imported-from (foo)))
+    )"
+  );
+
+  check_exported_names("one");
+}
