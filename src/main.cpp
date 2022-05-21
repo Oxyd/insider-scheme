@@ -124,8 +124,10 @@ run_repl(insider::context& ctx) {
         = insider::read_syntax(ctx, input_port.get());
       if (auto stx = insider::match<insider::syntax>(expr)) {
         insider::tracked_ptr<> result = insider::eval(ctx, repl_mod, stx);
-        insider::write(ctx, result.get(), output_port.get());
-        output_port->write("\n");
+        if (result.get() != ctx.constants->void_) {
+          insider::write(ctx, result.get(), output_port.get());
+          output_port->write("\n");
+        }
       } else
         return;
     } catch (std::runtime_error const& e) {
