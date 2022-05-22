@@ -90,10 +90,10 @@ private:
 
 // Helper to allow range-based for iteration over a Scheme list.
 template <typename Pointer>
-class in_list {
+class list_range {
 public:
   explicit
-  in_list(Pointer lst) : head_{lst} { }
+  list_range(Pointer lst) : head_{lst} { }
 
   list_iterator<Pointer>
   begin() const { return list_iterator{head_}; }

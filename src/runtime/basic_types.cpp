@@ -100,7 +100,7 @@ append(context& ctx, object_span xs) {
 
 bool
 memq(ptr<> element, ptr<> list) {
-  return std::ranges::any_of(in_list{list},
+  return std::ranges::any_of(list_range{list},
                              [&] (ptr<> f) { return f == element; });
 }
 
@@ -162,7 +162,7 @@ list_to_vector(context& ctx, ptr<> lst) {
 std::vector<ptr<>>
 list_to_std_vector(ptr<> lst) {
   std::vector<ptr<>> result;
-  for (ptr<> e : in_list{lst})
+  for (ptr<> e : list_range{lst})
     result.push_back(e);
 
   return result;

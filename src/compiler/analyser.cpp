@@ -344,7 +344,7 @@ expand_begin(parsing_context& pc, ptr<syntax> stx,
              std::vector<tracked_ptr<syntax>>& stack) {
   ptr<> lst = syntax_to_list(pc.ctx, stx);
   std::vector<tracked_ptr<syntax>> subforms;
-  for (ptr<> e : in_list{cdr(assume<pair>(lst))})
+  for (ptr<> e : list_range{cdr(assume<pair>(lst))})
     subforms.push_back(track(pc.ctx, expect<syntax>(e)));
 
   std::ranges::copy(std::views::reverse(subforms), std::back_inserter(stack));
@@ -457,7 +457,7 @@ body_expressions_to_stack(parsing_context& pc, ptr<> body_exprs,
     throw make_syntax_error(loc, "Expected list of expressions");
 
   std::vector<tracked_ptr<syntax>> stack;
-  for (ptr<> e : in_list{list})
+  for (ptr<> e : list_range{list})
     stack.push_back(track(pc.ctx, expect<syntax>(e)));
   std::reverse(stack.begin(), stack.end());
   return stack;
@@ -1049,7 +1049,7 @@ parse_syntax_error(parsing_context& pc, ptr<syntax> stx) {
   std::string result_msg = syntax_expect<string>(
     pc.ctx, expect<syntax>(cadr(assume<pair>(datum)))
   )->value();
-  for (ptr<> irritant : in_list{cddr(assume<pair>(datum))})
+  for (ptr<> irritant : list_range{cddr(assume<pair>(datum))})
     result_msg += " " + syntax_to_string(pc.ctx, expect<syntax>(irritant));
 
   throw std::runtime_error{result_msg};
@@ -1776,7 +1776,7 @@ parse_module_name(context& ctx, ptr<syntax> stx) {
   if (!datum)
     throw make_syntax_error(stx, "Invalid module name");
 
-  for (ptr<> elem : in_list{datum}) {
+  for (ptr<> elem : list_range{datum}) {
     ptr<syntax> e = expect<syntax>(elem);
     if (auto s = syntax_match_without_update<symbol>(e))
       result.push_back(s->value());
@@ -1888,7 +1888,7 @@ parse_only_import_specifier(context& ctx, ptr<pair> spec) {
     parse_import_specifier(ctx, expect<syntax>(cadr(spec)))
   );
 
-  for (ptr<> identifier : in_list{cddr(spec)})
+  for (ptr<> identifier : list_range{cddr(spec)})
     result.identifiers.push_back(
       syntax_expect_without_update<symbol>(
         expect<syntax>(identifier)
@@ -1905,7 +1905,7 @@ parse_except_import_specifier(context& ctx, ptr<pair> spec) {
     parse_import_specifier(ctx, expect<syntax>(cadr(spec)))
   );
 
-  for (ptr<> identifier : in_list{cddr(spec)})
+  for (ptr<> identifier : list_range{cddr(spec)})
     result.identifiers.push_back(
       syntax_expect_without_update<symbol>(
         expect<syntax>(identifier)
@@ -1935,7 +1935,7 @@ parse_rename_import_specifier(context& ctx, ptr<pair> spec) {
     parse_import_specifier(ctx, expect<syntax>(cadr(spec)))
   );
 
-  for (ptr<> name_pair_stx : in_list{cddr(spec)}) {
+  for (ptr<> name_pair_stx : list_range{cddr(spec)}) {
     ptr<> name_pair = syntax_to_list(ctx, expect<syntax>(name_pair_stx));
     if (list_length(name_pair) != 2)
       throw make_syntax_error(expect<syntax>(name_pair_stx),
@@ -1981,7 +1981,7 @@ parse_import_specifier(context& ctx, ptr<syntax> stx) {
 
 static void
 process_library_import(context& ctx, module_specifier& result, ptr<syntax> stx) {
-  for (ptr<> set : in_list{syntax_to_list(ctx, syntax_cdr(ctx, stx))})
+  for (ptr<> set : list_range{syntax_to_list(ctx, syntax_cdr(ctx, stx))})
     result.imports.push_back(parse_import_specifier(ctx, assume<syntax>(set)));
 }
 
@@ -2021,7 +2021,7 @@ parse_export_specifier(context& ctx, ptr<syntax> stx) {
 static void
 process_library_export(context& ctx, module_specifier& result,
                        ptr<syntax> stx) {
-  for (ptr<> name : in_list{syntax_to_list(ctx, syntax_cdr(ctx, stx))})
+  for (ptr<> name : list_range{syntax_to_list(ctx, syntax_cdr(ctx, stx))})
     result.exports.push_back(parse_export_specifier(ctx, assume<syntax>(name)));
 }
 
@@ -2082,7 +2082,8 @@ template <auto Reader>
 static void
 process_library_include(context& ctx, module_specifier& result,
                         source_file_origin const& origin, ptr<syntax> stx) {
-  for (ptr<> filename : in_list{cdr(expect<pair>(syntax_to_datum(ctx, stx)))})
+  ptr<> const& filenames = cdr(expect<pair>(syntax_to_datum(ctx, stx)));
+  for (ptr<> filename : list_range{filenames})
     perform_library_include<Reader>(ctx, result, origin, stx->location(),
                                     expect<string>(filename)->value());
 }
@@ -2096,7 +2097,7 @@ process_include_library_declarations(context& ctx, module_specifier& result,
                                      source_file_origin const& origin,
                                      ptr<syntax> stx) {
   auto l = cdr(expect<pair>(syntax_to_datum(ctx, stx)));
-  for (ptr<> filename_obj : in_list{l}) {
+  for (ptr<> filename_obj : list_range{l}) {
     std::string filename = expect<string>(filename_obj)->value();
     if (auto source = find_source_relative(ctx, origin, filename)) {
       auto contents = read_syntax_multiple(ctx, source->port.get().get());
@@ -2113,7 +2114,7 @@ eval_cond_expand_condition(context& ctx, ptr<syntax> condition);
 
 static bool
 eval_cond_expand_disjunction(context& ctx, ptr<> elements) {
-  for (ptr<> cond : in_list{syntax_to_list(ctx, elements)})
+  for (ptr<> cond : list_range{syntax_to_list(ctx, elements)})
     if (eval_cond_expand_condition(ctx, expect<syntax>(cond)))
       return true;
   return false;
@@ -2121,7 +2122,7 @@ eval_cond_expand_disjunction(context& ctx, ptr<> elements) {
 
 static bool
 eval_cond_expand_conjunction(context& ctx, ptr<> elements) {
-  for (ptr<> cond : in_list{syntax_to_list(ctx, elements)})
+  for (ptr<> cond : list_range{syntax_to_list(ctx, elements)})
     if (!eval_cond_expand_condition(ctx, expect<syntax>(cond)))
       return false;
   return true;
@@ -2152,7 +2153,7 @@ static void
 process_library_declarations(context& ctx, module_specifier& result,
                              source_file_origin const& origin,
                              ptr<> list) {
-  for (ptr<> decl : in_list{syntax_to_list(ctx, list)})
+  for (ptr<> decl : list_range{syntax_to_list(ctx, list)})
     process_library_declaration(ctx, result, origin, expect<syntax>(decl));
 }
 
@@ -2172,7 +2173,7 @@ process_cond_expand_clause(context& ctx, module_specifier& result,
 static void
 process_cond_expand(context& ctx, module_specifier& result,
                     source_file_origin const& origin, ptr<syntax> stx) {
-  for (ptr<> clause : in_list{cdr(expect<pair>(syntax_to_list(ctx, stx)))}) {
+  for (ptr<> clause : list_range{cdr(expect<pair>(syntax_to_list(ctx, stx)))}) {
     bool taken = process_cond_expand_clause(
       ctx, result, origin, expect<syntax>(clause)
     );
@@ -2218,7 +2219,7 @@ read_define_library(context& ctx, ptr<syntax> form,
 
   result.name = parse_module_name(ctx, syntax_cadr(ctx, form));
 
-  for (ptr<> decl : in_list{cddr(expect<pair>(syntax_to_list(ctx, form)))})
+  for (ptr<> decl : list_range{cddr(expect<pair>(syntax_to_list(ctx, form)))})
     process_library_declaration(ctx, result, origin, expect<syntax>(decl));
 
   return result;
