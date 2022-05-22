@@ -1752,6 +1752,7 @@ analyse(context& ctx, ptr<syntax> stx, tracked_ptr<module_> const& m,
   parameterize module_param{ctx, ctx.constants->current_expand_module_tag,
                             m.get()};
   parsing_context pc{ctx, m, origin, {}, {}};
+  internal_definition_context_guard idc{pc};
   stx = stx->add_scope(ctx.store, m->scope());
   return analyse_internal(pc, stx);
 }

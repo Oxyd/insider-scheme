@@ -538,6 +538,30 @@ TEST_F(repl_fixture, dynamic_import_performs_imports) {
   EXPECT_EQ(expect<integer>(result).value(), 13);
 }
 
+TEST_F(interpreter, repl_define_using_macro) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export def)
+      (define-syntax def
+        (lambda (stx)
+          (let ((name (cadr (syntax->list stx))))
+            #`(define #,name 0))))
+    )"
+  );
+
+  tracked_ptr<module_> m
+    = make_interactive_module(
+      ctx,
+      import_modules(module_name{"foo"})
+    );
+  insider::eval(ctx, m, "(def x)");
+  ptr<> result = insider::eval(ctx, m, "x").get();
+  EXPECT_EQ(expect<integer>(result).value(), 0);
+}
+
 TEST_F(interpreter, meta_eval_simple_expression) {
   ptr<> result = eval("(meta (+ 2 3))");
   EXPECT_EQ(expect<integer>(result).value(), 5);
