@@ -98,6 +98,8 @@
                        (y x))
                y))
 
+    (test-eq -1 (let - ((n (- 1))) n))
+
     ;; By Jussi Piitulainen <jpiitula@ling.helsinki.fi>
     ;; and John Cowan <cowan@mercury.ccil.org>:
     ;; http://lists.scheme-reports.org/pipermail/scheme-reports/2013-December/003876.html

@@ -32,8 +32,9 @@
 (define-syntax let
   (syntax-rules ()
     ((let name ((var expr) ...) body0 body ...)
-     (letrec* ((name (lambda (var ...) body0 body ...)))
-       (name expr ...)))
+     (%let ((var expr) ...)
+       (letrec* ((name (lambda (var ...) body0 body ...)))
+         (name var ...))))
 
     ((let ((var expr) ...) body0 body ...)
      (%let ((var expr) ...)
