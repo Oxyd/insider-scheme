@@ -161,8 +161,7 @@ main(int argc, char** argv) {
     ctx.parameters->set_value(
       ctx.store,
       ctx.constants->interaction_environment_specifier_tag,
-      insider::make<insider::string>(ctx,
-                                     opts.interaction_environment_specifier)
+      insider::read(ctx, opts.interaction_environment_specifier)
     );
 
     if (opts.program_path.empty())

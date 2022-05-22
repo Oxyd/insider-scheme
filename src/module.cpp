@@ -391,6 +391,11 @@ make_interactive_module(context& ctx, imports_list const& imports) {
 }
 
 static ptr<>
+interactive_environment(context& ctx, ptr<native_procedure>, object_span args) {
+  return make_interactive_module(ctx, parse_imports(ctx, args)).get();
+}
+
+static ptr<>
 dynamic_import(context& ctx, ptr<native_procedure>, object_span args) {
   require_arg_count(args, 2);
   auto m = expect<module_>(args[0]);
@@ -401,15 +406,10 @@ dynamic_import(context& ctx, ptr<native_procedure>, object_span args) {
 
 tracked_ptr<module_>
 interaction_environment(context& ctx) {
-  auto import_str = expect<string>(
+  auto import_datum =
     find_parameter_value(ctx,
-                         ctx.constants->interaction_environment_specifier_tag),
-    "interaction-environment-specifier has to be a string"
-  );
-  auto import_stx = expect<syntax>(
-    read_syntax(ctx, import_str->value()),
-    "interaction-environment-specifier has to be a non-empty string"
-  );
+                         ctx.constants->interaction_environment_specifier_tag);
+  auto import_stx = datum_to_syntax(ctx, {}, import_datum);
   import_specifier import_spec = parse_import_specifier(ctx, import_stx);
   return make_interactive_module(ctx, {import_spec});
 }
@@ -417,8 +417,12 @@ interaction_environment(context& ctx) {
 void
 export_module(context& ctx, ptr<module_> result) {
   ctx.constants->interaction_environment_specifier_tag
-    = create_parameter_tag(ctx, make<string>(ctx, "(insider internal)"));
+    = create_parameter_tag(ctx, read(ctx, "(insider internal)"));
+  define_top_level(ctx, "interaction-environment-specifier-tag", result, true,
+                   ctx.constants->interaction_environment_specifier_tag);
   define_raw_procedure<environment>(ctx, "environment", result, true);
+  define_raw_procedure<interactive_environment>(ctx, "interactive-environment",
+                                                result, true);
   define_raw_procedure<dynamic_import>(ctx, "dynamic-import", result, true);
 }
 

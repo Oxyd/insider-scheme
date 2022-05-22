@@ -606,14 +606,12 @@ TEST_F(export_all_imported_fixture, imports_with_only_specifier) {
 }
 
 TEST_F(modules, default_interaction_environment_specifier_is_internal) {
-  EXPECT_EQ(
-    expect<string>(
-      find_parameter_value(
-        ctx, ctx.constants->interaction_environment_specifier_tag
-      )
-    )->value(),
-    "(insider internal)"
-  );
+  EXPECT_TRUE(equal(
+    find_parameter_value(
+      ctx, ctx.constants->interaction_environment_specifier_tag
+    ),
+    read("(insider internal)")
+  ));
 }
 
 TEST_F(modules, interaction_environment_imports_default_specifier) {
@@ -629,7 +627,7 @@ TEST_F(modules, interaction_environment_imports_default_specifier) {
   ctx.parameters->set_value(
     ctx.store,
     ctx.constants->interaction_environment_specifier_tag,
-    make<string>(ctx, "(foo)")
+    read("(foo)")
   );
   tracked_ptr<module_> m = interaction_environment(ctx);
   compare_top_level_bindings(m, {"witness"});
