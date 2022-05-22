@@ -43,6 +43,8 @@
 
  test-apply test-with-runner
 
+ test-read-eval-string
+
  ;; Non-standard extensions:
  test test-false)
 
@@ -666,6 +668,14 @@
     ((test-with-runner runner expr0 expr ...)
      (parameterize ((test-runner-current runner))
        expr0 expr ...))))
+
+(define (test-read-eval-string str)
+  (call-with-port (open-input-string str)
+    (lambda (port)
+      (let ((result (eval (read port) (environment '(insider interactive)))))
+        (unless (eof-object? (read-char port))
+          (error "Unread characters at end of string"))
+        result))))
 
 (define (colour-escape number)
   (string-append "\x1B;[" (number->string number) "m"))

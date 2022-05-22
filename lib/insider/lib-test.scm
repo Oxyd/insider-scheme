@@ -15,6 +15,7 @@
  (insider syntax-rules-test)
  (insider syntax-test)
  (insider test)
+ (insider test-test)
  (insider vector-test))
 (export test-lib)
 
@@ -32,6 +33,7 @@
     (test-string)
     (test-syntax)
     (test-syntax-transformers)
+    (test-test)
     (test-vector)))
 
 (when-main-module
