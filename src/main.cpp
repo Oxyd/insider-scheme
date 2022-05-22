@@ -4,6 +4,7 @@
 #include "io/port.hpp"
 #include "io/read.hpp"
 #include "runtime/action.hpp"
+#include "runtime/string.hpp"
 #include "runtime/syntax.hpp"
 #include "vm/vm.hpp"
 
@@ -34,6 +35,8 @@ namespace {
     bool                     help = false;
     std::string              program_path;
     std::vector<std::string> module_search_paths;
+    std::string              interaction_environment_specifier
+                               = "(insider interactive)";
   };
 
   class options_parse_error : public std::runtime_error {
@@ -46,9 +49,13 @@ namespace {
 
 static void
 print_usage(char const* program_name) {
-  fmt::print("{} [<options> ...] [<file>]\n", program_name);
-  fmt::print("Options:\n"
-             "  -I <directory>  -- add directory to module search path\n");
+  fmt::print("{} [<options> ...] [<file>]", program_name);
+  fmt::print(R"(
+Options:
+  -I <directory>    -- add directory to module search path
+  -x <module name>  -- set interaction-environment module name;
+                       default: (insider interactive)
+)");
 }
 
 static options
@@ -76,6 +83,8 @@ parse_options(int argc, char** argv) {
 
       if (flag == "-I")
         opts.module_search_paths.emplace_back(std::move(argument));
+      else if (flag == "-x")
+        opts.interaction_environment_specifier = std::move(argument);
       else
         throw options_parse_error{};
     } else {
@@ -107,10 +116,7 @@ format_error(insider::context& ctx, std::runtime_error const& e) {
 static void
 run_repl(insider::context& ctx) {
   insider::tracked_ptr<insider::module_> repl_mod
-    = insider::make_interactive_module(
-        ctx,
-        insider::import_modules(insider::module_name{"insider", "interactive"})
-      );
+    = insider::interaction_environment(ctx);
   insider::tracked_ptr<insider::textual_input_port> input_port
     = insider::track(ctx, insider::get_current_textual_input_port(ctx));
   insider::tracked_ptr<insider::textual_output_port> output_port
@@ -151,6 +157,13 @@ main(int argc, char** argv) {
       ctx.module_resolver().append_source_code_provider(
         std::make_unique<insider::filesystem_source_code_provider>(path)
       );
+
+    ctx.parameters->set_value(
+      ctx.store,
+      ctx.constants->interaction_environment_specifier_tag,
+      insider::make<insider::string>(ctx,
+                                     opts.interaction_environment_specifier)
+    );
 
     if (opts.program_path.empty())
       run_repl(ctx);

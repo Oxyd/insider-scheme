@@ -123,6 +123,9 @@ execute(context&, tracked_ptr<module_> const&);
 tracked_ptr<module_>
 make_interactive_module(context&, imports_list const&);
 
+tracked_ptr<module_>
+interaction_environment(context&);
+
 } // namespace insider
 
 #endif

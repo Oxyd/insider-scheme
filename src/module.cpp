@@ -399,8 +399,25 @@ dynamic_import(context& ctx, ptr<native_procedure>, object_span args) {
   return ctx.constants->void_;
 }
 
+tracked_ptr<module_>
+interaction_environment(context& ctx) {
+  auto import_str = expect<string>(
+    find_parameter_value(ctx,
+                         ctx.constants->interaction_environment_specifier_tag),
+    "interaction-environment-specifier has to be a string"
+  );
+  auto import_stx = expect<syntax>(
+    read_syntax(ctx, import_str->value()),
+    "interaction-environment-specifier has to be a non-empty string"
+  );
+  import_specifier import_spec = parse_import_specifier(ctx, import_stx);
+  return make_interactive_module(ctx, {import_spec});
+}
+
 void
 export_module(context& ctx, ptr<module_> result) {
+  ctx.constants->interaction_environment_specifier_tag
+    = create_parameter_tag(ctx, make<string>(ctx, "(insider internal)"));
   define_raw_procedure<environment>(ctx, "environment", result, true);
   define_raw_procedure<dynamic_import>(ctx, "dynamic-import", result, true);
 }

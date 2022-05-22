@@ -99,6 +99,7 @@ public:
     ptr<parameter_tag> current_source_file_origin_tag;
     ptr<parameter_tag> is_main_module_tag;
     ptr<parameter_tag> current_expand_module_tag;
+    ptr<parameter_tag> interaction_environment_specifier_tag;
   };
 
   struct statics_list {

@@ -6,10 +6,26 @@
 
 #include <memory>
 #include <ranges>
+#include <set>
 
 using namespace insider;
 
-struct modules : scheme_fixture { };
+struct modules : scheme_fixture {
+  void
+  compare_top_level_bindings(tracked_ptr<module_> const& m,
+                             std::set<std::string> const& names) {
+    auto deref = [] (auto p) { return *p; };
+    auto actual_names = *m->scope()
+      | std::views::transform(&scope::binding::id)
+      | std::views::transform(deref)
+      | std::views::transform(&syntax::get_symbol)
+      | std::views::transform(deref)
+      | std::views::transform(&symbol::value)
+      ;
+    EXPECT_EQ(std::set<std::string>(actual_names.begin(), actual_names.end()),
+              names);
+  }
+};
 
 TEST_F(modules, module_activation) {
   std::vector<int> trace;
@@ -587,4 +603,34 @@ TEST_F(export_all_imported_fixture, imports_with_only_specifier) {
   );
 
   check_exported_names("one");
+}
+
+TEST_F(modules, default_interaction_environment_specifier_is_internal) {
+  EXPECT_EQ(
+    expect<string>(
+      find_parameter_value(
+        ctx, ctx.constants->interaction_environment_specifier_tag
+      )
+    )->value(),
+    "(insider internal)"
+  );
+}
+
+TEST_F(modules, interaction_environment_imports_default_specifier) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export witness)
+      (define witness 0)
+    )"
+  );
+  ctx.parameters->set_value(
+    ctx.store,
+    ctx.constants->interaction_environment_specifier_tag,
+    make<string>(ctx, "(foo)")
+  );
+  tracked_ptr<module_> m = interaction_environment(ctx);
+  compare_top_level_bindings(m, {"witness"});
 }

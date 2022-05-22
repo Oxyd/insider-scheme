@@ -254,6 +254,7 @@ context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.constants->current_source_file_origin_tag);
   f(ctx_.constants->is_main_module_tag);
   f(ctx_.constants->current_expand_module_tag);
+  f(ctx_.constants->interaction_environment_specifier_tag);
 
   f(ctx_.parameters);
 
