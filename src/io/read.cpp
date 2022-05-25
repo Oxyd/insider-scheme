@@ -1,6 +1,7 @@
 #include "read.hpp"
 
 #include "compiler/source_location.hpp"
+#include "io/char_categories.hpp"
 #include "io/port.hpp"
 #include "io/reader_stream.hpp"
 #include "runtime/basic_types.hpp"
@@ -93,23 +94,10 @@ read_error::translate(context& ctx) const {
   return make<scheme_error>(ctx, what());
 }
 
-static bool
-whitespace(char32_t c) {
-  return c == ' ' || c == '\n' || c == '\t';
-}
 
 static bool
 intraline_whitespace(char32_t c) {
   return c == ' ' || c == '\t';
-}
-
-static bool
-delimiter(char32_t c) {
-  return whitespace(c)
-         || c == '(' || c == ')'
-         || c == '\'' || c == '"' || c == '`'
-         || c == '#' || c == ';'
-         ;
 }
 
 static void

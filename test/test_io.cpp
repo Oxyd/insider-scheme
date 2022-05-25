@@ -657,3 +657,31 @@ TEST_F(io, read_returns_eof_on_end) {
 TEST_F(io, read_syntax_returns_eof_on_end) {
   EXPECT_EQ(read_syntax(ctx, ""), ctx.constants->eof);
 }
+
+#define EXPECT_SYMBOL_EQ(x, y) \
+  EXPECT_EQ(datum_to_string(ctx, ctx.intern(x)), y);
+
+TEST_F(io, write_simple_symbol) {
+  EXPECT_SYMBOL_EQ("foo", "foo");
+}
+
+TEST_F(io, write_symbols_that_require_pipes) {
+  EXPECT_SYMBOL_EQ("", "||");
+  EXPECT_SYMBOL_EQ(".", "|.|");
+  EXPECT_SYMBOL_EQ("123", "|123|");
+  EXPECT_SYMBOL_EQ(".123", "|.123|");
+  EXPECT_SYMBOL_EQ("+123", "|+123|");
+  EXPECT_SYMBOL_EQ("-123", "|-123|");
+  EXPECT_SYMBOL_EQ("+i", "|+i|");
+  EXPECT_SYMBOL_EQ("-i", "|-i|");
+  EXPECT_SYMBOL_EQ("+nan.0", "|+nan.0|");
+  EXPECT_SYMBOL_EQ("+NaN.0", "|+NaN.0|");
+  EXPECT_SYMBOL_EQ("+inf.0", "|+inf.0|");
+  EXPECT_SYMBOL_EQ("-inf.0", "|-inf.0|");
+  EXPECT_SYMBOL_EQ("foo bar", "|foo bar|");
+  EXPECT_SYMBOL_EQ(R"(foo\bar)", R"(|foo\\bar|)");
+  EXPECT_SYMBOL_EQ("foo|bar", R"(|foo\|bar|)");
+  EXPECT_SYMBOL_EQ("foo)(bar", "|foo)(bar|");
+}
+
+#undef EXPECT_SYMBOL_EQ

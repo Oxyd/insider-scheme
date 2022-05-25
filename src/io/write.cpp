@@ -2,6 +2,7 @@
 
 #include "compiler/source_location.hpp"
 #include "context.hpp"
+#include "io/char_categories.hpp"
 #include "io/port.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/compare.hpp"
@@ -14,10 +15,12 @@
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <cctype>
 #include <iomanip>
 #include <limits>
 #include <locale>
 #include <optional>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <variant>
@@ -245,6 +248,66 @@ write_number(context& ctx, ptr<> value, ptr<textual_output_port> out,
     assert(false);
 }
 
+static bool
+is_number_prefix_character(char c) {
+  return c == '.' || c == '-' || c == '+';
+}
+
+static bool
+has_number_as_prefix(std::string const& sym_value) {
+  assert(!sym_value.empty());
+  std::string s;
+  std::ranges::copy(
+    sym_value | std::views::transform([] (char c) { return std::tolower(c); }),
+    std::back_inserter(s)
+  );
+
+  return std::isdigit(s.front())
+         || (is_number_prefix_character(s.front()) && std::isdigit(s[2]))
+         || s.starts_with("+i") || s.starts_with("-i")
+         || s.starts_with("+nan.0") || s.starts_with("-nan.0")
+         || s.starts_with("+inf.0") || s.starts_with("-inf.0");
+}
+
+static bool
+symbol_contains_character_that_requires_pipes(std::string const& s) {
+  return std::ranges::any_of(
+    s,
+    [] (char c) {
+      return control(c) || delimiter(c) || c == '\\' || c == '|';
+    }
+  );
+}
+
+static bool
+symbol_requires_pipes(std::string const& sym) {
+  using namespace std::literals;
+  return sym.empty()
+         || sym == "."s
+         || has_number_as_prefix(sym)
+         || symbol_contains_character_that_requires_pipes(sym);
+}
+
+static std::string
+escape_symbol(std::string const& s) {
+  std::string result;
+  result.reserve(s.size());
+  for (char c : s) {
+    if (c == '|' || c == '\\')
+      result += '\\';
+    result += c;
+  }
+  return result;
+}
+
+static void
+write_symbol(ptr<textual_output_port> const& out, ptr<symbol> sym) {
+  if (symbol_requires_pipes(sym->value()))
+    out->write(fmt::format("|{}|", escape_symbol(sym->value())));
+  else
+    out->write(sym->value());
+}
+
 static void
 write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   if (datum == ctx.constants->null)
@@ -258,7 +321,7 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   else if (is_number(datum))
     write_number(ctx, datum, out);
   else if (auto sym = match<symbol>(datum))
-    out->write(sym->value());
+    write_symbol(out, sym);
   else if (auto bv = match<bytevector>(datum)) {
     out->write("#u8(");
     for (std::size_t i = 0; i < bv->size(); ++i) {
