@@ -2951,6 +2951,7 @@ export_numeric(context& ctx, ptr<module_> result) {
   define_procedure<asin>(ctx, "asin", result, true);
   define_procedure<acos>(ctx, "acos", result, true);
   define_procedure<atan>(ctx, "atan", result, true);
+  define_procedure<atan2>(ctx, "atan2", result, true);
 }
 
 } // namespace insider

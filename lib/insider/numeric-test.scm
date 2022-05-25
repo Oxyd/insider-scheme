@@ -369,6 +369,9 @@
     ((test-close expected expr error)
      (test (< (magnitude (- expr expected)) error)))))
 
+(define pi 3.141592654)
+(define pi/2 1.570796327)
+
 (define (test-transcendental)
   (test-group "transcendental"
     (test-group "exp"
@@ -385,11 +388,11 @@
 
     (test-group "sin"
       (test-equal 0.0 (sin 0))
-      (test-approximate 1.0 (sin 1.5707963267949) 1e-6))
+      (test-approximate 1.0 (sin pi/2) 1e-6))
 
     (test-group "cos"
       (test-equal 1.0 (cos 0))
-      (test-approximate -1.0 (cos 3.14159265358979) 1e-6))
+      (test-approximate -1.0 (cos pi) 1e-6))
 
     (test-group "tan"
       (test-equal 0.0 (tan 0))
@@ -397,11 +400,27 @@
 
     (test-group "asin"
       (test-equal 0.0 (asin 0))
-      (test-approximate 1.5707963267949 (asin 1) 1e-6))
+      (test-approximate pi/2 (asin 1) 1e-6))
 
     (test-group "acos"
       (test-equal 0.0 (acos 1))
-      (test-approximate 3.14159265358979 (acos -1) 1e-6))))
+      (test-approximate pi (acos -1) 1e-6))
+
+    (test-group "atan"
+      (test-approximate (/ pi 4) (atan 1 1) 1e-6)
+      (test-approximate 0.5880026035475675 (atan 2 3) 1e-6)
+      (test-equal 0.0 (atan 0.0 1.0))
+      (test-equal -0.0 (atan -0.0 1.0))
+      (test-approximate pi/2 (atan 1.0 0.0) 1e-6)
+      (test-approximate pi (atan 0.0 -1.0) 1e-6)
+      (test-approximate (- pi) (atan -0.0 -1.0) 1e-6)
+      (test-approximate (- pi/2) (atan -1.0 0.0) 1e-6)
+      (test-equal 0.0 (atan 0.0 0.0))
+      (test-equal -0.0 (atan -0.0 0.0))
+      (test-approximate pi (atan 0.0 -0.0) 1e-6)
+      (test-approximate (- pi) (atan -0.0 -0.0) 1e-6)
+      (test-approximate (- pi/2) (atan -inf.0) 1e-6)
+      (test-approximate pi/2 (atan +inf.0) 1e-6))))
 
 (define (test-numeric)
   (test-group "numeric"

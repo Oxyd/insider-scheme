@@ -9,7 +9,7 @@
                       exp log abs floor ceiling truncate round
                       inexact? exact? exact-integer? real? rational? inexact exact expt
                       square sqrt angle magnitude make-rectangular make-polar real-part imag-part
-                      sin cos tan asin acos atan
+                      sin cos tan asin acos atan atan2
 
                       fraction-numerator fraction-denominator
 
@@ -18,7 +18,8 @@
                 (bitwise-ior %bitwise-ior)
                 (bitwise-xor %bitwise-xor)
                 (gcd %gcd)
-                (log %log)))
+                (log %log)
+                (atan %atan)))
 (export
  ;; From core
  + - * / = < <= > >= truncate/ truncate-quotient truncate-remainder
@@ -392,7 +393,7 @@
 	 ;; X = Y so if that is a rational that is the answer, otherwise
 	 ;; there is nothing we can return at all.
 	 (if (rational? x) x (error)))
-	((positive? x) 
+	((positive? x)
 	 ;; 0 < X < Y which is what SIMPLEST-RATIONAL-INTERNAL expects:
 	 (simplest-rational-internal x y))
 	((negative? y)
@@ -412,3 +413,11 @@
 
    ((z base)
     (/ (%log z) (%log base)))))
+
+(define atan
+  (case-lambda
+   ((z)
+    (%atan z))
+
+   ((y x)
+    (atan2 y x))))
