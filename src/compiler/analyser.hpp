@@ -46,7 +46,7 @@ std::optional<module_name>
 read_library_name(context&, ptr<textual_input_port>);
 
 // Analyse a module's body in the given module.
-sequence_expression
+std::unique_ptr<expression>
 analyse_module(context&, tracked_ptr<module_>, module_specifier const&,
                bool main_module = false);
 

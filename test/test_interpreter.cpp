@@ -472,6 +472,13 @@ TEST_F(repl_fixture, reference_to_unknown_variable_doesnt_bind_to_syntax) {
   EXPECT_THROW(insider::eval(ctx, m, "(f)"), std::runtime_error);
 }
 
+TEST_F(repl_fixture, redefine_variable_in_repl) {
+  insider::eval(ctx, m, "(define x 1)");
+  insider::eval(ctx, m, "(define x 2)");
+  ptr<> result = insider::eval(ctx, m, "x").get();
+  EXPECT_EQ(expect<integer>(result).value(), 2);
+}
+
 TEST_F(repl_fixture, redefine_syntax_in_repl) {
   insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'4))");
   insider::eval(ctx, m, "(define f (lambda () (a)))");
@@ -663,4 +670,40 @@ TEST_F(interpreter, can_get_expand_time_parameter_through_meta) {
   ptr<> result_from_meta
     = eval("(meta (find-parameter-value current-expand-module-tag))");
   EXPECT_TRUE(is<module_>(result_from_meta));
+}
+
+static unsigned meta_eval_count = 0;
+
+static void
+increase_meta_eval_count() {
+  ++meta_eval_count;
+}
+
+TEST_F(interpreter, top_level_meta_is_evaluated_only_once) {
+  define_procedure<increase_meta_eval_count>(ctx, "increase-count!",
+                                             ctx.internal_module(), true);
+  eval_module("(import (insider internal)) (meta (increase-count!))");
+  EXPECT_EQ(meta_eval_count, 1);
+}
+
+static char const* introduce_macro_def = R"(
+  (define-syntax introduce
+    (lambda (stx)
+      (let ((exprs (syntax->list stx)))
+        (let ((name (cadr exprs))
+              (body (cddr exprs)))
+          #`(let ((#,name 0)) #,@body)))))
+)";
+
+TEST_F(repl_fixture, reference_and_set_variable_introduced_by_macro) {
+  insider::eval(ctx, m, introduce_macro_def);
+  ptr<> result = insider::eval(ctx, m, "(introduce x (set! x 1) x)").get();
+  EXPECT_EQ(expect<integer>(result).value(), 1);
+}
+
+TEST_F(repl_fixture, set_variable_introduced_by_macro_in_meta) {
+  insider::eval(ctx, m, introduce_macro_def);
+  ptr<> result
+    = insider::eval(ctx, m, "(meta (introduce x (set! x 1) x))").get();
+  EXPECT_EQ(expect<integer>(result).value(), 1);
 }

@@ -1030,11 +1030,11 @@ compile_module(context& ctx, std::filesystem::path const& path,
 void
 compile_module_body(context& ctx, tracked_ptr<module_> const& m,
                     module_specifier const& pm, bool main_module) {
-  sequence_expression body = analyse_module(ctx, m, pm, main_module);
+  auto body_expr = analyse_module(ctx, m, pm, main_module);
 
   procedure_context proc{nullptr, m};
   result_register result;
-  compile_sequence(ctx, proc, body, true, result);
+  compile_expression(ctx, proc, *body_expr, true, result);
   if (result.has_result())
     encode_instruction(proc.bytecode_stack.back(),
                        instruction{opcode::ret, *result.get(proc)});

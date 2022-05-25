@@ -100,6 +100,11 @@ namespace {
   };
 }
 
+static parsing_context
+make_subcontext(parsing_context& pc) {
+  return parsing_context{pc.ctx, pc.module_, pc.origin, {}, {}};
+}
+
 static environment_extender
 extend_environment(parsing_context& pc, ptr<scope> s) {
   std::vector<std::shared_ptr<variable>> ext;
@@ -291,18 +296,34 @@ expand(parsing_context& pc, tracked_ptr<syntax> const& stx) {
 static std::unique_ptr<expression>
 analyse_meta(parsing_context& pc, ptr<syntax> stx);
 
+static std::unique_ptr<expression>
+analyse_internal(parsing_context& pc, ptr<syntax> stx);
+
+template <auto Analyse>
+static tracked_ptr<>
+eval_at_expand_time(parsing_context& pc, ptr<syntax> datum) {
+  auto meta_pc = make_subcontext(pc);
+  auto proc = compile_syntax(meta_pc.ctx, Analyse(meta_pc, datum),
+                             meta_pc.module_);
+  return call_with_continuation_barrier(meta_pc.ctx, proc, {});
+}
+
 // Causes a garbage collection.
 static tracked_ptr<>
 eval_meta(parsing_context& pc, ptr<syntax> datum) {
-  auto proc = compile_syntax(pc.ctx, analyse_meta(pc, datum), pc.module_);
-  return call_with_continuation_barrier(pc.ctx, proc, {});
+  return eval_at_expand_time<analyse_meta>(pc, datum);
+}
+
+static tracked_ptr<>
+eval_transformer(parsing_context& pc, ptr<syntax> datum) {
+  return eval_at_expand_time<analyse_internal>(pc, datum);
 }
 
 // Causes a garbage collection
 static ptr<transformer>
 make_transformer(parsing_context& pc, ptr<syntax> expr) {
   simple_action a(pc.ctx, expr, "Evaluating transformer");
-  auto transformer_proc = eval_meta(pc, expr); // GC
+  auto transformer_proc = eval_transformer(pc, expr); // GC
   return make<transformer>(pc.ctx, transformer_proc.get());
 }
 
@@ -389,14 +410,15 @@ process_internal_define(
 
 static void
 process_define_syntax(parsing_context& pc, ptr<syntax> stx) {
-  auto p = assume<pair>(syntax_to_list(pc.ctx, stx));
-  auto name = expect_id(pc.ctx, expect<syntax>(cadr(p)));
-  auto name_without_scope = track(
-    pc.ctx, remove_use_site_scopes(pc.ctx, name,
-                                   pc.use_site_scopes.back())
-  );
-  auto tr = make_transformer(pc, expect<syntax>(caddr(p))); // GC
-  define(pc.ctx.store, name_without_scope.get(), tr);
+  if (pc.module_->get_type() == module_::type::immutable)
+    throw std::runtime_error{"Can't mutate an immutable environment"};
+
+  auto [name, expr] = parse_name_and_expr(pc, stx, "define-syntax");
+  auto new_tr = make_transformer(pc, expr); // GC
+  if (lookup_transformer(name.get()))
+    redefine(pc.ctx.store, name.get(), new_tr);
+  else
+    define(pc.ctx.store, name.get(), new_tr);
 }
 
 static tracked_ptr<>
@@ -976,48 +998,8 @@ parse_define_or_set(parsing_context& pc, ptr<syntax> stx,
 }
 
 static std::unique_ptr<expression>
-define_new_toplevel(parsing_context& pc,
-                    tracked_ptr<syntax> const& id,
-                    ptr<syntax> expr) {
-  std::string name = identifier_name(id.get());
-  operand index = pc.ctx.add_top_level(pc.ctx.constants->void_, name);
-  auto var = std::make_shared<variable>(name, index);
-  define(pc.ctx.store, id.get(), var);
-  return make_set_expression(pc, id, expr, std::move(var));
-}
-
-static std::unique_ptr<expression>
 parse_define(parsing_context& pc, ptr<syntax> stx) {
-  if (pc.module_->get_type() == module_::type::immutable)
-    throw std::runtime_error{"Can't mutate an immutable environment"};
-
-  auto [name, expr] = parse_name_and_expr(pc, stx, "define");
-  auto var = lookup_variable(pc, name.get());
-  if (!var)
-    return define_new_toplevel(pc, name, expr);
-  else
-    return make_set_expression(pc, name, expr, std::move(var));
-}
-
-static std::unique_ptr<expression>
-make_void_expression(parsing_context& pc) {
-  return make_expression<literal_expression>(
-    track(pc.ctx, pc.ctx.constants->void_)
-  );
-}
-
-static std::unique_ptr<expression>
-parse_define_syntax(parsing_context& pc, ptr<syntax> stx) {
-  if (pc.module_->get_type() == module_::type::immutable)
-    throw std::runtime_error{"Can't mutate an immutable environment"};
-
-  auto [name, expr] = parse_name_and_expr(pc, stx, "define-syntax");
-  auto new_tr = make_transformer(pc, expr); // GC
-  if (lookup_transformer(name.get()))
-    redefine(pc.ctx.store, name.get(), new_tr);
-  else
-    define(pc.ctx.store, name.get(), new_tr);
-  return make_void_expression(pc);
+  return parse_define_or_set(pc, stx, "define");
 }
 
 static std::unique_ptr<expression>
@@ -1481,11 +1463,6 @@ parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
 }
 
 static std::unique_ptr<expression>
-parse_meta(parsing_context& pc, ptr<syntax> stx) {
-  return make_expression<literal_expression>(eval_meta_expression(pc, stx));
-}
-
-static std::unique_ptr<expression>
 parse(parsing_context& pc, ptr<syntax> s) {
   ptr<syntax> stx = expand(pc, track(pc.ctx, s)).get(); // GC
 
@@ -1514,8 +1491,6 @@ parse(parsing_context& pc, ptr<syntax> s) {
         return parse_sequence(pc, syntax_cdr(pc.ctx, stx));
       else if (form == pc.ctx.constants->define)
         return parse_define(pc, stx);
-      else if (form == pc.ctx.constants->define_syntax)
-        return parse_define_syntax(pc, stx);
       else if (form == pc.ctx.constants->quote)
         return make_expression<literal_expression>(
           track(pc.ctx, syntax_to_datum(pc.ctx, syntax_cadr(pc.ctx, stx)))
@@ -1544,8 +1519,9 @@ parse(parsing_context& pc, ptr<syntax> s) {
         return parse_let_syntax(pc, stx);
       else if (form == pc.ctx.constants->letrec_syntax)
         return parse_letrec_syntax(pc, stx);
-      else if (form == pc.ctx.constants->meta)
-        return parse_meta(pc, stx);
+      else
+        assert(form != pc.ctx.constants->meta
+               && form != pc.ctx.constants->define_syntax);
     }
 
     return parse_application(pc, stx);
@@ -1738,10 +1714,127 @@ analyse_internal(parsing_context& pc, ptr<syntax> stx) {
   return result;
 }
 
+static std::vector<tracked_ptr<syntax>>
+add_module_scope_to_body(context& ctx, std::vector<ptr<syntax>> const& body,
+                         ptr<scope> s) {
+  std::vector<tracked_ptr<syntax>> result;
+  result.reserve(body.size());
+
+  for (ptr<syntax> e : body)
+    result.push_back(track(ctx, e->add_scope(ctx.store, s)));
+
+  return result;
+}
+
+static void
+process_top_level_define(parsing_context& pc, tracked_ptr<syntax> const& stx) {
+  if (pc.module_->get_type() == module_::type::immutable)
+    throw std::runtime_error{"Can't mutate an immutable environment"};
+
+  auto [name, expr] = parse_name_and_expr(pc, stx.get(), "define");
+  auto var = lookup_variable(pc, name.get());
+  if (!var) {
+    auto index = pc.ctx.add_top_level(pc.ctx.constants->void_,
+                                      identifier_name(name.get()));
+    var = std::make_shared<variable>(identifier_name(name.get()), index);
+    define(pc.ctx.store, name.get(), std::move(var));
+  }
+}
+
+static tracked_ptr<syntax>
+process_top_level_form(parsing_context& pc,
+                       std::vector<tracked_ptr<syntax>>& stack,
+                       tracked_ptr<syntax> const& stx) {
+  if (auto lst = track(pc.ctx, syntax_to_list(pc.ctx, stx.get()))) {
+    if (lst.get() == pc.ctx.constants->null)
+      throw make_syntax_error(stx.get(), "Empty application");
+
+    ptr<pair> p = assume<pair>(lst.get());
+    if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
+      if (form == pc.ctx.constants->define_syntax) {
+        process_define_syntax(pc, stx.get());
+        return tracked_ptr<syntax>(pc.ctx.store);
+      } else if (form == pc.ctx.constants->define) {
+        process_top_level_define(pc, stx);
+        return stx;
+      } else if (form == pc.ctx.constants->begin) {
+        expand_begin(pc, stx.get(), stack);
+        return tracked_ptr<syntax>(pc.ctx.store);
+      } else if (form == pc.ctx.constants->meta) {
+        tracked_ptr<> datum = eval_meta_expression(pc, stx.get());
+        return track(pc.ctx, datum_to_syntax(pc.ctx, stx.get(), datum.get()));
+      }
+    }
+  }
+
+  return stx;
+}
+
+static std::vector<tracked_ptr<syntax>>
+body_to_stack(std::vector<tracked_ptr<syntax>> const& body) {
+  std::vector<tracked_ptr<syntax>> stack;
+  stack.reserve(body.size());
+  std::ranges::copy(std::views::reverse(body), std::back_inserter(stack));
+  return stack;
+}
+
+static std::vector<tracked_ptr<syntax>>
+process_top_level_forms(parsing_context& pc,
+                        std::vector<tracked_ptr<syntax>> const& body) {
+  std::vector<tracked_ptr<syntax>> stack = body_to_stack(body);
+  std::vector<tracked_ptr<syntax>> result;
+  while (!stack.empty()) {
+    tracked_ptr<syntax> stx = expand(pc, stack.back()); // GC
+    stack.pop_back();
+
+    tracked_ptr<syntax> to_emit = process_top_level_form(pc, stack, stx);
+    if (to_emit)
+      result.push_back(std::move(to_emit));
+  }
+
+  return result;
+}
+
+// Gather syntax and top-level variable definitions, expand top-level macro
+// uses. Adds the found top-level syntaxes and variables to the module. Returns
+// a list of the expanded top-level commands.
+//
+// Causes a garbage collection.
+static std::vector<tracked_ptr<syntax>>
+expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
+                 std::vector<ptr<syntax>> const& exprs) {
+  simple_action a(pc.ctx, "Expanding module top-level");
+
+  auto body = add_module_scope_to_body(pc.ctx, exprs, m->scope());
+
+  internal_definition_context_guard idc{pc};
+  return process_top_level_forms(pc, body);
+}
+
+static std::unique_ptr<expression>
+analyse_expression_list(parsing_context& pc,
+                        std::vector<tracked_ptr<syntax>>& exprs) {
+  std::vector<std::unique_ptr<expression>> result_exprs;
+  result_exprs.reserve(exprs.size());
+  for (auto const& datum : exprs)
+    result_exprs.push_back(analyse_internal(pc, datum.get()));
+  return make_expression<sequence_expression>(std::move(result_exprs));
+}
+
+static std::unique_ptr<expression>
+analyse_top_level_expressions(parsing_context& pc,
+                              tracked_ptr<module_> const& m,
+                              std::vector<ptr<syntax>> const& exprs) {
+  std::vector<tracked_ptr<syntax>> body = expand_top_level(pc, m, exprs);
+  if (body.size() == 1)
+    return analyse_internal(pc, body.front().get());
+  else
+    return analyse_expression_list(pc, body);
+}
+
 static std::unique_ptr<expression>
 analyse_meta(parsing_context& pc, ptr<syntax> stx) {
-  tracked_ptr<syntax> expanded_stx = expand(pc, track(pc.ctx, stx));
-  return analyse_internal(pc, expanded_stx.get());
+  return analyse_top_level_expressions(pc, pc.module_, {stx});
 }
 
 std::unique_ptr<expression>
@@ -1752,9 +1845,8 @@ analyse(context& ctx, ptr<syntax> stx, tracked_ptr<module_> const& m,
   parameterize module_param{ctx, ctx.constants->current_expand_module_tag,
                             m.get()};
   parsing_context pc{ctx, m, origin, {}, {}};
-  internal_definition_context_guard idc{pc};
   stx = stx->add_scope(ctx.store, m->scope());
-  return analyse_internal(pc, stx);
+  return analyse_top_level_expressions(pc, m, {stx});
 }
 
 static bool
@@ -1787,98 +1879,6 @@ parse_module_name(context& ctx, ptr<syntax> stx) {
   }
 
   return result;
-}
-
-static std::vector<tracked_ptr<syntax>>
-add_module_scope_to_body(context& ctx, std::vector<ptr<syntax>> const& body,
-                         ptr<scope> s) {
-  std::vector<tracked_ptr<syntax>> result;
-  result.reserve(body.size());
-
-  for (ptr<syntax> e : body)
-    result.push_back(track(ctx, e->add_scope(ctx.store, s)));
-
-  return result;
-}
-
-static void
-process_top_level_define(parsing_context& pc, tracked_ptr<syntax> const& stx) {
-  auto [name, expr] = parse_name_and_expr(pc, stx.get(), "define");
-  auto index = pc.ctx.add_top_level(pc.ctx.constants->void_,
-                                    identifier_name(name.get()));
-  auto var = std::make_shared<variable>(identifier_name(name.get()),
-                                        index);
-  define(pc.ctx.store, name.get(), std::move(var));
-}
-
-static bool
-process_top_level_form(parsing_context& pc,
-                       std::vector<tracked_ptr<syntax>>& stack,
-                       tracked_ptr<syntax> const& stx) {
-  if (auto lst = track(pc.ctx, syntax_to_list(pc.ctx, stx.get()))) {
-    if (lst.get() == pc.ctx.constants->null)
-      throw make_syntax_error(stx.get(), "Empty application");
-
-    ptr<pair> p = assume<pair>(lst.get());
-    if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
-      if (form == pc.ctx.constants->define_syntax) {
-        process_define_syntax(pc, stx.get());
-        return false;
-      } else if (form == pc.ctx.constants->define) {
-        process_top_level_define(pc, stx);
-        return true;
-      } else if (form == pc.ctx.constants->begin) {
-        expand_begin(pc, stx.get(), stack);
-        return false;
-      } else if (form == pc.ctx.constants->meta) {
-        eval_meta_expression(pc, stx.get());
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
-static std::vector<tracked_ptr<syntax>>
-body_to_stack(std::vector<tracked_ptr<syntax>> const& body) {
-  std::vector<tracked_ptr<syntax>> stack;
-  stack.reserve(body.size());
-  std::ranges::copy(std::views::reverse(body), std::back_inserter(stack));
-  return stack;
-}
-
-static std::vector<tracked_ptr<syntax>>
-process_top_level_forms(parsing_context& pc,
-                        std::vector<tracked_ptr<syntax>> const& body) {
-  std::vector<tracked_ptr<syntax>> stack = body_to_stack(body);
-  std::vector<tracked_ptr<syntax>> result;
-  while (!stack.empty()) {
-    tracked_ptr<syntax> stx = expand(pc, stack.back()); // GC
-    stack.pop_back();
-
-    bool emit = process_top_level_form(pc, stack, stx);
-    if (emit)
-      result.push_back(stx);
-  }
-
-  return result;
-}
-
-// Gather syntax and top-level variable definitions, expand top-level macro
-// uses. Adds the found top-level syntaxes and variables to the module. Returns
-// a list of the expanded top-level commands.
-//
-// Causes a garbage collection.
-static std::vector<tracked_ptr<syntax>>
-expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
-                 module_specifier const& pm) {
-  simple_action a(pc.ctx, "Expanding module top-level");
-
-  auto body = add_module_scope_to_body(pc.ctx, pm.body, m->scope());
-
-  internal_definition_context_guard idc{pc};
-  return process_top_level_forms(pc, body);
 }
 
 import_specifier
@@ -2255,7 +2255,7 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
   }
 }
 
-sequence_expression
+std::unique_ptr<expression>
 analyse_module(context& ctx, tracked_ptr<module_> m, module_specifier const& pm,
                bool main_module) {
   parameterize origin_param{
@@ -2271,13 +2271,7 @@ analyse_module(context& ctx, tracked_ptr<module_> m, module_specifier const& pm,
   };
   parsing_context pc{ctx, m, pm.origin, {}, {}};
 
-  std::vector<tracked_ptr<syntax>> body = expand_top_level(pc, m, pm);
-
-  sequence_expression result;
-  for (tracked_ptr<syntax> const& datum : body)
-    result.expressions.push_back(analyse_internal(pc, datum.get()));
-
-  return result;
+  return analyse_top_level_expressions(pc, m, pm.body);
 }
 
 static tracked_ptr<syntax>
