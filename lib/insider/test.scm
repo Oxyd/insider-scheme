@@ -489,16 +489,18 @@
      (define-syntax name
        (syntax-rules ()
          ((name test-name expected expr)
-          (execute-test-case! (test-runner-get)
-                              (lambda ()
-                                (let ((runner (test-runner-get))
-                                      (expected-value expected)
-                                      (actual-value expr))
-                                  (test-result-set! runner 'expected-value expected-value)
-                                  (test-result-set! runner 'actual-value actual-value)
-                                  (predicate expected-value actual-value)))
-                              test-name
-                              '(predicate expected expr)))
+          (execute-test-case!
+           (test-runner-get)
+           (lambda ()
+             (let ((runner (test-runner-get))
+                   (expected-value expected)
+                   (actual-value expr))
+               (test-result-set! runner 'expected-value expected-value)
+               (test-result-set! runner 'actual-value actual-value)
+               (predicate expected-value actual-value)))
+           test-name
+           '(predicate expected expr)))
+
          ((name expected expr)
           (name "" expected expr)))))))
 
@@ -533,9 +535,19 @@
 (define-syntax test-approximate
   (syntax-rules ()
     ((test-approximate name expected expr error)
-     (let ((value expr) (ex expected) (er error))
-       (and (>= value (- ex er))
-            (<= value (+ ex er)))))
+     (execute-test-case!
+      (test-runner-get)
+      (lambda ()
+        (let ((runner (test-runner-get))
+              (ex expected)
+              (value expr)
+              (er error))
+          (test-result-set! runner 'expected-value ex)
+          (test-result-set! runner 'actual-value value)
+          (and (>= value (- ex er))
+               (<= value (+ ex er)))))
+      name
+      '(text-approximate expected expr error)))
 
     ((test-approximate expected expr error)
      (test-approximate "" expected expr error))))
