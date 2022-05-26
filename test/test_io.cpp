@@ -357,6 +357,7 @@ TEST_F(io, read_write_float) {
   EXPECT_TRUE(std::isnan(expect<floating_point>(read("-nan.0"))->value));
 
   EXPECT_EQ(to_string_simple(ctx, make_float(0.0)), "0.0");
+  EXPECT_EQ(to_string_simple(ctx, make_float(-0.0)), "-0.0");
   EXPECT_EQ(to_string_simple(ctx, make_float(0.1)), "0.1");
   EXPECT_EQ(to_string_simple(ctx, make_float(-0.1)), "-0.1");
   EXPECT_EQ(to_string_simple(ctx, make_float(1.0)), "1.0");
@@ -367,6 +368,14 @@ TEST_F(io, read_write_float) {
   EXPECT_EQ(to_string_simple(ctx, make_float(floating_point::negative_nan)), "-nan.0");
 
   EXPECT_EQ(to_string_simple(ctx, make_float(203.523)), "203.523");
+}
+
+TEST_F(io, read_negative_zero) {
+  auto neg = expect<floating_point>(read("-0.0"));
+  EXPECT_TRUE(std::signbit(neg->value));
+
+  auto pos = expect<floating_point>(read("+0.0"));
+  EXPECT_FALSE(std::signbit(pos->value));
 }
 
 TEST_F(io, read_datum_label) {

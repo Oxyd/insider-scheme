@@ -475,6 +475,9 @@ arith_equal(context&, ptr<>, ptr<>);
 ptr<>
 arith_equal(context&, object_span);
 
+bool
+numeric_eqv(context&, ptr<>, ptr<>);
+
 ptr<boolean>
 less(context&, ptr<>, ptr<>);
 ptr<>

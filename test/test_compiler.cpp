@@ -646,3 +646,13 @@ TEST_F(compiler, call_from_native) {
   ptr<> result = call_with_continuation_barrier(ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})}).get();
   EXPECT_EQ(expect<integer>(result).value(), 2 * 5 + 3 * 4);
 }
+
+TEST_F(compiler, equal_values_are_collapsed) {
+  auto result = expect<pair>(eval(R"((cons "foo" "foo"))"));
+  EXPECT_EQ(car(result), cdr(result));
+}
+
+TEST_F(compiler, positive_and_negative_zero_are_not_collapsed) {
+  auto result = expect<pair>(eval(R"((cons 0.0 -0.0))"));
+  EXPECT_NE(car(result), cdr(result));
+}

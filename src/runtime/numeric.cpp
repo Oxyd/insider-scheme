@@ -2090,6 +2090,21 @@ arith_equal(context& ctx, ptr<> lhs, ptr<> rhs) {
            ? ctx.constants->t : ctx.constants->f;
 }
 
+bool
+numeric_eqv(context& ctx, ptr<> x, ptr<> y) {
+  assert(is_object_ptr(x));
+  assert(is_object_ptr(y));
+
+  if (object_type_index(x) != object_type_index(y))
+    return false;
+  else if (auto x_fp = match<floating_point>(x)) {
+    auto y_fp = assume<floating_point>(y);
+    return x_fp->value == y_fp->value
+           && std::signbit(x_fp->value) == std::signbit(y_fp->value);
+  } else
+    return compare(ctx, x, y) == general_compare_result::equal;
+}
+
 ptr<>
 arith_equal(context& ctx, object_span xs) {
   return relational<arith_equal>(ctx, xs, "=");

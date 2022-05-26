@@ -67,6 +67,28 @@ TEST_F(procedures, make_list) {
   EXPECT_EQ(cdr(third), ctx.constants->null);
 }
 
+TEST_F(procedures, eqv) {
+  EXPECT_TRUE(eqv(ctx, ctx.constants->t, ctx.constants->t));
+  EXPECT_TRUE(eqv(ctx, ctx.constants->f, ctx.constants->f));
+  EXPECT_FALSE(eqv(ctx, ctx.constants->t, ctx.constants->f));
+
+  EXPECT_TRUE(eqv(ctx, ctx.intern("foo"), ctx.intern("foo")));
+  EXPECT_FALSE(eqv(ctx, ctx.intern("foo"), ctx.intern("bar")));
+
+  EXPECT_TRUE(eqv(ctx, read("1"), read("1")));
+  EXPECT_FALSE(eqv(ctx, read("1"), read("0")));
+
+  EXPECT_TRUE(eqv(ctx, read("0.5"), read("0.5")));
+  EXPECT_FALSE(eqv(ctx, read("0.5"), read("0.1")));
+  EXPECT_FALSE(eqv(ctx, read("0.0"), read("-0.0")));
+
+  EXPECT_TRUE(eqv(ctx, character_to_ptr(L'x'), character_to_ptr(L'x')));
+  EXPECT_FALSE(eqv(ctx, character_to_ptr(L'x'), character_to_ptr(L'y')));
+
+  EXPECT_TRUE(eqv(ctx, read("()"), read("()")));
+  EXPECT_FALSE(eqv(ctx, read("(a)"), read("(a)")));
+}
+
 TEST_F(procedures, equal) {
   EXPECT_TRUE(equal(read("1"), read("1")));
   EXPECT_FALSE(equal(read("1"), read("2")));
