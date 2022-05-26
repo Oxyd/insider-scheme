@@ -771,34 +771,64 @@ TEST_F(numeric, magnitude) {
 TEST_F(numeric, angle) {
   EXPECT_EQ(expect<integer>(angle(ctx, integer_to_ptr(1))).value(), 0);
   EXPECT_EQ(expect<integer>(angle(ctx, integer_to_ptr(0))).value(), 0);
-  EXPECT_DOUBLE_EQ(expect<floating_point>(angle(ctx, integer_to_ptr(-1)))->value, std::numbers::pi);
+  EXPECT_DOUBLE_EQ(
+    expect<floating_point>(angle(ctx, integer_to_ptr(-1)))->value,
+    std::numbers::pi
+  );
 
-  EXPECT_DOUBLE_EQ(expect<floating_point>(angle(ctx,
-                                                make_polar(ctx,
-                                                           make<floating_point>(ctx, 2.0),
-                                                           make<floating_point>(ctx, 1.4))))->value,
-                   1.4);
+  EXPECT_DOUBLE_EQ(
+    expect<floating_point>(
+      angle(ctx,
+            make_polar(ctx,
+                       make<floating_point>(ctx, 2.0),
+                       make<floating_point>(ctx, 1.4)))
+    )->value,
+    1.4
+  );
 
-  EXPECT_NEAR(expect<floating_point>(angle(ctx,
-                                           make_polar(ctx,
-                                                      make<floating_point>(ctx, 1.0),
-                                                      make<floating_point>(ctx, 12 * std::numbers::pi))))->value,
-              0.0,
-              1e-6);
+  EXPECT_NEAR(
+    expect<floating_point>(
+      angle(ctx,
+            make_polar(ctx,
+                       make<floating_point>(ctx, 1.0),
+                       make<floating_point>(ctx, 12 * std::numbers::pi)))
+    )->value,
+    0.0,
+    1e-6
+  );
 
-  EXPECT_NEAR(expect<floating_point>(angle(ctx,
-                                           make_polar(ctx,
-                                                      make<floating_point>(ctx, 1.0),
-                                                      make<floating_point>(ctx, 11 * std::numbers::pi))))->value,
-              std::numbers::pi,
-              1e-6);
+  EXPECT_NEAR(
+    expect<floating_point>(
+      angle(ctx,
+            make_polar(ctx,
+                       make<floating_point>(ctx, 1.0),
+                       make<floating_point>(ctx, 11 * std::numbers::pi)))
+    )->value,
+    std::numbers::pi,
+    1e-6
+  );
 
-  EXPECT_NEAR(expect<floating_point>(angle(ctx,
-                                           make_polar(ctx,
-                                                      make<floating_point>(ctx, 1.0),
-                                                      make<floating_point>(ctx, (3.0 / 2.0) * std::numbers::pi))))->value,
-              -std::numbers::pi / 2.0,
-              1e-6);
+  EXPECT_NEAR(
+    expect<floating_point>(
+      angle(ctx,
+            make_polar(ctx,
+                       make<floating_point>(ctx, 1.0),
+                       make<floating_point>(ctx, (3.0 / 2.0) * std::numbers::pi)))
+    )->value,
+    -std::numbers::pi / 2.0,
+    1e-6
+  );
+
+  EXPECT_EQ(
+    expect<integer>(angle(ctx, make<floating_point>(ctx, +0.0))).value(),
+    0
+  );
+
+  EXPECT_NEAR(
+    expect<floating_point>(angle(ctx, make<floating_point>(ctx, -0.0)))->value,
+    std::numbers::pi,
+    1e-6
+  );
 }
 
 TEST_F(numeric, is_odd_even) {

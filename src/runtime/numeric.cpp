@@ -1294,9 +1294,19 @@ magnitude(context& ctx, ptr<> x) {
     throw std::runtime_error{"Expected a number"};
 }
 
+// Like is_negative, but for floating_points it checks the negative bit, i.e.
+// it distinguishes -0.0 from +0.0 and can tell the sign of NaNs.
+static bool
+has_negative_sign(ptr<> x) {
+  if (auto fp = match<floating_point>(x))
+    return std::signbit(fp->value);
+  else
+    return is_negative(x);
+}
+
 static ptr<>
 real_angle(context& ctx, ptr<> x) {
-  if (is_negative(x))
+  if (has_negative_sign(x))
     return make<floating_point>(ctx, std::numbers::pi);
   else
     return integer_to_ptr(0);

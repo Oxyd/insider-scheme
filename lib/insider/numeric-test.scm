@@ -354,6 +354,9 @@
     (test-equal 1/3 (rationalize 3/10 1/10))
     (test-equal #i1/3 (rationalize 0.3 1/10))))
 
+(define pi 3.141592654)
+(define pi/2 1.570796327)
+
 (define (test-complex)
   (test-group "complex"
     (test-equal 1+2i (make-rectangular 1 2))
@@ -362,15 +365,17 @@
     (test-equal 1 (real-part 1+2i))
     (test-equal 2 (imag-part 1+2i))
     (test-equal (sqrt 2) (magnitude 1+1i))
-    (test-equal (atan 1) (angle 1+1i))))
+
+    (test-equal (atan 1) (angle 1+1i))
+    (test-equal 0 (angle +inf.0))
+    (test-approximate pi (angle -inf.0) 1e-6)
+    (test-equal 0 (angle +0.0))
+    (test-approximate pi (angle -0.0) 1e-6)))
 
 (define-syntax test-close
   (syntax-rules ()
     ((test-close expected expr error)
      (test (< (magnitude (- expr expected)) error)))))
-
-(define pi 3.141592654)
-(define pi/2 1.570796327)
 
 (define (test-transcendental)
   (test-group "transcendental"
