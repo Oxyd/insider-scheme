@@ -27,7 +27,6 @@ struct type_descriptor {
   bool constant_size;
   std::size_t size = 0;
   std::size_t (*get_size)(ptr<>) = nullptr;
-  bool permanent_root = false;
 };
 
 // Base for any garbage-collectable Scheme object.
@@ -262,27 +261,8 @@ word_type const composite_object<Derived>::type_index = new_type(type_descriptor
   nullptr
 });
 
-// Object that is allocated directly in the mature generation and is always
-// considered a source of roots for all generations.
-template <typename Derived>
-struct composite_root_object : object {
-  static word_type const type_index;
-};
-
-template <typename Derived>
-word_type const composite_root_object<Derived>::type_index = new_type(type_descriptor{
-  Derived::scheme_name,
-  detail::destroy<Derived>,
-  detail::move<Derived>,
-  detail::visit_members<Derived>,
-  true,
-  detail::round_to_words(sizeof(Derived)),
-  nullptr,
-  true
-});
-
 // Object whose size is determined at instantiation time.
-template <typename Derived, typename T, bool PermanentRoot = false>
+template <typename Derived, typename T>
 struct alignas(T) alignas(object) dynamic_size_object : object {
   using element_type = T;
   static constexpr bool is_dynamic_size = true;
@@ -318,17 +298,17 @@ protected:
   std::size_t size_;
 };
 
-template <typename Derived, typename T, bool PermanentRoot>
-word_type const dynamic_size_object<Derived, T, PermanentRoot>::type_index = new_type(type_descriptor{
-  Derived::scheme_name,
-  detail::destroy<Derived>,
-  detail::move<Derived>,
-  detail::visit_members<Derived>,
-  false,
-  0,
-  detail::size<Derived, T>,
-  PermanentRoot
-});
+template <typename Derived, typename T>
+word_type const dynamic_size_object<Derived, T>::type_index
+  = new_type(type_descriptor{
+      Derived::scheme_name,
+      detail::destroy<Derived>,
+      detail::move<Derived>,
+      detail::visit_members<Derived>,
+      false,
+      0,
+      detail::size<Derived, T>
+    });
 
 enum class generation : word_type {
   stack     = 0,

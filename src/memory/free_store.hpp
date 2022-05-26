@@ -253,7 +253,6 @@ public:
   ptr<T>
   make(Args&&... args) {
     static_assert(sizeof(T) % sizeof(word_type) == 0);
-    assert(!types()[T::type_index].permanent_root);
 
     std::byte* storage = allocate_object(detail::allocation_size<T>(args...),
                                          T::type_index);
@@ -264,8 +263,6 @@ public:
 
   void
   notify_arc(ptr<> from, ptr<> to) {
-    assert(!object_type(from).permanent_root);
-
     if (to && is_object_ptr(to)
         && object_generation(from) > object_generation(to)) {
       switch (object_generation(to)) {

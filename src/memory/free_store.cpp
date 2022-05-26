@@ -241,11 +241,7 @@ free_store::make_permanent_arc(ptr<> from) {
 
 void
 free_store::transfer_to_nursery(page_allocator::page p, std::size_t used) {
-  auto& taken_page = generations_.nursery_1.small.take(std::move(p), used);
-  taken_page.for_all([&] (ptr<> o) {
-    if (object_type(o).permanent_root)
-      permanent_roots_.push_back(o);
-  });
+  generations_.nursery_1.small.take(std::move(p), used);
   check_nursery_size();
 }
 
@@ -424,8 +420,8 @@ move_incoming_arcs(std::unordered_set<ptr<>> const& arcs,
 static void
 update_member(ptr_wrapper member) {
   if (member.value && is_object_ptr(member.value) && !is_alive(member.value)) {
+    assert(is_alive(forwarding_address(member.value)) || member.weak);
     member.value.reset(forwarding_address(member.value));
-    assert(is_alive(member.value) || member.weak);
   }
 }
 
