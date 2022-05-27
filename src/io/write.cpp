@@ -11,6 +11,7 @@
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
+#include "util/list_iterator.hpp"
 
 #include <fmt/format.h>
 
@@ -382,11 +383,35 @@ write_atomic(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
 }
 
 static void
+display_list(context& ctx, ptr<> lst, ptr<textual_output_port> out) {
+  bool first = true;
+  for (ptr<> elem : list_range{lst}) {
+    if (!first)
+      out->write(' ');
+
+    display(ctx, elem, out);
+    first = false;
+  }
+}
+
+static void
+display_error(context& ctx, ptr<error> e, ptr<textual_output_port> out) {
+  out->write(e->message(ctx)->value());
+
+  if (e->irritants(ctx) != ctx.constants->null) {
+    out->write(": ");
+    display_list(ctx, e->irritants(ctx), out);
+  }
+}
+
+static void
 display_atomic(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   if (auto str = match<string>(datum))
     out->write(str->value());
   else if (auto c = match<char32_t>(datum))
     out->write(*c);
+  else if (auto e = match<error>(datum))
+    display_error(ctx, e, out);
   else
     write_primitive(ctx, datum, out);
 }
@@ -602,6 +627,13 @@ std::string
 datum_to_string(context& ctx, ptr<> datum) {
   auto p = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
   write(ctx, datum, p);
+  return p->get_string();
+}
+
+std::string
+datum_to_display_string(context& ctx, ptr<> datum) {
+  auto p = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());
+  display(ctx, datum, p);
   return p->get_string();
 }
 

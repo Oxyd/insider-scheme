@@ -98,19 +98,34 @@ parse_options(int argc, char** argv) {
   return opts;
 }
 
+static std::string
+format_error(insider::context& ctx, std::string const& message) {
+  if (!ctx.error_backtrace.empty())
+    return fmt::format("Error: {}\n{}\n", message, ctx.error_backtrace);
+  else
+    return fmt::format("Error: {}\n", message);
+}
+
+static void
+show_error(insider::context& ctx, insider::scheme_exception const& e) {
+  std::fflush(stdout);
+  fmt::print(
+    stderr, "{}",
+    format_error(ctx, insider::datum_to_display_string(ctx, e.object.get()))
+  );
+}
+
+static void
+show_error(insider::context& ctx, std::runtime_error const& e) {
+  std::fflush(stdout);
+  fmt::print(stderr, "{}", format_error(ctx, e.what()));
+}
+
 static void
 run_program(insider::context& ctx, std::string const& program_path) {
   auto mod = insider::compile_module(ctx, program_path, true);
   insider::simple_action a{ctx, "Executing program"};
   insider::execute(ctx, mod);
-}
-
-static std::string
-format_error(insider::context& ctx, std::runtime_error const& e) {
-  if (!ctx.error_backtrace.empty())
-    return fmt::format("Error: {}\n{}\n", e.what(), ctx.error_backtrace);
-  else
-    return fmt::format("Error: {}\n", e.what());
 }
 
 static void
@@ -136,9 +151,36 @@ run_repl(insider::context& ctx) {
         }
       } else
         return;
+    } catch (insider::scheme_exception const& e) {
+      output_port->write(
+        format_error(ctx, insider::datum_to_display_string(ctx, e.object.get()))
+      );
     } catch (std::runtime_error const& e) {
-      output_port->write(format_error(ctx, e));
+      output_port->write(format_error(ctx, e.what()));
     }
+}
+
+static int
+run(int argc, char** argv, insider::context& ctx) {
+  options opts = parse_options(argc, argv);
+
+  for (std::string const& path : opts.module_search_paths)
+    ctx.module_resolver().append_source_code_provider(
+      std::make_unique<insider::filesystem_source_code_provider>(path)
+    );
+
+  ctx.parameters->set_value(
+    ctx.store,
+    ctx.constants->interaction_environment_specifier_tag,
+    insider::read(ctx, opts.interaction_environment_specifier)
+  );
+
+  if (opts.program_path.empty())
+    run_repl(ctx);
+  else
+    run_program(ctx, opts.program_path);
+
+  return 0;
 }
 
 int
@@ -151,31 +193,13 @@ main(int argc, char** argv) {
 
   insider::context ctx;
   try {
-    options opts = parse_options(argc, argv);
-
-    for (std::string const& path : opts.module_search_paths)
-      ctx.module_resolver().append_source_code_provider(
-        std::make_unique<insider::filesystem_source_code_provider>(path)
-      );
-
-    ctx.parameters->set_value(
-      ctx.store,
-      ctx.constants->interaction_environment_specifier_tag,
-      insider::read(ctx, opts.interaction_environment_specifier)
-    );
-
-    if (opts.program_path.empty())
-      run_repl(ctx);
-    else
-      run_program(ctx, opts.program_path);
-
-    return 0;
-  }
-  catch (options_parse_error const&) {
+    return run(argc, argv, ctx);
+  } catch (options_parse_error const&) {
     print_usage(argv[0]);
     return 1;
+  } catch (insider::scheme_exception const& e) {
+    show_error(ctx, e);
   } catch (std::runtime_error const& e) {
-    std::fflush(stdout);
-    fmt::print(stderr, "{}", format_error(ctx, e));
+    show_error(ctx, e);
   }
 }
