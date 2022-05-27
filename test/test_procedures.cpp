@@ -16,7 +16,7 @@ TEST_F(procedures, type_predicates) {
   EXPECT_TRUE(is<pair>(x));
   EXPECT_FALSE(is<pair>(null));
   EXPECT_TRUE(expect<pair>(x) == p);
-  EXPECT_THROW(expect<pair>(null), std::runtime_error);
+  EXPECT_THROW(expect<pair>(null), type_error);
 
   if (match<pair>(x))
     SUCCEED();

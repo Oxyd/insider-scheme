@@ -434,7 +434,7 @@ TEST_F(repl_fixture, define_top_level_in_interactive_module) {
 
 TEST_F(repl_fixture, reference_variable_before_definition) {
   insider::eval(ctx, m, "(define f (lambda () (* a 2)))");
-  EXPECT_THROW(insider::eval(ctx, m, "(f)"), std::runtime_error);
+  EXPECT_THROW(insider::eval(ctx, m, "(f)"), unbound_variable_error);
   insider::eval(ctx, m, "(define a 4)");
   ptr<> result = insider::eval(ctx, m, "(f)").get();
   EXPECT_EQ(expect<integer>(result).value(), 8);
@@ -442,7 +442,8 @@ TEST_F(repl_fixture, reference_variable_before_definition) {
 
 TEST_F(repl_fixture, reference_to_top_level_variable_doesnt_bind_to_local) {
   insider::eval(ctx, m, "(define f (lambda () (* a 2)))");
-  EXPECT_THROW(insider::eval(ctx, m, "(let ((a 4)) (f))"), std::runtime_error);
+  EXPECT_THROW(insider::eval(ctx, m, "(let ((a 4)) (f))"),
+               unbound_variable_error);
 }
 
 TEST_F(repl_fixture, reference_procedure_before_definition) {
@@ -469,7 +470,7 @@ TEST_F(repl_fixture, reference_to_unknown_variable_doesnt_bind_to_syntax) {
             #`(* 2 #,name))))
     )"
   );
-  EXPECT_THROW(insider::eval(ctx, m, "(f)"), std::runtime_error);
+  EXPECT_THROW(insider::eval(ctx, m, "(f)"), unbound_variable_error);
 }
 
 TEST_F(repl_fixture, redefine_variable_in_repl) {
@@ -528,7 +529,7 @@ TEST_F(interpreter, scheme_eval_sets_current_module_parameter) {
 TEST_F(repl_fixture, dynamic_import_performs_imports) {
   define_top_level(ctx, "m", m.get(), true, m.get());
   // Not yet imported
-  EXPECT_THROW(insider::eval(ctx, m, "var"), std::runtime_error);
+  EXPECT_THROW(insider::eval(ctx, m, "var"), unbound_variable_error);
 
   add_source_file(
     "foo.scm",

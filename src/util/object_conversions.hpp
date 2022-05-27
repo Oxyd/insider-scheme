@@ -16,10 +16,12 @@ namespace detail {
     expect(ptr<> x, std::string_view message) {
       if (is<T>(x))
         return ptr_cast<T>(x);
-      else
-        throw !message.empty()
-              ? std::runtime_error{std::string(message)}
-              : make_type_error<T>(x);
+      else {
+        if (!message.empty())
+          throw std::runtime_error{std::string(message)};
+        else
+          throw make_type_error<T>(x);
+      }
     }
 
     static tracked_ptr<T>

@@ -9,6 +9,7 @@
 #include "runtime/compare.hpp"
 #include "runtime/error.hpp"
 #include "runtime/symbol.hpp"
+#include "util/named_runtime_error.hpp"
 #include "util/object_conversions.hpp"
 
 #include <string>
@@ -222,21 +223,26 @@ private:
   insider::ptr<> callable_;
 };
 
-template <typename... Args>
-std::runtime_error
-make_syntax_error(ptr<syntax> stx, std::string_view fmt, Args&&... args) {
-  return make_error("{}: {}", format_location(stx->location()),
-                    fmt::format(fmt::runtime(fmt),
-                                std::forward<Args>(args)...));
+using syntax_error = named_runtime_error<class syntax_error_tag>;
+using unbound_variable_error
+  = named_runtime_error<class unbound_variable_error_tag>;
+using out_of_scope_variable_error
+  = named_runtime_error<class out_of_scope_variable_error_tag>;
+
+template <typename Error, typename... Args>
+Error
+make_compile_error(source_location const& loc, std::string_view fmt,
+                   Args&&... args) {
+  return make_error<Error>("{}: {}", format_location(loc),
+                           fmt::format(fmt::runtime(fmt),
+                                       std::forward<Args>(args)...));
 }
 
-template <typename... Args>
-std::runtime_error
-make_syntax_error(source_location const& loc, std::string_view fmt,
-                  Args&&... args) {
-  return make_error("{}: {}", format_location(loc),
-                    fmt::format(fmt::runtime(fmt),
-                                std::forward<Args>(args)...));
+template <typename Error, typename... Args>
+Error
+make_compile_error(ptr<syntax> stx, std::string_view fmt, Args&&... args) {
+  return make_compile_error<Error>(stx->location(), fmt,
+                                   std::forward<Args>(args)...);
 }
 
 } // namespace insider

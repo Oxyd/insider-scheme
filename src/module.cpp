@@ -107,8 +107,8 @@ check_all_names_exist(std::vector<std::string> const& names,
                      [&] (auto const& set_name) {
                        return set_name.target == name;
                      }))
-      throw std::runtime_error{fmt::format("Identifier {} is not exported",
-                                           name)};
+      throw unbound_variable_error{fmt::format("Identifier {} is not exported",
+                                               name)};
 }
 
 static import_set

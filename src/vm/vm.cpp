@@ -266,7 +266,7 @@ load_dynamic_top_level(instruction_state& istate) {
       return;
     }
 
-  throw std::runtime_error{fmt::format(
+  throw unbound_variable_error{fmt::format(
     "Identifier {} not bound to variable", id->get_symbol()->value()
   )};
 }

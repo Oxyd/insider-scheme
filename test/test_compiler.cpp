@@ -43,8 +43,8 @@ TEST_F(compiler, compile_let) {
   int product = a * b;
   EXPECT_EQ(expect<integer>(result).value(), sum - product);
 
-  EXPECT_THROW(eval("(let ((a 2)))"), std::runtime_error);
-  EXPECT_THROW(eval("(let foo)"), std::runtime_error);
+  EXPECT_THROW(eval("(let ((a 2)))"), syntax_error);
+  EXPECT_THROW(eval("(let foo)"), syntax_error);
 }
 
 TEST_F(compiler, let_shadowing) {
@@ -578,13 +578,14 @@ TEST_F(compiler, quote_infinite_data_structure) {
 }
 
 TEST_F(compiler, unbound_vars) {
-  EXPECT_THROW(eval("foo"), std::runtime_error);
-  EXPECT_THROW(eval_module("foo"), std::runtime_error);
+  EXPECT_THROW(eval("foo"), unbound_variable_error);
+  EXPECT_THROW(eval_module("foo"), unbound_variable_error);
   EXPECT_THROW(eval_module(R"((import (insider internal))
                               (define-syntax foo (lambda (stx) #'bar))
                               (foo))"),
-               std::runtime_error);
-  EXPECT_THROW(eval("(let-syntax ((foo (lambda (stx) #'bar))) (foo))"), std::runtime_error);
+               unbound_variable_error);
+  EXPECT_THROW(eval("(let-syntax ((foo (lambda (stx) #'bar))) (foo))"),
+               unbound_variable_error);
 }
 
 static bool

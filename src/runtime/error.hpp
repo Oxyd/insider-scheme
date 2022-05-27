@@ -4,6 +4,7 @@
 #include "memory/tracked_ptr.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
+#include "util/named_runtime_error.hpp"
 
 #include <exception>
 #include <stdexcept>
@@ -14,18 +15,20 @@ class context;
 class module_;
 class string;
 
-template <typename... Args>
-std::runtime_error
+template <typename Error = std::runtime_error, typename... Args>
+Error
 make_error(std::string_view fmt, Args&&... args) {
-  return std::runtime_error{fmt::format(fmt::runtime(fmt),
-                                        std::forward<Args>(args)...)};
+  return Error{fmt::format(fmt::runtime(fmt), std::forward<Args>(args)...)};
 }
 
+using type_error = named_runtime_error<class type_error_tag>;
+
 template <typename Expected>
-std::runtime_error
+auto
 make_type_error(ptr<> actual) {
-  throw make_error("Invalid type: expected {}, got {}", type_name<Expected>(),
-                   object_type_name(actual));
+  return make_error<type_error>("Invalid type: expected {}, got {}",
+                                type_name<Expected>(),
+                                object_type_name(actual));
 }
 
 // C++ exception type wrapping a Scheme exception.

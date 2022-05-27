@@ -18,7 +18,7 @@ is_identifier(ptr<> x) {
 std::string
 identifier_name(ptr<syntax> x) {
   if (!is_identifier(x))
-    throw make_syntax_error(x, "Expected identifier");
+    throw make_compile_error<syntax_error>(x, "Expected identifier");
   else
     return x->get_symbol()->value();
 }

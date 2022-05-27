@@ -206,7 +206,7 @@ TEST_F(macros, out_of_scope) {
                                    #'bar)))
                              (foo)
                            )"),
-               std::runtime_error);
+               out_of_scope_variable_error);
 }
 
 TEST_F(macros, recursive_syntax) {

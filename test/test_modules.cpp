@@ -91,9 +91,12 @@ TEST_F(modules, module_variable_export) {
   EXPECT_EQ(expect<integer>(result).value(), 6);
 
   EXPECT_EQ(expect<integer>(eval_module("(import (foo)) exported")).value(), 2);
-  EXPECT_THROW(eval_module("(import (foo)) not-exported"), std::runtime_error);
-  EXPECT_THROW(eval_module("(import (only (foo) not-exported)) 0"), std::runtime_error);
-  EXPECT_THROW(eval_module("(import (except (foo) not-exported)) 0"), std::runtime_error);
+  EXPECT_THROW(eval_module("(import (foo)) not-exported"),
+               unbound_variable_error);
+  EXPECT_THROW(eval_module("(import (only (foo) not-exported)) 0"),
+               unbound_variable_error);
+  EXPECT_THROW(eval_module("(import (except (foo) not-exported)) 0"),
+               unbound_variable_error);
 }
 
 TEST_F(modules, module_syntax_export) {
@@ -170,8 +173,10 @@ TEST_F(modules, import_specifiers) {
   )");
   EXPECT_EQ(expect<integer>(result1).value(), 1 + 2);
 
-  EXPECT_THROW(eval_module("(import (insider internal) (only (foo) a b)) (+ a b c)"),
-               std::runtime_error);
+  EXPECT_THROW(
+    eval_module("(import (insider internal) (only (foo) a b)) (+ a b c)"),
+    unbound_variable_error
+  );
 
   auto result2 = eval_module(R"(
     (import (insider internal)
@@ -180,8 +185,10 @@ TEST_F(modules, import_specifiers) {
   )");
   EXPECT_EQ(expect<integer>(result2).value(), 3 + 4 + 5);
 
-  EXPECT_THROW(eval_module("(import (insider internal) (except (foo) a b)) (+ a b c d e)"),
-               std::runtime_error);
+  EXPECT_THROW(
+    eval_module("(import (insider internal) (except (foo) a b)) (+ a b c d e)"),
+    unbound_variable_error
+  );
 
   auto result3 = eval_module(R"(
     (import (insider internal)
