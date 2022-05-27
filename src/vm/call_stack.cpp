@@ -104,6 +104,14 @@ void
 call_stack::visit_members(member_visitor const& f) {
   for (frame_index i = 0; i < size_; ++i)
     f(data_[i]);
+
+  // Clear data in the allocated area after the current end of stack. This is
+  // because if the collector moves or deallocates those members, and then the
+  // stack grows, we now have live invalid pointers. If another collection
+  // happens before those invalid pointers are reassigned, we'll be feeding
+  // invalid pointers to the GC which will crash.
+
+  std::fill(data_.get() + size_, data_.get() + capacity_, ptr<>{});
 }
 
 void
@@ -118,7 +126,7 @@ void
 call_stack::grow_capacity(std::size_t requested_capacity) {
   frame_index new_cap = find_new_capacity(requested_capacity);
   auto new_data = std::make_unique<ptr<>[]>(new_cap);
-  std::ranges::copy(std::views::counted(data_.get(), size_), new_data.get());
+  std::copy(data_.get(), data_.get() + size_, new_data.get());
   data_ = std::move(new_data);
   capacity_ = new_cap;
 }
