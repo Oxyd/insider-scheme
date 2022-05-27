@@ -256,11 +256,13 @@ read_suffix(reader_stream& stream, source_location const& loc) {
 }
 
 static double
-string_to_double(std::string const& s) {
-  // XXX: This would ideally use std::from_chars. But, as of 2020, GCC does not implement that, violating C++17.
-  // Alternatives include std::stod and std::atof, but those parse the string according to the currently installed
-  // global locale. Many things could be said about std::istringstream, but at least it can be imbued with a locale
-  // without messing with the global locale. Thus, that's what we're going with.
+string_to_double(std::string const& s, source_location const& loc) {
+  // XXX: This would ideally use std::from_chars. But, as of 2020, GCC does not
+  // implement that, violating C++17. Alternatives include std::stod and
+  // std::atof, but those parse the string according to the currently installed
+  // global locale. Many things could be said about std::istringstream, but at
+  // least it can be imbued with a locale without messing with the global
+  // locale. Thus, that's what we're going with.
 
   std::istringstream is{s};
   is.imbue(std::locale{"C"});
@@ -269,14 +271,15 @@ string_to_double(std::string const& s) {
   is >> result;
 
   if (!is || is.peek() != std::istringstream::traits_type::eof())
-    throw std::runtime_error{fmt::format("Invalid floating point literal: {}", s)};
+    throw read_error{fmt::format("Invalid floating point literal: {}", s), loc};
 
   return result;
 }
 
 static ptr<>
-string_to_floating_point(context& ctx, std::string const& s) {
-  return make<floating_point>(ctx, string_to_double(s));
+string_to_floating_point(context& ctx, std::string const& s,
+                         source_location const& loc) {
+  return make<floating_point>(ctx, string_to_double(s, loc));
 }
 
 static void
@@ -319,11 +322,14 @@ static ptr<>
 string_to_decimal(context& ctx, number_parse_mode mode,
                   std::string const& whole_part,
                   std::string const& fractional_part,
-                  std::string const& suffix) {
+                  std::string const& suffix,
+                  source_location const& loc) {
   using namespace std::literals;
 
   if (mode.exactness != number_parse_mode::exactness_mode::make_exact)
-    return string_to_floating_point(ctx, whole_part + "."s + fractional_part + suffix);
+    return string_to_floating_point(
+      ctx, whole_part + "."s + fractional_part + suffix, loc
+    );
   else
     return string_to_exact(ctx, whole_part, fractional_part, suffix);
 }
@@ -341,7 +347,8 @@ read_decimal(context& ctx, number_parse_mode mode,
     return {};
 
   return string_to_decimal(ctx, mode, whole_part, fractional_part,
-                           read_suffix(stream, loc));
+                           read_suffix(stream, loc),
+                           loc);
 }
 
 static ptr<>
@@ -368,7 +375,8 @@ read_ureal(context& ctx, number_parse_mode mode, reader_stream& stream,
       return read_decimal(ctx, mode, digits, stream, loc);
     else if (can_begin_decimal_suffix(stream)) {
       check_mode_for_decimal(mode, loc);
-      return string_to_decimal(ctx, mode, digits, ""s, read_suffix(stream, loc));
+      return string_to_decimal(ctx, mode, digits, ""s,
+                               read_suffix(stream, loc), loc);
     } else
       return read_integer(ctx, digits, mode.base);
   } else if (stream.peek() == U'.')
@@ -439,22 +447,24 @@ read_real_preserve_exactness(context& ctx, number_parse_mode mode,
 }
 
 static void
-throw_if_exact_non_rational(ptr<> value, number_parse_mode mode) {
+throw_if_exact_non_rational(ptr<> value, number_parse_mode mode,
+                            source_location const& loc) {
   if (mode.exactness != number_parse_mode::exactness_mode::make_exact)
     return;
 
   if (is_nan(value))
-    throw std::runtime_error{"Can't make exact NaN"};
+    throw read_error{"Can't make exact NaN", loc};
   else if (is_infinite(value))
-    throw std::runtime_error{"Can't make exact infinity"};
+    throw read_error{"Can't make exact infinity", loc};
 }
 
 static ptr<>
-change_exactness(context& ctx, number_parse_mode mode, ptr<> value) {
+change_exactness(context& ctx, number_parse_mode mode, ptr<> value,
+                 source_location const& loc) {
   if (mode.exactness == number_parse_mode::exactness_mode::make_inexact)
     return inexact(ctx, value);
   else {
-    throw_if_exact_non_rational(value, mode);
+    throw_if_exact_non_rational(value, mode, loc);
     return value;
   }
 }
@@ -463,7 +473,7 @@ static ptr<>
 read_real(context& ctx, number_parse_mode mode, reader_stream& stream,
           source_location const& loc) {
   if (ptr<> result = read_real_preserve_exactness(ctx, mode, stream, loc))
-    return change_exactness(ctx, mode, result);
+    return change_exactness(ctx, mode, result, loc);
   else
     return {};
 }
