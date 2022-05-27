@@ -105,8 +105,8 @@ set(test_sources
 set(program_sources
         src/main.cpp)
 
-add_subdirectory(${FMT_SUBDIRECTORY} ${CMAKE_CURRENT_BINARY_DIR}/fmt)
-add_subdirectory(${GOOGLETEST_SUBDIRECTORY} ${CMAKE_CURRENT_BINARY_DIR}/googletest)
+add_subdirectory(extern/fmt)
+add_subdirectory(extern/googletest)
 
 set_property(TARGET gtest PROPERTY
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
