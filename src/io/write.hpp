@@ -41,6 +41,6 @@ datum_to_string(context& ctx, ptr<>);
 std::string
 number_to_string(context&, ptr<>, unsigned base = 10);
 
-} // namespace game::csm
+} // namespace insider
 
 #endif
