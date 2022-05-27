@@ -99,8 +99,8 @@ parse_options(int argc, char** argv) {
 }
 
 static void
-run_program(insider::context& ctx, options const& opts) {
-  auto mod = insider::compile_module(ctx, opts.program_path, true);
+run_program(insider::context& ctx, std::string const& program_path) {
+  auto mod = insider::compile_module(ctx, program_path, true);
   insider::simple_action a{ctx, "Executing program"};
   insider::execute(ctx, mod);
 }
@@ -167,7 +167,7 @@ main(int argc, char** argv) {
     if (opts.program_path.empty())
       run_repl(ctx);
     else
-      run_program(ctx, opts);
+      run_program(ctx, opts.program_path);
 
     return 0;
   }
