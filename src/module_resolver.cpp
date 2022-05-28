@@ -109,7 +109,6 @@ module_resolver::find_module_in_providers(context& ctx,
 
 ptr<module_>
 module_resolver::load_module(context& ctx, module_name const& name) {
-  simple_action a(ctx, "Analysing module {}", module_name_to_string(name));
   modules_.emplace(name, nullptr);
   tracked_ptr<module_> m = instantiate(
     ctx,

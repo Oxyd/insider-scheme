@@ -3,7 +3,6 @@
 #include "compiler/analyser.hpp"
 #include "compiler/source_code_provider.hpp"
 #include "io/read.hpp"
-#include "runtime/action.hpp"
 #include "runtime/basic_types.hpp"
 
 #include <fmt/format.h>
@@ -13,7 +12,6 @@
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
-#include <unordered_map>
 #include <unordered_map>
 
 namespace insider {
@@ -1005,7 +1003,6 @@ tracked_ptr<module_>
 compile_module(context& ctx, std::vector<ptr<syntax>> const& data,
                source_file_origin const& origin,
                bool main_module) {
-  simple_action a(ctx, "Analysing main module");
   module_specifier pm = read_module(ctx, data, origin);
   auto result = make_tracked<module_>(ctx, ctx, pm.name);
   perform_imports(ctx, result, pm.imports);

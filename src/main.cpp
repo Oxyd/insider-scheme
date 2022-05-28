@@ -124,7 +124,6 @@ show_error(insider::context& ctx, std::runtime_error const& e) {
 static void
 run_program(insider::context& ctx, std::string const& program_path) {
   auto mod = insider::compile_module(ctx, program_path, true);
-  insider::simple_action a{ctx, "Executing program"};
   insider::execute(ctx, mod);
 }
 

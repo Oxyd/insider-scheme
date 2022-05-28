@@ -98,6 +98,35 @@ namespace {
   private:
     parsing_context& pc_;
   };
+
+  class parser_action : public action<parser_action> {
+  public:
+    parser_action(context& ctx, tracked_ptr<syntax> stx, std::string_view msg)
+      : action{ctx}
+      , msg_{msg}
+      , stx_{std::move(stx)}
+    { }
+
+    parser_action(context& ctx, ptr<syntax> stx, std::string_view msg)
+      : action{ctx}
+      , msg_{msg}
+      , stx_{track(ctx, stx)}
+    { }
+
+    ~parser_action() { this->check(); }
+
+    std::string
+    format() const {
+      return fmt::format("{}: {}: {}",
+                         format_location(stx_->location()),
+                         msg_,
+                         syntax_to_string(ctx_, stx_.get()));
+    }
+
+  private:
+    std::string_view    msg_;
+    tracked_ptr<syntax> stx_;
+  };
 }
 
 static parsing_context
@@ -262,7 +291,7 @@ call_transformer(context& ctx, ptr<transformer> t, tracked_ptr<syntax> stx,
 static tracked_ptr<syntax>
 expand(context& ctx, tracked_ptr<syntax> stx,
        std::vector<tracked_ptr<scope>>* use_site_scopes) {
-  simple_action a(ctx, stx, "Expanding macro use");
+  parser_action a(ctx, stx, "Expanding macro use");
 
   bool expanded;
   do {
@@ -324,7 +353,7 @@ eval_transformer(parsing_context& pc, ptr<syntax> datum) {
 // Causes a garbage collection
 static ptr<transformer>
 make_transformer(parsing_context& pc, ptr<syntax> expr) {
-  simple_action a(pc.ctx, expr, "Evaluating transformer");
+  parser_action a(pc.ctx, expr, "Evaluating transformer");
   auto transformer_proc = eval_transformer(pc, expr); // GC
   return make<transformer>(pc.ctx, transformer_proc.get());
 }
@@ -425,7 +454,7 @@ process_define_syntax(parsing_context& pc, ptr<syntax> stx) {
 
 static tracked_ptr<>
 eval_meta_expression(parsing_context& pc, ptr <syntax> stx) {
-  simple_action a{pc.ctx, stx, "Evaluating meta expression"};
+  parser_action a{pc.ctx, stx, "Evaluating meta expression"};
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (!datum || list_length(datum) != 2)
     throw std::runtime_error{"Invalid meta syntax"};
@@ -592,8 +621,6 @@ namespace {
 static definition_pair
 parse_definition_pair(parsing_context& pc, ptr<syntax> stx,
                       std::string_view form_name) {
-  simple_action a(pc.ctx, stx, "Parsing {} definition pair", form_name);
-
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (!datum || datum == pc.ctx.constants->null)
     throw make_compile_error<syntax_error>(
@@ -647,8 +674,6 @@ parse_let_common(parsing_context& pc, ptr<syntax> stx,
 static std::unique_ptr<expression>
 parse_let(parsing_context& pc, ptr<syntax> stx_) {
   using namespace std::literals;
-  simple_action a(pc.ctx, stx_, "Parsing let");
-
   auto stx = track(pc.ctx, stx_);
   auto [definitions, body] = parse_let_common(pc, stx.get(), "let"sv);
 
@@ -679,7 +704,6 @@ parse_let(parsing_context& pc, ptr<syntax> stx_) {
 static std::unique_ptr<expression>
 parse_letrec_star(parsing_context& pc, ptr<syntax> stx) {
   using namespace std::literals;
-  simple_action a(pc.ctx, stx, "Parsing letrec*");
   source_location loc = stx->location();
 
   auto [definitions, body] = parse_let_common(pc, stx, "letrec*"sv);
@@ -733,7 +757,6 @@ parse_letrec_star(parsing_context& pc, ptr<syntax> stx) {
 static std::unique_ptr<expression>
 parse_let_syntax(parsing_context& pc, ptr<syntax> stx) {
   using namespace std::literals;
-  simple_action a(pc.ctx, stx, "Parsing let-syntax");
   source_location loc = stx->location();
 
   auto [definitions, body] = parse_let_common(pc, stx, "let-syntax"sv);
@@ -762,7 +785,6 @@ parse_let_syntax(parsing_context& pc, ptr<syntax> stx) {
 static std::unique_ptr<expression>
 parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
   using namespace std::literals;
-  simple_action a(pc.ctx, stx, "Parsing letrec-syntax");
   source_location loc = stx->location();
 
   auto [definitions, body] = parse_let_common(pc, stx, "letrec-syntax"sv);
@@ -790,8 +812,6 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
 
 static std::unique_ptr<expression>
 parse_lambda(parsing_context& pc, ptr<syntax> stx) {
-  simple_action a(pc.ctx, stx, "Parsing lambda");
-
   source_location loc = stx->location();
 
   ptr<> datum = syntax_to_list(pc.ctx, stx);
@@ -849,8 +869,6 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
 
 static std::unique_ptr<expression>
 parse_if(parsing_context& pc, ptr<syntax> stx) {
-  simple_action a(pc.ctx, stx, "Parsing if");
-
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (list_length(datum) != 3 && list_length(datum) != 4)
     throw make_compile_error<syntax_error>(stx, "Invalid if syntax");
@@ -871,8 +889,6 @@ parse_if(parsing_context& pc, ptr<syntax> stx) {
 
 static std::unique_ptr<expression>
 parse_application(parsing_context& pc, ptr<syntax> stx) {
-  simple_action a(pc.ctx, stx, "Parsing procedure application");
-
   auto datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
   if (!datum)
     throw make_compile_error<syntax_error>(stx, "Invalid function call syntax");
@@ -1453,7 +1469,6 @@ process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl
 
 static std::unique_ptr<expression>
 parse_quasiquote(parsing_context& pc, ptr<syntax> stx) {
-  simple_action a(pc.ctx, stx, "Parsing quasiquote");
   return process_qq_template<quote_traits>(
     pc,
     parse_qq_template<quote_traits>(pc,
@@ -1464,7 +1479,6 @@ parse_quasiquote(parsing_context& pc, ptr<syntax> stx) {
 
 static std::unique_ptr<expression>
 parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
-  simple_action a(pc.ctx, stx, "Parsing quasisyntax");
   return process_qq_template<syntax_traits>(
     pc,
     parse_qq_template<syntax_traits>(pc,
@@ -1818,8 +1832,6 @@ process_top_level_forms(parsing_context& pc,
 static std::vector<tracked_ptr<syntax>>
 expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
                  std::vector<ptr<syntax>> const& exprs) {
-  simple_action a(pc.ctx, "Expanding module top-level");
-
   auto body = add_module_scope_to_body(pc.ctx, exprs, m->scope());
 
   internal_definition_context_guard idc{pc};
