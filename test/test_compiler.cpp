@@ -445,16 +445,15 @@ int_to_string(int i) {
 }
 
 TEST_F(compiler, define_lambda) {
-  define_procedure<arith>(ctx, "f", ctx.internal_module(), true);
+  define_procedure<arith>(ctx, "f", ctx.internal_module());
 
   int x = 0;
   define_closure<void(int)>(
-    ctx, "g", ctx.internal_module(), true,
+    ctx, "g", ctx.internal_module(),
     [&] (int a) { x += a; }
   );
 
-  define_procedure<int_to_string>(ctx, "to-string", ctx.internal_module(),
-                                  true);
+  define_procedure<int_to_string>(ctx, "to-string", ctx.internal_module());
 
   auto result1 = eval("(f 5 7)");
   EXPECT_EQ(expect<integer>(result1).value(), 2 * 5 + 7);

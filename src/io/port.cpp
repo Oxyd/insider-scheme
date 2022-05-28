@@ -559,43 +559,41 @@ write_u8(std::uint8_t byte, ptr<binary_output_port> port) {
 
 void
 export_port(context& ctx, ptr<module_> result) {
-  define_procedure<open_input_file>(ctx, "open-input-file", result, true);
-  define_procedure<open_output_file>(ctx, "open-output-file", result, true);
+  define_procedure<open_input_file>(ctx, "open-input-file", result);
+  define_procedure<open_output_file>(ctx, "open-output-file", result);
   define_procedure<open_binary_input_file>(ctx, "open-binary-input-file",
-                                           result, true);
+                                           result);
   define_procedure<open_binary_output_file>(ctx, "open-binary-output-file",
-                                            result, true);
-  define_procedure<close>(ctx, "close-port", result, true);
-  define_procedure<close>(ctx, "close-output-port", result, true);
-  define_procedure<close>(ctx, "close-input-port", result, true);
-  define_procedure<open_input_string>(ctx, "open-input-string", result, true);
-  define_procedure<open_output_string>(ctx, "open-output-string", result, true);
-  define_procedure<open_input_bytevector>(ctx, "open-input-bytevector", result,
-                                          true);
+                                            result);
+  define_procedure<close>(ctx, "close-port", result);
+  define_procedure<close>(ctx, "close-output-port", result);
+  define_procedure<close>(ctx, "close-input-port", result);
+  define_procedure<open_input_string>(ctx, "open-input-string", result);
+  define_procedure<open_output_string>(ctx, "open-output-string", result);
+  define_procedure<open_input_bytevector>(ctx, "open-input-bytevector", result);
   define_procedure<open_output_bytevector>(ctx, "open-output-bytevector",
-                                           result, true);
+                                           result);
   define_procedure<&textual_output_port::get_string>(ctx, "get-output-string",
-                                                     result, true);
+                                                     result);
   define_procedure<&binary_output_port::get_bytevector>(ctx,
                                                         "get-output-bytevector",
-                                                        result, true);
-  define_procedure<read_char>(ctx, "read-char", result, true,
+                                                        result);
+  define_procedure<read_char>(ctx, "read-char", result,
                               get_current_textual_input_port);
-  define_procedure<peek_char>(ctx, "peek-char", result, true,
+  define_procedure<peek_char>(ctx, "peek-char", result,
                               get_current_textual_input_port);
-  define_procedure<read_u8>(ctx, "read-u8", result, true,
+  define_procedure<read_u8>(ctx, "read-u8", result,
                             get_default_binary_input_port);
-  define_procedure<peek_u8>(ctx, "peek-u8", result, true,
+  define_procedure<peek_u8>(ctx, "peek-u8", result,
                             get_default_binary_input_port);
-  define_procedure<write_u8>(ctx, "write-u8", result, true,
+  define_procedure<write_u8>(ctx, "write-u8", result,
                              get_default_binary_output_port);
-  define_procedure<flush_port>(ctx, "flush-output-port", result, true);
-  define_procedure<is_port_open>(ctx, "port-open?", result, true);
-  define_procedure<&textual_input_port::char_ready>(ctx, "char-ready?", result,
-                                                    true);
-  define_procedure<&binary_input_port::u8_ready>(ctx, "u8-ready?", result, true);
-  define_procedure<file_exists>(ctx, "file-exists?", result, true);
-  define_procedure<delete_file>(ctx, "delete-file", result, true);
+  define_procedure<flush_port>(ctx, "flush-output-port", result);
+  define_procedure<is_port_open>(ctx, "port-open?", result);
+  define_procedure<&textual_input_port::char_ready>(ctx, "char-ready?", result);
+  define_procedure<&binary_input_port::u8_ready>(ctx, "u8-ready?", result);
+  define_procedure<file_exists>(ctx, "file-exists?", result);
+  define_procedure<delete_file>(ctx, "delete-file", result);
 }
 
 } // namespace insider

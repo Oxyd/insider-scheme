@@ -84,8 +84,7 @@ make_opaque_seven(context& ctx) {
 }
 
 TEST_F(types, opaque_value) {
-  define_procedure<make_opaque_seven>(ctx, "make-value", ctx.internal_module(),
-                                      true);
+  define_procedure<make_opaque_seven>(ctx, "make-value", ctx.internal_module());
   auto result = eval("(make-value)");
   EXPECT_EQ(expect<opaque_value<int>>(result)->value, 7);
 }

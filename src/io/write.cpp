@@ -700,27 +700,24 @@ export_write(context& ctx, ptr<module_> result) {
   define_procedure<write>(ctx,
                           "write",
                           result,
-                          true,
                           get_current_textual_output_port);
-  define_procedure<write_simple>(ctx, "write-simple", result, true,
+  define_procedure<write_simple>(ctx, "write-simple", result,
                                  get_current_textual_output_port);
-  define_procedure<write_shared>(ctx, "write-shared", result, true,
+  define_procedure<write_shared>(ctx, "write-shared", result,
                                  get_current_textual_output_port);
   define_procedure<display>(ctx,
                             "display",
                             result,
-                            true,
                             get_current_textual_output_port);
   define_procedure<newline>(ctx,
                             "newline",
                             result,
-                            true,
                             get_current_textual_output_port);
-  define_procedure<write_char_proc>(ctx, "write-char", result, true,
+  define_procedure<write_char_proc>(ctx, "write-char", result,
                                     get_current_textual_output_port);
-  define_procedure<number_to_string>(ctx, "number->string", result, true,
+  define_procedure<number_to_string>(ctx, "number->string", result,
                                      [] (context&) { return 10u; });
-  define_procedure<datum_to_string>(ctx, "datum->string", result, true);
+  define_procedure<datum_to_string>(ctx, "datum->string", result);
 }
 
 } // namespace insider

@@ -1590,29 +1590,26 @@ export_read(context& ctx, ptr<module_> result) {
   define_procedure<
     static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read)
   >(
-    ctx, "read", result, true,
-    get_current_textual_input_port
+    ctx, "read", result, get_current_textual_input_port
   );
   define_procedure<
     static_cast<ptr<> (*)(context&, ptr<textual_input_port>)>(read_syntax)
   >(
-    ctx, "read-syntax", result, true,
-    get_current_textual_input_port
+    ctx, "read-syntax", result, get_current_textual_input_port
   );
   define_procedure<read_syntax_multiple_proc>(
-    ctx, "read-syntax-multiple", result, true, get_current_textual_input_port
+    ctx, "read-syntax-multiple", result, get_current_textual_input_port
   );
   define_procedure<read_syntax_multiple_ci_proc>(
     ctx,
     "read-syntax-multiple-ci",
     result,
-    true,
     get_current_textual_input_port
   );
-  define_procedure<string_to_number>(ctx, "string->number", result, true,
+  define_procedure<string_to_number>(ctx, "string->number", result,
                                      [] (context&) { return 10; });
   define_procedure<&read_error::scheme_error::message>(
-    ctx, "read-error-message", result, true
+    ctx, "read-error-message", result
   );
 }
 

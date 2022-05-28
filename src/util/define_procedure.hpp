@@ -235,12 +235,12 @@ namespace detail {
   struct define_typed_procedure<Callable, R (*)(context&, Args...)> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, char const* name, ptr<module_> m, bool export_,
+    define(context& ctx, char const* name, ptr<module_> m,
            Defaults... defaults) {
       auto proc = make_native_procedure_object<Callable, R(Args...)>::make(
         ctx, name, no_closure, std::move(defaults)...
       );
-      return define_top_level(ctx, std::string(name), m, export_, proc);
+      return define_top_level(ctx, std::string(name), m, true, proc);
     }
   };
 
@@ -248,12 +248,12 @@ namespace detail {
   struct define_typed_procedure<Callable, R (*)(Args...)> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, char const* name, ptr<module_> m, bool export_,
+    define(context& ctx, char const* name, ptr<module_> m,
            Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (context&, Args... args) { return Callable(args...); },
         R (*)(context&, Args...)
-      >::define(ctx, name, m, export_, std::move(defaults)...);
+      >::define(ctx, name, m, std::move(defaults)...);
     }
   };
 
@@ -261,14 +261,14 @@ namespace detail {
   struct define_typed_procedure<Callable, R (C::*)(context&, Args...)> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, char const* name, ptr<module_> m, bool export_,
+    define(context& ctx, char const* name, ptr<module_> m,
            Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (context& ctx, ptr<C> c, Args... args) {
           return (c.value()->*Callable)(ctx, args...);
         },
         R (*)(context&, ptr<C>, Args...)
-      >::define(ctx, name, m, export_, std::move(defaults)...);
+      >::define(ctx, name, m, std::move(defaults)...);
     }
   };
 
@@ -276,12 +276,12 @@ namespace detail {
   struct define_typed_procedure<Callable, R (C::*)(Args...)> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, char const* name, ptr<module_> m, bool export_,
+    define(context& ctx, char const* name, ptr<module_> m,
            Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (ptr<C> c, Args... args) { return (c.value()->*Callable)(args...); },
         R (*)(ptr<C>, Args...)
-      >::define(ctx, name, m, export_, std::move(defaults)...);
+      >::define(ctx, name, m, std::move(defaults)...);
     }
   };
 
@@ -289,14 +289,14 @@ namespace detail {
   struct define_typed_procedure<Callable, R (C::*)(context&, Args...) const> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, char const* name, ptr<module_> m, bool export_,
+    define(context& ctx, char const* name, ptr<module_> m,
            Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (context& ctx, ptr<C> c, Args... args) {
           return (c.value()->*Callable)(ctx, args...);
         },
         R (*)(context&, ptr<C>, Args...)
-      >::define(ctx, name, m, export_, std::move(defaults)...);
+      >::define(ctx, name, m, std::move(defaults)...);
     }
   };
 
@@ -304,12 +304,12 @@ namespace detail {
   struct define_typed_procedure<Callable, R (C::*)(Args...) const> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, char const* name, ptr<module_> m, bool export_,
+    define(context& ctx, char const* name, ptr<module_> m,
            Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (ptr<C> c, Args... args) { return (c.value()->*Callable)(args...); },
         R (*)(ptr<C>, Args...)
-      >::define(ctx, name, m, export_, std::move(defaults)...);
+      >::define(ctx, name, m, std::move(defaults)...);
     }
   };
 
@@ -320,12 +320,12 @@ namespace detail {
   struct define_typed_closure<R(context&, Args...)> {
     template <typename Closure, typename... Defaults>
     static operand
-    define(context& ctx, char const* name, ptr<module_> m, bool export_,
+    define(context& ctx, char const* name, ptr<module_> m,
            Closure const& closure, Defaults... defaults) {
       auto proc = detail::make_native_procedure_object<false, R(Args...)>::make(
         ctx, name, closure, std::move(defaults)...
       );
-      return define_top_level(ctx, std::string(name), m, export_, proc);
+      return define_top_level(ctx, std::string(name), m, true, proc);
     }
   };
 
@@ -333,10 +333,10 @@ namespace detail {
   struct define_typed_closure<R(Args...)> {
     template <typename Closure, typename... Defaults>
     static operand
-    define(context& ctx, char const* name, ptr<module_> m, bool export_,
+    define(context& ctx, char const* name, ptr<module_> m,
            Closure const& closure, Defaults... defaults) {
       return define_typed_closure<R(context&, Args...)>::define(
-        ctx, name, m, export_,
+        ctx, name, m,
         [=] (context&, Args... args) {
           return closure(args...);
         },
@@ -351,11 +351,11 @@ namespace detail {
 // free or member function.
 template <auto Callable, typename... Defaults>
 operand
-define_procedure(context& ctx, char const* name, ptr<module_> m, bool export_,
+define_procedure(context& ctx, char const* name, ptr<module_> m,
                  Defaults... defaults) {
   return detail::define_typed_procedure<
     Callable, std::decay_t<decltype(Callable)>
-  >::define(ctx, name, m, export_, std::move(defaults)...);
+  >::define(ctx, name, m, std::move(defaults)...);
 }
 
 // Like define_procedure, but instead of requiring the callable to be a pointer
@@ -365,10 +365,10 @@ define_procedure(context& ctx, char const* name, ptr<module_> m, bool export_,
 // explicitly.
 template <typename Type, typename Closure, typename... Defaults>
 operand
-define_closure(context& ctx, char const* name, ptr<module_> m, bool export_,
+define_closure(context& ctx, char const* name, ptr<module_> m,
                Closure const& closure, Defaults... defaults) {
   return detail::define_typed_closure<Type>::define(
-    ctx, name, m, export_, closure, std::move(defaults)...
+    ctx, name, m, closure, std::move(defaults)...
   );
 }
 
@@ -376,10 +376,9 @@ define_closure(context& ctx, char const* name, ptr<module_> m, bool export_,
 // object_span with no conversion to C++ types.
 template <ptr<> (*F)(context&, ptr<native_procedure>, object_span)>
 inline operand
-define_raw_procedure(context& ctx, char const* name, ptr<module_> m,
-                     bool export_) {
+define_raw_procedure(context& ctx, char const* name, ptr<module_> m) {
   auto proc = make<native_procedure>(ctx, F, name);
-  return define_top_level(ctx, std::string(name), m, export_, proc);
+  return define_top_level(ctx, std::string(name), m, true, proc);
 }
 
 template <auto (*F)(context&, object_span)>
@@ -390,9 +389,8 @@ add_native_proc_arg(context& ctx, ptr<native_procedure>, object_span args) {
 
 template <ptr<> (*F)(context&, object_span)>
 inline operand
-define_raw_procedure(context& ctx, char const* name, ptr<module_> m,
-                     bool export_) {
-  return define_raw_procedure<add_native_proc_arg<F>>(ctx, name, m, export_);
+define_raw_procedure(context& ctx, char const* name, ptr<module_> m) {
+  return define_raw_procedure<add_native_proc_arg<F>>(ctx, name, m);
 }
 
 } // namespace insider

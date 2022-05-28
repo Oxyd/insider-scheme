@@ -377,16 +377,15 @@ free_identifier_eq(ptr<syntax> x, ptr<syntax> y) {
 void
 export_syntax(context& ctx, ptr<module_> result) {
   define_procedure<&syntax::update_and_get_expression>(ctx, "syntax-expression",
-                                                       result, true);
-  define_procedure<syntax_scopes>(ctx, "syntax-scopes", result, true);
-  define_procedure<syntax_add_scope>(ctx, "syntax-add-scope", result, true);
-  define_procedure<syntax_to_datum>(ctx, "syntax->datum", result, true);
-  define_procedure<syntax_to_list_proc>(ctx, "syntax->list", result, true);
-  define_procedure<datum_to_syntax_proc>(ctx, "datum->syntax", result, true);
-  define_procedure<free_identifier_eq>(ctx, "free-identifier=?", result, true);
-  define_procedure<bound_identifier_eq>(ctx, "bound-identifier=?", result,
-                                        true);
-  define_procedure<syntax_location>(ctx, "syntax-location", result, true);
+                                                       result);
+  define_procedure<syntax_scopes>(ctx, "syntax-scopes", result);
+  define_procedure<syntax_add_scope>(ctx, "syntax-add-scope", result);
+  define_procedure<syntax_to_datum>(ctx, "syntax->datum", result);
+  define_procedure<syntax_to_list_proc>(ctx, "syntax->list", result);
+  define_procedure<datum_to_syntax_proc>(ctx, "datum->syntax", result);
+  define_procedure<free_identifier_eq>(ctx, "free-identifier=?", result);
+  define_procedure<bound_identifier_eq>(ctx, "bound-identifier=?", result);
+  define_procedure<syntax_location>(ctx, "syntax-location", result);
 }
 
 } // namespace insider

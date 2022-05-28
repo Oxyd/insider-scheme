@@ -161,7 +161,7 @@ template <auto F>
 static void
 define_tagged_procedure(context& ctx, char const* name, ptr<module_> result,
                         special_top_level_tag tag) {
-  operand index = define_procedure<F>(ctx, name, result, true);
+  operand index = define_procedure<F>(ctx, name, result);
   ctx.tag_top_level(index, tag);
 }
 
@@ -186,7 +186,7 @@ make_internal_module(context& ctx) {
   export_character(ctx, result);
   export_module(ctx, result);
 
-  define_raw_procedure<append>(ctx, "append", result, true);
+  define_raw_procedure<append>(ctx, "append", result);
   define_tagged_procedure<cons>(ctx, "cons", result,
                                 special_top_level_tag::cons);
   define_tagged_procedure<static_cast<ptr<> (*)(ptr<pair>)>(car)>(
@@ -195,45 +195,44 @@ make_internal_module(context& ctx) {
   define_tagged_procedure<static_cast<ptr<> (*)(ptr<pair>)>(cdr)>(
     ctx, "cdr", result, special_top_level_tag::cdr
   );
-  define_procedure<cadr>(ctx, "cadr", result, true);
-  define_procedure<caddr>(ctx, "caddr", result, true);
-  define_procedure<cadddr>(ctx, "cadddr", result, true);
-  define_procedure<cddr>(ctx, "cddr", result, true);
-  define_procedure<cdddr>(ctx, "cdddr", result, true);
-  define_procedure<set_car>(ctx, "set-car!", result, true);
-  define_procedure<set_cdr>(ctx, "set-cdr!", result, true);
+  define_procedure<cadr>(ctx, "cadr", result);
+  define_procedure<caddr>(ctx, "caddr", result);
+  define_procedure<cadddr>(ctx, "cadddr", result);
+  define_procedure<cddr>(ctx, "cddr", result);
+  define_procedure<cdddr>(ctx, "cdddr", result);
+  define_procedure<set_car>(ctx, "set-car!", result);
+  define_procedure<set_cdr>(ctx, "set-cdr!", result);
 
   define_tagged_procedure<type>(ctx, "type", result,
                                 special_top_level_tag::type);
 
   define_tagged_procedure<eq>(ctx, "eq?", result, special_top_level_tag::eq);
-  define_procedure<eqv>(ctx, "eqv?", result, true);
-  define_procedure<equal>(ctx, "equal?", result, true);
+  define_procedure<eqv>(ctx, "eqv?", result);
+  define_procedure<equal>(ctx, "equal?", result);
 
-  define_procedure<features>(ctx, "features", result, true);
-  define_procedure<known_module>(ctx, "known-module?", result, true);
+  define_procedure<features>(ctx, "features", result);
+  define_procedure<known_module>(ctx, "known-module?", result);
 
-  define_procedure<procedure_bytecode>(ctx, "procedure-bytecode", result, true);
-  define_procedure<procedure_name>(ctx, "procedure-name", result, true);
-  define_procedure<&closure::procedure>(ctx, "closure-procedure", result, true);
+  define_procedure<procedure_bytecode>(ctx, "procedure-bytecode", result);
+  define_procedure<procedure_name>(ctx, "procedure-name", result);
+  define_procedure<&closure::procedure>(ctx, "closure-procedure", result);
 
-  define_procedure<instruction_opcode>(ctx, "instruction-opcode", result, true);
-  define_procedure<instruction_operands>(ctx, "instruction-operands", result,
-                                         true);
+  define_procedure<instruction_opcode>(ctx, "instruction-opcode", result);
+  define_procedure<instruction_operands>(ctx, "instruction-operands", result);
   define_top_level(ctx, "opcodes", result, true,
                    make_vector(ctx, opcode_value_to_info,
                                [&] (instruction_info const& info) {
                                  return ctx.intern(info.mnemonic);
                                }));
 
-  define_procedure<top_level_name>(ctx, "top-level-name", result, true);
-  define_procedure<static_value>(ctx, "static-value", result, true);
-  define_procedure<top_level_value>(ctx, "top-level-value", result, true);
+  define_procedure<top_level_name>(ctx, "top-level-name", result);
+  define_procedure<static_value>(ctx, "static-value", result);
+  define_procedure<top_level_value>(ctx, "top-level-value", result);
 
   define_procedure<set_verbose_colleection>(ctx, "set-verbose-collection!",
-                                            result, true);
+                                            result);
 
-  define_procedure<trap>(ctx, "trap!", result, true);
+  define_procedure<trap>(ctx, "trap!", result);
 
   define_top_level(ctx, "<eof-object>", result, true, ctx.constants->eof);
 

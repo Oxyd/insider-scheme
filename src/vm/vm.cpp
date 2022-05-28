@@ -1851,29 +1851,26 @@ eval(context& ctx, tracked_ptr<module_> const& mod, std::string const& expr) {
 
 void
 export_vm(context& ctx, ptr<module_> result) {
-  define_procedure<capture_stack>(ctx, "capture-stack", result, true);
-  define_procedure<replace_stack>(ctx, "replace-stack!", result, true);
-  define_procedure<create_parameter_tag>(ctx, "create-parameter-tag", result,
-                                         true);
-  define_procedure<find_parameter_value>(ctx, "find-parameter-value", result,
-                                         true);
-  define_procedure<set_parameter_value>(ctx, "set-parameter-value!", result,
-                                        true);
+  define_procedure<capture_stack>(ctx, "capture-stack", result);
+  define_procedure<replace_stack>(ctx, "replace-stack!", result);
+  define_procedure<create_parameter_tag>(ctx, "create-parameter-tag", result);
+  define_procedure<find_parameter_value>(ctx, "find-parameter-value", result);
+  define_procedure<set_parameter_value>(ctx, "set-parameter-value!", result);
   define_procedure<
     static_cast<ptr<> (*)(context&, bool, bool, ptr<>)>(
       call_with_continuation_barrier
     )
-  >(ctx, "call-with-continuation-barrier", result, true);
-  define_procedure<call_parameterized>(ctx, "call-parameterized", result, true);
-  define_procedure<dynamic_wind>(ctx, "dynamic-wind", result, true);
+  >(ctx, "call-with-continuation-barrier", result);
+  define_procedure<call_parameterized>(ctx, "call-parameterized", result);
+  define_procedure<dynamic_wind>(ctx, "dynamic-wind", result);
   define_procedure<with_exception_handler>(ctx, "with-exception-handler",
-                                           result, true);
-  define_procedure<raise_continuable>(ctx, "raise-continuable", result, true);
-  define_procedure<raise>(ctx, "raise", result, true);
-  define_raw_procedure<apply>(ctx, "apply", result, true);
-  define_procedure<call_with_values>(ctx, "call-with-values", result, true);
-  define_raw_procedure<values>(ctx, "values", result, true);
-  define_procedure<eval_proc>(ctx, "eval", result, true);
+                                           result);
+  define_procedure<raise_continuable>(ctx, "raise-continuable", result);
+  define_procedure<raise>(ctx, "raise", result);
+  define_raw_procedure<apply>(ctx, "apply", result);
+  define_procedure<call_with_values>(ctx, "call-with-values", result);
+  define_raw_procedure<values>(ctx, "values", result);
+  define_procedure<eval_proc>(ctx, "eval", result);
 }
 
 } // namespace insider

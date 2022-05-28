@@ -142,17 +142,17 @@ integer_to_char(integer i) {
 
 void
 export_character(context& ctx, ptr<module_> result) {
-  define_procedure<is_alphabetic>(ctx, "char-alphabetic?", result, true);
-  define_procedure<is_numeric>(ctx, "char-numeric?", result, true);
-  define_procedure<is_white_space>(ctx, "char-whitespace?", result, true);
-  define_procedure<is_upper_case>(ctx, "char-upper-case?", result, true);
-  define_procedure<is_lower_case>(ctx, "char-lower-case?", result, true);
-  define_procedure<digit_value>(ctx, "digit-value", result, true);
-  define_procedure<char_to_integer>(ctx, "char->integer", result, true);
-  define_procedure<integer_to_char>(ctx, "integer->char", result, true);
-  define_procedure<char_upcase>(ctx, "char-upcase", result, true);
-  define_procedure<char_downcase>(ctx, "char-downcase", result, true);
-  define_procedure<char_foldcase>(ctx, "char-foldcase", result, true);
+  define_procedure<is_alphabetic>(ctx, "char-alphabetic?", result);
+  define_procedure<is_numeric>(ctx, "char-numeric?", result);
+  define_procedure<is_white_space>(ctx, "char-whitespace?", result);
+  define_procedure<is_upper_case>(ctx, "char-upper-case?", result);
+  define_procedure<is_lower_case>(ctx, "char-lower-case?", result);
+  define_procedure<digit_value>(ctx, "digit-value", result);
+  define_procedure<char_to_integer>(ctx, "char->integer", result);
+  define_procedure<integer_to_char>(ctx, "integer->char", result);
+  define_procedure<char_upcase>(ctx, "char-upcase", result);
+  define_procedure<char_downcase>(ctx, "char-downcase", result);
+  define_procedure<char_foldcase>(ctx, "char-foldcase", result);
 }
 
 } // namespace insider

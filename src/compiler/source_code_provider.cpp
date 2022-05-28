@@ -62,7 +62,7 @@ open_source_file_relative(context& ctx,
 void
 export_source_code_provider(context& ctx, ptr<module_> result) {
   define_procedure<open_source_file_relative>(ctx, "open-source-file-relative",
-                                              result, true);
+                                              result);
 }
 
 } // namespace insider

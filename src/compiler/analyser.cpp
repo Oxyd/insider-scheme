@@ -2325,7 +2325,7 @@ export_analyser(context& ctx, ptr<module_> result) {
   ctx.constants->current_expand_module_tag
     = create_parameter_tag(ctx, ctx.constants->f);
 
-  define_procedure<expand_proc>(ctx, "expand", result, true);
+  define_procedure<expand_proc>(ctx, "expand", result);
   define_top_level(ctx, "current-source-file-origin-tag", result, true,
                    ctx.constants->current_source_file_origin_tag);
   define_top_level(ctx, "main-module?-tag", result, true,

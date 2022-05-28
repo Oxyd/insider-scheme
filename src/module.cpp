@@ -420,10 +420,10 @@ export_module(context& ctx, ptr<module_> result) {
     = create_parameter_tag(ctx, read(ctx, "(insider internal)"));
   define_top_level(ctx, "interaction-environment-specifier-tag", result, true,
                    ctx.constants->interaction_environment_specifier_tag);
-  define_raw_procedure<environment>(ctx, "environment", result, true);
+  define_raw_procedure<environment>(ctx, "environment", result);
   define_raw_procedure<interactive_environment>(ctx, "interactive-environment",
-                                                result, true);
-  define_raw_procedure<dynamic_import>(ctx, "dynamic-import", result, true);
+                                                result);
+  define_raw_procedure<dynamic_import>(ctx, "dynamic-import", result);
 }
 
 } // namespace insider

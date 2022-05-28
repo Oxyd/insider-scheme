@@ -323,9 +323,8 @@ apply_and_double(context& ctx, ptr<procedure> f, ptr<> arg) {
 }
 
 TEST_F(interpreter, scheme_to_native_to_scheme) {
-  define_procedure<apply_and_double>(
-    ctx, "apply-and-double", ctx.internal_module(), true
-  );
+  define_procedure<apply_and_double>(ctx, "apply-and-double",
+                                     ctx.internal_module());
   ptr<> result1 = eval_module(
     R"(
       (import (insider internal))
@@ -369,7 +368,7 @@ do_recursion(context& ctx, int i, int accum, ptr<> recurse, ptr<> base) {
 }
 
 TEST_F(interpreter, native_tail_calls) {
-  define_procedure<do_recursion>(ctx, "f", ctx.internal_module(), true);
+  define_procedure<do_recursion>(ctx, "f", ctx.internal_module());
 
   ptr<> result1 = eval_module(
     R"(
@@ -407,7 +406,7 @@ return_true(context& ctx) {
 }
 
 TEST_F(interpreter, eval_tail_call_to_native) {
-  define_procedure<return_true>(ctx, "return-t", ctx.internal_module(), true);
+  define_procedure<return_true>(ctx, "return-t", ctx.internal_module());
   ptr<> result = eval("(eval '(return-t) (environment '(insider internal)))");
   EXPECT_EQ(result, ctx.constants->t);
 }
@@ -682,7 +681,7 @@ increase_meta_eval_count() {
 
 TEST_F(interpreter, top_level_meta_is_evaluated_only_once) {
   define_procedure<increase_meta_eval_count>(ctx, "increase-count!",
-                                             ctx.internal_module(), true);
+                                             ctx.internal_module());
   eval_module("(import (insider internal)) (meta (increase-count!))");
   EXPECT_EQ(meta_eval_count, 1);
 }
