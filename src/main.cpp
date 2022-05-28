@@ -198,7 +198,9 @@ main(int argc, char** argv) {
     return 1;
   } catch (insider::scheme_exception const& e) {
     show_error(ctx, e);
+    return 1;
   } catch (std::runtime_error const& e) {
     show_error(ctx, e);
+    return 1;
   }
 }
