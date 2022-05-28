@@ -2293,8 +2293,8 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
 }
 
 std::unique_ptr<expression>
-analyse_module(context& ctx, tracked_ptr<module_> m, module_specifier const& pm,
-               bool main_module) {
+analyse_module(context& ctx, tracked_ptr<module_> const& m,
+               module_specifier const& pm, bool main_module) {
   parameterize origin_param{
     ctx, ctx.constants->current_source_file_origin_tag,
     make<opaque_value<source_file_origin>>(ctx, pm.origin)
