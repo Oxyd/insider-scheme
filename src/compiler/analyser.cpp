@@ -1561,67 +1561,114 @@ parse(parsing_context& pc, ptr<syntax> s) {
     );
 }
 
+template <auto F>
+static void
+visit_subexpressions(literal_expression&, auto&...) { }
+
+template <auto F>
+static void
+visit_subexpressions(local_reference_expression&, auto&...) { }
+
+
+template <auto F>
+static void
+visit_subexpressions(top_level_reference_expression&, auto&...) { }
+
+
+template <auto F>
+static void
+visit_subexpressions(unknown_reference_expression&, auto&...) { }
+
+template <auto F>
+static void
+visit_subexpressions(application_expression& app, auto&... args) {
+  F(app.target.get(), args...);
+  for (auto const& arg : app.arguments)
+    F(arg.get(), args...);
+}
+
+template <auto F>
+static void
+visit_subexpressions(let_expression& let, auto&... args) {
+  for (auto const& def : let.definitions)
+    F(def.expression.get(), args...);
+  for (auto const& expr : let.body.expressions)
+    F(expr.get(), args...);
+}
+
+template <auto F>
+static void
+visit_subexpressions(local_set_expression& local_set, auto&... args) {
+  F(local_set.expression.get(), args...);
+}
+
+template <auto F>
+static void
+visit_subexpressions(top_level_set_expression& top_level_set, auto&... args) {
+  F(top_level_set.expression.get(), args...);
+}
+
+template <auto F>
+static void
+visit_subexpressions(lambda_expression& lambda, auto&... args) {
+  for (auto const& expr : lambda.body.expressions)
+    F(expr.get(), args...);
+}
+
+template <auto F>
+static void
+visit_subexpressions(if_expression& if_, auto&... args) {
+  F(if_.test.get(), args...);
+  F(if_.consequent.get(), args...);
+  if (if_.alternative)
+    F(if_.alternative.get(), args...);
+}
+
+template <auto F>
+static void
+visit_subexpressions(box_expression& box, auto&... args) {
+  F(box.expression.get(), args...);
+}
+
+template <auto F>
+static void
+visit_subexpressions(unbox_expression& unbox, auto&... args) {
+  F(unbox.box_expr.get(), args...);
+}
+
+template <auto F>
+static void
+visit_subexpressions(box_set_expression& box_set, auto&... args) {
+  F(box_set.box_expr.get(), args...);
+  F(box_set.value_expr.get(), args...);
+}
+
+template <auto F>
+static void
+visit_subexpressions(cons_expression& cons, auto&... args) {
+  F(cons.car.get(), args...);
+  F(cons.cdr.get(), args...);
+}
+
+template <auto F>
+static void
+visit_subexpressions(make_vector_expression& make_vector, auto&... args) {
+  for (std::unique_ptr<expression> const& e : make_vector.elements)
+    F(e.get(), args...);
+}
+
+template <auto F>
+static void
+visit_subexpressions(sequence_expression& sequence, auto&... args) {
+  for (std::unique_ptr<expression> const& e : sequence.expressions)
+    F(e.get(), args...);
+}
+
 template <auto F, typename... Args>
 void
 recurse(expression* s, Args&... args) {
-  if (std::holds_alternative<literal_expression>(s->value)
-      || std::holds_alternative<local_reference_expression>(s->value)
-      || std::holds_alternative<top_level_reference_expression>(s->value)
-      || std::holds_alternative<unknown_reference_expression>(s->value)) {
-    // Nothing to recurse into.
-  }
-  else if (auto* app = std::get_if<application_expression>(&s->value)) {
-    F(app->target.get(), args...);
-    for (auto const& arg : app->arguments)
-      F(arg.get(), args...);
-  }
-  else if (auto* let = std::get_if<let_expression>(&s->value)) {
-    for (auto const& def : let->definitions)
-      F(def.expression.get(), args...);
-    for (auto const& expr : let->body.expressions)
-      F(expr.get(), args...);
-  }
-  else if (auto* local_set = std::get_if<local_set_expression>(&s->value)) {
-    F(local_set->expression.get(), args...);
-  }
-  else if (auto* top_level_set
-           = std::get_if<top_level_set_expression>(&s->value)) {
-    F(top_level_set->expression.get(), args...);
-  }
-  else if (auto* lambda = std::get_if<lambda_expression>(&s->value)) {
-    for (auto const& expr : lambda->body.expressions)
-      F(expr.get(), args...);
-  }
-  else if (auto* if_ = std::get_if<if_expression>(&s->value)) {
-    F(if_->test.get(), args...);
-    F(if_->consequent.get(), args...);
-    if (if_->alternative)
-      F(if_->alternative.get(), args...);
-  }
-  else if (auto* box = std::get_if<box_expression>(&s->value)) {
-    F(box->expression.get(), args...);
-  }
-  else if (auto* unbox = std::get_if<unbox_expression>(&s->value)) {
-    F(unbox->box_expr.get(), args...);
-  }
-  else if (auto* box_set = std::get_if<box_set_expression>(&s->value)) {
-    F(box_set->box_expr.get(), args...);
-    F(box_set->value_expr.get(), args...);
-  }
-  else if (auto* cons = std::get_if<cons_expression>(&s->value)) {
-    F(cons->car.get(), args...);
-    F(cons->cdr.get(), args...);
-  }
-  else if (auto* make_vector = std::get_if<make_vector_expression>(&s->value)) {
-    for (std::unique_ptr<expression> const& e : make_vector->elements)
-      F(e.get(), args...);
-  }
-  else if (auto* sequence = std::get_if<sequence_expression>(&s->value)) {
-    for (std::unique_ptr<expression> const& e : sequence->expressions)
-      F(e.get(), args...);
-  }
-  else
-    assert(!"Forgot an expression type");
+  std::visit([&] (auto& expr) { visit_subexpressions<F>(expr, args...); },
+             s->value);
 }
 
 static void
