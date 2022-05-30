@@ -1,5 +1,6 @@
 #include "basic_types.hpp"
 
+#include "context.hpp"
 #include "util/define_procedure.hpp"
 #include "util/list_iterator.hpp"
 #include <bits/ranges_algo.h>
@@ -425,13 +426,11 @@ export_basic_types(context& ctx, ptr<module_> result) {
     ctx, "make-vector", result,
     [] (context& ctx) { return ctx.constants->void_; }
   );
-  operand vector_ref_index = define_procedure<&vector::ref>(ctx, "vector-ref",
-                                                            result);
-  ctx.tag_top_level(vector_ref_index, special_top_level_tag::vector_ref);
+  define_tagged_procedure<&vector::ref>(ctx, "vector-ref", result,
+                                        special_top_level_tag::vector_ref);
 
-  operand vector_set_index = define_procedure<vector_set>(ctx, "vector-set!",
-                                                          result);
-  ctx.tag_top_level(vector_set_index, special_top_level_tag::vector_set);
+  define_tagged_procedure<vector_set>(ctx, "vector-set!", result,
+                                      special_top_level_tag::vector_set);
 
   define_procedure<make_error_proc>(ctx, "make-error", result);
   define_procedure<&error::message>(ctx, "error-message", result);
@@ -451,9 +450,12 @@ export_basic_types(context& ctx, ptr<module_> result) {
   define_procedure<&bytevector::set>(ctx, "bytevector-u8-set!", result);
   define_procedure<&values_tuple::size>(ctx, "values-tuple-length", result);
   define_procedure<&values_tuple::ref>(ctx, "values-tuple-ref", result);
-  define_procedure<make_box>(ctx, "box", result);
-  define_procedure<unbox>(ctx, "unbox", result);
-  define_procedure<box_set>(ctx, "box-set!", result);
+  define_tagged_procedure<make_box>(ctx, "box", result,
+                                    special_top_level_tag::box);
+  define_tagged_procedure<unbox>(ctx, "unbox", result,
+                                 special_top_level_tag::unbox);
+  define_tagged_procedure<box_set>(ctx, "box-set!", result,
+                                   special_top_level_tag::box_set);
 }
 
 } // namespace insider

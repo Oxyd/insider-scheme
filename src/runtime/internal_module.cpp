@@ -157,14 +157,6 @@ features(context& ctx) {
   return ctx.features();
 }
 
-template <auto F>
-static void
-define_tagged_procedure(context& ctx, char const* name, ptr<module_> result,
-                        special_top_level_tag tag) {
-  operand index = define_procedure<F>(ctx, name, result);
-  ctx.tag_top_level(index, tag);
-}
-
 ptr<module_>
 make_internal_module(context& ctx) {
   auto result = make<module_>(ctx, ctx, module_name{"insider", "internal"});

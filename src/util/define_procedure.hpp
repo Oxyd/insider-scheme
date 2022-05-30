@@ -393,6 +393,14 @@ define_raw_procedure(context& ctx, char const* name, ptr<module_> m) {
   return define_raw_procedure<add_native_proc_arg<F>>(ctx, name, m);
 }
 
+template <auto F>
+void
+define_tagged_procedure(context& ctx, char const* name, ptr<module_> result,
+                        special_top_level_tag tag) {
+  operand index = define_procedure<F>(ctx, name, result);
+  ctx.tag_top_level(index, tag);
+}
+
 } // namespace insider
 
 #endif

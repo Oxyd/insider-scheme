@@ -76,7 +76,10 @@ enum class special_top_level_tag {
   cons,
   car,
   cdr,
-  eq
+  eq,
+  box,
+  unbox,
+  box_set
 };
 
 // Evaluation context.

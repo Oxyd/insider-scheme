@@ -564,6 +564,51 @@ compile_eq(context& ctx, procedure_context& proc,
 }
 
 static void
+compile_box(context& ctx, procedure_context& proc,
+            application_expression const& stx,
+            result_register& result) {
+  if (stx.arguments.size() != 1)
+    throw std::runtime_error{"box: Expected exactly 1 argument"};
+
+  shared_register value
+    = compile_expression_to_register(ctx, proc, *stx.arguments[0], false);
+  if (result.result_used())
+    encode_instruction(proc.bytecode_stack.back(),
+                       instruction{opcode::box, *value, *result.get(proc)});
+}
+
+static void
+compile_unbox(context& ctx, procedure_context& proc,
+              application_expression const& stx,
+              result_register& result) {
+  if (stx.arguments.size() != 1)
+    throw std::runtime_error{"unbox: Expected exactly 1 argument"};
+
+  shared_register box
+    = compile_expression_to_register(ctx, proc, *stx.arguments[0], false);
+  if (result.result_used())
+    encode_instruction(proc.bytecode_stack.back(),
+                       instruction{opcode::unbox, *box, *result.get(proc)});
+}
+
+static void
+compile_box_set(context& ctx, procedure_context& proc,
+                application_expression const& stx,
+                result_register& result) {
+  if (stx.arguments.size() != 2)
+    throw std::runtime_error{"box-set!: Expected exactly 2 argument"};
+
+  shared_register box
+    = compile_expression_to_register(ctx, proc, *stx.arguments[0], false);
+  shared_register value
+    = compile_expression_to_register(ctx, proc, *stx.arguments[1], false);
+
+  encode_instruction(proc.bytecode_stack.back(),
+                     instruction{opcode::box_set, *box, *value});
+  compile_static_reference(proc, ctx.statics.void_, result);
+}
+
+static void
 compile_let(context& ctx, procedure_context& proc, let_expression const& stx,
             bool tail, result_register& result) {
   variable_bindings::scope scope;
@@ -757,6 +802,15 @@ compile_application(context& ctx, procedure_context& proc,
         return;
       } else if (*tag == special_top_level_tag::eq) {
         compile_eq(ctx, proc, stx, result);
+        return;
+      } else if (*tag == special_top_level_tag::box) {
+        compile_box(ctx, proc, stx, result);
+        return;
+      } else if (*tag == special_top_level_tag::unbox) {
+        compile_unbox(ctx, proc, stx, result);
+        return;
+      } else if (*tag == special_top_level_tag::box_set) {
+        compile_box_set(ctx, proc, stx, result);
         return;
       }
     }
