@@ -707,3 +707,20 @@ TEST_F(repl_fixture, set_variable_introduced_by_macro_in_meta) {
     = insider::eval(ctx, m, "(meta (introduce x (set! x 1) x))").get();
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
+
+TEST_F(interpreter, meta_in_transformer_output_is_evaluted_in_subexpression) {
+  ptr<> result = eval_module(R"(
+    (import (insider internal))
+
+    (define-syntax foo
+      (lambda (stx)
+        #'(meta (find-parameter-value current-expand-module-tag))))
+
+    (define identity
+      (lambda (x)
+        x))
+
+    (identity (foo))
+  )");
+  EXPECT_TRUE(is<module_>(result));
+}

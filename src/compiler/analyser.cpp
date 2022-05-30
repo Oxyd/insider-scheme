@@ -1030,6 +1030,12 @@ parse_syntax_error(parsing_context& pc, ptr<syntax> stx) {
   throw std::runtime_error{result_msg};
 }
 
+static std::unique_ptr<expression>
+parse_meta(parsing_context& pc, ptr<syntax> stx) {
+  tracked_ptr<> datum = eval_meta_expression(pc, stx);
+  return make_expression<literal_expression>(datum);
+}
+
 namespace {
   struct qq_template;
 
@@ -1522,6 +1528,8 @@ parse(parsing_context& pc, ptr<syntax> s) {
         return parse_let_syntax(pc, stx);
       else if (form == pc.ctx.constants->letrec_syntax)
         return parse_letrec_syntax(pc, stx);
+      else if (form == pc.ctx.constants->meta)
+        return parse_meta(pc, stx);
       else
         assert(form != pc.ctx.constants->meta
                && form != pc.ctx.constants->define_syntax);
