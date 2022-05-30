@@ -869,36 +869,6 @@ compile_unknown_reference(context& ctx,
 }
 
 static void
-compile_box(context& ctx, procedure_context& proc, box_expression const& stx,
-            result_register& result) {
-  shared_register value
-    = compile_expression_to_register(ctx, proc, *stx.expression, false);
-  encode_instruction(proc.bytecode_stack.back(),
-                     instruction{opcode::box, *value, *result.get(proc)});
-}
-
-static void
-compile_unbox(context& ctx, procedure_context& proc,
-              unbox_expression const& stx, result_register& result) {
-  shared_register box
-    = compile_expression_to_register(ctx, proc, *stx.box_expr, false);
-  encode_instruction(proc.bytecode_stack.back(),
-                     instruction{opcode::unbox, *box, *result.get(proc)});
-}
-
-static void
-compile_box_set(context& ctx, procedure_context& proc,
-                box_set_expression const& stx, result_register& result) {
-  shared_register box
-    = compile_expression_to_register(ctx, proc, *stx.box_expr, false);
-  shared_register value
-    = compile_expression_to_register(ctx, proc, *stx.value_expr, false);
-  encode_instruction(proc.bytecode_stack.back(),
-                     instruction{opcode::box_set, *box, *value});
-  compile_static_reference(proc, ctx.statics.void_, result);
-}
-
-static void
 compile_make_vector(context& ctx, procedure_context& proc,
                     make_vector_expression const& stx, result_register& result) {
   std::vector<shared_register> exprs;
@@ -942,12 +912,6 @@ compile_expression(context& ctx, procedure_context& proc, expression const& stx,
     compile_lambda(ctx, proc, *lambda, result);
   else if (auto const* if_ = std::get_if<if_expression>(&stx.value))
     compile_if(ctx, proc, *if_, tail, result);
-  else if (auto const* box = std::get_if<box_expression>(&stx.value))
-    compile_box(ctx, proc, *box, result);
-  else if (auto const* unbox = std::get_if<unbox_expression>(&stx.value))
-    compile_unbox(ctx, proc, *unbox, result);
-  else if (auto const* box_set = std::get_if<box_set_expression>(&stx.value))
-    compile_box_set(ctx, proc, *box_set, result);
   else if (auto const* cons = std::get_if<cons_expression>(&stx.value))
     compile_cons_expression(ctx, proc, *cons, result);
   else if (auto const* make_vector

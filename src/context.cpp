@@ -73,9 +73,6 @@ context::context()
     {constants->set,               "set!"},
     {constants->lambda,            "lambda"},
     {constants->if_,               "if"},
-    {constants->box,               "box"},
-    {constants->unbox,             "unbox"},
-    {constants->box_set,           "box-set!"},
     {constants->define,            "define"},
     {constants->define_syntax,     "define-syntax"},
     {constants->begin,             "begin"},
@@ -229,9 +226,6 @@ context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.constants->set);
   f(ctx_.constants->lambda);
   f(ctx_.constants->if_);
-  f(ctx_.constants->box);
-  f(ctx_.constants->unbox);
-  f(ctx_.constants->box_set);
   f(ctx_.constants->define);
   f(ctx_.constants->define_syntax);
   f(ctx_.constants->begin);

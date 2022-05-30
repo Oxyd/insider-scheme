@@ -89,10 +89,10 @@ public:
     ptr<eof_type>           eof;
     ptr<tail_call_tag_type> tail_call_tag;
     ptr<core_form_type>
-      let, letrec_star, set, lambda, if_, box, unbox, box_set, define,
-      define_syntax, begin, quote, quasiquote, unquote, unquote_splicing,
-      syntax, quasisyntax, unsyntax, unsyntax_splicing, syntax_trap,
-      syntax_error, let_syntax, letrec_syntax, meta;
+      let, letrec_star, set, lambda, if_, define, define_syntax, begin, quote,
+      quasiquote, unquote, unquote_splicing, syntax, quasisyntax, unsyntax,
+      unsyntax_splicing, syntax_trap, syntax_error, let_syntax, letrec_syntax,
+      meta;
     ptr<parameter_tag> current_input_port_tag;
     ptr<parameter_tag> current_output_port_tag;
     ptr<parameter_tag> current_error_port_tag;

@@ -145,3 +145,15 @@ TEST_F(procedures, syntax_to_datum_preserves_sharing) {
   auto datum = expect<pair>(syntax_to_datum(ctx, stx));
   EXPECT_EQ(car(datum), cadr(datum));
 }
+
+TEST_F(procedures, box) {
+  ptr<> result = eval(
+    R"(
+      (let ((b1 (box 5))
+            (b2 (box 7)))
+        (box-set! b1 (+ (unbox b1) (unbox b2)))
+        (unbox b1))
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result).value(), 12);
+}

@@ -908,40 +908,6 @@ parse_application(parsing_context& pc, ptr<syntax> stx) {
 }
 
 static std::unique_ptr<expression>
-parse_box(parsing_context& pc, ptr<syntax> stx) {
-  ptr<> datum = syntax_to_list(pc.ctx, stx);
-  if (list_length(datum) != 2)
-    throw make_compile_error<syntax_error>(stx, "Invalid box syntax");
-
-  return make_expression<box_expression>(
-    parse(pc, expect<syntax>(cadr(assume<pair>(datum))))
-  );
-}
-
-static std::unique_ptr<expression>
-parse_unbox(parsing_context& pc, ptr<syntax> stx) {
-  ptr<> datum = syntax_to_list(pc.ctx, stx);
-  if (list_length(datum) != 2)
-    throw make_compile_error<syntax_error>(stx, "Invalid unbox syntax");
-
-  return make_expression<unbox_expression>(
-    parse(pc, expect<syntax>(cadr(assume<pair>(datum))))
-  );
-}
-
-static std::unique_ptr<expression>
-parse_box_set(parsing_context& pc, ptr<syntax> stx) {
-  ptr<> datum = syntax_to_list(pc.ctx, stx);
-  if (list_length(datum) != 3)
-    throw make_compile_error<syntax_error>(stx, "Invalid box-set! syntax");
-
-  return make_expression<box_set_expression>(
-    parse(pc, expect<syntax>(cadr(assume<pair>(datum)))),
-    parse(pc, expect<syntax>(caddr(assume<pair>(datum))))
-  );
-}
-
-static std::unique_ptr<expression>
 parse_sequence(parsing_context& pc, ptr<> stx) {
   std::vector<std::unique_ptr<expression>> exprs;
   for (tracked_ptr<> datum = track(pc.ctx, stx);
@@ -1214,10 +1180,21 @@ make_internal_reference(context& ctx, std::string name) {
 }
 
 template <typename... Args>
+static application_expression
+make_application_expression(context& ctx, std::string const& name,
+                            Args&&... args) {
+  return application_expression{
+    make_internal_reference(ctx, name),
+    std::forward<Args>(args)...
+  };
+}
+
+template <typename... Args>
 static std::unique_ptr<expression>
 make_application(context& ctx, std::string const& name, Args&&... args) {
-  return make_expression<application_expression>(make_internal_reference(ctx, name),
-                                                 std::forward<Args>(args)...);
+  return std::make_unique<expression>(make_application_expression(
+    ctx, name, std::forward<Args>(args)...
+  ));
 }
 
 std::unique_ptr<expression>
@@ -1506,12 +1483,6 @@ parse(parsing_context& pc, ptr<syntax> s) {
         return parse_lambda(pc, stx);
       else if (form == pc.ctx.constants->if_)
         return parse_if(pc, stx);
-      else if (form == pc.ctx.constants->box)
-        return parse_box(pc, stx);
-      else if (form == pc.ctx.constants->unbox)
-        return parse_unbox(pc, stx);
-      else if (form == pc.ctx.constants->box_set)
-        return parse_box_set(pc, stx);
       else if (form == pc.ctx.constants->begin)
         return parse_sequence(pc, syntax_cdr(pc.ctx, stx));
       else if (form == pc.ctx.constants->define)
@@ -1626,25 +1597,6 @@ visit_subexpressions(if_expression& if_, auto&... args) {
 
 template <auto F>
 static void
-visit_subexpressions(box_expression& box, auto&... args) {
-  F(box.expression.get(), args...);
-}
-
-template <auto F>
-static void
-visit_subexpressions(unbox_expression& unbox, auto&... args) {
-  F(unbox.box_expr.get(), args...);
-}
-
-template <auto F>
-static void
-visit_subexpressions(box_set_expression& box_set, auto&... args) {
-  F(box_set.box_expr.get(), args...);
-  F(box_set.value_expr.get(), args...);
-}
-
-template <auto F>
-static void
 visit_subexpressions(cons_expression& cons, auto&... args) {
   F(cons.car.get(), args...);
   F(cons.cdr.get(), args...);
@@ -1672,52 +1624,52 @@ recurse(expression* s, Args&... args) {
 }
 
 static void
-box_variable_references(expression* s, std::shared_ptr<variable> const& var) {
-  recurse<box_variable_references>(s, var);
+box_variable_references(expression* s, context& ctx,
+                        std::shared_ptr<variable> const& var) {
+  recurse<box_variable_references>(s, ctx, var);
 
   if (auto* ref = std::get_if<local_reference_expression>(&s->value)) {
     if (ref->variable == var) {
-      local_reference_expression original_ref = *ref;
-      s->value = unbox_expression{std::make_unique<expression>(original_ref)};
+      std::shared_ptr<variable> var = std::move(ref->variable);
+      s->value = make_application_expression(
+        ctx, "unbox",
+        make_expression<local_reference_expression>(std::move(var))
+      );
     }
   } else if (auto* set = std::get_if<local_set_expression>(&s->value))
     if (set->target == var) {
       local_set_expression original_set = std::move(*set);
-      s->value = box_set_expression{
-        std::make_unique<expression>(
-          local_reference_expression{original_set.target}
-        ),
+      s->value = make_application_expression(
+        ctx, "box-set!",
+        make_expression<local_reference_expression>(original_set.target),
         std::move(original_set.expression)
-      };
+      );
     }
 }
 
 static void
-box_set_variables(expression* s) {
-  recurse<box_set_variables>(s);
+box_set_variables(expression* s, context& ctx) {
+  recurse<box_set_variables>(s, ctx);
 
   if (auto* let = std::get_if<let_expression>(&s->value)) {
     for (definition_pair_expression& def : let->definitions)
       if (def.variable->is_set) {
-        box_variable_references(s, def.variable);
+        box_variable_references(s, ctx, def.variable);
 
         std::unique_ptr<expression> orig_expr = std::move(def.expression);
-        def.expression = std::make_unique<expression>(
-          box_expression{std::move(orig_expr)}
-        );
+        def.expression = make_application(ctx, "box",
+                                          std::move(orig_expr));
       }
   } else if (auto* lambda = std::get_if<lambda_expression>(&s->value)) {
     for (std::shared_ptr<variable> const& param : lambda->parameters)
       if (param->is_set) {
-        box_variable_references(s, param);
+        box_variable_references(s, ctx, param);
 
-        auto set = std::make_unique<expression>(local_set_expression{param, {}});
-        auto box = std::make_unique<expression>(box_expression{});
         auto ref = std::make_unique<expression>(
           local_reference_expression{param}
         );
-        std::get<box_expression>(box->value).expression = std::move(ref);
-        std::get<local_set_expression>(set->value).expression = std::move(box);
+        auto box = make_application(ctx, "box", std::move(ref));
+        auto set = make_expression<local_set_expression>(param, std::move(box));
 
         lambda->body.expressions.insert(lambda->body.expressions.begin(),
                                         std::move(set));
@@ -1785,7 +1737,7 @@ analyse_free_variables(expression* s) {
 static std::unique_ptr<expression>
 analyse_internal(parsing_context& pc, ptr<syntax> stx) {
   std::unique_ptr<expression> result = parse(pc, stx);
-  box_set_variables(result.get());
+  box_set_variables(result.get(), pc.ctx);
   analyse_free_variables(result.get());
   return result;
 }

@@ -292,18 +292,6 @@ TEST_F(compiler, compile_set) {
   EXPECT_EQ(expect<integer>(result3).value(), 13);
 }
 
-TEST_F(compiler, compile_box) {
-  ptr<> result = eval(
-    R"(
-      (let ((b1 (box 5))
-            (b2 (box 7)))
-        (box-set! b1 (+ (unbox b1) (unbox b2)))
-        (unbox b1))
-    )"
-  );
-  EXPECT_EQ(expect<integer>(result).value(), 12);
-}
-
 TEST_F(compiler, compile_sequence) {
   ptr<> result = eval(R"(
     (let ((a 0)

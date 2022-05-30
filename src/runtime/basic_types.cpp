@@ -399,6 +399,21 @@ uncaught_exception_inner_exception(ptr<uncaught_exception> e) {
   return e->inner_exception;
 }
 
+static ptr<box>
+make_box(context& ctx, ptr<> value) {
+  return make<box>(ctx, value);
+}
+
+static ptr<>
+unbox(ptr<box> b) {
+  return b->get();
+}
+
+static void
+box_set(context& ctx, ptr<box> b, ptr<> value) {
+  b->set(ctx.store, value);
+}
+
 void
 export_basic_types(context& ctx, ptr<module_> result) {
   define_procedure<list_to_vector>(ctx, "list->vector", result);
@@ -436,6 +451,9 @@ export_basic_types(context& ctx, ptr<module_> result) {
   define_procedure<&bytevector::set>(ctx, "bytevector-u8-set!", result);
   define_procedure<&values_tuple::size>(ctx, "values-tuple-length", result);
   define_procedure<&values_tuple::ref>(ctx, "values-tuple-ref", result);
+  define_procedure<make_box>(ctx, "box", result);
+  define_procedure<unbox>(ctx, "unbox", result);
+  define_procedure<box_set>(ctx, "box-set!", result);
 }
 
 } // namespace insider

@@ -247,9 +247,6 @@ struct expression {
     top_level_set_expression,
     lambda_expression,
     if_expression,
-    box_expression,
-    unbox_expression,
-    box_set_expression,
     cons_expression,
     make_vector_expression,
     sequence_expression
