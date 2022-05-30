@@ -43,6 +43,10 @@ struct literal_expression {
 
   explicit
   literal_expression(tracked_ptr<> const& value) : value{value} { }
+
+  template <auto>
+  void
+  visit_subexpressions(auto&...) { }
 };
 
 struct local_reference_expression {
@@ -52,6 +56,10 @@ struct local_reference_expression {
   local_reference_expression(std::shared_ptr<insider::variable> var)
     : variable{std::move(var)}
   { }
+
+  template <auto>
+  void
+  visit_subexpressions(auto&...) { }
 };
 
 struct top_level_reference_expression {
@@ -62,6 +70,10 @@ struct top_level_reference_expression {
     : location{location}
     , name{std::move(name)}
   { }
+
+  template <auto>
+  void
+  visit_subexpressions(auto&...) { }
 };
 
 struct unknown_reference_expression {
@@ -71,6 +83,10 @@ struct unknown_reference_expression {
   unknown_reference_expression(tracked_ptr<syntax> name)
     : name{std::move(name)}
   { }
+
+  template <auto>
+  void
+  visit_subexpressions(auto&...) { }
 };
 
 struct application_expression {
@@ -90,6 +106,14 @@ struct application_expression {
     arguments.reserve(sizeof...(Ts));
     (arguments.push_back(std::move(ts)), ...);
   }
+
+  template <auto F>
+  void
+  visit_subexpressions(auto&... args) {
+    F(target.get(), args...);
+    for (auto const& arg : arguments)
+      F(arg.get(), args...);
+  }
 };
 
 struct sequence_expression {
@@ -101,6 +125,13 @@ struct sequence_expression {
   sequence_expression(std::vector<std::unique_ptr<expression>> exprs)
     : expressions{std::move(exprs)}
   { }
+
+  template <auto F>
+  void
+  visit_subexpressions(auto&... args) {
+    for (std::unique_ptr<expression> const& e : expressions)
+      F(e.get(), args...);
+  }
 };
 
 struct definition_pair_expression {
@@ -126,6 +157,15 @@ struct let_expression {
     : definitions{std::move(defs)}
     , body{std::move(body)}
   { }
+
+  template <auto F>
+  void
+  visit_subexpressions(auto&... args) {
+    for (auto const& def : definitions)
+      F(def.expression.get(), args...);
+    for (auto const& expr : body.expressions)
+      F(expr.get(), args...);
+  }
 };
 
 struct local_set_expression {
@@ -137,6 +177,12 @@ struct local_set_expression {
     : target{std::move(target)}
     , expression{std::move(expr)}
   { }
+
+  template <auto F>
+  void
+  visit_subexpressions(auto&... args) {
+    F(expression.get(), args...);
+  }
 };
 
 struct top_level_set_expression {
@@ -148,6 +194,12 @@ struct top_level_set_expression {
     : location{location}
     , expression{std::move(expr)}
   { }
+
+  template <auto F>
+  void
+  visit_subexpressions(auto&... args) {
+    F(expression.get(), args...);
+  }
 };
 
 struct lambda_expression {
@@ -168,6 +220,13 @@ struct lambda_expression {
     , name{std::move(name)}
     , free_variables{std::move(free_variables)}
   { }
+
+  template <auto F>
+  void
+  visit_subexpressions(auto&... args) {
+    for (auto const& expr : body.expressions)
+      F(expr.get(), args...);
+  }
 };
 
 struct if_expression {
@@ -182,37 +241,15 @@ struct if_expression {
     , consequent{std::move(consequent)}
     , alternative{std::move(alternative)}
   { }
-};
 
-struct box_expression {
-  std::unique_ptr<insider::expression> expression;
-
-  box_expression() = default;
-
-  explicit
-  box_expression(std::unique_ptr<insider::expression> expression)
-    : expression{std::move(expression)}
-  { }
-};
-
-struct unbox_expression {
-  std::unique_ptr<expression> box_expr;
-
-  explicit
-  unbox_expression(std::unique_ptr<expression> box_expr)
-    : box_expr{std::move(box_expr)}
-  { }
-};
-
-struct box_set_expression {
-  std::unique_ptr<expression> box_expr;
-  std::unique_ptr<expression> value_expr;
-
-  box_set_expression(std::unique_ptr<expression> box_expr,
-                     std::unique_ptr<expression> value_expr)
-    : box_expr{std::move(box_expr)}
-    , value_expr{std::move(value_expr)}
-  { }
+  template <auto F>
+  void
+  visit_subexpressions(auto&... args) {
+    F(test.get(), args...);
+    F(consequent.get(), args...);
+    if (alternative)
+      F(alternative.get(), args...);
+  }
 };
 
 struct make_vector_expression {
@@ -222,6 +259,13 @@ struct make_vector_expression {
   make_vector_expression(std::vector<std::unique_ptr<expression>> elements)
     : elements{std::move(elements)}
   { }
+
+  template <auto F>
+  void
+  visit_subexpressions(auto&... args) {
+    for (std::unique_ptr<expression> const& e : elements)
+      F(e.get(), args...);
+  }
 };
 
 struct expression {

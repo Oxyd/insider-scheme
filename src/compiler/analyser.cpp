@@ -1543,88 +1543,13 @@ parse(parsing_context& pc, ptr<syntax> s) {
     );
 }
 
-template <auto F>
-static void
-visit_subexpressions(literal_expression&, auto&...) { }
-
-template <auto F>
-static void
-visit_subexpressions(local_reference_expression&, auto&...) { }
-
-
-template <auto F>
-static void
-visit_subexpressions(top_level_reference_expression&, auto&...) { }
-
-
-template <auto F>
-static void
-visit_subexpressions(unknown_reference_expression&, auto&...) { }
-
-template <auto F>
-static void
-visit_subexpressions(application_expression& app, auto&... args) {
-  F(app.target.get(), args...);
-  for (auto const& arg : app.arguments)
-    F(arg.get(), args...);
-}
-
-template <auto F>
-static void
-visit_subexpressions(let_expression& let, auto&... args) {
-  for (auto const& def : let.definitions)
-    F(def.expression.get(), args...);
-  for (auto const& expr : let.body.expressions)
-    F(expr.get(), args...);
-}
-
-template <auto F>
-static void
-visit_subexpressions(local_set_expression& local_set, auto&... args) {
-  F(local_set.expression.get(), args...);
-}
-
-template <auto F>
-static void
-visit_subexpressions(top_level_set_expression& top_level_set, auto&... args) {
-  F(top_level_set.expression.get(), args...);
-}
-
-template <auto F>
-static void
-visit_subexpressions(lambda_expression& lambda, auto&... args) {
-  for (auto const& expr : lambda.body.expressions)
-    F(expr.get(), args...);
-}
-
-template <auto F>
-static void
-visit_subexpressions(if_expression& if_, auto&... args) {
-  F(if_.test.get(), args...);
-  F(if_.consequent.get(), args...);
-  if (if_.alternative)
-    F(if_.alternative.get(), args...);
-}
-
-template <auto F>
-static void
-visit_subexpressions(make_vector_expression& make_vector, auto&... args) {
-  for (std::unique_ptr<expression> const& e : make_vector.elements)
-    F(e.get(), args...);
-}
-
-template <auto F>
-static void
-visit_subexpressions(sequence_expression& sequence, auto&... args) {
-  for (std::unique_ptr<expression> const& e : sequence.expressions)
-    F(e.get(), args...);
-}
-
 template <auto F, typename... Args>
 void
 recurse(expression* s, Args&... args) {
-  std::visit([&] (auto& expr) { visit_subexpressions<F>(expr, args...); },
-             s->value);
+  std::visit(
+    [&] (auto& expr) { expr.template visit_subexpressions<F>(args...); },
+    s->value
+  );
 }
 
 static void
