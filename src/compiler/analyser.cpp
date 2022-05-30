@@ -1338,7 +1338,8 @@ process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl
           process_qq_template<Traits>(pc, cp->last->cdr, true)
         );
       else
-        tail = make_expression<cons_expression>(
+        tail = make_application(
+          pc.ctx, "cons",
           process_qq_template<Traits>(pc, cp->last->car),
           process_qq_template<Traits>(pc, cp->last->cdr)
         );
@@ -1351,7 +1352,8 @@ process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl
                                   process_qq_template<Traits>(pc, *elem, true),
                                   std::move(tail));
         else
-          tail = make_expression<cons_expression>(
+          tail = make_application(
+            pc.ctx, "cons",
             process_qq_template<Traits>(pc, *elem),
             std::move(tail)
           );
@@ -1359,7 +1361,8 @@ process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl
         if (is_splice(*elem))
           tail = process_qq_template<Traits>(pc, *elem, true);
         else
-          tail = make_expression<cons_expression>(
+          tail = make_application(
+            pc.ctx, "cons",
             process_qq_template<Traits>(pc, *elem),
             make_expression<literal_expression>(track(pc.ctx,
                                                       pc.ctx.constants->null))
@@ -1593,13 +1596,6 @@ visit_subexpressions(if_expression& if_, auto&... args) {
   F(if_.consequent.get(), args...);
   if (if_.alternative)
     F(if_.alternative.get(), args...);
-}
-
-template <auto F>
-static void
-visit_subexpressions(cons_expression& cons, auto&... args) {
-  F(cons.car.get(), args...);
-  F(cons.cdr.get(), args...);
 }
 
 template <auto F>

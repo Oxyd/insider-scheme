@@ -215,17 +215,6 @@ struct box_set_expression {
   { }
 };
 
-struct cons_expression {
-  std::unique_ptr<expression> car;
-  std::unique_ptr<expression> cdr;
-
-  cons_expression(std::unique_ptr<expression> car,
-                  std::unique_ptr<expression> cdr)
-    : car{std::move(car)}
-    , cdr{std::move(cdr)}
-  { }
-};
-
 struct make_vector_expression {
   std::vector<std::unique_ptr<expression>> elements;
 
@@ -247,7 +236,6 @@ struct expression {
     top_level_set_expression,
     lambda_expression,
     if_expression,
-    cons_expression,
     make_vector_expression,
     sequence_expression
   >;

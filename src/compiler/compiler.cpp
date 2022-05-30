@@ -496,17 +496,6 @@ compile_type(context& ctx, procedure_context& proc,
 }
 
 static void
-compile_cons_expression(context& ctx, procedure_context& proc,
-                        cons_expression const& stx, result_register& result) {
-  shared_register car
-    = compile_expression_to_register(ctx, proc, *stx.car, false);
-  shared_register cdr
-    = compile_expression_to_register(ctx, proc, *stx.cdr, false);
-  encode_instruction(proc.bytecode_stack.back(),
-                     instruction{opcode::cons, *car, *cdr, *result.get(proc)});
-}
-
-static void
 compile_cons_application(context& ctx, procedure_context& proc,
                          application_expression const& stx,
                          result_register& result) {
@@ -912,8 +901,6 @@ compile_expression(context& ctx, procedure_context& proc, expression const& stx,
     compile_lambda(ctx, proc, *lambda, result);
   else if (auto const* if_ = std::get_if<if_expression>(&stx.value))
     compile_if(ctx, proc, *if_, tail, result);
-  else if (auto const* cons = std::get_if<cons_expression>(&stx.value))
-    compile_cons_expression(ctx, proc, *cons, result);
   else if (auto const* make_vector
            = std::get_if<make_vector_expression>(&stx.value))
     compile_make_vector(ctx, proc, *make_vector, result);
