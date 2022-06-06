@@ -47,6 +47,10 @@ struct literal_expression {
   template <auto>
   void
   visit_subexpressions(auto&...) { }
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&&) { }
 };
 
 struct local_reference_expression {
@@ -60,6 +64,10 @@ struct local_reference_expression {
   template <auto>
   void
   visit_subexpressions(auto&...) { }
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&&) { }
 };
 
 struct top_level_reference_expression {
@@ -74,6 +82,10 @@ struct top_level_reference_expression {
   template <auto>
   void
   visit_subexpressions(auto&...) { }
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&&) { }
 };
 
 struct unknown_reference_expression {
@@ -87,6 +99,10 @@ struct unknown_reference_expression {
   template <auto>
   void
   visit_subexpressions(auto&...) { }
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&&) { }
 };
 
 struct application_expression {
@@ -114,6 +130,15 @@ struct application_expression {
     for (auto const& arg : arguments)
       F(arg.get(), args...);
   }
+
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&& f) {
+    f(target.get());
+    for (auto const& arg : arguments)
+      f(arg.get());
+  }
 };
 
 struct sequence_expression {
@@ -131,6 +156,13 @@ struct sequence_expression {
   visit_subexpressions(auto&... args) {
     for (std::unique_ptr<expression> const& e : expressions)
       F(e.get(), args...);
+  }
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&& f) {
+    for (std::unique_ptr<expression> const& e : expressions)
+      f(e.get());
   }
 };
 
@@ -166,6 +198,15 @@ struct let_expression {
     for (auto const& expr : body.expressions)
       F(expr.get(), args...);
   }
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&& f) {
+    for (auto const& def : definitions)
+      f(def.expression.get());
+    for (auto const& expr : body.expressions)
+      f(expr.get());
+  }
 };
 
 struct local_set_expression {
@@ -183,6 +224,12 @@ struct local_set_expression {
   visit_subexpressions(auto&... args) {
     F(expression.get(), args...);
   }
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&& f) {
+    f(expression.get());
+  }
 };
 
 struct top_level_set_expression {
@@ -199,6 +246,12 @@ struct top_level_set_expression {
   void
   visit_subexpressions(auto&... args) {
     F(expression.get(), args...);
+  }
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&& f) {
+    f(expression.get());
   }
 };
 
@@ -227,6 +280,13 @@ struct lambda_expression {
     for (auto const& expr : body.expressions)
       F(expr.get(), args...);
   }
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&& f) {
+    for (auto const& expr : body.expressions)
+      f(expr.get());
+  }
 };
 
 struct if_expression {
@@ -250,6 +310,15 @@ struct if_expression {
     if (alternative)
       F(alternative.get(), args...);
   }
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&& f) {
+    f(test.get());
+    f(consequent.get());
+    if (alternative)
+      f(alternative.get());
+  }
 };
 
 struct make_vector_expression {
@@ -265,6 +334,13 @@ struct make_vector_expression {
   visit_subexpressions(auto&... args) {
     for (std::unique_ptr<expression> const& e : elements)
       F(e.get(), args...);
+  }
+
+  template <typename F>
+  void
+  visit_subexpressions_new(F&& f) {
+    for (std::unique_ptr<expression> const& e : elements)
+      f(e.get());
   }
 };
 
@@ -291,6 +367,43 @@ struct expression {
     : value{std::move(value)}
   { }
 };
+
+template <typename F>
+void
+traverse_postorder(expression* e, F&& f) {
+  enum class edge { in, out };
+
+  struct record {
+    expression* e;
+    enum edge   edge;
+  };
+
+  std::vector<record> stack{{e, edge::in}};
+  while (!stack.empty()) {
+    record& r = stack.back();
+
+    switch (r.edge) {
+    case edge::in:
+      r.edge = edge::out;
+      std::visit(
+        [&] (auto& expr) {
+          expr.visit_subexpressions_new(
+            [&] (expression* subexpr) {
+              stack.push_back({subexpr, edge::in});
+            }
+          );
+        },
+        r.e->value
+      );
+      break;
+
+    case edge::out:
+      f(r.e);
+      stack.pop_back();
+      break;
+    }
+  }
+}
 
 } // namespace insider
 

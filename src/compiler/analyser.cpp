@@ -1553,57 +1553,91 @@ recurse(expression* s, Args&... args) {
 }
 
 static void
-box_variable_references(expression* s, context& ctx,
-                        std::shared_ptr<variable> const& var) {
-  recurse<box_variable_references>(s, ctx, var);
+box_variable_reference(context& ctx,
+                       expression* expr,
+                       local_reference_expression& local_ref,
+                       std::shared_ptr<variable> const& var) {
+  if (local_ref.variable == var) {
+    std::shared_ptr<variable> var = std::move(local_ref.variable);
+    expr->value = make_application_expression(
+      ctx, "unbox",
+      make_expression<local_reference_expression>(std::move(var))
+    );
+  }
+}
 
-  if (auto* ref = std::get_if<local_reference_expression>(&s->value)) {
-    if (ref->variable == var) {
-      std::shared_ptr<variable> var = std::move(ref->variable);
-      s->value = make_application_expression(
-        ctx, "unbox",
-        make_expression<local_reference_expression>(std::move(var))
-      );
+static void
+box_variable_reference(context& ctx,
+                       expression* expr,
+                       local_set_expression& local_set,
+                       std::shared_ptr<variable> const& var) {
+  if (local_set.target == var) {
+    local_set_expression original_set = std::move(local_set);
+    expr->value = make_application_expression(
+      ctx, "box-set!",
+      make_expression<local_reference_expression>(original_set.target),
+      std::move(original_set.expression)
+    );
+  }
+}
+
+static void
+box_variable_reference(context&, expression*, auto&,
+                       std::shared_ptr<variable> const&) { }
+
+static void
+box_variable_references(context& ctx, expression* s,
+                        std::shared_ptr<variable> const& var) {
+  traverse_postorder(
+    s,
+    [&] (expression* expr) {
+      std::visit([&] (auto& e) { box_variable_reference(ctx, expr, e, var); },
+                 expr->value);
     }
-  } else if (auto* set = std::get_if<local_set_expression>(&s->value))
-    if (set->target == var) {
-      local_set_expression original_set = std::move(*set);
-      s->value = make_application_expression(
-        ctx, "box-set!",
-        make_expression<local_reference_expression>(original_set.target),
-        std::move(original_set.expression)
-      );
+  );
+}
+
+static void
+box_set_variable(context& ctx, expression* expr, let_expression& let) {
+  for (definition_pair_expression& def : let.definitions)
+    if (def.variable->is_set) {
+      box_variable_references(ctx, expr, def.variable);
+
+      std::unique_ptr<expression> orig_expr = std::move(def.expression);
+      def.expression = make_application(ctx, "box",
+                                        std::move(orig_expr));
     }
 }
 
 static void
-box_set_variables(expression* s, context& ctx) {
-  recurse<box_set_variables>(s, ctx);
+box_set_variable(context& ctx, expression* expr, lambda_expression& lambda) {
+  for (std::shared_ptr<variable> const& param : lambda.parameters)
+    if (param->is_set) {
+      box_variable_references(ctx, expr, param);
 
-  if (auto* let = std::get_if<let_expression>(&s->value)) {
-    for (definition_pair_expression& def : let->definitions)
-      if (def.variable->is_set) {
-        box_variable_references(s, ctx, def.variable);
+      auto ref = std::make_unique<expression>(
+        local_reference_expression{param}
+      );
+      auto box = make_application(ctx, "box", std::move(ref));
+      auto set = make_expression<local_set_expression>(param, std::move(box));
 
-        std::unique_ptr<expression> orig_expr = std::move(def.expression);
-        def.expression = make_application(ctx, "box",
-                                          std::move(orig_expr));
-      }
-  } else if (auto* lambda = std::get_if<lambda_expression>(&s->value)) {
-    for (std::shared_ptr<variable> const& param : lambda->parameters)
-      if (param->is_set) {
-        box_variable_references(s, ctx, param);
+      lambda.body.expressions.insert(lambda.body.expressions.begin(),
+                                     std::move(set));
+    }
+}
 
-        auto ref = std::make_unique<expression>(
-          local_reference_expression{param}
-        );
-        auto box = make_application(ctx, "box", std::move(ref));
-        auto set = make_expression<local_set_expression>(param, std::move(box));
+static void
+box_set_variable(context&, expression*, auto&) { }
 
-        lambda->body.expressions.insert(lambda->body.expressions.begin(),
-                                        std::move(set));
-      }
-  }
+static void
+box_set_variables(context& ctx, expression* s) {
+  traverse_postorder(
+    s,
+    [&] (expression* expr) {
+      std::visit([&] (auto& e) { box_set_variable(ctx, expr, e); },
+                 expr->value);
+    }
+  );
 }
 
 using variable_set = std::unordered_set<std::shared_ptr<variable>>;
@@ -1666,7 +1700,7 @@ analyse_free_variables(expression* s) {
 static std::unique_ptr<expression>
 analyse_internal(parsing_context& pc, ptr<syntax> stx) {
   std::unique_ptr<expression> result = parse(pc, stx);
-  box_set_variables(result.get(), pc.ctx);
+  box_set_variables(pc.ctx, result.get());
   analyse_free_variables(result.get());
   return result;
 }
