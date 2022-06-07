@@ -1329,129 +1329,189 @@ is_splice(std::unique_ptr<qq_template> const& tpl) {
 template <typename Traits>
 static std::unique_ptr<expression>
 process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl,
-                    bool force_unwrapped = false) {
-  if (auto* cp = std::get_if<list_pattern>(&tpl->value)) {
-    std::unique_ptr<expression> tail;
-    if (cp->last) {
-      if (is_splice(cp->last->cdr))
-        throw make_compile_error<syntax_error>(
-          tpl->stx.get(), "Invalid use of {}", Traits::splicing_form_name
-        );
+                    bool force_unwrapped = false);
 
-      if (is_splice(cp->last->car))
-        tail = make_application(
-          pc.ctx, "append",
-          process_qq_template<Traits>(pc, cp->last->car, true),
-          process_qq_template<Traits>(pc, cp->last->cdr, true)
-        );
+template <typename Traits>
+static std::unique_ptr<expression>
+make_qq_tail_expression(parsing_context& pc,
+                        std::unique_ptr<qq_template> const& tpl,
+                        list_pattern const& lp) {
+  std::unique_ptr<expression> tail;
+  if (lp.last) {
+    if (is_splice(lp.last->cdr))
+      throw make_compile_error<syntax_error>(
+        tpl->stx.get(), "Invalid use of {}", Traits::splicing_form_name
+      );
+
+    if (is_splice(lp.last->car))
+      tail = make_application(
+        pc.ctx, "append",
+        process_qq_template<Traits>(pc, lp.last->car, true),
+        process_qq_template<Traits>(pc, lp.last->cdr, true)
+      );
+    else
+      tail = make_application(
+        pc.ctx, "cons",
+        process_qq_template<Traits>(pc, lp.last->car),
+        process_qq_template<Traits>(pc, lp.last->cdr)
+      );
+  }
+  return tail;
+}
+
+template <typename Traits>
+static std::unique_ptr<expression>
+process_qq_pattern(parsing_context& pc,
+                   std::unique_ptr<qq_template> const& tpl,
+                   bool force_unwrapped,
+                   list_pattern const& lp) {
+  auto tail = make_qq_tail_expression<Traits>(pc, tpl, lp);
+
+  for (auto const& elem : lp.elems | std::views::reverse) {
+    if (tail) {
+      if (is_splice(elem))
+        tail = make_application(pc.ctx, "append",
+                                process_qq_template<Traits>(pc, elem, true),
+                                std::move(tail));
       else
         tail = make_application(
           pc.ctx, "cons",
-          process_qq_template<Traits>(pc, cp->last->car),
-          process_qq_template<Traits>(pc, cp->last->cdr)
+          process_qq_template<Traits>(pc, elem),
+          std::move(tail)
+        );
+    } else {
+      if (is_splice(elem))
+        tail = process_qq_template<Traits>(pc, elem, true);
+      else
+        tail = make_application(
+          pc.ctx, "cons",
+          process_qq_template<Traits>(pc, elem),
+          make_expression<literal_expression>(track(pc.ctx,
+                                                    pc.ctx.constants->null))
         );
     }
-
-    for (auto elem = cp->elems.rbegin(); elem != cp->elems.rend(); ++elem) {
-      if (tail) {
-        if (is_splice(*elem))
-          tail = make_application(pc.ctx, "append",
-                                  process_qq_template<Traits>(pc, *elem, true),
-                                  std::move(tail));
-        else
-          tail = make_application(
-            pc.ctx, "cons",
-            process_qq_template<Traits>(pc, *elem),
-            std::move(tail)
-          );
-      } else {
-        if (is_splice(*elem))
-          tail = process_qq_template<Traits>(pc, *elem, true);
-        else
-          tail = make_application(
-            pc.ctx, "cons",
-            process_qq_template<Traits>(pc, *elem),
-            make_expression<literal_expression>(track(pc.ctx,
-                                                      pc.ctx.constants->null))
-          );
-      }
-    }
-
-    assert(tail);
-    return Traits::wrap(pc.ctx, tpl->stx.get(), std::move(tail),
-                        force_unwrapped);
   }
-  else if (auto* vp = std::get_if<vector_pattern>(&tpl->value)) {
-    // If there are no unquote-splicings in the vector, we will simply construct
-    // the vector from its elements. If there are unquote-splicings, we will
-    // translate it to (vector-append v1 v2 ... (list->vector spliced elements)
-    // v3 v4 ...).
 
-    bool any_splices = false;
-    for (std::unique_ptr<qq_template> const& elem : vp->elems)
-      if (is_splice(elem)) {
-        any_splices = true;
-        break;
-      }
+  assert(tail);
+  return Traits::wrap(pc.ctx, tpl->stx.get(), std::move(tail),
+                      force_unwrapped);
+}
 
-    if (any_splices) {
-      auto result = make_expression<application_expression>(
-        make_internal_reference(pc.ctx, "vector-append")
-      );
-      auto& app = std::get<application_expression>(result->value);
-
-      std::vector<std::unique_ptr<expression>> chunk;
-      for (std::unique_ptr<qq_template> const& elem : vp->elems) {
-        if (is_splice(elem)) {
-          if (!chunk.empty()) {
-            app.arguments.push_back(
-              make_expression<make_vector_expression>(std::move(chunk))
-            );
-            chunk.clear();
-          }
-
-          app.arguments.push_back(
-            make_application(pc.ctx, "list->vector",
-                             process_qq_template<Traits>(pc, elem, true))
-          );
-        }
-        else
-          chunk.push_back(process_qq_template<Traits>(pc, elem, true));
-      }
-
-      if (!chunk.empty())
-        app.arguments.push_back(
+template <typename Traits>
+static std::unique_ptr<expression>
+process_qq_vector_pattern_with_splices(parsing_context& pc,
+                                       std::unique_ptr<qq_template> const& tpl,
+                                       bool force_unwrapped,
+                                       vector_pattern const& vp) {
+  std::vector<std::unique_ptr<expression>> args;
+  std::vector<std::unique_ptr<expression>> chunk;
+  for (std::unique_ptr<qq_template> const& elem : vp.elems) {
+    if (is_splice(elem)) {
+      if (!chunk.empty()) {
+        args.push_back(
           make_expression<make_vector_expression>(std::move(chunk))
         );
+        chunk.clear();
+      }
 
-      return Traits::wrap(pc.ctx, tpl->stx.get(), std::move(result),
-                          force_unwrapped);
-    }
-    else {
-      std::vector<std::unique_ptr<expression>> elements;
-      elements.reserve(vp->elems.size());
-
-      for (std::unique_ptr<qq_template> const& elem : vp->elems)
-        elements.push_back(process_qq_template<Traits>(pc, elem));
-
-      return Traits::wrap(
-        pc.ctx, tpl->stx.get(),
-        make_expression<make_vector_expression>(std::move(elements)),
-        force_unwrapped
+      args.push_back(
+        make_application(pc.ctx, "list->vector",
+                         process_qq_template<Traits>(pc, elem, true))
       );
     }
+    else
+      chunk.push_back(process_qq_template<Traits>(pc, elem, true));
   }
-  else if (auto* expr = std::get_if<unquote>(&tpl->value))
-    return Traits::wrap(
-      pc.ctx, tpl->stx.get(), parse(pc, expr->datum.get()), force_unwrapped
-    );
-  else if (auto* lit = std::get_if<literal>(&tpl->value))
-    return make_expression<literal_expression>(
-      track(pc.ctx, Traits::unwrap(pc.ctx, lit->value.get()))
+
+  if (!chunk.empty())
+    args.push_back(
+      make_expression<make_vector_expression>(std::move(chunk))
     );
 
-  assert(!"Forgot a pattern");
-  return {};
+  auto result = make_expression<application_expression>(
+    make_internal_reference(pc.ctx, "vector-append"),
+    std::move(args)
+  );
+  return Traits::wrap(pc.ctx, tpl->stx.get(), std::move(result),
+                      force_unwrapped);
+}
+
+template <typename Traits>
+static std::unique_ptr<expression>
+process_qq_vector_pattern_without_splices(
+  parsing_context& pc,
+  std::unique_ptr<qq_template> const& tpl,
+  bool force_unwrapped,
+  vector_pattern const& vp
+) {
+  std::vector<std::unique_ptr<expression>> elements;
+  elements.reserve(vp.elems.size());
+
+  for (std::unique_ptr<qq_template> const& elem : vp.elems)
+    elements.push_back(process_qq_template<Traits>(pc, elem));
+
+  return Traits::wrap(
+    pc.ctx, tpl->stx.get(),
+    make_expression<make_vector_expression>(std::move(elements)),
+    force_unwrapped
+  );
+}
+
+template <typename Traits>
+static std::unique_ptr<expression>
+process_qq_pattern(parsing_context& pc,
+                   std::unique_ptr<qq_template> const& tpl,
+                   bool force_unwrapped,
+                   vector_pattern const& vp) {
+  // If there are no unquote-splicings in the vector, we will simply construct
+  // the vector from its elements. If there are unquote-splicings, we will
+  // translate it to (vector-append v1 v2 ... (list->vector spliced elements)
+  // v3 v4 ...).
+
+  bool any_splices = std::ranges::any_of(vp.elems, is_splice);
+  if (any_splices)
+    return process_qq_vector_pattern_with_splices<Traits>(
+      pc, tpl, force_unwrapped, vp
+    );
+  else
+    return process_qq_vector_pattern_without_splices<Traits>(
+      pc, tpl, force_unwrapped, vp
+    );
+}
+
+template <typename Traits>
+static std::unique_ptr<expression>
+process_qq_pattern(parsing_context& pc,
+                   std::unique_ptr<qq_template> const& tpl,
+                   bool force_unwrapped,
+                   unquote const& expr) {
+  return Traits::wrap(
+    pc.ctx, tpl->stx.get(), parse(pc, expr.datum.get()), force_unwrapped
+  );
+}
+
+template <typename Traits>
+static std::unique_ptr<expression>
+process_qq_pattern(parsing_context& pc,
+                   std::unique_ptr<qq_template> const&,
+                   bool,
+                   literal const& lit) {
+  return make_expression<literal_expression>(
+    track(pc.ctx, Traits::unwrap(pc.ctx, lit.value.get()))
+  );
+}
+
+template <typename Traits>
+static std::unique_ptr<expression>
+process_qq_template(parsing_context& pc,
+                    std::unique_ptr<qq_template> const& tpl,
+                    bool force_unwrapped) {
+  return std::visit(
+    [&] (auto const& pattern) {
+      return process_qq_pattern<Traits>(pc, tpl, force_unwrapped, pattern);
+    },
+    tpl->value
+  );
 }
 
 static std::unique_ptr<expression>
