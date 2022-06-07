@@ -1224,96 +1224,125 @@ syntax_traits::unwrap(context&, ptr<syntax> stx) {
 template <typename Traits>
 static std::unique_ptr<qq_template>
 parse_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
+                  unsigned quote_level);
+
+template <typename Traits>
+static std::tuple<unsigned, bool>
+find_nested_level(parsing_context& pc, unsigned quote_level, ptr<pair> p) {
+  if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
+    if (Traits::is_unquote(pc.ctx, form))
+      return {quote_level - 1, false};
+    else if (Traits::is_unquote_splicing(pc.ctx, form))
+      return {quote_level - 1, true};
+    else if (Traits::is_quasiquote(pc.ctx, form))
+      return {quote_level + 1, false};
+  }
+
+  return {quote_level, false};
+}
+
+template <typename Traits>
+static bool
+is_improper_qq_template(parsing_context& pc, ptr<>& elem) {
+  // An improper list or a list of the form (x . ,y), which is the same as
+  // (x unquote y) which is a proper list, but we don't want to consider
+  // it being proper here.
+
+  return (!semisyntax_is<pair>(syntax_cdr(pc.ctx, elem))
+          && !is<null_type>(syntax_cdr(pc.ctx, elem)))
+         || Traits::is_qq_form(pc, syntax_cdr(pc.ctx, elem));
+}
+
+template <typename Traits>
+static std::unique_ptr<qq_template>
+parse_list_qq_template_body(parsing_context& pc, tracked_ptr<syntax> const& stx,
+                            unsigned nested_level) {
+  bool all_literal = true;
+  list_pattern result;
+
+  ptr<> elem = stx.get();
+  while (!semisyntax_is<null_type>(elem)) {
+    if (is_improper_qq_template<Traits>(pc, elem))
+      break;
+
+    result.elems.push_back(
+      parse_qq_template<Traits>(pc,
+                                track(pc.ctx, syntax_car(pc.ctx, elem)),
+                                nested_level)
+    );
+    elem = syntax_cdr(pc.ctx, elem);
+
+    if (!std::holds_alternative<literal>(result.elems.back()->value))
+      all_literal = false;
+  }
+
+  if (auto pair = semisyntax_match<insider::pair>(pc.ctx, elem)) {
+    result.last = cons_pattern{
+      parse_qq_template<Traits>(pc,
+                                track(pc.ctx, expect<syntax>(car(pair))),
+                                nested_level),
+      parse_qq_template<Traits>(pc,
+                                track(pc.ctx, expect<syntax>(cdr(pair))),
+                                nested_level)
+    };
+    all_literal = all_literal
+                  && std::holds_alternative<literal>(result.last->car->value)
+                  && std::holds_alternative<literal>(result.last->cdr->value);
+  }
+
+  if (all_literal)
+    return std::make_unique<qq_template>(literal{stx}, stx);
+  else
+    return std::make_unique<qq_template>(std::move(result), stx);
+}
+
+template <typename Traits>
+static std::unique_ptr<qq_template>
+parse_list_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
+                       unsigned quote_level, ptr<pair> p) {
+  auto [nested_level, splicing]
+    = find_nested_level<Traits>(pc, quote_level, p);
+  if (nested_level == 0) {
+    auto unquote_stx = track(pc.ctx, syntax_cadr(pc.ctx, stx.get()));
+    return std::make_unique<qq_template>(unquote{unquote_stx, splicing},
+                                         unquote_stx);
+  } else
+    return parse_list_qq_template_body<Traits>(pc, stx, nested_level);
+}
+
+template <typename Traits>
+static std::unique_ptr<qq_template>
+parse_vector_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
+                         unsigned quote_level, ptr <vector> v) {
+  std::vector<std::unique_ptr<qq_template>> templates;
+  templates.reserve(v->size());
+  bool all_literal = true;
+
+  for (std::size_t i = 0; i < v->size(); ++i) {
+    templates.push_back(
+      parse_qq_template<Traits>(pc,
+                                track(pc.ctx, expect<syntax>(v->ref(i))),
+                                quote_level)
+    );
+    if (!std::holds_alternative<literal>(templates.back()->value))
+      all_literal = false;
+  }
+
+  if (all_literal)
+    return std::make_unique<qq_template>(literal{stx}, stx);
+  else
+    return std::make_unique<qq_template>(vector_pattern{std::move(templates)},
+                                         stx);
+}
+
+template <typename Traits>
+static std::unique_ptr<qq_template>
+parse_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
                   unsigned quote_level) {
-  if (auto p = syntax_match<pair>(pc.ctx, stx.get())) {
-    unsigned nested_level = quote_level;
-
-    if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
-      if (Traits::is_unquote(pc.ctx, form)) {
-        auto unquote_stx = track(pc.ctx, syntax_cadr(pc.ctx, stx.get()));
-        if (quote_level == 0)
-          return std::make_unique<qq_template>(unquote{unquote_stx, false},
-                                               unquote_stx);
-        else
-          nested_level = quote_level - 1;
-      }
-      else if (Traits::is_unquote_splicing(pc.ctx, form)) {
-        auto unquote_stx = track(pc.ctx, syntax_cadr(pc.ctx, stx.get()));
-        if (quote_level == 0)
-          return std::make_unique<qq_template>(unquote{unquote_stx, true},
-                                               unquote_stx);
-        else
-          nested_level = quote_level - 1;
-      }
-      else if (Traits::is_quasiquote(pc.ctx, form))
-        nested_level = quote_level + 1;
-    }
-
-    bool all_literal = true;
-    list_pattern result;
-
-    ptr<> elem = stx.get();
-    while (!semisyntax_is<null_type>(elem)) {
-      auto current = semisyntax_expect<pair>(pc.ctx, elem);
-      if ((!semisyntax_is<pair>(syntax_cdr(pc.ctx, elem))
-           && !is<null_type>(cdr(current)))
-          || Traits::is_qq_form(pc, syntax_cdr(pc.ctx, elem)))
-        // An improper list or a list of the form (x . ,y), which is the same as
-        // (x unquote y) which is a proper list, but we don't want to consider
-        // it being proper here.
-        break;
-
-      result.elems.push_back(
-        parse_qq_template<Traits>(pc,
-                                  track(pc.ctx, syntax_car(pc.ctx, elem)),
-                                  nested_level)
-      );
-      elem = syntax_cdr(pc.ctx, elem);
-
-      if (!std::holds_alternative<literal>(result.elems.back()->value))
-        all_literal = false;
-    }
-
-    if (auto pair = semisyntax_match<insider::pair>(pc.ctx, elem)) {
-      result.last = cons_pattern{
-        parse_qq_template<Traits>(pc,
-                                  track(pc.ctx, expect<syntax>(car(pair))),
-                                  nested_level),
-        parse_qq_template<Traits>(pc,
-                                  track(pc.ctx, expect<syntax>(cdr(pair))),
-                                  nested_level)
-      };
-      all_literal = all_literal
-                    && std::holds_alternative<literal>(result.last->car->value)
-                    && std::holds_alternative<literal>(result.last->cdr->value);
-    }
-
-    if (all_literal)
-      return std::make_unique<qq_template>(literal{stx}, stx);
-    else
-      return std::make_unique<qq_template>(std::move(result), stx);
-  }
-  else if (auto v = syntax_match<vector>(pc.ctx, stx.get())) {
-    std::vector<std::unique_ptr<qq_template>> templates;
-    templates.reserve(v->size());
-    bool all_literal = true;
-
-    for (std::size_t i = 0; i < v->size(); ++i) {
-      templates.push_back(
-        parse_qq_template<Traits>(pc,
-                                  track(pc.ctx, expect<syntax>(v->ref(i))),
-                                  quote_level)
-      );
-      if (!std::holds_alternative<literal>(templates.back()->value))
-        all_literal = false;
-    }
-
-    if (all_literal)
-      return std::make_unique<qq_template>(literal{stx}, stx);
-    else
-      return std::make_unique<qq_template>(vector_pattern{std::move(templates)},
-                                           stx);
-  }
+  if (auto p = syntax_match<pair>(pc.ctx, stx.get()))
+    return parse_list_qq_template<Traits>(pc, stx, quote_level, p);
+  else if (auto v = syntax_match<vector>(pc.ctx, stx.get()))
+    return parse_vector_qq_template<Traits>(pc, stx, quote_level, v);
   else
     return std::make_unique<qq_template>(literal{stx}, stx);
 }
@@ -1520,7 +1549,7 @@ parse_quasiquote(parsing_context& pc, ptr<syntax> stx) {
     pc,
     parse_qq_template<quote_traits>(pc,
                                     track(pc.ctx, syntax_cadr(pc.ctx, stx)),
-                                    0)
+                                    1)
   );
 }
 
@@ -1530,7 +1559,7 @@ parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
     pc,
     parse_qq_template<syntax_traits>(pc,
                                      track(pc.ctx, syntax_cadr(pc.ctx, stx)),
-                                     0)
+                                     1)
   );
 }
 
