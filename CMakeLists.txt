@@ -87,6 +87,7 @@ set(test_sources
         test/test_compiler.cpp
         test/test_control.cpp
         test/test_define_procedure.cpp
+        test/test_depth_first_traversor.cpp
         test/test_gc.cpp
         test/test_interpreter.cpp
         test/test_io.cpp

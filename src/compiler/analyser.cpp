@@ -13,6 +13,7 @@
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
+#include "util/depth_first_search.hpp"
 #include "util/list_iterator.hpp"
 #include "vm/vm.hpp"
 
@@ -1543,15 +1544,6 @@ parse(parsing_context& pc, ptr<syntax> s) {
     );
 }
 
-template <auto F, typename... Args>
-void
-recurse(expression* s, Args&... args) {
-  std::visit(
-    [&] (auto& expr) { expr.template visit_subexpressions<F>(args...); },
-    s->value
-  );
-}
-
 static void
 box_variable_reference(context& ctx,
                        expression* expr,
@@ -1642,59 +1634,95 @@ box_set_variables(context& ctx, expression* s) {
 
 using variable_set = std::unordered_set<std::shared_ptr<variable>>;
 
-// For each lambda find the list the free variables it uses.
-static void
-analyse_free_variables(expression* s, variable_set& bound_vars,
-                       variable_set& free_vars) {
-  if (auto* lambda = std::get_if<lambda_expression>(&s->value)) {
-    variable_set inner_bound;
-    for (auto const& param : lambda->parameters)
-      inner_bound.emplace(param);
+namespace {
+  class free_variable_visitor : public dfs_visitor {
+  public:
+    std::vector<variable_set> bound_vars_stack{variable_set{}};
+    std::vector<variable_set> free_vars_stack{variable_set{}};
 
-    variable_set inner_free;
-    recurse<analyse_free_variables>(s, inner_bound, inner_free);
-
-    for (auto const& v : inner_free) {
-      lambda->free_variables.push_back(v);
-
-      // Lambda expression's free variables count as variable references in the
-      // enclosing procedure.
-
-      if (!bound_vars.count(v))
-        free_vars.emplace(v);
+    void
+    push_children(auto& expr, dfs_stack<expression*>& stack) {
+      expr.visit_subexpressions([&] (expression* child) {
+        stack.push_back(child);
+      });
     }
-  }
-  else if (auto* let = std::get_if<let_expression>(&s->value)) {
-    for (definition_pair_expression const& dp : let->definitions)
-      bound_vars.emplace(dp.variable);
 
-    recurse<analyse_free_variables>(s, bound_vars, free_vars);
+    void
+    enter(lambda_expression& lambda) {
+      free_vars_stack.emplace_back();
+      bound_vars_stack.emplace_back();
+      for (auto const& param : lambda.parameters)
+        bound_vars_stack.back().emplace(param);
+    }
 
-    for (definition_pair_expression const& dp : let->definitions)
-      bound_vars.erase(dp.variable);
-  }
-  else if (auto* ref = std::get_if<local_reference_expression>(&s->value)) {
-    if (!bound_vars.count(ref->variable))
-      free_vars.emplace(ref->variable);
-  }
-  else if (auto* set = std::get_if<local_set_expression>(&s->value)) {
-    assert(bound_vars.count(set->target)); // Local set!s are boxed, so this
-                                           // shouldn't happen.
-    (void) set;
-    recurse<analyse_free_variables>(s, bound_vars, free_vars);
-  }
-  else
-    recurse<analyse_free_variables>(s, bound_vars, free_vars);
+    void
+    leave(lambda_expression& lambda) {
+      auto inner_free = std::move(free_vars_stack.back());
+      free_vars_stack.pop_back();
+      bound_vars_stack.pop_back();
+
+      for (auto const& v : inner_free) {
+        lambda.free_variables.push_back(v);
+
+        // Lambda expression's free variables count as variable references in
+        // the enclosing procedure.
+
+        if (!bound_vars_stack.back().count(v))
+          free_vars_stack.back().emplace(v);
+      }
+    }
+
+    void
+    enter(let_expression& let) {
+      for (definition_pair_expression const& dp : let.definitions)
+        bound_vars_stack.back().emplace(dp.variable);
+    }
+
+    void
+    leave(let_expression& let) {
+      for (definition_pair_expression const& dp : let.definitions)
+        bound_vars_stack.back().erase(dp.variable);
+    }
+
+    void
+    enter(local_reference_expression& ref) {
+      if (!bound_vars_stack.back().count(ref.variable))
+        free_vars_stack.back().emplace(ref.variable);
+    }
+
+    void
+    enter([[maybe_unused]] local_set_expression& set) {
+      // Local set!s are boxed, so this shouldn't happen.
+      assert(bound_vars_stack.back().count(set.target));
+    }
+
+    void
+    enter(auto&&) { }
+
+    void
+    enter(expression* e, dfs_stack<expression*>& stack) {
+      std::visit([&] (auto&& expr) { enter(expr); }, e->value);
+      std::visit([&] (auto& expr) { push_children(expr, stack); },
+                 e->value);
+    }
+
+    void
+    leave(auto&&) { }
+
+    void
+    leave(expression* e) {
+      std::visit([&] (auto& expr) { leave(expr); }, e->value);
+    }
+  };
 }
 
 static void
-analyse_free_variables(expression* s) {
-  variable_set bound;
-  variable_set free;
+analyse_free_variables(expression* e) {
+  free_variable_visitor v;
+  depth_first_search(e, v);
 
-  analyse_free_variables(s, bound, free);
-
-  assert(free.empty()); // Top-level can't have any free variables.
+  // Top-level can't have any free variables
+  assert(v.free_vars_stack.back().empty());
 }
 
 static std::unique_ptr<expression>

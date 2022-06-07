@@ -44,13 +44,9 @@ struct literal_expression {
   explicit
   literal_expression(tracked_ptr<> const& value) : value{value} { }
 
-  template <auto>
-  void
-  visit_subexpressions(auto&...) { }
-
   template <typename F>
   void
-  visit_subexpressions_new(F&&) { }
+  visit_subexpressions(F&&) { }
 };
 
 struct local_reference_expression {
@@ -61,13 +57,9 @@ struct local_reference_expression {
     : variable{std::move(var)}
   { }
 
-  template <auto>
-  void
-  visit_subexpressions(auto&...) { }
-
   template <typename F>
   void
-  visit_subexpressions_new(F&&) { }
+  visit_subexpressions(F&&) { }
 };
 
 struct top_level_reference_expression {
@@ -79,13 +71,9 @@ struct top_level_reference_expression {
     , name{std::move(name)}
   { }
 
-  template <auto>
-  void
-  visit_subexpressions(auto&...) { }
-
   template <typename F>
   void
-  visit_subexpressions_new(F&&) { }
+  visit_subexpressions(F&&) { }
 };
 
 struct unknown_reference_expression {
@@ -96,13 +84,9 @@ struct unknown_reference_expression {
     : name{std::move(name)}
   { }
 
-  template <auto>
-  void
-  visit_subexpressions(auto&...) { }
-
   template <typename F>
   void
-  visit_subexpressions_new(F&&) { }
+  visit_subexpressions(F&&) { }
 };
 
 struct application_expression {
@@ -123,18 +107,9 @@ struct application_expression {
     (arguments.push_back(std::move(ts)), ...);
   }
 
-  template <auto F>
-  void
-  visit_subexpressions(auto&... args) {
-    F(target.get(), args...);
-    for (auto const& arg : arguments)
-      F(arg.get(), args...);
-  }
-
-
   template <typename F>
   void
-  visit_subexpressions_new(F&& f) {
+  visit_subexpressions(F&& f) {
     f(target.get());
     for (auto const& arg : arguments)
       f(arg.get());
@@ -151,16 +126,9 @@ struct sequence_expression {
     : expressions{std::move(exprs)}
   { }
 
-  template <auto F>
-  void
-  visit_subexpressions(auto&... args) {
-    for (std::unique_ptr<expression> const& e : expressions)
-      F(e.get(), args...);
-  }
-
   template <typename F>
   void
-  visit_subexpressions_new(F&& f) {
+  visit_subexpressions(F&& f) {
     for (std::unique_ptr<expression> const& e : expressions)
       f(e.get());
   }
@@ -190,18 +158,9 @@ struct let_expression {
     , body{std::move(body)}
   { }
 
-  template <auto F>
-  void
-  visit_subexpressions(auto&... args) {
-    for (auto const& def : definitions)
-      F(def.expression.get(), args...);
-    for (auto const& expr : body.expressions)
-      F(expr.get(), args...);
-  }
-
   template <typename F>
   void
-  visit_subexpressions_new(F&& f) {
+  visit_subexpressions(F&& f) {
     for (auto const& def : definitions)
       f(def.expression.get());
     for (auto const& expr : body.expressions)
@@ -219,15 +178,9 @@ struct local_set_expression {
     , expression{std::move(expr)}
   { }
 
-  template <auto F>
-  void
-  visit_subexpressions(auto&... args) {
-    F(expression.get(), args...);
-  }
-
   template <typename F>
   void
-  visit_subexpressions_new(F&& f) {
+  visit_subexpressions(F&& f) {
     f(expression.get());
   }
 };
@@ -242,15 +195,9 @@ struct top_level_set_expression {
     , expression{std::move(expr)}
   { }
 
-  template <auto F>
-  void
-  visit_subexpressions(auto&... args) {
-    F(expression.get(), args...);
-  }
-
   template <typename F>
   void
-  visit_subexpressions_new(F&& f) {
+  visit_subexpressions(F&& f) {
     f(expression.get());
   }
 };
@@ -274,16 +221,9 @@ struct lambda_expression {
     , free_variables{std::move(free_variables)}
   { }
 
-  template <auto F>
-  void
-  visit_subexpressions(auto&... args) {
-    for (auto const& expr : body.expressions)
-      F(expr.get(), args...);
-  }
-
   template <typename F>
   void
-  visit_subexpressions_new(F&& f) {
+  visit_subexpressions(F&& f) {
     for (auto const& expr : body.expressions)
       f(expr.get());
   }
@@ -302,18 +242,9 @@ struct if_expression {
     , alternative{std::move(alternative)}
   { }
 
-  template <auto F>
-  void
-  visit_subexpressions(auto&... args) {
-    F(test.get(), args...);
-    F(consequent.get(), args...);
-    if (alternative)
-      F(alternative.get(), args...);
-  }
-
   template <typename F>
   void
-  visit_subexpressions_new(F&& f) {
+  visit_subexpressions(F&& f) {
     f(test.get());
     f(consequent.get());
     if (alternative)
@@ -329,16 +260,9 @@ struct make_vector_expression {
     : elements{std::move(elements)}
   { }
 
-  template <auto F>
-  void
-  visit_subexpressions(auto&... args) {
-    for (std::unique_ptr<expression> const& e : elements)
-      F(e.get(), args...);
-  }
-
   template <typename F>
   void
-  visit_subexpressions_new(F&& f) {
+  visit_subexpressions(F&& f) {
     for (std::unique_ptr<expression> const& e : elements)
       f(e.get());
   }
@@ -387,7 +311,7 @@ traverse_postorder(expression* e, F&& f) {
       r.edge = edge::out;
       std::visit(
         [&] (auto& expr) {
-          expr.visit_subexpressions_new(
+          expr.visit_subexpressions(
             [&] (expression* subexpr) {
               stack.push_back({subexpr, edge::in});
             }
