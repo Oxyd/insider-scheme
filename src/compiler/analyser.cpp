@@ -1635,20 +1635,18 @@ box_set_variables(context& ctx, expression* s) {
 using variable_set = std::unordered_set<std::shared_ptr<variable>>;
 
 namespace {
-  class free_variable_visitor : public dfs_visitor {
+  class free_variable_visitor
+    : public expression_visitor<free_variable_visitor>
+  {
   public:
     std::vector<variable_set> bound_vars_stack{variable_set{}};
     std::vector<variable_set> free_vars_stack{variable_set{}};
 
-    void
-    push_children(auto& expr, dfs_stack<expression*>& stack) {
-      expr.visit_subexpressions([&] (expression* child) {
-        stack.push_back(child);
-      });
-    }
+    using expression_visitor::enter_expression;
+    using expression_visitor::leave_expression;
 
     void
-    enter(lambda_expression& lambda) {
+    enter_expression(lambda_expression& lambda) {
       free_vars_stack.emplace_back();
       bound_vars_stack.emplace_back();
       for (auto const& param : lambda.parameters)
@@ -1656,7 +1654,7 @@ namespace {
     }
 
     void
-    leave(lambda_expression& lambda) {
+    leave_expression(lambda_expression& lambda) {
       auto inner_free = std::move(free_vars_stack.back());
       free_vars_stack.pop_back();
       bound_vars_stack.pop_back();
@@ -1673,45 +1671,27 @@ namespace {
     }
 
     void
-    enter(let_expression& let) {
+    enter_expression(let_expression& let) {
       for (definition_pair_expression const& dp : let.definitions)
         bound_vars_stack.back().emplace(dp.variable);
     }
 
     void
-    leave(let_expression& let) {
+    leave_expression(let_expression& let) {
       for (definition_pair_expression const& dp : let.definitions)
         bound_vars_stack.back().erase(dp.variable);
     }
 
     void
-    enter(local_reference_expression& ref) {
+    enter_expression(local_reference_expression& ref) {
       if (!bound_vars_stack.back().count(ref.variable))
         free_vars_stack.back().emplace(ref.variable);
     }
 
     void
-    enter([[maybe_unused]] local_set_expression& set) {
+    enter_expression([[maybe_unused]] local_set_expression& set) {
       // Local set!s are boxed, so this shouldn't happen.
       assert(bound_vars_stack.back().count(set.target));
-    }
-
-    void
-    enter(auto&&) { }
-
-    void
-    enter(expression* e, dfs_stack<expression*>& stack) {
-      std::visit([&] (auto&& expr) { enter(expr); }, e->value);
-      std::visit([&] (auto& expr) { push_children(expr, stack); },
-                 e->value);
-    }
-
-    void
-    leave(auto&&) { }
-
-    void
-    leave(expression* e) {
-      std::visit([&] (auto& expr) { leave(expr); }, e->value);
     }
   };
 }

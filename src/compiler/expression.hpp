@@ -5,6 +5,7 @@
 #include "compiler/source_file_origin.hpp"
 #include "memory/free_store.hpp"
 #include "memory/root_provider.hpp"
+#include "util/depth_first_search.hpp"
 #include "vm/bytecode.hpp"
 
 #include <memory>
@@ -292,41 +293,61 @@ struct expression {
   { }
 };
 
+inline void
+push_children(auto& expr, dfs_stack<expression*>& stack) {
+  expr.visit_subexpressions([&] (expression* child) {
+    stack.push_back(child);
+  });
+}
+
+template <typename Derived>
+class expression_visitor : public dfs_visitor {
+public:
+  void
+  enter_expression(auto&&) { }
+
+  void
+  enter(expression* e, dfs_stack<expression*>& stack) {
+    std::visit([&] (auto& expr) { self().enter_expression(expr); }, e->value);
+    std::visit([&] (auto& expr) { push_children(expr, stack); },
+               e->value);
+  }
+
+  void
+  leave_expression(auto&&) { }
+
+  void
+  leave(expression* e) {
+    std::visit([&] (auto& expr) { self().leave_expression(expr); }, e->value);
+  }
+
+private:
+  Derived&
+  self() { return *static_cast<Derived*>(this); }
+};
+
 template <typename F>
 void
 traverse_postorder(expression* e, F&& f) {
-  enum class edge { in, out };
+  struct visitor : dfs_visitor {
+    F& f;
 
-  struct record {
-    expression* e;
-    enum edge   edge;
-  };
+    explicit
+    visitor(F& f) : f{f} { }
 
-  std::vector<record> stack{{e, edge::in}};
-  while (!stack.empty()) {
-    record& r = stack.back();
-
-    switch (r.edge) {
-    case edge::in:
-      r.edge = edge::out;
-      std::visit(
-        [&] (auto& expr) {
-          expr.visit_subexpressions(
-            [&] (expression* subexpr) {
-              stack.push_back({subexpr, edge::in});
-            }
-          );
-        },
-        r.e->value
-      );
-      break;
-
-    case edge::out:
-      f(r.e);
-      stack.pop_back();
-      break;
+    void
+    enter(expression* e, dfs_stack<expression*>& stack) {
+      std::visit([&] (auto& expr) { push_children(expr, stack); },
+                 e->value);
     }
-  }
+
+    void
+    leave(expression* expr) {
+      f(expr);
+    }
+  } v{f};
+
+  depth_first_search(e, v);
 }
 
 } // namespace insider
