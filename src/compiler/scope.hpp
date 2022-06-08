@@ -1,6 +1,7 @@
 #ifndef INSIDER_COMPILER_SCOPE_HPP
 #define INSIDER_COMPILER_SCOPE_HPP
 
+#include "compiler/variable.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
 

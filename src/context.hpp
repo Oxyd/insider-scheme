@@ -8,6 +8,7 @@
 #include "object.hpp"
 #include "ptr.hpp"
 #include "runtime/compare.hpp"
+#include "vm/bytecode.hpp"
 #include "vm/operand.hpp"
 
 #include <map>

@@ -5,6 +5,7 @@
 #include "compiler/module_name.hpp"
 #include "compiler/module_specifier.hpp"
 #include "compiler/source_code_provider.hpp"
+#include "compiler/variable.hpp"
 #include "context.hpp"
 #include "io/read.hpp"
 #include "memory/tracked_ptr.hpp"

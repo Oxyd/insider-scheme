@@ -3,6 +3,7 @@
 
 #include "compiler/module_name.hpp"
 #include "compiler/source_file_origin.hpp"
+#include "compiler/variable.hpp"
 #include "memory/free_store.hpp"
 #include "memory/root_provider.hpp"
 #include "util/depth_first_search.hpp"
@@ -18,24 +19,6 @@ namespace insider {
 
 class syntax;
 class transformer;
-
-// The binding between a name and its value. For top-level values, this directly
-// contains the index of the value. Otherwise, it's just an object representing
-// the binding itself and the compiler will use these to translate them to local
-// registers.
-struct variable {
-  std::string            name;
-  bool                   is_set = false;
-  std::optional<operand> global;
-
-  explicit
-  variable(std::string n) : name{std::move(n)} { }
-
-  variable(std::string n, operand index)
-    : name{std::move(n)}
-    , global{index}
-  { }
-};
 
 struct expression;
 
@@ -292,6 +275,35 @@ struct expression {
     : value{std::move(value)}
   { }
 };
+
+std::unique_ptr<expression>
+make_internal_reference(context& ctx, std::string name);
+
+template <typename T, typename... Args>
+std::unique_ptr<expression>
+make_expression(Args&&... args) {
+  return std::make_unique<expression>(
+    expression{T(std::forward<Args>(args)...)}
+  );
+}
+
+template <typename... Args>
+static application_expression
+make_application_expression(context& ctx, std::string const& name,
+                            Args&&... args) {
+  return application_expression{
+    make_internal_reference(ctx, name),
+    std::forward<Args>(args)...
+  };
+}
+
+template <typename... Args>
+static std::unique_ptr<expression>
+make_application(context& ctx, std::string const& name, Args&&... args) {
+  return std::make_unique<expression>(make_application_expression(
+    ctx, name, std::forward<Args>(args)...
+  ));
+}
 
 inline void
 push_children(auto& expr, dfs_stack<expression*>& stack) {

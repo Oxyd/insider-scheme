@@ -2,6 +2,7 @@
 #define INSIDER_MODULE_RESOLVER_HPP
 
 #include "compiler/module_name.hpp"
+#include "compiler/module_specifier.hpp"
 #include "memory/root_provider.hpp"
 #include "module.hpp"
 

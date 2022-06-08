@@ -15,11 +15,14 @@ namespace insider {
 
 class module_;
 class module_specifier;
+class parsing_context;
 class textual_input_port;
 
 // The analyser expects a Scheme datum (or a list of data) that represents a
 // program, and turns it into an internal representation, defined in
-// expression.hpp.
+// expression.hpp. The actual parsing is performed by the parser/expander,
+// this module is responsible for additional transformations such as boxing
+// set! variables.
 
 // Analyse a datum within a given module. The module provides the top-level
 // bindings visible to S-expression. The module is modified by adding a new
@@ -49,6 +52,12 @@ read_library_name(context&, ptr<textual_input_port>);
 std::unique_ptr<expression>
 analyse_module(context&, tracked_ptr<module_> const&, module_specifier const&,
                bool main_module = false);
+
+std::unique_ptr<expression>
+analyse_transformer(parsing_context& pc, ptr<syntax> stx);
+
+std::unique_ptr<expression>
+analyse_meta(parsing_context& pc, ptr<syntax> stx);
 
 } // namespace insider
 

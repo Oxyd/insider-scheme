@@ -1,5 +1,6 @@
 #include "numeric.hpp"
 
+#include "compiler/variable.hpp"
 #include "io/port.hpp"
 #include "io/write.hpp"
 #include "runtime/syntax.hpp"

@@ -46,8 +46,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(scheme_sources
         src/compiler/analyser.cpp
         src/compiler/compiler.cpp
+        src/compiler/expression.cpp
         src/compiler/module_name.cpp
         src/compiler/module_specifier.cpp
+        src/compiler/parser_expander.cpp
         src/compiler/scope.cpp
         src/compiler/source_code_provider.cpp
         src/compiler/source_location.cpp

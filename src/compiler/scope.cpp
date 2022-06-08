@@ -1,5 +1,6 @@
 #include "scope.hpp"
 
+#include "compiler/variable.hpp"
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/syntax.hpp"
