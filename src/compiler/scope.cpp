@@ -206,9 +206,8 @@ namespace {
 }
 
 static auto
-candidate_bindings(ptr<scope> s, ptr<symbol> name, scope_set const& scopes)
-{
-  return *s | std::views::filter([=] (scope::binding const& b) {
+candidate_bindings(ptr<scope> s, ptr<symbol> name, scope_set const& scopes) {
+  return *s | std::views::filter([name, &scopes] (scope::binding const& b) {
     return b.id->get_symbol() == name
            && scope_sets_subseteq(b.id->scopes(), scopes);
   });
