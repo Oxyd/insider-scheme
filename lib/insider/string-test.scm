@@ -151,6 +151,12 @@
     (test-equal "baz" (string-take-right "foobarbaz" 3))
     (test-equal "foobar" (string-drop-right "foobarbaz" 3))
 
+    (test-equal "unchanged"
+                (let* ((s (string-copy "unchanged"))
+                       (copy (substring s 0 (string-length s))))
+                  (string-set! copy 0 #\X)
+                  s))
+
     (test-equal "  325" (string-pad "325" 5))
     (test-equal "71325" (string-pad "71325" 5))
     (test-equal "71325" (string-pad "8871325" 5))

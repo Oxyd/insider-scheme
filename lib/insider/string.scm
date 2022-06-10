@@ -264,7 +264,8 @@
       s
       (string-copy/cursors s start end)))
 
-(define substring substring/cursors)
+(define (substring s start end)
+  (string-copy/cursors s start end))
 
 (define (string-copy!/forward to at from start end)
   (let ((at (->byte-index to at))
