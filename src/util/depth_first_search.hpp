@@ -66,10 +66,11 @@ depth_first_search(Node n, Visitor& v) {
 }
 
 template <typename Visitor, typename Node>
-void
+Visitor
 depth_first_search(Node n) {
   Visitor v;
   depth_first_search(n, v);
+  return v;
 }
 
 } // namespace insider

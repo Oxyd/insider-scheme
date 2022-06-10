@@ -28,19 +28,24 @@ struct scheme_fixture : testing::Test {
   }
 
   insider::ptr<>
-  eval(std::string const& expr) {
+  eval(insider::ptr<insider::syntax> expr_stx) {
     auto m = insider::make_tracked<insider::module_>(ctx, ctx);
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     insider::null_source_code_provider provider;
-    insider::ptr<> expr_stx = read_syntax(ctx, expr);
-    if (expr_stx == ctx.constants->eof)
-      throw std::runtime_error{"EOF"};
     auto f = compile_expression(ctx,
                                 insider::assume<insider::syntax>(expr_stx),
                                 m,
                                 {&provider, "<unit test expression>"});
     return call_with_continuation_barrier(ctx, f, {}).get();
+  }
+
+  insider::ptr<>
+  eval(std::string const& expr) {
+    auto expr_stx = read_syntax(ctx, expr);
+    if (expr_stx == ctx.constants->eof)
+      throw std::runtime_error{"EOF"};
+    return eval(insider::assume<insider::syntax>(expr_stx));
   }
 
   insider::ptr<>
