@@ -2,6 +2,7 @@
 
 #include "context.hpp"
 #include "memory/free_store.hpp"
+#include "runtime/basic_types.hpp"
 #include "runtime/integer.hpp"
 #include "util/integer_cast.hpp"
 
@@ -50,6 +51,11 @@ void
 call_stack::push_frame(ptr<> callable, std::size_t locals_size,
                        integer::value_type previous_pc,
                        ptr<stack_frame_extra_data> extra) {
+  assert(!callable || is_callable(callable));
+  assert(current_base_ == -1
+         || !data_[current_base_ + callable_offset]
+         || is_callable(data_[current_base_ + callable_offset]));
+
   auto new_base = static_cast<frame_index>(size_);
   ensure_additional_capacity(stack_frame_header_size + locals_size);
   size_ += stack_frame_header_size
@@ -60,6 +66,20 @@ call_stack::push_frame(ptr<> callable, std::size_t locals_size,
   data_[new_base + callable_offset] = callable;
   data_[new_base + extra_data_offset] = extra;
   current_base_ = new_base;
+}
+
+void
+call_stack::pop_frame() {
+  frame_index old_base = current_base_;
+  current_base_
+    = assume<integer>(data_[current_base_ + previous_base_offset]).value();
+  assert(current_base_ == -1
+         || old_base - current_base_
+            >= static_cast<frame_index>(stack_frame_header_size));
+  assert(current_base_ == -1
+         || !data_[current_base_ + callable_offset]
+         || is_callable(data_[current_base_ + callable_offset]));
+  size_ = old_base;
 }
 
 void

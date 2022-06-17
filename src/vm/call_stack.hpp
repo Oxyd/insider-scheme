@@ -68,15 +68,7 @@ public:
              ptr<stack_frame_extra_data> extra = {});
 
   void
-  pop_frame() {
-    frame_index old_base = current_base_;
-    current_base_ =
-      assume<integer>(data_[current_base_ + previous_base_offset]).value();
-    assert(current_base_ == -1
-           || old_base - current_base_
-              >= static_cast<frame_index>(stack_frame_header_size));
-    size_ = old_base;
-  }
+  pop_frame();
 
   void
   resize_current_frame(std::size_t new_size);
