@@ -256,6 +256,50 @@ TEST_F(compiler, compile_closure) {
     )"
   );
   EXPECT_EQ(expect<integer>(result2).value(), 10);
+
+  ptr<> result3 = eval(R"(
+    (let ((f (lambda (lst)
+               (define go
+                 (lambda (accum lst)
+                   (if (eq? lst '())
+                       accum
+                       (go (+ accum (car lst)) (cdr lst)))))
+               (go 0 lst))))
+      (f '(1 2 3 4)))
+  )");
+  EXPECT_EQ(expect<integer>(result3).value(), 10);
+}
+
+TEST_F(compiler, free_variables_are_captured_in_the_right_order) {
+  ptr<> result = eval(R"(
+    ((let ((capture-1 1) (capture-2 2))
+       (lambda ()
+         (cons capture-1 capture-2))))
+  )");
+  EXPECT_EQ(expect<integer>(car(expect<pair>(result))).value(), 1);
+  EXPECT_EQ(expect<integer>(cdr(expect<pair>(result))).value(), 2);
+}
+
+TEST_F(compiler, compile_call_to_captured_procedure) {
+  ptr<> result = eval_module(R"(
+    (import (insider internal))
+
+    (define call
+      (lambda (f)
+        (f)))
+
+    (define identity
+      (lambda (value)
+        (define go
+          (lambda (val)
+            val))
+        (call
+         (lambda ()
+           (go value)))))
+
+    (identity 24)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 24);
 }
 
 TEST_F(compiler, compile_set) {

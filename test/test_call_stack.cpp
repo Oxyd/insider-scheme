@@ -159,37 +159,3 @@ TEST_F(call_stack_fixture, capture_middle_part_of_stack_and_append_to_empty_stac
   EXPECT_EQ(expect<integer>(new_cs->callable(*it++)).value(), 2);
   EXPECT_EQ(it, call_stack_iterator());
 }
-
-TEST_F(call_stack_fixture, move_frame_up) {
-  cs->push_frame(integer_to_ptr(1), 0, 0);
-  cs->push_frame(integer_to_ptr(2), 2, 0);
-  current_frame_local(cs.get(), 0) = integer_to_ptr(1);
-  current_frame_local(cs.get(), 1) = integer_to_ptr(2);
-
-  cs->push_frame(integer_to_ptr(3), 3, 0);
-  current_frame_local(cs.get(), 0) = integer_to_ptr(10);
-  current_frame_local(cs.get(), 1) = integer_to_ptr(20);
-  current_frame_local(cs.get(), 2) = integer_to_ptr(30);
-
-  EXPECT_EQ(cs->callable(current_frame_parent(cs.get())), integer_to_ptr(2));
-
-  cs->move_current_frame_up();
-
-  EXPECT_EQ(cs->callable(current_frame_parent(cs.get())), integer_to_ptr(1));
-  EXPECT_EQ(current_frame_local(cs.get(), 0), integer_to_ptr(10));
-  EXPECT_EQ(current_frame_local(cs.get(), 1), integer_to_ptr(20));
-  EXPECT_EQ(current_frame_local(cs.get(), 2), integer_to_ptr(30));
-
-  EXPECT_EQ(current_frame_callable(cs.get()), integer_to_ptr(2));
-}
-
-TEST_F(call_stack_fixture, locals_can_be_accessed_through_span) {
-  cs->push_frame({}, 2, 0);
-  current_frame_local(cs.get(), 0) = integer_to_ptr(1);
-  current_frame_local(cs.get(), 1) = integer_to_ptr(2);
-
-  object_span span = cs->current_locals_span();
-  EXPECT_EQ(span.size(), 2);
-  EXPECT_EQ(span[0], integer_to_ptr(1));
-  EXPECT_EQ(span[1], integer_to_ptr(2));
-}

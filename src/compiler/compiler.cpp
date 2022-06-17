@@ -652,11 +652,12 @@ compile_top_level_set(context& ctx, procedure_context& proc,
 }
 
 static ptr<procedure>
-make_procedure(context& ctx, procedure_context const& pc, unsigned min_args,
+make_procedure(context& ctx, procedure_context const& pc,
+               unsigned min_args,
                bool has_rest, std::optional<std::string> name) {
   return make_procedure(ctx, pc.bytecode_stack.back(),
-                        pc.registers.locals_used(), min_args, has_rest,
-                        std::move(name));
+                        pc.registers.locals_used(),
+                        min_args, has_rest, std::move(name));
 }
 
 static void
@@ -670,10 +671,20 @@ compile_lambda(context& ctx, procedure_context& parent,
       free, proc.registers.allocate_local()
     });
 
-  for (auto const& param : stx.parameters)
+  for (std::size_t i = 0; i < stx.parameters.size(); ++i) {
+    auto const& param = stx.parameters[i];
     args_scope.push_back(variable_bindings::binding{
-      param, proc.registers.allocate_local()
+      param,
+      shared_register{
+        proc.registers,
+        static_cast<operand>(
+          static_cast<operand>(i)
+          - static_cast<operand>(stx.parameters.size())
+          - static_cast<operand>(call_stack::stack_frame_header_size)
+        )
+      }
     });
+  }
 
   variable_bindings::unique_scope us
     = proc.bindings.push_scope(std::move(args_scope));
@@ -694,11 +705,20 @@ compile_lambda(context& ctx, procedure_context& parent,
   if (!stx.free_variables.empty()) {
     shared_register p_reg
       = compile_static_reference_to_register(parent, ctx.intern_static(p));
-    instruction make_closure{opcode::make_closure, *p_reg, *result.get(parent)};
-    for (std::shared_ptr<variable> const& var : stx.free_variables)
-      make_closure.operands.push_back(*parent.bindings.lookup(var));
 
-    encode_instruction(parent.bytecode_stack.back(), make_closure);
+    for (std::shared_ptr<variable> const& var : stx.free_variables)
+      encode_instruction(
+        parent.bytecode_stack.back(),
+        instruction{opcode::push, *parent.bindings.lookup(var)}
+      );
+
+    encode_instruction(
+      parent.bytecode_stack.back(),
+      instruction{opcode::make_closure,
+                  *p_reg,
+                  static_cast<operand>(stx.free_variables.size()),
+                  *result.get(parent)}
+    );
   }
   else
     compile_static_reference(parent, ctx.intern_static(p), result);
@@ -820,6 +840,12 @@ compile_application(context& ctx, procedure_context& proc,
   operand f;
   shared_register f_reg;
 
+  for (auto const& arg : stx.arguments) {
+    shared_register reg = compile_expression_to_register(ctx, proc, *arg, false);
+    encode_instruction(proc.bytecode_stack.back(),
+                       instruction{opcode::push, *reg});
+  }
+
   if (auto* global
       = std::get_if<top_level_reference_expression>(&stx.target->value)) {
     f = global->location;
@@ -832,20 +858,13 @@ compile_application(context& ctx, procedure_context& proc,
     f = *f_reg;
   }
 
-  std::vector<shared_register> arg_registers;
-  for (auto const& arg : stx.arguments)
-    arg_registers.push_back(compile_expression_to_register(ctx, proc, *arg,
-                                                           false));
-
-  instruction instr{oc, f};
+  encode_instruction(proc.bytecode_stack.back(),
+                     instruction{oc, f,
+                                 static_cast<operand>(stx.arguments.size())});
 
   if (!tail)
-    instr.operands.push_back(*result.get(proc));
-
-  for (shared_register const& arg : arg_registers)
-    instr.operands.push_back(*arg);
-
-  encode_instruction(proc.bytecode_stack.back(), instr);
+    encode_instruction(proc.bytecode_stack.back(),
+                       instruction{opcode::pop, *result.get(proc)});
 }
 
 static void
@@ -920,11 +939,16 @@ compile_make_vector(context& ctx, procedure_context& proc,
   for (std::unique_ptr<expression> const& e : stx.elements)
     exprs.push_back(compile_expression_to_register(ctx, proc, *e, false));
 
-  instruction make_vec{opcode::make_vector, *result.get(proc)};
   for (shared_register const& elem : exprs)
-    make_vec.operands.push_back(*elem);
+    encode_instruction(proc.bytecode_stack.back(),
+                       instruction{opcode::push, *elem});
 
-  encode_instruction(proc.bytecode_stack.back(), make_vec);
+  encode_instruction(
+    proc.bytecode_stack.back(),
+    instruction{opcode::make_vector,
+                static_cast<operand>(exprs.size()),
+                *result.get(proc)}
+  );
 }
 
 // Translate an expression and return the register where the result is stored.

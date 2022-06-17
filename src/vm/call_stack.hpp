@@ -6,6 +6,7 @@
 #include "ptr.hpp"
 #include "runtime/integer.hpp"
 #include "util/object_span.hpp"
+#include "vm/operand.hpp"
 
 #include <functional>
 #include <memory>
@@ -44,6 +45,7 @@ public:
 class call_stack : public composite_object<call_stack> {
 public:
   static constexpr char const* scheme_name = "insider::call_stack";
+  static constexpr integer::value_type stack_frame_header_size = 4;
 
   using frame_index = integer::value_type;
 
@@ -62,7 +64,8 @@ public:
 
   void
   push_frame(ptr<> callable, std::size_t locals_size,
-             integer::value_type previous_pc);
+             integer::value_type previous_pc,
+             ptr<stack_frame_extra_data> extra = {});
 
   void
   pop_frame() {
@@ -79,7 +82,8 @@ public:
   resize_current_frame(std::size_t new_size);
 
   void
-  move_current_frame_up();
+  move_tail_call_arguments(std::size_t new_args_size,
+                           std::size_t old_args_size);
 
   frame_index
   current_frame_index() const { return current_base_; }
@@ -100,14 +104,13 @@ public:
   }
 
   ptr<>&
-  local(frame_index frame, std::size_t local) {
+  local(frame_index frame, operand local) {
     return data_[frame + stack_frame_header_size + local];
   }
 
   object_span
-  current_locals_span() {
-    std::size_t locals_start = current_base_ + stack_frame_header_size;
-    return {&data_[locals_start], size_ - locals_start};
+  call_args_span(integer::value_type num_args) {
+    return {&data_[current_base_ - num_args], &data_[current_base_]};
   }
 
   frame_index
@@ -137,6 +140,9 @@ public:
   bool
   empty() const { return current_base_ == -1; }
 
+  void
+  clear() { current_base_ = -1; size_ = 0; }
+
   frame_span
   frames(frame_index begin, frame_index end) const;
 
@@ -154,7 +160,6 @@ private:
   static constexpr integer::value_type previous_pc_offset = 1;
   static constexpr integer::value_type callable_offset = 2;
   static constexpr integer::value_type extra_data_offset = 3;
-  static constexpr integer::value_type stack_frame_header_size = 4;
   static constexpr std::size_t alloc_size = 4096;
 
   std::unique_ptr<ptr<>[]> data_;
@@ -213,6 +218,14 @@ current_frame_set_previous_pc(ptr<call_stack> stack, integer::value_type pc) {
   stack->set_previous_pc(stack->current_frame_index(), pc);
 }
 
+inline void
+pop_n(ptr<call_stack> stack, std::size_t n) {
+  while (n > 0) {
+    stack->pop();
+    --n;
+  }
+}
+
 class frame_reference {
 public:
   frame_reference() = default;
@@ -223,7 +236,7 @@ public:
   { }
 
   ptr<>&
-  local(std::size_t i) const { return stack_->local(idx_, i); }
+  local(operand i) const { return stack_->local(idx_, i); }
 
   ptr<>&
   callable() const { return stack_->callable(idx_); }
@@ -252,6 +265,11 @@ public:
 
   explicit
   operator bool () const { return idx_ != -1; }
+
+  bool
+  operator == (frame_reference other) const {
+    return stack_ == other.stack_ && idx_ == other.idx_;
+  }
 
 private:
   ptr<call_stack>         stack_;

@@ -37,10 +37,12 @@ enum class opcode : std::uint16_t {
   less_or_equal,
   greater_or_equal,
   set,              // set <source> <destination>
-  call,             // call <procedure> <return value destination> <arguments ...>
+  push,             // push <value>
+  pop,              // pop <destination>
+  call,             // call <procedure> <number of arguments>
   call_top_level,   // same as call, but <procedure> is the index of a top-level
   call_static,      //                   -- "" --                      static
-  tail_call,        // tail-call <procedure> <arguments ...>
+  tail_call,        // tail-call <procedure> <number of arguments>
   tail_call_top_level,
   tail_call_static,
   ret,              // ret <return value>
@@ -48,14 +50,14 @@ enum class opcode : std::uint16_t {
   jump_back,        // jump-back <offset>
   jump_unless,      // jump-unless <register> <offset>
   jump_back_unless, // jump-back-unless <register> <offset>
-  make_closure,     // make-closure <procedure> <destination> <free variables ...>
+  make_closure,     // make-closure <procedure> <num free> <destination>
   box,              // box <what> <destination> -- make a box containing what -- 20
   unbox,            // unbox <what> <destination> -- extract contained value from a box
   box_set,          // box-set <box> <value> -- replace box's contained value with a new one
   cons,             // cons <a> <b> <destination> -- make a cons pair (a . b)
   car,              // car <x> <destination>
   cdr,              // cdr <x> <destination>
-  make_vector,      // make-vector <destination> <elements ...>
+  make_vector,      // make-vector <num elements> <destination>
   vector_set,       // vector-set! <vector> <index> <value>
   vector_ref,       // vector-ref <vector> <index> <destination>
   type,             // type <value> <destination>
@@ -141,18 +143,22 @@ instructions{
              opcode::greater_or_equal,    std::size_t{3}, false},
   std::tuple{"set!",
              opcode::set,                 std::size_t{2}, false},
+  std::tuple{"push",
+             opcode::push,                std::size_t{1}, false},
+  std::tuple{"pop",
+             opcode::pop,                 std::size_t{1}, false},
   std::tuple{"call",
-             opcode::call,                std::size_t{2}, true},
+             opcode::call,                std::size_t{2}, false},
   std::tuple{"call-top-level",
-             opcode::call_top_level,      std::size_t{2}, true},
+             opcode::call_top_level,      std::size_t{2}, false},
   std::tuple{"call-static",
-             opcode::call_static,         std::size_t{2}, true},
+             opcode::call_static,         std::size_t{2}, false},
   std::tuple{"tail-call",
-             opcode::tail_call,           std::size_t{1}, true},
+             opcode::tail_call,           std::size_t{2}, false},
   std::tuple{"tail-call-top-level",
-             opcode::tail_call_top_level, std::size_t{1}, true},
+             opcode::tail_call_top_level, std::size_t{2}, false},
   std::tuple{"tail-call-static",
-             opcode::tail_call_static,    std::size_t{1}, true},
+             opcode::tail_call_static,    std::size_t{2}, false},
   std::tuple{"ret",
              opcode::ret,                 std::size_t{1}, false},
   std::tuple{"jump",
@@ -164,7 +170,7 @@ instructions{
   std::tuple{"jump-back-unless",
              opcode::jump_back_unless,    std::size_t{2}, false},
   std::tuple{"make-closure",
-             opcode::make_closure,        std::size_t{2}, true},
+             opcode::make_closure,        std::size_t{3}, false},
   std::tuple{"box",
              opcode::box,                 std::size_t{2}, false},
   std::tuple{"unbox",
@@ -178,7 +184,7 @@ instructions{
   std::tuple{"cdr",
              opcode::cdr,                 std::size_t{2}, false},
   std::tuple{"make-vector",
-             opcode::make_vector,         std::size_t{1}, true},
+             opcode::make_vector,         std::size_t{2}, false},
   std::tuple{"vector-set!",
              opcode::vector_set,          std::size_t{3}, false},
   std::tuple{"vector-ref",

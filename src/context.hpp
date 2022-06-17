@@ -143,7 +143,8 @@ public:
 
   ptr<>
   get_static(operand i) const {
-    assert(i < statics_.size());
+    assert(i >= 0);
+    assert(static_cast<std::size_t>(i) < statics_.size());
     return statics_[i];
   }
 

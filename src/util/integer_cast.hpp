@@ -1,0 +1,28 @@
+#ifndef INSIDER_UTIL_INTEGER_CAST_HPP
+#define INSIDER_UTIL_INTEGER_CAST_HPP
+
+#include <cassert>
+#include <concepts>
+#include <limits>
+
+namespace insider {
+
+template <std::unsigned_integral To, std::signed_integral From>
+To
+to_unsigned(From from) {
+  assert(from >= 0);
+  if constexpr (sizeof(From) > sizeof(To))
+    assert(from <= std::numeric_limits<To>::max());
+  return static_cast<To>(from);
+}
+
+template <std::signed_integral To, std::unsigned_integral From>
+To
+to_signed(From from) {
+  assert(from <= std::numeric_limits<To>::max());
+  return static_cast<To>(from);
+}
+
+} // namespace insider
+
+#endif

@@ -149,7 +149,7 @@ context::intern_static(ptr<> const& x) {
 
 ptr<>
 context::get_static_checked(operand i) const {
-  if (i >= statics_.size())
+  if (i < 0 || static_cast<std::size_t>(i) >= statics_.size())
     throw std::runtime_error{fmt::format("Nonexistent static object {}", i)};
 
   return statics_[i];
@@ -157,7 +157,7 @@ context::get_static_checked(operand i) const {
 
 ptr<>
 context::get_top_level_checked(operand i) const {
-  if (i >= top_level_objects_.size())
+  if (i < 0 || static_cast<std::size_t>(i) >= top_level_objects_.size())
     throw std::runtime_error{fmt::format("Nonexistent top-level object {}", i)};
 
   return top_level_objects_[i];
@@ -165,7 +165,8 @@ context::get_top_level_checked(operand i) const {
 
 void
 context::set_top_level(operand i, ptr<> value) {
-  assert(i < top_level_objects_.size());
+  assert(i >= 0);
+  assert(static_cast<std::size_t>(i) < top_level_objects_.size());
   top_level_objects_[i] = value;
 }
 
@@ -178,7 +179,7 @@ context::add_top_level(ptr<> x, std::string name) {
 
 std::string
 context::get_top_level_name(operand i) const {
-  if (i < top_level_binding_names_.size())
+  if (i >= 0 && static_cast<std::size_t>(i) < top_level_binding_names_.size())
     return top_level_binding_names_[i];
   else
     throw make_error("Invalid global operand {}", i);

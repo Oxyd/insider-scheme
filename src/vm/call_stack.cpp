@@ -3,7 +3,9 @@
 #include "context.hpp"
 #include "memory/free_store.hpp"
 #include "runtime/integer.hpp"
+#include "util/integer_cast.hpp"
 
+#include <algorithm>
 #include <ranges>
 
 namespace insider {
@@ -46,7 +48,8 @@ call_stack::operator = (call_stack const& other) {
 
 void
 call_stack::push_frame(ptr<> callable, std::size_t locals_size,
-                       integer::value_type previous_pc) {
+                       integer::value_type previous_pc,
+                       ptr<stack_frame_extra_data> extra) {
   auto new_base = static_cast<frame_index>(size_);
   ensure_additional_capacity(stack_frame_header_size + locals_size);
   size_ += stack_frame_header_size
@@ -55,7 +58,7 @@ call_stack::push_frame(ptr<> callable, std::size_t locals_size,
   data_[new_base + previous_base_offset] = integer_to_ptr(current_base_);
   data_[new_base + previous_pc_offset] = integer_to_ptr(previous_pc);
   data_[new_base + callable_offset] = callable;
-  data_[new_base + extra_data_offset] = {};
+  data_[new_base + extra_data_offset] = extra;
   current_base_ = new_base;
 }
 
@@ -68,16 +71,23 @@ call_stack::resize_current_frame(std::size_t new_size) {
 }
 
 void
-call_stack::move_current_frame_up() {
-  frame_index old_base = current_base_;
-  frame_index new_base = parent(old_base);
-  frame_index current_frame_size = size_ - old_base;
+call_stack::move_tail_call_arguments(std::size_t new_args_size,
+                                     std::size_t old_args_size) {
+  frame_index parent_base = parent(current_frame_index());
 
-  for (frame_index i = stack_frame_header_size; i < current_frame_size; ++i)
-    data_[new_base + i] = data_[old_base + i];
+  integer::value_type dest_begin
+    = current_frame_index() - to_signed<integer::value_type>(old_args_size);
+  integer::value_type dest_end
+    = dest_begin + to_signed<integer::value_type>(new_args_size);
+  integer::value_type src_begin
+    = size_ - to_signed<integer::value_type>(new_args_size);
+  integer::value_type src_end = size_;
 
-  current_base_ = new_base;
-  size_ = current_base_ + current_frame_size;
+  std::copy(data_.get() + src_begin, data_.get() + src_end,
+            data_.get() + dest_begin);
+
+  current_base_ = parent_base;
+  size_ = dest_end;
 }
 
 auto
@@ -157,15 +167,15 @@ call_stack::fix_base_offsets(frame_span const& frames) {
 
   frame_index current = frames.last_frame_base + base_delta;
   while (current > old_end) {
-    frame_index new_offset = expect<integer>(
-      data_[current + previous_base_offset]
-    ).value() + base_delta;
+    frame_index old_offset
+      = expect<integer>(data_[current + previous_base_offset]).value();
+    frame_index new_offset = old_offset > -1 ?  old_offset + base_delta : -1;
     data_[current + previous_base_offset] = integer_to_ptr(new_offset);
     current = new_offset;
   }
 
-  assert(current == old_end);
-  data_[current + previous_base_offset] = integer_to_ptr(current_base_);
+  if (current != -1)
+    data_[current + previous_base_offset] = integer_to_ptr(current_base_);
   current_base_ = frames.last_frame_base + base_delta;
 }
 
