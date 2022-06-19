@@ -5,6 +5,7 @@
 #include "util/define_procedure.hpp"
 #include "util/from_scheme.hpp"
 #include "util/to_scheme.hpp"
+#include "vm/execution_state.hpp"
 
 using namespace insider;
 
@@ -976,4 +977,72 @@ TEST_F(control, can_get_parameter_value_with_no_scheme_frame) {
   auto tag = create_parameter_tag(ctx, integer_to_ptr(0));
   ptr<> result = find_parameter_value(ctx, tag);
   EXPECT_EQ(expect<integer>(result).value(), 0);
+}
+
+static std::optional<std::size_t> expected_stack_size;
+
+static void
+check_stack_size(context& ctx) {
+  std::size_t current_size = ctx.current_execution->stack->size();
+  if (expected_stack_size)
+    EXPECT_EQ(current_size, *expected_stack_size);
+  else
+    expected_stack_size = current_size;
+}
+
+TEST_F(control, continuation_jump_doesnt_grow_stack_unnecessarily) {
+  define_procedure<check_stack_size>(ctx, "check-stack-size!",
+                                     ctx.internal_module());
+
+  eval_module(R"(
+    (import (insider internal))
+
+    (define stack #void)
+    (define go? #t)
+
+    (define g
+      (lambda ()
+        (capture-stack
+          (lambda (s)
+            (set! stack s)))
+        (check-stack-size!)))
+
+    (g)
+    (if go?
+        (begin
+         (set! go? #f)
+         (replace-stack! stack #t)))
+  )");
+}
+
+TEST_F(control, can_access_arguments_after_continuation_jump) {
+  ptr<> result = eval_module(R"(
+    (import (insider internal))
+
+    (define result '())
+    (define stack #void)
+
+    (define f
+      (lambda (x y)
+        (let ((go? #t))
+          (capture-stack
+            (lambda (s)
+              (set! stack s)))
+          (set! result (cons (+ x y) result))
+          (if go?
+              (begin
+                (set! go? #f)
+                (replace-stack! stack #t))
+              result))))
+
+    (define g
+      (lambda (x y)
+        ;; Force a frame with extra data
+        (call-with-continuation-barrier #f #f
+          (lambda ()
+            (f x y)))))
+
+    (g 2 3)
+  )");
+  EXPECT_TRUE(equal(result, read("(5 5)")));
 }

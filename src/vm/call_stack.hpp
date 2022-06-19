@@ -132,6 +132,9 @@ public:
   bool
   empty() const { return current_base_ == -1; }
 
+  std::size_t
+  size() const { return static_cast<std::size_t>(size_); }
+
   void
   clear() { current_base_ = -1; size_ = 0; }
 

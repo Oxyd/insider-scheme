@@ -496,8 +496,12 @@ static std::size_t
 actual_args_size(frame_reference frame) {
   if (auto proc = match<procedure>(frame.callable()))
     return actual_args_size(proc);
-  else
+  else if (is<native_procedure>(frame.callable()))
     return assume<integer>(native_args_count_field(frame)).value();
+  else {
+    assert(is_dummy_frame(frame));
+    return 0;
+  }
 }
 
 static frame_reference
@@ -1487,16 +1491,40 @@ get_before_thunk(frame_reference f) {
 static void
 unwind_stack(execution_state& state, integer::value_type end) {
   while (state.stack->current_frame_index() != end) {
-    if (ptr<> thunk = get_after_thunk(current_frame(state.stack)))
+    frame_reference frame = current_frame(state.stack);
+    if (ptr<> thunk = get_after_thunk(frame))
       call_with_continuation_barrier(state.ctx, thunk, {});
 
+    std::size_t args_size = actual_args_size(frame);
     state.stack->pop_frame();
+    pop_n(state.stack, args_size);
+  }
+}
+
+static void
+push_first_segments_arguments(ptr<call_stack> destination_stack,
+                              ptr<call_stack> source_stack,
+                              stack_segment const& segment) {
+  if (segment.begin > 0) {
+    frame_reference frame{source_stack, segment.begin};
+    auto num_args = to_signed<integer::value_type>(actual_args_size(frame));
+    assert(num_args <= segment.begin);
+
+    for (integer::value_type i = 0; i < num_args; ++i) {
+      auto arg = static_cast<operand>(i - num_args
+                                      - call_stack::stack_frame_header_size);
+      destination_stack->push(frame.local(arg));
+    }
   }
 }
 
 static void
 rewind_stack(execution_state& state, stack_segments const& new_segments,
              std::size_t common_prefix) {
+  assert(!new_segments.segments.empty());
+  push_first_segments_arguments(state.stack, new_segments.stack,
+                                new_segments.segments[common_prefix]);
+
   for (std::size_t i = common_prefix; i < new_segments.segments.size(); ++i) {
     state.stack->append_frames(
       new_segments.stack->frames(new_segments.segments[i].begin,
