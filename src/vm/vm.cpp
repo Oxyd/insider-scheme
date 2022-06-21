@@ -1008,7 +1008,7 @@ run(execution_state& state) {
   gc_disabler no_gc{state.ctx.store};
   tracked_ptr<> result{state.ctx.store};
 
-  if (state.stack->empty())
+  if (!current_frame(state.stack).parent())
     // Only create an execution_action if this is the top-level execution.
     a.emplace(state);
 
