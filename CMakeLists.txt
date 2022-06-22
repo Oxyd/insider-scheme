@@ -71,6 +71,7 @@ set(scheme_sources
         src/runtime/error.cpp
         src/runtime/internal_module.cpp
         src/runtime/numeric.cpp
+        src/runtime/parameter_map.cpp
         src/runtime/records.cpp
         src/runtime/string.cpp
         src/runtime/syntax.cpp

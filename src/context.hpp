@@ -17,29 +17,6 @@
 
 namespace insider {
 
-class parameter_tag;
-
-// Flat map of parameter_tag's to values.
-class parameter_map : public composite_object<parameter_map> {
-public:
-  static constexpr char const* scheme_name = "insider::parameter_map";
-
-  ptr<>
-  find_value(ptr<parameter_tag>);
-
-  void
-  set_value(free_store&, ptr<parameter_tag>, ptr<>);
-
-  void
-  add_value(ptr<parameter_tag>, ptr<>);
-
-  void
-  visit_members(member_visitor const&);
-
-private:
-  std::vector<std::tuple<ptr<parameter_tag>, ptr<>>> values_;
-};
-
 class boolean;
 class context;
 class core_form_type;
@@ -47,6 +24,7 @@ class eof_type;
 class integer;
 class module_;
 class null_type;
+class parameter_map;
 class procedure;
 class scope;
 class symbol;

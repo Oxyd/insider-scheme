@@ -4,6 +4,7 @@
 #include "io/port.hpp"
 #include "io/read.hpp"
 #include "runtime/action.hpp"
+#include "runtime/parameter_map.hpp"
 #include "runtime/string.hpp"
 #include "runtime/syntax.hpp"
 #include "vm/vm.hpp"

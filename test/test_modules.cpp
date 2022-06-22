@@ -1,5 +1,6 @@
 #include "scheme_fixture.hpp"
 
+#include "runtime/parameter_map.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"

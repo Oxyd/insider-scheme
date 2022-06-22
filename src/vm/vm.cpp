@@ -11,6 +11,7 @@
 #include "runtime/error.hpp"
 #include "runtime/integer.hpp"
 #include "runtime/numeric.hpp"
+#include "runtime/parameter_map.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
 #include "util/integer_cast.hpp"
