@@ -3,7 +3,6 @@
 
 #include "compiler/scope.hpp"
 #include "memory/free_store.hpp"
-#include "module.hpp"
 #include "module_resolver.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
