@@ -124,18 +124,14 @@ box_set_variables(context& ctx, expression* s) {
 using variable_set = std::unordered_set<std::shared_ptr<variable>>;
 
 namespace {
-  class free_variable_visitor
-    : public expression_visitor<free_variable_visitor>
+  class free_variable_visitor : public expression_visitor
   {
   public:
     std::vector<variable_set> bound_vars_stack{variable_set{}};
     std::vector<variable_set> free_vars_stack{variable_set{}};
 
-    using expression_visitor::enter_expression;
-    using expression_visitor::leave_expression;
-
     void
-    enter_expression(lambda_expression& lambda) {
+    enter_expression(lambda_expression& lambda) override {
       free_vars_stack.emplace_back();
       bound_vars_stack.emplace_back();
       for (auto const& param : lambda.parameters)
@@ -143,7 +139,7 @@ namespace {
     }
 
     void
-    leave_expression(lambda_expression& lambda) {
+    leave_expression(lambda_expression& lambda) override {
       auto inner_free = std::move(free_vars_stack.back());
       free_vars_stack.pop_back();
       bound_vars_stack.pop_back();
@@ -160,25 +156,25 @@ namespace {
     }
 
     void
-    enter_expression(let_expression& let) {
+    enter_expression(let_expression& let) override {
       for (definition_pair_expression const& dp : let.definitions)
         bound_vars_stack.back().emplace(dp.variable);
     }
 
     void
-    leave_expression(let_expression& let) {
+    leave_expression(let_expression& let) override {
       for (definition_pair_expression const& dp : let.definitions)
         bound_vars_stack.back().erase(dp.variable);
     }
 
     void
-    enter_expression(local_reference_expression& ref) {
+    enter_expression(local_reference_expression& ref) override {
       if (!bound_vars_stack.back().count(ref.variable))
         free_vars_stack.back().emplace(ref.variable);
     }
 
     void
-    enter_expression([[maybe_unused]] local_set_expression& set) {
+    enter_expression([[maybe_unused]] local_set_expression& set) override {
       // Local set!s are boxed, so this shouldn't happen.
       assert(bound_vars_stack.back().count(set.target));
     }

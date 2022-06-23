@@ -295,32 +295,88 @@ push_children(auto& expr, dfs_stack<expression*>& stack) {
   });
 }
 
-template <typename Derived>
 class expression_visitor : public dfs_visitor {
 public:
   void
-  enter_expression(auto&&) { }
-
-  void
   enter(expression* e, dfs_stack<expression*>& stack) {
     std::visit([&] (auto& expr) {
-                 self().enter_expression(expr);
+                 enter_expression(expr);
                  push_children(expr, stack);
                },
                e->value);
   }
 
   void
-  leave_expression(auto&&) { }
-
-  void
   leave(expression* e) {
-    std::visit([&] (auto& expr) { self().leave_expression(expr); }, e->value);
+    std::visit([&] (auto& expr) { leave_expression(expr); }, e->value);
   }
 
 private:
-  Derived&
-  self() { return *static_cast<Derived*>(this); }
+  virtual void
+  enter_expression(literal_expression&) { }
+
+  virtual void
+  leave_expression(literal_expression&) { }
+
+  virtual void
+  enter_expression(local_reference_expression&) { }
+
+  virtual void
+  leave_expression(local_reference_expression&) { }
+
+  virtual void
+  enter_expression(top_level_reference_expression&) { }
+
+  virtual void
+  leave_expression(top_level_reference_expression&) { }
+
+  virtual void
+  enter_expression(unknown_reference_expression&) { }
+
+  virtual void
+  leave_expression(unknown_reference_expression&) { }
+
+  virtual void
+  enter_expression(application_expression&) { }
+
+  virtual void
+  leave_expression(application_expression&) { }
+
+  virtual void
+  enter_expression(let_expression&) { }
+
+  virtual void
+  leave_expression(let_expression&) { }
+
+  virtual void
+  enter_expression(local_set_expression&) { }
+
+  virtual void
+  leave_expression(local_set_expression&) { }
+
+  virtual void
+  enter_expression(top_level_set_expression&) { }
+
+  virtual void
+  leave_expression(top_level_set_expression&) { }
+
+  virtual void
+  enter_expression(lambda_expression&) { }
+
+  virtual void
+  leave_expression(lambda_expression&) { }
+
+  virtual void
+  enter_expression(if_expression&) { }
+
+  virtual void
+  leave_expression(if_expression&) { }
+
+  virtual void
+  enter_expression(sequence_expression&) { }
+
+  virtual void
+  leave_expression(sequence_expression&) { }
 };
 
 template <typename F>
