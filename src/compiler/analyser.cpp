@@ -1,34 +1,25 @@
 #include "analyser.hpp"
 
 #include "compiler/ast_transforms.hpp"
-#include "compiler/compiler.hpp"
 #include "compiler/expression.hpp"
 #include "compiler/module_specifier.hpp"
 #include "compiler/parser_expander.hpp"
 #include "compiler/source_code_provider.hpp"
 #include "compiler/syntax_list.hpp"
-#include "compiler/variable.hpp"
 #include "io/read.hpp"
-#include "io/write.hpp"
 #include "memory/tracked_ptr.hpp"
-#include "runtime/action.hpp"
 #include "runtime/integer.hpp"
+#include "runtime/string.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
-#include "util/define_procedure.hpp"
-#include "util/depth_first_search.hpp"
 #include "util/list_iterator.hpp"
 #include "vm/vm.hpp"
 
 #include <fmt/format.h>
 
-#include <algorithm>
-#include <iterator>
 #include <memory>
 #include <optional>
-#include <ranges>
-#include <set>
-#include <unordered_map>
+#include <string>
 #include <utility>
 #include <vector>
 
