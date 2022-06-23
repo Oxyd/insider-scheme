@@ -45,6 +45,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(scheme_sources
         src/compiler/analyser.cpp
+        src/compiler/ast_transforms.cpp
         src/compiler/compiler.cpp
         src/compiler/expression.cpp
         src/compiler/module_name.cpp
