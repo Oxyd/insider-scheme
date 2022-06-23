@@ -40,7 +40,8 @@ Checks:          '-*,
                   -readability-magic-numbers,
                   -cppcoreguidelines-special-member-functions,
                   -modernize-avoid-c-arrays,
-                  -cppcoreguidelines-avoid-c-arrays'
+                  -cppcoreguidelines-avoid-c-arrays,
+                  -readability-convert-member-functions-to-static'
 
 FormatStyle:     file
 CheckOptions:
