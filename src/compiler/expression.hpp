@@ -320,8 +320,10 @@ public:
 
   void
   enter(expression* e, dfs_stack<expression*>& stack) {
-    std::visit([&] (auto& expr) { self().enter_expression(expr); }, e->value);
-    std::visit([&] (auto& expr) { push_children(expr, stack); },
+    std::visit([&] (auto& expr) {
+                 self().enter_expression(expr);
+                 push_children(expr, stack);
+               },
                e->value);
   }
 
