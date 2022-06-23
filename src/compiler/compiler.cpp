@@ -932,26 +932,6 @@ compile_unknown_reference(context& ctx,
                                  *result.get(proc)});
 }
 
-static void
-compile_make_vector(context& ctx, procedure_context& proc,
-                    make_vector_expression const& stx, result_location& result) {
-  std::vector<shared_local> exprs;
-  exprs.reserve(stx.elements.size());
-  for (std::unique_ptr<expression> const& e : stx.elements)
-    exprs.push_back(compile_expression_to_register(ctx, proc, *e, false));
-
-  for (shared_local const& elem : exprs)
-    encode_instruction(proc.bytecode_stack.back(),
-                       instruction{opcode::push, *elem});
-
-  encode_instruction(
-    proc.bytecode_stack.back(),
-    instruction{opcode::make_vector,
-                static_cast<operand>(exprs.size()),
-                *result.get(proc)}
-  );
-}
-
 // Translate an expression and return the register where the result is stored.
 static void
 compile_expression(context& ctx, procedure_context& proc, expression const& stx,
@@ -981,9 +961,6 @@ compile_expression(context& ctx, procedure_context& proc, expression const& stx,
     compile_lambda(ctx, proc, *lambda, result);
   else if (auto const* if_ = std::get_if<if_expression>(&stx.value))
     compile_if(ctx, proc, *if_, tail, result);
-  else if (auto const* make_vector
-           = std::get_if<make_vector_expression>(&stx.value))
-    compile_make_vector(ctx, proc, *make_vector, result);
   else if (auto const* sequence = std::get_if<sequence_expression>(&stx.value))
     compile_sequence(ctx, proc, *sequence, tail, result);
   else

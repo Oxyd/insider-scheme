@@ -1364,9 +1364,7 @@ process_qq_vector_pattern_with_splices(parsing_context& pc,
   for (std::unique_ptr<qq_template> const& elem : vp.elems) {
     if (is_splice(elem)) {
       if (!chunk.empty()) {
-        args.push_back(
-          make_expression<make_vector_expression>(std::move(chunk))
-        );
+        args.push_back(make_application(pc.ctx, "vector", std::move(chunk)));
         chunk.clear();
       }
 
@@ -1380,14 +1378,9 @@ process_qq_vector_pattern_with_splices(parsing_context& pc,
   }
 
   if (!chunk.empty())
-    args.push_back(
-      make_expression<make_vector_expression>(std::move(chunk))
-    );
+    args.push_back(make_application(pc.ctx, "vector", std::move(chunk)));
 
-  auto result = make_expression<application_expression>(
-    make_internal_reference(pc.ctx, "vector-append"),
-    std::move(args)
-  );
+  auto result = make_application(pc.ctx, "vector-append", std::move(args));
   return Traits::wrap(pc.ctx, tpl->stx.get(), std::move(result),
                       force_unwrapped);
 }
@@ -1408,7 +1401,7 @@ process_qq_vector_pattern_without_splices(
 
   return Traits::wrap(
     pc.ctx, tpl->stx.get(),
-    make_expression<make_vector_expression>(std::move(elements)),
+    make_application(pc.ctx, "vector", std::move(elements)),
     force_unwrapped
   );
 }

@@ -236,22 +236,6 @@ struct if_expression {
   }
 };
 
-struct make_vector_expression {
-  std::vector<std::unique_ptr<expression>> elements;
-
-  explicit
-  make_vector_expression(std::vector<std::unique_ptr<expression>> elements)
-    : elements{std::move(elements)}
-  { }
-
-  template <typename F>
-  void
-  visit_subexpressions(F&& f) {
-    for (std::unique_ptr<expression> const& e : elements)
-      f(e.get());
-  }
-};
-
 struct expression {
   using value_type = std::variant<
     literal_expression,
@@ -264,7 +248,6 @@ struct expression {
     top_level_set_expression,
     lambda_expression,
     if_expression,
-    make_vector_expression,
     sequence_expression
   >;
 
