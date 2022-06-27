@@ -1,6 +1,7 @@
 #ifndef INSIDER_COMPILER_VARIABLE_HPP
 #define INSIDER_COMPILER_VARIABLE_HPP
 
+#include "object.hpp"
 #include "vm/operand.hpp"
 
 #include <optional>
@@ -12,7 +13,9 @@ namespace insider {
 // contains the index of the value. Otherwise, it's just an object representing
 // the binding itself and the compiler will use these to translate them to local
 // registers.
-struct variable {
+struct variable : leaf_object<variable> {
+  static constexpr char const* scheme_name = "insider::variable";
+
   std::string                     name;
   bool                            is_set = false;
   std::optional<insider::operand> global;

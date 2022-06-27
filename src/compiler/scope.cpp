@@ -88,14 +88,14 @@ scope_sets_equal(scope_set const& lhs, scope_set const& rhs) {
 
 void
 scope::add(free_store& store, ptr<syntax> identifier,
-           std::shared_ptr<variable> var) {
+           ptr<variable> var) {
   assert(is_identifier(identifier));
 
   if (is_redefinition(identifier, var))
     throw std::runtime_error{fmt::format("Redefinition of {}",
                                          identifier_name(identifier))};
 
-  bindings_.emplace_back(binding{identifier, std::move(var)});
+  bindings_.emplace_back(binding{identifier, var});
   store.notify_arc(this, identifier);
 }
 
@@ -135,13 +135,14 @@ void
 scope::visit_members(member_visitor const& f) {
   for (auto& b : bindings_) {
     f(b.id);
+    f(b.variable);
     f(b.transformer);
   }
 }
 
 static bool
 binding_values_equal(scope::binding const& binding,
-                     std::shared_ptr<variable> const& var) {
+                     ptr<variable> const& var) {
   return binding.variable == var;
 }
 
@@ -189,7 +190,7 @@ format_scope_set(scope_set const& set) {
 }
 
 void
-define(free_store& fs, ptr<syntax> id, std::shared_ptr<variable> value) {
+define(free_store& fs, ptr<syntax> id, ptr<variable> value) {
   id->scopes().back()->add(fs, id, std::move(value));
 }
 

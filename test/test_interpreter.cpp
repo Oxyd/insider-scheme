@@ -375,11 +375,11 @@ TEST_F(interpreter, exec_make_vector) {
 
 TEST_F(interpreter, exec_load_dynamic_top_level) {
   operand index = ctx.add_top_level(ctx.intern("foo"), "top-level");
-  auto var = std::make_shared<variable>("top-level", index);
+  auto var = make<variable>(ctx, "top-level", index);
   auto top_level_scope = make<scope>(ctx, ctx, "top-level-scope");
   auto id = make<syntax>(ctx, ctx.intern("top-level"),
                          scope_set{top_level_scope});
-  define(ctx.store, id, std::move(var));
+  define(ctx.store, id, var);
   operand id_index = ctx.intern_static(id);
 
   auto f = make_procedure(

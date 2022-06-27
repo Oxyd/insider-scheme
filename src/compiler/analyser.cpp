@@ -29,7 +29,7 @@ static std::unique_ptr<expression>
 analyse_internal(parsing_context& pc, ptr<syntax> stx) {
   std::unique_ptr<expression> result = parse(pc, stx);
   box_set_variables(pc.ctx, result.get());
-  analyse_free_variables(result.get());
+  analyse_free_variables(pc.ctx, result.get());
   return result;
 }
 

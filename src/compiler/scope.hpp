@@ -77,13 +77,13 @@ public:
   static constexpr char const* scheme_name = "insider::scope";
 
   struct binding {
-    ptr<syntax>                        id;
-    std::shared_ptr<insider::variable> variable;
-    ptr<insider::transformer>          transformer;
+    ptr<syntax>               id;
+    ptr<insider::variable>    variable;
+    ptr<insider::transformer> transformer;
 
-    binding(ptr<syntax> id, std::shared_ptr<insider::variable> var)
+    binding(ptr<syntax> id, ptr<insider::variable> var)
       : id{id}
-      , variable{std::move(var)}
+      , variable{var}
     { }
 
     binding(ptr<syntax> id, ptr<insider::transformer> tr)
@@ -97,7 +97,7 @@ public:
   scope(context& ctx, std::string desc);
 
   void
-  add(free_store& store, ptr<syntax> identifier, std::shared_ptr<variable>);
+  add(free_store& store, ptr<syntax> identifier, ptr<variable>);
 
   void
   add(free_store& store, ptr<syntax> identifier, ptr<transformer>);
@@ -140,7 +140,7 @@ binding_targets_equal(scope::binding const& lhs, scope::binding const& rhs) {
 }
 
 void
-define(free_store&, ptr<syntax> id, std::shared_ptr<variable>);
+define(free_store&, ptr<syntax> id, ptr<variable>);
 
 void
 define(free_store&, ptr<syntax> id, ptr<transformer>);

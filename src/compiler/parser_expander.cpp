@@ -36,7 +36,7 @@ namespace {
   public:
     explicit
     environment_extender(parsing_context& pc,
-                         std::vector<std::shared_ptr<variable>> extension)
+                         std::vector<tracked_ptr<variable>> extension)
       : pc_{pc}
     {
       pc.environment.push_back(std::move(extension));
@@ -111,16 +111,16 @@ make_subcontext(parsing_context& pc) {
 
 static environment_extender
 extend_environment(parsing_context& pc, ptr<scope> s) {
-  std::vector<std::shared_ptr<variable>> ext;
+  std::vector<tracked_ptr<variable>> ext;
   for (scope::binding const& b : *s)
     if (b.variable)
-      ext.push_back(b.variable);
+      ext.push_back(track(pc.ctx, b.variable));
 
   return environment_extender{pc, std::move(ext)};
 }
 
 static bool
-is_in_scope(parsing_context& pc, std::shared_ptr<variable> const& var) {
+is_in_scope(parsing_context& pc, ptr<variable> const& var) {
   if (var->global)
     return true; // Globals are always in scope even when they are not imported.
 
@@ -132,7 +132,7 @@ is_in_scope(parsing_context& pc, std::shared_ptr<variable> const& var) {
   return false;
 }
 
-static std::shared_ptr<variable>
+static ptr<variable>
 lookup_variable_binding(ptr<syntax> id) {
   if (auto binding = lookup(id))
     if (binding->variable)
@@ -141,7 +141,7 @@ lookup_variable_binding(ptr<syntax> id) {
   return {};
 }
 
-static std::shared_ptr<variable>
+static ptr<variable>
 lookup_variable(parsing_context& pc, ptr<syntax> id) {
   if (auto var = lookup_variable_binding(id)) {
     if (is_in_scope(pc, var))
@@ -326,7 +326,7 @@ struct body_content {
   struct internal_variable {
     tracked_ptr<syntax> id;
     tracked_ptr<syntax> init;
-    std::shared_ptr<variable> var;
+    tracked_ptr<variable> var;
   };
 
   std::vector<tracked_ptr<syntax>> forms;
@@ -391,11 +391,11 @@ process_internal_define(
   tracked_ptr<syntax> const& expr
 ) {
   auto [id, init] = parse_name_and_expr(pc, expr.get(), "define");
-  auto var = std::make_shared<variable>(identifier_name(id.get()));
+  auto var = make_tracked<variable>(pc.ctx, identifier_name(id.get()));
   internal_variables.emplace_back(
     body_content::internal_variable{id, track(pc.ctx, init), var}
   );
-  define(pc.ctx.store, id.get(), var);
+  define(pc.ctx.store, id.get(), var.get());
   pc.environment.back().emplace_back(std::move(var));
 }
 
@@ -529,7 +529,7 @@ parse_body(parsing_context& pc, ptr<> data, source_location const& loc) {
     // Simulate a letrec*.
 
     std::vector<definition_pair_expression> definition_exprs;
-    std::vector<std::shared_ptr<variable>> variables;
+    std::vector<tracked_ptr<variable>> variables;
     for (auto const& [id, init, var] : content.internal_variable_defs) {
       variables.push_back(var);
       auto void_expr = make_expression<literal_expression>(
@@ -646,8 +646,8 @@ parse_let(parsing_context& pc, ptr<syntax> stx_) {
   for (definition_pair const& dp : definitions) {
     tracked_ptr<syntax> id
       = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope.get()));
-    auto var = std::make_shared<variable>(identifier_name(id.get()));
-    define(pc.ctx.store, id.get(), var);
+    auto var = make_tracked<variable>(pc.ctx, identifier_name(id.get()));
+    define(pc.ctx.store, id.get(), var.get());
 
     definition_exprs.emplace_back(
       id, std::move(var), parse(pc, dp.expression.get())
@@ -673,12 +673,12 @@ parse_letrec_star(parsing_context& pc, ptr<syntax> stx) {
                                                   format_location(loc)));
 
   std::vector<definition_pair_expression> definition_exprs;
-  std::vector<std::shared_ptr<variable>> variables;
+  std::vector<tracked_ptr<variable>> variables;
   for (definition_pair const& dp : definitions) {
     tracked_ptr<syntax> id = track(pc.ctx, dp.id->add_scope(pc.ctx.store,
                                                             subscope.get()));
-    auto var = std::make_shared<variable>(identifier_name(dp.id.get()));
-    define(pc.ctx.store, id.get(), var);
+    auto var = make_tracked<variable>(pc.ctx, identifier_name(dp.id.get()));
+    define(pc.ctx.store, id.get(), var.get());
 
     variables.push_back(var);
     auto void_expr = make_expression<literal_expression>(
@@ -780,7 +780,7 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
 
   ptr<syntax> param_stx = expect<syntax>(cadr(assume<pair>(datum)));
   ptr<> param_names = param_stx;
-  std::vector<std::shared_ptr<variable>> parameters;
+  std::vector<tracked_ptr<variable>> parameters;
   bool has_rest = false;
   auto subscope = make_tracked<scope>(
     pc.ctx, pc.ctx,
@@ -791,9 +791,9 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
       auto id = expect_id(pc.ctx, expect<syntax>(car(param)));
       auto id_with_scope = id->add_scope(pc.ctx.store, subscope.get());
 
-      auto var = std::make_shared<variable>(identifier_name(id));
+      auto var = make_tracked<variable>(pc.ctx, identifier_name(id));
       parameters.push_back(var);
-      define(pc.ctx.store, id_with_scope, std::move(var));
+      define(pc.ctx.store, id_with_scope, var.get());
 
       param_names = cdr(param);
     }
@@ -802,9 +802,10 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
       auto name = expect<syntax>(param_names);
       auto name_with_scope = name->add_scope(pc.ctx.store, subscope.get());
 
-      auto var = std::make_shared<variable>(identifier_name(name_with_scope));
+      auto var = make_tracked<variable>(pc.ctx,
+                                        identifier_name(name_with_scope));
       parameters.push_back(var);
-      define(pc.ctx.store, name_with_scope, std::move(var));
+      define(pc.ctx.store, name_with_scope, var.get());
       break;
     }
     else
@@ -820,10 +821,11 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   auto subenv = extend_environment(pc, subscope.get());
 
   return make_expression<lambda_expression>(
-    std::move(parameters), has_rest,
+    std::move(parameters),
+    has_rest,
     parse_body(pc, body_with_scope, loc),
     fmt::format("<lambda at {}>", format_location(loc)),
-    std::vector<std::shared_ptr<variable>>{}
+    std::vector<tracked_ptr<variable>>{}
   );
 }
 
@@ -903,7 +905,7 @@ parse_reference(parsing_context& pc, ptr<syntax> id) {
   if (!var)
     return parse_unknown_reference(pc, id);
   else if (!var->global)
-    return make_expression<local_reference_expression>(std::move(var));
+    return make_expression<local_reference_expression>(track(pc.ctx, var));
   else
     return make_expression<top_level_reference_expression>(*var->global,
                                                            identifier_name(id));
@@ -911,15 +913,14 @@ parse_reference(parsing_context& pc, ptr<syntax> id) {
 
 static std::unique_ptr<expression>
 make_set_expression(parsing_context& pc, tracked_ptr<syntax> const& name,
-                    ptr<syntax> expr, std::shared_ptr<variable> var) {
+                    ptr<syntax> expr, tracked_ptr<variable> var) {
   auto initialiser = parse(pc, expr);
   if (auto* l = std::get_if<lambda_expression>(&initialiser->value))
     l->name = identifier_name(name.get());
 
   if (!var->global) {
     var->is_set = true;
-    return make_expression<local_set_expression>(std::move(var),
-                                                 std::move(initialiser));
+    return make_expression<local_set_expression>(var, std::move(initialiser));
   }
   else
     return make_expression<top_level_set_expression>(*var->global,
@@ -945,7 +946,7 @@ parse_define_or_set(parsing_context& pc, ptr<syntax> stx,
       identifier_name(name.get())
     );
 
-  return make_set_expression(pc, name, expr, std::move(var));
+  return make_set_expression(pc, name, expr, track(pc.ctx, var));
 }
 
 static std::unique_ptr<expression>
@@ -1563,7 +1564,7 @@ process_top_level_define(parsing_context& pc, tracked_ptr<syntax> const& stx) {
   if (!var) {
     auto index = pc.ctx.add_top_level(pc.ctx.constants->void_,
                                       identifier_name(name.get()));
-    var = std::make_shared<variable>(identifier_name(name.get()), index);
+    var = make<variable>(pc.ctx, identifier_name(name.get()), index);
     define(pc.ctx.store, name.get(), std::move(var));
   }
 }

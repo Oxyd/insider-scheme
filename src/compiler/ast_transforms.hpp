@@ -10,7 +10,7 @@ void
 box_set_variables(context& ctx, expression* s);
 
 void
-analyse_free_variables(expression* e);
+analyse_free_variables(context& ctx, expression* e);
 
 } // namespace insider
 

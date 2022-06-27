@@ -34,10 +34,10 @@ struct literal_expression {
 };
 
 struct local_reference_expression {
-  std::shared_ptr<insider::variable> variable;
+  tracked_ptr<insider::variable> variable;
 
   explicit
-  local_reference_expression(std::shared_ptr<insider::variable> var)
+  local_reference_expression(tracked_ptr<insider::variable> var)
     : variable{std::move(var)}
   { }
 
@@ -120,11 +120,11 @@ struct sequence_expression {
 
 struct definition_pair_expression {
   tracked_ptr<syntax>                  id;
-  std::shared_ptr<insider::variable>   variable;
+  tracked_ptr<insider::variable>       variable;
   std::unique_ptr<insider::expression> expression;
 
   definition_pair_expression(tracked_ptr<syntax> id,
-                             std::shared_ptr<insider::variable> var,
+                             tracked_ptr<insider::variable> var,
                              std::unique_ptr<insider::expression> expr)
     : id{std::move(id)}
     , variable{std::move(var)}
@@ -153,10 +153,10 @@ struct let_expression {
 };
 
 struct local_set_expression {
-  std::shared_ptr<variable>            target;
+  tracked_ptr<variable>                target;
   std::unique_ptr<insider::expression> expression;
 
-  local_set_expression(std::shared_ptr<variable> target,
+  local_set_expression(tracked_ptr<variable> target,
                        std::unique_ptr<insider::expression> expr)
     : target{std::move(target)}
     , expression{std::move(expr)}
@@ -187,17 +187,17 @@ struct top_level_set_expression {
 };
 
 struct lambda_expression {
-  std::vector<std::shared_ptr<variable>> parameters;
+  std::vector<tracked_ptr<variable>> parameters;
   bool has_rest;
   sequence_expression body;
   std::optional<std::string> name;
-  std::vector<std::shared_ptr<variable>> free_variables;
+  std::vector<tracked_ptr<variable>> free_variables;
 
-  lambda_expression(std::vector<std::shared_ptr<variable>> parameters,
+  lambda_expression(std::vector<tracked_ptr<variable>> parameters,
                     bool has_rest,
                     sequence_expression body,
                     std::optional<std::string> name,
-                    std::vector<std::shared_ptr<variable>> free_variables)
+                    std::vector<tracked_ptr<variable>> free_variables)
     : parameters{std::move(parameters)}
     , has_rest{has_rest}
     , body{std::move(body)}

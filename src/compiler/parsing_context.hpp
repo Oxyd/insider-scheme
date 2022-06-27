@@ -19,7 +19,7 @@ struct parsing_context {
   context& ctx;
   tracked_ptr<insider::module_> module_;
   source_file_origin const& origin;
-  std::vector<std::vector<std::shared_ptr<variable>>> environment;
+  std::vector<std::vector<tracked_ptr<variable>>> environment;
   std::vector<use_site_scopes_list> use_site_scopes;
 
   bool

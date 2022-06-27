@@ -82,20 +82,18 @@ namespace {
   class variable_bindings {
   public:
     struct binding {
-      std::shared_ptr<insider::variable> variable;
-      shared_local                       destination;
+      ptr<insider::variable> variable;
+      shared_local           destination;
 
       binding() = default;
 
-      binding(std::shared_ptr<insider::variable> variable,
-              shared_local destination)
-        : variable{std::move(variable)}
+      binding(ptr<insider::variable> variable, shared_local destination)
+        : variable{variable}
         , destination{std::move(destination)}
       { }
     };
     using scope = std::vector<binding>;
-    using free_variables_map = std::unordered_map<std::shared_ptr<variable>,
-                                                  shared_local>;
+    using free_variables_map = std::unordered_map<ptr<variable>, shared_local>;
 
     class unique_scope {
     public:
@@ -117,7 +115,7 @@ namespace {
     pop_scope();
 
     shared_local
-    lookup(std::shared_ptr<variable> const&) const;
+    lookup(ptr<variable> const&) const;
 
   private:
     std::vector<scope> scopes_;
@@ -234,8 +232,8 @@ variable_bindings::pop_scope() {
 }
 
 shared_local
-variable_bindings::lookup(std::shared_ptr<variable> const& v) const {
-  for (const auto & scope : scopes_ | std::views::reverse)
+variable_bindings::lookup(ptr<variable> const& v) const {
+  for (const auto& scope : scopes_ | std::views::reverse)
     for (binding const& b : scope)
       if (b.variable == v)
         return b.destination;
@@ -617,7 +615,7 @@ compile_let(context& ctx, procedure_context& proc, let_expression const& stx,
   for (auto const& def : stx.definitions) {
     shared_local value
       = compile_expression_to_fresh_register(ctx, proc, *def.expression);
-    scope.emplace_back(variable_bindings::binding{def.variable,
+    scope.emplace_back(variable_bindings::binding{def.variable.get(),
                                                   std::move(value)});
   }
 
@@ -629,7 +627,7 @@ compile_let(context& ctx, procedure_context& proc, let_expression const& stx,
 static void
 compile_local_set(context& ctx, procedure_context& proc,
                   local_set_expression const& stx, result_location& result) {
-  shared_local dest = proc.bindings.lookup(stx.target);
+  shared_local dest = proc.bindings.lookup(stx.target.get());
   assert(dest);
 
   shared_local value
@@ -669,11 +667,11 @@ compile_lambda(context& ctx, procedure_context& parent,
 
   for (auto const& free : stx.free_variables)
     args_scope.push_back(variable_bindings::binding{
-      free, proc.registers.allocate_local()
+      free.get(), proc.registers.allocate_local()
     });
 
   for (std::size_t i = 0; i < stx.parameters.size(); ++i) {
-    auto const& param = stx.parameters[i];
+    auto param = stx.parameters[i].get();
     args_scope.push_back(variable_bindings::binding{
       param,
       shared_local{
@@ -707,10 +705,10 @@ compile_lambda(context& ctx, procedure_context& parent,
     shared_local p_reg
       = compile_static_reference_to_register(parent, ctx.intern_static(p));
 
-    for (std::shared_ptr<variable> const& var : stx.free_variables)
+    for (auto const& var : stx.free_variables)
       encode_instruction(
         parent.bytecode_stack.back(),
-        instruction{opcode::push, *parent.bindings.lookup(var)}
+        instruction{opcode::push, *parent.bindings.lookup(var.get())}
       );
 
     encode_instruction(
@@ -875,7 +873,7 @@ compile_local_reference(procedure_context& proc,
   if (!result.result_used())
     return;
 
-  shared_local var_reg = proc.bindings.lookup(stx.variable);
+  shared_local var_reg = proc.bindings.lookup(stx.variable.get());
 
   if (!result.has_result() && result.may_alias())
     result.set(var_reg);

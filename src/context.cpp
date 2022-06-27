@@ -61,8 +61,8 @@ context::context()
     auto index = add_top_level(form.object, form.name);
     auto name = intern(form.name);
     auto id = make<syntax>(*this, name, scope_set{internal_module()->scope()});
-    auto var = std::make_shared<variable>(form.name, index);
-    internal_module()->scope()->add(store, id, std::move(var));
+    auto var = make<variable>(*this, form.name, index);
+    internal_module()->scope()->add(store, id, var);
     internal_module()->export_(name);
   }
 

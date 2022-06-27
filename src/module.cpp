@@ -343,7 +343,7 @@ define_top_level(context& ctx, std::string const& name, ptr<module_> m,
                  bool export_, ptr<> object) {
   auto index = ctx.add_top_level(object, name);
   auto name_sym = ctx.intern(name);
-  auto var = std::make_shared<variable>(name, index);
+  auto var = make<variable>(ctx, name, index);
   m->scope()->add(ctx.store,
                   make<syntax>(ctx, name_sym, scope_set{m->scope()}),
                   var);
