@@ -3,6 +3,7 @@
 
 #include "object.hpp"
 #include "runtime/basic_types.hpp"
+#include "util/sum_type.hpp"
 
 #include <array>
 #include <filesystem>
@@ -367,6 +368,11 @@ public:
 private:
   PortPtr ptr_;
 };
+
+using port = sum_type<textual_input_port, textual_output_port,
+                      binary_input_port, binary_output_port>;
+
+using output_port = sum_type<textual_output_port, binary_output_port>;
 
 } // namespace insider
 

@@ -431,17 +431,8 @@ open_binary_output_file(context& ctx, std::string const& path) {
 }
 
 static void
-close(ptr<> port) {
-  if (auto tip = match<textual_input_port>(port))
-    tip->close();
-  else if (auto top = match<textual_output_port>(port))
-    top->close();
-  else if (auto bip = match<binary_input_port>(port))
-    bip->close();
-  else if (auto bop = match<binary_output_port>(port))
-    bop->close();
-  else
-    throw std::runtime_error{"Expected a port"};
+close(port p) {
+  visit([] (auto x) { x->close(); }, p);
 }
 
 static ptr<textual_output_port>
@@ -450,27 +441,13 @@ open_output_string(context& ctx) {
 }
 
 static void
-flush_port(ptr<> port) {
-  if (auto top = match<textual_output_port>(port))
-    top->flush();
-  else if (auto bop = match<binary_output_port>(port))
-    bop->flush();
-  else
-    throw std::runtime_error{"Expected an output port"};
+flush_port(output_port port) {
+  visit([] (auto x) { x->flush(); }, port);
 }
 
 static bool
-is_port_open(ptr<> port) {
-  if (auto tip = match<textual_input_port>(port))
-    return tip->open();
-  else if (auto top = match<textual_output_port>(port))
-    return top->open();
-  else if (auto bip = match<binary_input_port>(port))
-    return bip->open();
-  else if (auto bop = match<binary_output_port>(port))
-    return bop->open();
-  else
-    throw std::runtime_error{"Expected a port"};
+is_port_open(port p) {
+  return visit([] (auto x) { return x->open(); }, p);
 }
 
 auto
