@@ -37,25 +37,17 @@ public:
   requires (std::is_same_v<U, Ts> || ...)
   sum_type(ptr<U> x)
     : value_{x}
-  {
-    if (x)
-      type_index_ = object_type_index(x);
-  }
+  { }
 
   sum_type(ptr<> x)
     : value_{x}
   {
-    if (x) {
-      type_index_ = object_type_index(x);
+    if (x)
       detail::throw_if_not_one_of<Ts...>(x);
-    }
   }
 
   ptr<>
   get() const { return value_; }
-
-  word_type
-  contained_type() const { return type_index_; }
 
   explicit
   operator bool () const { return static_cast<bool>(value_); }
@@ -66,14 +58,13 @@ public:
   }
 
 private:
-  word_type type_index_ = no_type;
-  ptr<>     value_;
+  ptr<> value_;
 };
 
 template <typename T, typename... Ts>
 bool
 is(sum_type<Ts...> s) {
-  return s.contained_type() == T::type_index;
+  return is<T>(s.get());
 }
 
 template <typename T, typename... Ts>

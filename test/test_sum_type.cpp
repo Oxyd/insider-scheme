@@ -11,12 +11,6 @@ struct sum_type_fixture : scheme_fixture { };
 
 using symbol_or_string = sum_type<symbol, string>;
 
-TEST_F(sum_type_fixture, empty_sum_type_doesnt_hold_any_type) {
-  symbol_or_string value;
-  EXPECT_FALSE(is<symbol>(value));
-  EXPECT_FALSE(is<string>(value));
-}
-
 TEST_F(sum_type_fixture, sum_type_holds_last_assigned_type) {
   symbol_or_string value = ctx.intern("foo");
   EXPECT_TRUE(is<symbol>(value));
@@ -25,6 +19,14 @@ TEST_F(sum_type_fixture, sum_type_holds_last_assigned_type) {
   value = make<string>(ctx, "foo");
   EXPECT_FALSE(is<symbol>(value));
   EXPECT_TRUE(is<string>(value));
+}
+
+using integer_or_string = sum_type<integer, string>;
+
+TEST_F(sum_type_fixture, can_test_for_integer) {
+  integer_or_string value = integer_to_ptr(12);
+  EXPECT_TRUE(is<integer>(value));
+  EXPECT_FALSE(is<string>(value));
 }
 
 TEST_F(sum_type_fixture, expect_retrieves_value) {
