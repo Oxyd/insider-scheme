@@ -77,6 +77,8 @@ types() {
 word_type
 new_type(type_descriptor);
 
+static constexpr word_type no_type = std::numeric_limits<word_type>::max();
+
 // Pointer tagging:
 // ... xxx1 -- integer
 // ... xx10 -- character

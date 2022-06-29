@@ -45,42 +45,88 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(scheme_sources
         src/compiler/analyser.cpp
+        src/compiler/analyser.hpp
         src/compiler/ast_transforms.cpp
+        src/compiler/ast_transforms.hpp
         src/compiler/compiler.cpp
+        src/compiler/compiler.hpp
         src/compiler/expression.cpp
+        src/compiler/expression.hpp
         src/compiler/module_name.cpp
+        src/compiler/module_name.hpp
         src/compiler/module_specifier.cpp
+        src/compiler/module_specifier.hpp
         src/compiler/parser_expander.cpp
+        src/compiler/parser_expander.hpp
         src/compiler/scope.cpp
+        src/compiler/scope.hpp
         src/compiler/source_code_provider.cpp
+        src/compiler/source_code_provider.hpp
         src/compiler/source_location.cpp
+        src/compiler/source_location.hpp
         src/context.cpp
+        src/context.hpp
         src/io/port.cpp
+        src/io/port.hpp
         src/io/read.cpp
+        src/io/read.hpp
         src/io/reader_stream.cpp
+        src/io/reader_stream.hpp
         src/io/write.cpp
+        src/io/write.hpp
         src/memory/free_store.cpp
+        src/memory/free_store.hpp
         src/memory/root_list.cpp
+        src/memory/root_list.hpp
         src/memory/root_provider.cpp
+        src/memory/root_provider.hpp
         src/module.cpp
+        src/module.hpp
         src/module_resolver.cpp
+        src/module_resolver.hpp
         src/object.cpp
+        src/object.hpp
         src/runtime/basic_types.cpp
+        src/runtime/basic_types.hpp
         src/runtime/character.cpp
+        src/runtime/character.hpp
         src/runtime/code_point_properties.cpp
+        src/runtime/code_point_properties.hpp
         src/runtime/compare.cpp
+        src/runtime/compare.hpp
         src/runtime/error.cpp
+        src/runtime/error.hpp
         src/runtime/internal_module.cpp
+        src/runtime/internal_module.hpp
         src/runtime/numeric.cpp
+        src/runtime/numeric.hpp
         src/runtime/parameter_map.cpp
+        src/runtime/parameter_map.hpp
         src/runtime/records.cpp
+        src/runtime/records.hpp
         src/runtime/string.cpp
+        src/runtime/string.hpp
         src/runtime/syntax.cpp
+        src/runtime/syntax.hpp
         src/runtime/time.cpp
+        src/util/define_procedure.hpp
+        src/util/depth_first_search.hpp
+        src/util/from_scheme.hpp
+        src/util/integer_cast.hpp
+        src/util/list_iterator.hpp
+        src/util/named_runtime_error.hpp
+        src/util/object_conversions.hpp
+        src/util/object_span.hpp
+        src/util/sum_type.hpp
+        src/util/to_scheme.hpp
         src/vm/bytecode.cpp
+        src/vm/bytecode.hpp
         src/vm/call_stack.cpp
+        src/vm/call_stack.hpp
         src/vm/execution_state.cpp
+        src/vm/execution_state.hpp
         src/vm/vm.cpp
+        src/vm/vm.hpp
         )
 
 set(test_sources
@@ -103,6 +149,7 @@ set(test_sources
         test/test_reader_stream.cpp
         test/test_records.cpp
         test/test_string.cpp
+        test/test_sum_type.cpp
         test/test_syntax.cpp
         test/test_types.cpp
         )
