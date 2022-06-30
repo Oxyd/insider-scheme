@@ -1,6 +1,7 @@
 #ifndef INSIDER_UTIL_SUM_TYPE_HPP
 #define INSIDER_UTIL_SUM_TYPE_HPP
 
+#include "memory/root_provider.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
 #include "runtime/error.hpp"
@@ -117,6 +118,32 @@ template <typename... Ts>
 struct from_scheme_converter<sum_type<Ts...>> {
   static sum_type<Ts...>
   convert(context&, ptr<> o) { return o; }
+};
+
+template <typename Sum>
+class tracked_sum_type : public root_provider {
+public:
+  explicit
+  tracked_sum_type(free_store& fs) : root_provider(fs) { }
+
+  tracked_sum_type(free_store& fs, Sum s)
+    : root_provider(fs)
+    , sum_{s}
+  { }
+
+  Sum&
+  get() { return sum_; }
+
+  Sum
+  get() const { return sum_; }
+
+private:
+  Sum sum_;
+
+  void
+  visit_roots(member_visitor const& f) override {
+    sum_.visit_members(f);
+  }
 };
 
 } // namespace insider

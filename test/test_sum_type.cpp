@@ -124,3 +124,15 @@ TEST_F(sum_type_fixture,
   auto result = eval("(symbol-or-string-value 'foo)");
   EXPECT_EQ(expect<string>(result)->value(), "foo");
 }
+
+TEST_F(sum_type_fixture, tracked_sum_type_stores_sum_type) {
+  auto s = make<string>(ctx, "foo");
+  tracked_sum_type<symbol_or_string> value{ctx.store, s};
+  EXPECT_EQ(value.get(), s);
+}
+
+TEST_F(sum_type_fixture, tracked_sum_type_provides_gc_root) {
+  tracked_sum_type<symbol_or_string> value{ctx.store, make<string>(ctx, "foo")};
+  ctx.store.collect_garbage(true);
+  EXPECT_EQ(expect<string>(value.get())->value(), "foo");
+}
