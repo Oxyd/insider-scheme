@@ -849,3 +849,25 @@ TEST_F(interpreter, tail_call_from_variadic_procedure) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
+
+TEST_F(interpreter, uncaught_exception_generates_backtrace) {
+  EXPECT_TRUE(ctx.error_backtrace.empty());
+
+  try {
+    eval_module(R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda ()
+          (raise #f)
+          #void))
+
+      (foo)
+    )");
+  } catch (...) {
+    EXPECT_FALSE(ctx.error_backtrace.empty());
+    return;
+  }
+
+  FAIL();
+}

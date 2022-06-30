@@ -48,18 +48,6 @@ find_callee_value(context& ctx, opcode opcode, frame_reference frame,
   }
 }
 
-static ptr<>
-get_call_target(context& ctx, frame_reference frame, integer::value_type pc) {
-  bytecode const& bc = ctx.program;
-
-  opcode opcode = read_opcode(bc, pc);
-  assert(opcode == opcode::call
-         || opcode == opcode::call_top_level
-         || opcode == opcode::call_static);
-
-  return find_callee_value(ctx, opcode, frame, read_operand(bc, pc));
-}
-
 static bool
 is_dummy_frame(frame_reference frame) {
   return !frame.callable();
@@ -91,21 +79,8 @@ namespace {
         if (!first)
           result += '\n';
 
-        integer::value_type previous_frame_idx = state_.stack->parent(*it);
         ptr<> proc = state_.stack->callable(*it);
-
         result += format_callable(proc);
-
-        if (previous_frame_idx != -1
-            && !is_native_frame({state_.stack, previous_frame_idx})) {
-          ptr<> parent_target
-            = get_call_target(state_.ctx,
-                              {state_.stack, previous_frame_idx},
-                              state_.stack->previous_pc(*it));
-          if (parent_target != proc)
-            result += '\n' + format_callable(parent_target);
-        }
-
         first = false;
       }
 
