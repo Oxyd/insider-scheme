@@ -35,7 +35,6 @@ context::context()
     std::string          name;
   } core_forms[]{
     {constants->let,               "let"},
-    {constants->letrec_star,       "letrec*"},
     {constants->set,               "set!"},
     {constants->lambda,            "lambda"},
     {constants->if_,               "if"},
@@ -189,7 +188,6 @@ context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.constants->eof);
   f(ctx_.constants->tail_call_tag);
   f(ctx_.constants->let);
-  f(ctx_.constants->letrec_star);
   f(ctx_.constants->set);
   f(ctx_.constants->lambda);
   f(ctx_.constants->if_);

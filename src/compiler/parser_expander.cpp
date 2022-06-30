@@ -662,59 +662,6 @@ parse_let(parsing_context& pc, ptr<syntax> stx_) {
 }
 
 static std::unique_ptr<expression>
-parse_letrec_star(parsing_context& pc, ptr<syntax> stx) {
-  using namespace std::literals;
-  source_location loc = stx->location();
-
-  auto [definitions, body] = parse_let_common(pc, stx, "letrec*"sv);
-
-  auto subscope = make_tracked<scope>(pc.ctx, pc.ctx,
-                                      fmt::format("letrec* body at {}",
-                                                  format_location(loc)));
-
-  std::vector<definition_pair_expression> definition_exprs;
-  std::vector<tracked_ptr<variable>> variables;
-  for (definition_pair const& dp : definitions) {
-    tracked_ptr<syntax> id = track(pc.ctx, dp.id->add_scope(pc.ctx.store,
-                                                            subscope.get()));
-    auto var = make_tracked<variable>(pc.ctx, identifier_name(dp.id.get()));
-    define(pc.ctx.store, id.get(), var.get());
-
-    variables.push_back(var);
-    auto void_expr = make_expression<literal_expression>(
-      track(pc.ctx, pc.ctx.constants->void_)
-    );
-    definition_exprs.emplace_back(id, var, std::move(void_expr));
-  }
-
-  tracked_ptr<> body_with_scope
-    = track(pc.ctx, add_scope_to_list(pc.ctx, body.get(), subscope.get()));
-  auto subenv = extend_environment(pc, subscope.get());
-
-  sequence_expression body_sequence;
-  for (std::size_t i = 0; i < definition_exprs.size(); ++i) {
-    ptr<syntax> expr
-      = definitions[i].expression->add_scope(pc.ctx.store, subscope.get());
-    std::unique_ptr<expression> init_expr = parse(pc, expr);
-    variables[i]->is_set = true;
-    body_sequence.expressions.push_back(
-      make_expression<local_set_expression>(std::move(variables[i]),
-                                            std::move(init_expr))
-    );
-  }
-
-  auto proper_body_sequence = parse_body(pc, body_with_scope.get(), loc);
-  body_sequence.expressions.insert(
-    body_sequence.expressions.end(),
-    std::move_iterator(proper_body_sequence.expressions.begin()),
-    std::move_iterator(proper_body_sequence.expressions.end())
-  );
-
-  return make_expression<let_expression>(std::move(definition_exprs),
-                                         std::move(body_sequence));
-}
-
-static std::unique_ptr<expression>
 parse_let_syntax(parsing_context& pc, ptr<syntax> stx) {
   using namespace std::literals;
   source_location loc = stx->location();
@@ -1495,8 +1442,6 @@ parse(parsing_context& pc, ptr<syntax> s) {
     if (auto form = match_core_form(pc, head)) {
       if (form == pc.ctx.constants->let)
         return parse_let(pc, stx);
-      if (form == pc.ctx.constants->letrec_star)
-        return parse_letrec_star(pc, stx);
       else if (form == pc.ctx.constants->set)
         return parse_set(pc, stx);
       else if (form == pc.ctx.constants->lambda)

@@ -220,6 +220,18 @@
       (loop lst '()))))
 
 (meta
+  (define-syntax letrec*
+    (lambda (stx)
+      (let ((form (syntax->list stx)))
+        (let ((definition-pairs (syntax->list (cadr form)))
+              (body (cddr form)))
+          (let ((names (map syntax-car definition-pairs))
+                (exprs (map syntax-cadr definition-pairs)))
+            #`(let (#,@(map (lambda (n) #`(#,n #void)) names))
+                #,@(map2 (lambda (n e) #`(set! #,n #,e)) names exprs)
+                #,@body)))))))
+
+(meta
   (define length
     (lambda (list)
       (define loop

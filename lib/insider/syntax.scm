@@ -50,6 +50,14 @@
        (let* ((var expr) ...)
          body0 body ...)))))
 
+(define-syntax letrec*
+  (syntax-rules ()
+    ((letrec* ((name expr) ...) body0 body ...)
+     (let ((name #void) ...)
+       (set! name expr) ...
+       body0
+       body ...))))
+
 (define-syntax letrec
   (syntax-rules ()
     ((letrec ((name expr) ...) body0 body ...)
