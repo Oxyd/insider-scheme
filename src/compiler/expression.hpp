@@ -44,7 +44,7 @@ public:
   static constexpr char const* scheme_name = "insider::literal_expression";
 
   explicit
-  literal_expression(ptr<> value) : value_{value} { }
+  literal_expression(ptr<> value);
 
   ptr<>
   value() const { return value_; }
@@ -54,7 +54,7 @@ public:
   visit_subexpressions(F&&) const { }
 
   void
-  visit_members(member_visitor const& f) { f(value_); }
+  visit_members(member_visitor const& f);
 
 private:
   ptr<> value_;
@@ -68,9 +68,7 @@ public:
     = "insider::local_reference_expression";
 
   explicit
-  local_reference_expression(ptr<insider::variable> var)
-    : variable_{var}
-  { }
+  local_reference_expression(ptr<insider::variable> var);
 
   ptr<insider::variable>
   variable() const { return variable_; }
@@ -80,7 +78,7 @@ public:
   visit_subexpressions(F&&) const { }
 
   void
-  visit_members(member_visitor const& f) { f(variable_); }
+  visit_members(member_visitor const& f);
 
 private:
   ptr<insider::variable> variable_;
@@ -96,10 +94,7 @@ public:
   operand location;
   std::string name;
 
-  top_level_reference_expression(operand location, std::string name)
-    : location{location}
-    , name{std::move(name)}
-  { }
+  top_level_reference_expression(operand location, std::string name);
 
   template <typename F>
   void
@@ -114,9 +109,7 @@ public:
     = "insider::unknown_reference_expression";
 
   explicit
-  unknown_reference_expression(ptr<syntax> name)
-    : name_{name}
-  { }
+  unknown_reference_expression(ptr<syntax> name);
 
   ptr<syntax>
   name() const { return name_; }
@@ -126,7 +119,7 @@ public:
   visit_subexpressions(F&&) const { }
 
   void
-  visit_members(member_visitor const& f) { f(name_); }
+  visit_members(member_visitor const& f);
 
 private:
   ptr<syntax> name_;
@@ -136,10 +129,7 @@ class application_expression : public composite_object<application_expression> {
 public:
   static constexpr char const* scheme_name = "insider::application_expression";
 
-  application_expression(expression t, std::vector<expression> args)
-    : target_{t}
-    , arguments_{std::move(args)}
-  { }
+  application_expression(expression t, std::vector<expression> args);
 
   application_expression(expression t, std::ranges::range auto args)
     : target_{t}
@@ -169,11 +159,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f) {
-    target_.visit_members(f);
-    for (auto& arg : arguments_)
-      arg.visit_members(f);
-  }
+  visit_members(member_visitor const& f);
 
 private:
   expression              target_;
@@ -187,9 +173,7 @@ public:
   sequence_expression() = default;
 
   explicit
-  sequence_expression(std::vector<expression> exprs)
-    : expressions_{std::move(exprs)}
-  { }
+  sequence_expression(std::vector<expression> exprs);
 
   explicit
   sequence_expression(std::ranges::range auto exprs)
@@ -200,10 +184,7 @@ public:
   expressions() const { return expressions_; }
 
   void
-  prepend_expression(free_store& fs, expression expr) {
-    expressions_.insert(expressions_.begin(), expr);
-    fs.notify_arc(this, expr.get());
-  }
+  prepend_expression(free_store& fs, expression expr);
 
   template <typename F>
   void
@@ -213,10 +194,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f) {
-    for (auto& e : expressions_)
-      e.visit_members(f);
-  }
+  visit_members(member_visitor const& f);
 
 private:
   std::vector<expression> expressions_;
@@ -226,11 +204,7 @@ class definition_pair_expression {
 public:
   definition_pair_expression(ptr<syntax> id,
                              ptr<insider::variable> var,
-                             insider::expression expr)
-    : id_{id}
-    , variable_{var}
-    , expression_{expr}
-  { }
+                             insider::expression expr);
 
   ptr<syntax>
   id() const { return id_; }
@@ -242,11 +216,7 @@ public:
   expression() const { return expression_; }
 
   void
-  visit_members(member_visitor const& f) {
-    f(id_);
-    f(variable_);
-    expression_.visit_members(f);
-  }
+  visit_members(member_visitor const& f);
 
 private:
   ptr<syntax>            id_;
@@ -259,10 +229,7 @@ public:
   static constexpr char const* scheme_name = "insider::let_expression";
 
   let_expression(std::vector<definition_pair_expression> defs,
-                 ptr<sequence_expression> body)
-    : definitions_{std::move(defs)}
-    , body_{body}
-  { }
+                 ptr<sequence_expression> body);
 
   std::vector<definition_pair_expression> const&
   definitions() const { return definitions_; }
@@ -279,11 +246,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f) {
-    for (definition_pair_expression& dp : definitions_)
-      dp.visit_members(f);
-    f(body_);
-  }
+  visit_members(member_visitor const& f);
 
 private:
   std::vector<definition_pair_expression> definitions_;
@@ -294,10 +257,7 @@ class local_set_expression : public composite_object<local_set_expression> {
 public:
   static constexpr char const* scheme_name = "insider::local_set_expression";
 
-  local_set_expression(ptr<variable> target, insider::expression expr)
-    : target_{target}
-    , expression_{expr}
-  { }
+  local_set_expression(ptr<variable> target, insider::expression expr);
 
   ptr<variable>
   target() const { return target_; }
@@ -312,10 +272,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f) {
-    f(target_);
-    expression_.visit_members(f);
-  }
+  visit_members(member_visitor const& f);
 
 private:
   ptr<variable>       target_;
@@ -329,10 +286,7 @@ public:
   static constexpr char const* scheme_name
     = "insider::top_level_set_expression";
 
-  top_level_set_expression(operand location, expression expr)
-    : location_{location}
-    , expression_{expr}
-  { }
+  top_level_set_expression(operand location, expression expr);
 
   operand
   location() const { return location_; }
@@ -347,9 +301,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f) {
-    expression_.visit_members(f);
-  }
+  visit_members(member_visitor const& f);
 
 private:
   operand             location_;
@@ -364,13 +316,7 @@ public:
                     bool has_rest,
                     ptr<sequence_expression> body,
                     std::optional<std::string> name,
-                    std::vector<ptr<variable>> free_variables)
-    : parameters_{std::move(parameters)}
-    , has_rest_{has_rest}
-    , body_{body}
-    , name_{std::move(name)}
-    , free_variables_{std::move(free_variables)}
-  { }
+                    std::vector<ptr<variable>> free_variables);
 
   std::vector<ptr<variable>> const&
   parameters() const { return parameters_; }
@@ -391,10 +337,7 @@ public:
   free_variables() const { return free_variables_; }
 
   void
-  add_free_variable(free_store& fs, ptr<variable> v) {
-    free_variables_.push_back(v);
-    fs.notify_arc(this, v);
-  }
+  add_free_variable(free_store& fs, ptr<variable> v);
 
   template <typename F>
   void
@@ -403,13 +346,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f) {
-    for (auto& p : parameters_)
-      f(p);
-    f(body_);
-    for (auto& fv : free_variables_)
-      f(fv);
-  }
+  visit_members(member_visitor const& f);
 
 private:
   std::vector<ptr<variable>> parameters_;
@@ -424,11 +361,7 @@ class if_expression : public composite_object<if_expression> {
 public:
   static constexpr char const* scheme_name = "insider::if_expression";
 
-  if_expression(expression test, expression consequent, expression alternative)
-    : test_{test}
-    , consequent_{consequent}
-    , alternative_{alternative}
-  { }
+  if_expression(expression test, expression consequent, expression alternative);
 
   expression
   test() const { return test_; }
@@ -449,11 +382,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f) {
-    test_.visit_members(f);
-    consequent_.visit_members(f);
-    alternative_.visit_members(f);
-  }
+  visit_members(member_visitor const& f);
 
 private:
   expression test_;
@@ -484,18 +413,10 @@ push_children(auto expr, dfs_stack<expression>& stack) {
 class expression_visitor : public dfs_visitor {
 public:
   void
-  enter(expression e, dfs_stack<expression>& stack) {
-    visit([&] (auto expr) {
-            enter_expression(expr);
-            push_children(expr, stack);
-          },
-          e);
-  }
+  enter(expression e, dfs_stack<expression>& stack);
 
   void
-  leave(expression e) {
-    visit([&] (auto expr) { leave_expression(expr); }, e);
-  }
+  leave(expression e);
 
 private:
   virtual void
