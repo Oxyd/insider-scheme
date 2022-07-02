@@ -25,25 +25,25 @@
 
 namespace insider {
 
-static std::unique_ptr<expression>
+static expression
 analyse_internal(parsing_context& pc, ptr<syntax> stx) {
-  std::unique_ptr<expression> result = parse(pc, stx);
-  box_set_variables(pc.ctx, result.get());
-  analyse_free_variables(pc.ctx, result.get());
+  expression result = parse(pc, stx);
+  box_set_variables(pc.ctx, result);
+  analyse_free_variables(pc.ctx, result);
   return result;
 }
 
-static std::unique_ptr<expression>
+static expression
 analyse_expression_list(parsing_context& pc,
                         std::vector<tracked_ptr<syntax>>& exprs) {
-  std::vector<std::unique_ptr<expression>> result_exprs;
+  std::vector<expression> result_exprs;
   result_exprs.reserve(exprs.size());
   for (auto const& datum : exprs)
     result_exprs.push_back(analyse_internal(pc, datum.get()));
-  return make_expression<sequence_expression>(std::move(result_exprs));
+  return make<sequence_expression>(pc.ctx, std::move(result_exprs));
 }
 
-static std::unique_ptr<expression>
+static expression
 analyse_top_level_expressions(parsing_context& pc,
                               tracked_ptr<module_> const& m,
                               std::vector<ptr<syntax>> const& exprs) {
@@ -54,17 +54,17 @@ analyse_top_level_expressions(parsing_context& pc,
     return analyse_expression_list(pc, body);
 }
 
-std::unique_ptr<expression>
+expression
 analyse_transformer(parsing_context& pc, ptr<syntax> stx) {
   return analyse_internal(pc, stx);
 }
 
-std::unique_ptr<expression>
+expression
 analyse_meta(parsing_context& pc, ptr<syntax> stx) {
   return analyse_top_level_expressions(pc, pc.module_, {stx});
 }
 
-std::unique_ptr<expression>
+expression
 analyse(context& ctx, ptr<syntax> stx, tracked_ptr<module_> const& m,
         source_file_origin const& origin) {
   parameterize origin_param{ctx, ctx.constants->current_source_file_origin_tag,
@@ -492,7 +492,7 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
   }
 }
 
-std::unique_ptr<expression>
+expression
 analyse_module(context& ctx, tracked_ptr<module_> const& m,
                module_specifier const& pm, bool main_module) {
   parameterize origin_param{

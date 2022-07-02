@@ -5,7 +5,7 @@
 
 namespace insider {
 
-std::unique_ptr<expression>
+expression
 make_internal_reference(context& ctx, std::string name) {
   std::optional<module_::binding_type> binding
     = ctx.internal_module()->find(ctx.intern(name));
@@ -13,9 +13,8 @@ make_internal_reference(context& ctx, std::string name) {
   assert(binding->variable);
   assert(binding->variable->global);
 
-  return make_expression<top_level_reference_expression>(
-    *binding->variable->global,
-    std::move(name)
+  return make<top_level_reference_expression>(
+    ctx, *binding->variable->global, std::move(name)
   );
 }
 

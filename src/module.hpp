@@ -1,10 +1,10 @@
 #ifndef INSIDER_MODULE_HPP
 #define INSIDER_MODULE_HPP
 
-#include "compiler/expression.hpp"
 #include "compiler/module_name.hpp"
 #include "compiler/module_specifier.hpp"
 #include "compiler/scope.hpp"
+#include "memory/free_store.hpp"
 #include "memory/tracked_ptr.hpp"
 #include "object.hpp"
 #include "ptr.hpp"

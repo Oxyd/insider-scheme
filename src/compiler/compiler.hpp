@@ -1,6 +1,7 @@
 #ifndef INSIDER_COMPILER_COMPILER_HPP
 #define INSIDER_COMPILER_COMPILER_HPP
 
+#include "compiler/expression.hpp"
 #include "compiler/source_file_origin.hpp"
 #include "module.hpp"
 #include "ptr.hpp"
@@ -14,7 +15,6 @@ class module_;
 class module_specifier;
 class procedure;
 class syntax;
-struct expression;
 
 // Translate a single expression into bytecode. The resulting procedure will
 // take no arguments and will return the value of the expression. The module is
@@ -25,8 +25,7 @@ compile_expression(context&, ptr<syntax> datum, tracked_ptr<module_> const&,
                    source_file_origin const&);
 
 ptr<procedure>
-compile_syntax(context&, std::unique_ptr<expression>,
-  tracked_ptr<module_> const&);
+compile_syntax(context&, expression, tracked_ptr<module_> const&);
 
 // Interpret a list of expressions and import declarations as a module and
 // create the module.

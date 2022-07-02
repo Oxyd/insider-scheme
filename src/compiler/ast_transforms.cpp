@@ -3,90 +3,122 @@
 #include "compiler/expression.hpp"
 #include "context.hpp"
 
+#include <ranges>
+
 namespace insider {
 
 static void
 box_variable_reference(context& ctx,
-                       expression* expr,
-                       local_reference_expression& local_ref,
+                       expression& expr,
+                       ptr<local_reference_expression> local_ref,
                        ptr<variable> var) {
-  if (local_ref.variable == var) {
-    tracked_ptr<variable> var = std::move(local_ref.variable);
-    expr->value = make_application_expression(
+  if (local_ref->variable() == var)
+    expr = make_application(
       ctx, "unbox",
-      make_expression<local_reference_expression>(std::move(var))
+      make<local_reference_expression>(ctx, var)
     );
-  }
 }
 
 static void
 box_variable_reference(context& ctx,
-                       expression* expr,
-                       local_set_expression& local_set,
-                       ptr<variable> const& var) {
-  if (local_set.target == var) {
-    local_set_expression original_set = std::move(local_set);
-    expr->value = make_application_expression(
+                       expression& expr,
+                       ptr<local_set_expression> local_set,
+                       ptr<variable> var) {
+  if (local_set->target() == var)
+    expr = make_application(
       ctx, "box-set!",
-      make_expression<local_reference_expression>(original_set.target),
-      std::move(original_set.expression)
+      make<local_reference_expression>(ctx, local_set->target()),
+      local_set->expression()
     );
-  }
 }
 
 static void
-box_variable_reference(context&, expression*, auto&, ptr<variable> const&) { }
+box_variable_reference(context&, expression&, auto, ptr<variable>) { }
 
 static void
-box_variable_references(context& ctx, expression* s, ptr<variable> const& var) {
+box_variable_references(context& ctx, expression& s, ptr<variable> var) {
   traverse_postorder(
     s,
-    [&] (expression* expr) {
-      std::visit([&] (auto& e) { box_variable_reference(ctx, expr, e, var); },
-                 expr->value);
+    [&] (expression expr) {
+      visit([&] (auto e) { box_variable_reference(ctx, expr, e, var); },
+            expr);
     }
   );
 }
 
-static void
-box_set_variable(context& ctx, expression* expr, let_expression& let) {
-  for (definition_pair_expression& def : let.definitions)
-    if (def.variable->is_set) {
-      box_variable_references(ctx, expr, def.variable.get());
+static std::vector<ptr<variable>>
+find_set_variables(ptr<let_expression> let) {
+  auto rng = let->definitions()
+    | std::views::transform([] (auto const& dp) { return dp.variable(); })
+    | std::views::filter([] (ptr<variable> v) {
+        return v->is_set;
+      });
+  return std::vector<ptr<variable>>(rng.begin(), rng.end());
+}
 
-      std::unique_ptr<expression> orig_expr = std::move(def.expression);
-      def.expression = make_application(ctx, "box",
-                                        std::move(orig_expr));
+static definition_pair_expression
+box_definition_pair(context& ctx, definition_pair_expression const& dp) {
+  return {dp.id(), dp.variable(),
+          make_application(ctx, "box", dp.expression())};
+}
+
+static std::vector<definition_pair_expression>
+box_definition_pairs(context& ctx,
+                     std::vector<definition_pair_expression> const& dps) {
+  auto rng = dps | std::views::transform(
+    [&] (definition_pair_expression const& dp) {
+      if (dp.variable()->is_set)
+        return box_definition_pair(ctx, dp);
+      else
+        return dp;
     }
+  );
+  return std::vector(rng.begin(), rng.end());
 }
 
 static void
-box_set_variable(context& ctx, expression* expr, lambda_expression& lambda) {
-  for (tracked_ptr<variable> const& param : lambda.parameters)
+box_set_variables(context& ctx, expression& expr, ptr<let_expression> let) {
+  std::vector<ptr<variable>> set_vars = find_set_variables(let);
+  if (!set_vars.empty()) {
+    std::vector<definition_pair_expression> dps
+      = box_definition_pairs(ctx, let->definitions());
+    expression body = let->body();
+    for (ptr<variable> v : set_vars)
+      box_variable_references(ctx, body, v);
+    expr = make<let_expression>(ctx, std::move(dps),
+                                assume<sequence_expression>(body));
+  }
+}
+
+static void
+box_set_variables(context& ctx, expression& expr,
+                  ptr<lambda_expression> lambda) {
+  for (ptr<variable> param : lambda->parameters())
     if (param->is_set) {
-      box_variable_references(ctx, expr, param.get());
-
-      auto ref = std::make_unique<expression>(
-        local_reference_expression{param}
+      box_variable_references(ctx, expr, param);
+      lambda->body()->prepend_expression(
+        ctx.store,
+        make<local_set_expression>(
+          ctx, param,
+          make_application(
+            ctx, "box",
+            make<local_reference_expression>(ctx, param)
+          )
+        )
       );
-      auto box = make_application(ctx, "box", std::move(ref));
-      auto set = make_expression<local_set_expression>(param, std::move(box));
-
-      lambda.body.expressions.insert(lambda.body.expressions.begin(),
-                                     std::move(set));
     }
 }
 
 static void
-box_set_variable(context&, expression*, auto&) { }
+box_set_variables(context&, expression&, auto) { }
 
 void
-box_set_variables(context& ctx, expression* s) {
+box_set_variables(context& ctx, expression& s) {
   traverse_postorder(
     s,
-    [&] (expression* expr) {
-      std::visit([&] (auto& e) { box_set_variable(ctx, expr, e); },
-                 expr->value);
+    [&] (expression expr) {
+      visit([&] (auto e) { box_set_variables(ctx, expr, e); },
+            expr);
     }
   );
 }
@@ -106,21 +138,21 @@ namespace {
     { }
 
     void
-    enter_expression(lambda_expression& lambda) override {
+    enter_expression(ptr<lambda_expression> lambda) override {
       free_vars_stack.emplace_back();
       bound_vars_stack.emplace_back();
-      for (auto const& param : lambda.parameters)
-        bound_vars_stack.back().emplace(param.get());
+      for (ptr<variable> param : lambda->parameters())
+        bound_vars_stack.back().emplace(param);
     }
 
     void
-    leave_expression(lambda_expression& lambda) override {
+    leave_expression(ptr<lambda_expression> lambda) override {
       auto inner_free = std::move(free_vars_stack.back());
       free_vars_stack.pop_back();
       bound_vars_stack.pop_back();
 
-      for (auto const& v : inner_free) {
-        lambda.free_variables.push_back(track(ctx, v));
+      for (ptr<variable> v : inner_free) {
+        lambda->add_free_variable(ctx.store, v);
 
         // Lambda expression's free variables count as variable references in
         // the enclosing procedure.
@@ -131,33 +163,33 @@ namespace {
     }
 
     void
-    enter_expression(let_expression& let) override {
-      for (definition_pair_expression const& dp : let.definitions)
-        bound_vars_stack.back().emplace(dp.variable.get());
+    enter_expression(ptr<let_expression> let) override {
+      for (definition_pair_expression const& dp : let->definitions())
+        bound_vars_stack.back().emplace(dp.variable());
     }
 
     void
-    leave_expression(let_expression& let) override {
-      for (definition_pair_expression const& dp : let.definitions)
-        bound_vars_stack.back().erase(dp.variable.get());
+    leave_expression(ptr<let_expression> let) override {
+      for (definition_pair_expression const& dp : let->definitions())
+        bound_vars_stack.back().erase(dp.variable());
     }
 
     void
-    enter_expression(local_reference_expression& ref) override {
-      if (!bound_vars_stack.back().count(ref.variable.get()))
-        free_vars_stack.back().emplace(ref.variable.get());
+    enter_expression(ptr<local_reference_expression> ref) override {
+      if (!bound_vars_stack.back().count(ref->variable()))
+        free_vars_stack.back().emplace(ref->variable());
     }
 
     void
-    enter_expression([[maybe_unused]] local_set_expression& set) override {
+    enter_expression([[maybe_unused]] ptr<local_set_expression> set) override {
       // Local set!s are boxed, so this shouldn't happen.
-      assert(bound_vars_stack.back().count(set.target.get()));
+      assert(bound_vars_stack.back().count(set->target()));
     }
   };
 }
 
 void
-analyse_free_variables(context& ctx, expression* e) {
+analyse_free_variables(context& ctx, expression& e) {
   free_variable_visitor v{ctx};
   depth_first_search(e, v);
 

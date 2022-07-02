@@ -74,6 +74,18 @@ expect(sum_type<Ts...> s) {
   return expect<T>(s.get());
 }
 
+template <typename T, typename... Ts>
+ptr<T>
+match(sum_type<Ts...> s) {
+  return match<T>(s.get());
+}
+
+template <typename T, typename... Ts>
+ptr<T>
+assume(sum_type<Ts...> s) {
+  return assume<T>(s.get());
+}
+
 template <typename... Ts, typename U>
 bool
 operator == (sum_type<Ts...> s, ptr<U> p) {

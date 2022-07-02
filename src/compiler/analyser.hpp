@@ -29,7 +29,7 @@ class textual_input_port;
 // top-level binding if the datum is a top-level definition. The input syntax is
 // modified by updating the scope sets of it and all the syntaxes it recursively
 // contains.
-std::unique_ptr<expression>
+expression
 analyse(context&, ptr<syntax> stx, tracked_ptr<module_> const&,
         source_file_origin const&);
 
@@ -49,14 +49,14 @@ std::optional<module_name>
 read_library_name(context&, ptr<textual_input_port>);
 
 // Analyse a module's body in the given module.
-std::unique_ptr<expression>
+expression
 analyse_module(context&, tracked_ptr<module_> const&, module_specifier const&,
                bool main_module = false);
 
-std::unique_ptr<expression>
+expression
 analyse_transformer(parsing_context& pc, ptr<syntax> stx);
 
-std::unique_ptr<expression>
+expression
 analyse_meta(parsing_context& pc, ptr<syntax> stx);
 
 } // namespace insider

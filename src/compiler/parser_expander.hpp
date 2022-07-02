@@ -1,6 +1,7 @@
 #ifndef INSIDER_COMPILER_PARSER_EXPANDER_HPP
 #define INSIDER_COMPILER_PARSER_EXPANDER_HPP
 
+#include "compiler/expression.hpp"
 #include "compiler/parsing_context.hpp"
 #include "memory/tracked_ptr.hpp"
 #include "ptr.hpp"
@@ -14,11 +15,10 @@ namespace insider {
 // really be separated since they are fundamentally interleaved, thus this
 // module does both.
 
-class expression;
 class module_;
 class syntax;
 
-std::unique_ptr<expression>
+expression
 parse(parsing_context& pc, ptr<syntax> s);
 
 std::vector<tracked_ptr<syntax>>
