@@ -41,7 +41,8 @@ Checks:          '-*,
                   -cppcoreguidelines-special-member-functions,
                   -modernize-avoid-c-arrays,
                   -cppcoreguidelines-avoid-c-arrays,
-                  -readability-convert-member-functions-to-static'
+                  -readability-convert-member-functions-to-static,
+                  -readability-identifier-length'
 
 FormatStyle:     file
 CheckOptions:
