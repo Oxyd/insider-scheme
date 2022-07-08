@@ -864,15 +864,17 @@ TEST_F(control, call_parameterized_with_continuation_barrier_sets_parameter_in_s
   auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
   define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
-  auto get_value = eval(R"(
+  tracked_ptr<> get_value = track(ctx, eval(R"(
     (lambda ()
       (find-parameter-value p))
-  )");
+  )"));
 
-  auto result1 = call_with_continuation_barrier(ctx, get_value, {});
+  auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
   EXPECT_EQ(expect<integer>(result1).value(), 0);
 
-  auto result2 = call_parameterized_with_continuation_barrier(ctx, get_value, {}, tag.get(), integer_to_ptr(4));
+  auto result2 = call_parameterized_with_continuation_barrier(
+    ctx, get_value.get(), {}, tag.get(), integer_to_ptr(4)
+  );
   EXPECT_EQ(expect<integer>(result2).value(), 4);
 }
 
@@ -907,18 +909,18 @@ TEST_F(control, native_parameterize_sets_parameter_in_scheme_frame) {
   auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
   define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
-  auto get_value = eval(R"(
+  tracked_ptr<> get_value = track(ctx, eval(R"(
     (lambda ()
       (find-parameter-value p))
-  )");
+  )"));
 
   {
     parameterize p{ctx, tag.get(), integer_to_ptr(4)};
-    auto result1 = call_with_continuation_barrier(ctx, get_value, {});
+    auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
     EXPECT_EQ(expect<integer>(result1).value(), 4);
   }
 
-  auto result2 = call_with_continuation_barrier(ctx, get_value, {});
+  auto result2 = call_with_continuation_barrier(ctx, get_value.get(), {});
   EXPECT_EQ(expect<integer>(result2).value(), 0);
 }
 
