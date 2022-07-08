@@ -7,8 +7,8 @@ namespace insider {
 
 class context;
 
-void
-box_set_variables(context& ctx, expression& s);
+expression
+box_set_variables(context& ctx, expression s);
 
 void
 analyse_free_variables(context& ctx, expression& e);

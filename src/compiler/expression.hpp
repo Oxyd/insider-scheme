@@ -38,6 +38,7 @@ using expression = sum_type<
 >;
 
 using tracked_expression = tracked_sum_type<expression>;
+using result_stack = std::vector<expression>;
 
 class literal_expression : public composite_object<literal_expression> {
 public:
@@ -55,6 +56,9 @@ public:
 
   void
   visit_members(member_visitor const& f);
+
+  expression
+  duplicate(context&, result_stack&);
 
 private:
   ptr<> value_;
@@ -80,6 +84,9 @@ public:
   void
   visit_members(member_visitor const& f);
 
+  expression
+  duplicate(context&, result_stack&);
+
 private:
   ptr<insider::variable> variable_;
 };
@@ -99,6 +106,9 @@ public:
   template <typename F>
   void
   visit_subexpressions(F&&) const { }
+
+  expression
+  duplicate(context&, result_stack&);
 };
 
 class unknown_reference_expression
@@ -120,6 +130,9 @@ public:
 
   void
   visit_members(member_visitor const& f);
+
+  expression
+  duplicate(context&, result_stack&);
 
 private:
   ptr<syntax> name_;
@@ -161,6 +174,9 @@ public:
   void
   visit_members(member_visitor const& f);
 
+  expression
+  duplicate(context&, result_stack&);
+
 private:
   expression              target_;
   std::vector<expression> arguments_;
@@ -196,6 +212,9 @@ public:
   void
   visit_members(member_visitor const& f);
 
+  expression
+  duplicate(context&, result_stack&);
+
 private:
   std::vector<expression> expressions_;
 };
@@ -224,6 +243,15 @@ private:
   insider::expression    expression_;
 };
 
+struct tracked_definition_pair {
+  tracked_ptr<syntax>   id;
+  tracked_ptr<variable> var;
+  tracked_expression    expr;
+};
+
+std::vector<definition_pair_expression>
+untrack_definition_pairs(std::vector<tracked_definition_pair> const&);
+
 class let_expression : public composite_object<let_expression> {
 public:
   static constexpr char const* scheme_name = "insider::let_expression";
@@ -240,13 +268,18 @@ public:
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    for (auto const& def : definitions_)
+    for (auto const& def : definitions_) {
+      assert(!is<stack_frame_extra_data>(def.expression()));
       f(def.expression());
+    }
     f(body_);
   }
 
   void
   visit_members(member_visitor const& f);
+
+  expression
+  duplicate(context&, result_stack&);
 
 private:
   std::vector<definition_pair_expression> definitions_;
@@ -273,6 +306,9 @@ public:
 
   void
   visit_members(member_visitor const& f);
+
+  insider::expression
+  duplicate(context&, result_stack&);
 
 private:
   ptr<variable>       target_;
@@ -302,6 +338,9 @@ public:
 
   void
   visit_members(member_visitor const& f);
+
+  insider::expression
+  duplicate(context&, result_stack&);
 
 private:
   operand             location_;
@@ -348,13 +387,15 @@ public:
   void
   visit_members(member_visitor const& f);
 
+  expression
+  duplicate(context&, result_stack&);
+
 private:
   std::vector<ptr<variable>> parameters_;
   bool                       has_rest_;
   ptr<sequence_expression>   body_;
   std::optional<std::string> name_;
   std::vector<ptr<variable>> free_variables_;
-
 };
 
 class if_expression : public composite_object<if_expression> {
@@ -377,12 +418,14 @@ public:
   visit_subexpressions(F&& f) const {
     f(test_);
     f(consequent_);
-    if (alternative_)
-      f(alternative_);
+    f(alternative_);
   }
 
   void
   visit_members(member_visitor const& f);
+
+  expression
+  duplicate(context&, result_stack&);
 
 private:
   expression test_;
@@ -392,6 +435,9 @@ private:
 
 expression
 make_internal_reference(context& ctx, std::string name);
+
+std::vector<expression>
+untrack_expressions(std::vector<tracked_expression> const&);
 
 template <typename... Args>
 static expression
@@ -508,6 +554,41 @@ traverse_postorder(expression e, F&& f) {
   } v{f};
 
   depth_first_search(e, v);
+}
+
+template <typename F>
+expression
+map_ast(context& ctx, expression e, F&& f) {
+  struct visitor {
+    context& ctx;
+    F& f;
+    result_stack results;
+
+    visitor(context& ctx, F& f)
+      : ctx{ctx}
+      , f{f}
+    { }
+
+    void
+    enter(expression e, dfs_stack<expression>& stack) {
+      visit([&] (auto expr) { push_children(expr, stack); },
+            e);
+    }
+
+    void
+    leave(expression expr) {
+      auto copy
+        = visit([&] (auto expr) { return expr->duplicate(ctx, results); },
+                expr);
+      auto result = visit(f, copy);
+      results.push_back(result);
+    }
+  } v{ctx, f};
+
+  depth_first_search(e, v);
+
+  assert(v.results.size() == 1);
+  return v.results.back();
 }
 
 } // namespace insider

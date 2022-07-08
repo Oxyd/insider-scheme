@@ -131,6 +131,7 @@ set(scheme_sources
 
 set(test_sources
         test/scheme_fixture.cpp
+        test/test_ast.cpp
         test/test_bytecode.cpp
         test/test_call_stack.cpp
         test/test_character.cpp

@@ -538,14 +538,17 @@ parse_body(parsing_context& pc, ptr<> data, source_location const& loc) {
   if (!content.internal_variable_defs.empty()) {
     // Simulate a letrec*.
 
-    std::vector<definition_pair_expression> definition_exprs;
+    std::vector<tracked_definition_pair> definition_exprs;
     std::vector<tracked_ptr<variable>> variables;
     for (auto const& [id, init, var] : content.internal_variable_defs) {
       variables.push_back(var);
       auto void_expr = make<literal_expression>(
         pc.ctx, pc.ctx.constants->void_
       );
-      definition_exprs.emplace_back(id.get(), var.get(), void_expr);
+      definition_exprs.push_back(tracked_definition_pair{
+        id, var,
+        tracked_expression{pc.ctx.store, void_expr}
+      });
     }
 
     environment_extender subenv{pc, variables};
@@ -568,7 +571,7 @@ parse_body(parsing_context& pc, ptr<> data, source_location const& loc) {
       std::vector{
         make<let_expression>(
           pc.ctx,
-          std::move(definition_exprs),
+          untrack_definition_pairs(definition_exprs),
           make<sequence_expression>(
             pc.ctx,
             std::array{std::move(set_exprs), std::move(body_exprs)}
@@ -658,22 +661,23 @@ parse_let(parsing_context& pc, ptr<syntax> stx_) {
     fmt::format("let body at {}", format_location(stx->location()))
   );
 
-  std::vector<definition_pair_expression> definition_exprs;
+  std::vector<tracked_definition_pair> definition_exprs;
   for (definition_pair const& dp : definitions) {
     tracked_ptr<syntax> id
       = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope.get()));
     auto var = make_tracked<variable>(pc.ctx, identifier_name(id.get()));
     define(pc.ctx.store, id.get(), var.get());
-    expression init_expr = parse(pc, dp.expression.get());
-    definition_exprs.emplace_back(id.get(), var.get(), init_expr);
+    tracked_expression init_expr = parse_tracked(pc, dp.expression.get());
+    definition_exprs.emplace_back(id, var, init_expr);
   }
 
   ptr<> body_with_scope = add_scope_to_list(pc.ctx, body.get(), subscope.get());
   auto subenv = extend_environment(pc, subscope.get());
+  auto body_stx = parse_body(pc, body_with_scope, stx->location());
+
   return make<let_expression>(pc.ctx,
-                              std::move(definition_exprs),
-                              parse_body(pc, body_with_scope,
-                                         stx->location()));
+                              untrack_definition_pairs(definition_exprs),
+                              body_stx);
 }
 
 static ptr<sequence_expression>
@@ -727,6 +731,16 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
   return parse_body(pc, body_with_scope, loc);
 }
 
+template <typename T>
+static std::vector<ptr<T>>
+untrack_vector(std::vector<tracked_ptr<T>> const& v) {
+  std::vector<ptr<T>> result;
+  result.reserve(v.size());
+  for (auto const& value : v)
+    result.push_back(value.get());
+  return result;
+}
+
 static ptr<lambda_expression>
 parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   source_location loc = stx->location();
@@ -737,7 +751,7 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
 
   ptr<syntax> param_stx = expect<syntax>(cadr(assume<pair>(datum)));
   ptr<> param_names = param_stx;
-  std::vector<ptr<variable>> parameters;
+  std::vector<tracked_ptr<variable>> parameters;
   bool has_rest = false;
   auto subscope = make_tracked<scope>(
     pc.ctx, pc.ctx,
@@ -748,9 +762,9 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
       auto id = expect_id(pc.ctx, expect<syntax>(car(param)));
       auto id_with_scope = id->add_scope(pc.ctx.store, subscope.get());
 
-      auto var = make<variable>(pc.ctx, identifier_name(id));
+      auto var = make_tracked<variable>(pc.ctx, identifier_name(id));
       parameters.push_back(var);
-      define(pc.ctx.store, id_with_scope, var);
+      define(pc.ctx.store, id_with_scope, var.get());
 
       param_names = cdr(param);
     }
@@ -759,9 +773,10 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
       auto name = expect<syntax>(param_names);
       auto name_with_scope = name->add_scope(pc.ctx.store, subscope.get());
 
-      auto var = make<variable>(pc.ctx, identifier_name(name_with_scope));
+      auto var
+        = make_tracked<variable>(pc.ctx, identifier_name(name_with_scope));
       parameters.push_back(var);
-      define(pc.ctx.store, name_with_scope, var);
+      define(pc.ctx.store, name_with_scope, var.get());
       break;
     }
     else
@@ -771,16 +786,17 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
       );
   }
 
-  ptr<> body = cddr(assume<pair>(datum));
-  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body, subscope.get());
+  ptr<> body_stx = cddr(assume<pair>(datum));
+  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body_stx, subscope.get());
 
   auto subenv = extend_environment(pc, subscope.get());
+  auto body = parse_body(pc, body_with_scope, loc);
 
   return make<lambda_expression>(
     pc.ctx,
-    std::move(parameters),
+    untrack_vector(parameters),
     has_rest,
-    parse_body(pc, body_with_scope, loc),
+    body,
     fmt::format("<lambda at {}>", format_location(loc)),
     std::vector<ptr<variable>>{}
   );
@@ -804,6 +820,12 @@ parse_if(parsing_context& pc, ptr<syntax> stx) {
   tracked_expression else_expr{pc.ctx.store};
   if (else_stx)
     else_expr = parse_tracked(pc, else_stx.get());
+  else
+    else_expr = tracked_expression{
+      pc.ctx.store,
+      make<literal_expression>(pc.ctx,
+                               pc.ctx.constants->void_)
+    };
 
   return make<if_expression>(pc.ctx, test_expr.get(), then_expr.get(),
                              else_expr.get());
@@ -1248,29 +1270,34 @@ process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl
                     bool force_unwrapped = false);
 
 template <typename Traits>
-static expression
+static tracked_expression
 make_qq_tail_expression(parsing_context& pc,
                         std::unique_ptr<qq_template> const& tpl,
                         list_pattern const& lp) {
-  expression tail;
+  tracked_expression tail{pc.ctx.store};
   if (lp.last) {
     if (is_splice(lp.last->cdr))
       throw make_compile_error<syntax_error>(
         tpl->stx.get(), "Invalid use of {}", Traits::splicing_form_name
       );
 
-    if (is_splice(lp.last->car))
-      tail = make_application(
-        pc.ctx, "append",
-        process_qq_template<Traits>(pc, lp.last->car, true),
-        process_qq_template<Traits>(pc, lp.last->cdr, true)
-      );
-    else
-      tail = make_application(
-        pc.ctx, "cons",
-        process_qq_template<Traits>(pc, lp.last->car),
-        process_qq_template<Traits>(pc, lp.last->cdr)
-      );
+    if (is_splice(lp.last->car)) {
+      tracked_expression car{
+        pc.ctx.store, process_qq_template<Traits>(pc, lp.last->car, true)
+      };
+      tracked_expression cdr{
+        pc.ctx.store, process_qq_template<Traits>(pc, lp.last->cdr, true)
+      };
+      tail = make_application(pc.ctx, "append", car.get(), cdr.get());
+    } else {
+      tracked_expression car{
+        pc.ctx.store, process_qq_template<Traits>(pc, lp.last->car)
+      };
+      tracked_expression cdr{
+        pc.ctx.store, process_qq_template<Traits>(pc, lp.last->cdr)
+      };
+      tail = make_application(pc.ctx, "cons", car.get(), cdr.get());
+    }
   }
   return tail;
 }
@@ -1281,34 +1308,37 @@ process_qq_pattern(parsing_context& pc,
                    std::unique_ptr<qq_template> const& tpl,
                    bool force_unwrapped,
                    list_pattern const& lp) {
-  auto tail = make_qq_tail_expression<Traits>(pc, tpl, lp);
+  tracked_expression tail = make_qq_tail_expression<Traits>(pc, tpl, lp);
 
   for (auto const& elem : lp.elems | std::views::reverse) {
-    if (tail) {
+    if (tail.get()) {
       if (is_splice(elem))
         tail = make_application(pc.ctx, "append",
                                 process_qq_template<Traits>(pc, elem, true),
-                                std::move(tail));
+                                tail.get());
       else
         tail = make_application(
           pc.ctx, "cons",
           process_qq_template<Traits>(pc, elem),
-          std::move(tail)
+          tail.get()
         );
     } else {
       if (is_splice(elem))
         tail = process_qq_template<Traits>(pc, elem, true);
-      else
+      else {
+        tracked_expression car{pc.ctx.store,
+                               process_qq_template<Traits>(pc, elem)};
         tail = make_application(
           pc.ctx, "cons",
-          process_qq_template<Traits>(pc, elem),
+          car.get(),
           make<literal_expression>(pc.ctx, pc.ctx.constants->null)
         );
+      }
     }
   }
 
-  assert(tail);
-  return Traits::wrap(pc.ctx, tpl->stx.get(), std::move(tail),
+  assert(tail.get());
+  return Traits::wrap(pc.ctx, tpl->stx.get(), tail.get(),
                       force_unwrapped);
 }
 

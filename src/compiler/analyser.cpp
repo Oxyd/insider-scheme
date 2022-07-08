@@ -28,7 +28,7 @@ namespace insider {
 static expression
 analyse_internal(parsing_context& pc, ptr<syntax> stx) {
   expression result = parse(pc, stx);
-  box_set_variables(pc.ctx, result);
+  result = box_set_variables(pc.ctx, result);
   analyse_free_variables(pc.ctx, result);
   return result;
 }
@@ -36,11 +36,11 @@ analyse_internal(parsing_context& pc, ptr<syntax> stx) {
 static expression
 analyse_expression_list(parsing_context& pc,
                         std::vector<tracked_ptr<syntax>>& exprs) {
-  std::vector<expression> result_exprs;
+  std::vector<tracked_expression> result_exprs;
   result_exprs.reserve(exprs.size());
   for (auto const& datum : exprs)
-    result_exprs.push_back(analyse_internal(pc, datum.get()));
-  return make<sequence_expression>(pc.ctx, std::move(result_exprs));
+    result_exprs.emplace_back(pc.ctx.store, analyse_internal(pc, datum.get()));
+  return make<sequence_expression>(pc.ctx, untrack_expressions(result_exprs));
 }
 
 static expression

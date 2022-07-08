@@ -53,6 +53,9 @@ public:
   explicit
   operator bool () const { return static_cast<bool>(value_); }
 
+  bool
+  operator == (sum_type<Ts...> const&) const = default;
+
   void
   visit_members(member_visitor const& f) {
     f(value_);
@@ -148,6 +151,9 @@ public:
 
   Sum
   get() const { return sum_; }
+
+  tracked_sum_type&
+  operator = (Sum s) { sum_ = s; return *this; }
 
 private:
   Sum sum_;

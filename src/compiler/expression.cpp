@@ -5,6 +5,28 @@
 
 namespace insider {
 
+static expression
+pop(result_stack& stack) {
+  expression result = stack.back();
+  stack.pop_back();
+  return result;
+}
+
+template <typename T>
+static ptr<T>
+pop(result_stack& stack) {
+  return assume<T>(pop(stack));
+}
+
+static std::vector<expression>
+pop_vector(result_stack& stack, std::size_t n) {
+  std::vector<expression> result;
+  result.reserve(n);
+  for (std::size_t i = 0; i < n; ++i)
+    result.push_back(pop(stack));
+  return result;
+}
+
 literal_expression::literal_expression(ptr<> value)
   : value_{value}
 { }
@@ -14,7 +36,14 @@ literal_expression::visit_members(member_visitor const& f) {
   f(value_);
 }
 
-local_reference_expression::local_reference_expression(ptr<insider::variable> var)
+expression
+literal_expression::duplicate(context& ctx, result_stack&) {
+  return make<literal_expression>(ctx, value_);
+}
+
+local_reference_expression::local_reference_expression(
+  ptr<insider::variable> var
+)
   : variable_{var}
 { }
 
@@ -23,11 +52,21 @@ local_reference_expression::visit_members(member_visitor const& f) {
   f(variable_);
 }
 
+expression
+local_reference_expression::duplicate(context& ctx, result_stack&) {
+  return make<local_reference_expression>(ctx, variable_);
+}
+
 top_level_reference_expression::top_level_reference_expression(operand location,
                                                                std::string name)
   : location{location}
   , name{std::move(name)}
 { }
+
+expression
+top_level_reference_expression::duplicate(context& ctx, result_stack&) {
+  return make<top_level_reference_expression>(ctx, location, name);
+}
 
 unknown_reference_expression::unknown_reference_expression(ptr<syntax> name)
   : name_{name}
@@ -36,6 +75,11 @@ unknown_reference_expression::unknown_reference_expression(ptr<syntax> name)
 void
 unknown_reference_expression::visit_members(member_visitor const& f) {
   f(name_);
+}
+
+expression
+unknown_reference_expression::duplicate(context& ctx, result_stack&) {
+  return make<unknown_reference_expression>(ctx, name_);
 }
 
 application_expression::application_expression(expression t,
@@ -49,6 +93,13 @@ application_expression::visit_members(member_visitor const& f) {
   target_.visit_members(f);
   for (auto& arg : arguments_)
     arg.visit_members(f);
+}
+
+expression
+application_expression::duplicate(context& ctx, result_stack& stack) {
+  expression target = pop(stack);
+  auto args = pop_vector(stack, arguments_.size());
+  return make<application_expression>(ctx, target, std::move(args));
 }
 
 sequence_expression::sequence_expression(std::vector<expression> exprs)
@@ -67,6 +118,11 @@ sequence_expression::visit_members(member_visitor const& f) {
     e.visit_members(f);
 }
 
+expression
+sequence_expression::duplicate(context& ctx, result_stack& stack) {
+  return make<sequence_expression>(ctx, pop_vector(stack, expressions_.size()));
+}
+
 definition_pair_expression::definition_pair_expression(
   ptr<syntax> id,
   ptr<insider::variable> var,
@@ -82,6 +138,16 @@ definition_pair_expression::visit_members(member_visitor const& f) {
   f(id_);
   f(variable_);
   expression_.visit_members(f);
+  assert(!is<stack_frame_extra_data>(expression_.get()));
+}
+
+std::vector<definition_pair_expression>
+untrack_definition_pairs(std::vector<tracked_definition_pair> const& v) {
+  std::vector<definition_pair_expression> result;
+  result.reserve(v.size());
+  for (tracked_definition_pair const& dp : v)
+    result.emplace_back(dp.id.get(), dp.var.get(), dp.expr.get());
+  return result;
 }
 
 let_expression::let_expression(std::vector<definition_pair_expression> defs,
@@ -97,6 +163,20 @@ let_expression::visit_members(member_visitor const& f) {
   f(body_);
 }
 
+expression
+let_expression::duplicate(context& ctx, result_stack& stack) {
+  auto definition_exprs = pop_vector(stack, definitions_.size());
+  auto body = pop<sequence_expression>(stack);
+
+  std::vector<definition_pair_expression> def_pairs;
+  def_pairs.reserve(definition_exprs.size());
+  for (std::size_t i = 0; i < definition_exprs.size(); ++i)
+    def_pairs.emplace_back(definitions_[i].id(), definitions_[i].variable(),
+                           definition_exprs[i]);
+
+  return make<let_expression>(ctx, std::move(def_pairs), body);
+}
+
 local_set_expression::local_set_expression(ptr<variable> target,
                                            insider::expression expr)
   : target_{target}
@@ -109,6 +189,11 @@ local_set_expression::visit_members(member_visitor const& f) {
   expression_.visit_members(f);
 }
 
+expression
+local_set_expression::duplicate(context& ctx, result_stack& stack) {
+  return make<local_set_expression>(ctx, target_, pop(stack));
+}
+
 top_level_set_expression::top_level_set_expression(operand location,
                                                    insider::expression expr)
   : location_{location}
@@ -118,6 +203,11 @@ top_level_set_expression::top_level_set_expression(operand location,
 void
 top_level_set_expression::visit_members(member_visitor const& f) {
   expression_.visit_members(f);
+}
+
+expression
+top_level_set_expression::duplicate(context& ctx, result_stack& stack) {
+  return make<top_level_set_expression>(ctx, location_, pop(stack));
 }
 
 lambda_expression::lambda_expression(std::vector<ptr<variable>> parameters,
@@ -147,6 +237,18 @@ lambda_expression::visit_members(member_visitor const& f) {
     f(fv);
 }
 
+expression
+lambda_expression::duplicate(context& ctx, result_stack& stack) {
+  return make<lambda_expression>(
+    ctx,
+    parameters_,
+    has_rest_,
+    pop<sequence_expression>(stack),
+    name_,
+    free_variables_
+  );
+}
+
 if_expression::if_expression(expression test, expression consequent,
                              expression alternative)
   : test_{test}
@@ -162,6 +264,14 @@ if_expression::visit_members(member_visitor const& f) {
 }
 
 expression
+if_expression::duplicate(context& ctx, result_stack& stack) {
+  auto test = pop(stack);
+  auto consequent = pop(stack);
+  auto alternative = pop(stack);
+  return make<if_expression>(ctx, test, consequent, alternative);
+}
+
+expression
 make_internal_reference(context& ctx, std::string name) {
   std::optional<module_::binding_type> binding
     = ctx.internal_module()->find(ctx.intern(name));
@@ -172,6 +282,15 @@ make_internal_reference(context& ctx, std::string name) {
   return make<top_level_reference_expression>(
     ctx, *binding->variable->global, std::move(name)
   );
+}
+
+std::vector<expression>
+untrack_expressions(std::vector<tracked_expression> const& v) {
+  std::vector<expression> result;
+  result.reserve(v.size());
+  for (tracked_expression const& e : v)
+    result.push_back(e.get());
+  return result;
 }
 
 void
@@ -187,4 +306,5 @@ void
 expression_visitor::leave(expression e) {
   visit([&] (auto expr) { leave_expression(expr); }, e);
 }
+
 } // namespace insider
