@@ -19,12 +19,12 @@ class integer;
 using word_type = std::uint64_t;
 
 struct type_descriptor {
-  char const* name;
-  void (*destroy)(ptr<>);
-  ptr<> (*move)(ptr<>, std::byte*);
-  void (*visit_members)(ptr<>, member_visitor const&);
+  char const* name = "invalid";
+  void (*destroy)(ptr<>) = nullptr;
+  ptr<> (*move)(ptr<>, std::byte*) = nullptr;
+  void (*visit_members)(ptr<>, member_visitor const&) = nullptr;
 
-  bool constant_size;
+  bool constant_size = true;
   std::size_t size = 0;
   std::size_t (*get_size)(ptr<>) = nullptr;
 };
@@ -70,13 +70,15 @@ clamp_hash(word_type h) {
 
 inline std::vector<type_descriptor>&
 types() {
-  static std::vector<type_descriptor> value;
+  // Reserve first type descriptor for the invalid type descriptor.
+  static std::vector<type_descriptor> value{{}};
   return value;
 }
 
 word_type
 new_type(type_descriptor);
 
+static constexpr word_type invalid_type = 0;
 static constexpr word_type no_type = std::numeric_limits<word_type>::max();
 
 // Pointer tagging:
