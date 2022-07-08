@@ -58,6 +58,8 @@ set(scheme_sources
         src/compiler/module_specifier.hpp
         src/compiler/parser_expander.cpp
         src/compiler/parser_expander.hpp
+        src/compiler/parsing_context.cpp
+        src/compiler/parsing_context.hpp
         src/compiler/scope.cpp
         src/compiler/scope.hpp
         src/compiler/source_code_provider.cpp

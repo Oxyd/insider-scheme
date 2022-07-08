@@ -31,15 +31,37 @@ syntax_to_string(context& ctx, ptr<syntax> stx) {
   return datum_to_string(ctx, syntax_to_datum(ctx, stx));
 }
 
+template <typename T>
+static std::vector<ptr<T>>
+untrack_vector(std::vector<tracked_ptr<T>> const& v) {
+  std::vector<ptr<T>> result;
+  result.reserve(v.size());
+  for (auto const& value : v)
+    result.push_back(value.get());
+  return result;
+}
+
 namespace {
   class environment_extender {
   public:
     explicit
+    environment_extender(parsing_context& pc)
+      : pc_{pc}
+    {
+      pc.environment.emplace_back();
+    }
+
+    environment_extender(parsing_context& pc,
+                         std::vector<ptr<variable>> extension)
+      : pc_{pc}
+    {
+      pc.environment.push_back(std::move(extension));
+    }
     environment_extender(parsing_context& pc,
                          std::vector<tracked_ptr<variable>> extension)
       : pc_{pc}
     {
-      pc.environment.push_back(std::move(extension));
+      pc.environment.push_back(untrack_vector(extension));
     }
 
     ~environment_extender() {
@@ -106,7 +128,7 @@ namespace {
 
 static parsing_context
 make_subcontext(parsing_context& pc) {
-  return parsing_context{pc.ctx, pc.module_, pc.origin, {}, {}};
+  return parsing_context{pc.ctx, pc.module_, pc.origin};
 }
 
 static environment_extender
@@ -188,8 +210,7 @@ lookup_transformer(ptr<syntax> id) {
 
 static bool
 scope_is_use_site(ptr<scope> s, use_site_scopes_list const& use_site_scopes) {
-  return std::ranges::find(use_site_scopes, s,
-                           &tracked_ptr<scope>::get) != use_site_scopes.end();
+  return std::ranges::find(use_site_scopes, s) != use_site_scopes.end();
 }
 
 static ptr<syntax>
@@ -280,14 +301,19 @@ expand(context& ctx, tracked_ptr<syntax> stx,
   return stx;
 }
 
+static void
+record_use_site_scopes(parsing_context& pc,
+                       std::vector<tracked_ptr<scope>> const& scopes) {
+  for (tracked_ptr<scope> const& s : scopes)
+    pc.use_site_scopes.back().push_back(s.get());
+}
+
 static tracked_ptr<syntax>
 expand(parsing_context& pc, tracked_ptr<syntax> const& stx) {
   if (pc.record_use_site_scopes()) {
     std::vector<tracked_ptr<scope>> use_site_scopes;
     tracked_ptr<syntax> result = expand(pc.ctx, stx, &use_site_scopes);
-    pc.use_site_scopes.back().insert(pc.use_site_scopes.back().end(),
-                                     std::move_iterator{use_site_scopes.begin()},
-                                     std::move_iterator{use_site_scopes.end()});
+    record_use_site_scopes(pc, use_site_scopes);
     return result;
   } else
     return expand(pc.ctx, stx, nullptr);
@@ -298,7 +324,7 @@ static tracked_ptr<>
 eval_at_expand_time(parsing_context& pc, ptr<syntax> datum) {
   auto meta_pc = make_subcontext(pc);
   auto proc = compile_syntax(meta_pc.ctx, Analyse(meta_pc, datum),
-                             meta_pc.module_);
+                             track(meta_pc.ctx, meta_pc.module_));
   return call_with_continuation_barrier(meta_pc.ctx, proc, {});
 }
 
@@ -396,7 +422,7 @@ process_internal_define(
     body_content::internal_variable{id, track(pc.ctx, init), var}
   );
   define(pc.ctx.store, id.get(), var.get());
-  pc.environment.back().emplace_back(std::move(var));
+  pc.environment.back().emplace_back(var.get());
 }
 
 static void
@@ -431,7 +457,7 @@ is_definition_form(context& ctx, ptr<core_form_type> f) {
 static bool
 process_stack_of_internal_defines(parsing_context& pc, body_content& result,
                                   std::vector<tracked_ptr<syntax>> stack) {
-  environment_extender internal_env{pc, {}};
+  environment_extender internal_env{pc};
   internal_definition_context_guard idc{pc};
 
   bool seen_expression = false;
@@ -729,16 +755,6 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
   auto subenv = extend_environment(pc, subscope.get());
 
   return parse_body(pc, body_with_scope, loc);
-}
-
-template <typename T>
-static std::vector<ptr<T>>
-untrack_vector(std::vector<tracked_ptr<T>> const& v) {
-  std::vector<ptr<T>> result;
-  result.reserve(v.size());
-  for (auto const& value : v)
-    result.push_back(value.get());
-  return result;
 }
 
 static ptr<lambda_expression>

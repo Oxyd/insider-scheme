@@ -61,7 +61,7 @@ analyse_transformer(parsing_context& pc, ptr<syntax> stx) {
 
 expression
 analyse_meta(parsing_context& pc, ptr<syntax> stx) {
-  return analyse_top_level_expressions(pc, pc.module_, {stx});
+  return analyse_top_level_expressions(pc, track(pc.ctx, pc.module_), {stx});
 }
 
 expression
@@ -71,7 +71,7 @@ analyse(context& ctx, ptr<syntax> stx, tracked_ptr<module_> const& m,
                             make<opaque_value<source_file_origin>>(ctx, origin)};
   parameterize module_param{ctx, ctx.constants->current_expand_module_tag,
                             m.get()};
-  parsing_context pc{ctx, m, origin, {}, {}};
+  parsing_context pc{ctx, m.get(), origin};
   stx = stx->add_scope(ctx.store, m->scope());
   return analyse_top_level_expressions(pc, m, {stx});
 }
@@ -506,7 +506,7 @@ analyse_module(context& ctx, tracked_ptr<module_> const& m,
   parameterize module_param{
     ctx, ctx.constants->current_expand_module_tag, m.get()
   };
-  parsing_context pc{ctx, m, pm.origin, {}, {}};
+  parsing_context pc{ctx, m.get(), pm.origin};
 
   return analyse_top_level_expressions(pc, m, pm.body);
 }
