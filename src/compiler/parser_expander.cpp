@@ -616,7 +616,6 @@ make_internal_definition_set_expressions(
     ptr<variable> var = content.internal_variable_defs[i].var;
     ptr<syntax> init_stx = content.internal_variable_defs[i].init;
     expression init_expr = parse(pc, init_stx);
-    var->is_set = true;
     result.emplace_back(make<local_set_expression>(pc.ctx, var, init_expr));
   }
   return result;
@@ -996,10 +995,9 @@ make_set_expression(parsing_context& pc, ptr<syntax> name,
   if (auto l = match<lambda_expression>(initialiser))
     l->set_name(identifier_name(name));
 
-  if (!var->global) {
-    var->is_set = true;
+  if (!var->global)
     return make<local_set_expression>(pc.ctx, var, initialiser);
-  } else
+  else
     return make<top_level_set_expression>(pc.ctx, *var->global, initialiser);
 }
 

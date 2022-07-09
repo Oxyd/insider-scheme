@@ -133,8 +133,24 @@ box_set_variables(context&, auto e) {
   return e;
 }
 
+static void
+mark_set_variables(ptr<local_set_expression> set) {
+  set->target()->is_set = true;
+}
+
+static void
+mark_set_variables(auto) { }
+
+static void
+mark_set_variables(expression expr) {
+  traverse_postorder(expr, [] (expression subexpr) {
+    visit([] (auto e) { mark_set_variables(e); }, subexpr);
+  });
+}
+
 expression
 box_set_variables(context& ctx, expression s) {
+  mark_set_variables(s);
   return map_ast(
     ctx, s,
     [&] (expression expr) {
