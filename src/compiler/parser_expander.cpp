@@ -65,6 +65,13 @@ namespace {
       pc.environment.push_back(untrack_vector(extension));
     }
 
+    environment_extender(parsing_context& pc,
+                         std::ranges::range auto extension)
+      : pc_{pc}
+    {
+      pc.environment.push_back(std::vector(extension.begin(), extension.end()));
+    }
+
     ~environment_extender() {
       pc_.environment.pop_back();
     }
@@ -469,6 +476,26 @@ is_definition_form(context& ctx, ptr<core_form_type> f) {
 }
 
 static bool
+process_internal_form(parsing_context& pc, body_content& result,
+                      ptr<syntax> expr, ptr<core_form_type> form,
+                      std::vector<insider::ptr<syntax>>& stack) {
+  if (form == pc.ctx.constants->define_syntax)
+    process_define_syntax(pc, expr);
+  else if (form == pc.ctx.constants->define)
+    process_internal_define(pc, result.internal_variable_defs, expr);
+  else if (form == pc.ctx.constants->begin)
+    expand_begin(pc, expr, stack);
+  else if (form == pc.ctx.constants->meta)
+    eval_meta_expression(pc, expr);
+  else {
+    result.forms.push_back(expr);
+    return true;
+  }
+
+  return false;
+}
+
+static bool
 process_stack_of_internal_defines(parsing_context& pc, body_content& result,
                                   std::vector<ptr<syntax>> stack) {
   environment_extender internal_env{pc};
@@ -486,18 +513,7 @@ process_stack_of_internal_defines(parsing_context& pc, body_content& result,
                                              "{} after a nondefinition",
                                              form->name);
 
-    if (form == pc.ctx.constants->define_syntax)
-      process_define_syntax(pc, expr);
-    else if (form == pc.ctx.constants->define)
-      process_internal_define(pc, result.internal_variable_defs, expr);
-    else if (form == pc.ctx.constants->begin)
-      expand_begin(pc, expr, stack);
-    else if (form == pc.ctx.constants->meta)
-      eval_meta_expression(pc, expr);
-    else {
-      seen_expression = true;
-      result.forms.push_back(expr);
-    }
+    seen_expression = process_internal_form(pc, result, expr, form, stack);
   }
 
   return seen_expression;
@@ -541,9 +557,8 @@ process_internal_defines(parsing_context& pc, ptr<> body_exprs,
   body_content result{pc.ctx};
   bool seen_expression
     = process_stack_of_internal_defines(
-      pc, result,
-      body_expressions_to_stack(pc, body_exprs, loc)
-    );
+        pc, result, body_expressions_to_stack(pc, body_exprs, loc)
+      );
 
   if (!seen_expression) {
     if (!result.forms.empty())
@@ -557,14 +572,17 @@ process_internal_defines(parsing_context& pc, ptr<> body_exprs,
   return result;
 }
 
-static std::vector<tracked_expression>
+static std::vector<expression>
 parse_expression_list(parsing_context& pc,
                       std::vector<ptr<syntax>> const& exprs) {
-  auto parsed
-    = exprs | std::views::transform([&] (ptr<syntax> const& e) {
-        return tracked_expression{pc.ctx.store, parse(pc, e)};
-      });
-  return {parsed.begin(), parsed.end()};
+  std::vector<expression> result;
+  tracker t{pc.ctx, result};
+
+  result.reserve(exprs.size());
+  for (ptr<syntax> e : exprs)
+    result.push_back(parse(pc, e));
+
+  return result;
 }
 
 static expression
@@ -572,61 +590,80 @@ untrack(tracked_expression e) {
   return e.get();
 }
 
+static auto
+extract_definition_pairs_for_internal_definitions(parsing_context& pc,
+                                                  body_content const& content) {
+  std::vector<definition_pair_expression> definition_exprs;
+
+  for (auto const& [id, init, var] : content.internal_variable_defs) {
+    auto void_expr = make<literal_expression>(
+      pc.ctx, pc.ctx.constants->void_
+    );
+    definition_exprs.emplace_back(id, var, void_expr);
+  }
+
+  return definition_exprs;
+}
+
+static std::vector<expression>
+make_internal_definition_set_expressions(
+  parsing_context& pc,
+  body_content const& content,
+  std::vector<definition_pair_expression> const& definition_exprs
+) {
+  std::vector<expression> result;
+  for (std::size_t i = 0; i < definition_exprs.size(); ++i) {
+    ptr<variable> var = content.internal_variable_defs[i].var;
+    ptr<syntax> init_stx = content.internal_variable_defs[i].init;
+    expression init_expr = parse(pc, init_stx);
+    var->is_set = true;
+    result.emplace_back(make<local_set_expression>(pc.ctx, var, init_expr));
+  }
+  return result;
+}
+
+static ptr<sequence_expression>
+parse_body_with_internal_definitions(parsing_context& pc,
+                                     body_content const& content) {
+  auto definition_exprs
+    = extract_definition_pairs_for_internal_definitions(pc, content);
+  environment_extender subenv{
+    pc,
+    content.internal_variable_defs
+      | std::views::transform(&body_content::internal_variable::var)
+  };
+  tracker t{pc.ctx, definition_exprs};
+  std::vector<expression> set_exprs
+    = make_internal_definition_set_expressions(pc, content, definition_exprs);
+
+  auto body_exprs = parse_expression_list(pc, content.forms);
+
+  return make<sequence_expression>(
+    pc.ctx,
+    std::vector{
+      make<let_expression>(
+        pc.ctx,
+        std::move(definition_exprs),
+        make<sequence_expression>(
+          pc.ctx,
+          std::array{std::move(set_exprs), std::move(body_exprs)}
+            | std::views::join
+        )
+      )
+    }
+  );
+}
+
 static ptr<sequence_expression>
 parse_body(parsing_context& pc, ptr<> data, source_location const& loc) {
   body_content content = process_internal_defines(pc, data, loc); // GC
 
-  if (!content.internal_variable_defs.empty()) {
-    // Simulate a letrec*.
-
-    std::vector<definition_pair_expression> definition_exprs;
-    std::vector<ptr<variable>> variables;
-    tracker t{pc.ctx, definition_exprs, variables};
-
-    for (auto const& [id, init, var] : content.internal_variable_defs) {
-      variables.push_back(var);
-      auto void_expr = make<literal_expression>(
-        pc.ctx, pc.ctx.constants->void_
-      );
-      definition_exprs.emplace_back(id, var, void_expr);
-    }
-
-    environment_extender subenv{pc, variables};
-
-    std::vector<tracked_expression> set_exprs;
-    for (std::size_t i = 0; i < definition_exprs.size(); ++i) {
-      ptr<syntax> init_stx = content.internal_variable_defs[i].init;
-      expression init_expr = parse(pc, init_stx);
-      variables[i]->is_set = true;
-      set_exprs.emplace_back(
-        pc.ctx.store,
-        make<local_set_expression>(pc.ctx, variables[i], init_expr)
-      );
-    }
-
-    auto body_exprs = parse_expression_list(pc, content.forms);
-
-    return make<sequence_expression>(
-      pc.ctx,
-      std::vector{
-        make<let_expression>(
-          pc.ctx,
-          std::move(definition_exprs),
-          make<sequence_expression>(
-            pc.ctx,
-            std::array{std::move(set_exprs), std::move(body_exprs)}
-              | std::views::join
-              | std::views::transform(untrack)
-          )
-        )
-      }
-    );
-  }
+  if (!content.internal_variable_defs.empty())
+    return parse_body_with_internal_definitions(pc, content);
   else
     return make<sequence_expression>(
       pc.ctx,
       parse_expression_list(pc, content.forms)
-        | std::views::transform(untrack)
     );
 }
 
@@ -781,6 +818,48 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
   return parse_body(pc, body_with_scope, loc);
 }
 
+static void
+parse_lambda_parameter(parsing_context& pc,
+                       ptr<syntax> name,
+                       std::vector<insider::ptr<variable>>& parameters,
+                       ptr<scope> subscope) {
+  auto name_with_scope = name->add_scope(pc.ctx.store, subscope);
+  auto var = make<variable>(pc.ctx, identifier_name(name_with_scope));
+  parameters.push_back(var);
+  define(pc.ctx.store, name_with_scope, var);
+}
+
+static auto
+parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
+                        source_location const& loc) {
+  ptr<> param_names = param_stx;
+  std::vector<ptr<variable>> parameters;
+  bool has_rest = false;
+  auto subscope = make<scope>(
+    pc.ctx, pc.ctx,
+    fmt::format("lambda body at {}", format_location(loc))
+  );
+
+  while (!semisyntax_is<null_type>(param_names)) {
+    if (auto param = semisyntax_match<pair>(pc.ctx, param_names)) {
+      parse_lambda_parameter(pc, expect_id(pc.ctx, expect<syntax>(car(param))),
+                             parameters, subscope);
+      param_names = cdr(param);
+    } else if (semisyntax_is<symbol>(param_names)) {
+      parse_lambda_parameter(pc, assume<syntax>(param_names), parameters,
+                             subscope);
+      has_rest = true;
+      break;
+    } else
+      throw make_compile_error<syntax_error>(
+        param_stx, "Unexpected value in lambda parameters: {}",
+        datum_to_string(pc.ctx, param_names)
+      );
+  }
+
+  return std::tuple{subscope, parameters, has_rest};
+}
+
 static ptr<lambda_expression>
 parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   source_location loc = stx->location();
@@ -789,41 +868,9 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   if (!datum || cdr(assume<pair>(datum)) == pc.ctx.constants->null)
     throw make_compile_error<syntax_error>(stx, "Invalid lambda syntax");
 
-  ptr<syntax> param_stx = expect<syntax>(cadr(assume<pair>(datum)));
-  ptr<> param_names = param_stx;
-  std::vector<ptr<variable>> parameters;
-  bool has_rest = false;
-  auto subscope = make<scope>(
-    pc.ctx, pc.ctx,
-    fmt::format("lambda body at {}", format_location(loc))
-  );
-  while (!semisyntax_is<null_type>(param_names)) {
-    if (auto param = semisyntax_match<pair>(pc.ctx, param_names)) {
-      auto id = expect_id(pc.ctx, expect<syntax>(car(param)));
-      auto id_with_scope = id->add_scope(pc.ctx.store, subscope);
-
-      auto var = make<variable>(pc.ctx, identifier_name(id));
-      parameters.push_back(var);
-      define(pc.ctx.store, id_with_scope, var);
-
-      param_names = cdr(param);
-    }
-    else if (semisyntax_is<symbol>(param_names)) {
-      has_rest = true;
-      auto name = expect<syntax>(param_names);
-      auto name_with_scope = name->add_scope(pc.ctx.store, subscope);
-
-      auto var = make<variable>(pc.ctx, identifier_name(name_with_scope));
-      parameters.push_back(var);
-      define(pc.ctx.store, name_with_scope, var);
-      break;
-    }
-    else
-      throw make_compile_error<syntax_error>(
-        param_stx, "Unexpected value in lambda parameters: {}",
-        datum_to_string(pc.ctx, param_names)
-      );
-  }
+  auto [subscope, parameters, has_rest]
+    = parse_lambda_parameters(pc, expect<syntax>(cadr(assume<pair>(datum))),
+                              loc);
 
   ptr<> body_stx = cddr(assume<pair>(datum));
   ptr<> body_with_scope = add_scope_to_list(pc.ctx, body_stx, subscope);
