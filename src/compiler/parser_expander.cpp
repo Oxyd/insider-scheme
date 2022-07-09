@@ -5,6 +5,7 @@
 #include "compiler/syntax_list.hpp"
 #include "context.hpp"
 #include "io/write.hpp"
+#include "memory/tracker.hpp"
 #include "runtime/action.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/string.hpp"
@@ -237,9 +238,9 @@ maybe_remove_use_site_scopes(parsing_context& pc, ptr<syntax> name) {
 
 static ptr<syntax>
 call_transformer_with_continuation_barrier(context& ctx, ptr<> callable,
-                                           tracked_ptr<syntax> const& stx) {
+                                           ptr<syntax> stx) {
   ptr<> result
-    = call_with_continuation_barrier(ctx, callable, {stx.get()}).get();
+    = call_with_continuation_barrier(ctx, callable, {stx}).get();
   if (auto s = match<syntax>(result))
     return s;
   else
@@ -249,45 +250,47 @@ call_transformer_with_continuation_barrier(context& ctx, ptr<> callable,
     )};
 }
 
-static tracked_ptr<syntax>
-call_transformer(context& ctx, ptr<transformer> t, tracked_ptr<syntax> stx,
-                 std::vector<tracked_ptr<scope>>* use_site_scopes) {
-  auto introduced_env = make_tracked<scope>(
+static ptr<syntax>
+call_transformer(context& ctx, ptr<transformer> t, ptr<syntax> stx,
+                 std::vector<ptr<scope>>* use_site_scopes) {
+  auto introduced_env = make<scope>(
     ctx, ctx,
     fmt::format("introduced environment for syntax expansion at {}",
                 format_location(stx->location()))
   );
-  stx = track(ctx, stx->add_scope(ctx.store, introduced_env.get()));
+  stx = stx->add_scope(ctx.store, introduced_env);
 
-  auto use_site_scope = make_tracked<scope>(
+  auto use_site_scope = make<scope>(
     ctx, ctx,
     fmt::format("use-site scope for syntax expansion at {}",
                 format_location(stx->location()))
   );
-  stx = track(ctx, stx->add_scope(ctx.store, use_site_scope.get()));
+  stx = stx->add_scope(ctx.store, use_site_scope);
 
   if (use_site_scopes)
     use_site_scopes->push_back(use_site_scope);
 
+  tracker track{ctx, introduced_env};
   ptr<syntax> result
     = call_transformer_with_continuation_barrier(ctx, t->callable(), stx);
-  return track(ctx, result->flip_scope(ctx.store, introduced_env.get()));
+  return result->flip_scope(ctx.store, introduced_env);
 }
 
 // If the head of the given list is bound to a transformer, run the transformer
 // on the datum, and repeat.
 //
 // Causes a garbage collection.
-static tracked_ptr<syntax>
-expand(context& ctx, tracked_ptr<syntax> stx,
-       std::vector<tracked_ptr<scope>>* use_site_scopes) {
+static ptr<syntax>
+expand(context& ctx, ptr<syntax> stx,
+       std::vector<ptr<scope>>* use_site_scopes) {
   parser_action a(ctx, stx, "Expanding macro use");
+  tracker track{ctx, stx};
 
   bool expanded;
   do {
     expanded = false;
 
-    if (auto lst = syntax_match<pair>(ctx, stx.get())) {
+    if (auto lst = syntax_match<pair>(ctx, stx)) {
       ptr<syntax> head = expect<syntax>(car(lst));
       if (is_identifier(head)) {
         if (ptr<transformer> t = lookup_transformer(head)) {
@@ -301,19 +304,10 @@ expand(context& ctx, tracked_ptr<syntax> stx,
   return stx;
 }
 
-static void
-record_use_site_scopes(parsing_context& pc,
-                       std::vector<tracked_ptr<scope>> const& scopes) {
-  for (tracked_ptr<scope> const& s : scopes)
-    pc.use_site_scopes.back().push_back(s.get());
-}
-
-static tracked_ptr<syntax>
-expand(parsing_context& pc, tracked_ptr<syntax> const& stx) {
+static ptr<syntax>
+expand(parsing_context& pc, ptr<syntax> stx) {
   if (pc.record_use_site_scopes()) {
-    std::vector<tracked_ptr<scope>> use_site_scopes;
-    tracked_ptr<syntax> result = expand(pc.ctx, stx, &use_site_scopes);
-    record_use_site_scopes(pc, use_site_scopes);
+    ptr<syntax> result = expand(pc.ctx, stx, &pc.use_site_scopes.back());
     return result;
   } else
     return expand(pc.ctx, stx, nullptr);
@@ -348,16 +342,34 @@ make_transformer(parsing_context& pc, ptr<syntax> expr) {
 }
 
 namespace {
-struct body_content {
-  struct internal_variable {
-    tracked_ptr<syntax> id;
-    tracked_ptr<syntax> init;
-    tracked_ptr<variable> var;
-  };
+  class body_content : public root_provider {
+  public:
+    struct internal_variable {
+      ptr<syntax> id;
+      ptr<syntax> init;
+      ptr<variable> var;
+    };
 
-  std::vector<tracked_ptr<syntax>> forms;
-  std::vector<internal_variable>   internal_variable_defs;
-};
+    std::vector<ptr<syntax>>       forms;
+    std::vector<internal_variable> internal_variable_defs;
+
+    explicit
+    body_content(context& ctx)
+      : root_provider{ctx.store}
+    { }
+
+    void
+    visit_roots(member_visitor const& f) override {
+      for (ptr<syntax>& form : forms)
+        f(form);
+
+      for (internal_variable& iv : internal_variable_defs) {
+        f(iv.id);
+        f(iv.init);
+        f(iv.var);
+      }
+    }
+  };
 }
 
 static ptr<core_form_type>
@@ -379,11 +391,11 @@ match_core_form_in_head_of_list(parsing_context& pc, ptr<syntax> stx) {
 
 static void
 expand_begin(parsing_context& pc, ptr<syntax> stx,
-             std::vector<tracked_ptr<syntax>>& stack) {
+             std::vector<ptr<syntax>>& stack) {
   ptr<> lst = syntax_to_list(pc.ctx, stx);
-  std::vector<tracked_ptr<syntax>> subforms;
+  std::vector<ptr<syntax>> subforms;
   for (ptr<> e : list_range{cdr(assume<pair>(lst))})
-    subforms.push_back(track(pc.ctx, expect<syntax>(e)));
+    subforms.push_back(expect<syntax>(e));
 
   std::ranges::copy(std::views::reverse(subforms), std::back_inserter(stack));
 }
@@ -398,7 +410,7 @@ add_scope_to_list(context& ctx, ptr<> x, ptr<scope> s) {
     });
 }
 
-static std::tuple<tracked_ptr<syntax>, ptr<syntax>>
+static std::tuple<ptr<syntax>, ptr<syntax>>
 parse_name_and_expr(parsing_context& pc, ptr<syntax> stx,
                     std::string const& form_name) {
   ptr<> datum = syntax_to_list(pc.ctx, stx);
@@ -407,22 +419,22 @@ parse_name_and_expr(parsing_context& pc, ptr<syntax> stx,
   auto expr = expect<syntax>(caddr(assume<pair>(datum)));
   if (!datum || list_length(datum) != 3)
     throw make_compile_error<syntax_error>(stx, "Invalid {} syntax", form_name);
-  return {track(pc.ctx, name_without_scope), expr};
+  return {name_without_scope, expr};
 }
 
 static void
 process_internal_define(
   parsing_context& pc,
   std::vector<body_content::internal_variable>& internal_variables,
-  tracked_ptr<syntax> const& expr
+  ptr<syntax> expr
 ) {
-  auto [id, init] = parse_name_and_expr(pc, expr.get(), "define");
-  auto var = make_tracked<variable>(pc.ctx, identifier_name(id.get()));
+  auto [id, init] = parse_name_and_expr(pc, expr, "define");
+  auto var = make<variable>(pc.ctx, identifier_name(id));
   internal_variables.emplace_back(
-    body_content::internal_variable{id, track(pc.ctx, init), var}
+    body_content::internal_variable{id, init, var}
   );
-  define(pc.ctx.store, id.get(), var.get());
-  pc.environment.back().emplace_back(var.get());
+  define(pc.ctx.store, id, var);
+  pc.environment.back().emplace_back(var);
 }
 
 static void
@@ -431,15 +443,17 @@ process_define_syntax(parsing_context& pc, ptr<syntax> stx) {
     throw std::runtime_error{"Can't mutate an immutable environment"};
 
   auto [name, expr] = parse_name_and_expr(pc, stx, "define-syntax");
+  tracker t{pc.ctx, name};
+
   auto new_tr = make_transformer(pc, expr); // GC
-  if (lookup_transformer(name.get()))
-    redefine(pc.ctx.store, name.get(), new_tr);
+  if (lookup_transformer(name))
+    redefine(pc.ctx.store, name, new_tr);
   else
-    define(pc.ctx.store, name.get(), new_tr);
+    define(pc.ctx.store, name, new_tr);
 }
 
 static tracked_ptr<>
-eval_meta_expression(parsing_context& pc, ptr <syntax> stx) {
+eval_meta_expression(parsing_context& pc, ptr<syntax> stx) {
   parser_action a{pc.ctx, stx, "Evaluating meta expression"};
   ptr<> datum = syntax_to_list(pc.ctx, stx);
   if (!datum || list_length(datum) != 2)
@@ -456,29 +470,30 @@ is_definition_form(context& ctx, ptr<core_form_type> f) {
 
 static bool
 process_stack_of_internal_defines(parsing_context& pc, body_content& result,
-                                  std::vector<tracked_ptr<syntax>> stack) {
+                                  std::vector<ptr<syntax>> stack) {
   environment_extender internal_env{pc};
   internal_definition_context_guard idc{pc};
+  tracker t{pc.ctx, stack};
 
   bool seen_expression = false;
   while (!stack.empty()) {
-    tracked_ptr<syntax> expr = expand(pc, stack.back()); // GC
+    ptr<syntax> expr = expand(pc, stack.back()); // GC
     stack.pop_back();
 
-    ptr<core_form_type> form = match_core_form_in_head_of_list(pc, expr.get());
+    ptr<core_form_type> form = match_core_form_in_head_of_list(pc, expr);
     if (is_definition_form(pc.ctx, form) && seen_expression)
-      throw make_compile_error<syntax_error>(expr.get(),
+      throw make_compile_error<syntax_error>(expr,
                                              "{} after a nondefinition",
                                              form->name);
 
     if (form == pc.ctx.constants->define_syntax)
-      process_define_syntax(pc, expr.get());
+      process_define_syntax(pc, expr);
     else if (form == pc.ctx.constants->define)
       process_internal_define(pc, result.internal_variable_defs, expr);
     else if (form == pc.ctx.constants->begin)
-      expand_begin(pc, expr.get(), stack);
+      expand_begin(pc, expr, stack);
     else if (form == pc.ctx.constants->meta)
-      eval_meta_expression(pc, expr.get());
+      eval_meta_expression(pc, expr);
     else {
       seen_expression = true;
       result.forms.push_back(expr);
@@ -488,16 +503,16 @@ process_stack_of_internal_defines(parsing_context& pc, body_content& result,
   return seen_expression;
 }
 
-static std::vector<insider::tracked_ptr<syntax>>
+static std::vector<ptr<syntax>>
 body_expressions_to_stack(parsing_context& pc, ptr<> body_exprs,
                           source_location const& loc) {
   ptr<> list = syntax_to_list(pc.ctx, body_exprs);
   if (!list)
     throw make_compile_error<syntax_error>(loc, "Expected list of expressions");
 
-  std::vector<tracked_ptr<syntax>> stack;
+  std::vector<ptr<syntax>> stack;
   for (ptr<> e : list_range{list})
-    stack.push_back(track(pc.ctx, expect<syntax>(e)));
+    stack.push_back(expect<syntax>(e));
   std::reverse(stack.begin(), stack.end());
   return stack;
 }
@@ -523,7 +538,7 @@ process_internal_defines(parsing_context& pc, ptr<> body_exprs,
     make<scope>(pc.ctx, pc.ctx,
                 fmt::format("outside edge scope at {}", format_location(loc)))
   );
-  body_content result;
+  body_content result{pc.ctx};
   bool seen_expression
     = process_stack_of_internal_defines(
       pc, result,
@@ -544,10 +559,10 @@ process_internal_defines(parsing_context& pc, ptr<> body_exprs,
 
 static std::vector<tracked_expression>
 parse_expression_list(parsing_context& pc,
-                      std::vector<tracked_ptr<syntax>> const& exprs) {
+                      std::vector<ptr<syntax>> const& exprs) {
   auto parsed
-    = exprs | std::views::transform([&] (tracked_ptr<syntax> const& e) {
-        return tracked_expression{pc.ctx.store, parse(pc, e.get())};
+    = exprs | std::views::transform([&] (ptr<syntax> const& e) {
+        return tracked_expression{pc.ctx.store, parse(pc, e)};
       });
   return {parsed.begin(), parsed.end()};
 }
@@ -564,29 +579,28 @@ parse_body(parsing_context& pc, ptr<> data, source_location const& loc) {
   if (!content.internal_variable_defs.empty()) {
     // Simulate a letrec*.
 
-    std::vector<tracked_definition_pair> definition_exprs;
-    std::vector<tracked_ptr<variable>> variables;
+    std::vector<definition_pair_expression> definition_exprs;
+    std::vector<ptr<variable>> variables;
+    tracker t{pc.ctx, definition_exprs, variables};
+
     for (auto const& [id, init, var] : content.internal_variable_defs) {
       variables.push_back(var);
       auto void_expr = make<literal_expression>(
         pc.ctx, pc.ctx.constants->void_
       );
-      definition_exprs.push_back(tracked_definition_pair{
-        id, var,
-        tracked_expression{pc.ctx.store, void_expr}
-      });
+      definition_exprs.emplace_back(id, var, void_expr);
     }
 
     environment_extender subenv{pc, variables};
 
     std::vector<tracked_expression> set_exprs;
     for (std::size_t i = 0; i < definition_exprs.size(); ++i) {
-      tracked_ptr<syntax> init_stx = content.internal_variable_defs[i].init;
-      expression init_expr = parse(pc, init_stx.get());
+      ptr<syntax> init_stx = content.internal_variable_defs[i].init;
+      expression init_expr = parse(pc, init_stx);
       variables[i]->is_set = true;
       set_exprs.emplace_back(
         pc.ctx.store,
-        make<local_set_expression>(pc.ctx, variables[i].get(), init_expr)
+        make<local_set_expression>(pc.ctx, variables[i], init_expr)
       );
     }
 
@@ -597,7 +611,7 @@ parse_body(parsing_context& pc, ptr<> data, source_location const& loc) {
       std::vector{
         make<let_expression>(
           pc.ctx,
-          untrack_definition_pairs(definition_exprs),
+          std::move(definition_exprs),
           make<sequence_expression>(
             pc.ctx,
             std::array{std::move(set_exprs), std::move(body_exprs)}
@@ -617,10 +631,16 @@ parse_body(parsing_context& pc, ptr<> data, source_location const& loc) {
 }
 
 namespace {
-struct definition_pair {
-  tracked_ptr<syntax> id;
-  tracked_ptr<syntax> expression;
-};
+  struct definition_pair {
+    ptr<syntax> id;
+    ptr<syntax> expression;
+
+    void
+    visit_members(member_visitor const& f) {
+      f(id);
+      f(expression);
+    }
+  };
 }
 
 static definition_pair
@@ -641,19 +661,18 @@ parse_definition_pair(parsing_context& pc, ptr<syntax> stx,
       form_name, identifier_name(id)
     );
 
-  return {track(pc.ctx, id),
-          track(pc.ctx, expect<syntax>(cadr(assume<pair>(datum))))};
+  return {id, expect<syntax>(cadr(assume<pair>(datum)))};
 }
 
 static auto
 parse_let_common(parsing_context& pc, ptr<syntax> stx,
                  std::string_view form_name) {
   source_location loc = stx->location();
-  tracked_ptr<> datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
-  if (!datum || list_length(datum.get()) < 3)
+  ptr<> datum = syntax_to_list(pc.ctx, stx);
+  if (!datum || list_length(datum) < 3)
     throw make_compile_error<syntax_error>(stx, "Invalid {} syntax", form_name);
 
-  ptr<syntax> bindings_stx = expect<syntax>(cadr(assume<pair>(datum.get())));
+  ptr<syntax> bindings_stx = expect<syntax>(cadr(assume<pair>(datum)));
   ptr<> bindings = syntax_to_list(pc.ctx, bindings_stx);
   if (!bindings)
     throw make_compile_error<syntax_error>(
@@ -672,38 +691,38 @@ parse_let_common(parsing_context& pc, ptr<syntax> stx,
     bindings = cdr(assume<pair>(bindings));
   }
 
-  ptr<> body = cddr(expect<pair>(datum.get()));
-  return std::tuple{definitions, track(pc.ctx, body)};
+  ptr<> body = cddr(expect<pair>(datum));
+  return std::tuple{definitions, body};
 }
 
 static ptr<let_expression>
-parse_let(parsing_context& pc, ptr<syntax> stx_) {
+parse_let(parsing_context& pc, ptr<syntax> stx) {
   using namespace std::literals;
-  auto stx = track(pc.ctx, stx_);
-  auto [definitions, body] = parse_let_common(pc, stx.get(), "let"sv);
+  auto [definitions, body] = parse_let_common(pc, stx, "let"sv);
 
-  auto subscope = make_tracked<scope>(
+  auto subscope = make<scope>(
     pc.ctx, pc.ctx,
     fmt::format("let body at {}", format_location(stx->location()))
   );
 
-  std::vector<tracked_definition_pair> definition_exprs;
+  std::vector<definition_pair_expression> definition_exprs;
+  tracker t{pc.ctx, stx, definitions, body, subscope, definition_exprs};
+
   for (definition_pair const& dp : definitions) {
-    tracked_ptr<syntax> id
-      = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope.get()));
-    auto var = make_tracked<variable>(pc.ctx, identifier_name(id.get()));
-    define(pc.ctx.store, id.get(), var.get());
-    tracked_expression init_expr = parse_tracked(pc, dp.expression.get());
+    ptr<syntax> id = dp.id->add_scope(pc.ctx.store, subscope);
+    auto var = make<variable>(pc.ctx, identifier_name(id));
+    define(pc.ctx.store, id, var);
+    tracker u{pc.ctx, id, var};
+
+    expression init_expr = parse(pc, dp.expression);
     definition_exprs.emplace_back(id, var, init_expr);
   }
 
-  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body.get(), subscope.get());
-  auto subenv = extend_environment(pc, subscope.get());
+  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body, subscope);
+  auto subenv = extend_environment(pc, subscope);
   auto body_stx = parse_body(pc, body_with_scope, stx->location());
 
-  return make<let_expression>(pc.ctx,
-                              untrack_definition_pairs(definition_exprs),
-                              body_stx);
+  return make<let_expression>(pc.ctx, definition_exprs, body_stx);
 }
 
 static ptr<sequence_expression>
@@ -713,21 +732,23 @@ parse_let_syntax(parsing_context& pc, ptr<syntax> stx) {
 
   auto [definitions, body] = parse_let_common(pc, stx, "let-syntax"sv);
 
-  auto subscope = make_tracked<scope>(
+  auto subscope = make<scope>(
     pc.ctx, pc.ctx,
     fmt::format("body scope for let-syntax at {}",
                 format_location(loc))
   );
+  tracker t{pc.ctx, definitions, body, subscope};
+
   for (definition_pair const& dp : definitions) {
     tracked_ptr<syntax> id
-      = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope.get()));
+      = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope));
 
-    auto transformer = make_transformer(pc, dp.expression.get()); // GC
+    auto transformer = make_transformer(pc, dp.expression); // GC
     define(pc.ctx.store, id.get(), transformer);
   }
 
-  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body.get(), subscope.get());
-  auto subenv = extend_environment(pc, subscope.get());
+  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body, subscope);
+  auto subenv = extend_environment(pc, subscope);
   return parse_body(pc, body_with_scope, loc);
 }
 
@@ -739,20 +760,23 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
   auto [definitions, body] = parse_let_common(pc, stx, "letrec-syntax"sv);
 
   auto subscope
-    = make_tracked<scope>(pc.ctx, pc.ctx,
-                          fmt::format("body scope for letrec-syntax at {}",
-                                      format_location(loc)));
+    = make<scope>(pc.ctx, pc.ctx,
+                  fmt::format("body scope for letrec-syntax at {}",
+                              format_location(loc)));
+
+  tracker t{pc.ctx, definitions, body, subscope};
+
   for (definition_pair const& dp : definitions) {
     tracked_ptr<syntax> id
-      = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope.get()));
+      = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope));
     ptr<syntax> expression
-      = dp.expression->add_scope(pc.ctx.store, subscope.get());
+      = dp.expression->add_scope(pc.ctx.store, subscope);
     auto transformer = make_transformer(pc, expression);
     define(pc.ctx.store, id.get(), transformer);
   }
 
-  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body.get(), subscope.get());
-  auto subenv = extend_environment(pc, subscope.get());
+  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body, subscope);
+  auto subenv = extend_environment(pc, subscope);
 
   return parse_body(pc, body_with_scope, loc);
 }
@@ -767,32 +791,31 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
 
   ptr<syntax> param_stx = expect<syntax>(cadr(assume<pair>(datum)));
   ptr<> param_names = param_stx;
-  std::vector<tracked_ptr<variable>> parameters;
+  std::vector<ptr<variable>> parameters;
   bool has_rest = false;
-  auto subscope = make_tracked<scope>(
+  auto subscope = make<scope>(
     pc.ctx, pc.ctx,
     fmt::format("lambda body at {}", format_location(loc))
   );
   while (!semisyntax_is<null_type>(param_names)) {
     if (auto param = semisyntax_match<pair>(pc.ctx, param_names)) {
       auto id = expect_id(pc.ctx, expect<syntax>(car(param)));
-      auto id_with_scope = id->add_scope(pc.ctx.store, subscope.get());
+      auto id_with_scope = id->add_scope(pc.ctx.store, subscope);
 
-      auto var = make_tracked<variable>(pc.ctx, identifier_name(id));
+      auto var = make<variable>(pc.ctx, identifier_name(id));
       parameters.push_back(var);
-      define(pc.ctx.store, id_with_scope, var.get());
+      define(pc.ctx.store, id_with_scope, var);
 
       param_names = cdr(param);
     }
     else if (semisyntax_is<symbol>(param_names)) {
       has_rest = true;
       auto name = expect<syntax>(param_names);
-      auto name_with_scope = name->add_scope(pc.ctx.store, subscope.get());
+      auto name_with_scope = name->add_scope(pc.ctx.store, subscope);
 
-      auto var
-        = make_tracked<variable>(pc.ctx, identifier_name(name_with_scope));
+      auto var = make<variable>(pc.ctx, identifier_name(name_with_scope));
       parameters.push_back(var);
-      define(pc.ctx.store, name_with_scope, var.get());
+      define(pc.ctx.store, name_with_scope, var);
       break;
     }
     else
@@ -803,14 +826,15 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   }
 
   ptr<> body_stx = cddr(assume<pair>(datum));
-  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body_stx, subscope.get());
+  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body_stx, subscope);
 
-  auto subenv = extend_environment(pc, subscope.get());
+  tracker t{pc.ctx, subscope, parameters};
+  auto subenv = extend_environment(pc, subscope);
   auto body = parse_body(pc, body_with_scope, loc);
 
   return make<lambda_expression>(
     pc.ctx,
-    untrack_vector(parameters),
+    std::move(parameters),
     has_rest,
     body,
     fmt::format("<lambda at {}>", format_location(loc)),
@@ -825,26 +849,27 @@ parse_if(parsing_context& pc, ptr<syntax> stx) {
     throw make_compile_error<syntax_error>(stx, "Invalid if syntax");
   ptr<pair> list = assume<pair>(datum);
 
-  tracked_ptr<syntax> test_stx = track(pc.ctx, expect<syntax>(cadr(list)));
-  tracked_ptr<syntax> then_stx = track(pc.ctx, expect<syntax>(caddr(list)));
-  tracked_ptr<syntax> else_stx{pc.ctx.store};
+  ptr<syntax> test_stx = expect<syntax>(cadr(list));
+  ptr<syntax> then_stx = expect<syntax>(caddr(list));
+  ptr<syntax> else_stx;
   if (cdddr(list) != pc.ctx.constants->null)
-    else_stx = track(pc.ctx, expect<syntax>(cadddr(list)));
+    else_stx = expect<syntax>(cadddr(list));
 
-  auto test_expr = parse_tracked(pc, test_stx.get());
-  auto then_expr = parse_tracked(pc, then_stx.get());
-  tracked_expression else_expr{pc.ctx.store};
+  expression test_expr;
+  expression then_expr;
+  expression else_expr;
+  tracker t{pc.ctx, test_stx, then_stx, else_stx,
+            test_expr, then_expr, else_expr};
+
+  test_expr = parse(pc, test_stx);
+  then_expr = parse(pc, then_stx);
   if (else_stx)
-    else_expr = parse_tracked(pc, else_stx.get());
+    else_expr = parse(pc, else_stx);
   else
-    else_expr = tracked_expression{
-      pc.ctx.store,
-      make<literal_expression>(pc.ctx,
-                               pc.ctx.constants->void_)
-    };
+    else_expr = make<literal_expression>(pc.ctx,
+                                         pc.ctx.constants->void_);
 
-  return make<if_expression>(pc.ctx, test_expr.get(), then_expr.get(),
-                             else_expr.get());
+  return make<if_expression>(pc.ctx, test_expr, then_expr, else_expr);
 }
 
 static ptr<application_expression>
@@ -875,14 +900,15 @@ parse_application(parsing_context& pc, ptr<syntax> stx) {
 
 static expression
 parse_sequence(parsing_context& pc, ptr<> stx) {
-  std::vector<tracked_expression> exprs;
-  for (tracked_ptr<> datum = track(pc.ctx, stx);
-       !semisyntax_is<null_type>(datum.get());
-       datum = track(pc.ctx, syntax_cdr(pc.ctx, datum.get())))
-    exprs.push_back(parse_tracked(pc, syntax_car(pc.ctx, datum.get())));
+  std::vector<expression> exprs;
+  tracker t{pc.ctx, stx, exprs};
 
-  return make<sequence_expression>(pc.ctx,
-                                   exprs | std::views::transform(untrack));
+  while (!semisyntax_is<null_type>(stx)) {
+    exprs.push_back(parse(pc, syntax_car(pc.ctx, stx)));
+    stx = syntax_cdr(pc.ctx, stx);
+  }
+
+  return make<sequence_expression>(pc.ctx, exprs);
 }
 
 static expression
@@ -915,15 +941,17 @@ parse_reference(parsing_context& pc, ptr<syntax> id) {
 }
 
 static expression
-make_set_expression(parsing_context& pc, tracked_ptr<syntax> const& name,
-                    ptr<syntax> expr, tracked_ptr<variable> var) {
+make_set_expression(parsing_context& pc, ptr<syntax> name,
+                    ptr<syntax> expr, ptr<variable> var) {
+  tracker t{pc.ctx, name, var};
+
   auto initialiser = parse(pc, expr);
   if (auto l = match<lambda_expression>(initialiser))
-    l->set_name(identifier_name(name.get()));
+    l->set_name(identifier_name(name));
 
   if (!var->global) {
     var->is_set = true;
-    return make<local_set_expression>(pc.ctx, var.get(), initialiser);
+    return make<local_set_expression>(pc.ctx, var, initialiser);
   } else
     return make<top_level_set_expression>(pc.ctx, *var->global, initialiser);
 }
@@ -940,14 +968,13 @@ parse_define_or_set(parsing_context& pc, ptr<syntax> stx,
 
   auto [name, expr] = parse_name_and_expr(pc, stx, form_name);
 
-  auto var = lookup_variable(pc, name.get());
+  auto var = lookup_variable(pc, name);
   if (!var)
     throw make_compile_error<unbound_variable_error>(
-      name.get(), "Identifier {} not bound to a variable",
-      identifier_name(name.get())
+      name, "Identifier {} not bound to a variable", identifier_name(name)
     );
 
-  return make_set_expression(pc, name, expr, track(pc.ctx, var));
+  return make_set_expression(pc, name, expr, var);
 }
 
 static expression
@@ -999,103 +1026,103 @@ parse_meta(parsing_context& pc, ptr<syntax> stx) {
 }
 
 namespace {
-struct qq_template;
+  struct qq_template;
 
-struct cons_pattern {
-  std::unique_ptr<qq_template> car;
-  std::unique_ptr<qq_template> cdr;
-};
+  struct cons_pattern {
+    std::unique_ptr<qq_template> car;
+    std::unique_ptr<qq_template> cdr;
+  };
 
-struct list_pattern {
-  std::vector<std::unique_ptr<qq_template>> elems;
-  std::optional<cons_pattern> last;
-};
+  struct list_pattern {
+    std::vector<std::unique_ptr<qq_template>> elems;
+    std::optional<cons_pattern> last;
+  };
 
-struct vector_pattern {
-  std::vector<std::unique_ptr<qq_template>> elems;
-};
+  struct vector_pattern {
+    std::vector<std::unique_ptr<qq_template>> elems;
+  };
 
-struct literal {
-  tracked_ptr<syntax> value;
-};
+  struct literal {
+    tracked_ptr<syntax> value;
+  };
 
-struct unquote {
-  tracked_ptr<syntax> datum;
-  bool splicing;
-};
+  struct unquote {
+    tracked_ptr<syntax> datum;
+    bool splicing;
+  };
 
-struct qq_template {
-  using value_type = std::variant<
-    list_pattern,
-    vector_pattern,
-    literal,
-    unquote
-  >;
+  struct qq_template {
+    using value_type = std::variant<
+      list_pattern,
+      vector_pattern,
+      literal,
+      unquote
+    >;
 
-  value_type          value;
-  tracked_ptr<syntax> stx;
+    value_type          value;
+    tracked_ptr<syntax> stx;
 
-  qq_template(value_type value, tracked_ptr<syntax> const& stx)
-    : value(std::move(value))
-    , stx{stx}
-  { }
-};
+    qq_template(value_type value, tracked_ptr<syntax> const& stx)
+      : value(std::move(value))
+      , stx{stx}
+    { }
+  };
 
-struct quote_traits {
-  static constexpr char const* splicing_form_name = "unquote-splicing";
+  struct quote_traits {
+    static constexpr char const* splicing_form_name = "unquote-splicing";
 
-  static bool
-  is_qq_form(parsing_context& pc, ptr<> stx);
+    static bool
+    is_qq_form(parsing_context& pc, ptr<> stx);
 
-  static bool
-  is_unquote(context& ctx, ptr<core_form_type> f) {
-    return f == ctx.constants->unquote;
-  }
+    static bool
+    is_unquote(context& ctx, ptr<core_form_type> f) {
+      return f == ctx.constants->unquote;
+    }
 
-  static bool
-  is_unquote_splicing(context& ctx, ptr<core_form_type> f) {
-    return f == ctx.constants->unquote_splicing;
-  }
+    static bool
+    is_unquote_splicing(context& ctx, ptr<core_form_type> f) {
+      return f == ctx.constants->unquote_splicing;
+    }
 
-  static bool
-  is_quasiquote(context& ctx, ptr<core_form_type> f) {
-    return f == ctx.constants->quasiquote;
-  }
+    static bool
+    is_quasiquote(context& ctx, ptr<core_form_type> f) {
+      return f == ctx.constants->quasiquote;
+    }
 
-  static expression
-  wrap(context&, ptr<syntax>, expression expr, bool force_unwrapped);
+    static expression
+    wrap(context&, ptr<syntax>, expression expr, bool force_unwrapped);
 
-  static ptr<>
-  unwrap(context&, ptr<syntax>);
-};
+    static ptr<>
+    unwrap(context&, ptr<syntax>);
+  };
 
-struct syntax_traits {
-  static constexpr char const* splicing_form_name = "unsyntax-splicing";
+  struct syntax_traits {
+    static constexpr char const* splicing_form_name = "unsyntax-splicing";
 
-  static bool
-  is_qq_form(parsing_context& pc, ptr<> stx);
+    static bool
+    is_qq_form(parsing_context& pc, ptr<> stx);
 
-  static bool
-  is_unquote(context& ctx, ptr<core_form_type> f) {
-    return f == ctx.constants->unsyntax;
-  }
+    static bool
+    is_unquote(context& ctx, ptr<core_form_type> f) {
+      return f == ctx.constants->unsyntax;
+    }
 
-  static bool
-  is_unquote_splicing(context& ctx, ptr<core_form_type> f) {
-    return f == ctx.constants->unsyntax_splicing;
-  }
+    static bool
+    is_unquote_splicing(context& ctx, ptr<core_form_type> f) {
+      return f == ctx.constants->unsyntax_splicing;
+    }
 
-  static bool
-  is_quasiquote(context& ctx, ptr<core_form_type> f) {
-    return f == ctx.constants->quasisyntax;
-  }
+    static bool
+    is_quasiquote(context& ctx, ptr<core_form_type> f) {
+      return f == ctx.constants->quasisyntax;
+    }
 
-  static expression
-  wrap(context&, ptr<syntax>, expression expr, bool force_unwrapped);
+    static expression
+    wrap(context&, ptr<syntax>, expression expr, bool force_unwrapped);
 
-  static ptr<>
-  unwrap(context&, ptr<syntax>);
-};
+    static ptr<>
+    unwrap(context&, ptr<syntax>);
+  };
 } // anonymous namespace
 
 bool
@@ -1489,7 +1516,7 @@ parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
 
 expression
 parse(parsing_context& pc, ptr<syntax> s) {
-  ptr<syntax> stx = expand(pc, track(pc.ctx, s)).get(); // GC
+  ptr<syntax> stx = expand(pc, s); // GC
 
   if (syntax_is<symbol>(stx))
     return parse_reference(pc, stx);
@@ -1554,42 +1581,43 @@ parse(parsing_context& pc, ptr<syntax> s) {
 }
 
 static void
-process_top_level_define(parsing_context& pc, tracked_ptr<syntax> const& stx) {
+process_top_level_define(parsing_context& pc, ptr<syntax> stx) {
   if (pc.module_->get_type() == module_::type::immutable)
     throw std::runtime_error{"Can't mutate an immutable environment"};
 
-  auto [name, expr] = parse_name_and_expr(pc, stx.get(), "define");
-  auto var = lookup_variable(pc, name.get());
+  auto [name, expr] = parse_name_and_expr(pc, stx, "define");
+  auto var = lookup_variable(pc, name);
   if (!var) {
     auto index = pc.ctx.add_top_level(pc.ctx.constants->void_,
-                                      identifier_name(name.get()));
-    var = make<variable>(pc.ctx, identifier_name(name.get()), index);
-    define(pc.ctx.store, name.get(), std::move(var));
+                                      identifier_name(name));
+    var = make<variable>(pc.ctx, identifier_name(name), index);
+    define(pc.ctx.store, name, var);
   }
 }
 
-static tracked_ptr<syntax>
+static ptr<syntax>
 process_top_level_form(parsing_context& pc,
-                       std::vector<tracked_ptr<syntax>>& stack,
-                       tracked_ptr<syntax> const& stx) {
-  if (auto lst = track(pc.ctx, syntax_to_list(pc.ctx, stx.get()))) {
+                       std::vector<ptr<syntax>>& stack,
+                       ptr<syntax> stx) {
+  if (auto lst = track(pc.ctx, syntax_to_list(pc.ctx, stx))) {
     if (lst.get() == pc.ctx.constants->null)
-      throw make_compile_error<syntax_error>(stx.get(), "Empty application");
+      throw make_compile_error<syntax_error>(stx, "Empty application");
 
     ptr<pair> p = assume<pair>(lst.get());
     if (auto form = match_core_form(pc, expect<syntax>(car(p)))) {
       if (form == pc.ctx.constants->define_syntax) {
-        process_define_syntax(pc, stx.get());
-        return tracked_ptr<syntax>(pc.ctx.store);
+        process_define_syntax(pc, stx);
+        return {};
       } else if (form == pc.ctx.constants->define) {
         process_top_level_define(pc, stx);
         return stx;
       } else if (form == pc.ctx.constants->begin) {
-        expand_begin(pc, stx.get(), stack);
-        return tracked_ptr<syntax>(pc.ctx.store);
+        expand_begin(pc, stx, stack);
+        return {};
       } else if (form == pc.ctx.constants->meta) {
-        tracked_ptr<> datum = eval_meta_expression(pc, stx.get());
-        return track(pc.ctx, datum_to_syntax(pc.ctx, stx.get(), datum.get()));
+        tracker t{pc.ctx, stx};
+        ptr<> datum = eval_meta_expression(pc, stx).get();
+        return datum_to_syntax(pc.ctx, stx, datum);
       }
     }
   }
@@ -1597,39 +1625,41 @@ process_top_level_form(parsing_context& pc,
   return stx;
 }
 
-static std::vector<tracked_ptr<syntax>>
-body_to_stack(std::vector<tracked_ptr<syntax>> const& body) {
-  std::vector<tracked_ptr<syntax>> stack;
+static std::vector<ptr<syntax>>
+body_to_stack(std::vector<ptr<syntax>> const& body) {
+  std::vector<ptr<syntax>> stack;
   stack.reserve(body.size());
   std::ranges::copy(std::views::reverse(body), std::back_inserter(stack));
   return stack;
 }
 
-static std::vector<tracked_ptr<syntax>>
+static std::vector<ptr<syntax>>
 process_top_level_forms(parsing_context& pc,
-                        std::vector<tracked_ptr<syntax>> const& body) {
-  std::vector<tracked_ptr<syntax>> stack = body_to_stack(body);
-  std::vector<tracked_ptr<syntax>> result;
+                        std::vector<ptr<syntax>> const& body) {
+  std::vector<ptr<syntax>> stack = body_to_stack(body);
+  std::vector<ptr<syntax>> result;
+  tracker t{pc.ctx, stack, result};
+
   while (!stack.empty()) {
-    tracked_ptr<syntax> stx = expand(pc, stack.back()); // GC
+    ptr<syntax> stx = expand(pc, stack.back()); // GC
     stack.pop_back();
 
-    tracked_ptr<syntax> to_emit = process_top_level_form(pc, stack, stx);
+    ptr<syntax> to_emit = process_top_level_form(pc, stack, stx);
     if (to_emit)
-      result.push_back(std::move(to_emit));
+      result.push_back(to_emit);
   }
 
   return result;
 }
 
-static std::vector<tracked_ptr<syntax>>
+static std::vector<ptr<syntax>>
 add_module_scope_to_body(context& ctx, std::vector<ptr<syntax>> const& body,
                          ptr<scope> s) {
-  std::vector<tracked_ptr<syntax>> result;
+  std::vector<ptr<syntax>> result;
   result.reserve(body.size());
 
   for (ptr<syntax> e : body)
-    result.push_back(track(ctx, e->add_scope(ctx.store, s)));
+    result.push_back(e->add_scope(ctx.store, s));
 
   return result;
 }
@@ -1639,7 +1669,7 @@ add_module_scope_to_body(context& ctx, std::vector<ptr<syntax>> const& body,
 // a list of the expanded top-level commands.
 //
 // Causes a garbage collection.
-std::vector<tracked_ptr<syntax>>
+std::vector<ptr<syntax>>
 expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
                  std::vector<ptr<syntax>> const& exprs) {
   auto body = add_module_scope_to_body(pc.ctx, exprs, m->scope());
@@ -1648,9 +1678,9 @@ expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
   return process_top_level_forms(pc, body);
 }
 
-static tracked_ptr<syntax>
-expand_proc(context& ctx, tracked_ptr<syntax> stx) {
-  return expand(ctx, std::move(stx), nullptr);
+static ptr<syntax>
+expand_proc(context& ctx, ptr<syntax> stx) {
+  return expand(ctx, stx, nullptr);
 }
 
 void

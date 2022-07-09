@@ -82,6 +82,7 @@ set(scheme_sources
         src/memory/root_list.hpp
         src/memory/root_provider.cpp
         src/memory/root_provider.hpp
+        src/memory/tracker.hpp
         src/module.cpp
         src/module.hpp
         src/module_resolver.cpp

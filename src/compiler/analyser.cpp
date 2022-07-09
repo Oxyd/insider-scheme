@@ -8,6 +8,7 @@
 #include "compiler/syntax_list.hpp"
 #include "io/read.hpp"
 #include "memory/tracked_ptr.hpp"
+#include "memory/tracker.hpp"
 #include "runtime/integer.hpp"
 #include "runtime/string.hpp"
 #include "runtime/symbol.hpp"
@@ -35,21 +36,25 @@ analyse_internal(parsing_context& pc, ptr<syntax> stx) {
 
 static expression
 analyse_expression_list(parsing_context& pc,
-                        std::vector<tracked_ptr<syntax>>& exprs) {
-  std::vector<tracked_expression> result_exprs;
+                        std::vector<ptr<syntax>> const& exprs) {
+  std::vector<expression> result_exprs;
+  tracker t{pc.ctx, result_exprs};
+
   result_exprs.reserve(exprs.size());
-  for (auto const& datum : exprs)
-    result_exprs.emplace_back(pc.ctx.store, analyse_internal(pc, datum.get()));
-  return make<sequence_expression>(pc.ctx, untrack_expressions(result_exprs));
+  for (auto datum : exprs)
+    result_exprs.emplace_back(analyse_internal(pc, datum));
+  return make<sequence_expression>(pc.ctx, std::move(result_exprs));
 }
 
 static expression
 analyse_top_level_expressions(parsing_context& pc,
                               tracked_ptr<module_> const& m,
                               std::vector<ptr<syntax>> const& exprs) {
-  std::vector<tracked_ptr<syntax>> body = expand_top_level(pc, m, exprs);
+  std::vector<ptr<syntax>> body = expand_top_level(pc, m, exprs);
+  tracker t{pc.ctx, body};
+
   if (body.size() == 1)
-    return analyse_internal(pc, body.front().get());
+    return analyse_internal(pc, body.front());
   else
     return analyse_expression_list(pc, body);
 }

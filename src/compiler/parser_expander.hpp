@@ -21,7 +21,7 @@ class syntax;
 expression
 parse(parsing_context& pc, ptr<syntax> s);
 
-std::vector<tracked_ptr<syntax>>
+std::vector<ptr<syntax>>
 expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
                  std::vector<ptr<syntax>> const& exprs);
 
