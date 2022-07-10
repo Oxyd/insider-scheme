@@ -612,9 +612,13 @@ make_internal_definition_set_expressions(
   std::vector<definition_pair_expression> const& definition_exprs
 ) {
   std::vector<expression> result;
+  tracker t1{pc.ctx, result};
+
   for (std::size_t i = 0; i < definition_exprs.size(); ++i) {
     ptr<variable> var = content.internal_variable_defs[i].var;
     ptr<syntax> init_stx = content.internal_variable_defs[i].init;
+
+    tracker t2{pc.ctx, var};
     expression init_expr = parse(pc, init_stx);
     result.emplace_back(make<local_set_expression>(pc.ctx, var, init_expr));
   }
@@ -631,10 +635,12 @@ parse_body_with_internal_definitions(parsing_context& pc,
     content.internal_variable_defs
       | std::views::transform(&body_content::internal_variable::var)
   };
-  tracker t{pc.ctx, definition_exprs};
+
+  tracker t1{pc.ctx, definition_exprs};
   std::vector<expression> set_exprs
     = make_internal_definition_set_expressions(pc, content, definition_exprs);
 
+  tracker t2{pc.ctx, set_exprs};
   auto body_exprs = parse_expression_list(pc, content.forms);
 
   return make<sequence_expression>(
