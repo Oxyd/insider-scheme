@@ -458,6 +458,9 @@ push_children(auto expr, dfs_stack<expression>& stack) {
 
 class expression_visitor : public dfs_visitor {
 public:
+  virtual
+  ~expression_visitor() = default;
+
   void
   enter(expression e, dfs_stack<expression>& stack);
 

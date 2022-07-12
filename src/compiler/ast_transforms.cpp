@@ -194,7 +194,7 @@ namespace {
         // Lambda expression's free variables count as variable references in
         // the enclosing procedure.
 
-        if (!bound_vars_stack.back().count(v))
+        if (!bound_vars_stack.back().contains(v))
           free_vars_stack.back().emplace(v);
       }
     }
@@ -213,14 +213,14 @@ namespace {
 
     void
     enter_expression(ptr<local_reference_expression> ref) override {
-      if (!bound_vars_stack.back().count(ref->variable()))
+      if (!bound_vars_stack.back().contains(ref->variable()))
         free_vars_stack.back().emplace(ref->variable());
     }
 
     void
     enter_expression([[maybe_unused]] ptr<local_set_expression> set) override {
       // Local set!s are boxed, so this shouldn't happen.
-      assert(bound_vars_stack.back().count(set->target()));
+      assert(bound_vars_stack.back().contains(set->target()));
     }
   };
 }
