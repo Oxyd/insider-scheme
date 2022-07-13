@@ -243,15 +243,6 @@ private:
   insider::expression    expression_;
 };
 
-struct tracked_definition_pair {
-  tracked_ptr<syntax>   id;
-  tracked_ptr<variable> var;
-  tracked_expression    expr;
-};
-
-std::vector<definition_pair_expression>
-untrack_definition_pairs(std::vector<tracked_definition_pair> const&);
-
 class let_expression : public composite_object<let_expression> {
 public:
   static constexpr char const* scheme_name = "insider::let_expression";

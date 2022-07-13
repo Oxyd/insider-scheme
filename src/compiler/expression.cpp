@@ -141,15 +141,6 @@ definition_pair_expression::visit_members(member_visitor const& f) {
   assert(!is<stack_frame_extra_data>(expression_.get()));
 }
 
-std::vector<definition_pair_expression>
-untrack_definition_pairs(std::vector<tracked_definition_pair> const& v) {
-  std::vector<definition_pair_expression> result;
-  result.reserve(v.size());
-  for (tracked_definition_pair const& dp : v)
-    result.emplace_back(dp.id.get(), dp.var.get(), dp.expr.get());
-  return result;
-}
-
 let_expression::let_expression(std::vector<definition_pair_expression> defs,
                                ptr<sequence_expression> body)
   : definitions_{std::move(defs)}
