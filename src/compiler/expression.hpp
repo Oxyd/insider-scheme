@@ -320,10 +320,10 @@ public:
   static constexpr char const* scheme_name
     = "insider::top_level_set_expression";
 
-  top_level_set_expression(operand location, expression expr);
+  top_level_set_expression(ptr<variable> var, expression expr);
 
-  operand
-  location() const { return location_; }
+  ptr<variable>
+  target() const { return variable_; }
 
   insider::expression
   expression() const { return expression_; }
@@ -341,7 +341,7 @@ public:
   duplicate(context&, result_stack&);
 
 private:
-  operand             location_;
+  ptr<variable>       variable_;
   insider::expression expression_;
 };
 

@@ -190,20 +190,21 @@ local_set_expression::duplicate(context& ctx, result_stack& stack) {
   return make<local_set_expression>(ctx, target_, pop(stack));
 }
 
-top_level_set_expression::top_level_set_expression(operand location,
+top_level_set_expression::top_level_set_expression(ptr<variable> var,
                                                    insider::expression expr)
-  : location_{location}
+  : variable_{var}
   , expression_{expr}
 { }
 
 void
 top_level_set_expression::visit_members(member_visitor const& f) {
+  f(variable_);
   expression_.visit_members(f);
 }
 
 expression
 top_level_set_expression::duplicate(context& ctx, result_stack& stack) {
-  return make<top_level_set_expression>(ctx, location_, pop(stack));
+  return make<top_level_set_expression>(ctx, variable_, pop(stack));
 }
 
 lambda_expression::lambda_expression(std::vector<ptr<variable>> parameters,

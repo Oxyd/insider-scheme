@@ -1003,7 +1003,7 @@ make_set_expression(parsing_context& pc, ptr<syntax> name,
   if (!var->global)
     return make<local_set_expression>(pc.ctx, var, initialiser);
   else
-    return make<top_level_set_expression>(pc.ctx, *var->global, initialiser);
+    return make<top_level_set_expression>(pc.ctx, var, initialiser);
 }
 
 static expression
