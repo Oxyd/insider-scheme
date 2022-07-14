@@ -29,6 +29,8 @@ namespace insider {
 static expression
 analyse_internal(parsing_context& pc, ptr<syntax> stx) {
   expression result = parse(pc, stx);
+  analyse_variables(result);
+  result = propagate_constants(pc.ctx, result);
   result = box_set_variables(pc.ctx, result);
   analyse_free_variables(pc.ctx, result);
   return result;

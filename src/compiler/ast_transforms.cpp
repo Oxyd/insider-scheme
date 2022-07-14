@@ -82,6 +82,38 @@ box_definition_pairs(context& ctx,
   return std::vector(rng.begin(), rng.end());
 }
 
+static void
+mark_set_variables(ptr<local_set_expression> set) {
+  set->target()->is_set = true;
+}
+
+static void
+mark_set_variables(auto) { }
+
+static void
+find_constant_values(ptr<let_expression> let) {
+  for (definition_pair_expression const& dp : let->definitions())
+    if (!dp.variable()->is_set)
+      if (auto lit = match<literal_expression>(dp.expression()))
+        dp.variable()->constant_value = lit->value();
+}
+
+static void
+find_constant_values(auto) { }
+
+static void
+visit_variables(auto e) {
+  mark_set_variables(e);
+  find_constant_values(e);
+}
+
+void
+analyse_variables(expression expr) {
+  traverse_postorder(expr, [] (expression subexpr) {
+    visit([] (auto e) { visit_variables(e); }, subexpr);
+  });
+}
+
 static expression
 box_set_variables(context& ctx, ptr<let_expression> let) {
   std::vector<ptr<variable>> set_vars = find_set_variables(let);
@@ -133,28 +165,58 @@ box_set_variables(context&, auto e) {
   return e;
 }
 
-static void
-mark_set_variables(ptr<local_set_expression> set) {
-  set->target()->is_set = true;
-}
-
-static void
-mark_set_variables(auto) { }
-
-static void
-mark_set_variables(expression expr) {
-  traverse_postorder(expr, [] (expression subexpr) {
-    visit([] (auto e) { mark_set_variables(e); }, subexpr);
-  });
-}
-
 expression
 box_set_variables(context& ctx, expression s) {
-  mark_set_variables(s);
   return map_ast(
     ctx, s,
     [&] (expression expr) {
       return visit([&] (auto e) { return box_set_variables(ctx, e); },
+                   expr);
+    }
+  );
+}
+
+static expression
+propagate_constants(context& ctx, ptr<local_reference_expression> ref) {
+  if (ref->variable()->constant_value)
+    return make<literal_expression>(ctx, ref->variable()->constant_value);
+  else
+    return ref;
+}
+
+static bool
+is_const(definition_pair_expression const& dp) {
+  return dp.variable()->constant_value != ptr<>{};
+}
+
+static std::vector<definition_pair_expression>
+remove_const_definitions(std::vector<definition_pair_expression> const& dps) {
+  std::vector<definition_pair_expression> result;
+  result.reserve(dps.size());
+  std::ranges::remove_copy_if(dps, std::back_inserter(result), is_const);
+  return result;
+}
+
+static expression
+propagate_constants(context& ctx, ptr<let_expression> let) {
+  auto new_dps = remove_const_definitions(let->definitions());
+  if (new_dps.empty())
+    return let->body();
+  else if (new_dps.size() < let->definitions().size())
+    return make<let_expression>(ctx, std::move(new_dps), let->body());
+  else
+    return let;
+}
+
+static expression
+propagate_constants(context&, auto x) { return x; }
+
+expression
+propagate_constants(context& ctx, expression e) {
+  return map_ast(
+    ctx, e,
+    [&] (expression expr) {
+      return visit([&] (auto e) { return propagate_constants(ctx, e); },
                    expr);
     }
   );
