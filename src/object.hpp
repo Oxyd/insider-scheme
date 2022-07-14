@@ -144,7 +144,9 @@ constexpr char const* character_type_name = "insider::character";
 
 inline std::string
 object_type_name(ptr<> o) {
-  if (is_object_ptr(o))
+  if (!o)
+    return "<null>";
+  else if (is_object_ptr(o))
     return type_name(object_type_index(o));
   else if (is_fixnum(o))
     return integer_type_name;
