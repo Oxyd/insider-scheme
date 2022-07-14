@@ -387,7 +387,7 @@ compile_arithmetic(context& ctx, procedure_context& proc,
     else
       throw std::runtime_error{fmt::format(
         "Not enough arguments for {}",
-        assume<top_level_reference_expression>(stx->target())->name)
+        assume<top_level_reference_expression>(stx->target())->variable()->name)
       };
   }
 
@@ -792,7 +792,8 @@ compile_expression(context& ctx, procedure_context& proc,
                    ptr<application_expression> stx, bool tail,
                    result_location& result) {
   if (auto ref = match<top_level_reference_expression>(stx->target()))
-    if (std::optional<special_top_level_tag> tag = ctx.find_tag(ref->location)) {
+    if (std::optional<special_top_level_tag> tag
+        = ctx.find_tag(*ref->variable()->global)) {
       if ((*tag == special_top_level_tag::plus
            || *tag == special_top_level_tag::minus
            || *tag == special_top_level_tag::times
@@ -852,7 +853,7 @@ compile_expression(context& ctx, procedure_context& proc,
   }
 
   if (auto global = match<top_level_reference_expression>(stx->target())) {
-    f = global->location;
+    f = *global->variable()->global;
     oc = tail ? opcode::tail_call_top_level : opcode::call_top_level;
   } else if (auto lit = match<literal_expression>(stx->target())) {
     f = ctx.intern_static(lit->value());
@@ -919,7 +920,7 @@ static void
 compile_expression(context&, procedure_context& proc,
                    ptr<top_level_reference_expression> stx, bool,
                    result_location& result) {
-  compile_global_reference(proc, stx->location, result);
+  compile_global_reference(proc, *stx->variable()->global, result);
 }
 
 static void

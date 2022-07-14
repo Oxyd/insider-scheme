@@ -92,23 +92,30 @@ private:
 };
 
 class top_level_reference_expression
-  : public leaf_object<top_level_reference_expression>
+  : public composite_object<top_level_reference_expression>
 {
 public:
   static constexpr char const* scheme_name
     = "insider::top_level_reference_expression";
 
-  operand location;
-  std::string name;
+  explicit
+  top_level_reference_expression(ptr<insider::variable>);
 
-  top_level_reference_expression(operand location, std::string name);
+  ptr<insider::variable>
+  variable() const { return variable_; }
 
   template <typename F>
   void
   visit_subexpressions(F&&) const { }
 
+  void
+  visit_members(member_visitor const& f);
+
   expression
   duplicate(context&, result_stack&);
+
+private:
+  ptr<insider::variable> variable_;
 };
 
 class unknown_reference_expression
@@ -425,7 +432,7 @@ private:
 };
 
 expression
-make_internal_reference(context& ctx, std::string name);
+make_internal_reference(context& ctx, std::string const& name);
 
 std::vector<expression>
 untrack_expressions(std::vector<tracked_expression> const&);

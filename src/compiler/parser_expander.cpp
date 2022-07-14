@@ -988,8 +988,7 @@ parse_reference(parsing_context& pc, ptr<syntax> id) {
   else if (!var->global)
     return make<local_reference_expression>(pc.ctx, var);
   else
-    return make<top_level_reference_expression>(pc.ctx, *var->global,
-                                                identifier_name(id));
+    return make<top_level_reference_expression>(pc.ctx, var);
 }
 
 static expression

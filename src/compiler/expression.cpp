@@ -57,15 +57,20 @@ local_reference_expression::duplicate(context& ctx, result_stack&) {
   return make<local_reference_expression>(ctx, variable_);
 }
 
-top_level_reference_expression::top_level_reference_expression(operand location,
-                                                               std::string name)
-  : location{location}
-  , name{std::move(name)}
+top_level_reference_expression::top_level_reference_expression(
+  ptr<insider::variable> v
+)
+  : variable_{v}
 { }
+
+void
+top_level_reference_expression::visit_members(member_visitor const& f) {
+  f(variable_);
+}
 
 expression
 top_level_reference_expression::duplicate(context& ctx, result_stack&) {
-  return make<top_level_reference_expression>(ctx, location, name);
+  return make<top_level_reference_expression>(ctx, variable_);
 }
 
 unknown_reference_expression::unknown_reference_expression(ptr<syntax> name)
@@ -263,16 +268,14 @@ if_expression::duplicate(context& ctx, result_stack& stack) {
 }
 
 expression
-make_internal_reference(context& ctx, std::string name) {
+make_internal_reference(context& ctx, std::string const& name) {
   std::optional<module_::binding_type> binding
     = ctx.internal_module()->find(ctx.intern(name));
   assert(binding);
   assert(binding->variable);
   assert(binding->variable->global);
 
-  return make<top_level_reference_expression>(
-    ctx, *binding->variable->global, std::move(name)
-  );
+  return make<top_level_reference_expression>(ctx, binding->variable);
 }
 
 std::vector<expression>
