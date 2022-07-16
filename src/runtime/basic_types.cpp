@@ -3,7 +3,8 @@
 #include "context.hpp"
 #include "util/define_procedure.hpp"
 #include "util/list_iterator.hpp"
-#include <bits/ranges_algo.h>
+
+#include <ranges>
 
 namespace insider {
 

@@ -5,6 +5,7 @@
 #include "object.hpp"
 #include "ptr.hpp"
 #include "runtime/integer.hpp"
+#include "util/integer_cast.hpp"
 #include "util/object_span.hpp"
 #include "vm/operand.hpp"
 
@@ -195,7 +196,7 @@ current_frame_set_extra(ptr<call_stack> stack, ptr<stack_frame_extra_data> e) {
 
 inline ptr<>&
 current_frame_local(ptr<call_stack> stack, std::size_t i) {
-  return stack->local(stack->current_frame_index(), i);
+  return stack->local(stack->current_frame_index(), to_signed<operand>(i));
 }
 
 inline call_stack::frame_index

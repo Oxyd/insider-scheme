@@ -3,9 +3,10 @@
 #include <gtest/gtest.h>
 
 #include <memory>
-#include <vector>
 #include <numeric>
+#include <optional>
 #include <ranges>
+#include <vector>
 
 using namespace insider;
 
@@ -58,7 +59,7 @@ TEST_F(depth_first_search_fixture, visitor_is_called_on_root_node) {
 
   auto tree = make(1, make(2), make(3));
   depth_first_search(tree.get(), v);
-  EXPECT_EQ(v.count, 1);
+  EXPECT_EQ(v.count, 1u);
 }
 
 TEST_F(depth_first_search_fixture, visitor_is_called_on_all_nodes) {
@@ -76,7 +77,7 @@ TEST_F(depth_first_search_fixture, visitor_is_called_on_all_nodes) {
 
   auto tree = make(1, make(2), make(3));
   depth_first_search(tree.get(), v);
-  EXPECT_EQ(v.count, 3);
+  EXPECT_EQ(v.count, 3u);
 }
 
 TEST_F(depth_first_search_fixture, leave_is_called_when_going_up) {
@@ -101,7 +102,7 @@ TEST_F(depth_first_search_fixture, leave_is_called_when_going_up) {
 
   auto tree = make(1, make(2, make(3)), make(4, make(5), make(6)));
   depth_first_search(tree.get(), v);
-  EXPECT_EQ(v.left_nodes, 6);
+  EXPECT_EQ(v.left_nodes, 6u);
 }
 
 TEST_F(depth_first_search_fixture, search_without_explicit_visitor) {

@@ -384,7 +384,7 @@ namespace {
     frame_stack(frame_reference frame) : frame_{frame} { }
 
     void
-    push(ptr<> value) { frame_.local(top_++) = value; }
+    push(ptr<> value) { frame_.local(to_signed<operand>(top_++)) = value; }
 
   private:
     frame_reference frame_;
@@ -1113,7 +1113,7 @@ get_native_pc(frame_reference frame) {
     return -1;
 }
 
-static long
+static integer::value_type
 get_native_pc(execution_state& state) {
   auto parent = current_frame(state.stack);
   if (parent && is_native_frame(parent))

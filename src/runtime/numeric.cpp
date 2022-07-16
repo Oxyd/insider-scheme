@@ -624,8 +624,7 @@ mul_big_magnitude_by_limb(context& ctx, ptr<big_integer> lhs, limb_type rhs) {
 }
 
 static ptr<>
-mul_magnitude_by_limb_destructive(context& ctx, ptr<> lhs,
-                                  integer::value_type rhs) {
+mul_magnitude_by_limb_destructive(context& ctx, ptr<> lhs, limb_type rhs) {
   if (auto b = match<big_integer>(lhs))
     return mul_big_magnitude_by_limb_destructive(ctx, b, b, rhs);
 

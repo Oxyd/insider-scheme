@@ -16,7 +16,7 @@ class scope;
 class symbol;
 class syntax;
 class transformer;
-struct variable;
+class variable;
 
 class scope_set {
 public:

@@ -259,7 +259,9 @@ has_number_as_prefix(std::string const& sym_value) {
   assert(!sym_value.empty());
   std::string s;
   std::ranges::copy(
-    sym_value | std::views::transform([] (char c) { return std::tolower(c); }),
+    sym_value | std::views::transform([] (char c) {
+      return static_cast<char>(std::tolower(c));
+    }),
     std::back_inserter(s)
   );
 

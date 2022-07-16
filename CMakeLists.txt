@@ -33,9 +33,12 @@ else()
           /wd4458
           /wd4459
           /wd4996
+          /wd4702
           /MP
           /utf-8
           /bigobj
+          /DUNICODE
+          /D_UNICODE
           $<$<CONFIG:RELEASE>:NDEBUG>)
 endif()
 

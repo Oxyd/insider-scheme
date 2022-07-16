@@ -19,7 +19,8 @@ to_unsigned(From from) {
 template <std::signed_integral To, std::unsigned_integral From>
 To
 to_signed(From from) {
-  assert(from <= std::numeric_limits<To>::max());
+  if constexpr (sizeof(From) >= sizeof(To))
+    assert(from <= static_cast<From>(std::numeric_limits<To>::max()));
   return static_cast<To>(from);
 }
 

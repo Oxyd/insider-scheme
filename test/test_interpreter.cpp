@@ -77,7 +77,8 @@ TEST_F(interpreter, can_push_and_pop) {
 static operand
 nth_argument(std::size_t n, std::size_t num_args) {
   return -static_cast<operand>(call_stack::stack_frame_header_size)
-         - num_args + n;
+         - static_cast<operand>(num_args)
+         + static_cast<operand>(n);
 }
 
 TEST_F(interpreter, can_access_pushed_arguments_from_callee) {
@@ -791,7 +792,7 @@ TEST_F(interpreter, top_level_meta_is_evaluated_only_once) {
   define_procedure<increase_meta_eval_count>(ctx, "increase-count!",
                                              ctx.internal_module());
   eval_module("(import (insider internal)) (meta (increase-count!))");
-  EXPECT_EQ(meta_eval_count, 1);
+  EXPECT_EQ(meta_eval_count, 1u);
 }
 
 static char const* introduce_macro_def = R"(

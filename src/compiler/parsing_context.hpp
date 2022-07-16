@@ -11,7 +11,7 @@ namespace insider {
 class context;
 class module_;
 class scope;
-class source_file_origin;
+struct source_file_origin;
 
 using use_site_scopes_list = std::vector<ptr<scope>>;
 

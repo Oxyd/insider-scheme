@@ -58,8 +58,8 @@ namespace detail {
         template <typename Closure, typename... Defaults, std::size_t... Is>
         static auto
         do_call(context& ctx, [[maybe_unused]] object_span args,
-                Closure const& closure, std::index_sequence<Is...>,
-                Defaults&... defaults) {
+                [[maybe_unused]] Closure const& closure,
+                std::index_sequence<Is...>, Defaults&... defaults) {
           if constexpr (callable_is_pointer_v<Callable>)
             return Callable(ctx,
                             from_scheme<CallArgs>(ctx, args[Is])...,
@@ -100,7 +100,8 @@ namespace detail {
 
     template <typename Closure, std::size_t... Is>
     static auto
-    call(context& ctx, [[maybe_unused]] object_span args, Closure const& closure,
+    call(context& ctx, [[maybe_unused]] object_span args,
+         [[maybe_unused]] Closure const& closure,
          std::index_sequence<Is...>) {
       assert(args.size() == sizeof...(Is));
       if constexpr (callable_is_pointer_v<Callable>)
@@ -214,7 +215,8 @@ namespace detail {
 
     template <typename Closure, std::size_t... Is, typename... Defaults>
     static auto
-    make(context& ctx, char const* name, Closure const& closure,
+    make(context& ctx, char const* name,
+         [[maybe_unused]] Closure const& closure,
          Defaults... defaults) {
       if constexpr (sizeof...(Defaults) == 0
                     && !std::is_same_v<decltype(Callable), bool>)

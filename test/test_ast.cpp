@@ -97,9 +97,9 @@ struct counting_visitor {
 TEST_F(ast, map_ast_visits_all_nodes) {
   counting_visitor v;
   map_ast(ctx, make_nested_call(), v);
-  EXPECT_EQ(v.seen_applications, 2);
-  EXPECT_EQ(v.seen_local_references, 2);
-  EXPECT_EQ(v.seen_literals, 1);
+  EXPECT_EQ(v.seen_applications, 2u);
+  EXPECT_EQ(v.seen_local_references, 2u);
+  EXPECT_EQ(v.seen_literals, 1u);
 }
 
 TEST_F(ast, map_ast_makes_a_deep_copy) {
