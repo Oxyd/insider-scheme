@@ -136,7 +136,7 @@ namespace {
 
 static parsing_context
 make_subcontext(parsing_context& pc) {
-  return parsing_context{pc.ctx, pc.module_, pc.origin};
+  return parsing_context{pc.ctx, pc.module_, pc.passes, pc.origin};
 }
 
 static environment_extender

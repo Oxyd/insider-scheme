@@ -2,6 +2,7 @@
 
 #include "memory/root_provider.hpp"
 #include "memory/tracker.hpp"
+#include "runtime/string.hpp"
 #include "runtime/symbol.hpp"
 
 using namespace insider;

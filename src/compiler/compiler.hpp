@@ -1,6 +1,7 @@
 #ifndef INSIDER_COMPILER_COMPILER_HPP
 #define INSIDER_COMPILER_COMPILER_HPP
 
+#include "compiler/ast_transforms.hpp"
 #include "compiler/expression.hpp"
 #include "compiler/source_file_origin.hpp"
 #include "module.hpp"

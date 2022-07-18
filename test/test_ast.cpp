@@ -23,44 +23,22 @@ struct ast : scheme_fixture {
   }
 
   expression
-  parse(ptr<syntax> expr_stx) {
-    auto m = make_tracked<module_>(ctx, ctx);
-    import_all_exported(ctx, m, ctx.internal_module_tracked());
-
-    expr_stx = expr_stx->add_scope(ctx.store, m->scope());
-
-    insider::null_source_code_provider provider;
-    parsing_context pc{ctx, m.get(), {&provider, "<unit test expression>"}};
-
-    return insider::parse(pc, expr_stx);
-  }
-
-  expression
-  parse(std::string const& expr) {
-    auto expr_stx = read_syntax(ctx, expr);
-    if (expr_stx == ctx.constants->eof)
-      throw std::runtime_error{"EOF"};
-    else
-      return parse(assume<syntax>(expr_stx));
-  }
-
-  expression
-  analyse(ptr<syntax> expr_stx) {
+  analyse(ptr<syntax> expr_stx, pass_list passes = all_passes) {
     auto m = make_tracked<module_>(ctx, ctx);
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     insider::null_source_code_provider provider;
-    return insider::analyse(ctx, expr_stx, m,
+    return insider::analyse(ctx, expr_stx, m, std::move(passes),
                             {&provider, "<unit test expression>"});
   }
 
   expression
-  analyse(std::string const& expr) {
+  analyse(std::string const& expr, pass_list passes = all_passes) {
     auto expr_stx = read_syntax(ctx, expr);
     if (expr_stx == ctx.constants->eof)
       throw std::runtime_error{"EOF"};
     else
-      return analyse(assume<syntax>(expr_stx));
+      return analyse(assume<syntax>(expr_stx), std::move(passes));
   }
 };
 
@@ -229,8 +207,7 @@ struct variable_analysis : ast {
   ptr<variable>
   parse_and_get_variable(std::string const& variable_name,
                          std::string const& expr) {
-    expression e = parse(expr);
-    analyse_variables(e);
+    expression e = analyse(expr, {&analyse_variables});
     ptr<variable> v = find_variable(variable_name, e);
     assert(v);
     return v;

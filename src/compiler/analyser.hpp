@@ -1,9 +1,10 @@
 #ifndef INSIDER_COMPILER_ANALYSER_HPP
 #define INSIDER_COMPILER_ANALYSER_HPP
 
+#include "compiler/ast_transforms.hpp"
+#include "compiler/expression.hpp"
 #include "compiler/module_specifier.hpp"
-#include "expression.hpp"
-#include "source_file_origin.hpp"
+#include "compiler/source_file_origin.hpp"
 
 #include <memory>
 #include <optional>
@@ -31,7 +32,7 @@ class textual_input_port;
 // contains.
 expression
 analyse(context&, ptr<syntax> stx, tracked_ptr<module_> const&,
-        source_file_origin const&);
+        pass_list, source_file_origin const&);
 
 module_name
 parse_module_name(context&, ptr<syntax>);
@@ -51,7 +52,7 @@ read_library_name(context&, ptr<textual_input_port>);
 // Analyse a module's body in the given module.
 expression
 analyse_module(context&, tracked_ptr<module_> const&, module_specifier const&,
-               bool main_module = false);
+               pass_list, bool main_module = false);
 
 expression
 analyse_transformer(parsing_context& pc, ptr<syntax> stx);

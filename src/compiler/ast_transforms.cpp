@@ -7,6 +7,20 @@
 
 namespace insider {
 
+pass_list const all_passes{
+  analyse_variables,
+  propagate_constants,
+  box_set_variables,
+  analyse_free_variables
+};
+
+expression
+apply_passes(context& ctx, expression e, pass_list const& ps) {
+  for (pass p : ps)
+    e = p(ctx, e);
+  return e;
+}
+
 static expression
 box_variable_reference(context& ctx,
                        ptr<local_reference_expression> local_ref,
@@ -107,11 +121,12 @@ visit_variables(auto e) {
   find_constant_values(e);
 }
 
-void
-analyse_variables(expression expr) {
+expression
+analyse_variables(context&, expression expr) {
   traverse_postorder(expr, [] (expression subexpr) {
     visit([] (auto e) { visit_variables(e); }, subexpr);
   });
+  return expr;
 }
 
 static expression
@@ -287,13 +302,15 @@ namespace {
   };
 }
 
-void
-analyse_free_variables(context& ctx, expression& e) {
+expression
+analyse_free_variables(context& ctx, expression e) {
   free_variable_visitor v{ctx};
   depth_first_search(e, v);
 
   // Top-level can't have any free variables
   assert(v.free_vars_stack.back().empty());
+
+  return e;
 }
 
 } // namespace insider

@@ -5,11 +5,13 @@
 namespace insider {
 
 parsing_context::parsing_context(context& ctx, ptr<insider::module_> m,
+                                 pass_list passes,
                                  source_file_origin const& origin)
   : root_provider{ctx.store}
   , ctx{ctx}
   , module_{m}
   , origin{origin}
+  , passes{std::move(passes)}
 { }
 
 void

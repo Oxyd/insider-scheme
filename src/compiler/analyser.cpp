@@ -29,11 +29,7 @@ namespace insider {
 static expression
 analyse_internal(parsing_context& pc, ptr<syntax> stx) {
   expression result = parse(pc, stx);
-  analyse_variables(result);
-  result = propagate_constants(pc.ctx, result);
-  result = box_set_variables(pc.ctx, result);
-  analyse_free_variables(pc.ctx, result);
-  return result;
+  return apply_passes(pc.ctx, result, pc.passes);
 }
 
 static expression
@@ -73,12 +69,12 @@ analyse_meta(parsing_context& pc, ptr<syntax> stx) {
 
 expression
 analyse(context& ctx, ptr<syntax> stx, tracked_ptr<module_> const& m,
-        source_file_origin const& origin) {
+        pass_list passes, source_file_origin const& origin) {
   parameterize origin_param{ctx, ctx.constants->current_source_file_origin_tag,
                             make<opaque_value<source_file_origin>>(ctx, origin)};
   parameterize module_param{ctx, ctx.constants->current_expand_module_tag,
                             m.get()};
-  parsing_context pc{ctx, m.get(), origin};
+  parsing_context pc{ctx, m.get(), std::move(passes), origin};
   stx = stx->add_scope(ctx.store, m->scope());
   return analyse_top_level_expressions(pc, m, {stx});
 }
@@ -501,7 +497,7 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
 
 expression
 analyse_module(context& ctx, tracked_ptr<module_> const& m,
-               module_specifier const& pm, bool main_module) {
+               module_specifier const& pm, pass_list passes, bool main_module) {
   parameterize origin_param{
     ctx, ctx.constants->current_source_file_origin_tag,
     make<opaque_value<source_file_origin>>(ctx, pm.origin)
@@ -513,7 +509,7 @@ analyse_module(context& ctx, tracked_ptr<module_> const& m,
   parameterize module_param{
     ctx, ctx.constants->current_expand_module_tag, m.get()
   };
-  parsing_context pc{ctx, m.get(), pm.origin};
+  parsing_context pc{ctx, m.get(), std::move(passes), pm.origin};
 
   return analyse_top_level_expressions(pc, m, pm.body);
 }

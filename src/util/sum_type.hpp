@@ -5,7 +5,6 @@
 #include "object.hpp"
 #include "ptr.hpp"
 #include "runtime/error.hpp"
-#include "util/from_scheme.hpp"
 
 #include <fmt/format.h>
 
@@ -13,6 +12,9 @@
 #include <type_traits>
 
 namespace insider {
+
+template <typename>
+struct from_scheme_converter;
 
 namespace detail {
 
