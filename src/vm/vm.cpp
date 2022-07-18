@@ -201,10 +201,11 @@ load_dynamic_top_level(instruction_state& istate) {
 
   if (auto binding = lookup(id))
     if (binding->variable) {
-      assert(binding->variable->global);
+      assert(is<top_level_variable>(binding->variable));
 
-      istate.frame().local(dest)
-        = istate.context().get_top_level(*binding->variable->global);
+      istate.frame().local(dest) = istate.context().get_top_level(
+        assume<top_level_variable>(binding->variable)->index
+      );
       return;
     }
 

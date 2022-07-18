@@ -42,7 +42,7 @@ literal_expression::duplicate(context& ctx, result_stack&) {
 }
 
 local_reference_expression::local_reference_expression(
-  ptr<insider::variable> var
+  ptr<local_variable> var
 )
   : variable_{var}
 { }
@@ -58,7 +58,7 @@ local_reference_expression::duplicate(context& ctx, result_stack&) {
 }
 
 top_level_reference_expression::top_level_reference_expression(
-  ptr<insider::variable> v
+  ptr<top_level_variable> v
 )
   : variable_{v}
 { }
@@ -130,7 +130,7 @@ sequence_expression::duplicate(context& ctx, result_stack& stack) {
 
 definition_pair_expression::definition_pair_expression(
   ptr<syntax> id,
-  ptr<insider::variable> var,
+  ptr<local_variable> var,
   insider::expression expr
 )
   : id_{id}
@@ -173,7 +173,7 @@ let_expression::duplicate(context& ctx, result_stack& stack) {
   return make<let_expression>(ctx, std::move(def_pairs), body);
 }
 
-local_set_expression::local_set_expression(ptr<variable> target,
+local_set_expression::local_set_expression(ptr<local_variable> target,
                                            insider::expression expr)
   : target_{target}
   , expression_{expr}
@@ -190,7 +190,7 @@ local_set_expression::duplicate(context& ctx, result_stack& stack) {
   return make<local_set_expression>(ctx, target_, pop(stack));
 }
 
-top_level_set_expression::top_level_set_expression(ptr<variable> var,
+top_level_set_expression::top_level_set_expression(ptr<top_level_variable> var,
                                                    insider::expression expr)
   : variable_{var}
   , expression_{expr}
@@ -207,11 +207,11 @@ top_level_set_expression::duplicate(context& ctx, result_stack& stack) {
   return make<top_level_set_expression>(ctx, variable_, pop(stack));
 }
 
-lambda_expression::lambda_expression(std::vector<ptr<variable>> parameters,
+lambda_expression::lambda_expression(std::vector<ptr<local_variable>> parameters,
                                      bool has_rest,
                                      ptr<sequence_expression> body,
                                      std::optional<std::string> name,
-                                     std::vector<ptr<variable>> free_variables)
+                                     std::vector<ptr<local_variable>> free_variables)
   : parameters_{std::move(parameters)}
   , has_rest_{has_rest}
   , body_{body}
@@ -220,7 +220,7 @@ lambda_expression::lambda_expression(std::vector<ptr<variable>> parameters,
 { }
 
 void
-lambda_expression::add_free_variable(free_store& fs, ptr<variable> v) {
+lambda_expression::add_free_variable(free_store& fs, ptr<local_variable> v) {
   free_variables_.push_back(v);
   fs.notify_arc(this, v);
 }
@@ -274,9 +274,12 @@ make_internal_reference(context& ctx, std::string const& name) {
     = ctx.internal_module()->find(ctx.intern(name));
   assert(binding);
   assert(binding->variable);
-  assert(binding->variable->global);
+  assert(is<top_level_variable>(binding->variable));
 
-  return make<top_level_reference_expression>(ctx, binding->variable);
+  return make<top_level_reference_expression>(
+    ctx,
+    assume<top_level_variable>(binding->variable)
+  );
 }
 
 std::vector<expression>

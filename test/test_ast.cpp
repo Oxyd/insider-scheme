@@ -13,10 +13,10 @@ struct ast : scheme_fixture {
   make_nested_call() {
     return make<application_expression>(
       ctx,
-      make<local_reference_expression>(ctx, make<variable>(ctx, "foo")),
+      make<local_reference_expression>(ctx, make<local_variable>(ctx, "foo")),
       make<application_expression>(
         ctx,
-        make<local_reference_expression>(ctx, make<variable>(ctx, "bar")),
+        make<local_reference_expression>(ctx, make<local_variable>(ctx, "bar")),
         make<literal_expression>(ctx, ctx.intern("baz"))
       )
     );
@@ -105,7 +105,7 @@ struct wrap_local_reference_in_identity {
   operator () (ptr<local_reference_expression> ref) {
     return make<application_expression>(
       ctx,
-      make<local_reference_expression>(ctx, make<variable>(ctx, "identity")),
+      make<local_reference_expression>(ctx, make<local_variable>(ctx, "identity")),
       ref
     );
   };
@@ -128,21 +128,21 @@ TEST_F(ast, map_ast_to_change_its_shape) {
   );
 }
 
-static ptr<variable>
+static variable
 find_variable(std::string const& name, expression);
 
-static ptr<variable>
+static variable
 find_variable_in_subexpressions(std::string const& name, auto expr) {
   std::vector<expression> subexprs;
   expr->visit_subexpressions([&] (expression e) { subexprs.push_back(e); });
 
   for (expression e : subexprs)
-    if (ptr<variable> v = find_variable(name, e))
+    if (variable v = find_variable(name, e))
       return v;
   return {};
 }
 
-static ptr<variable>
+static variable
 find_variable(std::string const& name, ptr<local_reference_expression> ref) {
   if (ref->variable()->name == name)
     return ref->variable();
@@ -150,7 +150,7 @@ find_variable(std::string const& name, ptr<local_reference_expression> ref) {
     return {};
 }
 
-static ptr<variable>
+static variable
 find_variable(std::string const& name, ptr<top_level_reference_expression> ref) {
   if (ref->variable()->name == name)
     return ref->variable();
@@ -158,7 +158,7 @@ find_variable(std::string const& name, ptr<top_level_reference_expression> ref) 
     return {};
 }
 
-static ptr<variable>
+static variable
 find_variable(std::string const& name, ptr<let_expression> let) {
   for (auto const& dp : let->definitions())
     if (dp.variable()->name == name)
@@ -167,7 +167,7 @@ find_variable(std::string const& name, ptr<let_expression> let) {
   return find_variable_in_subexpressions(name, let);
 }
 
-static ptr<variable>
+static variable
 find_variable(std::string const& name, ptr<local_set_expression> set) {
   if (set->target()->name == name)
     return set->target();
@@ -175,7 +175,7 @@ find_variable(std::string const& name, ptr<local_set_expression> set) {
     return find_variable_in_subexpressions(name, set);
 }
 
-static ptr<variable>
+static variable
 find_variable(std::string const& name, ptr<top_level_set_expression> set) {
   if (set->target()->name == name)
     return set->target();
@@ -183,39 +183,45 @@ find_variable(std::string const& name, ptr<top_level_set_expression> set) {
     return find_variable_in_subexpressions(name, set);
 }
 
-static ptr<variable>
+static variable
 find_variable(std::string const& name, ptr<lambda_expression> lambda) {
-  for (ptr<variable> v : lambda->parameters())
+  for (ptr<local_variable> v : lambda->parameters())
     if (v->name == name)
       return v;
 
   return find_variable_in_subexpressions(name, lambda);
 }
 
-static ptr<variable>
+static variable
 find_variable(std::string const& name, auto expr) {
   return find_variable_in_subexpressions(name, expr);
 }
 
-static ptr<variable>
+static variable
 find_variable(std::string const& name, expression e) {
   return visit([&] (auto expr) { return find_variable(name, expr); },
                e);
 }
 
 struct variable_analysis : ast {
-  ptr<variable>
+  variable
   parse_and_get_variable(std::string const& variable_name,
                          std::string const& expr) {
     expression e = analyse(expr, {&analyse_variables});
-    ptr<variable> v = find_variable(variable_name, e);
+    variable v = find_variable(variable_name, e);
     assert(v);
     return v;
+  }
+
+  ptr<local_variable>
+  parse_and_get_local_variable(std::string const& variable_name,
+                               std::string const& expr) {
+    return assume<local_variable>(parse_and_get_variable(variable_name, expr));
   }
 };
 
 TEST_F(variable_analysis, analyse_variables_recognises_constants) {
-  ptr<variable> var = parse_and_get_variable("const", R"(
+  ptr<local_variable> var = parse_and_get_local_variable("const", R"(
     (let ((const 2))
       (+ const 4))
   )");
@@ -223,7 +229,7 @@ TEST_F(variable_analysis, analyse_variables_recognises_constants) {
 }
 
 TEST_F(variable_analysis, set_variable_is_not_marked_as_constant) {
-  ptr<variable> var = parse_and_get_variable("v", R"(
+  ptr<local_variable> var = parse_and_get_local_variable("v", R"(
     (let ((v 2))
       (set! v 5)
       (+ v 4))
@@ -234,7 +240,7 @@ TEST_F(variable_analysis, set_variable_is_not_marked_as_constant) {
 
 TEST_F(variable_analysis,
        variable_with_non_constant_initialiser_is_not_constant) {
-  ptr<variable> var = parse_and_get_variable("v", R"(
+  ptr<local_variable> var = parse_and_get_local_variable("v", R"(
     (let ((v (read)))
       (+ v 2))
   )");

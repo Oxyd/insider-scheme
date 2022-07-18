@@ -24,7 +24,7 @@ apply_passes(context& ctx, expression e, pass_list const& ps) {
 static expression
 box_variable_reference(context& ctx,
                        ptr<local_reference_expression> local_ref,
-                       ptr<variable> var) {
+                       ptr<local_variable> var) {
   if (local_ref->variable() == var)
     return make_application(
       ctx, "unbox",
@@ -37,7 +37,7 @@ box_variable_reference(context& ctx,
 static expression
 box_variable_reference(context& ctx,
                        ptr<local_set_expression> local_set,
-                       ptr<variable> var) {
+                       ptr<local_variable> var) {
   if (local_set->target() == var)
     return make_application(
       ctx, "box-set!",
@@ -49,12 +49,12 @@ box_variable_reference(context& ctx,
 }
 
 static expression
-box_variable_reference(context&, auto e, ptr<variable>) {
+box_variable_reference(context&, auto e, ptr<local_variable>) {
   return e;
 }
 
 static expression
-box_variable_references(context& ctx, expression s, ptr<variable> var) {
+box_variable_references(context& ctx, expression s, ptr<local_variable> var) {
   return map_ast(
     ctx, s,
     [&] (expression expr) {
@@ -66,14 +66,14 @@ box_variable_references(context& ctx, expression s, ptr<variable> var) {
   );
 }
 
-static std::vector<ptr<variable>>
+static std::vector<ptr<local_variable>>
 find_set_variables(ptr<let_expression> let) {
   auto rng = let->definitions()
     | std::views::transform([] (auto const& dp) { return dp.variable(); })
-    | std::views::filter([] (ptr<variable> v) {
+    | std::views::filter([] (ptr<local_variable> v) {
         return v->is_set;
       });
-  return std::vector<ptr<variable>>(rng.begin(), rng.end());
+  return std::vector<ptr<local_variable>>(rng.begin(), rng.end());
 }
 
 static definition_pair_expression
@@ -131,12 +131,12 @@ analyse_variables(context&, expression expr) {
 
 static expression
 box_set_variables(context& ctx, ptr<let_expression> let) {
-  std::vector<ptr<variable>> set_vars = find_set_variables(let);
+  std::vector<ptr<local_variable>> set_vars = find_set_variables(let);
   if (!set_vars.empty()) {
     std::vector<definition_pair_expression> dps
       = box_definition_pairs(ctx, let->definitions());
     expression body = let->body();
-    for (ptr<variable> v : set_vars)
+    for (ptr<local_variable> v : set_vars)
       body = box_variable_references(ctx, body, v);
     return make<let_expression>(ctx, std::move(dps),
                                 assume<sequence_expression>(body));
@@ -148,7 +148,7 @@ static expression
 box_set_variables(context& ctx, ptr<lambda_expression> lambda) {
   std::vector<expression> sets;
   expression body = lambda->body();
-  for (ptr<variable> param : lambda->parameters())
+  for (ptr<local_variable> param : lambda->parameters())
     if (param->is_set) {
       body = box_variable_references(ctx, body, param);
       sets.emplace_back(make<local_set_expression>(
@@ -237,7 +237,7 @@ propagate_constants(context& ctx, expression e) {
   );
 }
 
-using variable_set = std::unordered_set<ptr<variable>>;
+using variable_set = std::unordered_set<ptr<local_variable>>;
 
 namespace {
   class free_variable_visitor : public expression_visitor {
@@ -255,7 +255,7 @@ namespace {
     enter_expression(ptr<lambda_expression> lambda) override {
       free_vars_stack.emplace_back();
       bound_vars_stack.emplace_back();
-      for (ptr<variable> param : lambda->parameters())
+      for (ptr<local_variable> param : lambda->parameters())
         bound_vars_stack.back().emplace(param);
     }
 
@@ -265,7 +265,7 @@ namespace {
       free_vars_stack.pop_back();
       bound_vars_stack.pop_back();
 
-      for (ptr<variable> v : inner_free) {
+      for (ptr<local_variable> v : inner_free) {
         lambda->add_free_variable(ctx.store, v);
 
         // Lambda expression's free variables count as variable references in

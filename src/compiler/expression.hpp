@@ -72,9 +72,9 @@ public:
     = "insider::local_reference_expression";
 
   explicit
-  local_reference_expression(ptr<insider::variable> var);
+  local_reference_expression(ptr<local_variable> var);
 
-  ptr<insider::variable>
+  ptr<local_variable>
   variable() const { return variable_; }
 
   template <typename F>
@@ -88,7 +88,7 @@ public:
   duplicate(context&, result_stack&);
 
 private:
-  ptr<insider::variable> variable_;
+  ptr<local_variable> variable_;
 };
 
 class top_level_reference_expression
@@ -99,9 +99,9 @@ public:
     = "insider::top_level_reference_expression";
 
   explicit
-  top_level_reference_expression(ptr<insider::variable>);
+  top_level_reference_expression(ptr<top_level_variable>);
 
-  ptr<insider::variable>
+  ptr<top_level_variable>
   variable() const { return variable_; }
 
   template <typename F>
@@ -115,7 +115,7 @@ public:
   duplicate(context&, result_stack&);
 
 private:
-  ptr<insider::variable> variable_;
+  ptr<top_level_variable> variable_;
 };
 
 class unknown_reference_expression
@@ -229,13 +229,13 @@ private:
 class definition_pair_expression {
 public:
   definition_pair_expression(ptr<syntax> id,
-                             ptr<insider::variable> var,
+                             ptr<local_variable> var,
                              insider::expression expr);
 
   ptr<syntax>
   id() const { return id_; }
 
-  ptr<insider::variable>
+  ptr<local_variable>
   variable() const { return variable_; }
 
   insider::expression
@@ -245,9 +245,9 @@ public:
   visit_members(member_visitor const& f);
 
 private:
-  ptr<syntax>            id_;
-  ptr<insider::variable> variable_;
-  insider::expression    expression_;
+  ptr<syntax>         id_;
+  ptr<local_variable> variable_;
+  insider::expression expression_;
 };
 
 class let_expression : public composite_object<let_expression> {
@@ -288,9 +288,9 @@ class local_set_expression : public composite_object<local_set_expression> {
 public:
   static constexpr char const* scheme_name = "insider::local_set_expression";
 
-  local_set_expression(ptr<variable> target, insider::expression expr);
+  local_set_expression(ptr<local_variable> target, insider::expression expr);
 
-  ptr<variable>
+  ptr<local_variable>
   target() const { return target_; }
 
   insider::expression
@@ -309,7 +309,7 @@ public:
   duplicate(context&, result_stack&);
 
 private:
-  ptr<variable>       target_;
+  ptr<local_variable> target_;
   insider::expression expression_;
 };
 
@@ -320,9 +320,9 @@ public:
   static constexpr char const* scheme_name
     = "insider::top_level_set_expression";
 
-  top_level_set_expression(ptr<variable> var, expression expr);
+  top_level_set_expression(ptr<top_level_variable> var, expression expr);
 
-  ptr<variable>
+  ptr<top_level_variable>
   target() const { return variable_; }
 
   insider::expression
@@ -341,21 +341,21 @@ public:
   duplicate(context&, result_stack&);
 
 private:
-  ptr<variable>       variable_;
-  insider::expression expression_;
+  ptr<top_level_variable> variable_;
+  insider::expression     expression_;
 };
 
 class lambda_expression : public composite_object<lambda_expression> {
 public:
   static constexpr char const* scheme_name = "insider::lambda_expression";
 
-  lambda_expression(std::vector<ptr<variable>> parameters,
+  lambda_expression(std::vector<ptr<local_variable>> parameters,
                     bool has_rest,
                     ptr<sequence_expression> body,
                     std::optional<std::string> name,
-                    std::vector<ptr<variable>> free_variables);
+                    std::vector<ptr<local_variable>> free_variables);
 
-  std::vector<ptr<variable>> const&
+  std::vector<ptr<local_variable>> const&
   parameters() const { return parameters_; }
 
   bool
@@ -370,11 +370,11 @@ public:
   void
   set_name(std::string n) { name_ = std::move(n); }
 
-  std::vector<ptr<variable>> const&
+  std::vector<ptr<local_variable>> const&
   free_variables() const { return free_variables_; }
 
   void
-  add_free_variable(free_store& fs, ptr<variable> v);
+  add_free_variable(free_store& fs, ptr<local_variable> v);
 
   template <typename F>
   void
@@ -389,11 +389,11 @@ public:
   duplicate(context&, result_stack&);
 
 private:
-  std::vector<ptr<variable>> parameters_;
+  std::vector<ptr<local_variable>> parameters_;
   bool                       has_rest_;
   ptr<sequence_expression>   body_;
   std::optional<std::string> name_;
-  std::vector<ptr<variable>> free_variables_;
+  std::vector<ptr<local_variable>> free_variables_;
 };
 
 class if_expression : public composite_object<if_expression> {

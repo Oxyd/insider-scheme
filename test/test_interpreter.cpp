@@ -376,7 +376,7 @@ TEST_F(interpreter, exec_make_vector) {
 
 TEST_F(interpreter, exec_load_dynamic_top_level) {
   operand index = ctx.add_top_level(ctx.intern("foo"), "top-level");
-  auto var = make<variable>(ctx, "top-level", index);
+  auto var = make<top_level_variable>(ctx, "top-level", index);
   auto top_level_scope = make<scope>(ctx, ctx, "top-level-scope");
   auto id = make<syntax>(ctx, ctx.intern("top-level"),
                          scope_set{top_level_scope});

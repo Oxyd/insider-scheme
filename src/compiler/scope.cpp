@@ -87,8 +87,7 @@ scope_sets_equal(scope_set const& lhs, scope_set const& rhs) {
 }
 
 void
-scope::add(free_store& store, ptr<syntax> identifier,
-           ptr<variable> var) {
+scope::add(free_store& store, ptr<syntax> identifier, variable var) {
   assert(is_identifier(identifier));
 
   if (is_redefinition(identifier, var))
@@ -135,14 +134,13 @@ void
 scope::visit_members(member_visitor const& f) {
   for (auto& b : bindings_) {
     f(b.id);
-    f(b.variable);
+    b.variable.visit_members(f);
     f(b.transformer);
   }
 }
 
 static bool
-binding_values_equal(scope::binding const& binding,
-                     ptr<variable> const& var) {
+binding_values_equal(scope::binding const& binding, variable var) {
   return binding.variable == var;
 }
 
@@ -190,8 +188,8 @@ format_scope_set(scope_set const& set) {
 }
 
 void
-define(free_store& fs, ptr<syntax> id, ptr<variable> value) {
-  id->scopes().back()->add(fs, id, std::move(value));
+define(free_store& fs, ptr<syntax> id, variable value) {
+  id->scopes().back()->add(fs, id, value);
 }
 
 void

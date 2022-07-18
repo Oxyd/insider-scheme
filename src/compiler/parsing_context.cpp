@@ -19,8 +19,8 @@ parsing_context::visit_roots(member_visitor const& f) {
   f(module_);
 
   for (auto& vars : environment)
-    for (ptr<>& var : vars)
-      f(var);
+    for (variable& var : vars)
+      var.visit_members(f);
 
   for (use_site_scopes_list& uss : use_site_scopes)
     for (ptr<scope>& s : uss)

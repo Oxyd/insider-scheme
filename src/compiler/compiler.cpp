@@ -82,18 +82,19 @@ namespace {
   class variable_bindings {
   public:
     struct binding {
-      ptr<insider::variable> variable;
-      shared_local           destination;
+      ptr<local_variable> variable;
+      shared_local        destination;
 
       binding() = default;
 
-      binding(ptr<insider::variable> variable, shared_local destination)
+      binding(ptr<insider::local_variable> variable, shared_local destination)
         : variable{variable}
         , destination{std::move(destination)}
       { }
     };
     using scope = std::vector<binding>;
-    using free_variables_map = std::unordered_map<ptr<variable>, shared_local>;
+    using free_variables_map = std::unordered_map<ptr<local_variable>,
+                                                  shared_local>;
 
     class unique_scope {
     public:
@@ -115,7 +116,7 @@ namespace {
     pop_scope();
 
     shared_local
-    lookup(ptr<variable> const&) const;
+    lookup(ptr<local_variable> const&) const;
 
   private:
     std::vector<scope> scopes_;
@@ -232,7 +233,7 @@ variable_bindings::pop_scope() {
 }
 
 shared_local
-variable_bindings::lookup(ptr<variable> const& v) const {
+variable_bindings::lookup(ptr<local_variable> const& v) const {
   for (const auto& scope : scopes_ | std::views::reverse)
     for (binding const& b : scope)
       if (b.variable == v)
@@ -651,7 +652,7 @@ compile_expression(context& ctx, procedure_context& proc,
     = compile_expression_to_register(ctx, proc, stx->expression(), false);
   encode_instruction(proc.bytecode_stack.back(),
                      instruction{opcode::store_top_level, *value,
-                                 *stx->target()->global});
+                                 stx->target()->index});
 
   compile_static_reference(proc, ctx.statics.void_, result);
 }
@@ -671,7 +672,7 @@ compile_expression(context& ctx, procedure_context& parent,
   procedure_context proc{&parent, parent.module_};
   variable_bindings::scope args_scope;
 
-  for (ptr<variable> free : stx->free_variables())
+  for (ptr<local_variable> free : stx->free_variables())
     args_scope.push_back(variable_bindings::binding{
       free, proc.registers.allocate_local()
     });
@@ -711,7 +712,7 @@ compile_expression(context& ctx, procedure_context& parent,
     shared_local p_reg
       = compile_static_reference_to_register(parent, ctx.intern_static(p));
 
-    for (ptr<variable> var : stx->free_variables())
+    for (ptr<local_variable> var : stx->free_variables())
       encode_instruction(
         parent.bytecode_stack.back(),
         instruction{opcode::push, *parent.bindings.lookup(var)}
@@ -793,7 +794,7 @@ compile_expression(context& ctx, procedure_context& proc,
                    result_location& result) {
   if (auto ref = match<top_level_reference_expression>(stx->target()))
     if (std::optional<special_top_level_tag> tag
-        = ctx.find_tag(*ref->variable()->global)) {
+        = ctx.find_tag(ref->variable()->index)) {
       if ((*tag == special_top_level_tag::plus
            || *tag == special_top_level_tag::minus
            || *tag == special_top_level_tag::times
@@ -853,7 +854,7 @@ compile_expression(context& ctx, procedure_context& proc,
   }
 
   if (auto global = match<top_level_reference_expression>(stx->target())) {
-    f = *global->variable()->global;
+    f = global->variable()->index;
     oc = tail ? opcode::tail_call_top_level : opcode::call_top_level;
   } else if (auto lit = match<literal_expression>(stx->target())) {
     f = ctx.intern_static(lit->value());
@@ -920,7 +921,7 @@ static void
 compile_expression(context&, procedure_context& proc,
                    ptr<top_level_reference_expression> stx, bool,
                    result_location& result) {
-  compile_global_reference(proc, *stx->variable()->global, result);
+  compile_global_reference(proc, stx->variable()->index, result);
 }
 
 static void

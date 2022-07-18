@@ -60,7 +60,7 @@ context::context()
     auto index = add_top_level(form.object, form.name);
     auto name = intern(form.name);
     auto id = make<syntax>(*this, name, scope_set{internal_module()->scope()});
-    auto var = make<variable>(*this, form.name, index);
+    auto var = make<top_level_variable>(*this, form.name, index);
     internal_module()->scope()->add(store, id, var);
     internal_module()->export_(name);
   }

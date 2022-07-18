@@ -3,9 +3,9 @@
 
 #include "object.hpp"
 #include "ptr.hpp"
+#include "util/sum_type.hpp"
 #include "vm/operand.hpp"
 
-#include <optional>
 #include <string>
 
 namespace insider {
@@ -17,23 +17,33 @@ namespace insider {
 //
 // This also contains compile-time information about each variable that's used
 // during translation.
-class variable : public leaf_object<variable> {
-public:
-  static constexpr char const* scheme_name = "insider::variable";
 
-  std::string                     name;
-  bool                            is_set = false;
-  std::optional<insider::operand> global;
-  ptr<>                           constant_value;
+class local_variable : public leaf_object<local_variable> {
+public:
+  static constexpr char const* scheme_name = "insider::local_variable";
+
+  std::string name;
+  bool        is_set = false;
+  ptr<>       constant_value;
 
   explicit
-  variable(std::string n) : name{std::move(n)} { }
+  local_variable(std::string n) : name{std::move(n)} { }
+};
 
-  variable(std::string n, insider::operand index)
+class top_level_variable : public leaf_object<top_level_variable> {
+public:
+  static constexpr char const* scheme_name = "insider::top_level_variable";
+
+  std::string      name;
+  insider::operand index;
+
+  top_level_variable(std::string n, insider::operand index)
     : name{std::move(n)}
-    , global{index}
+    , index{index}
   { }
 };
+
+using variable = sum_type<local_variable, top_level_variable>;
 
 } // namespace insider
 

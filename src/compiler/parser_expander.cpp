@@ -53,20 +53,13 @@ namespace {
     }
 
     environment_extender(parsing_context& pc,
-                         std::vector<ptr<variable>> extension)
+                         std::vector<variable> extension)
       : pc_{pc}
     {
       pc.environment.push_back(std::move(extension));
     }
-    environment_extender(parsing_context& pc,
-                         std::vector<tracked_ptr<variable>> extension)
-      : pc_{pc}
-    {
-      pc.environment.push_back(untrack_vector(extension));
-    }
 
-    environment_extender(parsing_context& pc,
-                         std::ranges::range auto extension)
+    environment_extender(parsing_context& pc, std::ranges::range auto extension)
       : pc_{pc}
     {
       pc.environment.push_back(std::vector(extension.begin(), extension.end()));
@@ -141,17 +134,17 @@ make_subcontext(parsing_context& pc) {
 
 static environment_extender
 extend_environment(parsing_context& pc, ptr<scope> s) {
-  std::vector<tracked_ptr<variable>> ext;
+  std::vector<variable> ext;
   for (scope::binding const& b : *s)
     if (b.variable)
-      ext.push_back(track(pc.ctx, b.variable));
+      ext.push_back(b.variable);
 
   return environment_extender{pc, std::move(ext)};
 }
 
 static bool
-is_in_scope(parsing_context& pc, ptr<variable> const& var) {
-  if (var->global)
+is_in_scope(parsing_context& pc, variable var) {
+  if (is<top_level_variable>(var))
     return true; // Globals are always in scope even when they are not imported.
 
   for (auto const& level : pc.environment)
@@ -162,7 +155,7 @@ is_in_scope(parsing_context& pc, ptr<variable> const& var) {
   return false;
 }
 
-static ptr<variable>
+static variable
 lookup_variable_binding(ptr<syntax> id) {
   if (auto binding = lookup(id))
     if (binding->variable)
@@ -171,7 +164,7 @@ lookup_variable_binding(ptr<syntax> id) {
   return {};
 }
 
-static ptr<variable>
+static variable
 lookup_variable(parsing_context& pc, ptr<syntax> id) {
   if (auto var = lookup_variable_binding(id)) {
     if (is_in_scope(pc, var))
@@ -188,10 +181,10 @@ lookup_variable(parsing_context& pc, ptr<syntax> id) {
 static ptr<core_form_type>
 lookup_core(parsing_context& pc, ptr<syntax> id) {
   auto var = lookup_variable_binding(id);
-  if (!var || !var->global)
+  if (!var || !is<top_level_variable>(var))
     return {};  // Core forms are never defined in a local scope.
 
-  ptr<> form = pc.ctx.get_top_level(*var->global);
+  ptr<> form = pc.ctx.get_top_level(assume<top_level_variable>(var)->index);
   return match<core_form_type>(form);
 }
 
@@ -352,9 +345,9 @@ namespace {
   class body_content : public root_provider {
   public:
     struct internal_variable {
-      ptr<syntax> id;
-      ptr<syntax> init;
-      ptr<variable> var;
+      ptr<syntax>         id;
+      ptr<syntax>         init;
+      ptr<local_variable> var;
     };
 
     std::vector<ptr<syntax>>       forms;
@@ -436,7 +429,7 @@ process_internal_define(
   ptr<syntax> expr
 ) {
   auto [id, init] = parse_name_and_expr(pc, expr, "define");
-  auto var = make<variable>(pc.ctx, identifier_name(id));
+  auto var = make<local_variable>(pc.ctx, identifier_name(id));
   internal_variables.emplace_back(
     body_content::internal_variable{id, init, var}
   );
@@ -615,7 +608,7 @@ make_internal_definition_set_expressions(
   tracker t1{pc.ctx, result};
 
   for (std::size_t i = 0; i < definition_exprs.size(); ++i) {
-    ptr<variable> var = content.internal_variable_defs[i].var;
+    ptr<local_variable> var = content.internal_variable_defs[i].var;
     ptr<syntax> init_stx = content.internal_variable_defs[i].init;
 
     tracker t2{pc.ctx, var};
@@ -634,6 +627,9 @@ parse_body_with_internal_definitions(parsing_context& pc,
     pc,
     content.internal_variable_defs
       | std::views::transform(&body_content::internal_variable::var)
+      | std::views::transform([] (ptr<local_variable> v) -> variable {
+          return v;
+        })
   };
 
   tracker t1{pc.ctx, definition_exprs};
@@ -752,7 +748,7 @@ parse_let(parsing_context& pc, ptr<syntax> stx) {
 
   for (definition_pair const& dp : definitions) {
     ptr<syntax> id = dp.id->add_scope(pc.ctx.store, subscope);
-    auto var = make<variable>(pc.ctx, identifier_name(id));
+    auto var = make<local_variable>(pc.ctx, identifier_name(id));
     define(pc.ctx.store, id, var);
     tracker u{pc.ctx, id, var};
 
@@ -826,10 +822,10 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
 static void
 parse_lambda_parameter(parsing_context& pc,
                        ptr<syntax> name,
-                       std::vector<insider::ptr<variable>>& parameters,
+                       std::vector<insider::ptr<local_variable>>& parameters,
                        ptr<scope> subscope) {
   auto name_with_scope = name->add_scope(pc.ctx.store, subscope);
-  auto var = make<variable>(pc.ctx, identifier_name(name_with_scope));
+  auto var = make<local_variable>(pc.ctx, identifier_name(name_with_scope));
   parameters.push_back(var);
   define(pc.ctx.store, name_with_scope, var);
 }
@@ -838,7 +834,7 @@ static auto
 parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
                         source_location const& loc) {
   ptr<> param_names = param_stx;
-  std::vector<ptr<variable>> parameters;
+  std::vector<ptr<local_variable>> parameters;
   bool has_rest = false;
   auto subscope = make<scope>(
     pc.ctx, pc.ctx,
@@ -890,7 +886,7 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
     has_rest,
     body,
     fmt::format("<lambda at {}>", format_location(loc)),
-    std::vector<ptr<variable>>{}
+    std::vector<ptr<local_variable>>{}
   );
 }
 
@@ -985,25 +981,29 @@ parse_reference(parsing_context& pc, ptr<syntax> id) {
 
   if (!var)
     return parse_unknown_reference(pc, id);
-  else if (!var->global)
-    return make<local_reference_expression>(pc.ctx, var);
+  else if (auto local_var = match<local_variable>(var))
+    return make<local_reference_expression>(pc.ctx, local_var);
   else
-    return make<top_level_reference_expression>(pc.ctx, var);
+    return make<top_level_reference_expression>(
+      pc.ctx, assume<top_level_variable>(var)
+    );
 }
 
 static expression
 make_set_expression(parsing_context& pc, ptr<syntax> name,
-                    ptr<syntax> expr, ptr<variable> var) {
+                    ptr<syntax> expr, variable var) {
   tracker t{pc.ctx, name, var};
 
   auto initialiser = parse(pc, expr);
   if (auto l = match<lambda_expression>(initialiser))
     l->set_name(identifier_name(name));
 
-  if (!var->global)
-    return make<local_set_expression>(pc.ctx, var, initialiser);
+  if (auto local_var = match<local_variable>(var))
+    return make<local_set_expression>(pc.ctx, local_var, initialiser);
   else
-    return make<top_level_set_expression>(pc.ctx, var, initialiser);
+    return make<top_level_set_expression>(pc.ctx,
+                                          assume<top_level_variable>(var),
+                                          initialiser);
 }
 
 static expression
@@ -1640,7 +1640,7 @@ process_top_level_define(parsing_context& pc, ptr<syntax> stx) {
   if (!var) {
     auto index = pc.ctx.add_top_level(pc.ctx.constants->void_,
                                       identifier_name(name));
-    var = make<variable>(pc.ctx, identifier_name(name), index);
+    var = make<top_level_variable>(pc.ctx, identifier_name(name), index);
     define(pc.ctx.store, name, var);
   }
 }

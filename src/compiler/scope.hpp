@@ -16,7 +16,7 @@ class scope;
 class symbol;
 class syntax;
 class transformer;
-class variable;
+class local_variable;
 
 class scope_set {
 public:
@@ -78,10 +78,10 @@ public:
 
   struct binding {
     ptr<syntax>               id;
-    ptr<insider::variable>    variable;
+    insider::variable         variable;
     ptr<insider::transformer> transformer;
 
-    binding(ptr<syntax> id, ptr<insider::variable> var)
+    binding(ptr<syntax> id, insider::variable var)
       : id{id}
       , variable{var}
     { }
@@ -97,7 +97,7 @@ public:
   scope(context& ctx, std::string desc);
 
   void
-  add(free_store& store, ptr<syntax> identifier, ptr<variable>);
+  add(free_store& store, ptr<syntax> identifier, variable);
 
   void
   add(free_store& store, ptr<syntax> identifier, ptr<transformer>);
@@ -140,7 +140,7 @@ binding_targets_equal(scope::binding const& lhs, scope::binding const& rhs) {
 }
 
 void
-define(free_store&, ptr<syntax> id, ptr<variable>);
+define(free_store&, ptr<syntax> id, variable);
 
 void
 define(free_store&, ptr<syntax> id, ptr<transformer>);

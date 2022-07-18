@@ -2251,7 +2251,7 @@ export_native(context& ctx, ptr<module_> m, char const* name,
 
   auto name_sym = ctx.intern(name);
   auto id = make<syntax>(ctx, name_sym, scope_set{m->scope()});
-  m->scope()->add(ctx.store, id, make<variable>(ctx, name, index));
+  m->scope()->add(ctx.store, id, make<top_level_variable>(ctx, name, index));
   m->export_(name_sym);
 }
 
