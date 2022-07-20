@@ -15,9 +15,10 @@ pass_list const all_passes{
 };
 
 expression
-apply_passes(context& ctx, expression e, pass_list const& ps) {
+apply_passes(context& ctx, expression e, analysis_context ac,
+             pass_list const& ps) {
   for (pass p : ps)
-    e = p(ctx, e);
+    e = p(ctx, e, ac);
   return e;
 }
 
@@ -102,6 +103,14 @@ mark_set_variables(ptr<local_set_expression> set) {
 }
 
 static void
+mark_set_variables(ptr<top_level_set_expression> set) {
+  if (!set->is_initialisation()) {
+    set->target()->is_set = true;
+    set->target()->constant_value = {};
+  }
+}
+
+static void
 mark_set_variables(auto) { }
 
 static void
@@ -113,18 +122,26 @@ find_constant_values(ptr<let_expression> let) {
 }
 
 static void
+find_constant_values(ptr<top_level_set_expression> set) {
+  if (set->is_initialisation() && !set->target()->is_set)
+    if (auto lit = match<literal_expression>(set->expression()))
+      set->target()->constant_value = lit->value();
+}
+
+static void
 find_constant_values(auto) { }
 
 static void
-visit_variables(auto e) {
+visit_variables(analysis_context ac, auto e) {
   mark_set_variables(e);
-  find_constant_values(e);
+  if (ac == analysis_context::closed)
+    find_constant_values(e);
 }
 
 expression
-analyse_variables(context&, expression expr) {
-  traverse_postorder(expr, [] (expression subexpr) {
-    visit([] (auto e) { visit_variables(e); }, subexpr);
+analyse_variables(context&, expression expr, analysis_context ac) {
+  traverse_postorder(expr, [&] (expression subexpr) {
+    visit([&] (auto e) { visit_variables(ac, e); }, subexpr);
   });
   return expr;
 }
@@ -181,7 +198,7 @@ box_set_variables(context&, auto e) {
 }
 
 expression
-box_set_variables(context& ctx, expression s) {
+box_set_variables(context& ctx, expression s, analysis_context) {
   return map_ast(
     ctx, s,
     [&] (expression expr) {
@@ -193,6 +210,14 @@ box_set_variables(context& ctx, expression s) {
 
 static expression
 propagate_constants(context& ctx, ptr<local_reference_expression> ref) {
+  if (ref->variable()->constant_value)
+    return make<literal_expression>(ctx, ref->variable()->constant_value);
+  else
+    return ref;
+}
+
+static expression
+propagate_constants(context& ctx, ptr<top_level_reference_expression> ref) {
   if (ref->variable()->constant_value)
     return make<literal_expression>(ctx, ref->variable()->constant_value);
   else
@@ -227,7 +252,7 @@ static expression
 propagate_constants(context&, auto x) { return x; }
 
 expression
-propagate_constants(context& ctx, expression e) {
+propagate_constants(context& ctx, expression e, analysis_context) {
   return map_ast(
     ctx, e,
     [&] (expression expr) {
@@ -303,7 +328,7 @@ namespace {
 }
 
 expression
-analyse_free_variables(context& ctx, expression e) {
+analyse_free_variables(context& ctx, expression e, analysis_context) {
   free_variable_visitor v{ctx};
   depth_first_search(e, v);
 

@@ -991,32 +991,35 @@ parse_reference(parsing_context& pc, ptr<syntax> id) {
 
 static expression
 make_set_expression(parsing_context& pc, ptr<syntax> name,
-                    ptr<syntax> expr, variable var) {
+                    ptr<syntax> expr, variable var, bool is_initialisation) {
   tracker t{pc.ctx, name, var};
 
-  auto initialiser = parse(pc, expr);
-  if (auto l = match<lambda_expression>(initialiser))
+  auto value_expr = parse(pc, expr);
+  if (auto l = match<lambda_expression>(value_expr))
     l->set_name(identifier_name(name));
 
   if (auto local_var = match<local_variable>(var))
-    return make<local_set_expression>(pc.ctx, local_var, initialiser);
+    return make<local_set_expression>(pc.ctx, local_var, value_expr);
   else
     return make<top_level_set_expression>(pc.ctx,
                                           assume<top_level_variable>(var),
-                                          initialiser);
+                                          value_expr,
+                                          is_initialisation);
 }
 
 static expression
-parse_define_or_set(parsing_context& pc, ptr<syntax> stx,
-                    std::string const& form_name) {
-  // Defines are processed in two passes: First all the define'd variables are
-  // declared within the module or scope and initialised to #void; second, they
-  // are assigned their values as if by set!.
-  //
-  // This function can be therefore be used for both set! and define forms -- in
-  // either case, we emit a set! syntax.
+parse_define(parsing_context& pc, ptr<syntax> stx) {
+  auto [name, expr] = parse_name_and_expr(pc, stx, "define");
 
-  auto [name, expr] = parse_name_and_expr(pc, stx, form_name);
+  auto var = lookup_variable(pc, name);
+  assert(var);
+
+  return make_set_expression(pc, name, expr, var, true);
+}
+
+static expression
+parse_set(parsing_context& pc, ptr<syntax> stx) {
+  auto [name, expr] = parse_name_and_expr(pc, stx, "set!");
 
   auto var = lookup_variable(pc, name);
   if (!var)
@@ -1024,17 +1027,7 @@ parse_define_or_set(parsing_context& pc, ptr<syntax> stx,
       name, "Identifier {} not bound to a variable", identifier_name(name)
     );
 
-  return make_set_expression(pc, name, expr, var);
-}
-
-static expression
-parse_define(parsing_context& pc, ptr<syntax> stx) {
-  return parse_define_or_set(pc, stx, "define");
-}
-
-static expression
-parse_set(parsing_context& pc, ptr<syntax> stx) {
-  return parse_define_or_set(pc, stx, "set!");
+  return make_set_expression(pc, name, expr, var, false);
 }
 
 static expression

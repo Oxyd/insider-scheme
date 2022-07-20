@@ -320,13 +320,17 @@ public:
   static constexpr char const* scheme_name
     = "insider::top_level_set_expression";
 
-  top_level_set_expression(ptr<top_level_variable> var, expression expr);
+  top_level_set_expression(ptr<top_level_variable> var, expression expr,
+                           bool is_init);
 
   ptr<top_level_variable>
   target() const { return variable_; }
 
   insider::expression
   expression() const { return expression_; }
+
+  bool
+  is_initialisation() const { return is_init_; }
 
   template <typename F>
   void
@@ -343,6 +347,7 @@ public:
 private:
   ptr<top_level_variable> variable_;
   insider::expression     expression_;
+  bool                    is_init_;
 };
 
 class lambda_expression : public composite_object<lambda_expression> {
