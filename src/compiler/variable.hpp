@@ -18,16 +18,14 @@ namespace insider {
 // This also contains compile-time information about each variable that's used
 // during translation.
 
-class local_variable : public composite_object<local_variable> {
+class variable_base {
 public:
-  static constexpr char const* scheme_name = "insider::local_variable";
-
   std::string name;
   bool        is_set = false;
   ptr<>       constant_value;
 
   explicit
-  local_variable(std::string n) : name{std::move(n)} { }
+  variable_base(std::string n) : name{std::move(n)} { }
 
   void
   visit_members(member_visitor const& f) {
@@ -35,24 +33,30 @@ public:
   }
 };
 
-class top_level_variable : public composite_object<top_level_variable> {
+class local_variable
+  : public composite_object<local_variable>
+  , public variable_base
+{
+public:
+  static constexpr char const* scheme_name = "insider::local_variable";
+
+  explicit
+  local_variable(std::string n) : variable_base{std::move(n)} { }
+};
+
+class top_level_variable
+  : public composite_object<top_level_variable>
+  , public variable_base
+{
 public:
   static constexpr char const* scheme_name = "insider::top_level_variable";
 
-  std::string      name;
   insider::operand index;
-  bool             is_set = false;
-  ptr<>            constant_value;
 
   top_level_variable(std::string n, insider::operand index)
-    : name{std::move(n)}
+    : variable_base{std::move(n)}
     , index{index}
   { }
-
-  void
-  visit_members(member_visitor const& f) {
-    f(constant_value);
-  }
 };
 
 using variable = sum_type<local_variable, top_level_variable>;
