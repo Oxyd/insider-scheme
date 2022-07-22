@@ -269,10 +269,8 @@ public:
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    for (auto const& def : definitions_) {
-      assert(!is<stack_frame_extra_data>(def.expression()));
+    for (auto const& def : definitions_)
       f(def.expression());
-    }
     f(body_);
   }
 
