@@ -197,19 +197,6 @@ TEST_F(ast, map_ast_visits_all_nodes) {
   EXPECT_EQ(v.seen_literals, 1u);
 }
 
-TEST_F(ast, map_ast_makes_a_deep_copy) {
-  expression e = make_nested_call();
-  expression copy = map_ast(ctx, e,
-                            [] (auto expr) -> expression { return expr; });
-  EXPECT_NE(e, copy);
-  EXPECT_TRUE(is<application_expression>(copy));
-  EXPECT_NE(assume<application_expression>(e)->target(),
-            assume<application_expression>(copy)->target());
-  EXPECT_TRUE(is<local_reference_expression>(
-    assume<application_expression>(copy)->target()
-  ));
-}
-
 struct wrap_local_reference_in_identity {
   context& ctx;
 
@@ -222,7 +209,8 @@ struct wrap_local_reference_in_identity {
   operator () (ptr<local_reference_expression> ref) {
     return make<application_expression>(
       ctx,
-      make<local_reference_expression>(ctx, make<local_variable>(ctx, "identity")),
+      make<local_reference_expression>(ctx,
+                                       make<local_variable>(ctx, "identity")),
       ref
     );
   };
@@ -233,10 +221,11 @@ struct wrap_local_reference_in_identity {
 
 TEST_F(ast, map_ast_to_change_its_shape) {
   expression e = make_nested_call();
-  expression f = map_ast(ctx, e, wrap_local_reference_in_identity{ctx});
   EXPECT_TRUE(
     is<local_reference_expression>(expect<application_expression>(e)->target())
   );
+
+  expression f = map_ast(ctx, e, wrap_local_reference_in_identity{ctx});
   EXPECT_FALSE(
     is<local_reference_expression>(expect<application_expression>(f)->target())
   );

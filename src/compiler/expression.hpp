@@ -57,8 +57,8 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  expression
-  duplicate(context&, result_stack&);
+  void
+  update(context&, result_stack&);
 
 private:
   ptr<> value_;
@@ -84,8 +84,8 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  expression
-  duplicate(context&, result_stack&);
+  void
+  update(context&, result_stack&);
 
 private:
   ptr<local_variable> variable_;
@@ -111,8 +111,8 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  expression
-  duplicate(context&, result_stack&);
+  void
+  update(context&, result_stack&);
 
 private:
   ptr<top_level_variable> variable_;
@@ -138,8 +138,8 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  expression
-  duplicate(context&, result_stack&);
+  void
+  update(context&, result_stack&);
 
 private:
   ptr<syntax> name_;
@@ -181,8 +181,8 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  expression
-  duplicate(context&, result_stack&);
+  void
+  update(context&, result_stack&);
 
 private:
   expression              target_;
@@ -219,8 +219,8 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  expression
-  duplicate(context&, result_stack&);
+  void
+  update(context&, result_stack&);
 
 private:
   std::vector<expression> expressions_;
@@ -243,6 +243,9 @@ public:
 
   void
   visit_members(member_visitor const& f);
+
+  bool
+  operator == (definition_pair_expression const&) const = default;
 
 private:
   ptr<syntax>         id_;
@@ -276,8 +279,8 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  expression
-  duplicate(context&, result_stack&);
+  void
+  update(context&, result_stack&);
 
 private:
   std::vector<definition_pair_expression> definitions_;
@@ -305,8 +308,8 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  insider::expression
-  duplicate(context&, result_stack&);
+  void
+  update(context&, result_stack&);
 
 private:
   ptr<local_variable> target_;
@@ -341,8 +344,8 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  insider::expression
-  duplicate(context&, result_stack&);
+  void
+  update(context&, result_stack&);
 
 private:
   ptr<top_level_variable> variable_;
@@ -390,8 +393,8 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  expression
-  duplicate(context&, result_stack&);
+  void
+  update(context&, result_stack&);
 
 private:
   std::vector<ptr<local_variable>> parameters_;
@@ -427,8 +430,8 @@ public:
   void
   visit_members(member_visitor const& f);
 
-  expression
-  duplicate(context&, result_stack&);
+  void
+  update(context&, result_stack&);
 
 private:
   expression test_;
@@ -583,10 +586,9 @@ map_ast(context& ctx, expression e, F&& f) {
 
     void
     leave(expression expr) {
-      auto copy
-        = visit([&] (auto expr) { return expr->duplicate(ctx, results); },
-                expr);
-      auto result = visit(f, copy);
+      visit([&] (auto expr) { return expr->update(ctx, results); },
+            expr);
+      auto result = visit(f, expr);
       results.push_back(result);
     }
   } v{ctx, f};

@@ -36,10 +36,8 @@ literal_expression::visit_members(member_visitor const& f) {
   f(value_);
 }
 
-expression
-literal_expression::duplicate(context& ctx, result_stack&) {
-  return make<literal_expression>(ctx, value_);
-}
+void
+literal_expression::update(context&, result_stack&) { }
 
 local_reference_expression::local_reference_expression(
   ptr<local_variable> var
@@ -52,10 +50,8 @@ local_reference_expression::visit_members(member_visitor const& f) {
   f(variable_);
 }
 
-expression
-local_reference_expression::duplicate(context& ctx, result_stack&) {
-  return make<local_reference_expression>(ctx, variable_);
-}
+void
+local_reference_expression::update(context&, result_stack&) { }
 
 top_level_reference_expression::top_level_reference_expression(
   ptr<top_level_variable> v
@@ -68,10 +64,8 @@ top_level_reference_expression::visit_members(member_visitor const& f) {
   f(variable_);
 }
 
-expression
-top_level_reference_expression::duplicate(context& ctx, result_stack&) {
-  return make<top_level_reference_expression>(ctx, variable_);
-}
+void
+top_level_reference_expression::update(context&, result_stack&) { }
 
 unknown_reference_expression::unknown_reference_expression(ptr<syntax> name)
   : name_{name}
@@ -82,10 +76,8 @@ unknown_reference_expression::visit_members(member_visitor const& f) {
   f(name_);
 }
 
-expression
-unknown_reference_expression::duplicate(context& ctx, result_stack&) {
-  return make<unknown_reference_expression>(ctx, name_);
-}
+void
+unknown_reference_expression::update(context&, result_stack&) { }
 
 application_expression::application_expression(expression t,
                                                std::vector<expression> args)
@@ -100,11 +92,39 @@ application_expression::visit_members(member_visitor const& f) {
     arg.visit_members(f);
 }
 
-expression
-application_expression::duplicate(context& ctx, result_stack& stack) {
+static void
+update_member(free_store& fs, auto owner, auto& ref, auto new_value) {
+  if (ref != new_value) {
+    ref = new_value;
+    fs.notify_arc(owner, new_value);
+  }
+}
+
+static void
+update_member(free_store& fs, auto owner, expression& ref, expression new_value) {
+  if (ref != new_value) {
+    ref = new_value;
+    fs.notify_arc(owner, new_value.get());
+  }
+}
+
+static void
+update_member(free_store& fs, auto owner, std::vector<expression>& v,
+              std::vector<expression> new_values) {
+  if (v != new_values) {
+    v = std::move(new_values);
+    for (expression member : v)
+      fs.notify_arc(owner, member.get());
+  }
+}
+
+void
+application_expression::update(context& ctx, result_stack& stack) {
   expression target = pop(stack);
   auto args = pop_vector(stack, arguments_.size());
-  return make<application_expression>(ctx, target, std::move(args));
+
+  update_member(ctx.store, this, target_, target);
+  update_member(ctx.store, this, arguments_, std::move(args));
 }
 
 sequence_expression::sequence_expression(std::vector<expression> exprs)
@@ -123,9 +143,10 @@ sequence_expression::visit_members(member_visitor const& f) {
     e.visit_members(f);
 }
 
-expression
-sequence_expression::duplicate(context& ctx, result_stack& stack) {
-  return make<sequence_expression>(ctx, pop_vector(stack, expressions_.size()));
+void
+sequence_expression::update(context& ctx, result_stack& stack) {
+  update_member(ctx.store, this, expressions_,
+                pop_vector(stack, expressions_.size()));
 }
 
 definition_pair_expression::definition_pair_expression(
@@ -159,10 +180,12 @@ let_expression::visit_members(member_visitor const& f) {
   f(body_);
 }
 
-expression
-let_expression::duplicate(context& ctx, result_stack& stack) {
+void
+let_expression::update(context& ctx, result_stack& stack) {
   auto definition_exprs = pop_vector(stack, definitions_.size());
   auto body = pop<sequence_expression>(stack);
+
+  update_member(ctx.store, this, body_, body);
 
   std::vector<definition_pair_expression> def_pairs;
   def_pairs.reserve(definition_exprs.size());
@@ -170,7 +193,14 @@ let_expression::duplicate(context& ctx, result_stack& stack) {
     def_pairs.emplace_back(definitions_[i].id(), definitions_[i].variable(),
                            definition_exprs[i]);
 
-  return make<let_expression>(ctx, std::move(def_pairs), body);
+  if (definitions_ != def_pairs) {
+    definitions_ = std::move(def_pairs);
+    for (definition_pair_expression& dp : definitions_) {
+      ctx.store.notify_arc(this, dp.id());
+      ctx.store.notify_arc(this, dp.variable());
+      ctx.store.notify_arc(this, dp.expression().get());
+    }
+  }
 }
 
 local_set_expression::local_set_expression(ptr<local_variable> target,
@@ -185,9 +215,9 @@ local_set_expression::visit_members(member_visitor const& f) {
   expression_.visit_members(f);
 }
 
-expression
-local_set_expression::duplicate(context& ctx, result_stack& stack) {
-  return make<local_set_expression>(ctx, target_, pop(stack));
+void
+local_set_expression::update(context& ctx, result_stack& stack) {
+  update_member(ctx.store, this, expression_, pop(stack));
 }
 
 top_level_set_expression::top_level_set_expression(ptr<top_level_variable> var,
@@ -204,9 +234,9 @@ top_level_set_expression::visit_members(member_visitor const& f) {
   expression_.visit_members(f);
 }
 
-expression
-top_level_set_expression::duplicate(context& ctx, result_stack& stack) {
-  return make<top_level_set_expression>(ctx, variable_, pop(stack), is_init_);
+void
+top_level_set_expression::update(context& ctx, result_stack& stack) {
+  update_member(ctx.store, this, expression_, pop(stack));
 }
 
 lambda_expression::lambda_expression(std::vector<ptr<local_variable>> parameters,
@@ -236,16 +266,9 @@ lambda_expression::visit_members(member_visitor const& f) {
     f(fv);
 }
 
-expression
-lambda_expression::duplicate(context& ctx, result_stack& stack) {
-  return make<lambda_expression>(
-    ctx,
-    parameters_,
-    has_rest_,
-    pop<sequence_expression>(stack),
-    name_,
-    free_variables_
-  );
+void
+lambda_expression::update(context& ctx, result_stack& stack) {
+  update_member(ctx.store, this, body_, pop<sequence_expression>(stack));
 }
 
 if_expression::if_expression(expression test, expression consequent,
@@ -262,12 +285,14 @@ if_expression::visit_members(member_visitor const& f) {
   alternative_.visit_members(f);
 }
 
-expression
-if_expression::duplicate(context& ctx, result_stack& stack) {
+void
+if_expression::update(context& ctx, result_stack& stack) {
   auto test = pop(stack);
   auto consequent = pop(stack);
   auto alternative = pop(stack);
-  return make<if_expression>(ctx, test, consequent, alternative);
+  update_member(ctx.store, this, test_, test);
+  update_member(ctx.store, this, consequent_, consequent);
+  update_member(ctx.store, this, alternative_, alternative);
 }
 
 expression
