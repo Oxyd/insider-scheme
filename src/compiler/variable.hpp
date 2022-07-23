@@ -1,6 +1,7 @@
 #ifndef INSIDER_COMPILER_VARIABLE_HPP
 #define INSIDER_COMPILER_VARIABLE_HPP
 
+#include "compiler/expression.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
 #include "util/sum_type.hpp"
@@ -22,14 +23,14 @@ class variable_base {
 public:
   std::string name;
   bool        is_set = false;
-  ptr<>       constant_value;
+  expression  constant_initialiser;
 
   explicit
   variable_base(std::string n) : name{std::move(n)} { }
 
   void
   visit_members(member_visitor const& f) {
-    f(constant_value);
+    constant_initialiser.visit_members(f);
   }
 };
 

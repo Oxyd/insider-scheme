@@ -106,7 +106,7 @@ static void
 mark_set_variables(ptr<top_level_set_expression> set) {
   if (!set->is_initialisation()) {
     set->target()->is_set = true;
-    set->target()->constant_value = {};
+    set->target()->constant_initialiser = {};
   }
 }
 
@@ -118,14 +118,14 @@ find_constant_values(ptr<let_expression> let) {
   for (definition_pair_expression const& dp : let->definitions())
     if (!dp.variable()->is_set)
       if (auto lit = match<literal_expression>(dp.expression()))
-        dp.variable()->constant_value = lit->value();
+        dp.variable()->constant_initialiser = lit;
 }
 
 static void
 find_constant_values(ptr<top_level_set_expression> set) {
   if (set->is_initialisation() && !set->target()->is_set)
     if (auto lit = match<literal_expression>(set->expression()))
-      set->target()->constant_value = lit->value();
+      set->target()->constant_initialiser = lit;
 }
 
 static void
@@ -208,25 +208,31 @@ box_set_variables(context& ctx, expression s, analysis_context) {
   );
 }
 
+static bool
+is_initialised_to_constant(auto var) {
+  return var->constant_initialiser
+         && is<literal_expression>(var->constant_initialiser);
+}
+
 static expression
-propagate_constants(context& ctx, ptr<local_reference_expression> ref) {
-  if (ref->variable()->constant_value)
-    return make<literal_expression>(ctx, ref->variable()->constant_value);
+propagate_constants(context&, ptr<local_reference_expression> ref) {
+  if (is_initialised_to_constant(ref->variable()))
+    return ref->variable()->constant_initialiser;
   else
     return ref;
 }
 
 static expression
-propagate_constants(context& ctx, ptr<top_level_reference_expression> ref) {
-  if (ref->variable()->constant_value)
-    return make<literal_expression>(ctx, ref->variable()->constant_value);
+propagate_constants(context&, ptr<top_level_reference_expression> ref) {
+  if (is_initialised_to_constant(ref->variable()))
+    return ref->variable()->constant_initialiser;
   else
     return ref;
 }
 
 static bool
 is_const(definition_pair_expression const& dp) {
-  return dp.variable()->constant_value != ptr<>{};
+  return is_initialised_to_constant(dp.variable());
 }
 
 static std::vector<definition_pair_expression>

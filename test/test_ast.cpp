@@ -235,12 +235,17 @@ TEST_F(ast, map_ast_to_change_its_shape) {
   );
 }
 
+static ptr<>
+constant_value(auto var) {
+  return expect<literal_expression>(var->constant_initialiser)->value();
+}
+
 TEST_F(ast, analyse_variables_recognises_constants) {
   ptr<local_variable> var = parse_and_get_local_variable("const", R"(
     (let ((const 2))
       (+ const 4))
   )");
-  EXPECT_EQ(expect<integer>(var->constant_value).value(), 2);
+  EXPECT_EQ(expect<integer>(constant_value(var)).value(), 2);
 }
 
 TEST_F(ast, set_variable_is_not_marked_as_constant) {
@@ -250,7 +255,7 @@ TEST_F(ast, set_variable_is_not_marked_as_constant) {
       (+ v 4))
   )");
   EXPECT_TRUE(var->is_set);
-  EXPECT_FALSE(var->constant_value);
+  EXPECT_FALSE(var->constant_initialiser);
 }
 
 TEST_F(ast, variable_with_non_constant_initialiser_is_not_constant) {
@@ -259,7 +264,7 @@ TEST_F(ast, variable_with_non_constant_initialiser_is_not_constant) {
       (+ v 2))
   )");
   EXPECT_FALSE(var->is_set);
-  EXPECT_FALSE(var->constant_value);
+  EXPECT_FALSE(var->constant_initialiser);
 }
 
 TEST_F(ast, top_level_variable_is_recognised_as_constant) {
@@ -272,7 +277,7 @@ TEST_F(ast, top_level_variable_is_recognised_as_constant) {
     )"
   );
   EXPECT_FALSE(var->is_set);
-  EXPECT_EQ(expect<integer>(var->constant_value).value(), 12);
+  EXPECT_EQ(expect<integer>(constant_value(var)).value(), 12);
 }
 
 TEST_F(ast, top_level_variable_is_not_constant_if_it_is_set) {
@@ -287,7 +292,7 @@ TEST_F(ast, top_level_variable_is_not_constant_if_it_is_set) {
     )"
   );
   EXPECT_TRUE(var->is_set);
-  EXPECT_FALSE(var->constant_value);
+  EXPECT_FALSE(var->constant_initialiser);
 }
 
 TEST_F(ast, top_level_variable_is_not_constant_if_it_is_set_before_definition) {
@@ -302,7 +307,7 @@ TEST_F(ast, top_level_variable_is_not_constant_if_it_is_set_before_definition) {
     )"
   );
   EXPECT_TRUE(var->is_set);
-  EXPECT_FALSE(var->constant_value);
+  EXPECT_FALSE(var->constant_initialiser);
 }
 
 TEST_F(ast, meta_definitions_are_not_constants) {
@@ -314,7 +319,7 @@ TEST_F(ast, meta_definitions_are_not_constants) {
       meta-var
     )"
   );
-  EXPECT_FALSE(var->constant_value);
+  EXPECT_FALSE(var->constant_initialiser);
 }
 
 TEST_F(ast, repl_definitions_are_not_constants) {
@@ -331,7 +336,7 @@ TEST_F(ast, repl_definitions_are_not_constants) {
                        {&provider, "<unit test main module>"});
   ptr<top_level_variable> v
     = expect<top_level_variable>(find_variable("foo", e));
-  EXPECT_FALSE(v->constant_value);
+  EXPECT_FALSE(v->constant_initialiser);
 }
 
 template <typename T>
