@@ -50,11 +50,12 @@ set(scheme_sources
         src/compiler/analyser.cpp
         src/compiler/analyser.hpp
         src/compiler/analysis_context.hpp
+        src/compiler/ast.cpp
+        src/compiler/ast.hpp
         src/compiler/ast_transforms.cpp
         src/compiler/ast_transforms.hpp
         src/compiler/compiler.cpp
         src/compiler/compiler.hpp
-        src/compiler/expression.cpp
         src/compiler/expression.hpp
         src/compiler/module_name.cpp
         src/compiler/module_name.hpp

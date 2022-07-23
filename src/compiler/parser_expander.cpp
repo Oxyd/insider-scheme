@@ -1,6 +1,7 @@
 #include "compiler/parser_expander.hpp"
 
 #include "compiler/analyser.hpp"
+#include "compiler/ast.hpp"
 #include "compiler/compiler.hpp"
 #include "compiler/syntax_list.hpp"
 #include "context.hpp"

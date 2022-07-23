@@ -1,6 +1,7 @@
 #include "scheme_fixture.hpp"
 
 #include "compiler/analyser.hpp"
+#include "compiler/ast.hpp"
 #include "compiler/ast_transforms.hpp"
 #include "compiler/expression.hpp"
 #include "compiler/parser_expander.hpp"

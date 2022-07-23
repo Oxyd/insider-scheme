@@ -1,6 +1,7 @@
 #include "compiler.hpp"
 
 #include "compiler/analyser.hpp"
+#include "compiler/ast.hpp"
 #include "compiler/source_code_provider.hpp"
 #include "compiler/variable.hpp"
 #include "io/read.hpp"

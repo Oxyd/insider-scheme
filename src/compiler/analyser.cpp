@@ -1,8 +1,8 @@
 #include "analyser.hpp"
 
 #include "compiler/analysis_context.hpp"
+#include "compiler/ast.hpp"
 #include "compiler/ast_transforms.hpp"
-#include "compiler/expression.hpp"
 #include "compiler/module_specifier.hpp"
 #include "compiler/parser_expander.hpp"
 #include "compiler/source_code_provider.hpp"
