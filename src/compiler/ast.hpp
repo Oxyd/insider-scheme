@@ -543,15 +543,20 @@ traverse_postorder(expression e, F&& f) {
   depth_first_search(e, v);
 }
 
-template <typename F>
-expression
-map_ast(context& ctx, expression e, F&& f) {
-  struct visitor {
+namespace detail {
+  template <typename T>
+  static ptr<T>
+  duplicate(context& ctx, ptr<T> expr) {
+    return make<T>(ctx, *expr);
+  }
+
+template <typename F, bool Copy>
+  struct mapping_visitor {
     context& ctx;
     F& f;
     result_stack results;
 
-    visitor(context& ctx, F& f)
+    mapping_visitor(context& ctx, F& f)
       : ctx{ctx}
       , f{f}
     { }
@@ -563,22 +568,38 @@ map_ast(context& ctx, expression e, F&& f) {
     }
 
     void
-    leave(expression expr) {
-      visit([&] (auto expr) { return expr->update(ctx, results); },
-            expr);
-      auto result = visit(f, expr);
+    leave(expression e) {
+      auto result = visit(
+        [&] (auto expr) -> expression {
+          if constexpr (Copy)
+            expr = duplicate(ctx, expr);
+          expr->update(ctx, results);
+          return f(expr);
+        },
+        e
+      );
       results.push_back(result);
     }
-  } v{ctx, f};
+  };
+}
 
+template <typename F>
+expression
+map_ast(context& ctx, expression e, F&& f) {
+  detail::mapping_visitor<F, false> v{ctx, f};
   depth_first_search(e, v);
-
   assert(v.results.size() == 1);
   return v.results.back();
 }
 
+template <typename F>
 expression
-clone_ast(context&, expression);
+map_ast_copy(context& ctx, expression e, F&& f) {
+  detail::mapping_visitor<F, true> v{ctx, f};
+  depth_first_search(e, v);
+  assert(v.results.size() == 1);
+  return v.results.back();
+}
 
 } // namespace insider
 
