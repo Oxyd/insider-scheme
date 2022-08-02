@@ -79,8 +79,7 @@ find_set_variables(ptr<let_expression> let) {
 
 static definition_pair_expression
 box_definition_pair(context& ctx, definition_pair_expression const& dp) {
-  return {dp.id(), dp.variable(),
-          make_application(ctx, "box", dp.expression())};
+  return {dp.variable(), make_application(ctx, "box", dp.expression())};
 }
 
 static std::vector<definition_pair_expression>

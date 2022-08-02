@@ -346,7 +346,6 @@ namespace {
   class body_content : public root_provider {
   public:
     struct internal_variable {
-      ptr<syntax>         id;
       ptr<syntax>         init;
       ptr<local_variable> var;
     };
@@ -365,7 +364,6 @@ namespace {
         f(form);
 
       for (internal_variable& iv : internal_variable_defs) {
-        f(iv.id);
         f(iv.init);
         f(iv.var);
       }
@@ -432,7 +430,7 @@ process_internal_define(
   auto [id, init] = parse_name_and_expr(pc, expr, "define");
   auto var = make<local_variable>(pc.ctx, identifier_name(id));
   internal_variables.emplace_back(
-    body_content::internal_variable{id, init, var}
+    body_content::internal_variable{init, var}
   );
   define(pc.ctx.store, id, var);
   pc.environment.back().emplace_back(var);
@@ -589,11 +587,11 @@ extract_definition_pairs_for_internal_definitions(parsing_context& pc,
                                                   body_content const& content) {
   std::vector<definition_pair_expression> definition_exprs;
 
-  for (auto const& [id, init, var] : content.internal_variable_defs) {
+  for (auto const& [init, var] : content.internal_variable_defs) {
     auto void_expr = make<literal_expression>(
       pc.ctx, pc.ctx.constants->void_
     );
-    definition_exprs.emplace_back(id, var, void_expr);
+    definition_exprs.emplace_back(var, void_expr);
   }
 
   return definition_exprs;
@@ -754,7 +752,7 @@ parse_let(parsing_context& pc, ptr<syntax> stx) {
     tracker u{pc.ctx, id, var};
 
     expression init_expr = parse(pc, dp.expression);
-    definition_exprs.emplace_back(id, var, init_expr);
+    definition_exprs.emplace_back(var, init_expr);
   }
 
   ptr<> body_with_scope = add_scope_to_list(pc.ctx, body, subscope);

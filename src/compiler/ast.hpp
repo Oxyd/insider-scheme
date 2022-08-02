@@ -213,12 +213,8 @@ private:
 
 class definition_pair_expression {
 public:
-  definition_pair_expression(ptr<syntax> id,
-                             ptr<local_variable> var,
+  definition_pair_expression(ptr<local_variable> var,
                              insider::expression expr);
-
-  ptr<syntax>
-  id() const { return id_; }
 
   ptr<local_variable>
   variable() const { return variable_; }
@@ -233,7 +229,6 @@ public:
   operator == (definition_pair_expression const&) const = default;
 
 private:
-  ptr<syntax>         id_;
   ptr<local_variable> variable_;
   insider::expression expression_;
 };

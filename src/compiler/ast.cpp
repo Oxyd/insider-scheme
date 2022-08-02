@@ -150,18 +150,15 @@ sequence_expression::update(context& ctx, result_stack& stack) {
 }
 
 definition_pair_expression::definition_pair_expression(
-  ptr<syntax> id,
   ptr<local_variable> var,
   insider::expression expr
 )
-  : id_{id}
-  , variable_{var}
+  : variable_{var}
   , expression_{expr}
 { }
 
 void
 definition_pair_expression::visit_members(member_visitor const& f) {
-  f(id_);
   f(variable_);
   expression_.visit_members(f);
   assert(!is<stack_frame_extra_data>(expression_.get()));
@@ -190,13 +187,11 @@ let_expression::update(context& ctx, result_stack& stack) {
   std::vector<definition_pair_expression> def_pairs;
   def_pairs.reserve(definition_exprs.size());
   for (std::size_t i = 0; i < definition_exprs.size(); ++i)
-    def_pairs.emplace_back(definitions_[i].id(), definitions_[i].variable(),
-                           definition_exprs[i]);
+    def_pairs.emplace_back(definitions_[i].variable(), definition_exprs[i]);
 
   if (definitions_ != def_pairs) {
     definitions_ = std::move(def_pairs);
     for (definition_pair_expression& dp : definitions_) {
-      ctx.store.notify_arc(this, dp.id());
       ctx.store.notify_arc(this, dp.variable());
       ctx.store.notify_arc(this, dp.expression().get());
     }
