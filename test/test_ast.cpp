@@ -198,6 +198,18 @@ TEST_F(ast, map_ast_visits_all_nodes) {
   EXPECT_EQ(v.seen_literals, 1u);
 }
 
+TEST_F(ast, clone_ast_makes_a_deep_copy) {
+  expression e = make_nested_call();
+  expression copy = clone_ast(ctx, e);
+  EXPECT_NE(e, copy);
+  EXPECT_TRUE(is<application_expression>(copy));
+  EXPECT_NE(assume<application_expression>(e)->target(),
+            assume<application_expression>(copy)->target());
+  EXPECT_TRUE(is<local_reference_expression>(
+    assume<application_expression>(copy)->target()
+  ));
+}
+
 struct wrap_local_reference_in_identity {
   context& ctx;
 

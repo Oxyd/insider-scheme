@@ -577,6 +577,9 @@ map_ast(context& ctx, expression e, F&& f) {
   return v.results.back();
 }
 
+expression
+clone_ast(context&, expression);
+
 } // namespace insider
 
 #endif

@@ -327,4 +327,42 @@ expression_visitor::leave(expression e) {
   visit([&] (auto expr) { leave_expression(expr); }, e);
 }
 
+template <typename T>
+static expression
+duplicate(context& ctx, ptr<T> expr) {
+  return make<T>(ctx, *expr);
+}
+
+expression
+clone_ast(context& ctx, expression e) {
+  struct visitor {
+    context&     ctx;
+    result_stack results;
+
+    explicit
+    visitor(context& ctx)
+      : ctx{ctx}
+    { }
+
+    void
+    enter(expression e, dfs_stack<expression>& stack) {
+      visit([&] (auto expr) { push_children(expr, stack); },
+            e);
+    }
+
+    void
+    leave(expression expr) {
+      auto copy = visit([&] (auto e) { return duplicate(ctx, e); },
+                        expr);
+      visit([&] (auto e) { e->update(ctx, results); }, copy);
+      results.push_back(copy);
+    }
+  } v{ctx};
+
+  depth_first_search(e, v);
+
+  assert(v.results.size() == 1);
+  return v.results.back();
+}
+
 } // namespace insider
