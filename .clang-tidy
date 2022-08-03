@@ -42,7 +42,9 @@ Checks:          '-*,
                   -modernize-avoid-c-arrays,
                   -cppcoreguidelines-avoid-c-arrays,
                   -readability-convert-member-functions-to-static,
-                  -readability-identifier-length'
+                  -readability-identifier-length,
+                  -cppcoreguidelines-avoid-goto,
+                  -cppcoreguidelines-avoid-non-const-global-variables'
 
 FormatStyle:     file
 CheckOptions:
