@@ -185,8 +185,7 @@ type_name<char32_t>() {
 template <typename T>
 bool
 is(ptr<> x) {
-  assert(x);
-  return is_object_ptr(x) && object_type_index(x) == T::type_index;
+  return x && is_object_ptr(x) && object_type_index(x) == T::type_index;
 }
 
 template <>

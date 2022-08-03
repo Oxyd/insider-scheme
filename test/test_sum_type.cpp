@@ -136,3 +136,15 @@ TEST_F(sum_type_fixture, tracked_sum_type_provides_gc_root) {
   ctx.store.collect_garbage(true);
   EXPECT_EQ(expect<string>(value.get())->value(), "foo");
 }
+
+TEST_F(sum_type_fixture, can_match_correct_type) {
+  symbol_or_string value = ctx.intern("foo");
+  EXPECT_FALSE(match<string>(value));
+  EXPECT_TRUE(match<symbol>(value));
+}
+
+TEST_F(sum_type_fixture, match_on_empty_sum_doesnt_match_any_type) {
+  symbol_or_string empty;
+  EXPECT_FALSE(match<string>(empty));
+  EXPECT_FALSE(match<symbol>(empty));
+}
