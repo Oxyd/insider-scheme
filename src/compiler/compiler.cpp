@@ -389,7 +389,9 @@ compile_arithmetic(context& ctx, procedure_context& proc,
     else
       throw std::runtime_error{fmt::format(
         "Not enough arguments for {}",
-        assume<top_level_reference_expression>(stx->target())->variable()->name)
+        assume<top_level_reference_expression>(
+          stx->target())->variable()->name()
+        )
       };
   }
 
@@ -422,7 +424,7 @@ compile_relational(context& ctx, procedure_context& proc,
     throw std::runtime_error{
       fmt::format(
         "Not enough arguments for {}",
-        assume<local_reference_expression>(stx->target())->variable()->name
+        assume<local_reference_expression>(stx->target())->variable()->name()
       )
     };
 

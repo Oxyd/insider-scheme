@@ -73,7 +73,7 @@ find_set_variables(ptr<let_expression> let) {
   auto rng = let->definitions()
     | std::views::transform([] (auto const& dp) { return dp.variable(); })
     | std::views::filter([] (ptr<local_variable> v) {
-        return v->is_set;
+        return v->is_set();
       });
   return std::vector<ptr<local_variable>>(rng.begin(), rng.end());
 }
@@ -88,7 +88,7 @@ box_definition_pairs(context& ctx,
                      std::vector<definition_pair_expression> const& dps) {
   auto rng = dps | std::views::transform(
     [&] (definition_pair_expression const& dp) {
-      if (dp.variable()->is_set)
+      if (dp.variable()->is_set())
         return box_definition_pair(ctx, dp);
       else
         return dp;
@@ -98,54 +98,54 @@ box_definition_pairs(context& ctx,
 }
 
 static void
-mark_set_variables(ptr<local_set_expression> set) {
-  set->target()->is_set = true;
+mark_set_variables(context&, ptr<local_set_expression> set) {
+  set->target()->mark_as_set();
 }
 
 static void
-mark_set_variables(ptr<top_level_set_expression> set) {
+mark_set_variables(context& ctx, ptr<top_level_set_expression> set) {
   if (!set->is_initialisation()) {
-    set->target()->is_set = true;
-    set->target()->constant_initialiser = {};
+    set->target()->mark_as_set();
+    set->target()->set_constant_initialiser(ctx.store, {});
   }
 }
 
 static void
-mark_set_variables(auto) { }
+mark_set_variables(context&, auto) { }
 
 static void
-assign_constant_initialiser(auto var, expression e) {
+assign_constant_initialiser(context& ctx, auto var, expression e) {
   if (is<literal_expression>(e) || is<lambda_expression>(e))
-    var->constant_initialiser = e;
+    var->set_constant_initialiser(ctx.store, e);
 }
 
 static void
-find_constant_values(ptr<let_expression> let) {
+find_constant_values(context& ctx, ptr<let_expression> let) {
   for (definition_pair_expression const& dp : let->definitions())
-    if (!dp.variable()->is_set)
-      assign_constant_initialiser(dp.variable(), dp.expression());
+    if (!dp.variable()->is_set())
+      assign_constant_initialiser(ctx, dp.variable(), dp.expression());
 }
 
 static void
-find_constant_values(ptr<top_level_set_expression> set) {
-  if (set->is_initialisation() && !set->target()->is_set)
-    assign_constant_initialiser(set->target(), set->expression());
+find_constant_values(context& ctx, ptr<top_level_set_expression> set) {
+  if (set->is_initialisation() && !set->target()->is_set())
+    assign_constant_initialiser(ctx, set->target(), set->expression());
 }
 
 static void
-find_constant_values(auto) { }
+find_constant_values(context&, auto) { }
 
 static void
-visit_variables(analysis_context ac, auto e) {
-  mark_set_variables(e);
+visit_variables(context& ctx, analysis_context ac, auto e) {
+  mark_set_variables(ctx, e);
   if (ac == analysis_context::closed)
-    find_constant_values(e);
+    find_constant_values(ctx, e);
 }
 
 expression
-analyse_variables(context&, expression expr, analysis_context ac) {
+analyse_variables(context& ctx, expression expr, analysis_context ac) {
   traverse_postorder(expr, [&] (expression subexpr) {
-    visit([&] (auto e) { visit_variables(ac, e); }, subexpr);
+    visit([&] (auto e) { visit_variables(ctx, ac, e); }, subexpr);
   });
   return expr;
 }
@@ -170,7 +170,7 @@ box_set_variables(context& ctx, ptr<lambda_expression> lambda) {
   std::vector<expression> sets;
   expression body = lambda->body();
   for (ptr<local_variable> param : lambda->parameters())
-    if (param->is_set) {
+    if (param->is_set()) {
       body = box_variable_references(ctx, body, param);
       sets.emplace_back(make<local_set_expression>(
         ctx, param,
@@ -214,14 +214,14 @@ box_set_variables(context& ctx, expression s, analysis_context) {
 
 static bool
 is_initialised_to_constant(auto var) {
-  return var->constant_initialiser
-         && is<literal_expression>(var->constant_initialiser);
+  return var->constant_initialiser()
+         && is<literal_expression>(var->constant_initialiser());
 }
 
 static expression
 propagate_constants(context&, ptr<local_reference_expression> ref) {
   if (is_initialised_to_constant(ref->variable()))
-    return ref->variable()->constant_initialiser;
+    return ref->variable()->constant_initialiser();
   else
     return ref;
 }
@@ -229,7 +229,7 @@ propagate_constants(context&, ptr<local_reference_expression> ref) {
 static expression
 propagate_constants(context&, ptr<top_level_reference_expression> ref) {
   if (is_initialised_to_constant(ref->variable()))
-    return ref->variable()->constant_initialiser;
+    return ref->variable()->constant_initialiser();
   else
     return ref;
 }
@@ -274,9 +274,9 @@ propagate_constants(context& ctx, expression e, analysis_context) {
 
 static ptr<lambda_expression>
 find_constant_lambda_initialiser(auto var) {
-  if (var->constant_initialiser
-      && is<lambda_expression>(var->constant_initialiser))
-    return assume<lambda_expression>(var->constant_initialiser);
+  if (var->constant_initialiser()
+      && is<lambda_expression>(var->constant_initialiser()))
+    return assume<lambda_expression>(var->constant_initialiser());
   else
     return {};
 }
@@ -503,7 +503,6 @@ namespace {
 
         // Lambda expression's free variables count as variable references in
         // the enclosing procedure.
-
         if (!bound_vars_stack.back().contains(v))
           free_vars_stack.back().emplace(v);
       }

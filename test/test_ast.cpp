@@ -25,7 +25,7 @@ find_variable_in_subexpressions(std::string const& name, auto expr) {
 
 static variable
 find_variable(std::string const& name, ptr<local_reference_expression> ref) {
-  if (ref->variable()->name == name)
+  if (ref->variable()->name() == name)
     return ref->variable();
   else
     return {};
@@ -33,7 +33,7 @@ find_variable(std::string const& name, ptr<local_reference_expression> ref) {
 
 static variable
 find_variable(std::string const& name, ptr<top_level_reference_expression> ref) {
-  if (ref->variable()->name == name)
+  if (ref->variable()->name() == name)
     return ref->variable();
   else
     return {};
@@ -42,7 +42,7 @@ find_variable(std::string const& name, ptr<top_level_reference_expression> ref) 
 static variable
 find_variable(std::string const& name, ptr<let_expression> let) {
   for (auto const& dp : let->definitions())
-    if (dp.variable()->name == name)
+    if (dp.variable()->name() == name)
       return dp.variable();
 
   return find_variable_in_subexpressions(name, let);
@@ -50,7 +50,7 @@ find_variable(std::string const& name, ptr<let_expression> let) {
 
 static variable
 find_variable(std::string const& name, ptr<local_set_expression> set) {
-  if (set->target()->name == name)
+  if (set->target()->name() == name)
     return set->target();
   else
     return find_variable_in_subexpressions(name, set);
@@ -58,7 +58,7 @@ find_variable(std::string const& name, ptr<local_set_expression> set) {
 
 static variable
 find_variable(std::string const& name, ptr<top_level_set_expression> set) {
-  if (set->target()->name == name)
+  if (set->target()->name() == name)
     return set->target();
   else
     return find_variable_in_subexpressions(name, set);
@@ -67,7 +67,7 @@ find_variable(std::string const& name, ptr<top_level_set_expression> set) {
 static variable
 find_variable(std::string const& name, ptr<lambda_expression> lambda) {
   for (ptr<local_variable> v : lambda->parameters())
-    if (v->name == name)
+    if (v->name() == name)
       return v;
 
   return find_variable_in_subexpressions(name, lambda);
@@ -237,7 +237,7 @@ TEST_F(ast, map_ast_to_change_its_shape) {
 
 static ptr<>
 constant_value(auto var) {
-  return expect<literal_expression>(var->constant_initialiser)->value();
+  return expect<literal_expression>(var->constant_initialiser())->value();
 }
 
 TEST_F(ast, analyse_variables_recognises_constants) {
@@ -254,8 +254,8 @@ TEST_F(ast, set_variable_is_not_marked_as_constant) {
       (set! v 5)
       (+ v 4))
   )");
-  EXPECT_TRUE(var->is_set);
-  EXPECT_FALSE(var->constant_initialiser);
+  EXPECT_TRUE(var->is_set());
+  EXPECT_FALSE(var->constant_initialiser());
 }
 
 TEST_F(ast, variable_with_non_constant_initialiser_is_not_constant) {
@@ -263,8 +263,8 @@ TEST_F(ast, variable_with_non_constant_initialiser_is_not_constant) {
     (let ((v (read)))
       (+ v 2))
   )");
-  EXPECT_FALSE(var->is_set);
-  EXPECT_FALSE(var->constant_initialiser);
+  EXPECT_FALSE(var->is_set());
+  EXPECT_FALSE(var->constant_initialiser());
 }
 
 TEST_F(ast, top_level_variable_is_recognised_as_constant) {
@@ -276,7 +276,7 @@ TEST_F(ast, top_level_variable_is_recognised_as_constant) {
       (define other 17)
     )"
   );
-  EXPECT_FALSE(var->is_set);
+  EXPECT_FALSE(var->is_set());
   EXPECT_EQ(expect<integer>(constant_value(var)).value(), 12);
 }
 
@@ -291,8 +291,8 @@ TEST_F(ast, top_level_variable_is_not_constant_if_it_is_set) {
           (set! top-level 24)))
     )"
   );
-  EXPECT_TRUE(var->is_set);
-  EXPECT_FALSE(var->constant_initialiser);
+  EXPECT_TRUE(var->is_set());
+  EXPECT_FALSE(var->constant_initialiser());
 }
 
 TEST_F(ast, top_level_variable_is_not_constant_if_it_is_set_before_definition) {
@@ -306,8 +306,8 @@ TEST_F(ast, top_level_variable_is_not_constant_if_it_is_set_before_definition) {
       (define top-level 12)
     )"
   );
-  EXPECT_TRUE(var->is_set);
-  EXPECT_FALSE(var->constant_initialiser);
+  EXPECT_TRUE(var->is_set());
+  EXPECT_FALSE(var->constant_initialiser());
 }
 
 TEST_F(ast, meta_definitions_are_not_constants) {
@@ -319,7 +319,7 @@ TEST_F(ast, meta_definitions_are_not_constants) {
       meta-var
     )"
   );
-  EXPECT_FALSE(var->constant_initialiser);
+  EXPECT_FALSE(var->constant_initialiser());
 }
 
 TEST_F(ast, repl_definitions_are_not_constants) {
@@ -336,7 +336,7 @@ TEST_F(ast, repl_definitions_are_not_constants) {
                        {&provider, "<unit test main module>"});
   ptr<top_level_variable> v
     = expect<top_level_variable>(find_variable("foo", e));
-  EXPECT_FALSE(v->constant_initialiser);
+  EXPECT_FALSE(v->constant_initialiser());
 }
 
 TEST_F(ast, top_level_lambda_definitions_are_recognised_as_constants) {
@@ -347,8 +347,8 @@ TEST_F(ast, top_level_lambda_definitions_are_recognised_as_constants) {
       (define foo (lambda () 0))
     )"
   );
-  ASSERT_TRUE(var->constant_initialiser);
-  EXPECT_TRUE(is<lambda_expression>(var->constant_initialiser));
+  ASSERT_TRUE(var->constant_initialiser());
+  EXPECT_TRUE(is<lambda_expression>(var->constant_initialiser()));
 }
 
 TEST_F(ast, local_lambda_definitions_are_recognised_as_constants) {
@@ -359,8 +359,8 @@ TEST_F(ast, local_lambda_definitions_are_recognised_as_constants) {
         1)
     )"
   );
-  ASSERT_TRUE(var->constant_initialiser);
-  EXPECT_TRUE(is<lambda_expression>(var->constant_initialiser));
+  ASSERT_TRUE(var->constant_initialiser());
+  EXPECT_TRUE(is<lambda_expression>(var->constant_initialiser()));
 }
 
 template <typename T>
@@ -424,7 +424,7 @@ TEST_F(ast, constant_definitions_are_removed_from_lets) {
     e,
     [] (ptr<let_expression> let) {
       ASSERT_EQ(let->definitions().size(), 1);
-      EXPECT_EQ(let->definitions().front().variable()->name, "non-const");
+      EXPECT_EQ(let->definitions().front().variable()->name(), "non-const");
     }
   );
 }
@@ -438,7 +438,7 @@ TEST_F(ast, top_level_constants_are_folded_into_expressions) {
   for_each<top_level_set_expression>(
     e,
     [] (ptr<top_level_set_expression> set) {
-      if (set->target()->name == "bar") {
+      if (set->target()->name() == "bar") {
         auto app = assume<application_expression>(set->expression());
         ASSERT_EQ(app->arguments().size(), 2);
         EXPECT_TRUE(is<literal_expression>(app->arguments()[0]));
@@ -457,7 +457,7 @@ TEST_F(ast, top_level_constants_are_folded_into_expressions_before_definition) {
   for_each<top_level_set_expression>(
     e,
     [] (ptr<top_level_set_expression> set) {
-      if (set->target()->name == "bar") {
+      if (set->target()->name() == "bar") {
         auto app = assume<application_expression>(set->expression());
         ASSERT_EQ(app->arguments().size(), 2);
         EXPECT_TRUE(is<literal_expression>(app->arguments()[0]));
@@ -495,12 +495,12 @@ TEST_F(ast, top_level_constants_are_propagated_across_modules) {
 
 static std::string
 target_name(ptr<top_level_reference_expression> ref) {
-  return ref->variable()->name;
+  return ref->variable()->name();
 }
 
 static std::string
 target_name(ptr<local_reference_expression> ref) {
-  return ref->variable()->name;
+  return ref->variable()->name();
 }
 
 static std::string
@@ -578,7 +578,7 @@ find_top_level_definition_for(expression root, std::string const& name) {
   for_each<top_level_set_expression>(
     root,
     [&] (ptr<top_level_set_expression> set) {
-      if (set->target()->name == name)
+      if (set->target()->name() == name)
         result = set->expression();
     }
   );

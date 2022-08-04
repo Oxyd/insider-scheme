@@ -71,6 +71,8 @@ set(scheme_sources
         src/compiler/source_code_provider.hpp
         src/compiler/source_location.cpp
         src/compiler/source_location.hpp
+        src/compiler/variable.cpp
+        src/compiler/variable.hpp
         src/context.cpp
         src/context.hpp
         src/io/port.cpp
