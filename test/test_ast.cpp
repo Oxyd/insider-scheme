@@ -506,6 +506,7 @@ target_name(ptr<local_reference_expression> ref) {
 static std::string
 target_name(auto) {
   assert(false);
+  return {};
 }
 
 static void
