@@ -676,3 +676,29 @@ TEST_F(compiler, positive_and_negative_zero_are_not_collapsed) {
   auto result = expect<pair>(eval(R"((cons 0.0 -0.0))"));
   EXPECT_NE(car(result), cdr(result));
 }
+
+TEST_F(compiler, call_loop_from_another_module) {
+  // Test that self-capturing lambdas are inlined correctly.
+
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export foo)
+
+      (define foo
+        (lambda (n)
+          (let ((loop #void))
+            (set! loop (lambda (k)
+                         (if (= k 0) 0 (loop (- k 1)))))
+            (loop n))))
+    )"
+  );
+
+  auto result = eval_module(R"(
+    (import (insider internal) (foo))
+    (foo 5)
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 0);
+}

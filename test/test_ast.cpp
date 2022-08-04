@@ -198,19 +198,6 @@ TEST_F(ast, map_ast_visits_all_nodes) {
   EXPECT_EQ(v.seen_literals, 1u);
 }
 
-TEST_F(ast, map_ast_copy_makes_a_deep_copy) {
-  expression e = make_nested_call();
-  expression copy = map_ast_copy(ctx, e,
-                                 [] (auto e) -> expression { return e; });
-  EXPECT_NE(e, copy);
-  EXPECT_TRUE(is<application_expression>(copy));
-  EXPECT_NE(assume<application_expression>(e)->target(),
-            assume<application_expression>(copy)->target());
-  EXPECT_TRUE(is<local_reference_expression>(
-    assume<application_expression>(copy)->target()
-  ));
-}
-
 struct wrap_local_reference_in_identity {
   context& ctx;
 
@@ -352,6 +339,30 @@ TEST_F(ast, repl_definitions_are_not_constants) {
   EXPECT_FALSE(v->constant_initialiser);
 }
 
+TEST_F(ast, top_level_lambda_definitions_are_recognised_as_constants) {
+  ptr<top_level_variable> var = parse_module_and_get_top_level_variable(
+    "foo",
+    R"(
+      (import (insider internal))
+      (define foo (lambda () 0))
+    )"
+  );
+  ASSERT_TRUE(var->constant_initialiser);
+  EXPECT_TRUE(is<lambda_expression>(var->constant_initialiser));
+}
+
+TEST_F(ast, local_lambda_definitions_are_recognised_as_constants) {
+  ptr<local_variable> var = parse_and_get_local_variable(
+    "foo",
+    R"(
+      (let ((foo (lambda () 0)))
+        1)
+    )"
+  );
+  ASSERT_TRUE(var->constant_initialiser);
+  EXPECT_TRUE(is<lambda_expression>(var->constant_initialiser));
+}
+
 template <typename T>
 static void
 for_each(expression e, auto&& f) {
@@ -479,4 +490,220 @@ TEST_F(ast, top_level_constants_are_propagated_across_modules) {
       EXPECT_EQ(arg->value(), ctx.constants->t);
     }
   );
+}
+
+
+static std::string
+target_name(ptr<top_level_reference_expression> ref) {
+  return ref->variable()->name;
+}
+
+static std::string
+target_name(ptr<local_reference_expression> ref) {
+  return ref->variable()->name;
+}
+
+static std::string
+target_name(auto) {
+  assert(false);
+}
+
+static void
+assert_procedure_not_called(expression e, std::string const& name) {
+  for_each<application_expression>(
+    e,
+    [&] (ptr<application_expression> app) {
+      std::string target = visit([] (auto e) { return target_name(e); },
+                                 app->target());
+      EXPECT_NE(target, name);
+    }
+  );
+}
+
+TEST_F(ast, top_level_procedure_calls_are_inlined) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda (x)
+          (* 2 x)))
+
+      (let ((y (read)))
+        (foo y))
+    )",
+    {&analyse_variables, &inline_procedures}
+  );
+  assert_procedure_not_called(e, "foo");
+}
+
+TEST_F(ast, local_procedure_calls_are_inlined) {
+  expression e = analyse(
+    R"(
+      (let ((f (lambda (x) (* 2 x))))
+        (f 5))
+    )",
+    {&analyse_variables, &inline_procedures}
+  );
+  assert_procedure_not_called(e, "f");
+}
+
+TEST_F(ast, procedures_are_inlined_across_modules) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export foo)
+      (define foo
+        (lambda (x)
+          (* 2 x)))
+    )"
+  );
+  expression e = analyse_module(
+    R"(
+      (import (foo))
+      (foo 12)
+    )",
+    {&analyse_variables, &inline_procedures}
+  );
+  assert_procedure_not_called(e, "foo");
+}
+
+static expression
+find_top_level_definition_for(expression root, std::string const& name) {
+  expression result;
+
+  for_each<top_level_set_expression>(
+    root,
+    [&] (ptr<top_level_set_expression> set) {
+      if (set->target()->name == name)
+        result = set->expression();
+    }
+  );
+
+  return result;
+}
+
+TEST_F(ast, recursive_procedures_are_not_inlined) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+      (define foo
+        (lambda ()
+          (foo)))
+    )",
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+
+  auto foo_var = find_variable("foo", e);
+  auto foo_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
+  auto app
+    = expect<application_expression>(foo_def->body()->expressions().front());
+  auto target = expect<top_level_reference_expression>(app->target());
+  EXPECT_EQ(target->variable(), foo_var);
+}
+
+TEST_F(ast, outer_lambda_is_not_inlined_into_inner_lambda) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda ()
+          (lambda ()
+            (foo))))
+    )",
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+
+  auto foo_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
+  auto inner_lambda
+    = expect<lambda_expression>(foo_def->body()->expressions().front());
+  EXPECT_TRUE(
+    is<application_expression>(inner_lambda->body()->expressions().front())
+  );
+}
+
+static std::string const inlining_module = R"(
+  (import (insider internal))
+
+  (define foo
+    (lambda (x)
+      (+ x 2)))
+
+  (define bar
+    (lambda ()
+      (foo 4)))
+)";
+
+TEST_F(ast, inlined_code_does_not_share_ast) {
+  expression e = analyse_module(
+    inlining_module,
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+
+  auto foo_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
+  auto foo_body = foo_def->body()->expressions().front();
+
+  auto bar_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  auto bar_let = expect<let_expression>(bar_def->body()->expressions().front());
+  auto bar_body = bar_let->body()->expressions().front();
+
+  EXPECT_NE(foo_body, bar_body);
+}
+
+TEST_F(ast, inlined_code_does_not_share_lambda_variables) {
+  expression e = analyse_module(
+    inlining_module,
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+
+  auto foo_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
+  auto foo_param = foo_def->parameters().front();
+
+  auto bar_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  auto bar_let = expect<let_expression>(bar_def->body()->expressions().front());
+  auto bar_var = bar_let->definitions().front().variable();
+
+  EXPECT_NE(foo_param, bar_var);
+}
+
+TEST_F(ast, inlined_code_does_not_share_internal_variables) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda ()
+          (let ((x 2))
+            x)))
+
+      (define bar
+        (lambda ()
+          (foo)))
+    )",
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+
+  auto foo_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
+  auto foo_let = expect<let_expression>(foo_def->body()->expressions().front());
+  auto foo_var = foo_let->definitions().front().variable();
+
+  auto bar_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  auto bar_outer_let
+    = expect<let_expression>(bar_def->body()->expressions().front());
+  auto bar_inner_let
+    = expect<let_expression>(bar_outer_let->body()->expressions().front());
+  auto bar_var = bar_inner_let->definitions().front().variable();
+
+  EXPECT_NE(foo_var, bar_var);
 }

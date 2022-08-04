@@ -9,6 +9,7 @@ namespace insider {
 
 pass_list const all_passes{
   analyse_variables,
+  inline_procedures,
   propagate_constants,
   box_set_variables,
   analyse_free_variables
@@ -113,18 +114,22 @@ static void
 mark_set_variables(auto) { }
 
 static void
+assign_constant_initialiser(auto var, expression e) {
+  if (is<literal_expression>(e) || is<lambda_expression>(e))
+    var->constant_initialiser = e;
+}
+
+static void
 find_constant_values(ptr<let_expression> let) {
   for (definition_pair_expression const& dp : let->definitions())
     if (!dp.variable()->is_set)
-      if (auto lit = match<literal_expression>(dp.expression()))
-        dp.variable()->constant_initialiser = lit;
+      assign_constant_initialiser(dp.variable(), dp.expression());
 }
 
 static void
 find_constant_values(ptr<top_level_set_expression> set) {
   if (set->is_initialisation() && !set->target()->is_set)
-    if (auto lit = match<literal_expression>(set->expression()))
-      set->target()->constant_initialiser = lit;
+    assign_constant_initialiser(set->target(), set->expression());
 }
 
 static void
@@ -267,6 +272,202 @@ propagate_constants(context& ctx, expression e, analysis_context) {
   );
 }
 
+static ptr<lambda_expression>
+find_constant_lambda_initialiser(auto var) {
+  if (var->constant_initialiser
+      && is<lambda_expression>(var->constant_initialiser))
+    return assume<lambda_expression>(var->constant_initialiser);
+  else
+    return {};
+}
+
+static ptr<lambda_expression>
+find_constant_lambda_initialiser_for_application_target(
+  ptr<top_level_reference_expression> target_expr
+) {
+  return find_constant_lambda_initialiser(target_expr->variable());
+}
+
+static ptr<lambda_expression>
+find_constant_lambda_initialiser_for_application_target(
+  ptr<local_reference_expression> target_expr
+) {
+  return find_constant_lambda_initialiser(target_expr->variable());
+}
+
+static ptr<lambda_expression>
+find_constant_lambda_initialiser_for_application_target(auto) {
+  return {};
+}
+
+using variable_map
+  = std::unordered_map<ptr<local_variable>, ptr<local_variable>>;
+
+static std::vector<definition_pair_expression>
+map_definition_pairs(variable_map const& map,
+                     std::vector<definition_pair_expression> const& dps) {
+  std::vector<definition_pair_expression> result;
+  result.reserve(dps.size());
+
+  for (definition_pair_expression const& dp : dps)
+    if (auto mapping = map.find(dp.variable()); mapping != map.end())
+      result.emplace_back(mapping->second, dp.expression());
+    else
+      result.emplace_back(dp);
+
+  return result;
+}
+
+namespace {
+  // Visitor that takes an AST and processes it for inlining in other parts of
+  // the AST. This includes creating fresh variables everywhere.
+  struct inliner {
+    context&     ctx;
+    variable_map map;
+
+    explicit
+    inliner(context& ctx)
+      : ctx{ctx}
+    { }
+
+    void
+    enter(ptr<let_expression> let) {
+      for (auto const& dp : let->definitions()) {
+        assert(!map.contains(dp.variable()));
+        auto copy = make<local_variable>(ctx, *dp.variable());
+        map.emplace(dp.variable(), copy);
+      }
+    }
+
+    void
+    enter(auto) { }
+
+    expression
+    leave(ptr<local_reference_expression> ref) {
+      if (auto mapping = map.find(ref->variable()); mapping != map.end())
+        return make<local_reference_expression>(ctx, mapping->second);
+      else
+        return ref;
+    }
+
+    expression
+    leave(ptr<local_set_expression> set) {
+      if (auto mapping = map.find(set->target()); mapping != map.end())
+        return make<local_set_expression>(ctx, mapping->second,
+                                          set->expression());
+      else
+        return set;
+    }
+
+    expression
+    leave(ptr<let_expression> let) {
+      return make<let_expression>(ctx,
+                                  map_definition_pairs(map, let->definitions()),
+                                  let->body());
+    }
+
+    expression
+    leave(ptr<lambda_expression> lambda) {
+      // Need to remove free variable information; it will be recomputed when
+      // analyse_free_variables visits this for the AST this lambda is being
+      // inlined into.
+
+      if (!lambda->free_variables().empty())
+        return make<lambda_expression>(
+          ctx,
+          lambda->parameters(),
+          lambda->has_rest(),
+          lambda->body(),
+          lambda->name(),
+          std::vector<ptr<local_variable>>{} // free_variables
+        );
+      else
+        return lambda;
+    }
+
+    expression
+    leave(auto e) { return e; }
+  };
+}
+
+static expression
+inline_application(context& ctx, ptr<application_expression> app,
+                   ptr<lambda_expression> target) {
+  assert(app->arguments().size() == target->parameters().size());
+
+  std::vector<definition_pair_expression> dps;
+  for (std::size_t i = 0; i < app->arguments().size(); ++i)
+    dps.emplace_back(target->parameters()[i], app->arguments()[i]);
+
+  return transform_ast_copy(
+    ctx,
+    make<let_expression>(ctx, std::move(dps), target->body()),
+    inliner{ctx}
+  );
+}
+
+namespace {
+  struct inline_visitor {
+    context& ctx;
+    std::vector<ptr<lambda_expression>> entered_lambdas;
+
+    inline_visitor(context& ctx)
+      : ctx{ctx}
+    { }
+
+    void
+    enter(ptr<lambda_expression> lambda) {
+      entered_lambdas.push_back(lambda);
+    }
+
+    void
+    enter(auto) { }
+
+    bool
+    is_self_recursive_call(ptr<lambda_expression> called_lambda) {
+      return std::ranges::any_of(entered_lambdas,
+                                 [&] (auto l) { return l == called_lambda; });
+    }
+
+    bool
+    can_inline(ptr<lambda_expression> lambda) {
+      return !lambda->has_rest() && !is_self_recursive_call(lambda);
+    }
+
+    expression
+    leave(ptr<application_expression> app) {
+      auto lambda = visit(
+        [&] (auto e) {
+          return find_constant_lambda_initialiser_for_application_target(e);
+        },
+        app->target()
+      );
+
+      if (lambda && can_inline(lambda))
+        return inline_application(ctx, app, lambda);
+      else
+        return app;
+    }
+
+    expression
+    leave([[maybe_unused]] ptr<lambda_expression> lambda) {
+      assert(entered_lambdas.back() == lambda);
+      entered_lambdas.pop_back();
+      return lambda;
+    }
+
+    expression
+    leave(auto expr) {
+      return expr;
+    }
+  };
+}
+
+expression
+inline_procedures(context& ctx, expression e, analysis_context) {
+  return transform_ast(ctx, e, inline_visitor{ctx});
+}
+
 using variable_set = std::unordered_set<ptr<local_variable>>;
 
 namespace {
@@ -291,6 +492,8 @@ namespace {
 
     void
     leave_expression(ptr<lambda_expression> lambda) override {
+      assert(lambda->free_variables().empty());
+
       auto inner_free = std::move(free_vars_stack.back());
       free_vars_stack.pop_back();
       bound_vars_stack.pop_back();

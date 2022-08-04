@@ -550,21 +550,26 @@ namespace detail {
     return make<T>(ctx, *expr);
   }
 
-template <typename F, bool Copy>
+  template <typename InnerVisitor, bool Copy>
   struct mapping_visitor {
-    context& ctx;
-    F& f;
-    result_stack results;
+    context&      ctx;
+    InnerVisitor& inner_visitor;
+    result_stack  results;
 
-    mapping_visitor(context& ctx, F& f)
+    mapping_visitor(context& ctx, InnerVisitor& inner_visitor)
       : ctx{ctx}
-      , f{f}
+      , inner_visitor{inner_visitor}
     { }
 
     void
     enter(expression e, dfs_stack<expression>& stack) {
-      visit([&] (auto expr) { push_children(expr, stack); },
-            e);
+      visit(
+        [&] (auto expr) {
+          inner_visitor.enter(expr);
+          push_children(expr, stack);
+        },
+        e
+      );
     }
 
     void
@@ -574,31 +579,59 @@ template <typename F, bool Copy>
           if constexpr (Copy)
             expr = duplicate(ctx, expr);
           expr->update(ctx, results);
-          return f(expr);
+          return inner_visitor.leave(expr);
         },
         e
       );
       results.push_back(result);
     }
   };
+
+  template <typename F>
+  struct function_visitor_wrapper {
+    F& f;
+
+    explicit
+    function_visitor_wrapper(F& f)
+      : f{f}
+    { }
+
+    void
+    enter(auto) { }
+
+    expression
+    leave(auto e) { return f(e); }
+  };
+}
+
+template <typename Visitor>
+expression
+transform_ast(context& ctx, expression e, Visitor&& visitor) {
+  detail::mapping_visitor<Visitor, false> v{ctx, visitor};
+  depth_first_search(e, v);
+  assert(v.results.size() == 1);
+  return v.results.back();
+}
+
+template <typename Visitor>
+expression
+transform_ast_copy(context& ctx, expression e, Visitor&& visitor) {
+  detail::mapping_visitor<Visitor, true> v{ctx, visitor};
+  depth_first_search(e, v);
+  assert(v.results.size() == 1);
+  return v.results.back();
 }
 
 template <typename F>
 expression
 map_ast(context& ctx, expression e, F&& f) {
-  detail::mapping_visitor<F, false> v{ctx, f};
-  depth_first_search(e, v);
-  assert(v.results.size() == 1);
-  return v.results.back();
+  return transform_ast(ctx, e, detail::function_visitor_wrapper<F>{f});
 }
 
 template <typename F>
 expression
 map_ast_copy(context& ctx, expression e, F&& f) {
-  detail::mapping_visitor<F, true> v{ctx, f};
-  depth_first_search(e, v);
-  assert(v.results.size() == 1);
-  return v.results.back();
+  return transform_ast_copy(ctx, e, detail::function_visitor_wrapper<F>{f});
 }
 
 } // namespace insider

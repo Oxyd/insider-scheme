@@ -28,6 +28,9 @@ expression
 propagate_constants(context&, expression, analysis_context);
 
 expression
+inline_procedures(context&, expression, analysis_context);
+
+expression
 analyse_free_variables(context&, expression, analysis_context);
 
 } // namespace insider
