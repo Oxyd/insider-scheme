@@ -132,12 +132,6 @@ sequence_expression::sequence_expression(std::vector<expression> exprs)
 { }
 
 void
-sequence_expression::prepend_expression(free_store& fs, expression expr) {
-  expressions_.insert(expressions_.begin(), expr);
-  fs.notify_arc(this, expr.get());
-}
-
-void
 sequence_expression::visit_members(member_visitor const& f) {
   for (auto& e : expressions_)
     e.visit_members(f);

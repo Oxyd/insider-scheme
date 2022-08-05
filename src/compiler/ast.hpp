@@ -191,9 +191,6 @@ public:
   std::vector<expression> const&
   expressions() const { return expressions_; }
 
-  void
-  prepend_expression(free_store& fs, expression expr);
-
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
