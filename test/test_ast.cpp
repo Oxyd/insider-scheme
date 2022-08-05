@@ -510,6 +510,23 @@ target_name(auto) {
 }
 
 static void
+assert_procedure_is_called(expression e, std::string const& name) {
+  bool called = false;
+
+  for_each<application_expression>(
+    e,
+    [&] (ptr<application_expression> app) {
+      std::string target = visit([] (auto e) { return target_name(e); },
+                                 app->target());
+      if (target == name)
+        called = true;
+    }
+  );
+
+  EXPECT_TRUE(called);
+}
+
+static void
 assert_procedure_not_called(expression e, std::string const& name) {
   for_each<application_expression>(
     e,
@@ -707,4 +724,23 @@ TEST_F(ast, inlined_code_does_not_share_internal_variables) {
   auto bar_var = bar_inner_let->definitions().front().variable();
 
   EXPECT_NE(foo_var, bar_var);
+}
+
+TEST_F(ast, invalid_call_is_not_inlined) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define unary
+        (lambda (x)
+          x))
+
+      (define wrong
+        (lambda ()
+          (unary 1 2 3)))
+    )",
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+
+  assert_procedure_is_called(e, "unary");
 }

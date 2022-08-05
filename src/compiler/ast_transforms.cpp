@@ -406,6 +406,11 @@ inline_application(context& ctx, ptr<application_expression> app,
   );
 }
 
+static bool
+arity_matches(ptr<application_expression> app, ptr<lambda_expression> lambda) {
+  return app->arguments().size() == lambda->parameters().size();
+}
+
 namespace {
   struct inline_visitor {
     context& ctx;
@@ -430,8 +435,9 @@ namespace {
     }
 
     bool
-    can_inline(ptr<lambda_expression> lambda) {
-      return !lambda->has_rest() && !is_self_recursive_call(lambda);
+    can_inline(ptr<application_expression> app, ptr<lambda_expression> lambda) {
+      return !lambda->has_rest() && !is_self_recursive_call(lambda)
+             && arity_matches(app, lambda);
     }
 
     expression
@@ -443,7 +449,7 @@ namespace {
         app->target()
       );
 
-      if (lambda && can_inline(lambda))
+      if (lambda && can_inline(app, lambda))
         return inline_application(ctx, app, lambda);
       else
         return app;
