@@ -15,6 +15,8 @@ pass_list const all_passes{
   analyse_free_variables
 };
 
+static constexpr std::size_t inline_size_limit = 500;
+
 expression
 apply_passes(context& ctx, expression e, analysis_context ac,
              pass_list const& ps) {
@@ -411,6 +413,11 @@ arity_matches(ptr<application_expression> app, ptr<lambda_expression> lambda) {
   return app->arguments().size() == lambda->parameters().size();
 }
 
+static bool
+is_small_enough_to_inline(ptr<lambda_expression> lambda) {
+  return lambda->body()->size_estimate() < inline_size_limit;
+}
+
 namespace {
   struct inline_visitor {
     context& ctx;
@@ -436,8 +443,10 @@ namespace {
 
     bool
     can_inline(ptr<application_expression> app, ptr<lambda_expression> lambda) {
-      return !lambda->has_rest() && !is_self_recursive_call(lambda)
-             && arity_matches(app, lambda);
+      return !lambda->has_rest()
+             && !is_self_recursive_call(lambda)
+             && arity_matches(app, lambda)
+             && is_small_enough_to_inline(lambda);
     }
 
     expression

@@ -45,6 +45,9 @@ public:
   void
   update(context&, result_stack&);
 
+  std::size_t
+  size_estimate() const { return 1; }
+
 private:
   ptr<> value_;
 };
@@ -71,6 +74,9 @@ public:
 
   void
   update(context&, result_stack&);
+
+  std::size_t
+  size_estimate() const { return 1; }
 
 private:
   ptr<local_variable> variable_;
@@ -99,6 +105,9 @@ public:
   void
   update(context&, result_stack&);
 
+  std::size_t
+  size_estimate() const { return 1; }
+
 private:
   ptr<top_level_variable> variable_;
 };
@@ -126,6 +135,9 @@ public:
   void
   update(context&, result_stack&);
 
+  std::size_t
+  size_estimate() const { return 1; }
+
 private:
   ptr<syntax> name_;
 };
@@ -139,7 +151,9 @@ public:
   application_expression(expression t, std::ranges::range auto args)
     : target_{t}
     , arguments_(args.begin(), args.end())
-  { }
+  {
+    update_size_estimate();
+  }
 
   template <typename... Ts>
   application_expression(expression t, Ts&&... ts)
@@ -147,6 +161,8 @@ public:
   {
     arguments_.reserve(sizeof...(Ts));
     (arguments_.push_back(ts), ...);
+
+    update_size_estimate();
   }
 
   expression
@@ -169,9 +185,16 @@ public:
   void
   update(context&, result_stack&);
 
+  std::size_t
+  size_estimate() const { return size_estimate_; }
+
 private:
   expression              target_;
   std::vector<expression> arguments_;
+  std::size_t             size_estimate_ = 0;
+
+  void
+  update_size_estimate();
 };
 
 class sequence_expression : public composite_object<sequence_expression>  {
@@ -186,7 +209,9 @@ public:
   explicit
   sequence_expression(std::ranges::range auto exprs)
     : expressions_(exprs.begin(), exprs.end())
-  { }
+  {
+    update_size_estimate();
+  }
 
   std::vector<expression> const&
   expressions() const { return expressions_; }
@@ -204,8 +229,15 @@ public:
   void
   update(context&, result_stack&);
 
+  std::size_t
+  size_estimate() const { return size_estimate_; }
+
 private:
   std::vector<expression> expressions_;
+  std::size_t             size_estimate_ = 0;
+
+  void
+  update_size_estimate();
 };
 
 class definition_pair_expression {
@@ -257,9 +289,16 @@ public:
   void
   update(context&, result_stack&);
 
+  std::size_t
+  size_estimate() const { return size_estimate_; }
+
 private:
   std::vector<definition_pair_expression> definitions_;
   ptr<sequence_expression>                body_;
+  std::size_t                             size_estimate_ = 0;
+
+  void
+  update_size_estimate();
 };
 
 class local_set_expression : public composite_object<local_set_expression> {
@@ -286,9 +325,16 @@ public:
   void
   update(context&, result_stack&);
 
+  std::size_t
+  size_estimate() const { return size_estimate_; }
+
 private:
   ptr<local_variable> target_;
   insider::expression expression_;
+  std::size_t         size_estimate_ = 0;
+
+  void
+  update_size_estimate();
 };
 
 class top_level_set_expression
@@ -322,10 +368,17 @@ public:
   void
   update(context&, result_stack&);
 
+  std::size_t
+  size_estimate() const { return size_estimate_; }
+
 private:
   ptr<top_level_variable> variable_;
   insider::expression     expression_;
   bool                    is_init_;
+  std::size_t             size_estimate_ = 0;
+
+  void
+  update_size_estimate();
 };
 
 class lambda_expression : public composite_object<lambda_expression> {
@@ -371,12 +424,18 @@ public:
   void
   update(context&, result_stack&);
 
+  std::size_t
+  size_estimate() const {
+    return 1 + free_variables_.size();
+  }
+
 private:
   std::vector<ptr<local_variable>> parameters_;
-  bool                       has_rest_;
-  ptr<sequence_expression>   body_;
-  std::optional<std::string> name_;
+  bool                             has_rest_;
+  ptr<sequence_expression>         body_;
+  std::optional<std::string>       name_;
   std::vector<ptr<local_variable>> free_variables_;
+  std::size_t                      size_estimate_ = 0;
 };
 
 class if_expression : public composite_object<if_expression> {
@@ -408,10 +467,17 @@ public:
   void
   update(context&, result_stack&);
 
+  std::size_t
+  size_estimate() const { return size_estimate_; }
+
 private:
-  expression test_;
-  expression consequent_;
-  expression alternative_;
+  expression  test_;
+  expression  consequent_;
+  expression  alternative_;
+  std::size_t size_estimate_ = 0;
+
+  void
+  update_size_estimate();
 };
 
 expression
@@ -629,6 +695,11 @@ template <typename F>
 expression
 map_ast_copy(context& ctx, expression e, F&& f) {
   return transform_ast_copy(ctx, e, detail::function_visitor_wrapper<F>{f});
+}
+
+inline std::size_t
+size_estimate(expression expr) {
+  return visit([] (auto e) { return e->size_estimate(); }, expr);
 }
 
 } // namespace insider

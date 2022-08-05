@@ -125,11 +125,30 @@ application_expression::update(context& ctx, result_stack& stack) {
 
   update_member(ctx.store, this, target_, target);
   update_member(ctx.store, this, arguments_, std::move(args));
+
+  update_size_estimate();
+}
+
+static std::size_t
+sum_size_estimates(std::vector<expression> const& expressions) {
+  std::size_t result = 0;
+  for (expression e : expressions)
+    result += size_estimate(e);
+  return result;
+}
+
+void
+application_expression::update_size_estimate() {
+  size_estimate_
+    = insider::size_estimate(target_) + sum_size_estimates(arguments_)
+    + 1;
 }
 
 sequence_expression::sequence_expression(std::vector<expression> exprs)
   : expressions_{std::move(exprs)}
-{ }
+{
+  update_size_estimate();
+}
 
 void
 sequence_expression::visit_members(member_visitor const& f) {
@@ -141,6 +160,12 @@ void
 sequence_expression::update(context& ctx, result_stack& stack) {
   update_member(ctx.store, this, expressions_,
                 pop_vector(stack, expressions_.size()));
+  update_size_estimate();
+}
+
+void
+sequence_expression::update_size_estimate() {
+  size_estimate_ = sum_size_estimates(expressions_);
 }
 
 definition_pair_expression::definition_pair_expression(
@@ -162,7 +187,9 @@ let_expression::let_expression(std::vector<definition_pair_expression> defs,
                                ptr<sequence_expression> body)
   : definitions_{std::move(defs)}
   , body_{body}
-{ }
+{
+  update_size_estimate();
+}
 
 void
 let_expression::visit_members(member_visitor const& f) {
@@ -190,13 +217,24 @@ let_expression::update(context& ctx, result_stack& stack) {
       ctx.store.notify_arc(this, dp.expression().get());
     }
   }
+
+  update_size_estimate();
+}
+
+void
+let_expression::update_size_estimate() {
+  size_estimate_ = body_->size_estimate();
+  for (definition_pair_expression const& dp : definitions_)
+    size_estimate_ += insider::size_estimate(dp.expression());
 }
 
 local_set_expression::local_set_expression(ptr<local_variable> target,
                                            insider::expression expr)
   : target_{target}
   , expression_{expr}
-{ }
+{
+  update_size_estimate();
+}
 
 void
 local_set_expression::visit_members(member_visitor const& f) {
@@ -207,6 +245,12 @@ local_set_expression::visit_members(member_visitor const& f) {
 void
 local_set_expression::update(context& ctx, result_stack& stack) {
   update_member(ctx.store, this, expression_, pop(stack));
+  update_size_estimate();
+}
+
+void
+local_set_expression::update_size_estimate() {
+  size_estimate_ = 1 + insider::size_estimate(expression_);
 }
 
 top_level_set_expression::top_level_set_expression(ptr<top_level_variable> var,
@@ -215,7 +259,9 @@ top_level_set_expression::top_level_set_expression(ptr<top_level_variable> var,
   : variable_{var}
   , expression_{expr}
   , is_init_{is_init}
-{ }
+{
+  update_size_estimate();
+}
 
 void
 top_level_set_expression::visit_members(member_visitor const& f) {
@@ -226,6 +272,12 @@ top_level_set_expression::visit_members(member_visitor const& f) {
 void
 top_level_set_expression::update(context& ctx, result_stack& stack) {
   update_member(ctx.store, this, expression_, pop(stack));
+  update_size_estimate();
+}
+
+void
+top_level_set_expression::update_size_estimate() {
+  size_estimate_ = 1 + insider::size_estimate(expression_);
 }
 
 lambda_expression::lambda_expression(std::vector<ptr<local_variable>> parameters,
@@ -265,7 +317,9 @@ if_expression::if_expression(expression test, expression consequent,
   : test_{test}
   , consequent_{consequent}
   , alternative_{alternative}
-{ }
+{
+  update_size_estimate();
+}
 
 void
 if_expression::visit_members(member_visitor const& f) {
@@ -282,6 +336,16 @@ if_expression::update(context& ctx, result_stack& stack) {
   update_member(ctx.store, this, test_, test);
   update_member(ctx.store, this, consequent_, consequent);
   update_member(ctx.store, this, alternative_, alternative);
+  update_size_estimate();
+}
+
+void
+if_expression::update_size_estimate() {
+  size_estimate_
+    = 1 + insider::size_estimate(test_) + insider::size_estimate(consequent_);
+
+  if (alternative_)
+    size_estimate_ += 1 + insider::size_estimate(alternative_);
 }
 
 expression
