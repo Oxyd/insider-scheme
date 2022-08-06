@@ -392,7 +392,7 @@
 	((not (< x y))
 	 ;; X = Y so if that is a rational that is the answer, otherwise
 	 ;; there is nothing we can return at all.
-	 (if (rational? x) x (error)))
+	 (if (rational? x) x (error "rationalize" x)))
 	((positive? x)
 	 ;; 0 < X < Y which is what SIMPLEST-RATIONAL-INTERNAL expects:
 	 (simplest-rational-internal x y))
