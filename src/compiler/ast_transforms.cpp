@@ -392,14 +392,23 @@ namespace {
   };
 }
 
-static expression
-inline_application(context& ctx, ptr<application_expression> app,
-                   ptr<lambda_expression> target) {
-  assert(app->arguments().size() == target->parameters().size());
-
+static std::vector<definition_pair_expression>
+make_definition_pairs_for_mandatory_args(ptr<application_expression> app,
+                                         ptr<lambda_expression> lambda,
+                                         std::size_t num_args) {
   std::vector<definition_pair_expression> dps;
-  for (std::size_t i = 0; i < app->arguments().size(); ++i)
-    dps.emplace_back(target->parameters()[i], app->arguments()[i]);
+  for (std::size_t i = 0; i < num_args; ++i)
+    dps.emplace_back(lambda->parameters()[i], app->arguments()[i]);
+  return dps;
+}
+
+static expression
+inline_nonvariadic_application(context& ctx, ptr<application_expression> app,
+                               ptr<lambda_expression> target) {
+  assert(app->arguments().size() == target->parameters().size());
+  std::vector<definition_pair_expression> dps
+    = make_definition_pairs_for_mandatory_args(app, target,
+                                               app->arguments().size());
 
   return transform_ast_copy(
     ctx,
@@ -408,9 +417,55 @@ inline_application(context& ctx, ptr<application_expression> app,
   );
 }
 
+static expression
+make_tail_args_expression(context& ctx, ptr<application_expression> app,
+                          std::size_t mandatory_args) {
+  std::vector<expression> tail_args;
+  for (std::size_t i = mandatory_args; i < app->arguments().size(); ++i)
+    tail_args.push_back(app->arguments()[i]);
+
+  return make<application_expression>(
+    ctx,
+    make_internal_reference(ctx, "list"),
+    std::move(tail_args)
+  );
+}
+
+static expression
+inline_variadic_application(context& ctx, ptr<application_expression> app,
+                            ptr<lambda_expression> target) {
+  assert(!target->parameters().empty());
+  assert(app->arguments().size() >= target->parameters().size() - 1);
+
+  std::size_t mandatory_args = target->parameters().size() - 1;
+  std::vector<definition_pair_expression> dps
+    = make_definition_pairs_for_mandatory_args(app, target, mandatory_args);
+
+  dps.emplace_back(target->parameters().back(),
+                   make_tail_args_expression(ctx, app, mandatory_args));
+
+  return transform_ast_copy(
+    ctx,
+    make<let_expression>(ctx, std::move(dps), target->body()),
+    inliner{ctx}
+  );
+}
+
+static expression
+inline_application(context& ctx, ptr<application_expression> app,
+                   ptr<lambda_expression> target) {
+  if (target->has_rest())
+    return inline_variadic_application(ctx, app, target);
+  else
+    return inline_nonvariadic_application(ctx, app, target);
+}
+
 static bool
 arity_matches(ptr<application_expression> app, ptr<lambda_expression> lambda) {
-  return app->arguments().size() == lambda->parameters().size();
+  if (!lambda->has_rest())
+    return app->arguments().size() == lambda->parameters().size();
+  else
+    return app->arguments().size() >= lambda->parameters().size() - 1;
 }
 
 static bool
@@ -443,8 +498,7 @@ namespace {
 
     bool
     can_inline(ptr<application_expression> app, ptr<lambda_expression> lambda) {
-      return !lambda->has_rest()
-             && !is_self_recursive_call(lambda)
+      return !is_self_recursive_call(lambda)
              && arity_matches(app, lambda)
              && is_small_enough_to_inline(lambda);
     }

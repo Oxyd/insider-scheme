@@ -744,3 +744,72 @@ TEST_F(ast, invalid_call_is_not_inlined) {
 
   assert_procedure_is_called(e, "unary");
 }
+
+TEST_F(ast, variadic_procedures_are_inlined) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda (x . rest)
+          #f))
+
+      (define bar
+        (lambda ()
+          (foo 1 2 3)))
+    )",
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+
+  auto bar_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  assert_procedure_not_called(bar_def, "foo");
+
+  auto let = expect<let_expression>(bar_def->body()->expressions().front());
+  ASSERT_EQ(let->definitions().size(), 2);
+  EXPECT_EQ(
+    expect<integer>(
+      expect<literal_expression>(let->definitions()[0].expression())->value()
+    ).value(),
+    1
+  );
+
+  auto tail_expr
+    = expect<application_expression>(let->definitions()[1].expression());
+  auto list_ref = expect<top_level_reference_expression>(tail_expr->target());
+  EXPECT_EQ(list_ref->variable()->name(), "list");
+  ASSERT_EQ(tail_expr->arguments().size(), 2);
+  EXPECT_EQ(
+    expect<integer>(
+      expect<literal_expression>(tail_expr->arguments()[0])->value()
+    ).value(),
+    2
+  );
+  EXPECT_EQ(
+    expect<integer>(
+      expect<literal_expression>(tail_expr->arguments()[1])->value()
+    ).value(),
+    3
+  );
+}
+
+TEST_F(ast, call_of_variadic_procedure_with_too_few_args_is_not_inlined) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda (one two . rest)
+          0))
+
+      (define bar
+        (lambda ()
+          (foo 1)))
+    )",
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+
+  auto bar_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  assert_procedure_is_called(bar_def, "foo");
+}
