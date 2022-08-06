@@ -8,6 +8,14 @@
 
 namespace insider {
 
+ptr<>
+list(context& ctx, ptr<native_procedure>, object_span elems) {
+  ptr<> tail = ctx.constants->null;
+  for (ptr<> elem : elems | std::views::reverse)
+    tail = cons(ctx, elem, tail);
+  return tail;
+}
+
 bool
 is_list(ptr<> x) {
   while (true)
@@ -418,6 +426,7 @@ box_set(context& ctx, ptr<box> b, ptr<> value) {
 
 void
 export_basic_types(context& ctx, ptr<module_> result) {
+  define_raw_procedure<list>(ctx, "list", result);
   define_procedure<list_to_vector>(ctx, "list->vector", result);
   define_raw_procedure<vector_to_list>(ctx, "vector->list", result);
   define_raw_procedure<vector_append>(ctx, "vector-append", result);

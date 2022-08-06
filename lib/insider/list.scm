@@ -2,13 +2,13 @@
 (import (insider syntax) (insider basic-procedures)
         (only (insider internal)
               car cdr set-car! set-cdr! cons cadr caddr cadddr cddr cdddr append
-              + - = apply values))
+              list + - = apply values))
 (export
  ;; From core
- cons car cdr cadr caddr cadddr cddr cdddr set-car! set-cdr! append
+ cons car cdr cadr caddr cadddr cddr cdddr set-car! set-cdr! append list
 
  ;; Defined here: R7RS procedures:
- null? pair? list list?
+ null? pair? list?
  caar cdar caaar caadr cadar cdaar cdadr cddar
  caaaar caaadr caadar caaddr cadaar cadadr caddar
  cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr
@@ -22,8 +22,6 @@
 
 (define (null? x)
   (eq? x '()))
-
-(define (list . l) l)
 
 (define (caar x)
   (car (car x)))

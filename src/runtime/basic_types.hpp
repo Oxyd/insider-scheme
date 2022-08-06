@@ -12,6 +12,8 @@
 
 namespace insider {
 
+class native_procedure;
+
 // The empty list. There should only be exactly one instance of this type per
 // evaluation context.
 class null_type : public leaf_object<null_type> {
@@ -131,6 +133,9 @@ inline ptr<pair>
 cons(context& ctx, ptr<> car, ptr<> cdr) {
   return make<pair>(ctx, car, cdr);
 }
+
+ptr<>
+list(context&, ptr<native_procedure>, object_span);
 
 // Is the given object a list? A list is either the null value or a pair whose
 // cdr is a list.
