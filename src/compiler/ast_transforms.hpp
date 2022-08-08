@@ -22,13 +22,13 @@ expression
 analyse_variables(context&, expression, analysis_context);
 
 expression
-box_set_variables(context&, expression, analysis_context);
-
-expression
 propagate_constants(context&, expression, analysis_context);
 
 expression
 inline_procedures(context&, expression, analysis_context);
+
+expression
+box_set_variables(context&, expression, analysis_context);
 
 expression
 analyse_free_variables(context&, expression, analysis_context);

@@ -25,80 +25,6 @@ apply_passes(context& ctx, expression e, analysis_context ac,
   return e;
 }
 
-static expression
-box_variable_reference(context& ctx,
-                       ptr<local_reference_expression> local_ref,
-                       ptr<local_variable> var) {
-  if (local_ref->variable() == var)
-    return make_application(
-      ctx, "unbox",
-      make<local_reference_expression>(ctx, var)
-    );
-  else
-    return local_ref;
-}
-
-static expression
-box_variable_reference(context& ctx,
-                       ptr<local_set_expression> local_set,
-                       ptr<local_variable> var) {
-  if (local_set->target() == var)
-    return make_application(
-      ctx, "box-set!",
-      make<local_reference_expression>(ctx, local_set->target()),
-      local_set->expression()
-    );
-  else
-    return local_set;
-}
-
-static expression
-box_variable_reference(context&, auto e, ptr<local_variable>) {
-  return e;
-}
-
-static expression
-box_variable_references(context& ctx, expression s, ptr<local_variable> var) {
-  return map_ast(
-    ctx, s,
-    [&] (expression expr) {
-      return visit(
-        [&] (auto e) { return box_variable_reference(ctx, e, var); },
-        expr
-      );
-    }
-  );
-}
-
-static std::vector<ptr<local_variable>>
-find_set_variables(ptr<let_expression> let) {
-  auto rng = let->definitions()
-    | std::views::transform([] (auto const& dp) { return dp.variable(); })
-    | std::views::filter([] (ptr<local_variable> v) {
-        return v->is_set();
-      });
-  return std::vector<ptr<local_variable>>(rng.begin(), rng.end());
-}
-
-static definition_pair_expression
-box_definition_pair(context& ctx, definition_pair_expression const& dp) {
-  return {dp.variable(), make_application(ctx, "box", dp.expression())};
-}
-
-static std::vector<definition_pair_expression>
-box_definition_pairs(context& ctx,
-                     std::vector<definition_pair_expression> const& dps) {
-  auto rng = dps | std::views::transform(
-    [&] (definition_pair_expression const& dp) {
-      if (dp.variable()->is_set())
-        return box_definition_pair(ctx, dp);
-      else
-        return dp;
-    }
-  );
-  return std::vector(rng.begin(), rng.end());
-}
-
 static void
 mark_set_variables(context&, ptr<local_set_expression> set) {
   set->target()->mark_as_set();
@@ -150,68 +76,6 @@ analyse_variables(context& ctx, expression expr, analysis_context ac) {
     visit([&] (auto e) { visit_variables(ctx, ac, e); }, subexpr);
   });
   return expr;
-}
-
-static expression
-box_set_variables(context& ctx, ptr<let_expression> let) {
-  std::vector<ptr<local_variable>> set_vars = find_set_variables(let);
-  if (!set_vars.empty()) {
-    std::vector<definition_pair_expression> dps
-      = box_definition_pairs(ctx, let->definitions());
-    expression body = let->body();
-    for (ptr<local_variable> v : set_vars)
-      body = box_variable_references(ctx, body, v);
-    return make<let_expression>(ctx, std::move(dps),
-                                assume<sequence_expression>(body));
-  } else
-    return let;
-}
-
-static expression
-box_set_variables(context& ctx, ptr<lambda_expression> lambda) {
-  std::vector<expression> sets;
-  expression body = lambda->body();
-  for (ptr<local_variable> param : lambda->parameters())
-    if (param->is_set()) {
-      body = box_variable_references(ctx, body, param);
-      sets.emplace_back(make<local_set_expression>(
-        ctx, param,
-        make_application(
-          ctx, "box",
-          make<local_reference_expression>(ctx, param)
-        )
-      ));
-    }
-
-  if (!sets.empty()) {
-    auto proper_body = assume<sequence_expression>(body);
-    std::vector<expression> body_exprs = std::move(sets);
-    body_exprs.insert(body_exprs.end(),
-                      proper_body->expressions().begin(),
-                      proper_body->expressions().end());
-    return make<lambda_expression>(
-      ctx, lambda->parameters(), lambda->has_rest(),
-      make<sequence_expression>(ctx, std::move(body_exprs)), lambda->name(),
-      lambda->free_variables()
-    );
-  } else
-    return lambda;
-}
-
-static expression
-box_set_variables(context&, auto e) {
-  return e;
-}
-
-expression
-box_set_variables(context& ctx, expression s, analysis_context) {
-  return map_ast(
-    ctx, s,
-    [&] (expression expr) {
-      return visit([&] (auto e) { return box_set_variables(ctx, e); },
-                   expr);
-    }
-  );
 }
 
 static bool
@@ -535,6 +399,142 @@ namespace {
 expression
 inline_procedures(context& ctx, expression e, analysis_context) {
   return transform_ast(ctx, e, inline_visitor{ctx});
+}
+
+static expression
+box_variable_reference(context& ctx,
+                       ptr<local_reference_expression> local_ref,
+                       ptr<local_variable> var) {
+  if (local_ref->variable() == var)
+    return make_application(
+      ctx, "unbox",
+      make<local_reference_expression>(ctx, var)
+    );
+  else
+    return local_ref;
+}
+
+static expression
+box_variable_reference(context& ctx,
+                       ptr<local_set_expression> local_set,
+                       ptr<local_variable> var) {
+  if (local_set->target() == var)
+    return make_application(
+      ctx, "box-set!",
+      make<local_reference_expression>(ctx, local_set->target()),
+      local_set->expression()
+    );
+  else
+    return local_set;
+}
+
+static expression
+box_variable_reference(context&, auto e, ptr<local_variable>) {
+  return e;
+}
+
+static expression
+box_variable_references(context& ctx, expression s, ptr<local_variable> var) {
+  return map_ast(
+    ctx, s,
+    [&] (expression expr) {
+      return visit(
+        [&] (auto e) { return box_variable_reference(ctx, e, var); },
+        expr
+      );
+    }
+  );
+}
+
+static std::vector<ptr<local_variable>>
+find_set_variables(ptr<let_expression> let) {
+  auto rng = let->definitions()
+    | std::views::transform([] (auto const& dp) { return dp.variable(); })
+    | std::views::filter([] (ptr<local_variable> v) {
+        return v->is_set();
+      });
+  return std::vector<ptr<local_variable>>(rng.begin(), rng.end());
+}
+
+static definition_pair_expression
+box_definition_pair(context& ctx, definition_pair_expression const& dp) {
+  return {dp.variable(), make_application(ctx, "box", dp.expression())};
+}
+
+static std::vector<definition_pair_expression>
+box_definition_pairs(context& ctx,
+                     std::vector<definition_pair_expression> const& dps) {
+  auto rng = dps | std::views::transform(
+    [&] (definition_pair_expression const& dp) {
+      if (dp.variable()->is_set())
+        return box_definition_pair(ctx, dp);
+      else
+        return dp;
+    }
+  );
+  return std::vector(rng.begin(), rng.end());
+}
+
+static expression
+box_set_variables(context& ctx, ptr<let_expression> let) {
+  std::vector<ptr<local_variable>> set_vars = find_set_variables(let);
+  if (!set_vars.empty()) {
+    std::vector<definition_pair_expression> dps
+      = box_definition_pairs(ctx, let->definitions());
+    expression body = let->body();
+    for (ptr<local_variable> v : set_vars)
+      body = box_variable_references(ctx, body, v);
+    return make<let_expression>(ctx, std::move(dps),
+                                assume<sequence_expression>(body));
+  } else
+    return let;
+}
+
+static expression
+box_set_variables(context& ctx, ptr<lambda_expression> lambda) {
+  std::vector<expression> sets;
+  expression body = lambda->body();
+  for (ptr<local_variable> param : lambda->parameters())
+    if (param->is_set()) {
+      body = box_variable_references(ctx, body, param);
+      sets.emplace_back(make<local_set_expression>(
+        ctx, param,
+        make_application(
+          ctx, "box",
+          make<local_reference_expression>(ctx, param)
+        )
+      ));
+    }
+
+  if (!sets.empty()) {
+    auto proper_body = assume<sequence_expression>(body);
+    std::vector<expression> body_exprs = std::move(sets);
+    body_exprs.insert(body_exprs.end(),
+                      proper_body->expressions().begin(),
+                      proper_body->expressions().end());
+    return make<lambda_expression>(
+      ctx, lambda->parameters(), lambda->has_rest(),
+      make<sequence_expression>(ctx, std::move(body_exprs)), lambda->name(),
+      lambda->free_variables()
+    );
+  } else
+    return lambda;
+}
+
+static expression
+box_set_variables(context&, auto e) {
+  return e;
+}
+
+expression
+box_set_variables(context& ctx, expression s, analysis_context) {
+  return map_ast(
+    ctx, s,
+    [&] (expression expr) {
+      return visit([&] (auto e) { return box_set_variables(ctx, e); },
+                   expr);
+    }
+  );
 }
 
 using variable_set = std::unordered_set<ptr<local_variable>>;
