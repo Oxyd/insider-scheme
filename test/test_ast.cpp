@@ -813,3 +813,39 @@ TEST_F(ast, call_of_variadic_procedure_with_too_few_args_is_not_inlined) {
     = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
   assert_procedure_is_called(bar_def, "foo");
 }
+
+TEST_F(ast, inlined_call_of_mutative_procedure_across_modules_boxes_argument) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export foo)
+
+      (define foo
+        (lambda (x)
+          (set! x (* 2 x))))
+    )"
+  );
+
+  expression e = analyse_module(R"(
+    (import (insider internal) (foo))
+
+    (foo 2)
+  )");
+
+  auto let = expect<let_expression>(e);
+  ASSERT_EQ(let->definitions().size(), 1);
+  auto init
+    = expect<application_expression>(let->definitions().front().expression());
+  EXPECT_EQ(
+    expect<top_level_reference_expression>(init->target())->variable()->name(),
+    "box"
+  );
+
+  auto var = let->definitions().front().variable();
+  auto box_set
+    = expect<application_expression>(let->body()->expressions().front());
+  auto box_set_ref = expect<local_reference_expression>(box_set->arguments()[0]);
+  EXPECT_EQ(box_set_ref->variable(), var);
+}

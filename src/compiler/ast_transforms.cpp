@@ -185,14 +185,15 @@ map_definition_pairs(variable_map const& map,
 }
 
 namespace {
-  // Visitor that takes an AST and processes it for inlining in other parts of
-  // the AST. This includes creating fresh variables everywhere.
-  struct inliner {
+  // Visitor that clones the variables in a part of an AST. Inlining can cause
+  // the same subtree to appear multiple times in an AST, but in different
+  // contexts. These different contexts may require separate variables.
+  struct clone_variables_visitor {
     context&     ctx;
     variable_map map;
 
     explicit
-    inliner(context& ctx)
+    clone_variables_visitor(context& ctx)
       : ctx{ctx}
     { }
 
@@ -256,6 +257,17 @@ namespace {
   };
 }
 
+static expression
+clone_ast(context& ctx, expression e) {
+  return transform_ast_copy(ctx, e, clone_variables_visitor{ctx});
+}
+
+template <typename T>
+static ptr<T>
+clone_ast(context& ctx, ptr<T> e) {
+  return assume<T>(clone_ast(ctx, expression{e}));
+}
+
 static std::vector<definition_pair_expression>
 make_definition_pairs_for_mandatory_args(ptr<application_expression> app,
                                          ptr<lambda_expression> lambda,
@@ -274,11 +286,8 @@ inline_nonvariadic_application(context& ctx, ptr<application_expression> app,
     = make_definition_pairs_for_mandatory_args(app, target,
                                                app->arguments().size());
 
-  return transform_ast_copy(
-    ctx,
-    make<let_expression>(ctx, std::move(dps), target->body()),
-    inliner{ctx}
-  );
+  return clone_ast(ctx,
+                   make<let_expression>(ctx, std::move(dps), target->body()));
 }
 
 static expression
@@ -308,11 +317,8 @@ inline_variadic_application(context& ctx, ptr<application_expression> app,
   dps.emplace_back(target->parameters().back(),
                    make_tail_args_expression(ctx, app, mandatory_args));
 
-  return transform_ast_copy(
-    ctx,
-    make<let_expression>(ctx, std::move(dps), target->body()),
-    inliner{ctx}
-  );
+  return clone_ast(ctx,
+                   make<let_expression>(ctx, std::move(dps), target->body()));
 }
 
 static expression
@@ -490,34 +496,52 @@ box_set_variables(context& ctx, ptr<let_expression> let) {
     return let;
 }
 
-static expression
-box_set_variables(context& ctx, ptr<lambda_expression> lambda) {
-  std::vector<expression> sets;
+static bool
+any_param_set(ptr<lambda_expression> lambda) {
+  return std::ranges::any_of(lambda->parameters(), &local_variable::is_set);
+}
+
+static std::vector<expression>
+box_lambda_parameters(context& ctx, ptr<lambda_expression> lambda) {
+  std::vector<expression> new_body;
   expression body = lambda->body();
   for (ptr<local_variable> param : lambda->parameters())
     if (param->is_set()) {
       body = box_variable_references(ctx, body, param);
-      sets.emplace_back(make<local_set_expression>(
-        ctx, param,
-        make_application(
-          ctx, "box",
-          make<local_reference_expression>(ctx, param)
+      new_body.emplace_back(
+        make<local_set_expression>(
+          ctx, param,
+          make_application(
+            ctx, "box",
+            make<local_reference_expression>(ctx, param)
+          )
         )
-      ));
+      );
     }
 
-  if (!sets.empty()) {
-    auto proper_body = assume<sequence_expression>(body);
-    std::vector<expression> body_exprs = std::move(sets);
-    body_exprs.insert(body_exprs.end(),
-                      proper_body->expressions().begin(),
-                      proper_body->expressions().end());
-    return make<lambda_expression>(
-      ctx, lambda->parameters(), lambda->has_rest(),
-      make<sequence_expression>(ctx, std::move(body_exprs)), lambda->name(),
-      lambda->free_variables()
-    );
-  } else
+  auto proper_body = assume<sequence_expression>(lambda->body());
+  new_body.insert(new_body.end(),
+                  proper_body->expressions().begin(),
+                  proper_body->expressions().end());
+
+  return new_body;
+}
+
+static expression
+box_lambda(context& ctx, ptr<lambda_expression> lambda) {
+  std::vector<expression> body_exprs = box_lambda_parameters(ctx, lambda);
+  return make<lambda_expression>(
+    ctx, lambda->parameters(), lambda->has_rest(),
+    make<sequence_expression>(ctx, std::move(body_exprs)), lambda->name(),
+    lambda->free_variables()
+  );
+}
+
+static expression
+box_set_variables(context& ctx, ptr<lambda_expression> lambda) {
+  if (any_param_set(lambda))
+    return box_lambda(ctx, clone_ast(ctx, lambda));
+  else
     return lambda;
 }
 
