@@ -9,6 +9,7 @@
 #include "runtime/internal_module.hpp"
 #include "runtime/parameter_map.hpp"
 #include "runtime/syntax.hpp"
+#include "util/integer_cast.hpp"
 #include "vm/execution_state.hpp"
 
 #include <memory>
@@ -104,7 +105,7 @@ context::intern_static(ptr<> const& x) {
   if (it == statics_cache_.end()) {
     statics_.push_back(x);
     it = statics_cache_.emplace(
-      x, static_cast<operand>(statics_.size() - 1)
+      x, to_signed<operand>(statics_.size() - 1)
     ).first;
   }
 
