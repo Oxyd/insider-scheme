@@ -3,7 +3,10 @@
 #include "compiler/ast.hpp"
 #include "context.hpp"
 
+#include <limits>
 #include <ranges>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace insider {
 
@@ -72,9 +75,7 @@ visit_variables(context& ctx, analysis_context ac, auto e) {
 
 expression
 analyse_variables(context& ctx, expression expr, analysis_context ac) {
-  traverse_postorder(expr, [&] (expression subexpr) {
-    visit([&] (auto e) { visit_variables(ctx, ac, e); }, subexpr);
-  });
+  traverse_postorder(expr, [&] (auto e) { visit_variables(ctx, ac, e); });
   return expr;
 }
 
@@ -402,9 +403,173 @@ namespace {
   };
 }
 
+namespace {
+  struct top_level_procedure_info {
+    std::unordered_set<ptr<top_level_variable>> callers;
+    std::unordered_set<ptr<top_level_variable>> callees;
+  };
+
+  using top_level_procedure_graph
+    = std::unordered_map<ptr<top_level_variable>, top_level_procedure_info>;
+}
+
+static void
+add_edge(top_level_procedure_graph& graph, ptr<top_level_variable> from,
+         ptr<top_level_variable> to) {
+  graph[from].callees.emplace(to);
+  graph[to].callers.emplace(from);
+}
+
+static void
+build_top_level_procedure_graph(top_level_procedure_graph& graph,
+                                ptr<top_level_variable> current_proc,
+                                ptr<application_expression> app) {
+  if (auto ref = match<top_level_reference_expression>(app->target()))
+    if (graph.contains(ref->variable()))
+      add_edge(graph, current_proc, ref->variable());
+}
+
+static void
+build_top_level_procedure_graph(
+  top_level_procedure_graph&,
+  ptr<top_level_variable>,
+  [[maybe_unused]] ptr<top_level_set_expression> set
+) {
+  assert(!set->is_initialisation());
+}
+
+static void
+build_top_level_procedure_graph(top_level_procedure_graph&,
+                                ptr<top_level_variable>,
+                                auto)
+{ }
+
+static auto
+top_level_procedures(ptr<sequence_expression> top_level) {
+  return
+    top_level->expressions()
+      | std::views::filter([] (expression e) {
+          return is<top_level_set_expression>(e);
+        })
+      | std::views::transform([] (expression e) {
+          return assume<top_level_set_expression>(e);
+        })
+      | std::views::filter([] (ptr<top_level_set_expression> set) {
+          return set->is_initialisation()
+                 && is<lambda_expression>(set->expression());
+        });
+}
+
+static top_level_procedure_graph
+build_top_level_procedure_graph(ptr<sequence_expression> top_level) {
+  top_level_procedure_graph graph;
+
+  for (ptr<top_level_set_expression> set : top_level_procedures(top_level))
+    graph.emplace(set->target(), top_level_procedure_info{});
+
+  for (ptr<top_level_set_expression> set : top_level_procedures(top_level))
+    traverse_postorder(
+      set->expression(),
+      [&] (auto expr) {
+        build_top_level_procedure_graph(graph, set->target(), expr);
+      }
+    );
+
+  return graph;
+}
+
+static ptr<top_level_variable>
+find_procedure_with_least_number_of_callees(
+  top_level_procedure_graph const& graph
+) {
+  std::size_t min_num_callees = std::numeric_limits<std::size_t>::max();
+  ptr<top_level_variable> result;
+
+  for (auto const& [var, info] : graph)
+    if (info.callees.size() < min_num_callees) {
+      result = var;
+      min_num_callees = info.callees.size();
+    }
+
+  return result;
+}
+
+static void
+remove_procedure(top_level_procedure_graph& graph,
+                 ptr<top_level_variable> proc) {
+  top_level_procedure_info const& info = graph[proc];
+
+  for (auto callee : info.callees)
+    graph[callee].callers.erase(proc);
+
+  for (auto caller : info.callers)
+    graph[caller].callees.erase(proc);
+
+  graph.erase(proc);
+}
+
+static std::vector<ptr<top_level_variable>>
+sort_top_level_procedure_graph(top_level_procedure_graph graph) {
+  std::vector<ptr<top_level_variable>> result;
+  while (!graph.empty()) {
+    auto proc = find_procedure_with_least_number_of_callees(graph);
+    result.push_back(proc);
+    remove_procedure(graph, proc);
+  }
+
+  return result;
+}
+
+using top_level_procedure_map
+  = std::unordered_map<ptr<top_level_variable>, expression>;
+
+static top_level_procedure_map
+build_top_level_procedure_map(ptr<sequence_expression> top_level) {
+  top_level_procedure_map result;
+  for (auto set : top_level_procedures(top_level))
+    result.emplace(set->target(), set->expression());
+  return result;
+}
+
+static expression
+inline_top_level_expression(context& ctx, expression e,
+                            top_level_procedure_map const& map) {
+  if (auto set = match<top_level_set_expression>(e))
+    if (auto mapped = map.find(set->target()); mapped != map.end())
+      return make<top_level_set_expression>(ctx, set->target(), mapped->second,
+                                            set->is_initialisation());
+  return transform_ast(ctx, e, inline_visitor{ctx});
+}
+
+static expression
+inline_top_level(context& ctx,
+                 ptr<sequence_expression> top_level,
+                 top_level_procedure_map const& map) {
+  std::vector<expression> exprs;
+  for (expression e : top_level->expressions())
+    exprs.push_back(inline_top_level_expression(ctx, e, map));
+  return make<sequence_expression>(ctx, std::move(exprs));
+}
+
+expression
+inline_top_level(context& ctx, ptr<sequence_expression> top_level) {
+  auto inlining_order
+    = sort_top_level_procedure_graph(build_top_level_procedure_graph(top_level));
+  auto procedure_map = build_top_level_procedure_map(top_level);
+
+  for (auto var : inlining_order)
+    procedure_map[var] = transform_ast(ctx, procedure_map[var],
+                                       inline_visitor{ctx});
+
+  return inline_top_level(ctx, top_level, procedure_map);
+}
+
 expression
 inline_procedures(context& ctx, expression e, analysis_context) {
-  return transform_ast(ctx, e, inline_visitor{ctx});
+  if (auto top_level = match<sequence_expression>(e))
+    return inline_top_level(ctx, top_level);
+  else
+    return transform_ast(ctx, e, inline_visitor{ctx});
 }
 
 static expression

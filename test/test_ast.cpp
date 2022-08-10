@@ -849,3 +849,20 @@ TEST_F(ast, inlined_call_of_mutative_procedure_across_modules_boxes_argument) {
   auto box_set_ref = expect<local_reference_expression>(box_set->arguments()[0]);
   EXPECT_EQ(box_set_ref->variable(), var);
 }
+
+TEST_F(ast, chain_of_top_level_procedures_is_inlined_completely) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define one (lambda () 5))
+      (define two (lambda () (one)))
+      (define three (lambda () (two)))
+    )"
+  );
+
+  auto three_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "three"));
+  assert_procedure_not_called(three_def, "two");
+  assert_procedure_not_called(three_def, "one");
+}

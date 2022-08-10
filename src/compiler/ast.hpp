@@ -599,7 +599,7 @@ traverse_postorder(expression e, F&& f) {
 
     void
     leave(expression expr) {
-      f(expr);
+      visit(f, expr);
     }
   } v{f};
 
