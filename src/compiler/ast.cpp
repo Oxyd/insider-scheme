@@ -371,18 +371,4 @@ untrack_expressions(std::vector<tracked_expression> const& v) {
   return result;
 }
 
-void
-expression_visitor::enter(expression e, dfs_stack<expression>& stack) {
-  visit([&] (auto expr) {
-          enter_expression(expr);
-          push_children(expr, stack);
-        },
-        e);
-}
-
-void
-expression_visitor::leave(expression e) {
-  visit([&] (auto expr) { leave_expression(expr); }, e);
-}
-
 } // namespace insider

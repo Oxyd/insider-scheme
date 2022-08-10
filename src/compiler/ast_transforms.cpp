@@ -729,7 +729,7 @@ box_set_variables(context& ctx, expression s, analysis_context) {
 using variable_set = std::unordered_set<ptr<local_variable>>;
 
 namespace {
-  class free_variable_visitor : public expression_visitor {
+  class free_variable_visitor {
   public:
     context& ctx;
     std::vector<variable_set> bound_vars_stack{variable_set{}};
@@ -740,16 +740,18 @@ namespace {
       : ctx{ctx}
     { }
 
-    void
-    enter_expression(ptr<lambda_expression> lambda) override {
+    bool
+    enter(ptr<lambda_expression> lambda) {
       free_vars_stack.emplace_back();
       bound_vars_stack.emplace_back();
       for (ptr<local_variable> param : lambda->parameters())
         bound_vars_stack.back().emplace(param);
+
+      return true;
     }
 
-    void
-    leave_expression(ptr<lambda_expression> lambda) override {
+    expression
+    leave(ptr<lambda_expression> lambda) {
       assert(lambda->free_variables().empty());
 
       auto inner_free = std::move(free_vars_stack.back());
@@ -764,38 +766,53 @@ namespace {
         if (!bound_vars_stack.back().contains(v))
           free_vars_stack.back().emplace(v);
       }
+
+      return lambda;
     }
 
-    void
-    enter_expression(ptr<let_expression> let) override {
+    bool
+    enter(ptr<let_expression> let) {
       for (definition_pair_expression const& dp : let->definitions())
         bound_vars_stack.back().emplace(dp.variable());
+
+      return true;
     }
 
-    void
-    leave_expression(ptr<let_expression> let) override {
+    expression
+    leave(ptr<let_expression> let) {
       for (definition_pair_expression const& dp : let->definitions())
         bound_vars_stack.back().erase(dp.variable());
+
+      return let;
     }
 
-    void
-    enter_expression(ptr<local_reference_expression> ref) override {
+    bool
+    enter(ptr<local_reference_expression> ref) {
       if (!bound_vars_stack.back().contains(ref->variable()))
         free_vars_stack.back().emplace(ref->variable());
+
+      return true;
     }
 
-    void
-    enter_expression([[maybe_unused]] ptr<local_set_expression> set) override {
+    bool
+    enter([[maybe_unused]] ptr<local_set_expression> set) {
       // Local set!s are boxed, so this shouldn't happen.
       assert(bound_vars_stack.back().contains(set->target()));
+      return true;
     }
+
+    bool
+    enter(auto) { return true; }
+
+    expression
+    leave(auto e) { return e; }
   };
 }
 
 expression
 analyse_free_variables(context& ctx, expression e, analysis_context) {
   free_variable_visitor v{ctx};
-  depth_first_search(e, v);
+  transform_ast(ctx, e, v);
 
   // Top-level can't have any free variables
   assert(v.free_vars_stack.back().empty());
