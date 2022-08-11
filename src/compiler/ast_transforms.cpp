@@ -18,7 +18,7 @@ pass_list const all_passes{
   analyse_free_variables
 };
 
-static constexpr std::size_t inline_size_limit = 500;
+static constexpr std::size_t inline_size_limit = 50;
 
 expression
 apply_passes(context& ctx, expression e, analysis_context ac,
