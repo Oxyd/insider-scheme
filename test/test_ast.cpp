@@ -866,3 +866,64 @@ TEST_F(ast, chain_of_top_level_procedures_is_inlined_completely) {
   assert_procedure_not_called(three_def, "two");
   assert_procedure_not_called(three_def, "one");
 }
+
+static expression
+ignore_lets_and_sequences(expression e) {
+  while (true) {
+    if (auto let = match<let_expression>(e)) {
+      assert(let->body()->expressions().size() == 1);
+      e = let->body()->expressions().front();
+    } else if (auto seq = match<sequence_expression>(e)) {
+      assert(seq->expressions().size() == 1);
+      e = seq->expressions().front();
+    } else
+      return e;
+  }
+}
+
+TEST_F(ast, inlined_applications_carry_debug_info) {
+  using namespace std::literals;
+
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define one (lambda () (+ 2 3)))
+      (define two (lambda () (one)))
+      (define three (lambda () (two)))
+
+      (three)
+    )",
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+
+  auto three_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "three"));
+  auto three_app
+    = expect<application_expression>(ignore_lets_and_sequences(three_def->body()));
+  EXPECT_EQ(
+    expect<top_level_reference_expression>(
+      three_app->target()
+    )->variable()->name(),
+    "+"
+  );
+
+  ASSERT_TRUE(three_app->debug_info());
+  EXPECT_EQ(three_app->debug_info()->inlined_call_chain,
+            (std::vector{"one"s, "two"s}));
+
+  auto top_level_app
+    = expect<application_expression>(
+        ignore_lets_and_sequences(expect<sequence_expression>(e)->expressions().back())
+      );
+  EXPECT_EQ(
+    expect<top_level_reference_expression>(
+      top_level_app->target()
+    )->variable()->name(),
+    "+"
+  );
+
+  ASSERT_TRUE(top_level_app->debug_info());
+  EXPECT_EQ(top_level_app->debug_info()->inlined_call_chain,
+            (std::vector{"one"s, "two"s, "three"s}));
+}

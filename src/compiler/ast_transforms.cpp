@@ -185,17 +185,33 @@ map_definition_pairs(variable_map const& map,
   return result;
 }
 
+static debug_info&
+ensure_debug_info(ptr<application_expression> app) {
+  if (!app->debug_info())
+    app->debug_info().emplace();
+  return *app->debug_info();
+}
+
+static void
+append_procedure_name_to_debug_info(ptr<application_expression> app,
+                                    std::string name) {
+  ensure_debug_info(app).inlined_call_chain.emplace_back(std::move(name));
+}
+
 namespace {
   // Visitor that clones the variables in a part of an AST. Inlining can cause
   // the same subtree to appear multiple times in an AST, but in different
   // contexts. These different contexts may require separate variables.
   struct clone_variables_visitor {
-    context&     ctx;
-    variable_map map;
+    context&                   ctx;
+    variable_map               map;
+    std::optional<std::string> procedure_name_to_append;
 
     explicit
-    clone_variables_visitor(context& ctx)
+    clone_variables_visitor(context& ctx,
+                            std::optional<std::string> procedure_name_to_append)
       : ctx{ctx}
+      , procedure_name_to_append{std::move(procedure_name_to_append)}
     { }
 
     void
@@ -254,19 +270,33 @@ namespace {
     }
 
     expression
+    leave(ptr<application_expression> app) {
+      if (procedure_name_to_append)
+        append_procedure_name_to_debug_info(app, *procedure_name_to_append);
+      return app;
+    }
+
+    expression
     leave(auto e) { return e; }
   };
 }
 
 static expression
-clone_ast(context& ctx, expression e) {
-  return transform_ast_copy(ctx, e, clone_variables_visitor{ctx});
+clone_ast(context& ctx, expression e,
+          std::optional<std::string> procedure_name_to_append = {}) {
+  return transform_ast_copy(
+    ctx, e,
+    clone_variables_visitor{ctx,
+                            std::move(procedure_name_to_append)}
+  );
 }
 
 template <typename T>
 static ptr<T>
-clone_ast(context& ctx, ptr<T> e) {
-  return assume<T>(clone_ast(ctx, expression{e}));
+clone_ast(context& ctx, ptr<T> e,
+          std::optional<std::string> procedure_name_to_append = {}) {
+  return assume<T>(clone_ast(ctx, expression{e},
+                             std::move(procedure_name_to_append)));
 }
 
 static std::vector<definition_pair_expression>
@@ -288,7 +318,8 @@ inline_nonvariadic_application(context& ctx, ptr<application_expression> app,
                                                app->arguments().size());
 
   return clone_ast(ctx,
-                   make<let_expression>(ctx, std::move(dps), target->body()));
+                   make<let_expression>(ctx, std::move(dps), target->body()),
+                   target->name());
 }
 
 static expression
@@ -319,7 +350,8 @@ inline_variadic_application(context& ctx, ptr<application_expression> app,
                    make_tail_args_expression(ctx, app, mandatory_args));
 
   return clone_ast(ctx,
-                   make<let_expression>(ctx, std::move(dps), target->body()));
+                   make<let_expression>(ctx, std::move(dps), target->body()),
+                   target->name());
 }
 
 static expression

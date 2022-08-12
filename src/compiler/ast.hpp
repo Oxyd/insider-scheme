@@ -1,6 +1,7 @@
 #ifndef INSIDER_COMPILER_AST_HPP
 #define INSIDER_COMPILER_AST_HPP
 
+#include "compiler/debug_info.hpp"
 #include "compiler/expression.hpp"
 #include "compiler/module_name.hpp"
 #include "compiler/source_file_origin.hpp"
@@ -171,6 +172,9 @@ public:
   std::vector<expression> const&
   arguments() const { return arguments_; }
 
+  std::optional<insider::debug_info>&
+  debug_info() { return debug_info_; }
+
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
@@ -189,9 +193,10 @@ public:
   size_estimate() const { return size_estimate_; }
 
 private:
-  expression              target_;
-  std::vector<expression> arguments_;
-  std::size_t             size_estimate_ = 0;
+  expression                         target_;
+  std::vector<expression>            arguments_;
+  std::size_t                        size_estimate_ = 0;
+  std::optional<insider::debug_info> debug_info_;
 
   void
   update_size_estimate();
