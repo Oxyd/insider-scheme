@@ -879,3 +879,38 @@ TEST_F(interpreter, uncaught_exception_generates_backtrace) {
 
   FAIL();
 }
+
+static void
+check_stacktrace(context& ctx) {
+  auto trace = stacktrace(ctx);
+  ASSERT_EQ(trace.size(), 4);
+
+  EXPECT_EQ(trace[0].name, "check-stacktrace!");
+  EXPECT_EQ(trace[0].kind, stacktrace_record::kind::native);
+
+  EXPECT_EQ(trace[1].name, "one");
+  EXPECT_EQ(trace[1].kind, stacktrace_record::kind::scheme);
+
+  EXPECT_EQ(trace[2].name, "two");
+  EXPECT_EQ(trace[2].kind, stacktrace_record::kind::scheme);
+
+  EXPECT_EQ(trace[3].name, "three");
+  EXPECT_EQ(trace[3].kind, stacktrace_record::kind::scheme);
+}
+
+TEST_F(interpreter, stack_trace_includes_all_procedures) {
+  define_procedure<check_stacktrace>(ctx, "check-stacktrace!",
+                                     ctx.internal_module());
+
+  eval_module(
+    R"(
+      (import (insider internal))
+
+      (define one (lambda () (check-stacktrace!) #void))
+      (define two (lambda () (one) #void))
+      (define three (lambda () (two) #void))
+      (three)
+    )",
+    no_optimisations
+  );
+}

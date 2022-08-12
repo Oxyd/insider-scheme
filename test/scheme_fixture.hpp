@@ -49,11 +49,13 @@ struct scheme_fixture : testing::Test {
   }
 
   insider::ptr<>
-  eval_module(std::string const& expr) {
+  eval_module(std::string const& expr,
+              insider::pass_list passes = insider::all_passes) {
     insider::null_source_code_provider provider;
     insider::tracked_ptr<insider::module_> m = compile_module(
       ctx, read_syntax_multiple(ctx, expr),
-      {&provider, "<unit test main module>"}
+      {&provider, "<unit test main module>"},
+      std::move(passes)
     );
     return execute(ctx, m).get();
   }

@@ -14,6 +14,7 @@ using pass = expression (*)(context&, expression, analysis_context);
 using pass_list = std::vector<pass>;
 
 extern pass_list const all_passes;
+extern pass_list const no_optimisations;
 
 expression
 apply_passes(context&, expression, analysis_context, pass_list const&);

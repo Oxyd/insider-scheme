@@ -998,23 +998,25 @@ compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
 
 tracked_ptr<module_>
 compile_module(context& ctx, std::vector<ptr<syntax>> const& data,
-               source_file_origin const& origin, bool main_module) {
+               source_file_origin const& origin, pass_list passes,
+               bool main_module) {
   module_specifier pm = read_module(ctx, data, origin);
   auto result = make_tracked<module_>(ctx, ctx, pm.name);
   perform_imports(ctx, result, pm.imports);
-  compile_module_body(ctx, result, pm, main_module);
+  compile_module_body(ctx, result, pm, std::move(passes), main_module);
   return result;
 }
 
 tracked_ptr<module_>
 compile_module(context& ctx, std::filesystem::path const& path,
-               bool main_module) {
+               pass_list passes, bool main_module) {
   filesystem_source_code_provider provider{"."};
   if (auto file = provider.find_file(ctx, path))
     return compile_module(ctx,
                           insider::read_syntax_multiple(ctx,
                                                         file->port.get().get()),
                           file->origin,
+                          std::move(passes),
                           main_module);
   else
     throw std::runtime_error{fmt::format("Can't open input file {}",
@@ -1023,8 +1025,9 @@ compile_module(context& ctx, std::filesystem::path const& path,
 
 void
 compile_module_body(context& ctx, tracked_ptr<module_> const& m,
-                    module_specifier const& pm, bool main_module) {
-  auto body_expr = analyse_module(ctx, m, pm, all_passes, main_module);
+                    module_specifier const& pm, pass_list passes,
+                    bool main_module) {
+  auto body_expr = analyse_module(ctx, m, pm, std::move(passes), main_module);
 
   procedure_context proc{nullptr, m};
   result_location result;

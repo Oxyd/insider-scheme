@@ -90,6 +90,16 @@ eval(context& ctx, tracked_ptr<module_> const&, ptr<syntax>);
 tracked_ptr<>
 eval(context& ctx, tracked_ptr<module_> const&, std::string const& expr);
 
+struct stacktrace_record {
+  enum class kind { scheme, native };
+
+  std::string name;
+  kind        kind;
+};
+
+std::vector<stacktrace_record>
+stacktrace(context&);
+
 } // namespace insider
 
 #endif

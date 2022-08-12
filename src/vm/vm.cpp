@@ -58,6 +58,32 @@ is_native_frame(frame_reference frame) {
   return is_dummy_frame(frame) || is<native_procedure>(frame.callable());
 }
 
+static std::vector<stacktrace_record>
+stacktrace(execution_state& state) {
+  std::vector<stacktrace_record> result;
+
+  for (call_stack_iterator it{state.stack}; it != call_stack_iterator{}; ++it) {
+    ptr<> proc = state.stack->callable(*it);
+
+    if (auto cls = match<closure>(proc))
+      proc = cls->procedure();
+
+    if (auto np = match<native_procedure>(proc))
+      result.push_back({np->name, stacktrace_record::kind::native});
+    else
+      result.push_back({assume<procedure>(proc)->name,
+                        stacktrace_record::kind::scheme});
+  }
+
+  return result;
+}
+
+std::vector<stacktrace_record>
+stacktrace(context& ctx) {
+  assert(ctx.current_execution);
+  return stacktrace(*ctx.current_execution);
+}
+
 namespace {
   class execution_action : public action<execution_action> {
   public:
@@ -71,16 +97,18 @@ namespace {
     std::string
     format() const {
       std::string result;
-
       bool first = true;
-      for (call_stack_iterator it{state_.stack};
-           it != call_stack_iterator{};
-           ++it) {
+
+      for (auto const& [name, kind] : stacktrace(state_)) {
         if (!first)
           result += '\n';
 
-        ptr<> proc = state_.stack->callable(*it);
-        result += format_callable(proc);
+        result += fmt::format(
+          "in {}{}",
+          kind == stacktrace_record::kind::native ? "native procedure " : "",
+          name
+        );
+
         first = false;
       }
 
@@ -89,21 +117,6 @@ namespace {
 
   private:
     execution_state& state_;
-
-    static std::string
-    format_callable(ptr<> proc)  {
-      if (auto cls = match<closure>(proc))
-        proc = cls->procedure();
-
-      if (auto scheme_proc = match<procedure>(proc)) {
-        auto name = scheme_proc->name;
-        return fmt::format("in {}", name);
-      } else {
-        assert(is<native_procedure>(proc));
-        return fmt::format("in native procedure {}",
-                           assume<native_procedure>(proc)->name);
-      }
-    }
   };
 }
 

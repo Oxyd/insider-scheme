@@ -32,15 +32,19 @@ compile_syntax(context&, expression, tracked_ptr<module_> const&);
 // create the module.
 tracked_ptr<module_>
 compile_module(context&, std::vector<ptr<syntax>> const& data,
-               source_file_origin const&, bool main_module = false);
+               source_file_origin const&,
+               pass_list passes = all_passes,
+               bool main_module = false);
 
 tracked_ptr<module_>
-compile_module(context&, std::filesystem::path const&, bool main_module = false);
+compile_module(context&, std::filesystem::path const&,
+               pass_list passes = all_passes, bool main_module = false);
 
 // Translate a module's body.
 void
 compile_module_body(context&, tracked_ptr<module_> const&,
-                    module_specifier const&, bool main_module = false);
+                    module_specifier const&, pass_list passes = all_passes,
+                    bool main_module = false);
 
 } // namespace insider
 

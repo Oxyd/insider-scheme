@@ -18,6 +18,12 @@ pass_list const all_passes{
   analyse_free_variables
 };
 
+pass_list const no_optimisations{
+  analyse_variables,
+  box_set_variables,
+  analyse_free_variables
+};
+
 static constexpr std::size_t inline_size_limit = 50;
 
 expression
