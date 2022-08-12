@@ -23,8 +23,7 @@ namespace {
       {std::get<0>(instructions[Is]),
        instruction_info{std::get<0>(instructions[Is]),
                         std::get<1>(instructions[Is]),
-                        std::get<2>(instructions[Is]),
-                        std::get<3>(instructions[Is])}}...
+                        std::get<2>(instructions[Is])}}...
     };
   }
 
@@ -58,21 +57,11 @@ encode(bytecode& bc, operand op) {
 void
 encode_instruction(bytecode& bc, instruction const& instr) {
   instruction_info info = opcode_to_info(instr.opcode);
-  assert(info.extra_operands || instr.operands.size() == info.num_operands);
-  assert(!info.extra_operands || instr.operands.size() >= info.num_operands);
+  assert(instr.operands.size() == info.num_operands);
 
   encode(bc, instr.opcode);
   for (std::size_t i = 0; i < info.num_operands; ++i)
     encode(bc, instr.operands[i]);
-
-  if (info.extra_operands) {
-    encode(
-      bc,
-      static_cast<insider::operand>(instr.operands.size() - info.num_operands)
-    );
-    for (std::size_t i = info.num_operands; i < instr.operands.size(); ++i)
-      encode(bc, instr.operands[i]);
-  }
 }
 
 instruction
@@ -82,13 +71,6 @@ read_instruction(bytecode const& bc, integer::value_type& pc) {
 
   for (std::size_t i = 0; i < info.num_operands; ++i)
     result.operands.push_back(read_operand(bc, pc));
-
-  if (info.extra_operands) {
-    std::size_t num_extra = read_operand(bc, pc);
-
-    for (std::size_t i = 0; i < num_extra; ++i)
-      result.operands.push_back(read_operand(bc, pc));
-  }
 
   return result;
 }

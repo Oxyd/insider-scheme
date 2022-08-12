@@ -69,16 +69,14 @@ struct instruction_info {
   std::string     mnemonic;
   insider::opcode opcode{};
   std::size_t     num_operands{};
-  bool            extra_operands{};
 
   instruction_info() = default;
 
   instruction_info(std::string_view mnemonic, insider::opcode opcode,
-                   std::size_t num_operands, bool extra_operands = false)
+                   std::size_t num_operands)
     : mnemonic{mnemonic}
     , opcode{opcode}
     , num_operands{num_operands}
-    , extra_operands{extra_operands}
   { }
 };
 
@@ -87,7 +85,7 @@ struct instruction_info {
 // (for reading binary bytecode).
 
 namespace detail {
-  using info_tuple = std::tuple<char const*, opcode, std::size_t, bool>;
+  using info_tuple = std::tuple<char const*, opcode, std::size_t>;
 
   template <std::size_t N, std::size_t... Is>
   constexpr auto
@@ -97,8 +95,7 @@ namespace detail {
     ((result[static_cast<std::size_t>(std::get<1>(instructions[Is]))]
       = instruction_info{std::get<0>(instructions[Is]),
                          std::get<1>(instructions[Is]),
-                         std::get<2>(instructions[Is]),
-                         std::get<3>(instructions[Is])}), ...);
+                         std::get<2>(instructions[Is])}), ...);
     return result;
   }
 
@@ -114,85 +111,85 @@ namespace detail {
 constexpr std::array
 instructions{
   std::tuple{"no-operation",
-             opcode::no_operation,        std::size_t{0}, false},
+             opcode::no_operation,        std::size_t{0}},
   std::tuple{"load-static",
-             opcode::load_static,         std::size_t{2}, false},
+             opcode::load_static,         std::size_t{2}},
   std::tuple{"load-top-level",
-            opcode::load_top_level,       std::size_t{2}, false},
+            opcode::load_top_level,       std::size_t{2}},
   std::tuple{"store-top-level",
-             opcode::store_top_level,     std::size_t{2}, false},
+             opcode::store_top_level,     std::size_t{2}},
   std::tuple{"load-dynamic-top-level",
-             opcode::load_dynamic_top_level, std::size_t{2}, false},
+             opcode::load_dynamic_top_level, std::size_t{2}},
   std::tuple{"add",
-             opcode::add,                 std::size_t{3}, false},
+             opcode::add,                 std::size_t{3}},
   std::tuple{"subtract",
-             opcode::subtract,            std::size_t{3}, false},
+             opcode::subtract,            std::size_t{3}},
   std::tuple{"multiply",
-             opcode::multiply,            std::size_t{3}, false},
+             opcode::multiply,            std::size_t{3}},
   std::tuple{"divide",
-             opcode::divide,              std::size_t{3}, false},
+             opcode::divide,              std::size_t{3}},
   std::tuple{"arith-equal",
-             opcode::arith_equal,         std::size_t{3}, false},
+             opcode::arith_equal,         std::size_t{3}},
   std::tuple{"less",
-             opcode::less,                std::size_t{3}, false},
+             opcode::less,                std::size_t{3}},
   std::tuple{"greater",
-             opcode::greater,             std::size_t{3}, false},
+             opcode::greater,             std::size_t{3}},
   std::tuple{"less-or-equal",
-             opcode::less_or_equal,       std::size_t{3}, false},
+             opcode::less_or_equal,       std::size_t{3}},
   std::tuple{"greater-or-equal",
-             opcode::greater_or_equal,    std::size_t{3}, false},
+             opcode::greater_or_equal,    std::size_t{3}},
   std::tuple{"set!",
-             opcode::set,                 std::size_t{2}, false},
+             opcode::set,                 std::size_t{2}},
   std::tuple{"push",
-             opcode::push,                std::size_t{1}, false},
+             opcode::push,                std::size_t{1}},
   std::tuple{"pop",
-             opcode::pop,                 std::size_t{1}, false},
+             opcode::pop,                 std::size_t{1}},
   std::tuple{"call",
-             opcode::call,                std::size_t{2}, false},
+             opcode::call,                std::size_t{2}},
   std::tuple{"call-top-level",
-             opcode::call_top_level,      std::size_t{2}, false},
+             opcode::call_top_level,      std::size_t{2}},
   std::tuple{"call-static",
-             opcode::call_static,         std::size_t{2}, false},
+             opcode::call_static,         std::size_t{2}},
   std::tuple{"tail-call",
-             opcode::tail_call,           std::size_t{2}, false},
+             opcode::tail_call,           std::size_t{2}},
   std::tuple{"tail-call-top-level",
-             opcode::tail_call_top_level, std::size_t{2}, false},
+             opcode::tail_call_top_level, std::size_t{2}},
   std::tuple{"tail-call-static",
-             opcode::tail_call_static,    std::size_t{2}, false},
+             opcode::tail_call_static,    std::size_t{2}},
   std::tuple{"ret",
-             opcode::ret,                 std::size_t{1}, false},
+             opcode::ret,                 std::size_t{1}},
   std::tuple{"jump",
-             opcode::jump,                std::size_t{1}, false},
+             opcode::jump,                std::size_t{1}},
   std::tuple{"jump-back",
-             opcode::jump_back,           std::size_t{1}, false},
+             opcode::jump_back,           std::size_t{1}},
   std::tuple{"jump-unless",
-             opcode::jump_unless,         std::size_t{2}, false},
+             opcode::jump_unless,         std::size_t{2}},
   std::tuple{"jump-back-unless",
-             opcode::jump_back_unless,    std::size_t{2}, false},
+             opcode::jump_back_unless,    std::size_t{2}},
   std::tuple{"make-closure",
-             opcode::make_closure,        std::size_t{3}, false},
+             opcode::make_closure,        std::size_t{3}},
   std::tuple{"box",
-             opcode::box,                 std::size_t{2}, false},
+             opcode::box,                 std::size_t{2}},
   std::tuple{"unbox",
-             opcode::unbox,               std::size_t{2}, false},
+             opcode::unbox,               std::size_t{2}},
   std::tuple{"box-set!",
-             opcode::box_set,             std::size_t{2}, false},
+             opcode::box_set,             std::size_t{2}},
   std::tuple{"cons",
-             opcode::cons,                std::size_t{3}, false},
+             opcode::cons,                std::size_t{3}},
   std::tuple{"car",
-             opcode::car,                 std::size_t{2}, false},
+             opcode::car,                 std::size_t{2}},
   std::tuple{"cdr",
-             opcode::cdr,                 std::size_t{2}, false},
+             opcode::cdr,                 std::size_t{2}},
   std::tuple{"make-vector",
-             opcode::make_vector,         std::size_t{2}, false},
+             opcode::make_vector,         std::size_t{2}},
   std::tuple{"vector-set!",
-             opcode::vector_set,          std::size_t{3}, false},
+             opcode::vector_set,          std::size_t{3}},
   std::tuple{"vector-ref",
-             opcode::vector_ref,          std::size_t{3}, false},
+             opcode::vector_ref,          std::size_t{3}},
   std::tuple{"type",
-             opcode::type,                std::size_t{2}, false},
+             opcode::type,                std::size_t{2}},
   std::tuple{"eq?",
-             opcode::eq,                  std::size_t{3}, false}
+             opcode::eq,                  std::size_t{3}}
 };
 
 inline auto const // std::array<instruction_info, N>
