@@ -280,11 +280,13 @@ top_level_set_expression::update_size_estimate() {
   size_estimate_ = 1 + insider::size_estimate(expression_);
 }
 
-lambda_expression::lambda_expression(std::vector<ptr<local_variable>> parameters,
-                                     bool has_rest,
-                                     ptr<sequence_expression> body,
-                                     std::optional<std::string> name,
-                                     std::vector<ptr<local_variable>> free_variables)
+lambda_expression::lambda_expression(
+  std::vector<ptr<local_variable>> parameters,
+  bool has_rest,
+  ptr<sequence_expression> body,
+  std::string name,
+  std::vector<ptr<local_variable>> free_variables
+)
   : parameters_{std::move(parameters)}
   , has_rest_{has_rest}
   , body_{body}

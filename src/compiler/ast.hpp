@@ -388,7 +388,7 @@ public:
   lambda_expression(std::vector<ptr<local_variable>> parameters,
                     bool has_rest,
                     ptr<sequence_expression> body,
-                    std::optional<std::string> name,
+                    std::string name,
                     std::vector<ptr<local_variable>> free_variables);
 
   std::vector<ptr<local_variable>> const&
@@ -400,7 +400,7 @@ public:
   ptr<sequence_expression>
   body() { return body_; }
 
-  std::optional<std::string> const&
+  std::string const&
   name() const { return name_; }
 
   void
@@ -433,7 +433,7 @@ private:
   std::vector<ptr<local_variable>> parameters_;
   bool                             has_rest_;
   ptr<sequence_expression>         body_;
-  std::optional<std::string>       name_;
+  std::string                      name_;
   std::vector<ptr<local_variable>> free_variables_;
   std::size_t                      size_estimate_ = 0;
 };
