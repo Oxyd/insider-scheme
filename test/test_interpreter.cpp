@@ -16,6 +16,13 @@ make_static(context& ctx, Args&&... args) {
     return ctx.intern_static(make<T>(ctx, std::forward<Args>(args)...));
 }
 
+static ptr<procedure>
+make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
+               unsigned min_args, bool has_rest = false) {
+  return make_procedure(ctx, bc, locals_size, min_args, has_rest,
+                        "<test procedure>");
+}
+
 static operand
 make_static_procedure(context& ctx, bytecode const& bc,
                       unsigned locals_size, unsigned min_args) {

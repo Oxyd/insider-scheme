@@ -27,7 +27,7 @@ struct call_stack_fixture : scheme_fixture {
 
   ptr<procedure>
   make_dummy_procedure() {
-    return make<procedure>(ctx, 0, 0, 0, 0);
+    return make<procedure>(ctx, 0, 0, 0, 0, false, "<dummy>");
   }
 };
 

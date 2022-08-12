@@ -106,12 +106,9 @@ procedure_bytecode(context& ctx, ptr<procedure> f) {
   );
 }
 
-static ptr<>
-procedure_name(context& ctx, ptr<procedure> f) {
-  if (f->name)
-    return make<string>(ctx, *f->name);
-  else
-    return ctx.constants->f;
+static std::string
+procedure_name(ptr<procedure> f) {
+  return f->name;
 }
 
 static integer

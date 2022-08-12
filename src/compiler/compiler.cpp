@@ -663,7 +663,7 @@ compile_expression(context& ctx, procedure_context& proc,
 static ptr<procedure>
 make_procedure(context& ctx, procedure_context const& pc,
                unsigned min_args,
-               bool has_rest, std::optional<std::string> name) {
+               bool has_rest, std::string name) {
   return make_procedure(ctx, pc.bytecode_stack.back(),
                         pc.registers.locals_used(),
                         min_args, has_rest, std::move(name));
@@ -993,7 +993,7 @@ compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
                        instruction{opcode::ret, *result});
 
   assert(proc.bytecode_stack.size() == 1);
-  return make_procedure(ctx, proc, 0, false, std::nullopt);
+  return make_procedure(ctx, proc, 0, false, "<expression>");
 }
 
 tracked_ptr<module_>
@@ -1034,8 +1034,14 @@ compile_module_body(context& ctx, tracked_ptr<module_> const& m,
                        instruction{opcode::ret, *result.get(proc)});
 
   assert(proc.bytecode_stack.size() == 1);
-  m->set_top_level_procedure(ctx.store,
-                             make_procedure(ctx, proc, 0, false, std::nullopt));
+  m->set_top_level_procedure(
+    ctx.store,
+    make_procedure(ctx, proc, 0, false,
+                   fmt::format("<module {} top-level>",
+                               pm.name
+                                 ? module_name_to_string(*pm.name)
+                                 : "<unknown>"))
+  );
 }
 
 } // namespace insider

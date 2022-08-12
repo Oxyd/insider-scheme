@@ -376,22 +376,22 @@ class procedure : public leaf_object<procedure> {
 public:
   static constexpr char const* scheme_name = "insider::procedure";
 
-  integer::value_type        entry_pc;
-  std::size_t                bytecode_size;
-  unsigned                   locals_size;
-  unsigned                   min_args;
-  bool                       has_rest;
-  std::optional<std::string> name;
+  integer::value_type entry_pc;
+  std::size_t         bytecode_size;
+  unsigned            locals_size;
+  unsigned            min_args;
+  bool                has_rest;
+  std::string         name;
 
   procedure(integer::value_type entry_pc, std::size_t bytecode_size,
-            unsigned locals_size, unsigned min_args, bool has_rest = false,
-            std::optional<std::string> name = {});
+            unsigned locals_size, unsigned min_args, bool has_rest,
+            std::string name);
 };
 
 ptr<procedure>
 make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
-               unsigned min_args = 0, bool has_rest = false,
-               std::optional<std::string> name = {});
+               unsigned min_args, bool has_rest,
+               std::string name);
 
 // A procedure plus a list of captured objects.
 class closure : public dynamic_size_object<closure, ptr<>> {

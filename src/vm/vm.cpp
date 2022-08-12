@@ -97,7 +97,7 @@ namespace {
 
       if (auto scheme_proc = match<procedure>(proc)) {
         auto name = scheme_proc->name;
-        return fmt::format("in {}", name ? *name : "<lambda>");
+        return fmt::format("in {}", name);
       } else {
         assert(is<native_procedure>(proc));
         return fmt::format("in native procedure {}",
@@ -116,7 +116,7 @@ throw_if_wrong_number_of_args(ptr<> callable, std::size_t num_args) {
     if (num_args < proc->min_args
         || (!proc->has_rest && num_args > proc->min_args))
       throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
-                       proc->name ? *proc->name : "<lambda>",
+                       proc->name,
                        proc->has_rest ? "at least " : "",
                        proc->min_args, num_args);
   }
