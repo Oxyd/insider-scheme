@@ -272,9 +272,9 @@ procedure::procedure(integer::value_type entry_pc, std::size_t bytecode_size,
 { }
 
 ptr<procedure>
-make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
-               unsigned min_args, bool has_rest,
-               std::string name) {
+make_procedure_from_bytecode(context& ctx, bytecode const& bc,
+                             unsigned locals_size, unsigned min_args,
+                             bool has_rest, std::string name) {
   std::size_t entry = ctx.program.size();
   ctx.program.insert(ctx.program.end(), bc.begin(), bc.end());
   return make<procedure>(ctx, entry, bc.size(), locals_size, min_args, has_rest,

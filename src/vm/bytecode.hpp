@@ -229,7 +229,7 @@ struct instruction {
 
 using bytecode = std::vector<std::uint16_t>;
 
-void
+std::size_t
 encode_instruction(bytecode&, instruction const&);
 
 inline opcode

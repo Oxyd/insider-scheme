@@ -54,14 +54,18 @@ encode(bytecode& bc, operand op) {
   bc.push_back(op);
 }
 
-void
+std::size_t
 encode_instruction(bytecode& bc, instruction const& instr) {
   instruction_info info = opcode_to_info(instr.opcode);
   assert(instr.operands.size() == info.num_operands);
 
+  std::size_t index = bc.size();
+
   encode(bc, instr.opcode);
   for (std::size_t i = 0; i < info.num_operands; ++i)
     encode(bc, instr.operands[i]);
+
+  return index;
 }
 
 instruction

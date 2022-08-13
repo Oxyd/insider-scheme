@@ -1,6 +1,7 @@
 #ifndef INSIDER_CONTEXT_HPP
 #define INSIDER_CONTEXT_HPP
 
+#include "compiler/debug_info.hpp"
 #include "compiler/scope.hpp"
 #include "memory/free_store.hpp"
 #include "module_resolver.hpp"
@@ -99,6 +100,7 @@ public:
   // Built from actions during stack unwinding.
   std::string                      error_backtrace;
   bytecode                         program;
+  debug_info_map                   program_debug_info;
   std::unique_ptr<execution_state> current_execution;
   ptr<parameter_map>               parameters;
 

@@ -19,8 +19,8 @@ make_static(context& ctx, Args&&... args) {
 static ptr<procedure>
 make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
                unsigned min_args, bool has_rest = false) {
-  return make_procedure(ctx, bc, locals_size, min_args, has_rest,
-                        "<test procedure>");
+  return make_procedure_from_bytecode(ctx, bc, locals_size, min_args, has_rest,
+                                      "<test procedure>");
 }
 
 static operand

@@ -389,7 +389,7 @@ public:
 };
 
 ptr<procedure>
-make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
+make_procedure_from_bytecode(context& ctx, bytecode const& bc, unsigned locals_size,
                unsigned min_args, bool has_rest,
                std::string name);
 

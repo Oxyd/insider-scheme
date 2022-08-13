@@ -58,23 +58,55 @@ is_native_frame(frame_reference frame) {
   return is_dummy_frame(frame) || is<native_procedure>(frame.callable());
 }
 
+static std::size_t
+find_index_of_call_instruction(frame_reference frame) {
+  assert(opcode_to_info(opcode::call).num_operands == 2);
+  assert(opcode_to_info(opcode::call_top_level).num_operands == 2);
+  assert(opcode_to_info(opcode::call_static).num_operands == 2);
+  assert(opcode_to_info(opcode::tail_call).num_operands == 2);
+  assert(opcode_to_info(opcode::tail_call_top_level).num_operands == 2);
+  assert(opcode_to_info(opcode::tail_call_static).num_operands == 2);
+  static constexpr std::size_t call_instruction_size = 3;
+  return frame.previous_pc() - call_instruction_size;
+}
+
+static std::vector<std::string>
+find_inlined_procedures(context& ctx, frame_reference frame) {
+  std::size_t call_idx = find_index_of_call_instruction(frame);
+  if (auto di = ctx.program_debug_info.find(call_idx);
+      di != ctx.program_debug_info.end())
+    return di->second.inlined_call_chain;
+  else
+    return {};
+}
+
+static void
+append_frame_to_stacktrace(context& ctx,
+                           std::vector<stacktrace_record>& trace,
+                           frame_reference frame) {
+  ptr<> proc = frame.callable();
+
+  if (auto cls = match<closure>(proc))
+    proc = cls->procedure();
+
+  if (auto np = match<native_procedure>(proc))
+    trace.push_back({np->name, stacktrace_record::kind::native});
+  else
+    trace.push_back({assume<procedure>(proc)->name,
+        stacktrace_record::kind::scheme});
+
+  auto inlined = find_inlined_procedures(ctx, frame);
+  for (std::string const& inlined_proc : inlined)
+    trace.push_back({inlined_proc, stacktrace_record::kind::scheme});
+
+}
+
 static std::vector<stacktrace_record>
 stacktrace(execution_state& state) {
   std::vector<stacktrace_record> result;
-
-  for (call_stack_iterator it{state.stack}; it != call_stack_iterator{}; ++it) {
-    ptr<> proc = state.stack->callable(*it);
-
-    if (auto cls = match<closure>(proc))
-      proc = cls->procedure();
-
-    if (auto np = match<native_procedure>(proc))
-      result.push_back({np->name, stacktrace_record::kind::native});
-    else
-      result.push_back({assume<procedure>(proc)->name,
-                        stacktrace_record::kind::scheme});
-  }
-
+  for (call_stack_iterator it{state.stack}; it != call_stack_iterator{}; ++it)
+    append_frame_to_stacktrace(state.ctx, result,
+                               frame_reference{state.stack, *it});
   return result;
 }
 
