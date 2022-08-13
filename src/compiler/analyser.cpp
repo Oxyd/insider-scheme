@@ -14,6 +14,7 @@
 #include "runtime/string.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
+#include "util/define_procedure.hpp"
 #include "util/list_iterator.hpp"
 #include "vm/vm.hpp"
 
@@ -530,6 +531,32 @@ analyse_module(context& ctx, tracked_ptr<module_> const& m,
   return analyse_top_level_expressions(pc, m, analysis_context::closed, pm.body);
 }
 
+static expression
+analyse_proc(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
+  ptr<syntax> stx = datum_to_syntax(ctx, {}, expr);
+  insider::null_source_code_provider provider;
+  return analyse(ctx, stx, m, all_passes, {&provider, "<eval expression>"});
+}
+
+static std::vector<ptr<syntax>>
+data_to_syntaxes(context& ctx, std::vector<ptr<>> const& data) {
+  std::vector<ptr<syntax>> result;
+  result.reserve(data.size());
+  for (ptr<> datum : data)
+    result.push_back(datum_to_syntax(ctx, {}, datum));
+  return result;
+}
+
+static expression
+analyse_module_proc(context& ctx, std::vector<ptr<>> const& data) {
+  insider::null_source_code_provider provider;
+  auto ms = read_module(ctx, data_to_syntaxes(ctx, data),
+                        {&provider, "<eval expression>"});
+  auto dummy_mod = make_tracked<module_>(ctx, ctx, ms.name);
+  perform_imports(ctx, dummy_mod, ms.imports);
+  return analyse_module(ctx, dummy_mod, ms, all_passes);
+}
+
 void
 export_analyser(context& ctx, ptr<module_> result) {
   ctx.constants->current_source_file_origin_tag
@@ -545,6 +572,9 @@ export_analyser(context& ctx, ptr<module_> result) {
                    ctx.constants->is_main_module_tag);
   define_top_level(ctx, "current-expand-module-tag", result, true,
                    ctx.constants->current_expand_module_tag);
+
+  define_procedure<analyse_proc>(ctx, "analyse", result);
+  define_procedure<analyse_module_proc>(ctx, "analyse-module", result);
 }
 
 } // namespace insider
