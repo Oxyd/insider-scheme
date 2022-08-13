@@ -121,6 +121,7 @@ set(scheme_sources
         src/runtime/syntax.hpp
         src/runtime/time.cpp
         src/util/define_procedure.hpp
+        src/util/define_struct.hpp
         src/util/depth_first_search.hpp
         src/util/from_scheme.hpp
         src/util/integer_cast.hpp
@@ -149,6 +150,7 @@ set(test_sources
         test/test_compiler.cpp
         test/test_control.cpp
         test/test_define_procedure.cpp
+        test/test_define_struct.cpp
         test/test_depth_first_search.cpp
         test/test_gc.cpp
         test/test_interpreter.cpp
