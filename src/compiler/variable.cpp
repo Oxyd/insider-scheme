@@ -38,7 +38,7 @@ export_variable(context& ctx, ptr<module_> result) {
     .field<&local_variable_constant_initialiser>("constant-initialiser")
     ;
 
-  define_struct<local_variable>(ctx, "top-level-variable", result)
+  define_struct<top_level_variable>(ctx, "top-level-variable", result)
     .field<&top_level_variable::name>("name")
     .field<&top_level_variable::is_set>("set?")
     .field<&top_level_variable_constant_initialiser>("constant-initialiser")
