@@ -424,25 +424,26 @@ private:
 };
 
 // Like procedure, but when invoked, it calls a C++ function.
-struct native_procedure : public leaf_object<native_procedure> {
+class native_procedure : public leaf_object<native_procedure> {
+public:
   static constexpr char const* scheme_name = "insider::native_procedure";
 
   class extra_data {
   public:
     virtual
-    ~extra_data() { }
+    ~extra_data() = default;
   };
 
   using target_type = ptr<> (*)(context&, ptr<native_procedure>, object_span);
-  target_type target;
-  char const* name;
+  target_type                 target;
+  std::string                 name;
   std::unique_ptr<extra_data> extra;
 
   explicit
-  native_procedure(target_type f, char const* name = "<native procedure>",
+  native_procedure(target_type f, std::string name = "<native procedure>",
                    std::unique_ptr<extra_data> extra = {})
     : target{f}
-    , name{name}
+    , name{std::move(name)}
     , extra{std::move(extra)}
   { }
 
