@@ -21,6 +21,11 @@ struct s : leaf_object<s> {
   set_number(int value) { number = value; }
 };
 
+static int
+s_number(context&, ptr<s> s) {
+  return s->number;
+}
+
 TEST_F(define_struct_fixture, defines_predicate) {
   define_struct<s>(ctx, "s", ctx.internal_module());
   auto f = eval("s?");
@@ -76,4 +81,16 @@ TEST_F(define_struct_fixture, setter_for_setter) {
     call_with_continuation_barrier(ctx, f, {make<s>(ctx, 6)}).get()
   );
   EXPECT_EQ(value->number, 12);
+}
+
+TEST_F(define_struct_fixture, non_member_setter) {
+  define_struct<s>(ctx, "s", ctx.internal_module())
+    .field<&s_number>("number");
+  auto f = eval("s-number");
+  EXPECT_EQ(
+    expect<integer>(
+      call_with_continuation_barrier(ctx, f, {make<s>(ctx, 12)}).get()
+    ).value(),
+    12
+  );
 }

@@ -72,6 +72,13 @@ public:
     return *this;
   }
 
+  template <auto NonMemberGetter>
+  struct_definer&
+  field(std::string const& name) {
+    define_procedure<NonMemberGetter>(ctx_, make_getter_name(name), module_);
+    return *this;
+  }
+
 private:
   template <typename>
   struct member_type;
