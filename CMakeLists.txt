@@ -70,6 +70,8 @@ set(scheme_sources
         src/compiler/scope.hpp
         src/compiler/source_code_provider.cpp
         src/compiler/source_code_provider.hpp
+        src/compiler/source_file_origin.cpp
+        src/compiler/source_file_origin.hpp
         src/compiler/source_location.cpp
         src/compiler/source_location.hpp
         src/compiler/variable.cpp
@@ -141,7 +143,7 @@ set(scheme_sources
         src/vm/vm.hpp
         )
 
-set(test_sources
+Set(test_sources
         test/scheme_fixture.cpp
         test/test_ast.cpp
         test/test_bytecode.cpp

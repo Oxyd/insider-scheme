@@ -6,6 +6,8 @@
 
 namespace insider {
 
+null_source_code_provider null_source_code_provider_instance;
+
 std::optional<source_file>
 filesystem_source_code_provider::find_file(context& ctx,
                                            std::filesystem::path const& path) {

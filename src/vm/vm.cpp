@@ -1910,16 +1910,13 @@ values(context& ctx, object_span args) {
 static ptr<tail_call_tag_type>
 eval_proc(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
   ptr<syntax> stx = datum_to_syntax(ctx, {}, expr);
-  insider::null_source_code_provider provider;
-  auto f = compile_expression(ctx, stx, m, {&provider, "<eval expression>"});
+  auto f = compile_expression(ctx, stx, m, make_eval_origin());
   return tail_call(ctx, f, {});
 }
 
 tracked_ptr<>
 eval(context& ctx, tracked_ptr<module_> const& mod, ptr<syntax> expr) {
-  insider::null_source_code_provider provider;
-  auto f = compile_expression(ctx, expr, mod,
-                              {&provider, "<eval expression>"});
+  auto f = compile_expression(ctx, expr, mod, make_eval_origin());
   return call_with_continuation_barrier(ctx, f, {});
 }
 

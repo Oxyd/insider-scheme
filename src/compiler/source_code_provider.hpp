@@ -81,6 +81,8 @@ public:
   }
 };
 
+extern null_source_code_provider null_source_code_provider_instance;
+
 std::filesystem::path
 module_name_to_path(module_name const&);
 

@@ -12,6 +12,9 @@ struct source_file_origin {
   std::filesystem::path path;
 };
 
+source_file_origin
+make_eval_origin();
+
 } // namespace insider
 
 #endif

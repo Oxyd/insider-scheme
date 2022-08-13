@@ -534,8 +534,7 @@ analyse_module(context& ctx, tracked_ptr<module_> const& m,
 static expression
 analyse_proc(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
   ptr<syntax> stx = datum_to_syntax(ctx, {}, expr);
-  insider::null_source_code_provider provider;
-  return analyse(ctx, stx, m, all_passes, {&provider, "<eval expression>"});
+  return analyse(ctx, stx, m, all_passes, make_eval_origin());
 }
 
 static std::vector<ptr<syntax>>
@@ -549,9 +548,7 @@ data_to_syntaxes(context& ctx, std::vector<ptr<>> const& data) {
 
 static expression
 analyse_module_proc(context& ctx, std::vector<ptr<>> const& data) {
-  insider::null_source_code_provider provider;
-  auto ms = read_module(ctx, data_to_syntaxes(ctx, data),
-                        {&provider, "<eval expression>"});
+  auto ms = read_module(ctx, data_to_syntaxes(ctx, data), make_eval_origin());
   auto dummy_mod = make_tracked<module_>(ctx, ctx, ms.name);
   perform_imports(ctx, dummy_mod, ms.imports);
   return analyse_module(ctx, dummy_mod, ms, all_passes);
