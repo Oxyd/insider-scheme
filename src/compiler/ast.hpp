@@ -488,9 +488,6 @@ private:
 expression
 make_internal_reference(context& ctx, std::string const& name);
 
-std::vector<expression>
-untrack_expressions(std::vector<tracked_expression> const&);
-
 template <typename... Args>
 static expression
 make_application(context& ctx, std::string const& name, Args&&... args) {

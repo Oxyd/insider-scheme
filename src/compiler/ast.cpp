@@ -364,13 +364,4 @@ make_internal_reference(context& ctx, std::string const& name) {
   );
 }
 
-std::vector<expression>
-untrack_expressions(std::vector<tracked_expression> const& v) {
-  std::vector<expression> result;
-  result.reserve(v.size());
-  for (tracked_expression const& e : v)
-    result.push_back(e.get());
-  return result;
-}
-
 } // namespace insider
