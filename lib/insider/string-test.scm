@@ -93,6 +93,7 @@
     (test-equal '(#\d #\e) (string->list "abcdef" 3 5))
     (test-equal '(#\b #\c) (string->list/cursors "abcdef" 1 3))
     (test-equal "abc" (list->string '(#\a #\b #\c)))
+    (test-equal "cba" (reverse-list->string '(#\a #\b #\c)))
 
     (test-equal #(#\a #\b #\c) (string->vector "abc"))
     (test-equal #(#\b #\c) (string->vector/cursors "abcdef" 1 3))

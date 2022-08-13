@@ -34,7 +34,8 @@
 
  string-tabulate string-unfold string-unfold-right
 
- string->list string->list/cursors list->string string->vector string->vector/cursors string-join
+ string->list string->list/cursors list->string reverse-list->string
+ string->vector string->vector/cursors string-join
 
  string-copy string-copy/cursors substring substring/cursors string-copy! string-fill!
  string-take string-drop string-take-right string-drop-right
@@ -204,6 +205,14 @@
        (current list (cdr current)))
       ((null? current) result)
     (string-append-char! result (car current))))
+
+(define (reverse-list->string list)
+  (let ((result (string)))
+    (let loop ((l list))
+      (unless (null? l)
+        (loop (cdr l))
+        (string-append-char! result (car l))))
+    result))
 
 (define string->vector/cursors
   (opt-lambda (s (start* (string-cursor-start s)) (end* (string-cursor-end s)))
