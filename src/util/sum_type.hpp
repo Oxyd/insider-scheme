@@ -16,6 +16,9 @@ namespace insider {
 template <typename>
 struct from_scheme_converter;
 
+template <typename>
+struct to_scheme_converter;
+
 namespace detail {
 
   template <typename... Us>
@@ -135,6 +138,12 @@ template <typename... Ts>
 struct from_scheme_converter<sum_type<Ts...>> {
   static sum_type<Ts...>
   convert(context&, ptr<> o) { return o; }
+};
+
+template <typename... Ts>
+struct to_scheme_converter<sum_type<Ts...>> {
+  static ptr<>
+  convert(context&, sum_type<Ts...> sum) { return sum.get(); }
 };
 
 template <typename Sum>

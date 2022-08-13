@@ -193,7 +193,7 @@ make_list_from_vector(context& ctx, Container const& values,
   ptr<> head = ctx.constants->null;
 
   for (auto elem = values.rbegin(); elem != values.rend(); ++elem)
-    head = cons(ctx, convert(*elem), head);
+    head = cons(ctx, to_scheme(ctx, convert(*elem)), head);
 
   return head;
 }

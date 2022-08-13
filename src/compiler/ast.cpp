@@ -2,6 +2,8 @@
 
 #include "context.hpp"
 #include "module.hpp"
+#include "util/define_struct.hpp"
+#include "util/sum_type.hpp"
 
 namespace insider {
 
@@ -362,6 +364,94 @@ make_internal_reference(context& ctx, std::string const& name) {
     ctx,
     assume<top_level_variable>(binding->variable)
   );
+}
+
+static ptr<>
+application_expression_arguments(context& ctx, ptr<application_expression> app) {
+  return make_list_from_vector(ctx, app->arguments());
+}
+
+static ptr<>
+sequence_expression_expressions(context& ctx, ptr<sequence_expression> seq) {
+  return make_list_from_vector(ctx, seq->expressions());
+}
+
+static ptr<>
+let_expression_definitions(context& ctx, ptr<let_expression> let) {
+  return make_list_from_vector(
+    ctx, let->definitions(),
+    [&] (definition_pair_expression const& dp) {
+      return cons(ctx, dp.variable(), dp.expression().get());
+    }
+  );
+}
+
+static ptr<>
+lambda_expression_parameters(context& ctx, ptr<lambda_expression> lambda) {
+  return make_list_from_vector(ctx, lambda->parameters());
+}
+
+static ptr<>
+lambda_expression_free_variables(context& ctx, ptr<lambda_expression> lambda) {
+  return make_list_from_vector(ctx, lambda->free_variables());
+}
+
+void
+export_ast(context& ctx, ptr<module_> result) {
+  define_struct<literal_expression>(ctx, "literal-expression", result)
+    .field<&literal_expression::value>("value");
+
+  define_struct<local_reference_expression>(ctx, "local-reference-expression",
+                                            result)
+    .field<&local_reference_expression::variable>("variable");
+
+  define_struct<top_level_reference_expression>(ctx,
+                                                "top-level-reference-expression",
+                                                result)
+    .field<&top_level_reference_expression::variable>("variable");
+
+  define_struct<unknown_reference_expression>(ctx,
+                                              "unknown-reference-expression",
+                                              result)
+    .field<&unknown_reference_expression::name>("name");
+
+  define_struct<application_expression>(ctx, "application-expression", result)
+    .field<&application_expression::target>("target")
+    .field<&application_expression_arguments>("arguments")
+    ;
+
+  define_struct<sequence_expression>(ctx, "sequence-expression", result)
+    .field<&sequence_expression_expressions>("expressions");
+
+  define_struct<let_expression>(ctx, "let-expression", result)
+    .field<&let_expression_definitions>("definitions")
+    .field<&let_expression::body>("body")
+    ;
+
+  define_struct<local_set_expression>(ctx, "local-set!-expression", result)
+    .field<&local_set_expression::target>("target")
+    .field<&local_set_expression::expression>("expression")
+    ;
+
+  define_struct<top_level_set_expression>(ctx, "top-level-set!-expression",
+                                          result)
+    .field<&top_level_set_expression::target>("target")
+    .field<&top_level_set_expression::expression>("expression")
+    ;
+
+  define_struct<lambda_expression>(ctx, "lambda-expression", result)
+    .field<&lambda_expression_parameters>("parameters")
+    .field<&lambda_expression::has_rest>("has-rest?")
+    .field<&lambda_expression::body>("body")
+    .field<&lambda_expression::name>("name")
+    .field<&lambda_expression_free_variables>("free-variables")
+    ;
+
+  define_struct<if_expression>(ctx, "if-expression", result)
+    .field<&if_expression::test>("test")
+    .field<&if_expression::consequent>("consequent")
+    .field<&if_expression::alternative>("alternative")
+    ;
 }
 
 } // namespace insider
