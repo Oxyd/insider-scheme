@@ -324,7 +324,7 @@
           estimate
           (loop (update-sqrt-estimate i estimate))))))
 
-(define (exact-iteger-sqrt/exact i)
+(define (exact-integer-sqrt/exact i)
   (let* ((estimate (estimate-sqrt i))
          (estimate-squared (square estimate)))
     (let ((estimate* (if (<= estimate-squared i)
@@ -338,7 +338,7 @@
 (define (exact-integer-sqrt i)
   (unless (and (integer? i) (>= i 0))
     (error "Expected a non-negative integer"))
-  (let-values (((root remainder) (exact-iteger-sqrt/exact (exact i))))
+  (let-values (((root remainder) (exact-integer-sqrt/exact (exact i))))
     (if (exact? i)
         (values root remainder)
         (values (inexact root) (inexact remainder)))))
