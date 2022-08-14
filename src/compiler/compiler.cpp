@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 
 namespace insider {
 
@@ -49,9 +50,6 @@ namespace {
     shared_local(shared_local const&);
     shared_local(shared_local&&) noexcept;
     ~shared_local();
-
-    shared_local&
-    operator = (shared_local const&);
 
     shared_local&
     operator = (shared_local&&) noexcept;
@@ -118,6 +116,9 @@ namespace {
 
     shared_local
     lookup(ptr<local_variable> const&) const;
+
+    bool
+    local_is_store_for_variable(shared_local const&) const;
 
   private:
     std::vector<scope> scopes_;
@@ -201,21 +202,6 @@ shared_local::~shared_local() {
 }
 
 shared_local&
-shared_local::operator = (shared_local const& other) {
-  if (this != &other) {
-    if (alloc_)
-      alloc_->unref(*value_);
-
-    alloc_ = other.alloc_;
-    value_ = other.value_;
-    if (alloc_)
-      alloc_->ref(*value_);
-  }
-
-  return *this;
-}
-
-shared_local&
 shared_local::operator = (shared_local&& other) noexcept {
   if (alloc_)
     alloc_->unref(*value_);
@@ -240,13 +226,22 @@ variable_bindings::pop_scope() {
 
 shared_local
 variable_bindings::lookup(ptr<local_variable> const& v) const {
-  for (const auto& scope : scopes_ | std::views::reverse)
+  for (auto const& scope : scopes_ | std::views::reverse)
     for (binding const& b : scope)
       if (b.variable == v)
         return b.destination;
 
   assert(false); // TODO: This shouldn't ever happen any longer.
   return {};
+}
+
+bool
+variable_bindings::local_is_store_for_variable(shared_local const& loc) const {
+  for (auto const& scope : scopes_)
+    for (binding const& b : scope)
+      if (b.destination == loc)
+        return true;
+  return false;
 }
 
 namespace {
@@ -257,9 +252,8 @@ namespace {
   class result_location {
   public:
     explicit
-    result_location(bool result_used = true, bool may_alias = true)
+    result_location(bool result_used = true)
       : used_{result_used}
-      , may_alias_{may_alias}
     { }
 
     bool
@@ -274,16 +268,12 @@ namespace {
     void
     set(shared_local reg) {
       assert(!reg_);
-      reg_ = reg;
+      reg_ = std::move(reg);
     }
-
-    bool
-    may_alias() const { return may_alias_; }
 
   private:
     shared_local reg_;
-    bool used_;
-    bool may_alias_;
+    bool         used_;
   };
 }
 
@@ -318,14 +308,6 @@ compile_expression_to_register(context& ctx, procedure_context& proc,
                                expression const& stx, bool tail) {
   result_location result;
   compile_expression(ctx, proc, stx, tail, result);
-  return result.has_result() ? result.get(proc) : shared_local{};
-}
-
-static shared_local
-compile_expression_to_fresh_register(context& ctx, procedure_context& proc,
-                                     expression const& stx) {
-  result_location result{true, false};
-  compile_expression(ctx, proc, stx, false, result);
   return result.has_result() ? result.get(proc) : shared_local{};
 }
 
@@ -627,7 +609,7 @@ compile_expression(context& ctx, procedure_context& proc,
   variable_bindings::scope scope;
   for (auto const& def : stx->definitions()) {
     shared_local value
-      = compile_expression_to_fresh_register(ctx, proc, def.expression());
+      = compile_expression_to_register(ctx, proc, def.expression(), false);
     scope.emplace_back(variable_bindings::binding{def.variable(),
                                                   std::move(value)});
   }
@@ -759,24 +741,101 @@ compile_expression(context& ctx, procedure_context& parent,
 }
 
 static void
+compile_if_branches_to_specified_register(context& ctx, procedure_context& proc,
+                                          ptr<if_expression> stx, bool tail,
+                                          result_location& result) {
+  proc.bytecode_stack.emplace_back();
+  compile_expression(ctx, proc, stx->consequent(), tail, result);
+
+  proc.bytecode_stack.emplace_back();
+  compile_expression(ctx, proc, stx->alternative(), tail, result);
+}
+
+static void
+unify_if_branch_results(procedure_context& proc,
+                        shared_local const& consequent_reg,
+                        shared_local const& alternative_reg,
+                        bytecode& consequent_bc,
+                        bytecode& alternative_bc,
+                        result_location& result) {
+  if (!consequent_reg && !alternative_reg)
+    return;
+  else if (!consequent_reg && alternative_reg)
+    result.set(alternative_reg);
+  else if ((consequent_reg && !alternative_reg)
+           || consequent_reg == alternative_reg)
+    result.set(consequent_reg);
+  else {
+    assert(proc.bindings.local_is_store_for_variable(consequent_reg));
+    if (!proc.bindings.local_is_store_for_variable(alternative_reg)) {
+      encode_instruction(
+        consequent_bc,
+        instruction{opcode::set, *consequent_reg, *alternative_reg}
+      );
+      result.set(alternative_reg);
+    } else {
+      shared_local new_reg = proc.registers.allocate_local();
+      encode_instruction(
+        consequent_bc,
+        instruction{opcode::set, *consequent_reg, *new_reg}
+      );
+      encode_instruction(
+        alternative_bc,
+        instruction{opcode::set, *alternative_reg, *new_reg}
+      );
+      result.set(new_reg);
+    }
+  }
+}
+
+static void
+compile_if_branches_to_unspecified_register(context& ctx,
+                                            procedure_context& proc,
+                                            ptr<if_expression> stx,
+                                            bool tail,
+                                            result_location& result) {
+  proc.bytecode_stack.emplace_back();
+  shared_local consequent_reg
+    = compile_expression_to_register(ctx, proc, stx->consequent(), tail);
+
+  if (consequent_reg &&
+      !proc.bindings.local_is_store_for_variable(consequent_reg)) {
+    result.set(consequent_reg);
+
+    proc.bytecode_stack.emplace_back();
+    compile_expression(ctx, proc, stx->alternative(), tail, result);
+  } else {
+    proc.bytecode_stack.emplace_back();
+    shared_local alternative_reg
+      = compile_expression_to_register(ctx, proc, stx->alternative(), tail);
+    unify_if_branch_results(
+      proc,
+      consequent_reg,
+      alternative_reg,
+      proc.bytecode_stack[proc.bytecode_stack.size() - 2].bc,
+      proc.bytecode_stack[proc.bytecode_stack.size() - 1].bc,
+      result
+    );
+  }
+}
+
+static void
 compile_expression(context& ctx, procedure_context& proc,
                    ptr<if_expression> stx, bool tail, result_location& result) {
   shared_local test_value
     = compile_expression_to_register(ctx, proc, stx->test(), false);
 
-  proc.bytecode_stack.emplace_back();
-  compile_expression(ctx, proc, stx->consequent(), tail, result);
-  std::size_t skip_num{};
-
-  proc.bytecode_stack.emplace_back();
-  compile_expression(ctx, proc, stx->alternative(), tail, result);
+  if (result.has_result() || !result.result_used())
+    compile_if_branches_to_specified_register(ctx, proc, stx, tail, result);
+  else
+    compile_if_branches_to_unspecified_register(ctx, proc, stx, tail, result);
 
   bytecode_and_debug_info else_bc = std::move(proc.bytecode_stack.back());
   proc.bytecode_stack.pop_back();
 
   encode_instruction(proc.bytecode_stack.back().bc,
                      instruction{opcode::jump, to_operand(else_bc.bc.size())});
-  skip_num = proc.bytecode_stack.back().bc.size();
+  std::size_t skip_num = proc.bytecode_stack.back().bc.size();
   append_bytecode(proc.bytecode_stack.back(), else_bc);
 
   bytecode_and_debug_info then_bc = std::move(proc.bytecode_stack.back());
@@ -886,7 +945,7 @@ compile_expression(context&, procedure_context& proc,
 
   shared_local var_reg = proc.bindings.lookup(stx->variable());
 
-  if (!result.has_result() && result.may_alias())
+  if (!result.has_result())
     result.set(var_reg);
   else {
     shared_local result_reg = result.get(proc);
