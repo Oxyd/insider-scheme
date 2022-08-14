@@ -346,10 +346,8 @@ if_expression::update(context& ctx, result_stack& stack) {
 void
 if_expression::update_size_estimate() {
   size_estimate_
-    = 1 + insider::size_estimate(test_) + insider::size_estimate(consequent_);
-
-  if (alternative_)
-    size_estimate_ += 1 + insider::size_estimate(alternative_);
+    = 1 + insider::size_estimate(test_) + insider::size_estimate(consequent_)
+    + 1 + insider::size_estimate(alternative_);
 }
 
 expression

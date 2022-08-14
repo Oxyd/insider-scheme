@@ -768,38 +768,16 @@ compile_expression(context& ctx, procedure_context& proc,
   compile_expression(ctx, proc, stx->consequent(), tail, result);
   std::size_t skip_num{};
 
-  if (stx->alternative()) {
-    // If we got here by executing the then-branch, skip over the
-    // else-branch. If the test condition was false, we'll jump right after this
-    // jump, skipping it. We'll have to backpatch the actual offset.
+  proc.bytecode_stack.emplace_back();
+  compile_expression(ctx, proc, stx->alternative(), tail, result);
 
-    proc.bytecode_stack.emplace_back();
-    compile_expression(ctx, proc, stx->alternative(), tail, result);
+  bytecode_and_debug_info else_bc = std::move(proc.bytecode_stack.back());
+  proc.bytecode_stack.pop_back();
 
-    bytecode_and_debug_info else_bc = std::move(proc.bytecode_stack.back());
-    proc.bytecode_stack.pop_back();
-
-    encode_instruction(proc.bytecode_stack.back().bc,
-                       instruction{opcode::jump, to_operand(else_bc.bc.size())});
-    skip_num = proc.bytecode_stack.back().bc.size();
-    append_bytecode(proc.bytecode_stack.back(), else_bc);
-  } else {
-    // No else branch -- we'll set the result to #void. First, if we landed here
-    // because we executed the then-branch, we'll have to skip this branch. We
-    // need to be mindful that the then-branch might have been compiled into a
-    // tail-call and so may not have produced a meaningful result register.
-
-    proc.bytecode_stack.emplace_back();
-    compile_static_reference(proc, ctx.statics.void_, result);
-
-    bytecode_and_debug_info else_bc = std::move(proc.bytecode_stack.back());
-    proc.bytecode_stack.pop_back();
-
-    encode_instruction(proc.bytecode_stack.back().bc,
-                       instruction{opcode::jump, to_operand(else_bc.bc.size())});
-    skip_num = proc.bytecode_stack.back().bc.size();
-    append_bytecode(proc.bytecode_stack.back(), else_bc);
-  }
+  encode_instruction(proc.bytecode_stack.back().bc,
+                     instruction{opcode::jump, to_operand(else_bc.bc.size())});
+  skip_num = proc.bytecode_stack.back().bc.size();
+  append_bytecode(proc.bytecode_stack.back(), else_bc);
 
   bytecode_and_debug_info then_bc = std::move(proc.bytecode_stack.back());
   proc.bytecode_stack.pop_back();
