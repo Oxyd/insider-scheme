@@ -999,9 +999,10 @@ compile_expression(context& ctx, procedure_context& proc,
 ptr<procedure>
 compile_expression(context& ctx, ptr<syntax> datum,
                    tracked_ptr<module_> const& mod,
-                   source_file_origin const& origin) {
+                   source_file_origin const& origin,
+                   pass_list passes) {
   return compile_syntax(ctx,
-                        analyse(ctx, datum, mod, all_passes, origin),
+                        analyse(ctx, datum, mod, std::move(passes), origin),
                         mod);
 }
 

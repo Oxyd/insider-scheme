@@ -28,7 +28,8 @@ struct scheme_fixture : testing::Test {
   }
 
   insider::ptr<>
-  eval(insider::ptr<insider::syntax> expr_stx) {
+  eval(insider::ptr<insider::syntax> expr_stx,
+       insider::pass_list passes = insider::all_passes) {
     auto m = insider::make_tracked<insider::module_>(ctx, ctx);
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
@@ -36,16 +37,18 @@ struct scheme_fixture : testing::Test {
     auto f = compile_expression(ctx,
                                 insider::assume<insider::syntax>(expr_stx),
                                 m,
-                                {&provider, "<unit test expression>"});
+                                {&provider, "<unit test expression>"},
+                                std::move(passes));
     return call_with_continuation_barrier(ctx, f, {}).get();
   }
 
   insider::ptr<>
-  eval(std::string const& expr) {
+  eval(std::string const& expr,
+       insider::pass_list passes = insider::all_passes) {
     auto expr_stx = read_syntax(ctx, expr);
     if (expr_stx == ctx.constants->eof)
       throw std::runtime_error{"EOF"};
-    return eval(insider::assume<insider::syntax>(expr_stx));
+    return eval(insider::assume<insider::syntax>(expr_stx), std::move(passes));
   }
 
   insider::ptr<>

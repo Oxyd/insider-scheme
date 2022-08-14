@@ -23,7 +23,7 @@ class syntax;
 // definition.
 ptr<procedure>
 compile_expression(context&, ptr<syntax> datum, tracked_ptr<module_> const&,
-                   source_file_origin const&);
+                   source_file_origin const&, pass_list = all_passes);
 
 ptr<procedure>
 compile_syntax(context&, expression, tracked_ptr<module_> const&);

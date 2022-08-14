@@ -218,11 +218,14 @@ TEST_F(compiler, compile_if) {
 }
 
 TEST_F(compiler, let_does_not_mutate_variables) {
-  ptr<> result = eval(R"(
-    (let ((value 0))
-      (let ((other-value (if #f value (+ value 1))))
-        value))
-  )");
+  ptr<> result = eval(
+    R"(
+      (let ((value 0))
+        (let ((other-value (if #f value (+ value 1))))
+          value))
+    )",
+    no_optimisations
+  );
   EXPECT_EQ(expect<integer>(result).value(), 0);
 }
 
