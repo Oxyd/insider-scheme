@@ -257,7 +257,7 @@ namespace {
   class result_location {
   public:
     explicit
-    result_location(bool result_used = true, bool may_alias = false)
+    result_location(bool result_used = true, bool may_alias = true)
       : used_{result_used}
       , may_alias_{may_alias}
     { }
@@ -641,14 +641,9 @@ static void
 compile_expression(context& ctx, procedure_context& proc,
                    ptr<local_set_expression> stx, bool,
                    result_location& result) {
-  shared_local dest = proc.bindings.lookup(stx->target());
-  assert(dest);
-
-  shared_local value
-    = compile_expression_to_register(ctx, proc, stx->expression(), false);
-  encode_instruction(proc.bytecode_stack.back().bc,
-                     instruction{opcode::set, *value, *dest});
-
+  result_location dest_loc;
+  dest_loc.set(proc.bindings.lookup(stx->target()));
+  compile_expression(ctx, proc, stx->expression(), false, dest_loc);
   compile_static_reference(proc, ctx.statics.void_, result);
 }
 
