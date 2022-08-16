@@ -23,7 +23,7 @@ expression
 analyse_variables(context&, expression, analysis_context);
 
 expression
-propagate_constants(context&, expression, analysis_context);
+propagate_and_evaluate_constants(context&, expression, analysis_context);
 
 expression
 inline_procedures(context&, expression, analysis_context);

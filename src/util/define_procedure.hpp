@@ -149,7 +149,7 @@ namespace detail {
 
     template <std::size_t... Is>
     static auto
-    make_trivial(context& ctx, std::string name) {
+    make_trivial(context& ctx, std::string name, bool constant_evaluable) {
       return insider::make<native_procedure>(
         ctx,
         [] (context& ctx, ptr<native_procedure> f, object_span args) -> ptr<> {
@@ -164,6 +164,7 @@ namespace detail {
             return to_scheme(ctx, call(ctx, args, no_closure,
                                        std::make_index_sequence<min_args>{}));
         },
+        constant_evaluable,
         std::move(name)
       );
     }
@@ -182,7 +183,8 @@ namespace detail {
 
     template <typename Closure, std::size_t... Is, typename... Defaults>
     static auto
-    make_complex(context& ctx, std::string name, Closure const& closure,
+    make_complex(context& ctx, std::string name, bool constant_evaluable,
+                 Closure const& closure,
                  Defaults... defaults) {
       auto data = std::make_unique<complex_data<Closure, Defaults...>>(
         closure, std::move(defaults)...
@@ -208,6 +210,7 @@ namespace detail {
                    std::make_index_sequence<min_args>{}, data->defaults)
             );
         },
+        constant_evaluable,
         std::move(name),
         std::move(data)
       );
@@ -215,14 +218,14 @@ namespace detail {
 
     template <typename Closure, std::size_t... Is, typename... Defaults>
     static auto
-    make(context& ctx, std::string name,
+    make(context& ctx, std::string name, bool constant_evaluable,
          [[maybe_unused]] Closure const& closure,
          Defaults... defaults) {
       if constexpr (sizeof...(Defaults) == 0
                     && !std::is_same_v<decltype(Callable), bool>)
-        return make_trivial(ctx, std::move(name));
+        return make_trivial(ctx, std::move(name), constant_evaluable);
       else
-        return make_complex(ctx, std::move(name), closure,
+        return make_complex(ctx, std::move(name), constant_evaluable, closure,
                             std::move(defaults)...);
     }
   };
@@ -238,10 +241,10 @@ namespace detail {
   struct define_typed_procedure<Callable, R (*)(context&, Args...)> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, std::string name, ptr<module_> m,
-           Defaults... defaults) {
+    define(context& ctx, std::string name, bool constant_evaluable,
+           ptr<module_> m, Defaults... defaults) {
       auto proc = make_native_procedure_object<Callable, R(Args...)>::make(
-        ctx, name, no_closure, std::move(defaults)...
+        ctx, name, constant_evaluable, no_closure, std::move(defaults)...
       );
       return define_top_level(ctx, std::move(name), m, true, proc);
     }
@@ -251,12 +254,13 @@ namespace detail {
   struct define_typed_procedure<Callable, R (*)(Args...)> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, std::string name, ptr<module_> m,
-           Defaults... defaults) {
+    define(context& ctx, std::string name, bool constant_evaluable,
+           ptr<module_> m, Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (context&, Args... args) { return Callable(args...); },
         R (*)(context&, Args...)
-      >::define(ctx, std::move(name), m, std::move(defaults)...);
+      >::define(ctx, std::move(name), constant_evaluable, m,
+                std::move(defaults)...);
     }
   };
 
@@ -264,14 +268,15 @@ namespace detail {
   struct define_typed_procedure<Callable, R (C::*)(context&, Args...)> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, std::string name, ptr<module_> m,
-           Defaults... defaults) {
+    define(context& ctx, std::string name, bool constant_evaluable,
+           ptr<module_> m, Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (context& ctx, ptr<C> c, Args... args) {
           return (c.value()->*Callable)(ctx, args...);
         },
         R (*)(context&, ptr<C>, Args...)
-      >::define(ctx, std::move(name), m, std::move(defaults)...);
+      >::define(ctx, std::move(name), constant_evaluable, m,
+                std::move(defaults)...);
     }
   };
 
@@ -279,12 +284,13 @@ namespace detail {
   struct define_typed_procedure<Callable, R (C::*)(Args...)> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, std::string name, ptr<module_> m,
-           Defaults... defaults) {
+    define(context& ctx, std::string name, bool constant_evaluable,
+           ptr<module_> m, Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (ptr<C> c, Args... args) { return (c.value()->*Callable)(args...); },
         R (*)(ptr<C>, Args...)
-      >::define(ctx, std::move(name), m, std::move(defaults)...);
+      >::define(ctx, std::move(name), constant_evaluable, m,
+                std::move(defaults)...);
     }
   };
 
@@ -292,14 +298,15 @@ namespace detail {
   struct define_typed_procedure<Callable, R (C::*)(context&, Args...) const> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, std::string name, ptr<module_> m,
-           Defaults... defaults) {
+    define(context& ctx, std::string name, bool constant_evaluable,
+           ptr<module_> m, Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (context& ctx, ptr<C> c, Args... args) {
           return (c.value()->*Callable)(ctx, args...);
         },
         R (*)(context&, ptr<C>, Args...)
-      >::define(ctx, std::move(name), m, std::move(defaults)...);
+      >::define(ctx, std::move(name), constant_evaluable, m,
+                std::move(defaults)...);
     }
   };
 
@@ -307,12 +314,14 @@ namespace detail {
   struct define_typed_procedure<Callable, R (C::*)(Args...) const> {
     template <typename... Defaults>
     static operand
-    define(context& ctx, std::string name, ptr<module_> m,
+    define(context& ctx, std::string name, bool constant_evaluable,
+           ptr<module_> m,
            Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (ptr<C> c, Args... args) { return (c.value()->*Callable)(args...); },
         R (*)(ptr<C>, Args...)
-      >::define(ctx, std::move(name), m, std::move(defaults)...);
+      >::define(ctx, std::move(name), constant_evaluable, m,
+                std::move(defaults)...);
     }
   };
 
@@ -323,10 +332,10 @@ namespace detail {
   struct define_typed_closure<R(context&, Args...)> {
     template <typename Closure, typename... Defaults>
     static operand
-    define(context& ctx, std::string name, ptr<module_> m,
-           Closure const& closure, Defaults... defaults) {
+    define(context& ctx, std::string name, bool constant_evaluable,
+           ptr<module_> m, Closure const& closure, Defaults... defaults) {
       auto proc = detail::make_native_procedure_object<false, R(Args...)>::make(
-        ctx, name, closure, std::move(defaults)...
+        ctx, name, constant_evaluable, closure, std::move(defaults)...
       );
       return define_top_level(ctx, std::move(name), m, true, proc);
     }
@@ -336,10 +345,10 @@ namespace detail {
   struct define_typed_closure<R(Args...)> {
     template <typename Closure, typename... Defaults>
     static operand
-    define(context& ctx, std::string name, ptr<module_> m,
-           Closure const& closure, Defaults... defaults) {
+    define(context& ctx, std::string name, bool constant_evaluable,
+           ptr<module_> m, Closure const& closure, Defaults... defaults) {
       return define_typed_closure<R(context&, Args...)>::define(
-        ctx, std::move(name), m,
+        ctx, std::move(name), constant_evaluable, m,
         [=] (context&, Args... args) {
           return closure(args...);
         },
@@ -358,7 +367,16 @@ define_procedure(context& ctx, std::string name, ptr<module_> m,
                  Defaults... defaults) {
   return detail::define_typed_procedure<
     Callable, std::decay_t<decltype(Callable)>
-  >::define(ctx, std::move(name), m, std::move(defaults)...);
+  >::define(ctx, std::move(name), false, m, std::move(defaults)...);
+}
+
+template <auto Callable, typename... Defaults>
+operand
+define_constant_evaluable_procedure(context& ctx, std::string name,
+                                    ptr<module_> m, Defaults... defaults) {
+  return detail::define_typed_procedure<
+    Callable, std::decay_t<decltype(Callable)>
+  >::define(ctx, std::move(name), true, m, std::move(defaults)...);
 }
 
 // Like define_procedure, but instead of requiring the callable to be a pointer
@@ -371,7 +389,7 @@ operand
 define_closure(context& ctx, std::string name, ptr<module_> m,
                Closure const& closure, Defaults... defaults) {
   return detail::define_typed_closure<Type>::define(
-    ctx, std::move(name), m, closure, std::move(defaults)...
+    ctx, std::move(name), false, m, closure, std::move(defaults)...
   );
 }
 
@@ -379,8 +397,9 @@ define_closure(context& ctx, std::string name, ptr<module_> m,
 // object_span with no conversion to C++ types.
 template <ptr<> (*F)(context&, ptr<native_procedure>, object_span)>
 inline operand
-define_raw_procedure(context& ctx, std::string name, ptr<module_> m) {
-  auto proc = make<native_procedure>(ctx, F, name);
+define_raw_procedure(context& ctx, std::string name, ptr<module_> m,
+                     bool constant_evaluable = false) {
+  auto proc = make<native_procedure>(ctx, F, constant_evaluable, name);
   return define_top_level(ctx, name, m, true, proc);
 }
 
@@ -392,15 +411,22 @@ add_native_proc_arg(context& ctx, ptr<native_procedure>, object_span args) {
 
 template <ptr<> (*F)(context&, object_span)>
 inline operand
-define_raw_procedure(context& ctx, std::string name, ptr<module_> m) {
-  return define_raw_procedure<add_native_proc_arg<F>>(ctx, std::move(name), m);
+define_raw_procedure(context& ctx, std::string name, ptr<module_> m,
+                     bool constant_evaluable = false) {
+  return define_raw_procedure<add_native_proc_arg<F>>(ctx, std::move(name), m,
+                                                      constant_evaluable);
 }
 
 template <auto F>
 void
 define_tagged_procedure(context& ctx, std::string name, ptr<module_> result,
-                        special_top_level_tag tag) {
-  operand index = define_procedure<F>(ctx, std::move(name), result);
+                        special_top_level_tag tag,
+                        bool constant_evaluable = false) {
+  operand index{};
+  if (constant_evaluable)
+    index = define_constant_evaluable_procedure<F>(ctx, std::move(name), result);
+  else
+    index = define_procedure<F>(ctx, std::move(name), result);
   ctx.tag_top_level(index, tag);
 }
 

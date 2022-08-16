@@ -433,7 +433,7 @@ TEST_F(ast, top_level_constants_are_folded_into_expressions) {
   expression e = analyse_module(R"(
     (import (insider internal))
     (define foo 12)
-    (define bar (* 2 foo))
+    (define bar (* (read) foo))
   )");
   for_each<top_level_set_expression>(
     e,
@@ -441,7 +441,6 @@ TEST_F(ast, top_level_constants_are_folded_into_expressions) {
       if (set->target()->name() == "bar") {
         auto app = assume<application_expression>(set->expression());
         ASSERT_EQ(app->arguments().size(), 2);
-        EXPECT_TRUE(is<literal_expression>(app->arguments()[0]));
         EXPECT_TRUE(is<literal_expression>(app->arguments()[1]));
       }
     }
@@ -451,7 +450,7 @@ TEST_F(ast, top_level_constants_are_folded_into_expressions) {
 TEST_F(ast, top_level_constants_are_folded_into_expressions_before_definition) {
   expression e = analyse_module(R"(
     (import (insider internal))
-    (define bar (* 2 foo))
+    (define bar (* (read) foo))
     (define foo 12)
   )");
   for_each<top_level_set_expression>(
@@ -460,7 +459,6 @@ TEST_F(ast, top_level_constants_are_folded_into_expressions_before_definition) {
       if (set->target()->name() == "bar") {
         auto app = assume<application_expression>(set->expression());
         ASSERT_EQ(app->arguments().size(), 2);
-        EXPECT_TRUE(is<literal_expression>(app->arguments()[0]));
         EXPECT_TRUE(is<literal_expression>(app->arguments()[1]));
       }
     }
@@ -926,4 +924,21 @@ TEST_F(ast, inlined_applications_carry_debug_info) {
   ASSERT_TRUE(top_level_app->debug_info());
   EXPECT_EQ(top_level_app->debug_info()->inlined_call_chain,
             (std::vector{"one"s, "two"s, "three"s}));
+}
+
+TEST_F(ast, call_with_all_arguments_literal_is_constant_evaluated) {
+  expression e = analyse(
+    "(car '(1 . 2))",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  ASSERT_TRUE(is<literal_expression>(e));
+  EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 1);
+}
+
+TEST_F(ast, invalid_constant_evaluable_call_is_not_compilation_error) {
+  expression e = analyse(
+    R"((car "not a pair"))",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  EXPECT_TRUE(is<application_expression>(e));
 }

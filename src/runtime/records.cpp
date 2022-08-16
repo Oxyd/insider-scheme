@@ -56,7 +56,8 @@ export_records(context& ctx, ptr<module_> result) {
   define_procedure<make_instance>(ctx, "make-record-instance", result);
   define_procedure<&record_instance::set>(ctx, "record-set!", result);
   define_procedure<&record_instance::ref>(ctx, "record-ref", result);
-  define_procedure<&record_instance::type>(ctx, "record-type", result);
+  define_constant_evaluable_procedure<&record_instance::type>(ctx, "record-type",
+                                                              result);
 }
 
 } // namespace insider

@@ -438,13 +438,17 @@ public:
   target_type                 target;
   std::string                 name;
   std::unique_ptr<extra_data> extra;
+  bool                        constant_evaluable = false;
 
   explicit
-  native_procedure(target_type f, std::string name = "<native procedure>",
+  native_procedure(target_type f,
+                   bool constant_evaluable = false,
+                   std::string name = "<native procedure>",
                    std::unique_ptr<extra_data> extra = {})
     : target{f}
     , name{std::move(name)}
     , extra{std::move(extra)}
+    , constant_evaluable{constant_evaluable}
   { }
 
   native_procedure(target_type f, std::unique_ptr<extra_data> extra)

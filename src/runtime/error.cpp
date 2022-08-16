@@ -26,8 +26,9 @@ cxx_exception::message() const {
 
 void
 export_error(context& ctx, ptr<module_> result) {
-  define_procedure<&cxx_exception::message>(ctx, "cxx-exception-message",
-                                            result);
+  define_constant_evaluable_procedure<&cxx_exception::message>(
+    ctx, "cxx-exception-message", result
+  );
 }
 
 } // namespace insider

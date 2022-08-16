@@ -430,36 +430,52 @@ export_basic_types(context& ctx, ptr<module_> result) {
   define_procedure<list_to_vector>(ctx, "list->vector", result);
   define_raw_procedure<vector_to_list>(ctx, "vector->list", result);
   define_raw_procedure<vector_append>(ctx, "vector-append", result);
-  define_procedure<&vector::size>(ctx, "vector-length", result);
+  define_constant_evaluable_procedure<&vector::size>(ctx, "vector-length",
+                                                     result);
   define_raw_procedure<vector_proc>(ctx, "vector", result);
   define_procedure<make_vector_proc>(
     ctx, "make-vector", result,
     [] (context& ctx) { return ctx.constants->void_; }
   );
   define_tagged_procedure<&vector::ref>(ctx, "vector-ref", result,
-                                        special_top_level_tag::vector_ref);
+                                        special_top_level_tag::vector_ref,
+                                        true);
 
   define_tagged_procedure<vector_set>(ctx, "vector-set!", result,
                                       special_top_level_tag::vector_set);
 
   define_procedure<make_error_proc>(ctx, "make-error", result);
-  define_procedure<&error::message>(ctx, "error-message", result);
-  define_procedure<&error::irritants>(ctx, "error-irritants", result);
-  define_procedure<uncaught_exception_inner_exception>(
+  define_constant_evaluable_procedure<&error::message>(ctx, "error-message",
+                                                       result);
+  define_constant_evaluable_procedure<&error::irritants>(ctx, "error-irritants",
+                                                         result);
+  define_constant_evaluable_procedure<uncaught_exception_inner_exception>(
     ctx, "uncaught-exception-inner-exception", result
   );
-  define_procedure<&file_error::message>(ctx, "file-error-message", result);
+  define_constant_evaluable_procedure<&file_error::message>(
+    ctx, "file-error-message", result
+  );
 
-  define_procedure<make_bytevector>(ctx, "make-bytevector", result,
-                                    [] (context&) -> bytevector::element_type {
-                                      return 0;
-                                    });
+  define_constant_evaluable_procedure<make_bytevector>(
+    ctx, "make-bytevector",
+    result,
+    [] (context&) -> bytevector::element_type {
+      return 0;
+    }
+  );
   define_raw_procedure<make_bytevector_elems>(ctx, "bytevector", result);
-  define_procedure<&bytevector::size>(ctx, "bytevector-length", result);
-  define_procedure<&bytevector::ref>(ctx, "bytevector-u8-ref", result);
+  define_constant_evaluable_procedure<&bytevector::size>(
+    ctx, "bytevector-length", result
+  );
+  define_constant_evaluable_procedure<&bytevector::ref>(ctx, "bytevector-u8-ref",
+                                                        result);
   define_procedure<&bytevector::set>(ctx, "bytevector-u8-set!", result);
-  define_procedure<&values_tuple::size>(ctx, "values-tuple-length", result);
-  define_procedure<&values_tuple::ref>(ctx, "values-tuple-ref", result);
+  define_constant_evaluable_procedure<&values_tuple::size>(
+    ctx, "values-tuple-length", result
+  );
+  define_constant_evaluable_procedure<&values_tuple::ref>(
+    ctx, "values-tuple-ref", result
+  );
   define_tagged_procedure<make_box>(ctx, "box", result,
                                     special_top_level_tag::box);
   define_tagged_procedure<unbox>(ctx, "unbox", result,

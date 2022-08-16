@@ -582,24 +582,31 @@ export_string(context& ctx, ptr<module_> result) {
   define_raw_procedure<make_string>(ctx, "make-string", result);
   define_procedure<make_string_byte_length>(ctx, "make-string/byte-length",
                                             result);
-  define_procedure<&string::length>(ctx, "string-length", result);
+  define_constant_evaluable_procedure<&string::length>(ctx, "string-length",
+                                                       result);
   define_raw_procedure<string_append>(ctx, "string-append", result);
   define_procedure<string_append_in_place>(ctx, "string-append!", result);
   define_procedure<symbol_to_string>(ctx, "symbol->string", result);
   define_procedure<string_to_symbol>(ctx, "string->symbol", result);
-  define_procedure<string_byte_length>(ctx, "string-byte-length", result);
-  define_procedure<next_code_point_byte_index>(ctx, "next-code-point-byte-index",
-                                               result);
-  define_procedure<previous_code_point_byte_index>(
+  define_constant_evaluable_procedure<string_byte_length>(
+    ctx, "string-byte-length", result
+  );
+  define_constant_evaluable_procedure<next_code_point_byte_index>(
+    ctx, "next-code-point-byte-index", result
+  );
+  define_constant_evaluable_procedure<previous_code_point_byte_index>(
     ctx, "previous-code-point-byte-index", result
   );
-  define_procedure<string_ref>(ctx, "string-ref", result);
+  define_constant_evaluable_procedure<string_ref>(ctx, "string-ref", result);
   define_procedure<&string::set>(ctx, "string-set!", result);
   define_procedure<&string::set_byte_index>(ctx, "string-set!/byte-index",
                                             result);
   define_procedure<&string::append_char>(ctx, "string-append-char!", result);
-  define_procedure<string_ref_byte_index>(ctx, "string-ref/byte-index", result);
-  define_procedure<is_string_null>(ctx, "string-null?", result);
+  define_constant_evaluable_procedure<string_ref_byte_index>(
+    ctx, "string-ref/byte-index", result
+  );
+  define_constant_evaluable_procedure<is_string_null>(ctx, "string-null?",
+                                                      result);
   define_procedure<string_reverse>(ctx, "string-reverse*", result);
   define_procedure<string_copy_byte_indexes>(ctx, "string-copy/byte-indexes",
                                              result);
@@ -609,11 +616,11 @@ export_string(context& ctx, ptr<module_> result) {
   define_procedure<string_contains_right_byte_indexes>(
     ctx, "string-contains-right/byte-indexes", result
   );
-  define_procedure<string_eq>(ctx, "string=?/pair", result);
-  define_procedure<string_lt>(ctx, "string<?/pair", result);
-  define_procedure<string_le>(ctx, "string<=?/pair", result);
-  define_procedure<string_gt>(ctx, "string>?/pair", result);
-  define_procedure<string_ge>(ctx, "string>=?/pair", result);
+  define_constant_evaluable_procedure<string_eq>(ctx, "string=?/pair", result);
+  define_constant_evaluable_procedure<string_lt>(ctx, "string<?/pair", result);
+  define_constant_evaluable_procedure<string_le>(ctx, "string<=?/pair", result);
+  define_constant_evaluable_procedure<string_gt>(ctx, "string>?/pair", result);
+  define_constant_evaluable_procedure<string_ge>(ctx, "string>=?/pair", result);
   define_procedure<string_upcase>(ctx, "string-upcase", result);
   define_procedure<string_downcase>(ctx, "string-downcase", result);
   define_procedure<

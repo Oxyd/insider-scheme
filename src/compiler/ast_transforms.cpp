@@ -2,6 +2,8 @@
 
 #include "compiler/ast.hpp"
 #include "context.hpp"
+#include "runtime/basic_types.hpp"
+#include "vm/vm.hpp"
 
 #include <limits>
 #include <ranges>
@@ -13,7 +15,7 @@ namespace insider {
 pass_list const all_passes{
   analyse_variables,
   inline_procedures,
-  propagate_constants,
+  propagate_and_evaluate_constants,
   box_set_variables,
   analyse_free_variables
 };
@@ -92,7 +94,8 @@ is_initialised_to_constant(auto var) {
 }
 
 static expression
-propagate_constants(context&, ptr<local_reference_expression> ref) {
+propagate_and_evaluate_constants(context&,
+                                 ptr<local_reference_expression> ref) {
   if (is_initialised_to_constant(ref->variable()))
     return ref->variable()->constant_initialiser();
   else
@@ -100,7 +103,8 @@ propagate_constants(context&, ptr<local_reference_expression> ref) {
 }
 
 static expression
-propagate_constants(context&, ptr<top_level_reference_expression> ref) {
+propagate_and_evaluate_constants(context&,
+                                 ptr<top_level_reference_expression> ref) {
   if (is_initialised_to_constant(ref->variable()))
     return ref->variable()->constant_initialiser();
   else
@@ -121,7 +125,7 @@ remove_const_definitions(std::vector<definition_pair_expression> const& dps) {
 }
 
 static expression
-propagate_constants(context& ctx, ptr<let_expression> let) {
+propagate_and_evaluate_constants(context& ctx, ptr<let_expression> let) {
   auto new_dps = remove_const_definitions(let->definitions());
   if (new_dps.empty())
     return let->body();
@@ -131,16 +135,91 @@ propagate_constants(context& ctx, ptr<let_expression> let) {
     return let;
 }
 
+static ptr<>
+find_constant_evaluable_callable(context& ctx,
+                                 ptr<application_expression> app) {
+  if (auto ref = match<top_level_reference_expression>(app->target())) {
+    ptr<> callable = ctx.get_top_level(ref->variable()->index);
+    if (auto np = match<native_procedure>(callable))
+      if (np->constant_evaluable)
+        return np;
+  }
+
+  return {};
+}
+
+static bool
+can_be_constant_evaluated(ptr<application_expression> app) {
+  return std::ranges::all_of(
+    app->arguments(),
+    [] (expression e) { return is<literal_expression>(e); }
+  );
+}
+
+static void
+coalesce_eqv_values(context& ctx, std::vector<ptr<>>& values) {
+  // Values which are eqv? are meant to be coalesced within the whole program.
+  // This coalescing normally happens due to the compiler calling
+  // context::intern_static, which hasn't happened yet.
+  //
+  // Technically, this could produce invalid results when a value is meant to
+  // be eqv? to another value not in this call, but for that to matter the
+  // called procedure would somehow have to have access to objects outside
+  // its arguments, which shouldn't happen for constant-evaluable procedures.
+
+  for (std::size_t i = 0; i < values.size(); ++i)
+    for (std::size_t j = i + 1; j < values.size(); ++j)
+      if (values[i] != values[j] && eqv(ctx, values[i], values[j]))
+        values[j] = values[i];
+}
+
+static std::vector<ptr<>>
+make_arguments_for_constant_evaluation(context& ctx,
+                                       ptr<application_expression> app) {
+  std::vector<ptr<>> result;
+  result.reserve(app->arguments().size());
+  for (expression arg : app->arguments())
+    result.push_back(assume<literal_expression>(arg)->value());
+
+  coalesce_eqv_values(ctx, result);
+  return result;
+}
+
 static expression
-propagate_constants(context&, auto x) { return x; }
+evaluate_constant_application(context& ctx, ptr<> callable,
+                              ptr<application_expression> app) {
+  try {
+    tracked_ptr<> result = call_with_continuation_barrier(
+      ctx, callable, make_arguments_for_constant_evaluation(ctx, app)
+    );
+    return make<literal_expression>(ctx, result.get());
+  } catch (...) {
+    return {};
+  }
+}
+
+static expression
+propagate_and_evaluate_constants(context& ctx,
+                                 ptr<application_expression> app) {
+  if (can_be_constant_evaluated(app))
+    if (auto callable = find_constant_evaluable_callable(ctx, app))
+      if (auto result = evaluate_constant_application(ctx, callable, app))
+        return result;
+  return app;
+}
+
+static expression
+propagate_and_evaluate_constants(context&, auto x) { return x; }
 
 expression
-propagate_constants(context& ctx, expression e, analysis_context) {
+propagate_and_evaluate_constants(context& ctx, expression e, analysis_context) {
   return map_ast(
     ctx, e,
     [&] (expression expr) {
-      return visit([&] (auto e) { return propagate_constants(ctx, e); },
-                   expr);
+      return visit(
+        [&] (auto e) { return propagate_and_evaluate_constants(ctx, e); },
+        expr
+      );
     }
   );
 }

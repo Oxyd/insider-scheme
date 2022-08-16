@@ -2245,7 +2245,7 @@ static void
 export_native(context& ctx, ptr<module_> m, char const* name,
               ptr<> (*f)(context&, ptr<native_procedure>, object_span),
               special_top_level_tag tag) {
-  auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f, name),
+  auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f, true, name),
                                  name);
   ctx.tag_top_level(index, tag);
 
@@ -2921,60 +2921,73 @@ export_numeric(context& ctx, ptr<module_> result) {
                 special_top_level_tag::greater_than);
   export_native(ctx, result, ">=", add_native_proc_arg<greater_or_equal>,
                 special_top_level_tag::greater_or_equal);
-  define_procedure<gcd>(ctx, "gcd", result);
-  define_procedure<arithmetic_shift>(ctx, "arithmetic-shift", result);
-  define_procedure<bitwise_and>(ctx, "bitwise-and", result);
-  define_procedure<bitwise_ior>(ctx, "bitwise-ior", result);
-  define_procedure<bitwise_xor>(ctx, "bitwise-xor", result);
-  define_procedure<bitwise_not>(ctx, "bitwise-not", result);
-  define_procedure<bit_count>(ctx, "bit-count", result);
-  define_procedure<integer_length>(ctx, "integer-length", result);
-  define_procedure<first_set_bit>(ctx, "first-set-bit", result);
-  define_procedure<is_integer>(ctx, "integer?", result);
-  define_procedure<is_exact_integer>(ctx, "exact-integer?", result);
-  define_procedure<is_odd>(ctx, "odd?", result);
-  define_procedure<is_even>(ctx, "even?", result);
-  define_procedure<is_zero>(ctx, "zero?", result);
-  define_procedure<is_positive>(ctx, "positive?", result);
-  define_procedure<is_negative>(ctx, "negative?", result);
-  define_procedure<is_number>(ctx, "number?", result);
-  define_procedure<is_real>(ctx, "real?", result);
-  define_procedure<is_rational>(ctx, "rational?", result);
-  define_procedure<is_finite>(ctx, "finite?", result);
-  define_procedure<is_infinite>(ctx, "infinite?", result);
-  define_procedure<is_nan>(ctx, "nan?", result);
-  define_procedure<exp>(ctx, "exp", result);
-  define_procedure<log>(ctx, "log", result);
-  define_procedure<expt>(ctx, "expt", result);
-  define_procedure<truncate_div>(ctx, "truncate/", result);
-  define_procedure<truncate_quotient>(ctx, "truncate-quotient", result);
-  define_procedure<truncate_remainder>(ctx, "truncate-remainder", result);
-  define_procedure<abs>(ctx, "abs", result);
-  define_procedure<floor>(ctx, "floor", result);
-  define_procedure<ceiling>(ctx, "ceiling", result);
-  define_procedure<truncate>(ctx, "truncate", result);
-  define_procedure<round>(ctx, "round", result);
-  define_procedure<is_inexact>(ctx, "inexact?", result);
-  define_procedure<is_exact>(ctx, "exact?", result);
-  define_procedure<inexact>(ctx, "inexact", result);
-  define_procedure<exact>(ctx, "exact", result);
-  define_procedure<&fraction::numerator>(ctx, "fraction-numerator", result);
-  define_procedure<&fraction::denominator>(ctx, "fraction-denominator", result);
-  define_procedure<square>(ctx, "square", result);
-  define_procedure<sqrt>(ctx, "sqrt", result);
-  define_procedure<angle>(ctx, "angle", result);
-  define_procedure<magnitude>(ctx, "magnitude", result);
-  define_procedure<make_rectangular>(ctx, "make-rectangular", result);
-  define_procedure<make_polar>(ctx, "make-polar", result);
-  define_procedure<real_part>(ctx, "real-part", result);
-  define_procedure<imag_part>(ctx, "imag-part", result);
-  define_procedure<sin>(ctx, "sin", result);
-  define_procedure<cos>(ctx, "cos", result);
-  define_procedure<tan>(ctx, "tan", result);
-  define_procedure<asin>(ctx, "asin", result);
-  define_procedure<acos>(ctx, "acos", result);
-  define_procedure<atan>(ctx, "atan", result);
-  define_procedure<atan2>(ctx, "atan2", result);
+  define_constant_evaluable_procedure<gcd>(ctx, "gcd", result);
+  define_constant_evaluable_procedure<arithmetic_shift>(ctx, "arithmetic-shift",
+                                                        result);
+  define_constant_evaluable_procedure<bitwise_and>(ctx, "bitwise-and", result);
+  define_constant_evaluable_procedure<bitwise_ior>(ctx, "bitwise-ior", result);
+  define_constant_evaluable_procedure<bitwise_xor>(ctx, "bitwise-xor", result);
+  define_constant_evaluable_procedure<bitwise_not>(ctx, "bitwise-not", result);
+  define_constant_evaluable_procedure<bit_count>(ctx, "bit-count", result);
+  define_constant_evaluable_procedure<integer_length>(ctx, "integer-length",
+                                                      result);
+  define_constant_evaluable_procedure<first_set_bit>(ctx, "first-set-bit",
+                                                     result);
+  define_constant_evaluable_procedure<is_integer>(ctx, "integer?", result);
+  define_constant_evaluable_procedure<is_exact_integer>(ctx, "exact-integer?",
+                                                        result);
+  define_constant_evaluable_procedure<is_odd>(ctx, "odd?", result);
+  define_constant_evaluable_procedure<is_even>(ctx, "even?", result);
+  define_constant_evaluable_procedure<is_zero>(ctx, "zero?", result);
+  define_constant_evaluable_procedure<is_positive>(ctx, "positive?", result);
+  define_constant_evaluable_procedure<is_negative>(ctx, "negative?", result);
+  define_constant_evaluable_procedure<is_number>(ctx, "number?", result);
+  define_constant_evaluable_procedure<is_real>(ctx, "real?", result);
+  define_constant_evaluable_procedure<is_rational>(ctx, "rational?", result);
+  define_constant_evaluable_procedure<is_finite>(ctx, "finite?", result);
+  define_constant_evaluable_procedure<is_infinite>(ctx, "infinite?", result);
+  define_constant_evaluable_procedure<is_nan>(ctx, "nan?", result);
+  define_constant_evaluable_procedure<exp>(ctx, "exp", result);
+  define_constant_evaluable_procedure<log>(ctx, "log", result);
+  define_constant_evaluable_procedure<expt>(ctx, "expt", result);
+  define_constant_evaluable_procedure<truncate_div>(ctx, "truncate/", result);
+  define_constant_evaluable_procedure<truncate_quotient>(ctx,
+                                                         "truncate-quotient",
+                                                         result);
+  define_constant_evaluable_procedure<truncate_remainder>(ctx,
+                                                          "truncate-remainder",
+                                                          result);
+  define_constant_evaluable_procedure<abs>(ctx, "abs", result);
+  define_constant_evaluable_procedure<floor>(ctx, "floor", result);
+  define_constant_evaluable_procedure<ceiling>(ctx, "ceiling", result);
+  define_constant_evaluable_procedure<truncate>(ctx, "truncate", result);
+  define_constant_evaluable_procedure<round>(ctx, "round", result);
+  define_constant_evaluable_procedure<is_inexact>(ctx, "inexact?", result);
+  define_constant_evaluable_procedure<is_exact>(ctx, "exact?", result);
+  define_constant_evaluable_procedure<inexact>(ctx, "inexact", result);
+  define_constant_evaluable_procedure<exact>(ctx, "exact", result);
+  define_constant_evaluable_procedure<&fraction::numerator>(ctx,
+                                                            "fraction-numerator",
+                                                            result);
+  define_constant_evaluable_procedure<&fraction::denominator>(
+    ctx, "fraction-denominator", result
+  );
+  define_constant_evaluable_procedure<square>(ctx, "square", result);
+  define_constant_evaluable_procedure<sqrt>(ctx, "sqrt", result);
+  define_constant_evaluable_procedure<angle>(ctx, "angle", result);
+  define_constant_evaluable_procedure<magnitude>(ctx, "magnitude", result);
+  define_constant_evaluable_procedure<make_rectangular>(ctx, "make-rectangular",
+                                                        result);
+  define_constant_evaluable_procedure<make_polar>(ctx, "make-polar", result);
+  define_constant_evaluable_procedure<real_part>(ctx, "real-part", result);
+  define_constant_evaluable_procedure<imag_part>(ctx, "imag-part", result);
+  define_constant_evaluable_procedure<sin>(ctx, "sin", result);
+  define_constant_evaluable_procedure<cos>(ctx, "cos", result);
+  define_constant_evaluable_procedure<tan>(ctx, "tan", result);
+  define_constant_evaluable_procedure<asin>(ctx, "asin", result);
+  define_constant_evaluable_procedure<acos>(ctx, "acos", result);
+  define_constant_evaluable_procedure<atan>(ctx, "atan", result);
+  define_constant_evaluable_procedure<atan2>(ctx, "atan2", result);
 }
 
 } // namespace insider
