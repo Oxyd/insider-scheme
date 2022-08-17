@@ -749,6 +749,14 @@ emit_make_closure(context& ctx, procedure_context& parent,
 }
 
 static void
+emit_reference_to_empty_closure(context& ctx, procedure_context& parent,
+                                ptr<procedure> proc,
+                                result_location& result) {
+  auto cls = make_empty_closure(ctx, proc);
+  compile_static_reference(parent, ctx.intern_static(cls), result);
+}
+
+static void
 compile_expression(context& ctx, procedure_context& parent,
                    ptr<lambda_expression> stx, bool, result_location& result) {
   procedure_context proc{&parent, parent.module_};
@@ -763,7 +771,10 @@ compile_expression(context& ctx, procedure_context& parent,
     stx->has_rest(), stx->name()
   );
 
-  emit_make_closure(ctx, parent, p, stx, result);
+  if (stx->free_variables().empty())
+    emit_reference_to_empty_closure(ctx, parent, p, result);
+  else
+    emit_make_closure(ctx, parent, p, stx, result);
 }
 
 static void
