@@ -389,9 +389,9 @@ public:
 };
 
 ptr<procedure>
-make_procedure_from_bytecode(context& ctx, bytecode const& bc, unsigned locals_size,
-               unsigned min_args, bool has_rest,
-               std::string name);
+make_procedure_from_bytecode(context& ctx, bytecode const& bc,
+                             unsigned locals_size, unsigned min_args,
+                             bool has_rest, std::string name);
 
 // A procedure plus a list of captured objects.
 class closure : public dynamic_size_object<closure, ptr<>> {
@@ -422,6 +422,14 @@ public:
 private:
   ptr<insider::procedure> procedure_;
 };
+
+ptr<closure>
+make_empty_closure(context&, ptr<procedure>);
+
+ptr<closure>
+make_closure_from_bytecode(context& ctx, bytecode const& bc,
+                           unsigned locals_size, unsigned min_args,
+                           bool has_rest, std::string name);
 
 // Like procedure, but when invoked, it calls a C++ function.
 class native_procedure : public leaf_object<native_procedure> {
@@ -460,6 +468,9 @@ public:
 
 bool
 is_callable(ptr<> x);
+
+bool
+is_procedure(ptr<>);
 
 ptr<>
 expect_callable(ptr<> x);

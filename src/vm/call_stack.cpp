@@ -51,10 +51,10 @@ void
 call_stack::push_frame(ptr<> callable, std::size_t locals_size,
                        integer::value_type previous_pc,
                        ptr<stack_frame_extra_data> extra) {
-  assert(!callable || is_callable(callable));
+  assert(!callable || is_procedure(callable));
   assert(current_base_ == -1
          || !data_[current_base_ + callable_offset]
-         || is_callable(data_[current_base_ + callable_offset]));
+         || is_procedure(data_[current_base_ + callable_offset]));
 
   auto new_base = static_cast<frame_index>(size_);
   ensure_additional_capacity(stack_frame_header_size + locals_size);
@@ -78,7 +78,7 @@ call_stack::pop_frame() {
             >= static_cast<frame_index>(stack_frame_header_size));
   assert(current_base_ == -1
          || !data_[current_base_ + callable_offset]
-         || is_callable(data_[current_base_ + callable_offset]));
+         || is_procedure(data_[current_base_ + callable_offset]));
   size_ = old_base;
 }
 

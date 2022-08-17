@@ -1055,11 +1055,8 @@ run(execution_state& state) {
 }
 
 static std::tuple<ptr<procedure>, ptr<closure>>
-split_scheme_callable_into_procedure_and_closure(ptr<> callable) {
-  if (auto c = match<closure>(callable))
-    return {assume<procedure>(c->procedure()), c};
-  else
-    return {assume<procedure>(callable), {}};
+split_scheme_callable_into_procedure_and_closure(ptr<closure> callable) {
+  return {assume<procedure>(callable->procedure()), callable};
 }
 
 static void
@@ -1069,7 +1066,8 @@ push_arguments(ptr<call_stack> stack, std::vector<ptr<>> const& args) {
 }
 
 static frame_reference
-make_scheme_frame_for_call_from_native(execution_state& state, ptr<> callable,
+make_scheme_frame_for_call_from_native(execution_state& state,
+                                       ptr<closure> callable,
                                        std::vector<ptr<>> const& arguments,
                                        integer::value_type previous_pc) {
   auto [proc, closure] =
@@ -1171,7 +1169,7 @@ get_native_pc(execution_state& state) {
 static frame_reference
 setup_scheme_frame_for_potential_call_from_native(
   execution_state& state,
-  ptr<> callable,
+  ptr<closure> callable,
   std::vector<ptr<>> const& arguments
 ) {
   assert(is_callable(callable));
@@ -1180,11 +1178,11 @@ setup_scheme_frame_for_potential_call_from_native(
 }
 
 static tracked_ptr<>
-call_scheme_with_continuation_barrier(execution_state& state, ptr<> callable,
+call_scheme_with_continuation_barrier(execution_state& state,
+                                      ptr<closure> callable,
                                       std::vector<ptr<>> const& arguments,
                                       ptr<parameter_tag> parameter,
                                       ptr<> parameter_value) {
-  assert(is_callable(callable));
   auto frame = make_scheme_frame_for_call_from_native(state, callable,
                                                       arguments,
                                                       get_native_pc(state));
@@ -1248,14 +1246,16 @@ call_parameterized_with_continuation_barrier(
     );
   else
     return call_scheme_with_continuation_barrier(
-      *ctx.current_execution, callable, arguments, tag, parameter_value
+      *ctx.current_execution, assume<closure>(callable), arguments, tag,
+      parameter_value
     );
 }
 
 tracked_ptr<>
 call_with_continuation_barrier(context& ctx, ptr<> callable,
                                std::vector<ptr<>> const& arguments) {
-  return call_parameterized_with_continuation_barrier(ctx, callable, arguments, {}, {});
+  return call_parameterized_with_continuation_barrier(ctx, callable, arguments,
+                                                      {}, {});
 }
 
 static ptr<>
@@ -1267,7 +1267,7 @@ call_native_continuable(execution_state& state, ptr<native_procedure> proc,
 }
 
 static ptr<>
-call_scheme_continuable(execution_state& state, ptr<> callable,
+call_scheme_continuable(execution_state& state, ptr<closure> callable,
                         std::vector<ptr<>> const& arguments,
                         native_continuation_type cont) {
   create_or_get_extra_data(state.ctx, current_frame(state.stack))
@@ -1287,18 +1287,10 @@ call_continuable(context& ctx, ptr<> callable,
     call_native_continuable(*ctx.current_execution, native_proc, arguments,
                             cont);
   else
-    call_scheme_continuable(*ctx.current_execution, callable, arguments,
-                            std::move(cont));
+    call_scheme_continuable(*ctx.current_execution, assume<closure>(callable),
+                            arguments, std::move(cont));
 
   return ctx.constants->tail_call_tag;
-}
-
-integer::value_type
-find_entry_pc(ptr<> callable) {
-  if (auto cls = match<closure>(callable))
-    return assume<procedure>(cls->procedure())->entry_pc;
-  else
-    return expect<procedure>(callable)->entry_pc;
 }
 
 static void
@@ -1319,7 +1311,7 @@ static void
 make_scheme_tail_call_frame_for_call_from_native(
   context& ctx,
   ptr<call_stack> stack,
-  ptr<> callable,
+  ptr<closure> callable,
   std::vector<ptr<>> const& arguments
 ) {
   auto [proc, closure] =
@@ -1343,7 +1335,8 @@ make_tail_call_frame_for_call_from_native(context& ctx, ptr<> callable,
   if (auto native = match<native_procedure>(callable))
     make_native_tail_call_frame_for_call_from_native(stack, native, arguments);
   else
-    make_scheme_tail_call_frame_for_call_from_native(ctx, stack, callable,
+    make_scheme_tail_call_frame_for_call_from_native(ctx, stack,
+                                                     assume<closure>(callable),
                                                      arguments);
 
   return current_frame(stack);
@@ -1352,11 +1345,13 @@ make_tail_call_frame_for_call_from_native(context& ctx, ptr<> callable,
 static void
 install_call_frame(context& ctx, frame_reference frame) {
   if (!is_native_frame(frame))
-    ctx.current_execution->pc = find_entry_pc(frame.callable());
+    ctx.current_execution->pc
+      = assume<procedure>(frame.callable())->entry_pc;
 }
 
 ptr<tail_call_tag_type>
-tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+tail_call(context& ctx, ptr<> callable,
+          std::vector<ptr<>> const& arguments) {
   install_call_frame(
     ctx,
     make_tail_call_frame_for_call_from_native(ctx, callable, arguments)

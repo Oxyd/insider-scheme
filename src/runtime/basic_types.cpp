@@ -316,9 +316,30 @@ closure::visit_members(member_visitor const& f) {
     f(storage_element(i));
 }
 
+ptr<closure>
+make_empty_closure(context& ctx, ptr<procedure> p) {
+  return make<closure>(ctx, p, 0);
+}
+
+ptr<closure>
+make_closure_from_bytecode(context& ctx, bytecode const& bc, unsigned locals_size,
+                           unsigned min_args, bool has_rest,
+                           std::string name) {
+  return make_empty_closure(
+    ctx,
+    make_procedure_from_bytecode(ctx, bc, locals_size, min_args, has_rest,
+                                 std::move(name))
+  );
+}
+
 bool
 is_callable(ptr<> x) {
-  return is<procedure>(x) || is<native_procedure>(x) || is<closure>(x);
+  return is<native_procedure>(x) || is<closure>(x);
+}
+
+bool
+is_procedure(ptr<> x) {
+  return is<native_procedure>(x) || is<procedure>(x);
 }
 
 ptr<>

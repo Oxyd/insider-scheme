@@ -676,6 +676,15 @@ make_procedure_from_bytecode(context& ctx, procedure_context const& pc,
                          std::move(name));
 }
 
+static ptr<closure>
+make_closure_from_bytecode(context& ctx, procedure_context const& pc,
+                           unsigned min_args, bool has_rest,
+                           std::string name) {
+  return make_empty_closure(ctx, make_procedure_from_bytecode(ctx, pc, min_args,
+                                                              has_rest,
+                                                              std::move(name)));
+}
+
 static operand
 nth_parameter_index(std::size_t n, std::size_t total_args) {
   return static_cast<operand>(
@@ -1050,7 +1059,7 @@ compile_expression(context& ctx, procedure_context& proc,
   }
 }
 
-ptr<procedure>
+ptr<closure>
 compile_expression(context& ctx, ptr<syntax> datum,
                    tracked_ptr<module_> const& mod,
                    source_file_origin const& origin,
@@ -1060,7 +1069,7 @@ compile_expression(context& ctx, ptr<syntax> datum,
                         mod);
 }
 
-ptr<procedure>
+ptr<closure>
 compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
   procedure_context proc{nullptr, mod};
   shared_local result = compile_expression_to_register(ctx, proc, e, true);
@@ -1069,7 +1078,9 @@ compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
                        instruction{opcode::ret, *result});
 
   assert(proc.bytecode_stack.size() == 1);
-  return make_procedure_from_bytecode(ctx, proc, 0, false, "<expression>");
+  return make_empty_closure(
+    ctx, make_procedure_from_bytecode(ctx, proc, 0, false, "<expression>")
+  );
 }
 
 tracked_ptr<module_>
@@ -1114,11 +1125,11 @@ compile_module_body(context& ctx, tracked_ptr<module_> const& m,
 
   m->set_top_level_procedure(
     ctx.store,
-    make_procedure_from_bytecode(ctx, proc, 0, false,
-                   fmt::format("<module {} top-level>",
-                               pm.name
-                                 ? module_name_to_string(*pm.name)
-                                 : "<unknown>"))
+    make_closure_from_bytecode(ctx, proc, 0, false,
+                               fmt::format("<module {} top-level>",
+                                           pm.name
+                                           ? module_name_to_string(*pm.name)
+                                           : "<unknown>"))
   );
 }
 

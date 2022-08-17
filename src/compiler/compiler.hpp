@@ -12,20 +12,20 @@
 
 namespace insider {
 
+class closure;
 class module_;
 class module_specifier;
-class procedure;
 class syntax;
 
 // Translate a single expression into bytecode. The resulting procedure will
 // take no arguments and will return the value of the expression. The module is
 // modified by adding a top-level binding if the datum is a top-level
 // definition.
-ptr<procedure>
+ptr<closure>
 compile_expression(context&, ptr<syntax> datum, tracked_ptr<module_> const&,
                    source_file_origin const&, pass_list = all_passes);
 
-ptr<procedure>
+ptr<closure>
 compile_syntax(context&, expression, tracked_ptr<module_> const&);
 
 // Interpret a list of expressions and import declarations as a module and

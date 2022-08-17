@@ -61,7 +61,7 @@ module_::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
               b.transformer);
 }
 
-ptr<procedure>
+ptr<closure>
 module_::top_level_procedure() const {
   return proc_;
 }
