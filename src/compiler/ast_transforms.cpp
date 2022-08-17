@@ -118,6 +118,64 @@ is_const(definition_pair_expression const& dp) {
   return is_initialised_to_constant(dp.variable());
 }
 
+static ptr<>
+constant_value_for_expression(expression e);
+
+static ptr<>
+constant_value_for_expression(ptr<literal_expression> lit) {
+  return lit->value();
+}
+
+static ptr<>
+constant_value_for_expression(ptr<local_reference_expression> ref) {
+  if (expression k = ref->variable()->constant_initialiser())
+    if (auto lit = match<literal_expression>(k))
+      return lit->value();
+  return {};
+}
+
+static ptr<>
+constant_value_for_expression(ptr<top_level_reference_expression> ref) {
+  if (expression k = ref->variable()->constant_initialiser())
+    if (auto lit = match<literal_expression>(k))
+      return lit->value();
+  return {};
+}
+
+static ptr<>
+constant_value_for_expression(ptr<sequence_expression> seq) {
+  // Technically the correct condition is "all subexpressions are constant",
+  // but it's quite unlikely that a sequence with multiple subexpressions will
+  // be all-constant.
+
+  if (seq->expressions().size() == 1)
+    return constant_value_for_expression(seq->expressions().front());
+  else
+    return {};
+}
+
+static ptr<>
+constant_value_for_expression(auto) { return {}; }
+
+static ptr<>
+constant_value_for_expression(expression e) {
+  return visit([] (auto expr) { return constant_value_for_expression(expr); },
+               e);
+}
+
+static expression
+constant_initialiser_expression(expression e) {
+  if (auto lit = match<literal_expression>(e))
+    return lit;
+  else if (auto seq = match<sequence_expression>(e)) {
+    assert(seq->expressions().size() == 1);
+    return constant_initialiser_expression(seq->expressions().front());
+  } else {
+    assert(false);
+    return {};
+  }
+}
+
 static std::vector<definition_pair_expression>
 update_let_definitions(context& ctx,
                        std::vector<definition_pair_expression> const& dps,
@@ -127,12 +185,14 @@ update_let_definitions(context& ctx,
     if (!is_const(dp))
       result.push_back(dp);
 
-    if (!is_const(dp) && is<literal_expression>(dp.expression())
+    if (!is_const(dp) && constant_value_for_expression(dp.expression())
         && !dp.variable()->is_set()) {
       // The variable was made constant in this pass. We need to mark it as
       // constant and do another pass to propagate it into the body of this let.
 
-      dp.variable()->set_constant_initialiser(ctx.store, dp.expression());
+      dp.variable()->set_constant_initialiser(
+        ctx.store, constant_initialiser_expression(dp.expression())
+      );
       go_again = true;
     }
   }
@@ -164,30 +224,6 @@ find_constant_evaluable_callable(context& ctx,
 
   return {};
 }
-
-static ptr<>
-constant_value_for_expression(ptr<literal_expression> lit) {
-  return lit->value();
-}
-
-static ptr<>
-constant_value_for_expression(ptr<local_reference_expression> ref) {
-  if (expression k = ref->variable()->constant_initialiser())
-    if (auto lit = match<literal_expression>(k))
-      return lit->value();
-  return {};
-}
-
-static ptr<>
-constant_value_for_expression(ptr<top_level_reference_expression> ref) {
-  if (expression k = ref->variable()->constant_initialiser())
-    if (auto lit = match<literal_expression>(k))
-      return lit->value();
-  return {};
-}
-
-static ptr<>
-constant_value_for_expression(auto) { return {}; }
 
 static bool
 can_be_constant_evaluated(ptr<application_expression> app) {
@@ -227,10 +263,7 @@ make_arguments_for_constant_evaluation(context& ctx,
   std::vector<ptr<>> result;
   result.reserve(app->arguments().size());
   for (expression arg : app->arguments())
-    result.push_back(
-      visit([] (auto e) { return constant_value_for_expression(e); },
-            arg)
-    );
+    result.push_back(constant_value_for_expression(arg));
 
   coalesce_eqv_values(ctx, result);
   return result;
@@ -263,8 +296,8 @@ propagate_and_evaluate_constants(context& ctx,
 static expression
 propagate_and_evaluate_constants(context& ctx, ptr<if_expression> ifexpr,
                                  bool&) {
-  if (auto test = match<literal_expression>(ifexpr->test())) {
-    if (test->value() == ctx.constants->f)
+  if (auto test_value = constant_value_for_expression(ifexpr->test())) {
+    if (test_value == ctx.constants->f)
       return ifexpr->alternative();
     else
       return ifexpr->consequent();

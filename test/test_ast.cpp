@@ -1067,3 +1067,16 @@ TEST_F(ast, constant_expressions_in_if_tests_are_evaluated) {
   ASSERT_TRUE(is<literal_expression>(e));
   EXPECT_EQ(expect<literal_expression>(e)->value(), ctx.intern("yes"));
 }
+
+TEST_F(ast, sequence_of_a_single_constant_expression_is_constant_expression) {
+  expression e = analyse(
+    R"(
+      (let ((x (begin 2)))
+        x)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  e = ignore_lets_and_sequences(e);
+  ASSERT_TRUE(is<literal_expression>(e));
+  EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 2);
+}
