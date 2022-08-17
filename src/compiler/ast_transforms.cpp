@@ -261,6 +261,18 @@ propagate_and_evaluate_constants(context& ctx,
 }
 
 static expression
+propagate_and_evaluate_constants(context& ctx, ptr<if_expression> ifexpr,
+                                 bool&) {
+  if (auto test = match<literal_expression>(ifexpr->test())) {
+    if (test->value() == ctx.constants->f)
+      return ifexpr->alternative();
+    else
+      return ifexpr->consequent();
+  } else
+    return ifexpr;
+}
+
+static expression
 propagate_and_evaluate_constants(context&, auto x, bool&) { return x; }
 
 expression

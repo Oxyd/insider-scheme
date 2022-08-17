@@ -993,3 +993,38 @@ TEST_F(ast, let_initialiser_are_constant_if_they_only_use_other_constants) {
   EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(),
             11);
 }
+
+TEST_F(ast, constant_ifs_are_removed) {
+  expression e1 = analyse(
+    R"(
+      (if #f 1 2)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  e1 = ignore_lets_and_sequences(e1);
+  ASSERT_TRUE(is<literal_expression>(e1));
+  EXPECT_EQ(expect<integer>(expect<literal_expression>(e1)->value()).value(), 2);
+
+  expression e2 = analyse(
+    R"(
+      (if #t 1 2)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  e2 = ignore_lets_and_sequences(e2);
+  ASSERT_TRUE(is<literal_expression>(e2));
+  EXPECT_EQ(expect<integer>(expect<literal_expression>(e2)->value()).value(), 1);
+}
+
+TEST_F(ast, constant_expressions_in_if_tests_are_evaluated) {
+  expression e = analyse(
+    R"(
+      (let ((k (* 2 3)))
+        (if (< k 10) 'yes 'no))
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  e = ignore_lets_and_sequences(e);
+  ASSERT_TRUE(is<literal_expression>(e));
+  EXPECT_EQ(expect<literal_expression>(e)->value(), ctx.intern("yes"));
+}
