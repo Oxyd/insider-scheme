@@ -676,40 +676,76 @@ make_procedure_from_bytecode(context& ctx, procedure_context const& pc,
                          std::move(name));
 }
 
-static void
-compile_expression(context& ctx, procedure_context& parent,
-                   ptr<lambda_expression> stx, bool, result_location& result) {
-  procedure_context proc{&parent, parent.module_};
+static operand
+nth_parameter_index(std::size_t n, std::size_t total_args) {
+  return static_cast<operand>(
+    static_cast<operand>(n)
+      - static_cast<operand>(total_args)
+      - static_cast<operand>(call_stack::stack_frame_header_size)
+  );
+}
+
+static variable_bindings::unique_scope
+push_parameters_and_closure_scope(procedure_context& proc,
+                                  ptr<lambda_expression> stx) {
   variable_bindings::scope args_scope;
 
   for (ptr<local_variable> free : stx->free_variables())
     args_scope.push_back(variable_bindings::binding{
-      free, proc.registers.allocate_local()
-    });
+        free, proc.registers.allocate_local()
+      });
 
   for (std::size_t i = 0; i < stx->parameters().size(); ++i) {
     auto param = stx->parameters()[i];
     args_scope.push_back(variable_bindings::binding{
-      param,
-      shared_local{
-        proc.registers,
-        static_cast<operand>(
-          static_cast<operand>(i)
-          - static_cast<operand>(stx->parameters().size())
-          - static_cast<operand>(call_stack::stack_frame_header_size)
-        )
-      }
-    });
+        param,
+        shared_local{proc.registers,
+          nth_parameter_index(i, stx->parameters().size())}
+      });
   }
 
-  variable_bindings::unique_scope us
-    = proc.bindings.push_scope(std::move(args_scope));
+  return proc.bindings.push_scope(std::move(args_scope));
+}
 
+static void
+compile_lambda_body(context& ctx, procedure_context& proc,
+                    ptr<lambda_expression> stx) {
   result_location body_result;
   compile_expression(ctx, proc, stx->body(), true, body_result);
   if (body_result.has_result())
     encode_instruction(proc.bytecode_stack.back().bc,
                        instruction{opcode::ret, *body_result.get(proc)});
+}
+
+static void
+emit_make_closure(context& ctx, procedure_context& parent,
+                  ptr<procedure> proc, ptr<lambda_expression> stx,
+                  result_location& result) {
+  shared_local p_reg
+    = compile_static_reference_to_register(parent, ctx.intern_static(proc));
+
+  for (ptr<local_variable> var : stx->free_variables())
+    encode_instruction(
+      parent.bytecode_stack.back().bc,
+      instruction{opcode::push, *parent.bindings.lookup(var)}
+    );
+
+  encode_instruction(
+    parent.bytecode_stack.back().bc,
+    instruction{opcode::make_closure,
+                *p_reg,
+                static_cast<operand>(stx->free_variables().size()),
+                *result.get(parent)}
+  );
+}
+
+static void
+compile_expression(context& ctx, procedure_context& parent,
+                   ptr<lambda_expression> stx, bool, result_location& result) {
+  procedure_context proc{&parent, parent.module_};
+
+  auto us = push_parameters_and_closure_scope(proc, stx);
+  compile_lambda_body(ctx, proc, stx);
 
   assert(proc.bytecode_stack.size() == 1);
   auto p = make_procedure_from_bytecode(
@@ -718,24 +754,8 @@ compile_expression(context& ctx, procedure_context& parent,
     stx->has_rest(), stx->name()
   );
 
-  if (!stx->free_variables().empty()) {
-    shared_local p_reg
-      = compile_static_reference_to_register(parent, ctx.intern_static(p));
-
-    for (ptr<local_variable> var : stx->free_variables())
-      encode_instruction(
-        parent.bytecode_stack.back().bc,
-        instruction{opcode::push, *parent.bindings.lookup(var)}
-      );
-
-    encode_instruction(
-      parent.bytecode_stack.back().bc,
-      instruction{opcode::make_closure,
-                  *p_reg,
-                  static_cast<operand>(stx->free_variables().size()),
-                  *result.get(parent)}
-    );
-  }
+  if (!stx->free_variables().empty())
+    emit_make_closure(ctx, parent, p, stx, result);
   else
     compile_static_reference(parent, ctx.intern_static(p), result);
 }
