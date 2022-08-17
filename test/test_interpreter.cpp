@@ -403,8 +403,9 @@ TEST_F(interpreter, exec_load_dynamic_top_level) {
 }
 
 static integer
-apply_and_double(context& ctx, ptr<procedure> f, ptr<> arg) {
-  return 2 * expect<integer>(call_with_continuation_barrier(ctx, f, {arg})).value();
+apply_and_double(context& ctx, ptr<closure> f, ptr<> arg) {
+  return 2 * expect<integer>(call_with_continuation_barrier(ctx, f,
+                                                            {arg})).value();
 }
 
 TEST_F(interpreter, scheme_to_native_to_scheme) {

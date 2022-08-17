@@ -754,10 +754,7 @@ compile_expression(context& ctx, procedure_context& parent,
     stx->has_rest(), stx->name()
   );
 
-  if (!stx->free_variables().empty())
-    emit_make_closure(ctx, parent, p, stx, result);
-  else
-    compile_static_reference(parent, ctx.intern_static(p), result);
+  emit_make_closure(ctx, parent, p, stx, result);
 }
 
 static void
