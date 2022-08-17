@@ -942,3 +942,54 @@ TEST_F(ast, invalid_constant_evaluable_call_is_not_compilation_error) {
   );
   EXPECT_TRUE(is<application_expression>(e));
 }
+
+TEST_F(ast, constant_calls_are_evaluated_recursively) {
+  expression e = analyse(
+    "(+ (car '(1 . 2)) (cdr '(1 . 2)))",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  ASSERT_TRUE(is<literal_expression>(e));
+  EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 3);
+}
+
+TEST_F(ast, constant_variables_are_used_in_evaluation_of_constant_calls) {
+  expression e = analyse(
+    R"(
+      (let ((k 5))
+        (+ 2 k))
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  e = ignore_lets_and_sequences(e);
+  ASSERT_TRUE(is<literal_expression>(e));
+  EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 7);
+}
+
+TEST_F(ast, let_variables_bound_to_constant_expressions_are_constants) {
+  expression e = analyse(
+    R"(
+      (let ((k1 (+ 2 3)))
+        (* 2 k1))
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  e = ignore_lets_and_sequences(e);
+  ASSERT_TRUE(is<literal_expression>(e));
+  EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(),
+            10);
+}
+
+TEST_F(ast, let_initialiser_are_constant_if_they_only_use_other_constants) {
+  expression e = analyse(
+    R"(
+      (let ((k1 (+ 2 3)))
+        (let ((k2 (* k1 2)))
+          (+ k2 1)))
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  e = ignore_lets_and_sequences(e);
+  ASSERT_TRUE(is<literal_expression>(e));
+  EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(),
+            11);
+}

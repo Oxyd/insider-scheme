@@ -95,7 +95,8 @@ is_initialised_to_constant(auto var) {
 
 static expression
 propagate_and_evaluate_constants(context&,
-                                 ptr<local_reference_expression> ref) {
+                                 ptr<local_reference_expression> ref,
+                                 bool&) {
   if (is_initialised_to_constant(ref->variable()))
     return ref->variable()->constant_initialiser();
   else
@@ -104,7 +105,8 @@ propagate_and_evaluate_constants(context&,
 
 static expression
 propagate_and_evaluate_constants(context&,
-                                 ptr<top_level_reference_expression> ref) {
+                                 ptr<top_level_reference_expression> ref,
+                                 bool&) {
   if (is_initialised_to_constant(ref->variable()))
     return ref->variable()->constant_initialiser();
   else
@@ -117,16 +119,31 @@ is_const(definition_pair_expression const& dp) {
 }
 
 static std::vector<definition_pair_expression>
-remove_const_definitions(std::vector<definition_pair_expression> const& dps) {
+update_let_definitions(context& ctx,
+                       std::vector<definition_pair_expression> const& dps,
+                       bool& go_again) {
   std::vector<definition_pair_expression> result;
-  result.reserve(dps.size());
-  std::ranges::remove_copy_if(dps, std::back_inserter(result), is_const);
+  for (definition_pair_expression dp : dps) {
+    if (!is_const(dp))
+      result.push_back(dp);
+
+    if (!is_const(dp) && is<literal_expression>(dp.expression())
+        && !dp.variable()->is_set()) {
+      // The variable was made constant in this pass. We need to mark it as
+      // constant and do another pass to propagate it into the body of this let.
+
+      dp.variable()->set_constant_initialiser(ctx.store, dp.expression());
+      go_again = true;
+    }
+  }
+
   return result;
 }
 
 static expression
-propagate_and_evaluate_constants(context& ctx, ptr<let_expression> let) {
-  auto new_dps = remove_const_definitions(let->definitions());
+propagate_and_evaluate_constants(context& ctx, ptr<let_expression> let,
+                                 bool& go_again) {
+  auto new_dps = update_let_definitions(ctx, let->definitions(), go_again);
   if (new_dps.empty())
     return let->body();
   else if (new_dps.size() < let->definitions().size())
@@ -148,11 +165,42 @@ find_constant_evaluable_callable(context& ctx,
   return {};
 }
 
+static ptr<>
+constant_value_for_expression(ptr<literal_expression> lit) {
+  return lit->value();
+}
+
+static ptr<>
+constant_value_for_expression(ptr<local_reference_expression> ref) {
+  if (expression k = ref->variable()->constant_initialiser())
+    if (auto lit = match<literal_expression>(k))
+      return lit->value();
+  return {};
+}
+
+static ptr<>
+constant_value_for_expression(ptr<top_level_reference_expression> ref) {
+  if (expression k = ref->variable()->constant_initialiser())
+    if (auto lit = match<literal_expression>(k))
+      return lit->value();
+  return {};
+}
+
+static ptr<>
+constant_value_for_expression(auto) { return {}; }
+
 static bool
 can_be_constant_evaluated(ptr<application_expression> app) {
   return std::ranges::all_of(
     app->arguments(),
-    [] (expression e) { return is<literal_expression>(e); }
+    [] (expression e) {
+      return visit(
+        [] (auto expr) {
+          return constant_value_for_expression(expr) != nullptr;
+        },
+        e
+      );
+    }
   );
 }
 
@@ -179,7 +227,10 @@ make_arguments_for_constant_evaluation(context& ctx,
   std::vector<ptr<>> result;
   result.reserve(app->arguments().size());
   for (expression arg : app->arguments())
-    result.push_back(assume<literal_expression>(arg)->value());
+    result.push_back(
+      visit([] (auto e) { return constant_value_for_expression(e); },
+            arg)
+    );
 
   coalesce_eqv_values(ctx, result);
   return result;
@@ -200,7 +251,8 @@ evaluate_constant_application(context& ctx, ptr<> callable,
 
 static expression
 propagate_and_evaluate_constants(context& ctx,
-                                 ptr<application_expression> app) {
+                                 ptr<application_expression> app,
+                                 bool&) {
   if (can_be_constant_evaluated(app))
     if (auto callable = find_constant_evaluable_callable(ctx, app))
       if (auto result = evaluate_constant_application(ctx, callable, app))
@@ -209,19 +261,26 @@ propagate_and_evaluate_constants(context& ctx,
 }
 
 static expression
-propagate_and_evaluate_constants(context&, auto x) { return x; }
+propagate_and_evaluate_constants(context&, auto x, bool&) { return x; }
 
 expression
 propagate_and_evaluate_constants(context& ctx, expression e, analysis_context) {
-  return map_ast(
-    ctx, e,
-    [&] (expression expr) {
-      return visit(
-        [&] (auto e) { return propagate_and_evaluate_constants(ctx, e); },
-        expr
-      );
-    }
-  );
+  bool go_again = false;
+  do {
+    go_again = false;
+    e = map_ast(
+      ctx, e,
+      [&] (expression expr) {
+        return visit(
+          [&] (auto e) {
+            return propagate_and_evaluate_constants(ctx, e, go_again);
+          },
+          expr
+        );
+      }
+    );
+  } while (go_again);
+  return e;
 }
 
 static ptr<lambda_expression>
