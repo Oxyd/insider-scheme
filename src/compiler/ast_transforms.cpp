@@ -817,6 +817,7 @@ find_set_variables(ptr<let_expression> let) {
 
 static definition_pair_expression
 box_definition_pair(context& ctx, definition_pair_expression const& dp) {
+  dp.variable()->mark_as_not_set();
   return {dp.variable(), make_application(ctx, "box", dp.expression())};
 }
 

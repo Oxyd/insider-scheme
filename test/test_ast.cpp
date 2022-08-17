@@ -865,6 +865,45 @@ TEST_F(ast, chain_of_top_level_procedures_is_inlined_completely) {
   assert_procedure_not_called(three_def, "one");
 }
 
+TEST_F(ast, variables_are_not_boxed_twice) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export foo)
+
+      (define foo
+        (lambda ()
+          (let ((var #void))
+            (set! var 5)
+            'hi)))
+    )"
+  );
+
+  expression e = analyse_module(R"(
+    (import (insider internal) (foo))
+
+    (foo)
+  )");
+
+  auto let = expect<let_expression>(
+    expect<sequence_expression>(e)->expressions().front()
+  );
+  ASSERT_EQ(let->definitions().size(), 1);
+  auto var_def = let->definitions()[0].expression();
+  auto var_app = expect<application_expression>(var_def);
+  EXPECT_EQ(
+    expect<top_level_reference_expression>(
+      var_app->target()
+    )->variable()->name(),
+    "box"
+  );
+
+  ASSERT_EQ(var_app->arguments().size(), 1);
+  EXPECT_TRUE(is<literal_expression>(var_app->arguments()[0]));
+}
+
 static expression
 ignore_lets_and_sequences(expression e) {
   while (true) {

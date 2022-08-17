@@ -33,6 +33,9 @@ public:
   void
   mark_as_set() { is_set_ = true; }
 
+  void
+  mark_as_not_set() { is_set_ = false; }
+
   expression
   constant_initialiser() const { return constant_initialiser_; }
 
