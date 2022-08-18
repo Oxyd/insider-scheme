@@ -21,12 +21,12 @@
 namespace insider {
 
 namespace {
-  class shared_local;
+  class shared_register;
 
-  class locals_allocator {
+  class register_allocator {
   public:
-    shared_local
-    allocate_local();
+    shared_register
+    allocate_register();
 
     void
     ref(operand);
@@ -35,24 +35,24 @@ namespace {
     unref(operand);
 
     unsigned
-    locals_used() const { return locals_max_; }
+    registers_used() const { return registers_max_; }
 
   private:
-    operand locals_max_ = 0;
-    std::vector<operand> locals_free_;
-    std::unordered_map<operand, unsigned> local_ref_counts_;
+    operand                               registers_max_ = 0;
+    std::vector<operand>                  registers_free_;
+    std::unordered_map<operand, unsigned> register_ref_counts_;
   };
 
-  class shared_local {
+  class shared_register {
   public:
-    shared_local() = default;
-    shared_local(locals_allocator&, operand);
-    shared_local(shared_local const&);
-    shared_local(shared_local&&) noexcept;
-    ~shared_local();
+    shared_register() = default;
+    shared_register(register_allocator&, operand);
+    shared_register(shared_register const&);
+    shared_register(shared_register&&) noexcept;
+    ~shared_register();
 
-    shared_local&
-    operator = (shared_local&&) noexcept;
+    shared_register&
+    operator = (shared_register&&) noexcept;
 
     operand
     operator * () const { assert(has_value()); return *value_; }
@@ -64,17 +64,17 @@ namespace {
     bool () const { return has_value(); }
 
     bool
-    operator == (shared_local const& other) const {
+    operator == (shared_register const& other) const {
       return alloc_ == other.alloc_ && value_ == other.value_;
     }
 
     bool
-    operator != (shared_local const& other) const {
+    operator != (shared_register const& other) const {
       return !operator == (other);
     }
 
   private:
-    locals_allocator*      alloc_ = nullptr;
+    register_allocator*    alloc_ = nullptr;
     std::optional<operand> value_;
   };
 
@@ -82,18 +82,18 @@ namespace {
   public:
     struct binding {
       ptr<local_variable> variable;
-      shared_local        destination;
+      shared_register     destination;
 
       binding() = default;
 
-      binding(ptr<insider::local_variable> variable, shared_local destination)
+      binding(ptr<insider::local_variable> variable, shared_register destination)
         : variable{variable}
         , destination{std::move(destination)}
       { }
     };
     using scope = std::vector<binding>;
     using free_variables_map = std::unordered_map<ptr<local_variable>,
-                                                  shared_local>;
+                                                  shared_register>;
 
     class unique_scope {
     public:
@@ -114,11 +114,11 @@ namespace {
     void
     pop_scope();
 
-    shared_local
+    shared_register
     lookup(ptr<local_variable> const&) const;
 
     bool
-    local_is_store_for_variable(shared_local const&) const;
+    register_is_store_for_variable(shared_register const&) const;
 
   private:
     std::vector<scope> scopes_;
@@ -131,7 +131,7 @@ namespace {
 
   struct procedure_context {
     procedure_context*                   parent = nullptr;
-    locals_allocator                     registers;
+    register_allocator                   registers;
     variable_bindings                    bindings;
     // Stack of bytecodes to facilitate compiling ifs.
     std::vector<bytecode_and_debug_info> bytecode_stack;
@@ -147,41 +147,41 @@ namespace {
   };
 }
 
-shared_local
-locals_allocator::allocate_local() {
-  if (locals_free_.empty())
-    return {*this, operand{locals_max_++}};
+shared_register
+register_allocator::allocate_register() {
+  if (registers_free_.empty())
+    return {*this, operand{registers_max_++}};
   else {
-    auto result = operand{locals_free_.back()};
-    locals_free_.pop_back();
+    auto result = operand{registers_free_.back()};
+    registers_free_.pop_back();
     return {*this, result};
   }
 }
 
 void
-locals_allocator::ref(operand o) {
-  ++local_ref_counts_[o];
+register_allocator::ref(operand o) {
+  ++register_ref_counts_[o];
 }
 
 void
-locals_allocator::unref(operand o) {
-  auto ref_count = local_ref_counts_.find(o);
-  assert(ref_count != local_ref_counts_.end());
+register_allocator::unref(operand o) {
+  auto ref_count = register_ref_counts_.find(o);
+  assert(ref_count != register_ref_counts_.end());
 
   if (--ref_count->second == 0) {
-    locals_free_.push_back(o);
-    local_ref_counts_.erase(ref_count);
+    registers_free_.push_back(o);
+    register_ref_counts_.erase(ref_count);
   }
 }
 
-shared_local::shared_local(locals_allocator& alloc, operand value)
+shared_register::shared_register(register_allocator& alloc, operand value)
   : alloc_{&alloc}
   , value_{value}
 {
   alloc_->ref(*value_);
 }
 
-shared_local::shared_local(shared_local const& other)
+shared_register::shared_register(shared_register const& other)
   : alloc_{other.alloc_}
   , value_{other.value_}
 {
@@ -189,20 +189,20 @@ shared_local::shared_local(shared_local const& other)
     alloc_->ref(*value_);
 }
 
-shared_local::shared_local(shared_local&& other) noexcept
+shared_register::shared_register(shared_register&& other) noexcept
   : alloc_{other.alloc_}
   , value_{other.value_}
 {
   other.alloc_ = nullptr;
 }
 
-shared_local::~shared_local() {
+shared_register::~shared_register() {
   if (alloc_)
     alloc_->unref(*value_);
 }
 
-shared_local&
-shared_local::operator = (shared_local&& other) noexcept {
+shared_register&
+shared_register::operator = (shared_register&& other) noexcept {
   if (alloc_)
     alloc_->unref(*value_);
 
@@ -224,7 +224,7 @@ variable_bindings::pop_scope() {
   scopes_.pop_back();
 }
 
-shared_local
+shared_register
 variable_bindings::lookup(ptr<local_variable> const& v) const {
   for (auto const& scope : scopes_ | std::views::reverse)
     for (binding const& b : scope)
@@ -236,7 +236,7 @@ variable_bindings::lookup(ptr<local_variable> const& v) const {
 }
 
 bool
-variable_bindings::local_is_store_for_variable(shared_local const& loc) const {
+variable_bindings::register_is_store_for_variable(shared_register const& loc) const {
   for (auto const& scope : scopes_)
     for (binding const& b : scope)
       if (b.destination == loc)
@@ -262,25 +262,25 @@ namespace {
     bool
     has_result() const { return reg_.has_value(); }
 
-    shared_local
+    shared_register
     get(procedure_context&);
 
     void
-    set(shared_local reg) {
+    set(shared_register reg) {
       assert(!reg_);
       reg_ = std::move(reg);
     }
 
   private:
-    shared_local reg_;
-    bool         used_;
+    shared_register reg_;
+    bool            used_;
   };
 }
 
-shared_local
+shared_register
 result_location::get(procedure_context& proc) {
   if (!reg_)
-    reg_ = proc.registers.allocate_local();
+    reg_ = proc.registers.allocate_register();
 
   return reg_;
 }
@@ -303,12 +303,12 @@ static void
 compile_expression(context& ctx, procedure_context& proc, expression,
                    bool tail, result_location&);
 
-static shared_local
+static shared_register
 compile_expression_to_register(context& ctx, procedure_context& proc,
                                expression const& stx, bool tail) {
   result_location result;
   compile_expression(ctx, proc, stx, tail, result);
-  return result.has_result() ? result.get(proc) : shared_local{};
+  return result.has_result() ? result.get(proc) : shared_register{};
 }
 
 static void
@@ -324,7 +324,7 @@ static void
 compile_static_reference(procedure_context& proc, operand location,
                          result_location&);
 
-static shared_local
+static shared_register
 compile_static_reference_to_register(procedure_context& proc,
                                      operand static_num) {
   result_location result;
@@ -340,7 +340,7 @@ static void
 compile_fold(context& ctx, procedure_context& proc,
              std::vector<expression> const& arguments,
              opcode op, result_location& result) {
-  std::vector<shared_local> arg_registers;
+  std::vector<shared_register> arg_registers;
   arg_registers.reserve(arguments.size());
   for (expression arg : arguments)
     arg_registers.push_back(
@@ -445,7 +445,7 @@ compile_vector_set(context& ctx, procedure_context& proc,
   if (stx->arguments().size() != 3)
     throw std::runtime_error{"vector-set!: Expected exactly 3 arguments"};
 
-  std::array<shared_local, 3> arg_registers;
+  std::array<shared_register, 3> arg_registers;
   for (std::size_t i = 0; i < 3; ++i)
     arg_registers[i]
       = compile_expression_to_register(ctx, proc, stx->arguments()[i], false);
@@ -465,9 +465,9 @@ compile_vector_ref(context& ctx, procedure_context& proc,
   if (stx->arguments().size() != 2)
     throw std::runtime_error{"vector-ref: Expected exactly 2 arguments"};
 
-  shared_local v_reg
+  shared_register v_reg
     = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-  shared_local i_reg
+  shared_register i_reg
     = compile_expression_to_register(ctx, proc, stx->arguments()[1], false);
 
   if (result.result_used())
@@ -482,7 +482,7 @@ compile_type(context& ctx, procedure_context& proc,
   if (stx->arguments().size() != 1)
     throw std::runtime_error{"type: Expected exactly 1 argument"};
 
-  shared_local expr_reg
+  shared_register expr_reg
     = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
   if (result.result_used())
     encode_instruction(proc.bytecode_stack.back().bc,
@@ -496,9 +496,9 @@ compile_cons_application(context& ctx, procedure_context& proc,
   if (stx->arguments().size() != 2)
     throw std::runtime_error{"cons: Expected exactly 2 arguments"};
 
-  shared_local car_reg
+  shared_register car_reg
     = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-  shared_local cdr_reg
+  shared_register cdr_reg
     = compile_expression_to_register(ctx, proc, stx->arguments()[1], false);
 
   if (result.result_used())
@@ -515,7 +515,7 @@ compile_car(context& ctx, procedure_context& proc,
   if (stx->arguments().size() != 1)
     throw std::runtime_error{"car: Expected exactly 1 argument"};
 
-  shared_local pair_reg
+  shared_register pair_reg
     = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
 
   if (result.result_used())
@@ -530,7 +530,7 @@ compile_cdr(context& ctx, procedure_context& proc,
   if (stx->arguments().size() != 1)
     throw std::runtime_error{"cdr: Expected exactly 1 argument"};
 
-  shared_local pair_reg
+  shared_register pair_reg
     = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
 
   if (result.result_used())
@@ -545,9 +545,9 @@ compile_eq(context& ctx, procedure_context& proc,
   if (stx->arguments().size() != 2)
     throw std::runtime_error{"eq?: Expected exactly 2 arguments"};
 
-  shared_local lhs_reg
+  shared_register lhs_reg
     = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-  shared_local rhs_reg
+  shared_register rhs_reg
     = compile_expression_to_register(ctx, proc, stx->arguments()[1], false);
 
   if (result.result_used())
@@ -564,7 +564,7 @@ compile_box(context& ctx, procedure_context& proc,
   if (stx->arguments().size() != 1)
     throw std::runtime_error{"box: Expected exactly 1 argument"};
 
-  shared_local value
+  shared_register value
     = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
   if (result.result_used())
     encode_instruction(proc.bytecode_stack.back().bc,
@@ -578,7 +578,7 @@ compile_unbox(context& ctx, procedure_context& proc,
   if (stx->arguments().size() != 1)
     throw std::runtime_error{"unbox: Expected exactly 1 argument"};
 
-  shared_local box
+  shared_register box
     = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
   if (result.result_used())
     encode_instruction(proc.bytecode_stack.back().bc,
@@ -592,9 +592,9 @@ compile_box_set(context& ctx, procedure_context& proc,
   if (stx->arguments().size() != 2)
     throw std::runtime_error{"box-set!: Expected exactly 2 argument"};
 
-  shared_local box
+  shared_register box
     = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-  shared_local value
+  shared_register value
     = compile_expression_to_register(ctx, proc, stx->arguments()[1], false);
 
   encode_instruction(proc.bytecode_stack.back().bc,
@@ -608,7 +608,7 @@ compile_expression(context& ctx, procedure_context& proc,
                    result_location& result) {
   variable_bindings::scope scope;
   for (auto const& def : stx->definitions()) {
-    shared_local value
+    shared_register value
       = compile_expression_to_register(ctx, proc, def.expression(), false);
     scope.emplace_back(variable_bindings::binding{def.variable(),
                                                   std::move(value)});
@@ -633,7 +633,7 @@ static void
 compile_expression(context& ctx, procedure_context& proc,
                    ptr<top_level_set_expression> stx, bool,
                    result_location& result) {
-  shared_local value
+  shared_register value
     = compile_expression_to_register(ctx, proc, stx->expression(), false);
   encode_instruction(proc.bytecode_stack.back().bc,
                      instruction{opcode::store_top_level, *value,
@@ -672,7 +672,7 @@ make_procedure_from_bytecode(context& ctx, procedure_context const& pc,
                   pc.bytecode_stack.back());
 
   return make<procedure>(ctx, entry, pc.bytecode_stack.back().bc.size(),
-                         pc.registers.locals_used(), min_args, has_rest,
+                         pc.registers.registers_used(), min_args, has_rest,
                          std::move(name));
 }
 
@@ -701,14 +701,14 @@ push_parameters_and_closure_scope(procedure_context& proc,
 
   for (ptr<local_variable> free : stx->free_variables())
     args_scope.push_back(variable_bindings::binding{
-        free, proc.registers.allocate_local()
+        free, proc.registers.allocate_register()
       });
 
   for (std::size_t i = 0; i < stx->parameters().size(); ++i) {
     auto param = stx->parameters()[i];
     args_scope.push_back(variable_bindings::binding{
         param,
-        shared_local{proc.registers,
+        shared_register{proc.registers,
           nth_parameter_index(i, stx->parameters().size())}
       });
   }
@@ -730,7 +730,7 @@ static void
 emit_make_closure(context& ctx, procedure_context& parent,
                   ptr<procedure> proc, ptr<lambda_expression> stx,
                   result_location& result) {
-  shared_local p_reg
+  shared_register p_reg
     = compile_static_reference_to_register(parent, ctx.intern_static(proc));
 
   for (ptr<local_variable> var : stx->free_variables())
@@ -790,8 +790,8 @@ compile_if_branches_to_specified_register(context& ctx, procedure_context& proc,
 
 static void
 unify_if_branch_results(procedure_context& proc,
-                        shared_local const& consequent_reg,
-                        shared_local const& alternative_reg,
+                        shared_register const& consequent_reg,
+                        shared_register const& alternative_reg,
                         bytecode& consequent_bc,
                         bytecode& alternative_bc,
                         result_location& result) {
@@ -803,15 +803,15 @@ unify_if_branch_results(procedure_context& proc,
            || consequent_reg == alternative_reg)
     result.set(consequent_reg);
   else {
-    assert(proc.bindings.local_is_store_for_variable(consequent_reg));
-    if (!proc.bindings.local_is_store_for_variable(alternative_reg)) {
+    assert(proc.bindings.register_is_store_for_variable(consequent_reg));
+    if (!proc.bindings.register_is_store_for_variable(alternative_reg)) {
       encode_instruction(
         consequent_bc,
         instruction{opcode::set, *consequent_reg, *alternative_reg}
       );
       result.set(alternative_reg);
     } else {
-      shared_local new_reg = proc.registers.allocate_local();
+      shared_register new_reg = proc.registers.allocate_register();
       encode_instruction(
         consequent_bc,
         instruction{opcode::set, *consequent_reg, *new_reg}
@@ -832,18 +832,18 @@ compile_if_branches_to_unspecified_register(context& ctx,
                                             bool tail,
                                             result_location& result) {
   proc.bytecode_stack.emplace_back();
-  shared_local consequent_reg
+  shared_register consequent_reg
     = compile_expression_to_register(ctx, proc, stx->consequent(), tail);
 
   if (consequent_reg &&
-      !proc.bindings.local_is_store_for_variable(consequent_reg)) {
+      !proc.bindings.register_is_store_for_variable(consequent_reg)) {
     result.set(consequent_reg);
 
     proc.bytecode_stack.emplace_back();
     compile_expression(ctx, proc, stx->alternative(), tail, result);
   } else {
     proc.bytecode_stack.emplace_back();
-    shared_local alternative_reg
+    shared_register alternative_reg
       = compile_expression_to_register(ctx, proc, stx->alternative(), tail);
     unify_if_branch_results(
       proc,
@@ -859,7 +859,7 @@ compile_if_branches_to_unspecified_register(context& ctx,
 static void
 compile_expression(context& ctx, procedure_context& proc,
                    ptr<if_expression> stx, bool tail, result_location& result) {
-  shared_local test_value
+  shared_register test_value
     = compile_expression_to_register(ctx, proc, stx->test(), false);
 
   if (result.has_result() || !result.result_used())
@@ -941,10 +941,10 @@ compile_expression(context& ctx, procedure_context& proc,
 
   opcode oc = tail ? opcode::tail_call : opcode::call;
   operand f;
-  shared_local f_reg;
+  shared_register f_reg;
 
   for (expression arg : stx->arguments()) {
-    shared_local reg = compile_expression_to_register(ctx, proc, arg, false);
+    shared_register reg = compile_expression_to_register(ctx, proc, arg, false);
     encode_instruction(proc.bytecode_stack.back().bc,
                        instruction{opcode::push, *reg});
   }
@@ -980,12 +980,12 @@ compile_expression(context&, procedure_context& proc,
   if (!result.result_used())
     return;
 
-  shared_local var_reg = proc.bindings.lookup(stx->variable());
+  shared_register var_reg = proc.bindings.lookup(stx->variable());
 
   if (!result.has_result())
     result.set(var_reg);
   else {
-    shared_local result_reg = result.get(proc);
+    shared_register result_reg = result.get(proc);
     if (var_reg != result_reg)
       encode_instruction(proc.bytecode_stack.back().bc,
                          instruction{opcode::set, *var_reg, *result_reg});
@@ -1083,7 +1083,7 @@ compile_expression(context& ctx, ptr<syntax> datum,
 ptr<closure>
 compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
   procedure_context proc{nullptr, mod};
-  shared_local result = compile_expression_to_register(ctx, proc, e, true);
+  shared_register result = compile_expression_to_register(ctx, proc, e, true);
   if (result)
     encode_instruction(proc.bytecode_stack.back().bc,
                        instruction{opcode::ret, *result});
