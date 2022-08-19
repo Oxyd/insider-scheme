@@ -123,7 +123,7 @@ public:
 
   void
   push(ptr<> x) {
-    ensure_additional_capacity(1);
+    ensure_capacity(1);
     data_[size_++] = x;
   }
 
@@ -159,17 +159,17 @@ private:
   static constexpr std::size_t alloc_size = 4096;
 
   std::unique_ptr<ptr<>[]> data_;
-  frame_index              capacity_     = 0;
-  frame_index              size_         = 0;
+  std::size_t              capacity_     = 0;
+  std::size_t              size_         = 0;
   frame_index              current_base_ = -1;
 
   void
-  ensure_additional_capacity(std::size_t additional_size);
+  ensure_capacity(std::size_t required_size);
 
   void
   grow_capacity(std::size_t requested_capacity);
 
-  frame_index
+  std::size_t
   find_new_capacity(std::size_t at_least) const;
 
   frame_index

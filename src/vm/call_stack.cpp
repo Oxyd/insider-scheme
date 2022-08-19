@@ -57,7 +57,7 @@ call_stack::push_frame(ptr<> callable, std::size_t locals_size,
          || is_procedure(data_[current_base_ + callable_offset]));
 
   auto new_base = static_cast<frame_index>(size_);
-  ensure_additional_capacity(stack_frame_header_size + locals_size);
+  ensure_capacity(size_ + stack_frame_header_size + locals_size);
   size_ += stack_frame_header_size
            + static_cast<integer::value_type>(locals_size);
 
@@ -95,13 +95,10 @@ call_stack::move_tail_call_arguments(std::size_t new_args_size,
                                      std::size_t old_args_size) {
   frame_index parent_base = parent(current_frame_index());
 
-  integer::value_type dest_begin
-    = current_frame_index() - to_signed<integer::value_type>(old_args_size);
-  integer::value_type dest_end
-    = dest_begin + to_signed<integer::value_type>(new_args_size);
-  integer::value_type src_begin
-    = size_ - to_signed<integer::value_type>(new_args_size);
-  integer::value_type src_end = size_;
+  std::size_t dest_begin = current_frame_index() - old_args_size;
+  std::size_t dest_end = dest_begin + new_args_size;
+  std::size_t src_begin = size_ - new_args_size;
+  std::size_t src_end = size_;
 
   std::copy(data_.get() + src_begin, data_.get() + src_end,
             data_.get() + dest_begin);
@@ -111,8 +108,7 @@ call_stack::move_tail_call_arguments(std::size_t new_args_size,
 }
 
 auto
-call_stack::frames(frame_index begin, frame_index end) const
-  -> frame_span
+call_stack::frames(frame_index begin, frame_index end) const -> frame_span
 {
   assert(end >= 0);
   assert(end >= begin);
@@ -124,7 +120,7 @@ call_stack::frames(frame_index begin, frame_index end) const
 
 void
 call_stack::append_frames(frame_span frames) {
-  ensure_additional_capacity(frames.data.size());
+  ensure_capacity(size_ + frames.data.size());
   std::ranges::copy(frames.data, data_.get() + size_);
   size_ += static_cast<frame_index>(frames.data.size());
   fix_base_offsets(frames);
@@ -132,7 +128,7 @@ call_stack::append_frames(frame_span frames) {
 
 void
 call_stack::visit_members(member_visitor const& f) {
-  for (frame_index i = 0; i < size_; ++i)
+  for (std::size_t i = 0; i < size_; ++i)
     f(data_[i]);
 
   // Clear data in the allocated area after the current end of stack. This is
@@ -145,36 +141,34 @@ call_stack::visit_members(member_visitor const& f) {
 }
 
 void
-call_stack::ensure_additional_capacity(std::size_t additional_size) {
-  integer::value_type required_size
-    = size_ + static_cast<integer::value_type>(additional_size);
+call_stack::ensure_capacity(std::size_t required_size) {
   if (required_size >= capacity_) [[unlikely]]
-    grow_capacity(size_ + additional_size);
+    grow_capacity(required_size);
 }
 
 void
 call_stack::grow_capacity(std::size_t requested_capacity) {
-  frame_index new_cap = find_new_capacity(requested_capacity);
+  std::size_t new_cap = find_new_capacity(requested_capacity);
   auto new_data = std::make_unique<ptr<>[]>(new_cap);
   std::copy(data_.get(), data_.get() + size_, new_data.get());
   data_ = std::move(new_data);
   capacity_ = new_cap;
 }
 
-call_stack::frame_index
+std::size_t
 call_stack::find_new_capacity(std::size_t at_least) const {
   // Normally we expect to grow the capacity by just a single alloc_size, so
   // this loop will only do a single iteration.
 
-  frame_index result = capacity_;
-  while (result < static_cast<frame_index>(at_least))
+  std::size_t result = capacity_;
+  while (result < at_least)
     result += alloc_size;
   return result;
 }
 
 call_stack::frame_index
 call_stack::find_last_frame_base(frame_index end) const {
-  if (end < size_)
+  if (end < static_cast<frame_index>(size_))
     return assume<integer>(data_[end + previous_base_offset]).value();
   else
     return current_base_;
@@ -182,7 +176,8 @@ call_stack::find_last_frame_base(frame_index end) const {
 
 void
 call_stack::fix_base_offsets(frame_span const& frames) {
-  frame_index old_end = size_ - static_cast<frame_index>(frames.data.size());
+  frame_index old_end = static_cast<frame_index>(size_)
+                        - static_cast<frame_index>(frames.data.size());
   frame_index base_delta = old_end - frames.first_frame_base;
 
   frame_index current = frames.last_frame_base + base_delta;
