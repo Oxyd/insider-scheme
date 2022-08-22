@@ -85,7 +85,6 @@ append_frame_to_stacktrace(context& ctx,
                            std::vector<stacktrace_record>& trace,
                            frame_reference frame) {
   ptr<> proc = frame.callable();
-
   if (auto cls = match<closure>(proc))
     proc = cls->procedure();
 
@@ -98,15 +97,14 @@ append_frame_to_stacktrace(context& ctx,
   auto inlined = find_inlined_procedures(ctx, frame);
   for (std::string const& inlined_proc : inlined)
     trace.push_back({inlined_proc, stacktrace_record::kind::scheme});
-
 }
 
 static std::vector<stacktrace_record>
 stacktrace(execution_state& state) {
   std::vector<stacktrace_record> result;
-  for (call_stack_iterator it{state.stack}; it != call_stack_iterator{}; ++it)
+  for (call_stack::frame_index frame : state.stack->frames_range())
     append_frame_to_stacktrace(state.ctx, result,
-                               frame_reference{state.stack, *it});
+                               frame_reference{state.stack, frame});
   return result;
 }
 
@@ -533,7 +531,7 @@ make_tail_call_frame(ptr<call_stack> stack, ptr<> proc,
   integer::value_type previous_pc = current.previous_pc();
   ptr<stack_frame_extra_data> extra = current.extra();
 
-  stack->move_tail_call_arguments(
+  stack->move_tail_call_arguments_and_pop_frame(
     num_args, actual_args_size(current)
   );
   stack->push_frame(proc, locals_size, previous_pc, extra);
@@ -1374,8 +1372,8 @@ tail_call(context& ctx, ptr<> callable,
 namespace {
   struct stack_segment {
     ptr<stack_frame_extra_data> extra;
-    integer::value_type         begin;
-    integer::value_type         end; // Index *past* the last frame of this
+    call_stack::frame_index     begin;
+    call_stack::frame_index     end; // Index *past* the last frame of this
                                      // segment
   };
 
@@ -1392,17 +1390,18 @@ decompose_into_segments(ptr<call_stack> stack) {
   stack_segment current_segment;
   current_segment.end = stack->frames_end();
 
-  integer::value_type previous = stack->frames_end();
-  for (call_stack_iterator it{stack}; it != call_stack_iterator{}; ++it) {
-    if (stack->extra(*it)) {
+  call_stack::frame_index previous = stack->frames_end();
+  for (call_stack::frame_index frame : stack->frames_range()) {
+    if (stack->extra(frame)) {
       current_segment.begin = previous;
-      result.push_back(current_segment);
+      if (current_segment.begin != current_segment.end)
+        result.push_back(current_segment);
 
-      current_segment.extra = stack->extra(*it);
+      current_segment.extra = stack->extra(frame);
       current_segment.end = previous;
     }
 
-    previous = *it;
+    previous = frame;
   }
 
   current_segment.begin = 0;
@@ -1423,10 +1422,10 @@ common_prefix_length(std::vector<stack_segment> const& x,
   return result;
 }
 
-static integer::value_type
+static std::optional<call_stack::frame_index>
 common_frame_index(stack_segments const& segments, std::size_t common_prefix) {
   if (common_prefix == 0)
-    return -1;
+    return std::nullopt;
   else
     return segments.stack->parent(segments.segments[common_prefix].begin);
 }
@@ -1439,13 +1438,14 @@ capture_stack(context& ctx, ptr<> receiver) {
 
 static bool
 all_frames(ptr<call_stack> stack,
-           integer::value_type begin, integer::value_type end,
+           std::optional<call_stack::frame_index> begin,
+           std::optional<call_stack::frame_index> end,
            auto pred) {
   while (begin != end)
-    if (!pred(frame_reference{stack, begin}))
+    if (!pred(frame_reference{stack, *begin}))
       return false;
     else
-      begin = stack->parent(begin);
+      begin = stack->parent(*begin);
 
   return true;
 }
@@ -1461,13 +1461,15 @@ allows_jump_in(frame_reference f) {
 }
 
 static bool
-jump_out_allowed(ptr<call_stack> stack, integer::value_type common) {
+jump_out_allowed(ptr<call_stack> stack,
+                 std::optional<call_stack::frame_index> common) {
   return all_frames(stack, stack->current_frame_index(), common,
                     allows_jump_out);
 }
 
 static bool
-jump_in_allowed(ptr<call_stack> stack, integer::value_type common) {
+jump_in_allowed(ptr<call_stack> stack,
+                std::optional<call_stack::frame_index> common) {
   return all_frames(stack, stack->current_frame_index(), common,
                     allows_jump_in);
 }
@@ -1475,7 +1477,7 @@ jump_in_allowed(ptr<call_stack> stack, integer::value_type common) {
 static bool
 continuation_jump_allowed(ptr<call_stack> current_stack,
                           ptr<call_stack> new_stack,
-                          integer::value_type common) {
+                          std::optional<call_stack::frame_index> common) {
   return jump_out_allowed(current_stack, common)
          && jump_in_allowed(new_stack, common);
 }
@@ -1483,7 +1485,7 @@ continuation_jump_allowed(ptr<call_stack> current_stack,
 static void
 throw_if_jump_not_allowed(context& ctx,
                           ptr<call_stack> new_stack,
-                          integer::value_type common) {
+                          std::optional<call_stack::frame_index> common) {
   if (!continuation_jump_allowed(ctx.current_execution->stack, new_stack,
                                  common))
     throw std::runtime_error{"Continuation jump across barrier not allowed"};
@@ -1506,7 +1508,8 @@ get_before_thunk(frame_reference f) {
 }
 
 static void
-unwind_stack(execution_state& state, integer::value_type end) {
+unwind_stack(execution_state& state,
+             std::optional<call_stack::frame_index> end) {
   while (state.stack->current_frame_index() != end) {
     frame_reference frame = current_frame(state.stack);
     if (ptr<> thunk = get_after_thunk(frame))
@@ -1522,16 +1525,12 @@ static void
 push_first_segments_arguments(ptr<call_stack> destination_stack,
                               ptr<call_stack> source_stack,
                               stack_segment const& segment) {
-  if (segment.begin > 0) {
-    frame_reference frame{source_stack, segment.begin};
-    auto num_args = to_signed<integer::value_type>(actual_args_size(frame));
-    assert(num_args <= segment.begin);
+  frame_reference frame{source_stack, segment.begin};
+  auto num_args = to_signed<integer::value_type>(actual_args_size(frame));
 
-    for (integer::value_type i = 0; i < num_args; ++i) {
-      auto arg = static_cast<operand>(i - num_args
-                                      - call_stack::stack_frame_header_size);
-      destination_stack->push(frame.local(arg));
-    }
+  for (integer::value_type i = 0; i < num_args; ++i) {
+    auto arg = static_cast<operand>(i - num_args);
+    destination_stack->push(frame.local(arg));
   }
 }
 
@@ -1559,7 +1558,7 @@ replace_stack(context& ctx, ptr<call_stack> cont, ptr<> value) {
   stack_segments new_segments = decompose_into_segments(cont);
   std::size_t prefix
     = common_prefix_length(current_segments.segments, new_segments.segments);
-  integer::value_type common_frame_idx
+  std::optional<call_stack::frame_index> common_frame_idx
     = common_frame_index(current_segments, prefix);
   throw_if_jump_not_allowed(ctx, cont, common_frame_idx);
 

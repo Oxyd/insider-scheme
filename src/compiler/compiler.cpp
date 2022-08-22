@@ -688,9 +688,7 @@ make_closure_from_bytecode(context& ctx, procedure_context const& pc,
 static operand
 nth_parameter_index(std::size_t n, std::size_t total_args) {
   return static_cast<operand>(
-    static_cast<operand>(n)
-      - static_cast<operand>(total_args)
-      - static_cast<operand>(call_stack::stack_frame_header_size)
+    static_cast<operand>(n) - static_cast<operand>(total_args)
   );
 }
 

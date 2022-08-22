@@ -99,7 +99,7 @@ TEST_F(call_stack_fixture, get_local_of_parent_frame) {
   current_frame_local(cs.get(), 0) = integer_to_ptr(4);
 
   EXPECT_EQ(
-    expect<integer>(cs->local(current_frame_parent(cs.get()), 0)).value(),
+    expect<integer>(cs->local(*current_frame_parent(cs.get()), 0)).value(),
     2
   );
 }
@@ -116,17 +116,17 @@ TEST_F(call_stack_fixture, iterate_call_stacks) {
   cs->push_frame(two, 1, 0);
   current_frame_local(cs.get(), 0) = integer_to_ptr(2);
 
-  for (call_stack_iterator it{cs.get()}; it != call_stack_iterator{}; ++it) {
-    if (cs->callable(*it) == one)
-      EXPECT_EQ(expect<integer>(cs->local(*it, 0)).value(), 1);
+  for (call_stack::frame_index f : cs->frames_range()) {
+    if (cs->callable(f) == one)
+      EXPECT_EQ(expect<integer>(cs->local(f, 0)).value(), 1);
     else
-      EXPECT_EQ(expect<integer>(cs->local(*it, 0)).value(), 2);
+      EXPECT_EQ(expect<integer>(cs->local(f, 0)).value(), 2);
   }
 }
 
 TEST_F(call_stack_fixture, capture_tail_part_of_stack_and_append_to_empty_stack) {
   make_4_frames();
-  integer::value_type start = cs->parent(current_frame_parent(cs.get()));
+  call_stack::frame_index start = *cs->parent(*current_frame_parent(cs.get()));
   EXPECT_EQ(cs->callable(start), two);
 
   call_stack::frame_span tail = cs->frames(start, cs->frames_end());
@@ -134,17 +134,17 @@ TEST_F(call_stack_fixture, capture_tail_part_of_stack_and_append_to_empty_stack)
   auto new_cs = make<call_stack>(ctx);
   new_cs->append_frames(tail);
 
-  call_stack_iterator it{new_cs};
+  auto it = new_cs->frames_range().begin();
   EXPECT_EQ(new_cs->callable(*it++), four);
   EXPECT_EQ(new_cs->callable(*it++), three);
   EXPECT_EQ(new_cs->callable(*it++), two);
-  EXPECT_EQ(it, call_stack_iterator());
+  EXPECT_EQ(it, new_cs->frames_range().end());
 }
 
 TEST_F(call_stack_fixture,
        capture_tail_part_of_stack_and_append_to_nonempty_stack) {
   make_4_frames();
-  integer::value_type start = cs->parent(current_frame_parent(cs.get()));
+  call_stack::frame_index start = *cs->parent(*current_frame_parent(cs.get()));
   EXPECT_EQ(cs->callable(start), two);
 
   call_stack::frame_span tail = cs->frames(start, cs->frames_end());
@@ -155,27 +155,27 @@ TEST_F(call_stack_fixture,
 
   new_cs->append_frames(tail);
 
-  call_stack_iterator it{new_cs};
+  auto it = new_cs->frames_range().begin();
   EXPECT_EQ(new_cs->callable(*it++), four);
   EXPECT_EQ(new_cs->callable(*it++), three);
   EXPECT_EQ(new_cs->callable(*it++), two);
   EXPECT_EQ(new_cs->callable(*it++), twenty);
   EXPECT_EQ(new_cs->callable(*it++), ten);
-  EXPECT_EQ(it, call_stack_iterator());
+  EXPECT_EQ(it, new_cs->frames_range().end());
 }
 
 TEST_F(call_stack_fixture,
        capture_middle_part_of_stack_and_append_to_empty_stack) {
   make_4_frames();
-  integer::value_type start = cs->parent(current_frame_parent(cs.get()));
-  integer::value_type end = cs->current_frame_index();
+  call_stack::frame_index start = *cs->parent(*current_frame_parent(cs.get()));
+  call_stack::frame_index end = *cs->current_frame_index();
   call_stack::frame_span middle = cs->frames(start, end);
 
   auto new_cs = make<call_stack>(ctx);
   new_cs->append_frames(middle);
 
-  call_stack_iterator it{new_cs};
+  auto it = new_cs->frames_range().begin();
   EXPECT_EQ(new_cs->callable(*it++), three);
   EXPECT_EQ(new_cs->callable(*it++), two);
-  EXPECT_EQ(it, call_stack_iterator());
+  EXPECT_EQ(it, new_cs->frames_range().end());
 }

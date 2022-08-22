@@ -12,6 +12,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <stdexcept>
 #include <type_traits>
 
@@ -44,16 +45,17 @@ public:
 // The runtime stack used by the VM to store procedure activation records, local
 // variables and temporary values.
 class call_stack : public composite_object<call_stack> {
+  struct frame;
+
 public:
   static constexpr char const* scheme_name = "insider::call_stack";
-  static constexpr integer::value_type stack_frame_header_size = 4;
 
-  using frame_index = integer::value_type;
+  using frame_index = std::size_t;
 
   struct frame_span {
-    object_span data;
-    frame_index last_frame_base;
-    frame_index first_frame_base;
+    call_stack const*      stack;
+    std::span<frame const> frames;
+    std::size_t            last_frame_real_end;
   };
 
   call_stack();
@@ -75,55 +77,64 @@ public:
   resize_current_frame(std::size_t new_size);
 
   void
-  move_tail_call_arguments(std::size_t new_args_size,
-                           std::size_t old_args_size);
+  move_tail_call_arguments_and_pop_frame(std::size_t new_args_size,
+                                         std::size_t old_args_size);
 
-  frame_index
-  current_frame_index() const { return current_base_; }
+  std::optional<frame_index>
+  current_frame_index() const {
+    if (!empty())
+      return frames_.size() - 1;
+    else
+      return std::nullopt;
+  }
 
   ptr<>&
   callable(frame_index frame) {
-    return data_[frame + callable_offset];
+    return frames_[frame].callable;
   }
 
   ptr<stack_frame_extra_data>
   extra(frame_index frame) {
-    return assume<stack_frame_extra_data>(data_[frame + extra_data_offset]);
+    return frames_[frame].extra;
   }
 
   void
   set_extra(frame_index frame, ptr<stack_frame_extra_data> value) {
-    data_[frame + extra_data_offset] = value;
+    frames_[frame].extra = value;
   }
 
   ptr<>&
   local(frame_index frame, operand local) {
-    return data_[frame + stack_frame_header_size + local];
+    return data_[frames_[frame].base + local];
   }
 
   object_span
-  call_args_span(integer::value_type num_args) {
-    return {&data_[current_base_ - num_args], &data_[current_base_]};
+  call_args_span(std::size_t num_args) {
+    std::size_t base = frames_.back().base;
+    return {&data_[base - num_args], &data_[base]};
   }
 
-  frame_index
+  std::optional<frame_index>
   parent(frame_index frame) const {
-    return assume<integer>(data_[frame + previous_base_offset]).value();
+    if (frame > 0)
+      return frame - 1;
+    else
+      return std::nullopt;
   }
 
   integer::value_type
-  previous_pc(integer::value_type frame) const {
-    return assume<integer>(data_[frame + previous_pc_offset]).value();
+  previous_pc(frame_index frame) const {
+    return frames_[frame].previous_pc;
   }
 
   void
   set_previous_pc(frame_index frame, integer::value_type pc) {
-    data_[frame + previous_pc_offset] = integer_to_ptr(pc);
+    frames_[frame].previous_pc = pc;
   }
 
   void
   push(ptr<> x) {
-    ensure_capacity(1);
+    ensure_capacity(size_ + 1);
     data_[size_++] = x;
   }
 
@@ -131,19 +142,25 @@ public:
   pop() { return data_[--size_]; }
 
   bool
-  empty() const { return current_base_ == -1; }
+  empty() const { return frames_.empty(); }
 
   std::size_t
-  size() const { return static_cast<std::size_t>(size_); }
+  size() const { return size_; }
 
   void
-  clear() { current_base_ = -1; size_ = 0; }
+  clear() { frames_.clear(); size_ = 0; }
+
+  auto
+  frames_range() const {
+    return std::views::iota(frame_index{0}, frames_.size())
+           | std::views::reverse;
+  }
 
   frame_span
   frames(frame_index begin, frame_index end) const;
 
   frame_index
-  frames_end() const { return static_cast<frame_index>(size_); }
+  frames_end() const { return frames_.size(); }
 
   void
   append_frames(frame_span);
@@ -158,10 +175,18 @@ private:
   static constexpr integer::value_type extra_data_offset = 3;
   static constexpr std::size_t alloc_size = 4096;
 
+  struct frame {
+    std::size_t                 base;
+    std::size_t                 size;
+    integer::value_type         previous_pc;
+    ptr<>                       callable;
+    ptr<stack_frame_extra_data> extra;
+  };
+
+  std::vector<frame>       frames_;
   std::unique_ptr<ptr<>[]> data_;
   std::size_t              capacity_     = 0;
   std::size_t              size_         = 0;
-  frame_index              current_base_ = -1;
 
   void
   ensure_capacity(std::size_t required_size);
@@ -171,47 +196,41 @@ private:
 
   std::size_t
   find_new_capacity(std::size_t at_least) const;
-
-  frame_index
-  find_last_frame_base(frame_index end) const;
-
-  void
-  fix_base_offsets(frame_span const& frames);
 };
 
 inline ptr<>&
 current_frame_callable(ptr<call_stack> stack) {
-  return stack->callable(stack->current_frame_index());
+  return stack->callable(*stack->current_frame_index());
 }
 
 inline ptr<stack_frame_extra_data>
 current_frame_extra(ptr<call_stack> stack) {
-  return stack->extra(stack->current_frame_index());
+  return stack->extra(*stack->current_frame_index());
 }
 
 inline void
 current_frame_set_extra(ptr<call_stack> stack, ptr<stack_frame_extra_data> e) {
-  stack->set_extra(stack->current_frame_index(), e);
+  stack->set_extra(*stack->current_frame_index(), e);
 }
 
 inline ptr<>&
 current_frame_local(ptr<call_stack> stack, std::size_t i) {
-  return stack->local(stack->current_frame_index(), to_signed<operand>(i));
+  return stack->local(*stack->current_frame_index(), to_signed<operand>(i));
 }
 
-inline call_stack::frame_index
+inline std::optional<call_stack::frame_index>
 current_frame_parent(ptr<call_stack> stack) {
-  return stack->parent(stack->current_frame_index());
+  return stack->parent(*stack->current_frame_index());
 }
 
 inline integer::value_type
 current_frame_previous_pc(ptr<call_stack> stack) {
-  return stack->previous_pc(stack->current_frame_index());
+  return stack->previous_pc(*stack->current_frame_index());
 }
 
 inline void
 current_frame_set_previous_pc(ptr<call_stack> stack, integer::value_type pc) {
-  stack->set_previous_pc(stack->current_frame_index(), pc);
+  stack->set_previous_pc(*stack->current_frame_index(), pc);
 }
 
 inline void
@@ -226,41 +245,42 @@ class frame_reference {
 public:
   frame_reference() = default;
 
-  frame_reference(ptr<call_stack> stack, call_stack::frame_index idx)
+  frame_reference(ptr<call_stack> stack,
+                  std::optional<call_stack::frame_index> idx)
     : stack_{stack}
     , idx_{idx}
   { }
 
   ptr<>&
-  local(operand i) const { return stack_->local(idx_, i); }
+  local(operand i) const { return stack_->local(*idx_, i); }
 
   ptr<>&
-  callable() const { return stack_->callable(idx_); }
+  callable() const { return stack_->callable(*idx_); }
 
   ptr<stack_frame_extra_data>
-  extra() const { return stack_->extra(idx_); }
+  extra() const { return stack_->extra(*idx_); }
 
   void
   set_extra(ptr<stack_frame_extra_data> value) const {
-    stack_->set_extra(idx_, value);
+    stack_->set_extra(*idx_, value);
   }
 
   integer::value_type
-  previous_pc() const { return stack_->previous_pc(idx_); }
+  previous_pc() const { return stack_->previous_pc(*idx_); }
 
   void
   set_previous_pc(integer::value_type pc) const {
-    stack_->set_previous_pc(idx_, pc);
+    stack_->set_previous_pc(*idx_, pc);
   }
 
   frame_reference
-  parent() const { return {stack_, stack_->parent(idx_)}; }
+  parent() const { return {stack_, stack_->parent(*idx_)}; }
 
   call_stack::frame_index
-  index() const { return idx_; }
+  index() const { return *idx_; }
 
   explicit
-  operator bool () const { return idx_ != -1; }
+  operator bool () const { return idx_.has_value(); }
 
   bool
   operator == (frame_reference other) const {
@@ -268,60 +288,13 @@ public:
   }
 
 private:
-  ptr<call_stack>         stack_;
-  call_stack::frame_index idx_ = -1;
+  ptr<call_stack>                        stack_;
+  std::optional<call_stack::frame_index> idx_;
 };
 
 inline frame_reference
 current_frame(ptr<call_stack> stack) {
   return {stack, stack->current_frame_index()};
-}
-
-class call_stack_iterator {
-public:
-  using value_type = integer::value_type;
-  using difference_type = integer::value_type;
-  using reference = integer::value_type;
-  using pointer = integer::value_type*;
-  using iterator_category = std::forward_iterator_tag;
-
-  call_stack_iterator() = default;
-
-  explicit
-  call_stack_iterator(ptr<call_stack> cs)
-    : stack_{cs}
-    , current_{cs->current_frame_index()}
-  { }
-
-  integer::value_type
-  operator * () const { return current_; }
-
-  call_stack_iterator&
-  operator ++ () {
-    current_ = stack_->parent(current_);
-    return *this;
-  }
-
-  call_stack_iterator
-  operator ++ (int) {
-    call_stack_iterator result{*this};
-    ++*this;
-    return result;
-  }
-
-  bool
-  operator == (call_stack_iterator other) const {
-    return current_ == other.current_;
-  }
-
-private:
-  ptr<call_stack>         stack_{};
-  call_stack::frame_index current_ = -1;
-};
-
-inline bool
-operator != (call_stack_iterator lhs, call_stack_iterator rhs) {
-  return !(lhs == rhs);
 }
 
 }

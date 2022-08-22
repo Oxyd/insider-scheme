@@ -92,9 +92,9 @@ TEST_F(interpreter, can_push_and_pop) {
 
 static operand
 nth_argument(std::size_t n, std::size_t num_args) {
-  return -static_cast<operand>(call_stack::stack_frame_header_size)
-         - static_cast<operand>(num_args)
-         + static_cast<operand>(n);
+  return static_cast<operand>(
+    static_cast<operand>(n) - static_cast<operand>(num_args)
+  );
 }
 
 TEST_F(interpreter, can_access_pushed_arguments_from_callee) {
