@@ -169,10 +169,6 @@ public:
   visit_members(member_visitor const&);
 
 private:
-  static constexpr integer::value_type previous_base_offset = 0;
-  static constexpr integer::value_type previous_pc_offset = 1;
-  static constexpr integer::value_type callable_offset = 2;
-  static constexpr integer::value_type extra_data_offset = 3;
   static constexpr std::size_t alloc_size = 4096;
 
   struct frame {
