@@ -958,17 +958,17 @@ compile_expression(context& ctx, procedure_context& proc,
     f = *f_reg;
   }
 
-  std::size_t call_idx = encode_instruction(
-    proc.bytecode_stack.back().bc,
-    instruction{oc, f,
-                static_cast<operand>(stx->arguments().size())}
-  );
+  instruction i;
+  if (!tail)
+    i = instruction{oc, f, static_cast<operand>(stx->arguments().size()),
+                    *result.get(proc)};
+  else
+    i = instruction{oc, f, static_cast<operand>(stx->arguments().size())};
+
+  std::size_t call_idx = encode_instruction(proc.bytecode_stack.back().bc, i);
+
   if (stx->debug_info())
     proc.bytecode_stack.back().debug_info[call_idx] = *stx->debug_info();
-
-  if (!tail)
-    encode_instruction(proc.bytecode_stack.back().bc,
-                       instruction{opcode::pop, *result.get(proc)});
 }
 
 static void

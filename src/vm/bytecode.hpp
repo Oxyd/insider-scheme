@@ -39,7 +39,7 @@ enum class opcode : std::uint16_t {
   set,              // set <source> <destination>
   push,             // push <value>
   pop,              // pop <destination>
-  call,             // call <procedure> <number of arguments>
+  call,             // call <procedure> <number of arguments> <result register>
   call_top_level,   // same as call, but <procedure> is the index of a top-level
   call_static,      //                   -- "" --                      static
   tail_call,        // tail-call <procedure> <number of arguments>
@@ -145,11 +145,11 @@ instructions{
   std::tuple{"pop",
              opcode::pop,                 std::size_t{1}},
   std::tuple{"call",
-             opcode::call,                std::size_t{2}},
+             opcode::call,                std::size_t{3}},
   std::tuple{"call-top-level",
-             opcode::call_top_level,      std::size_t{2}},
+             opcode::call_top_level,      std::size_t{3}},
   std::tuple{"call-static",
-             opcode::call_static,         std::size_t{2}},
+             opcode::call_static,         std::size_t{3}},
   std::tuple{"tail-call",
              opcode::tail_call,           std::size_t{2}},
   std::tuple{"tail-call-top-level",

@@ -116,8 +116,7 @@ TEST_F(interpreter, can_access_pushed_arguments_from_callee) {
       instruction{opcode::load_static, two, operand{1}},
       instruction{opcode::push, operand{0}},
       instruction{opcode::push, operand{1}},
-      instruction{opcode::call_static, add, operand{2}},
-      instruction{opcode::pop, operand{0}},
+      instruction{opcode::call_static, add, operand{2}, operand{0}},
       instruction{opcode::ret, operand{0}}
     }),
     2, 0
@@ -155,8 +154,7 @@ TEST_F(interpreter, exec_calls) {
                    instruction{opcode::load_static, f,     operand{5}},
                    instruction{opcode::push, operand{3}},
                    instruction{opcode::push, operand{4}},
-                   instruction{opcode::call, operand{5}, operand{2}},
-                   instruction{opcode::pop, operand{0}},
+                   instruction{opcode::call, operand{5}, operand{2}, operand{0}},
                    instruction{opcode::load_static, three, operand{6}},
                    instruction{opcode::multiply, operand{6}, operand{0}, operand{0}},
                    instruction{opcode::load_static, four,  operand{7}},
@@ -164,9 +162,9 @@ TEST_F(interpreter, exec_calls) {
                    instruction{opcode::push, operand{8}},
                    instruction{opcode::push, operand{6}},
                    instruction{opcode::push, operand{7}},
-                   instruction{opcode::call, operand{5}, operand{2}},
-                   instruction{opcode::call, operand{5}, operand{2}},
-                   instruction{opcode::pop, operand{1}},
+                   instruction{opcode::call, operand{5}, operand{2}, operand{3}},
+                   instruction{opcode::push, operand{3}},
+                   instruction{opcode::call, operand{5}, operand{2}, operand{1}},
                    instruction{opcode::add, operand{0}, operand{1}, operand{0}},
                    instruction{opcode::ret, operand{0}}}),
     9,
@@ -204,8 +202,7 @@ TEST_F(interpreter, exec_tail_calls) {
     make_bytecode({instruction{opcode::load_static, f, operand{1}},
                    instruction{opcode::load_static, six, operand{2}},
                    instruction{opcode::push, operand{2}},
-                   instruction{opcode::call, operand{1}, operand{1}},
-                   instruction{opcode::pop, operand{0}},
+                   instruction{opcode::call, operand{1}, operand{1}, operand{0}},
                    instruction{opcode::ret, operand{0}}}),
     3, 0
   );
@@ -262,8 +259,7 @@ TEST_F(interpreter, exec_native_call) {
                    instruction{opcode::push, operand{1}},
                    instruction{opcode::push, operand{2}},
                    instruction{opcode::push, operand{3}},
-                   instruction{opcode::call, operand{4}, operand{3}},
-                   instruction{opcode::pop, operand{0}},
+                   instruction{opcode::call, operand{4}, operand{3}, operand{0}},
                    instruction{opcode::ret, operand{0}}}),
     5,
     0
@@ -292,8 +288,7 @@ TEST_F(interpreter, exec_closure_ref) {
                    instruction{opcode::make_closure, operand{2}, operand{1},
                                operand{1}},
                    instruction{opcode::push, operand{4}},
-                   instruction{opcode::call, operand{1}, operand{1}},
-                   instruction{opcode::pop, operand{0}},
+                   instruction{opcode::call, operand{1}, operand{1}, operand{0}},
                    instruction{opcode::ret, operand{0}}}),
     5, 0
   );

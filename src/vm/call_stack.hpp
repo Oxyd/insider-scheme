@@ -67,7 +67,7 @@ public:
 
   void
   push_frame(ptr<> callable, std::size_t locals_size,
-             integer::value_type previous_pc,
+             integer::value_type previous_pc, operand result_register,
              ptr<stack_frame_extra_data> extra = {});
 
   void
@@ -132,6 +132,11 @@ public:
     frames_[frame].previous_pc = pc;
   }
 
+  operand
+  result_register(frame_index frame) const {
+    return frames_[frame].result_register;
+  }
+
   void
   push(ptr<> x) {
     ensure_capacity(size_ + 1);
@@ -175,6 +180,7 @@ private:
     std::size_t                 base;
     std::size_t                 size;
     integer::value_type         previous_pc;
+    operand                     result_register;
     ptr<>                       callable;
     ptr<stack_frame_extra_data> extra;
   };
@@ -268,6 +274,9 @@ public:
   set_previous_pc(integer::value_type pc) const {
     stack_->set_previous_pc(*idx_, pc);
   }
+
+  operand
+  result_register() const { return stack_->result_register(*idx_); }
 
   frame_reference
   parent() const { return {stack_, stack_->parent(*idx_)}; }
