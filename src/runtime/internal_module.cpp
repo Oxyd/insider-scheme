@@ -99,7 +99,7 @@ procedure_bytecode(context& ctx, ptr<procedure> f) {
     instrs.emplace_back(pos, pc - pos, instr);
   }
 
-  return make_list_from_vector(
+  return make_list_from_range(
     ctx, instrs,
     [&] (std::tuple<std::size_t, std::size_t, instruction> i) {
       return make_list(
@@ -125,7 +125,7 @@ instruction_opcode(ptr<opaque_value<instruction>> i) {
 static ptr<>
 instruction_operands(context& ctx, ptr<opaque_value<instruction>> i) {
   instruction instr = i->value;
-  return make_list_from_vector(ctx, instr.operands,
+  return make_list_from_range(ctx, instr.operands,
                                [&] (operand o) { return integer_to_ptr(o); });
 }
 

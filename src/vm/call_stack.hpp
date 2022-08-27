@@ -55,7 +55,6 @@ public:
   struct frame_span {
     call_stack const*      stack;
     std::span<frame const> frames;
-    std::size_t            last_frame_real_end;
   };
 
   call_stack();
@@ -66,7 +65,7 @@ public:
   operator = (call_stack const&);
 
   void
-  push_frame(ptr<> callable, std::size_t locals_size,
+  push_frame(ptr<> callable, std::size_t base, std::size_t locals_size,
              integer::value_type previous_pc, operand result_register,
              ptr<stack_frame_extra_data> extra = {});
 
@@ -74,11 +73,14 @@ public:
   pop_frame();
 
   void
-  resize_current_frame(std::size_t new_size);
+  replace_frame(ptr<> new_callable, std::size_t new_locals_size);
 
   void
-  move_tail_call_arguments_and_pop_frame(std::size_t new_args_size,
-                                         std::size_t old_args_size);
+  replace_frame(ptr<> new_callable, std::size_t new_locals_size,
+                std::size_t args_base, std::size_t args_size);
+
+  void
+  resize_current_frame(std::size_t new_size);
 
   std::optional<frame_index>
   current_frame_index() const {
@@ -109,9 +111,9 @@ public:
   }
 
   object_span
-  call_args_span(std::size_t num_args) {
+  current_frame_span() const {
     std::size_t base = frames_.back().base;
-    return {&data_[base - num_args], &data_[base]};
+    return {&data_[base], &data_[base + frames_.back().size]};
   }
 
   std::optional<frame_index>
@@ -135,6 +137,16 @@ public:
   operand
   result_register(frame_index frame) const {
     return frames_[frame].result_register;
+  }
+
+  std::size_t
+  frame_base(frame_index frame) const {
+    return frames_[frame].base;
+  }
+
+  std::size_t
+  frame_size(frame_index frame) const {
+    return frames_[frame].size;
   }
 
   void
@@ -189,6 +201,9 @@ private:
   std::unique_ptr<ptr<>[]> data_;
   std::size_t              capacity_     = 0;
   std::size_t              size_         = 0;
+
+  void
+  update_size();
 
   void
   ensure_capacity(std::size_t required_size);
@@ -277,6 +292,12 @@ public:
 
   operand
   result_register() const { return stack_->result_register(*idx_); }
+
+  std::size_t
+  base() const { return stack_->frame_base(*idx_); }
+
+  std::size_t
+  size() const { return stack_->frame_size(*idx_); }
 
   frame_reference
   parent() const { return {stack_, stack_->parent(*idx_)}; }

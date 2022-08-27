@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <ranges>
+#include <set>
 #include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
@@ -28,6 +29,9 @@ namespace {
     shared_register
     allocate_register();
 
+    shared_register
+    allocate_argument_register();
+
     void
     ref(operand);
 
@@ -37,9 +41,12 @@ namespace {
     unsigned
     registers_used() const { return registers_max_; }
 
+    operand
+    first_argument_register() const;
+
   private:
     operand                               registers_max_ = 0;
-    std::vector<operand>                  registers_free_;
+    std::set<operand>                     registers_free_;
     std::unordered_map<operand, unsigned> register_ref_counts_;
   };
 
@@ -152,10 +159,20 @@ register_allocator::allocate_register() {
   if (registers_free_.empty())
     return {*this, operand{registers_max_++}};
   else {
-    auto result = operand{registers_free_.back()};
-    registers_free_.pop_back();
+    auto result = operand{*registers_free_.begin()};
+    registers_free_.erase(registers_free_.begin());
     return {*this, result};
   }
+}
+
+shared_register
+register_allocator::allocate_argument_register() {
+  operand result = first_argument_register();
+  if (result == registers_max_)
+    ++registers_max_;
+  else
+    registers_free_.erase(result);
+  return {*this, result};
 }
 
 void
@@ -169,9 +186,17 @@ register_allocator::unref(operand o) {
   assert(ref_count != register_ref_counts_.end());
 
   if (--ref_count->second == 0) {
-    registers_free_.push_back(o);
+    registers_free_.emplace(o);
     register_ref_counts_.erase(ref_count);
   }
+}
+
+operand
+register_allocator::first_argument_register() const {
+  operand r = registers_max_;
+  while (r > 0 && registers_free_.contains(operand(r - 1)))
+    --r;
+  return r;
 }
 
 shared_register::shared_register(register_allocator& alloc, operand value)
@@ -256,6 +281,11 @@ namespace {
       : used_{result_used}
     { }
 
+    explicit
+    result_location(shared_register r)
+      : reg_{std::move(r)}
+    { }
+
     bool
     result_used() const { return used_; }
 
@@ -273,7 +303,7 @@ namespace {
 
   private:
     shared_register reg_;
-    bool            used_;
+    bool            used_ = true;
   };
 }
 
@@ -685,33 +715,22 @@ make_closure_from_bytecode(context& ctx, procedure_context const& pc,
                                                               std::move(name)));
 }
 
-static operand
-nth_parameter_index(std::size_t n, std::size_t total_args) {
-  return static_cast<operand>(
-    static_cast<operand>(n) - static_cast<operand>(total_args)
-  );
-}
-
 static variable_bindings::unique_scope
 push_parameters_and_closure_scope(procedure_context& proc,
                                   ptr<lambda_expression> stx) {
-  variable_bindings::scope args_scope;
+  variable_bindings::scope param_and_closure_scope;
+
+  for (ptr<local_variable> param : stx->parameters())
+    param_and_closure_scope.push_back(variable_bindings::binding{
+      param, proc.registers.allocate_register()
+    });
 
   for (ptr<local_variable> free : stx->free_variables())
-    args_scope.push_back(variable_bindings::binding{
-        free, proc.registers.allocate_register()
-      });
+    param_and_closure_scope.push_back(variable_bindings::binding{
+      free, proc.registers.allocate_register()
+    });
 
-  for (std::size_t i = 0; i < stx->parameters().size(); ++i) {
-    auto param = stx->parameters()[i];
-    args_scope.push_back(variable_bindings::binding{
-        param,
-        shared_register{proc.registers,
-          nth_parameter_index(i, stx->parameters().size())}
-      });
-  }
-
-  return proc.bindings.push_scope(std::move(args_scope));
+  return proc.bindings.push_scope(std::move(param_and_closure_scope));
 }
 
 static void
@@ -882,6 +901,20 @@ compile_expression(context& ctx, procedure_context& proc,
   append_bytecode(proc.bytecode_stack.back(), then_bc);
 }
 
+static std::vector<shared_register>
+compile_application_arguments(context& ctx, procedure_context& proc,
+                              ptr<application_expression> stx) {
+  std::vector<shared_register> result;
+
+  for (expression arg : stx->arguments()) {
+    result_location reg{proc.registers.allocate_argument_register()};
+    compile_expression(ctx, proc, arg, false, reg);
+    result.emplace_back(reg.get(proc));
+  }
+
+  return result;
+}
+
 static void
 compile_expression(context& ctx, procedure_context& proc,
                    ptr<application_expression> stx, bool tail,
@@ -941,11 +974,8 @@ compile_expression(context& ctx, procedure_context& proc,
   operand f;
   shared_register f_reg;
 
-  for (expression arg : stx->arguments()) {
-    shared_register reg = compile_expression_to_register(ctx, proc, arg, false);
-    encode_instruction(proc.bytecode_stack.back().bc,
-                       instruction{opcode::push, *reg});
-  }
+  operand call_base = proc.registers.first_argument_register();
+  auto arg_registers = compile_application_arguments(ctx, proc, stx);
 
   if (auto global = match<top_level_reference_expression>(stx->target())) {
     f = global->variable()->index;
@@ -960,10 +990,12 @@ compile_expression(context& ctx, procedure_context& proc,
 
   instruction i;
   if (!tail)
-    i = instruction{oc, f, static_cast<operand>(stx->arguments().size()),
+    i = instruction{oc, f, call_base,
+                    static_cast<operand>(stx->arguments().size()),
                     *result.get(proc)};
   else
-    i = instruction{oc, f, static_cast<operand>(stx->arguments().size())};
+    i = instruction{oc, f, call_base,
+                    static_cast<operand>(stx->arguments().size())};
 
   std::size_t call_idx = encode_instruction(proc.bytecode_stack.back().bc, i);
 

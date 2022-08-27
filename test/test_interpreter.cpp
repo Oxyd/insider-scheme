@@ -90,33 +90,23 @@ TEST_F(interpreter, can_push_and_pop) {
   EXPECT_EQ(expect<integer>(result.get()).value(), 2);
 }
 
-static operand
-nth_argument(std::size_t n, std::size_t num_args) {
-  return static_cast<operand>(
-    static_cast<operand>(n) - static_cast<operand>(num_args)
-  );
-}
-
-TEST_F(interpreter, can_access_pushed_arguments_from_callee) {
+TEST_F(interpreter, can_access_arguments_from_callee) {
   auto one = make_static<integer>(ctx, 1);
   auto two = make_static<integer>(ctx, 2);
   operand add = make_static_closure(
     ctx,
     make_bytecode({
-      instruction{opcode::add, nth_argument(0, 2), nth_argument(1, 2),
-                  operand{0}},
+      instruction{opcode::add, operand{0}, operand{1}, operand{0}},
       instruction{opcode::ret, operand{0}}
     }),
-    1, 2
+    2, 2
   );
   auto f = make_closure(
     ctx,
     make_bytecode({
       instruction{opcode::load_static, one, operand{0}},
       instruction{opcode::load_static, two, operand{1}},
-      instruction{opcode::push, operand{0}},
-      instruction{opcode::push, operand{1}},
-      instruction{opcode::call_static, add, operand{2}, operand{0}},
+      instruction{opcode::call_static, add, operand{0}, operand{2}, operand{0}},
       instruction{opcode::ret, operand{0}}
     }),
     2, 0
@@ -134,9 +124,9 @@ TEST_F(interpreter, exec_calls) {
   auto f = make_static_closure(
     ctx,
     make_bytecode({instruction{opcode::load_static, two, operand{3}},
-                   instruction{opcode::multiply, operand{3}, nth_argument(0, 2),
+                   instruction{opcode::multiply, operand{3}, operand{0},
                                operand{2}},
-                   instruction{opcode::add, operand{2}, nth_argument(1, 2),
+                   instruction{opcode::add, operand{2}, operand{1},
                                operand{2}},
                    instruction{opcode::ret, operand{2}}}),
     4, 2
@@ -149,25 +139,23 @@ TEST_F(interpreter, exec_calls) {
 
   auto global = make_closure(
     ctx,
-    make_bytecode({instruction{opcode::load_static, five,  operand{3}},
-                   instruction{opcode::load_static, seven, operand{4}},
-                   instruction{opcode::load_static, f,     operand{5}},
-                   instruction{opcode::push, operand{3}},
-                   instruction{opcode::push, operand{4}},
-                   instruction{opcode::call, operand{5}, operand{2}, operand{0}},
-                   instruction{opcode::load_static, three, operand{6}},
-                   instruction{opcode::multiply, operand{6}, operand{0}, operand{0}},
-                   instruction{opcode::load_static, four,  operand{7}},
-                   instruction{opcode::load_static, two,   operand{8}},
-                   instruction{opcode::push, operand{8}},
-                   instruction{opcode::push, operand{6}},
-                   instruction{opcode::push, operand{7}},
-                   instruction{opcode::call, operand{5}, operand{2}, operand{3}},
-                   instruction{opcode::push, operand{3}},
-                   instruction{opcode::call, operand{5}, operand{2}, operand{1}},
+    make_bytecode({instruction{opcode::load_static, f,     operand{0}},
+                   instruction{opcode::load_static, five,  operand{1}},
+                   instruction{opcode::load_static, seven, operand{2}},
+                   instruction{opcode::call, operand{0}, operand{1}, operand{2},
+                                             operand{1}},
+                   instruction{opcode::load_static, three, operand{2}},
+                   instruction{opcode::multiply, operand{2}, operand{1},
+                                                 operand{1}},
+                   instruction{opcode::load_static, four,  operand{3}},
+                   instruction{opcode::call, operand{0}, operand{2}, operand{2},
+                                             operand{3}},
+                   instruction{opcode::load_static, two,   operand{2}},
+                   instruction{opcode::call, operand{0}, operand{2}, operand{2},
+                                             operand{0}},
                    instruction{opcode::add, operand{0}, operand{1}, operand{0}},
                    instruction{opcode::ret, operand{0}}}),
-    9,
+    4,
     0
   );
   auto result = call_with_continuation_barrier(ctx, global, {});
@@ -184,7 +172,7 @@ TEST_F(interpreter, exec_tail_calls) {
   auto g = make_static_closure(
     ctx,
     make_bytecode({instruction{opcode::load_static, two, operand{2}},
-                   instruction{opcode::multiply, operand{2}, nth_argument(0, 1),
+                   instruction{opcode::multiply, operand{2}, operand{0},
                                operand{1}},
                    instruction{opcode::ret, operand{1}}}),
     3, 1
@@ -192,8 +180,8 @@ TEST_F(interpreter, exec_tail_calls) {
   auto f = make_static_closure(
     ctx,
     make_bytecode({instruction{opcode::load_static, g, operand{1}},
-                   instruction{opcode::push, nth_argument(0, 1)},
-                   instruction{opcode::tail_call, operand{1}, operand{1}}}),
+                   instruction{opcode::tail_call, operand{1}, operand{0},
+                                                  operand{1}}}),
     2, 1
   );
   auto six = make_static<integer>(ctx, 6);
@@ -201,8 +189,8 @@ TEST_F(interpreter, exec_tail_calls) {
     ctx,
     make_bytecode({instruction{opcode::load_static, f, operand{1}},
                    instruction{opcode::load_static, six, operand{2}},
-                   instruction{opcode::push, operand{2}},
-                   instruction{opcode::call, operand{1}, operand{1}, operand{0}},
+                   instruction{opcode::call, operand{1}, operand{2}, operand{1},
+                                             operand{0}},
                    instruction{opcode::ret, operand{0}}}),
     3, 0
   );
@@ -252,14 +240,12 @@ TEST_F(interpreter, exec_native_call) {
   auto thirty = make_static<integer>(ctx, 30);
   auto global = make_closure(
     ctx,
-    make_bytecode({instruction{opcode::load_static, ten,           operand{1}},
+    make_bytecode({instruction{opcode::load_static, native_static, operand{0}},
+                   instruction{opcode::load_static, ten,           operand{1}},
                    instruction{opcode::load_static, twenty,        operand{2}},
                    instruction{opcode::load_static, thirty,        operand{3}},
-                   instruction{opcode::load_static, native_static, operand{4}},
-                   instruction{opcode::push, operand{1}},
-                   instruction{opcode::push, operand{2}},
-                   instruction{opcode::push, operand{3}},
-                   instruction{opcode::call, operand{4}, operand{3}, operand{0}},
+                   instruction{opcode::call, operand{0}, operand{1}, operand{3},
+                                             operand{0}},
                    instruction{opcode::ret, operand{0}}}),
     5,
     0
@@ -272,7 +258,7 @@ TEST_F(interpreter, exec_native_call) {
 TEST_F(interpreter, exec_closure_ref) {
   auto add = make_static_procedure(
     ctx,
-    make_bytecode({instruction{opcode::add, nth_argument(0, 1), operand{0},
+    make_bytecode({instruction{opcode::add, operand{0}, operand{1},
                                operand{0}},
                    instruction{opcode::ret, operand{0}}}),
     2, 1
@@ -287,8 +273,8 @@ TEST_F(interpreter, exec_closure_ref) {
                    instruction{opcode::push, operand{3}},
                    instruction{opcode::make_closure, operand{2}, operand{1},
                                operand{1}},
-                   instruction{opcode::push, operand{4}},
-                   instruction{opcode::call, operand{1}, operand{1}, operand{0}},
+                   instruction{opcode::call, operand{1}, operand{4}, operand{1},
+                                             operand{0}},
                    instruction{opcode::ret, operand{0}}}),
     5, 0
   );
@@ -321,22 +307,20 @@ TEST_F(interpreter, exec_car_cdr) {
 
   auto first = make_closure(
     ctx,
-    make_bytecode({instruction{opcode::car, nth_argument(0, 1), operand{0}},
+    make_bytecode({instruction{opcode::car, operand{0}, operand{0}},
                    instruction{opcode::ret, operand{0}}}),
     1, 1
   );
-  auto result1 = call_with_continuation_barrier(ctx, first,
-                                                {p.get()});
+  auto result1 = call_with_continuation_barrier(ctx, first, {p.get()});
   EXPECT_EQ(expect<integer>(result1).value(), 1);
 
   auto second = make_closure(
     ctx,
-    make_bytecode({instruction{opcode::cdr, nth_argument(0, 1), operand{0}},
+    make_bytecode({instruction{opcode::cdr, operand{0}, operand{0}},
                    instruction{opcode::ret, operand{0}}}),
     1, 1
   );
-  auto result2 = call_with_continuation_barrier(ctx, second,
-                                                {p.get()});
+  auto result2 = call_with_continuation_barrier(ctx, second, {p.get()});
   EXPECT_EQ(expect<integer>(result2).value(), 2);
 }
 
@@ -345,9 +329,7 @@ TEST_F(interpreter, test_eq) {
     ctx,
     make_closure(
       ctx,
-      make_bytecode({instruction{opcode::eq,
-                                 nth_argument(0, 2), nth_argument(1, 2),
-                                 operand{0}},
+      make_bytecode({instruction{opcode::eq, operand{0}, operand{1}, operand{0}},
                      instruction{opcode::ret, operand{0}}}),
       1, 2
     )
@@ -449,6 +431,42 @@ TEST_F(interpreter, call_variadic_scheme_procedure_from_native) {
     ctx, f, {to_scheme(ctx, 0), to_scheme(ctx, 1), to_scheme(ctx, 2)}
   ).get();
   EXPECT_TRUE(equal(result, read("(0 1 2)")));
+}
+
+TEST_F(interpreter, call_variadic_procedure_with_empty_tail_arg) {
+  ptr<> result = eval_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda (a . rest)
+          rest))
+
+      (foo 2)
+    )",
+    no_optimisations
+  );
+  EXPECT_EQ(result, ctx.constants->null);
+}
+
+TEST_F(interpreter, variadic_argument_is_a_list) {
+  ptr<> result = eval_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda x x))
+
+      (define bar
+        (lambda (a)
+          (let ((r (foo 0)))
+            r)))
+
+      (bar 2)
+    )",
+    no_optimisations
+  );
+  EXPECT_TRUE(is_list(result));
 }
 
 static ptr<>

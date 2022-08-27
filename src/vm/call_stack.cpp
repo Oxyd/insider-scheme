@@ -48,62 +48,70 @@ call_stack::operator = (call_stack const& other) {
 }
 
 void
-call_stack::push_frame(ptr<> callable, std::size_t locals_size,
-                       integer::value_type previous_pc, operand result_register,
+call_stack::push_frame(ptr<> callable, std::size_t base,
+                       std::size_t locals_size, integer::value_type previous_pc,
+                       operand result_register,
                        ptr<stack_frame_extra_data> extra) {
   assert(!callable || is_procedure(callable));
+  assert(!frames_.empty() || base == 0);
+  assert(frames_.empty() || base >= frames_.back().base);
+  assert(frames_.empty() || base <= frames_.back().base + frames_.back().size);
 
-  std::size_t new_base = size_;
-  size_ += locals_size;
-  frames_.emplace_back(frame{new_base, locals_size, previous_pc,
+  frames_.emplace_back(frame{base, locals_size, previous_pc,
                              result_register, callable, extra});
-
-  assert(size_ == frames_.back().base + frames_.back().size);
+  update_size();
 }
 
 void
 call_stack::pop_frame() {
-  assert(frames_.back().size <= size_);
-
-  frame old_frame = frames_.back();
   frames_.pop_back();
-  size_ -= old_frame.size;
+
+  if (!frames_.empty())
+    size_ = frames_.back().base + frames_.back().size;
+  else
+    size_ = 0;
+}
+
+void
+call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size) {
+  frames_.back().callable = new_callable;
+  frames_.back().size = new_locals_size;
+  update_size();
+}
+
+void
+call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size,
+                          std::size_t args_base, std::size_t args_size) {
+  assert(!frames_.empty());
+  std::size_t current_base = frames_.back().base;
+
+  std::size_t dest_begin = current_base;
+  std::size_t dest_end   = dest_begin + args_size;
+  std::size_t src_begin  = current_base + args_base;
+  std::size_t src_end    = src_begin + args_size;
+
+  assert(src_end <= size_);
+  assert(dest_end <= size_);
+
+  std::copy(data_.get() + src_begin, data_.get() + src_end,
+            data_.get() + dest_begin);
+
+  frames_.back().callable = new_callable;
+  frames_.back().size = new_locals_size;
+
+  update_size();
 }
 
 void
 call_stack::resize_current_frame(std::size_t new_size) {
   frames_.back().size = new_size;
-  size_ = frames_.back().base + new_size;
-  if (size_ > capacity_) [[unlikely]]
-    grow_capacity(size_);
-}
-
-void
-call_stack::move_tail_call_arguments_and_pop_frame(std::size_t new_args_size,
-                                                   std::size_t old_args_size) {
-  assert(!frames_.empty());
-  std::size_t current_base = frames_.back().base;
-
-  assert(current_base >= old_args_size);
-  assert(size_ >= new_args_size);
-
-  std::size_t dest_begin = current_base - old_args_size;
-  std::size_t dest_end   = dest_begin + new_args_size;
-  std::size_t src_begin  = size_ - new_args_size;
-  std::size_t src_end    = size_;
-
-  std::copy(data_.get() + src_begin, data_.get() + src_end,
-            data_.get() + dest_begin);
-
-  frames_.pop_back();
-  size_ = dest_end;
+  update_size();
 }
 
 auto
 call_stack::frames(frame_index begin, frame_index end) const -> frame_span {
   assert(end >= begin);
-  return {this, {&frames_[begin], &frames_[end]},
-          end == frames_.size() ? size_ : frames_[end].base};
+  return {this, {&frames_[begin], &frames_[end]}};
 }
 
 void
@@ -112,7 +120,8 @@ call_stack::append_frames(frame_span frames) {
     return;
 
   std::size_t frames_begin = frames.frames.front().base;
-  std::size_t frames_end = frames.last_frame_real_end;
+  std::size_t frames_end
+    = frames.frames.back().base + frames.frames.back().size;
   std::size_t frames_size = frames_end - frames_begin;
   ensure_capacity(size_ + frames_size);
 
@@ -126,9 +135,7 @@ call_stack::append_frames(frame_span frames) {
     frames_.push_back(f);
   }
 
-  std::size_t last_frame_size
-    = frames.last_frame_real_end - frames.frames.back().base;
-  size_ = frames_.back().base + last_frame_size;
+  update_size();
 }
 
 void
@@ -148,6 +155,12 @@ call_stack::visit_members(member_visitor const& f) {
   // invalid pointers to the GC which will crash.
 
   std::fill(data_.get() + size_, data_.get() + capacity_, ptr<>{});
+}
+
+void
+call_stack::update_size() {
+  size_ = frames_.back().base + frames_.back().size;
+  ensure_capacity(size_);
 }
 
 void

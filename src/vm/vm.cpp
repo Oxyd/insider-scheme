@@ -60,10 +60,10 @@ is_native_frame(frame_reference frame) {
 
 static std::size_t
 find_index_of_call_instruction(frame_reference frame) {
-  assert(opcode_to_info(opcode::call).num_operands == 3);
-  assert(opcode_to_info(opcode::call_top_level).num_operands == 3);
-  assert(opcode_to_info(opcode::call_static).num_operands == 3);
-  static constexpr std::size_t call_instruction_size = 4;
+  assert(opcode_to_info(opcode::call).num_operands == 4);
+  assert(opcode_to_info(opcode::call_top_level).num_operands == 4);
+  assert(opcode_to_info(opcode::call_static).num_operands == 4);
+  static constexpr std::size_t call_instruction_size = 5;
   return frame.previous_pc() - call_instruction_size;
 }
 
@@ -433,18 +433,19 @@ namespace {
   };
 }
 
-static void
-push_closure(ptr<insider::closure> closure, frame_reference new_frame) {
-  frame_stack stack{new_frame};
-  std::size_t closure_size = get_closure_size(closure);
-  for (std::size_t j = 0; j < closure_size; ++j)
-    stack.push(closure->ref(j));
+static std::size_t
+actual_args_size(ptr<procedure> proc) {
+  return proc->min_args + (proc->has_rest ? 1 : 0);
 }
 
 static void
-push_mandatory_args(frame_stack& stack, std::size_t min_args, auto&& get_arg) {
-  for (std::size_t j = 0; j < min_args; ++j)
-    stack.push(get_arg());
+push_closure(ptr<procedure> proc, ptr<insider::closure> closure,
+             frame_reference frame) {
+  std::size_t closure_size = get_closure_size(closure);
+  std::size_t begin = actual_args_size(proc);
+
+  for (std::size_t i = 0; i < closure_size; ++i)
+    frame.local(operand(begin + i)) = closure->ref(i);
 }
 
 namespace {
@@ -469,21 +470,29 @@ namespace {
 }
 
 static void
-convert_tail_args_to_list(context& ctx, ptr<call_stack> stack,
-                          std::size_t num_rest) {
-  stack->push(ctx.constants->null);
-  for (std::size_t i = 0; i < num_rest; ++i) {
-    ptr<> tail = stack->pop();
-    ptr<> head = stack->pop();
-    stack->push(cons(ctx, head, tail));
-  }
+convert_tail_args_to_list(context& ctx, frame_reference frame,
+                          std::size_t tail_base, std::size_t num_rest) {
+  // Here's an interesting situation: Imagine that a Scheme procedure is calling
+  // a variadic procedure with no arguments for the tail parameter. Furthermore,
+  // the mandatory arguments are given as the very end of the caller's stack
+  // frame. This means that there's no space for the tail argument in the
+  // caller's frame.
+
+  if (frame.size() <= tail_base)
+    ctx.current_execution->stack->resize_current_frame(tail_base + 1);
+
+  frame.local(operand(tail_base)) = make_list_from_range(
+    ctx, std::views::iota(tail_base, tail_base + num_rest),
+    [&] (std::size_t i) { return frame.local(operand(i)); }
+  );
 }
 
 static void
-convert_tail_args(context& ctx, ptr<call_stack> stack, ptr<procedure> proc,
-                  std::size_t num_args) {
+convert_tail_args(context& ctx, frame_reference frame, ptr<procedure> proc,
+                  std::size_t base, std::size_t num_args) {
   if (proc->has_rest)
-    convert_tail_args_to_list(ctx, stack, num_args - proc->min_args);
+    convert_tail_args_to_list(ctx, frame, base + proc->min_args,
+                              num_args - proc->min_args);
 }
 
 static void
@@ -492,50 +501,23 @@ jump_to_procedure(execution_state& state, ptr<procedure> proc) {
 }
 
 static frame_reference
-make_scheme_frame(instruction_state& istate, ptr<procedure> proc,
-                  operand result_reg) {
-  istate.execution_state.stack->push_frame(proc, proc->locals_size,
-                                           istate.reader.current_pc(),
-                                           result_reg);
+push_scheme_frame(instruction_state& istate, ptr<procedure> proc,
+                  operand base, operand result_reg) {
+  istate.execution_state.stack->push_frame(
+    proc,
+    current_frame(istate.execution_state.stack).base() + base,
+    proc->locals_size,
+    istate.reader.current_pc(),
+    result_reg
+  );
   return current_frame(istate.execution_state.stack);
-}
-
-static ptr<>&
-native_args_count_field(frame_reference frame) {
-  assert(is_native_frame(frame));
-  return frame.local(0);
-}
-
-static std::size_t
-actual_args_size(ptr<procedure> proc) {
-  return proc->min_args + (proc->has_rest ? 1 : 0);
-}
-
-static std::size_t
-actual_args_size(frame_reference frame) {
-  if (auto proc = match<procedure>(frame.callable()))
-    return actual_args_size(proc);
-  else if (is<native_procedure>(frame.callable()))
-    return assume<integer>(native_args_count_field(frame)).value();
-  else {
-    assert(is_dummy_frame(frame));
-    return 0;
-  }
 }
 
 static frame_reference
 make_tail_call_frame(ptr<call_stack> stack, ptr<> proc,
-                     std::size_t locals_size, std::size_t num_args) {
-  frame_reference current = current_frame(stack);
-  integer::value_type previous_pc = current.previous_pc();
-  ptr<stack_frame_extra_data> extra = current.extra();
-  operand result_reg = current.result_register();
-
-  stack->move_tail_call_arguments_and_pop_frame(
-    num_args, actual_args_size(current)
-  );
-  stack->push_frame(proc, locals_size, previous_pc, result_reg, extra);
-
+                     std::size_t locals_size,
+                     std::size_t args_base, std::size_t num_args) {
+  stack->replace_frame(proc, locals_size, args_base, num_args);
   frame_reference frame = current_frame(stack);
   clear_native_continuations(frame);
   return frame;
@@ -543,55 +525,64 @@ make_tail_call_frame(ptr<call_stack> stack, ptr<> proc,
 
 static frame_reference
 make_scheme_tail_call_frame(ptr<call_stack> stack, ptr<procedure> proc,
-                            std::size_t num_args) {
-  return make_tail_call_frame(stack, proc, proc->locals_size, num_args);
+                            std::size_t args_base, std::size_t num_args) {
+  return make_tail_call_frame(stack, proc, proc->locals_size,
+                              args_base, num_args);
+}
+
+static void
+check_and_convert_scheme_call_arguments(instruction_state& istate,
+                                        ptr<procedure> proc,
+                                        operand base) {
+  operand num_args = istate.reader.read_operand();
+  throw_if_wrong_number_of_args(proc, num_args);
+  convert_tail_args(istate.context(),
+                    current_frame(istate.execution_state.stack),
+                    proc, base, num_args);
+}
+
+static frame_reference
+make_scheme_frame(ptr<procedure> proc, instruction_state& istate,
+                  bool is_tail) {
+  operand base = istate.reader.read_operand();
+  check_and_convert_scheme_call_arguments(istate, proc, base);
+  if (!is_tail) {
+    operand result_reg = istate.reader.read_operand();
+    return push_scheme_frame(istate, proc, base, result_reg);
+  } else {
+    return make_scheme_tail_call_frame(istate.execution_state.stack, proc,
+                                       base, actual_args_size(proc));
+  }
 }
 
 static void
 push_scheme_call_frame(ptr<procedure> proc, ptr<insider::closure> closure,
                        instruction_state& istate, bool is_tail) {
-  operand num_args = istate.reader.read_operand();
-  throw_if_wrong_number_of_args(proc, num_args);
-  convert_tail_args(istate.context(), istate.execution_state.stack, proc,
-                    num_args);
-
-  frame_reference new_frame;
-  if (!is_tail) {
-    operand result_reg = istate.reader.read_operand();
-    new_frame = make_scheme_frame(istate, proc, result_reg);
-  } else
-    new_frame = make_scheme_tail_call_frame(istate.execution_state.stack, proc,
-                                            actual_args_size(proc));
-
-  push_closure(closure, new_frame);
+  frame_reference new_frame = make_scheme_frame(proc, istate, is_tail);
+  push_closure(proc, closure, new_frame);
 
   jump_to_procedure(istate.execution_state, proc);
 }
 
 static frame_reference
-make_native_frame(instruction_state& istate, ptr<native_procedure> proc,
-                  operand dest_reg) {
-  istate.execution_state.stack->push_frame(proc, 1, istate.reader.current_pc(),
-                                           dest_reg);
+make_native_non_tail_call_frame(instruction_state& istate,
+                                ptr<native_procedure> proc, std::size_t base,
+                                std::size_t num_args, operand dest_reg) {
+  istate.execution_state.stack->push_frame(
+    proc,
+    current_frame(istate.execution_state.stack).base() + base,
+    num_args,
+    istate.reader.current_pc(),
+    dest_reg
+  );
   return current_frame(istate.execution_state.stack);
 }
 
 static frame_reference
 make_native_tail_call_frame(ptr<call_stack> stack,
                             ptr<native_procedure> proc,
-                            std::size_t num_args) {
-  return make_tail_call_frame(stack, proc, 1, num_args);
-}
-
-static frame_reference
-push_native_call_frame(instruction_state& istate, std::size_t num_args,
-                       ptr<native_procedure> proc, bool is_tail) {
-  if (!is_tail) {
-    operand dest_reg = istate.reader.read_operand();
-    return make_native_frame(istate, proc, dest_reg);
-  } else
-    return make_native_tail_call_frame(istate.execution_state.stack, proc,
-                                       num_args);
+                            std::size_t args_base, std::size_t num_args) {
+  return make_tail_call_frame(stack, proc, num_args, args_base, num_args);
 }
 
 static void
@@ -619,8 +610,7 @@ call_native_frame_target(context& ctx, ptr<call_stack> stack,
   else {
     frame_reference frame = current_frame(stack);
     auto proc = assume<native_procedure>(frame.callable());
-    auto num_args = assume<integer>(native_args_count_field(frame)).value();
-    return proc->target(ctx, proc, stack->call_args_span(num_args));
+    return proc->target(ctx, proc, stack->current_frame_span());
   }
 }
 
@@ -652,11 +642,8 @@ return_value_to_caller(execution_state& state, ptr<> result, operand reg) {
 static ptr<>
 pop_native_frame(execution_state& state, ptr<> result) {
   ptr<call_stack> stack = state.stack;
-  integer::value_type num_args
-    = assume<integer>(native_args_count_field(current_frame(stack))).value();
   operand result_reg = current_frame(stack).result_register();
   pop_frame(state);
-  pop_n(stack, num_args);
   return return_value_to_caller(state, result, result_reg);
 }
 
@@ -678,14 +665,23 @@ call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
     return {};
 }
 
+static void
+make_native_frame(ptr<native_procedure> proc, instruction_state& istate,
+                  bool is_tail) {
+  auto base = to_unsigned<std::size_t>(istate.reader.read_operand());
+  auto num_args = to_unsigned<std::size_t>(istate.reader.read_operand());
+  if (!is_tail) {
+    auto dest_reg = istate.reader.read_operand();
+    make_native_non_tail_call_frame(istate, proc, base, num_args, dest_reg);
+  } else
+    make_native_tail_call_frame(istate.execution_state.stack, proc,
+                                base, num_args);
+}
+
 static ptr<>
 do_native_call(ptr<native_procedure> proc, instruction_state& istate,
                bool is_tail) {
-  auto num_args = to_unsigned<std::size_t>(istate.reader.read_operand());
-  frame_reference frame = push_native_call_frame(istate, num_args, proc,
-                                                 is_tail);
-  native_args_count_field(frame)
-    = integer_to_ptr(to_signed<integer::value_type>(num_args));
+  make_native_frame(proc, istate, is_tail);
   return call_native_procedure(istate.execution_state);
 }
 
@@ -730,13 +726,9 @@ static ptr<>
 ret(instruction_state& istate) {
   operand result_reg = istate.reader.read_operand();
   ptr<> result = istate.frame().local(result_reg);
-  std::size_t num_args = actual_args_size(istate.frame());
   operand dest_reg = istate.frame().result_register();
 
   pop_frame(istate.execution_state);
-  ptr<call_stack> stack = istate.execution_state.stack;
-  pop_n(stack, num_args);
-
   return return_value_to_caller(istate.execution_state, result, dest_reg);
 }
 
@@ -1064,9 +1056,26 @@ split_scheme_callable_into_procedure_and_closure(ptr<closure> callable) {
 }
 
 static void
-push_arguments(ptr<call_stack> stack, std::vector<ptr<>> const& args) {
-  for (ptr<> a : args)
-    stack->push(a);
+push_rest_argument_for_call_from_native(context& ctx,
+                                        ptr<procedure> proc,
+                                        frame_reference frame,
+                                        std::vector<ptr<>> const& args) {
+  frame.local(operand(proc->min_args))
+    = make_list_from_range(ctx,
+                           std::ranges::subrange(args.begin() + proc->min_args,
+                                                 args.end()));
+}
+
+static void
+push_scheme_arguments_for_call_from_native(context& ctx,
+                                           ptr<procedure> proc,
+                                           frame_reference frame,
+                                           std::vector<ptr<>> const& args) {
+  for (std::size_t i = 0; i < proc->min_args; ++i)
+    frame.local(operand(i)) = args[i];
+
+  if (proc->has_rest)
+    push_rest_argument_for_call_from_native(ctx, proc, frame, args);
 }
 
 static frame_reference
@@ -1079,11 +1088,13 @@ make_scheme_frame_for_call_from_native(execution_state& state,
 
   throw_if_wrong_number_of_args(proc, arguments.size());
 
-  push_arguments(state.stack, arguments);
-  convert_tail_args(state.ctx, state.stack, proc, arguments.size());
-  state.stack->push_frame(proc, proc->locals_size, previous_pc, {});
+  state.stack->push_frame(proc, state.stack->size(), proc->locals_size,
+                          previous_pc, {});
+
   auto new_frame = current_frame(state.stack);
-  push_closure(closure, new_frame);
+  push_scheme_arguments_for_call_from_native(state.ctx, callable->procedure(),
+                                             new_frame, arguments);
+  push_closure(proc, closure, new_frame);
 
   state.pc = proc->entry_pc;
   return new_frame;
@@ -1110,7 +1121,7 @@ erect_barrier(context& ctx, frame_reference frame,
 static frame_reference
 setup_native_frame_for_call_from_native(execution_state& state,
                                         ptr<native_procedure> proc) {
-  state.stack->push_frame(proc, 0, -1, {});
+  state.stack->push_frame(proc, state.stack->size(), 0, -1, {});
   current_frame_set_previous_pc(state.stack, state.pc);
   return current_frame(state.stack);
 }
@@ -1304,12 +1315,11 @@ make_native_tail_call_frame_for_call_from_native(
   ptr<native_procedure> callable,
   std::vector<ptr<>> const& arguments
 ) {
-  push_arguments(stack, arguments);
-  frame_reference frame
-    = make_native_tail_call_frame(stack, callable,
-                                  to_signed<operand>(arguments.size()));
-  native_args_count_field(frame)
-    = integer_to_ptr(to_signed<integer::value_type>(arguments.size()));
+  stack->replace_frame(callable, arguments.size());
+  frame_reference frame = current_frame(stack);
+  clear_native_continuations(frame);
+  for (std::size_t i = 0; i < arguments.size(); ++i)
+    frame.local(operand(i)) = arguments[i];
 }
 
 static void
@@ -1321,11 +1331,12 @@ make_scheme_tail_call_frame_for_call_from_native(
 ) {
   auto [proc, closure] =
     split_scheme_callable_into_procedure_and_closure(callable);
-  push_arguments(stack, arguments);
-  convert_tail_args(ctx, stack, proc, arguments.size());
-  frame_reference frame
-    = make_scheme_tail_call_frame(stack, proc, actual_args_size(proc));
-  push_closure(closure, frame);
+
+  stack->replace_frame(proc, proc->locals_size);
+  auto frame = current_frame(stack);
+  push_scheme_arguments_for_call_from_native(ctx, proc, frame, arguments);
+  push_closure(proc, closure, frame);
+  clear_native_continuations(frame);
 }
 
 static frame_reference
@@ -1522,22 +1533,7 @@ unwind_stack(execution_state& state,
     if (ptr<> thunk = get_after_thunk(frame))
       call_with_continuation_barrier(state.ctx, thunk, {});
 
-    std::size_t args_size = actual_args_size(frame);
     state.stack->pop_frame();
-    pop_n(state.stack, args_size);
-  }
-}
-
-static void
-push_first_segments_arguments(ptr<call_stack> destination_stack,
-                              ptr<call_stack> source_stack,
-                              stack_segment const& segment) {
-  frame_reference frame{source_stack, segment.begin};
-  auto num_args = to_signed<integer::value_type>(actual_args_size(frame));
-
-  for (integer::value_type i = 0; i < num_args; ++i) {
-    auto arg = static_cast<operand>(i - num_args);
-    destination_stack->push(frame.local(arg));
   }
 }
 
@@ -1545,8 +1541,6 @@ static void
 rewind_stack(execution_state& state, stack_segments const& new_segments,
              std::size_t common_prefix) {
   assert(!new_segments.segments.empty());
-  push_first_segments_arguments(state.stack, new_segments.stack,
-                                new_segments.segments[common_prefix]);
 
   for (std::size_t i = common_prefix; i < new_segments.segments.size(); ++i) {
     state.stack->append_frames(
@@ -1668,8 +1662,9 @@ add_parameter_value(context& ctx, frame_reference frame, ptr<parameter_tag> tag,
 
 static frame_reference
 push_dummy_frame(context& ctx) {
-  ctx.current_execution->stack->push_frame({}, 0, -1, {});
-  return current_frame(ctx.current_execution->stack);
+  auto stack = ctx.current_execution->stack;
+  stack->push_frame({}, stack->size(), 0, -1, {});
+  return current_frame(stack);
 }
 
 static frame_reference

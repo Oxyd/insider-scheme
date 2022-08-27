@@ -19,10 +19,10 @@ struct call_stack_fixture : scheme_fixture {
 
   void
   make_4_frames() {
-    cs->push_frame(one, 0, 0, 0);
-    cs->push_frame(two, 0, 0, 0);
-    cs->push_frame(three, 0, 0, 0);
-    cs->push_frame(four, 0, 0, 0);
+    cs->push_frame(one, cs->size(), 0, 0, 0);
+    cs->push_frame(two, cs->size(), 0, 0, 0);
+    cs->push_frame(three, cs->size(), 0, 0, 0);
+    cs->push_frame(four, cs->size(), 0, 0, 0);
   }
 
   ptr<procedure>
@@ -32,13 +32,13 @@ struct call_stack_fixture : scheme_fixture {
 };
 
 TEST_F(call_stack_fixture, create_frame) {
-  cs->push_frame(one, 0, 0, 0);
+  cs->push_frame(one, cs->size(), 0, 0, 0);
   EXPECT_EQ(current_frame_callable(cs.get()), one);
 }
 
 TEST_F(call_stack_fixture, pop_frame) {
-  cs->push_frame(one, 0, 0, 0);
-  cs->push_frame(two, 0, 0, 0);
+  cs->push_frame(one, cs->size(), 0, 0, 0);
+  cs->push_frame(two, cs->size(), 0, 0, 0);
   EXPECT_EQ(current_frame_callable(cs.get()), two);
 
   cs->pop_frame();
@@ -46,10 +46,10 @@ TEST_F(call_stack_fixture, pop_frame) {
 }
 
 TEST_F(call_stack_fixture, push_after_pop) {
-  cs->push_frame(one, 0, 0, 0);
-  cs->push_frame(two, 0, 0, 0);
+  cs->push_frame(one, cs->size(), 0, 0, 0);
+  cs->push_frame(two, cs->size(), 0, 0, 0);
   cs->pop_frame();
-  cs->push_frame(three, 0, 0, 0);
+  cs->push_frame(three, cs->size(), 0, 0, 0);
 
   EXPECT_EQ(current_frame_callable(cs.get()), three);
   cs->pop_frame();
@@ -61,8 +61,8 @@ TEST_F(call_stack_fixture, new_call_stack_is_empty) {
 }
 
 TEST_F(call_stack_fixture, call_stack_is_empty_after_popping_all_frames) {
-  cs->push_frame(one, 0, 0, 0);
-  cs->push_frame(two, 0, 0, 0);
+  cs->push_frame(one, cs->size(), 0, 0, 0);
+  cs->push_frame(two, cs->size(), 0, 0, 0);
   EXPECT_FALSE(cs->empty());
 
   cs->pop_frame();
@@ -73,12 +73,12 @@ TEST_F(call_stack_fixture, call_stack_is_empty_after_popping_all_frames) {
 }
 
 TEST_F(call_stack_fixture, new_frame_has_no_extra_data) {
-  cs->push_frame(one, 0, 0, 0);
+  cs->push_frame(one, cs->size(), 0, 0, 0);
   EXPECT_EQ(current_frame_extra(cs.get()), ptr<>{});
 }
 
 TEST_F(call_stack_fixture, can_set_and_retreive_extra_data) {
-  cs->push_frame(one, 0, 0, 0);
+  cs->push_frame(one, cs->size(), 0, 0, 0);
 
   auto e = make<stack_frame_extra_data>(ctx);
   current_frame_set_extra(cs.get(), e);
@@ -86,16 +86,16 @@ TEST_F(call_stack_fixture, can_set_and_retreive_extra_data) {
 }
 
 TEST_F(call_stack_fixture, can_set_frame_locals) {
-  cs->push_frame(one, 1, 0, 0);
+  cs->push_frame(one, cs->size(), 1, 0, 0);
   current_frame_local(cs.get(), 0) = integer_to_ptr(2);
   EXPECT_EQ(current_frame_local(cs.get(), 0), integer_to_ptr(2));
 }
 
 TEST_F(call_stack_fixture, get_local_of_parent_frame) {
-  cs->push_frame(one, 1, 0, 0);
+  cs->push_frame(one, cs->size(), 1, 0, 0);
   current_frame_local(cs.get(), 0) = integer_to_ptr(2);
 
-  cs->push_frame(three, 1, 0, 0);
+  cs->push_frame(three, cs->size(), 1, 0, 0);
   current_frame_local(cs.get(), 0) = integer_to_ptr(4);
 
   EXPECT_EQ(
@@ -110,10 +110,10 @@ TEST_F(call_stack_fixture, push_pop_individual) {
 }
 
 TEST_F(call_stack_fixture, iterate_call_stacks) {
-  cs->push_frame(one, 1, 0, 0);
+  cs->push_frame(one, cs->size(), 1, 0, 0);
   current_frame_local(cs.get(), 0) = integer_to_ptr(1);
 
-  cs->push_frame(two, 1, 0, 0);
+  cs->push_frame(two, cs->size(), 1, 0, 0);
   current_frame_local(cs.get(), 0) = integer_to_ptr(2);
 
   for (call_stack::frame_index f : cs->frames_range()) {
@@ -150,8 +150,8 @@ TEST_F(call_stack_fixture,
   call_stack::frame_span tail = cs->frames(start, cs->frames_end());
 
   auto new_cs = make<call_stack>(ctx);
-  new_cs->push_frame(ten, 4, 0, 0);
-  new_cs->push_frame(twenty, 8, 0, 0);
+  new_cs->push_frame(ten, new_cs->size(), 4, 0, 0);
+  new_cs->push_frame(twenty, new_cs->size(), 8, 0, 0);
 
   new_cs->append_frames(tail);
 
@@ -178,4 +178,39 @@ TEST_F(call_stack_fixture,
   EXPECT_EQ(new_cs->callable(*it++), three);
   EXPECT_EQ(new_cs->callable(*it++), two);
   EXPECT_EQ(it, new_cs->frames_range().end());
+}
+
+TEST_F(call_stack_fixture, overlapping_frames_can_access_shared_registers) {
+  cs->push_frame(one, 0, 4, 0, 0);
+  current_frame(cs.get()).local(2) = integer_to_ptr(10);
+  current_frame(cs.get()).local(3) = integer_to_ptr(20);
+
+  cs->push_frame(two, 2, 2, 0, 0);
+  EXPECT_EQ(expect<integer>(current_frame(cs.get()).local(0)).value(), 10);
+  EXPECT_EQ(expect<integer>(current_frame(cs.get()).local(1)).value(), 20);
+}
+
+TEST_F(call_stack_fixture, stack_size_increases_when_larger_frame_is_pushed) {
+  cs->push_frame(one, 0, 4, 0, 0);
+  EXPECT_EQ(cs->size(), 4);
+
+  cs->push_frame(two, 2, 4, 0, 0);
+  EXPECT_EQ(cs->size(), 6);
+
+  cs->pop_frame();
+  EXPECT_EQ(cs->size(), 4);
+
+  cs->pop_frame();
+  EXPECT_EQ(cs->size(), 0);
+}
+
+TEST_F(call_stack_fixture, stack_size_decreases_when_small_frame_is_pushed) {
+  cs->push_frame(one, 0, 6, 0, 0);
+  EXPECT_EQ(cs->size(), 6);
+
+  cs->push_frame(two, 2, 2, 0, 0);
+  EXPECT_EQ(cs->size(), 4);
+
+  cs->pop_frame();
+  EXPECT_EQ(cs->size(), 6);
 }

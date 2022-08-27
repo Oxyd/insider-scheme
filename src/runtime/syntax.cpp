@@ -342,7 +342,7 @@ bound_identifier_eq(context& ctx, ptr<syntax> x, ptr<syntax> y) {
 
 static ptr<>
 syntax_scopes(context& ctx, ptr<syntax> s) {
-  return make_list_from_vector(ctx, s->scopes().data());
+  return make_list_from_range(ctx, s->scopes().data());
 }
 
 static ptr<syntax>

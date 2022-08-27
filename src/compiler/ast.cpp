@@ -366,17 +366,17 @@ make_internal_reference(context& ctx, std::string const& name) {
 
 static ptr<>
 application_expression_arguments(context& ctx, ptr<application_expression> app) {
-  return make_list_from_vector(ctx, app->arguments());
+  return make_list_from_range(ctx, app->arguments());
 }
 
 static ptr<>
 sequence_expression_expressions(context& ctx, ptr<sequence_expression> seq) {
-  return make_list_from_vector(ctx, seq->expressions());
+  return make_list_from_range(ctx, seq->expressions());
 }
 
 static ptr<>
 let_expression_definitions(context& ctx, ptr<let_expression> let) {
-  return make_list_from_vector(
+  return make_list_from_range(
     ctx, let->definitions(),
     [&] (definition_pair_expression const& dp) {
       return cons(ctx, dp.variable(), dp.expression().get());
@@ -386,12 +386,12 @@ let_expression_definitions(context& ctx, ptr<let_expression> let) {
 
 static ptr<>
 lambda_expression_parameters(context& ctx, ptr<lambda_expression> lambda) {
-  return make_list_from_vector(ctx, lambda->parameters());
+  return make_list_from_range(ctx, lambda->parameters());
 }
 
 static ptr<>
 lambda_expression_free_variables(context& ctx, ptr<lambda_expression> lambda) {
-  return make_list_from_vector(ctx, lambda->free_variables());
+  return make_list_from_range(ctx, lambda->free_variables());
 }
 
 void

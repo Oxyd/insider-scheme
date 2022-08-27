@@ -1569,12 +1569,12 @@ string_to_number(context& ctx, std::string const& s, unsigned base) {
 
 static ptr<>
 read_syntax_multiple_proc(context& ctx, ptr<textual_input_port> p) {
-  return make_list_from_vector(ctx, read_syntax_multiple(ctx, p));
+  return make_list_from_range(ctx, read_syntax_multiple(ctx, p));
 }
 
 static ptr<>
 read_syntax_multiple_ci_proc(context& ctx, ptr<textual_input_port> p) {
-  return make_list_from_vector(ctx, read_syntax_multiple_ci(ctx, p));
+  return make_list_from_range(ctx, read_syntax_multiple_ci(ctx, p));
 }
 
 void

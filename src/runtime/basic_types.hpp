@@ -8,6 +8,7 @@
 #include "runtime/compare.hpp"
 #include "vm/bytecode.hpp"
 
+#include <ranges>
 #include <utility>
 
 namespace insider {
@@ -186,22 +187,22 @@ make_list(context& ctx, Ts... ts) {
   return result;
 }
 
-template <typename Container, typename Converter>
+template <typename Range, typename Converter>
 ptr<>
-make_list_from_vector(context& ctx, Container const& values,
-                      Converter const& convert) {
+make_list_from_range(context& ctx, Range const& range,
+                     Converter const& convert) {
   ptr<> head = ctx.constants->null;
 
-  for (auto elem = values.rbegin(); elem != values.rend(); ++elem)
-    head = cons(ctx, to_scheme(ctx, convert(*elem)), head);
+  for (auto&& elem : range | std::views::reverse)
+    head = cons(ctx, to_scheme(ctx, convert(elem)), head);
 
   return head;
 }
 
-template <typename T>
+template <typename Range>
 ptr<>
-make_list_from_vector(context& ctx, std::vector<T> const& values) {
-  return make_list_from_vector(ctx, values, [] (T x) { return x; });
+make_list_from_range(context& ctx, Range const& values) {
+  return make_list_from_range(ctx, values, [] (auto&& x) { return x; });
 }
 
 // Concatenate a number of lists. If there are 0 lists, return the empty
