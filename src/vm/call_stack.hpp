@@ -106,6 +106,11 @@ public:
   }
 
   ptr<>&
+  local(operand local) {
+    return data_[current_base_ + local];
+  }
+
+  ptr<>&
   local(frame_index frame, operand local) {
     return data_[frames_[frame].base + local];
   }
@@ -201,9 +206,10 @@ private:
   std::unique_ptr<ptr<>[]> data_;
   std::size_t              capacity_     = 0;
   std::size_t              size_         = 0;
+  std::size_t              current_base_ = 0;
 
   void
-  update_size();
+  update_current_frame();
 
   void
   ensure_capacity(std::size_t required_size);

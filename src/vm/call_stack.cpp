@@ -30,6 +30,7 @@ call_stack::call_stack(call_stack const& other)
   , data_{std::make_unique<ptr<>[]>(other.capacity_)}
   , capacity_{other.capacity_}
   , size_{other.size_}
+  , current_base_{other.current_base_}
 {
   std::ranges::copy(std::views::counted(other.data_.get(), size_), data_.get());
 }
@@ -59,24 +60,20 @@ call_stack::push_frame(ptr<> callable, std::size_t base,
 
   frames_.emplace_back(frame{base, locals_size, previous_pc,
                              result_register, callable, extra});
-  update_size();
+  update_current_frame();
 }
 
 void
 call_stack::pop_frame() {
   frames_.pop_back();
-
-  if (!frames_.empty())
-    size_ = frames_.back().base + frames_.back().size;
-  else
-    size_ = 0;
+  update_current_frame();
 }
 
 void
 call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size) {
   frames_.back().callable = new_callable;
   frames_.back().size = new_locals_size;
-  update_size();
+  update_current_frame();
 }
 
 void
@@ -99,13 +96,13 @@ call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size,
   frames_.back().callable = new_callable;
   frames_.back().size = new_locals_size;
 
-  update_size();
+  update_current_frame();
 }
 
 void
 call_stack::resize_current_frame(std::size_t new_size) {
   frames_.back().size = new_size;
-  update_size();
+  update_current_frame();
 }
 
 auto
@@ -135,7 +132,7 @@ call_stack::append_frames(frame_span frames) {
     frames_.push_back(f);
   }
 
-  update_size();
+  update_current_frame();
 }
 
 void
@@ -158,8 +155,13 @@ call_stack::visit_members(member_visitor const& f) {
 }
 
 void
-call_stack::update_size() {
-  size_ = frames_.back().base + frames_.back().size;
+call_stack::update_current_frame() {
+  if (!frames_.empty()) {
+    current_base_ = frames_.back().base;
+    size_ = current_base_ + frames_.back().size;
+  } else
+    size_ = 0;
+
   ensure_capacity(size_);
 }
 
