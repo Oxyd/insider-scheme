@@ -5,7 +5,7 @@
 
 namespace insider {
 
-using operand = std::int16_t;
+using operand = std::uint16_t;
 
 }
 

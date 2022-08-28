@@ -406,21 +406,6 @@ get_closure_size(ptr<closure> cls) {
     return 0;
 }
 
-namespace {
-  class frame_stack {
-  public:
-    explicit
-    frame_stack(frame_reference frame) : frame_{frame} { }
-
-    void
-    push(ptr<> value) { frame_.local(to_signed<operand>(top_++)) = value; }
-
-  private:
-    frame_reference frame_;
-    std::size_t     top_ = 0;
-  };
-}
-
 static std::size_t
 actual_args_size(ptr<procedure> proc) {
   return proc->min_args + (proc->has_rest ? 1 : 0);
@@ -656,8 +641,8 @@ call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
 static void
 make_native_frame(ptr<native_procedure> proc, instruction_state& istate,
                   bool is_tail) {
-  auto base = to_unsigned<std::size_t>(istate.reader.read_operand());
-  auto num_args = to_unsigned<std::size_t>(istate.reader.read_operand());
+  auto base = istate.reader.read_operand();
+  auto num_args = istate.reader.read_operand();
   if (!is_tail) {
     auto dest_reg = istate.reader.read_operand();
     make_native_non_tail_call_frame(istate, proc, base, num_args, dest_reg);
@@ -752,7 +737,7 @@ make_closure(instruction_state& istate) {
   ptr<procedure> proc
     = assume<procedure>(istate.frame().local(istate.reader.read_operand()));
   operand captures_base = istate.reader.read_operand();
-  auto num_captures = to_unsigned<std::size_t>(istate.reader.read_operand());
+  auto num_captures = istate.reader.read_operand();
   operand dest = istate.reader.read_operand();
 
   auto result = make<closure>(istate.context(), proc, num_captures);
