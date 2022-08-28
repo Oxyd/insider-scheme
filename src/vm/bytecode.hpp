@@ -57,7 +57,6 @@ enum class opcode : std::uint16_t {
   cons,             // cons <a> <b> <destination> -- make a cons pair (a . b)
   car,              // car <x> <destination>
   cdr,              // cdr <x> <destination>
-  make_vector,      // make-vector <num elements> <destination>
   vector_set,       // vector-set! <vector> <index> <value>
   vector_ref,       // vector-ref <vector> <index> <destination>
   type,             // type <value> <destination>
@@ -180,8 +179,6 @@ instructions{
              opcode::car,                 std::size_t{2}},
   std::tuple{"cdr",
              opcode::cdr,                 std::size_t{2}},
-  std::tuple{"make-vector",
-             opcode::make_vector,         std::size_t{2}},
   std::tuple{"vector-set!",
              opcode::vector_set,          std::size_t{3}},
   std::tuple{"vector-ref",

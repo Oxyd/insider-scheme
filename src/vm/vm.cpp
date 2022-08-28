@@ -828,22 +828,6 @@ eq(instruction_state& istate) {
 }
 
 static void
-make_vector(instruction_state& istate) {
-  operand num_elems = istate.reader.read_operand();
-  operand dest = istate.reader.read_operand();
-
-  auto result = make<vector>(
-    istate.context(), num_elems, istate.context().constants->void_
-  );
-  for (std::size_t i = 0; i < to_unsigned<std::size_t>(num_elems); ++i)
-    result->set(istate.context().store,
-                num_elems - i - 1,
-                istate.execution_state.stack->pop());
-
-  istate.frame().local(dest) = result;
-}
-
-static void
 vector_set(instruction_state& istate) {
   ptr<vector> v
     = expect<vector>(istate.frame().local(istate.reader.read_operand()));
@@ -994,10 +978,6 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
 
   case opcode::eq:
     eq(istate);
-    break;
-
-  case opcode::make_vector:
-    make_vector(istate);
     break;
 
   case opcode::vector_set:

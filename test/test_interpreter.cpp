@@ -345,27 +345,6 @@ TEST_F(interpreter, test_eq) {
   EXPECT_EQ(result2.get(), ctx.constants->t);
 }
 
-TEST_F(interpreter, exec_make_vector) {
-  auto one = make_static<integer>(ctx, 1);
-  auto two = make_static<integer>(ctx, 2);
-  auto three = make_static<integer>(ctx, 3);
-  auto global = make_closure(
-    ctx,
-    make_bytecode({instruction{opcode::load_static, one,   operand{1}},
-                   instruction{opcode::load_static, two,   operand{2}},
-                   instruction{opcode::load_static, three, operand{3}},
-                   instruction{opcode::push, operand{1}},
-                   instruction{opcode::push, operand{2}},
-                   instruction{opcode::push, operand{3}},
-                   instruction{opcode::make_vector, operand{3}, operand{0}},
-                   instruction{opcode::ret,         operand{0}}}),
-    4, 0
-  );
-
-  auto result = call_with_continuation_barrier(ctx, global, {});
-  EXPECT_TRUE(equal(result.get(), read("#(1 2 3)")));
-}
-
 TEST_F(interpreter, exec_load_dynamic_top_level) {
   operand index = ctx.add_top_level(ctx.intern("foo"), "top-level");
   auto var = make<top_level_variable>(ctx, "top-level", index);
