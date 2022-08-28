@@ -71,25 +71,6 @@ TEST_F(interpreter, exec_arithmetic) {
   EXPECT_EQ(assume<integer>(result.get()).value(), 18);
 }
 
-TEST_F(interpreter, can_push_and_pop) {
-  auto one = make_static<integer>(ctx, 1);
-  auto two = make_static<integer>(ctx, 2);
-  auto proc = make_closure(
-    ctx,
-    make_bytecode({
-      instruction{opcode::load_static, one, operand{0}},
-      instruction{opcode::load_static, two, operand{1}},
-      instruction{opcode::push, operand{0}},
-      instruction{opcode::push, operand{1}},
-      instruction{opcode::pop, operand{0}},
-      instruction{opcode::ret, operand{0}}
-    }),
-    2, 0
-  );
-  auto result = call_with_continuation_barrier(ctx, proc, {});
-  EXPECT_EQ(expect<integer>(result.get()).value(), 2);
-}
-
 TEST_F(interpreter, can_access_arguments_from_callee) {
   auto one = make_static<integer>(ctx, 1);
   auto two = make_static<integer>(ctx, 2);

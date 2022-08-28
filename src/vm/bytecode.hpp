@@ -37,8 +37,6 @@ enum class opcode : std::uint16_t {
   less_or_equal,
   greater_or_equal,
   set,              // set <source> <destination>
-  push,             // push <value>
-  pop,              // pop <destination>
   call,             // call <procedure> <base> <number of arguments> <result register>
   call_top_level,   // same as call, but <procedure> is the index of a top-level
   call_static,      //                   -- "" --                      static
@@ -139,10 +137,6 @@ instructions{
              opcode::greater_or_equal,    std::size_t{3}},
   std::tuple{"set!",
              opcode::set,                 std::size_t{2}},
-  std::tuple{"push",
-             opcode::push,                std::size_t{1}},
-  std::tuple{"pop",
-             opcode::pop,                 std::size_t{1}},
   std::tuple{"call",
              opcode::call,                std::size_t{4}},
   std::tuple{"call-top-level",

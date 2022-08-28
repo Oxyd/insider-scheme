@@ -380,18 +380,6 @@ relational(opcode opcode, instruction_state& istate) {
   }
 }
 
-static void
-push(instruction_state& istate) {
-  ptr<> value = istate.frame().local(istate.reader.read_operand());
-  istate.execution_state.stack->push(value);
-}
-
-static void
-pop(instruction_state& istate) {
-  operand dest = istate.reader.read_operand();
-  istate.frame().local(dest) = istate.execution_state.stack->pop();
-}
-
 static ptr<>
 find_callee(opcode opcode, instruction_state& istate) {
   return find_callee_value(istate.context(), opcode, istate.frame(),
@@ -911,14 +899,6 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
     frame.local(dst) = frame.local(src);
     break;
   }
-
-  case opcode::push:
-    push(istate);
-    break;
-
-  case opcode::pop:
-    pop(istate);
-    break;
 
   case opcode::tail_call:
   case opcode::call:
