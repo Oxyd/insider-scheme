@@ -763,12 +763,14 @@ static void
 make_closure(instruction_state& istate) {
   ptr<procedure> proc
     = assume<procedure>(istate.frame().local(istate.reader.read_operand()));
-  operand num_captures = istate.reader.read_operand();
+  operand captures_base = istate.reader.read_operand();
+  auto num_captures = to_unsigned<std::size_t>(istate.reader.read_operand());
   operand dest = istate.reader.read_operand();
 
   auto result = make<closure>(istate.context(), proc, num_captures);
-  for (auto i = to_unsigned<std::size_t>(num_captures); i > 0; --i)
-    result->set(istate.context().store, i - 1, istate.execution_state.stack->pop());
+  for (std::size_t i = 0; i < num_captures; ++i)
+    result->set(istate.context().store, i,
+                istate.frame().local(operand(captures_base + i)));
 
   istate.frame().local(dest) = result;
 }

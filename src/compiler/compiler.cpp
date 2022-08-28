@@ -750,17 +750,23 @@ emit_make_closure(context& ctx, procedure_context& parent,
   shared_register p_reg
     = compile_static_reference_to_register(parent, ctx.intern_static(proc));
 
-  for (ptr<local_variable> var : stx->free_variables())
+  operand free_base = parent.registers.first_argument_register();
+  std::vector<shared_register> temp_registers;
+  for (ptr<local_variable> var : stx->free_variables()) {
+    shared_register r = parent.registers.allocate_argument_register();
     encode_instruction(
       parent.bytecode_stack.back().bc,
-      instruction{opcode::push, *parent.bindings.lookup(var)}
+      instruction{opcode::set, *parent.bindings.lookup(var), *r}
     );
+    temp_registers.push_back(std::move(r));
+  }
 
   encode_instruction(
     parent.bytecode_stack.back().bc,
     instruction{opcode::make_closure,
                 *p_reg,
-                static_cast<operand>(stx->free_variables().size()),
+                free_base,
+                static_cast<operand>(temp_registers.size()),
                 *result.get(parent)}
   );
 }

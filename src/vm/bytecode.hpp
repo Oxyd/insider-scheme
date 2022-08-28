@@ -50,7 +50,7 @@ enum class opcode : std::uint16_t {
   jump_back,        // jump-back <offset>
   jump_unless,      // jump-unless <register> <offset>
   jump_back_unless, // jump-back-unless <register> <offset>
-  make_closure,     // make-closure <procedure> <num free> <destination>
+  make_closure,     // make-closure <procedure> <base> <num free> <destination>
   box,              // box <what> <destination> -- make a box containing what -- 20
   unbox,            // unbox <what> <destination> -- extract contained value from a box
   box_set,          // box-set <box> <value> -- replace box's contained value with a new one
@@ -167,7 +167,7 @@ instructions{
   std::tuple{"jump-back-unless",
              opcode::jump_back_unless,    std::size_t{2}},
   std::tuple{"make-closure",
-             opcode::make_closure,        std::size_t{3}},
+             opcode::make_closure,        std::size_t{4}},
   std::tuple{"box",
              opcode::box,                 std::size_t{2}},
   std::tuple{"unbox",
