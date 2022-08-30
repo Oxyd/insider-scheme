@@ -175,14 +175,10 @@ namespace {
     bytecode_reader(execution_state& state)
       : bc_{state.ctx.program}
       , pc_{state.pc}
-      , previous_pc_{state.pc}
     { }
 
     opcode
-    read_opcode() {
-      previous_pc_ = pc_;
-      return insider::read_opcode(bc_, pc_);
-    }
+    read_opcode() { return insider::read_opcode(bc_, pc_); }
 
     operand
     read_operand() { return insider::read_operand(bc_, pc_); }
@@ -190,13 +186,9 @@ namespace {
     integer::value_type
     current_pc() const { return pc_; }
 
-    integer::value_type
-    previous_pc() const { return previous_pc_; }
-
   private:
     bytecode const&      bc_;
     integer::value_type& pc_;
-    integer::value_type  previous_pc_;
   };
 
   struct instruction_state {
