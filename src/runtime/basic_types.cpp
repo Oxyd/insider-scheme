@@ -260,11 +260,10 @@ box::box(ptr<> value)
   : value_{value}
 { }
 
-procedure::procedure(integer::value_type entry_pc, std::size_t bytecode_size,
-                     unsigned locals_size, unsigned min_args, bool has_rest,
-                     std::string name)
-  : entry_pc{entry_pc}
-  , bytecode_size{bytecode_size}
+procedure::procedure(bytecode bc, debug_info_map dim, unsigned locals_size,
+                     unsigned min_args, bool has_rest, std::string name)
+  : code{std::move(bc)}
+  , debug_info{std::move(dim)}
   , locals_size{locals_size}
   , min_args{min_args}
   , has_rest{has_rest}
@@ -272,13 +271,11 @@ procedure::procedure(integer::value_type entry_pc, std::size_t bytecode_size,
 { }
 
 ptr<procedure>
-make_procedure_from_bytecode(context& ctx, bytecode const& bc,
+make_procedure_from_bytecode(context& ctx, bytecode bc,
                              unsigned locals_size, unsigned min_args,
                              bool has_rest, std::string name) {
-  std::size_t entry = ctx.program.size();
-  ctx.program.insert(ctx.program.end(), bc.begin(), bc.end());
-  return make<procedure>(ctx, entry, bc.size(), locals_size, min_args, has_rest,
-                         std::move(name));
+  return make<procedure>(ctx, std::move(bc), debug_info_map{}, locals_size,
+                         min_args, has_rest, std::move(name));
 }
 
 closure::closure(ptr<insider::procedure> p, std::size_t num_captures)

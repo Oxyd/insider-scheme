@@ -99,8 +99,6 @@ public:
   statics_list                     statics{};
   // Built from actions during stack unwinding.
   std::string                      error_backtrace;
-  bytecode                         program;
-  debug_info_map                   program_debug_info;
   std::unique_ptr<execution_state> current_execution;
   ptr<parameter_map>               parameters;
 

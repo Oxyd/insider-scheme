@@ -377,20 +377,19 @@ class procedure : public leaf_object<procedure> {
 public:
   static constexpr char const* scheme_name = "insider::procedure";
 
-  integer::value_type entry_pc;
-  std::size_t         bytecode_size;
-  unsigned            locals_size;
-  unsigned            min_args;
-  bool                has_rest;
-  std::string         name;
+  bytecode       code;
+  debug_info_map debug_info;
+  unsigned       locals_size;
+  unsigned       min_args;
+  bool           has_rest;
+  std::string    name;
 
-  procedure(integer::value_type entry_pc, std::size_t bytecode_size,
-            unsigned locals_size, unsigned min_args, bool has_rest,
-            std::string name);
+  procedure(bytecode bc, debug_info_map dim, unsigned locals_size,
+            unsigned min_args, bool has_rest, std::string name);
 };
 
 ptr<procedure>
-make_procedure_from_bytecode(context& ctx, bytecode const& bc,
+make_procedure_from_bytecode(context& ctx, bytecode bc,
                              unsigned locals_size, unsigned min_args,
                              bool has_rest, std::string name);
 

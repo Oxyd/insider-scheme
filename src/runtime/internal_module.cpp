@@ -89,12 +89,12 @@ known_module(context& ctx, ptr<syntax> name) {
 
 static ptr<>
 procedure_bytecode(context& ctx, ptr<procedure> f) {
-  integer::value_type pc = f->entry_pc;
+  integer::value_type pc = 0;
   std::vector<std::tuple<std::size_t, std::size_t, instruction>> instrs;
 
-  while (pc < f->entry_pc + static_cast<integer::value_type>(f->bytecode_size)) {
+  while (to_unsigned<std::size_t>(pc) < f->code.size()) {
     integer::value_type pos = pc;
-    instruction instr = read_instruction(ctx.program, pc);
+    instruction instr = read_instruction(f->code, pc);
 
     instrs.emplace_back(pos, pc - pos, instr);
   }

@@ -59,28 +59,46 @@ is_native_frame(frame_reference frame) {
 }
 
 static std::size_t
-find_index_of_call_instruction(frame_reference frame) {
+find_index_of_call_instruction(integer::value_type call_pc) {
   assert(opcode_to_info(opcode::call).num_operands == 4);
   assert(opcode_to_info(opcode::call_top_level).num_operands == 4);
   assert(opcode_to_info(opcode::call_static).num_operands == 4);
   static constexpr std::size_t call_instruction_size = 5;
-  return frame.previous_pc() - call_instruction_size;
+  return call_pc - call_instruction_size;
 }
 
 static std::vector<std::string>
-find_inlined_procedures(context& ctx, frame_reference frame) {
-  std::size_t call_idx = find_index_of_call_instruction(frame);
-  if (auto di = ctx.program_debug_info.find(call_idx);
-      di != ctx.program_debug_info.end())
-    return di->second.inlined_call_chain;
-  else
-    return {};
+find_inlined_procedures(frame_reference frame,
+                        std::optional<integer::value_type> call_pc) {
+  if (call_pc) {
+    assert(*call_pc != -1);
+    std::size_t call_idx = find_index_of_call_instruction(*call_pc);
+
+    debug_info_map const& debug_info
+      = assume<procedure>(frame.callable())->debug_info;
+    if (auto di = debug_info.find(call_idx); di != debug_info.end())
+      return di->second.inlined_call_chain;
+  }
+  return {};
 }
 
 static void
-append_frame_to_stacktrace(context& ctx,
-                           std::vector<stacktrace_record>& trace,
-                           frame_reference frame) {
+append_scheme_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
+                                  ptr<procedure> proc,
+                                  frame_reference frame,
+                                  std::optional<integer::value_type> call_pc) {
+  auto inlined = find_inlined_procedures(frame, call_pc);
+  for (std::string const& inlined_proc : inlined)
+    trace.push_back({inlined_proc, stacktrace_record::kind::scheme});
+
+  trace.push_back({assume<procedure>(proc)->name,
+      stacktrace_record::kind::scheme});
+}
+
+static void
+append_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
+                           frame_reference frame,
+                           std::optional<integer::value_type> call_pc) {
   ptr<> proc = frame.callable();
   if (auto cls = match<closure>(proc))
     proc = cls->procedure();
@@ -88,20 +106,19 @@ append_frame_to_stacktrace(context& ctx,
   if (auto np = match<native_procedure>(proc))
     trace.push_back({np->name, stacktrace_record::kind::native});
   else
-    trace.push_back({assume<procedure>(proc)->name,
-        stacktrace_record::kind::scheme});
-
-  auto inlined = find_inlined_procedures(ctx, frame);
-  for (std::string const& inlined_proc : inlined)
-    trace.push_back({inlined_proc, stacktrace_record::kind::scheme});
+    append_scheme_frame_to_stacktrace(trace, assume<procedure>(proc), frame,
+                                      call_pc);
 }
 
 static std::vector<stacktrace_record>
 stacktrace(execution_state& state) {
   std::vector<stacktrace_record> result;
-  for (call_stack::frame_index frame : state.stack->frames_range())
-    append_frame_to_stacktrace(state.ctx, result,
-                               frame_reference{state.stack, frame});
+  std::optional<integer::value_type> call_pc;
+  for (call_stack::frame_index idx : state.stack->frames_range()) {
+    frame_reference frame{state.stack, idx};
+    append_frame_to_stacktrace(result, frame, call_pc);
+    call_pc = frame.previous_pc();
+  }
   return result;
 }
 
@@ -173,7 +190,7 @@ namespace {
   public:
     explicit
     bytecode_reader(execution_state& state)
-      : bc_{state.ctx.program}
+      : bc_{assume<procedure>(current_frame_callable(state.stack))->code}
       , pc_{state.pc}
     { }
 
@@ -461,8 +478,8 @@ convert_tail_args(context& ctx, frame_reference frame, ptr<procedure> proc,
 }
 
 static void
-jump_to_procedure(execution_state& state, ptr<procedure> proc) {
-  state.pc = proc->entry_pc;
+jump_to_procedure(execution_state& state) {
+  state.pc = 0;
 }
 
 static frame_reference
@@ -526,7 +543,7 @@ push_scheme_call_frame(ptr<procedure> proc, ptr<insider::closure> closure,
   frame_reference new_frame = make_scheme_frame(proc, istate, is_tail);
   push_closure(proc, closure, new_frame);
 
-  jump_to_procedure(istate.execution_state, proc);
+  jump_to_procedure(istate.execution_state);
 }
 
 static frame_reference
@@ -830,6 +847,9 @@ type(instruction_state& istate) {
 
 static ptr<>
 do_instruction(execution_state& state, gc_disabler& no_gc) {
+  assert(!state.stack->empty());
+  assert(is<procedure>(current_frame_callable(state.stack)));
+
   instruction_state istate{state};
   bytecode_reader& reader = istate.reader;
 
@@ -1035,7 +1055,7 @@ make_scheme_frame_for_call_from_native(execution_state& state,
                                              new_frame, arguments);
   push_closure(proc, closure, new_frame);
 
-  state.pc = proc->entry_pc;
+  state.pc = 0;
   return new_frame;
 }
 
@@ -1300,8 +1320,7 @@ make_tail_call_frame_for_call_from_native(context& ctx, ptr<> callable,
 static void
 install_call_frame(context& ctx, frame_reference frame) {
   if (!is_native_frame(frame))
-    ctx.current_execution->pc
-      = assume<procedure>(frame.callable())->entry_pc;
+    ctx.current_execution->pc = 0;
 }
 
 ptr<tail_call_tag_type>

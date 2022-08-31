@@ -692,22 +692,19 @@ append_bytecode(bytecode_and_debug_info& to,
 }
 
 static ptr<procedure>
-make_procedure_from_bytecode(context& ctx, procedure_context const& pc,
+make_procedure_from_bytecode(context& ctx, procedure_context& pc,
                              unsigned min_args, bool has_rest,
                              std::string name) {
-  std::size_t entry = ctx.program.size();
-
   assert(pc.bytecode_stack.size() == 1);
-  append_bytecode(ctx.program, ctx.program_debug_info,
-                  pc.bytecode_stack.back());
-
-  return make<procedure>(ctx, entry, pc.bytecode_stack.back().bc.size(),
+  return make<procedure>(ctx,
+                         std::move(pc.bytecode_stack.back().bc),
+                         std::move(pc.bytecode_stack.back().debug_info),
                          pc.registers.registers_used(), min_args, has_rest,
                          std::move(name));
 }
 
 static ptr<closure>
-make_closure_from_bytecode(context& ctx, procedure_context const& pc,
+make_closure_from_bytecode(context& ctx, procedure_context& pc,
                            unsigned min_args, bool has_rest,
                            std::string name) {
   return make_empty_closure(ctx, make_procedure_from_bytecode(ctx, pc, min_args,
