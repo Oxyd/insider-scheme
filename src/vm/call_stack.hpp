@@ -91,6 +91,11 @@ public:
   }
 
   ptr<>&
+  callable() {
+    return frames_.back().callable;
+  }
+
+  ptr<>&
   callable(frame_index frame) {
     return frames_[frame].callable;
   }
@@ -223,7 +228,7 @@ private:
 
 inline ptr<>&
 current_frame_callable(ptr<call_stack> stack) {
-  return stack->callable(*stack->current_frame_index());
+  return stack->callable();
 }
 
 inline ptr<stack_frame_extra_data>
