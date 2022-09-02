@@ -186,36 +186,14 @@ clear_native_continuations(frame_reference frame) {
 }
 
 namespace {
-  class bytecode_reader {
-  public:
-    explicit
-    bytecode_reader(execution_state& state)
-      : bc_{assume<procedure>(current_frame_callable(state.stack))->code}
-      , pc_{state.pc}
-    { }
-
-    opcode
-    read_opcode() { return insider::read_opcode(bc_, pc_); }
-
-    operand
-    read_operand() { return insider::read_operand(bc_, pc_); }
-
-    integer::value_type
-    current_pc() const { return pc_; }
-
-  private:
-    bytecode const&      bc_;
-    integer::value_type& pc_;
-  };
-
   struct instruction_state {
     insider::execution_state& execution_state;
-    bytecode_reader           reader;
+    bytecode const&           bc_;
 
     explicit
     instruction_state(insider::execution_state& es)
       : execution_state{es}
-      , reader{es}
+      , bc_{assume<procedure>(current_frame_callable(es.stack))->code}
     { }
 
     ptr<call_stack>
@@ -223,27 +201,33 @@ namespace {
 
     insider::context&
     context() { return execution_state.ctx; }
+
+    opcode
+    read_opcode() { return insider::read_opcode(bc_, execution_state.pc); }
+
+    operand
+    read_operand() { return insider::read_operand(bc_, execution_state.pc); }
   };
 }
 
 static void
 load_static(instruction_state& istate) {
-  operand static_num = istate.reader.read_operand();
-  operand dest = istate.reader.read_operand();
+  operand static_num = istate.read_operand();
+  operand dest = istate.read_operand();
   istate.stack()->local(dest) = istate.context().get_static(static_num);
 }
 
 static void
 load_top_level(instruction_state& istate) {
-  operand global_num = istate.reader.read_operand();
-  operand dest = istate.reader.read_operand();
+  operand global_num = istate.read_operand();
+  operand dest = istate.read_operand();
   istate.stack()->local(dest) = istate.context().get_top_level(global_num);
 }
 
 static void
 load_dynamic_top_level(instruction_state& istate) {
-  operand id_idx = istate.reader.read_operand();
-  operand dest = istate.reader.read_operand();
+  operand id_idx = istate.read_operand();
+  operand dest = istate.read_operand();
 
   auto id = assume<syntax>(istate.context().get_static(id_idx));
   assert(id->contains<symbol>());
@@ -265,16 +249,16 @@ load_dynamic_top_level(instruction_state& istate) {
 
 static void
 store_top_level(instruction_state& istate) {
-  operand reg = istate.reader.read_operand();
-  operand global_num = istate.reader.read_operand();
+  operand reg = istate.read_operand();
+  operand global_num = istate.read_operand();
   istate.context().set_top_level(global_num, istate.stack()->local(reg));
 }
 
 static void
 arithmetic(opcode opcode, instruction_state& istate) {
-  ptr<> lhs = istate.stack()->local(istate.reader.read_operand());
-  ptr<> rhs = istate.stack()->local(istate.reader.read_operand());
-  operand dest = istate.reader.read_operand();
+  ptr<> lhs = istate.stack()->local(istate.read_operand());
+  ptr<> rhs = istate.stack()->local(istate.read_operand());
+  operand dest = istate.read_operand();
 
   if (is<integer>(lhs) && is<integer>(rhs) && opcode != opcode::divide) {
     switch (opcode) {
@@ -330,9 +314,9 @@ arithmetic(opcode opcode, instruction_state& istate) {
 
 static void
 relational(opcode opcode, instruction_state& istate) {
-  ptr<> lhs = istate.stack()->local(istate.reader.read_operand());
-  ptr<> rhs = istate.stack()->local(istate.reader.read_operand());
-  operand dest = istate.reader.read_operand();
+  ptr<> lhs = istate.stack()->local(istate.read_operand());
+  ptr<> rhs = istate.stack()->local(istate.read_operand());
+  operand dest = istate.read_operand();
 
   if (is<integer>(lhs) && is<integer>(rhs)) {
     integer::value_type x = assume<integer>(lhs).value();
@@ -392,7 +376,7 @@ relational(opcode opcode, instruction_state& istate) {
 static ptr<>
 find_callee(opcode opcode, instruction_state& istate) {
   return find_callee_value(istate.context(), opcode, istate.stack(),
-                           istate.reader.read_operand());
+                           istate.read_operand());
 }
 
 static std::tuple<ptr<>, ptr<closure>>
@@ -442,7 +426,7 @@ namespace {
 
     ptr<>
     operator () () {
-      return parent_frame_.local(istate_.reader.read_operand());
+      return parent_frame_.local(istate_.read_operand());
     }
 
   private:
@@ -489,7 +473,7 @@ push_scheme_frame(instruction_state& istate, ptr<procedure> proc,
     proc,
     current_frame(istate.execution_state.stack).base() + base,
     proc->locals_size,
-    istate.reader.current_pc(),
+    istate.execution_state.pc,
     result_reg
   );
   return current_frame(istate.execution_state.stack);
@@ -516,7 +500,7 @@ static void
 check_and_convert_scheme_call_arguments(instruction_state& istate,
                                         ptr<procedure> proc,
                                         operand base) {
-  operand num_args = istate.reader.read_operand();
+  operand num_args = istate.read_operand();
   throw_if_wrong_number_of_args(proc, num_args);
   convert_tail_args(istate.context(),
                     current_frame(istate.execution_state.stack),
@@ -526,10 +510,10 @@ check_and_convert_scheme_call_arguments(instruction_state& istate,
 static frame_reference
 make_scheme_frame(ptr<procedure> proc, instruction_state& istate,
                   bool is_tail) {
-  operand base = istate.reader.read_operand();
+  operand base = istate.read_operand();
   check_and_convert_scheme_call_arguments(istate, proc, base);
   if (!is_tail) {
-    operand result_reg = istate.reader.read_operand();
+    operand result_reg = istate.read_operand();
     return push_scheme_frame(istate, proc, base, result_reg);
   } else {
     return make_scheme_tail_call_frame(istate.execution_state.stack, proc,
@@ -554,7 +538,7 @@ make_native_non_tail_call_frame(instruction_state& istate,
     proc,
     current_frame(istate.execution_state.stack).base() + base,
     num_args,
-    istate.reader.current_pc(),
+    istate.execution_state.pc,
     dest_reg
   );
   return current_frame(istate.execution_state.stack);
@@ -650,10 +634,10 @@ call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
 static void
 make_native_frame(ptr<native_procedure> proc, instruction_state& istate,
                   bool is_tail) {
-  auto base = istate.reader.read_operand();
-  auto num_args = istate.reader.read_operand();
+  auto base = istate.read_operand();
+  auto num_args = istate.read_operand();
   if (!is_tail) {
-    auto dest_reg = istate.reader.read_operand();
+    auto dest_reg = istate.read_operand();
     make_native_non_tail_call_frame(istate, proc, base, num_args, dest_reg);
   } else
     make_native_tail_call_frame(istate.execution_state.stack, proc,
@@ -706,7 +690,7 @@ resume_native_call(execution_state& state, ptr<> scheme_result) {
 
 static ptr<>
 ret(instruction_state& istate) {
-  operand result_reg = istate.reader.read_operand();
+  operand result_reg = istate.read_operand();
   ptr<> result = istate.stack()->local(result_reg);
   operand dest_reg = current_frame(istate.stack()).result_register();
 
@@ -720,10 +704,10 @@ jump(opcode opcode, instruction_state& istate) {
   operand condition_reg{};
 
   if (opcode == opcode::jump || opcode == opcode::jump_back)
-    off = istate.reader.read_operand();
+    off = istate.read_operand();
   else {
-    condition_reg = istate.reader.read_operand();
-    off = istate.reader.read_operand();
+    condition_reg = istate.read_operand();
+    off = istate.read_operand();
   }
 
   int offset = (opcode == opcode::jump_back
@@ -744,10 +728,10 @@ jump(opcode opcode, instruction_state& istate) {
 static void
 make_closure(instruction_state& istate) {
   ptr<procedure> proc
-    = assume<procedure>(istate.stack()->local(istate.reader.read_operand()));
-  operand captures_base = istate.reader.read_operand();
-  auto num_captures = istate.reader.read_operand();
-  operand dest = istate.reader.read_operand();
+    = assume<procedure>(istate.stack()->local(istate.read_operand()));
+  operand captures_base = istate.read_operand();
+  auto num_captures = istate.read_operand();
+  operand dest = istate.read_operand();
 
   auto result = make<closure>(istate.context(), proc, num_captures);
   for (std::size_t i = 0; i < num_captures; ++i)
@@ -759,51 +743,51 @@ make_closure(instruction_state& istate) {
 
 static void
 make_box(instruction_state& istate) {
-  ptr<> value = istate.stack()->local(istate.reader.read_operand());
-  istate.stack()->local(istate.reader.read_operand())
+  ptr<> value = istate.stack()->local(istate.read_operand());
+  istate.stack()->local(istate.read_operand())
     = istate.context().store.make<box>(value);
 }
 
 static void
 unbox(instruction_state& istate) {
   auto box
-    = expect<insider::box>(istate.stack()->local(istate.reader.read_operand()));
-  istate.stack()->local(istate.reader.read_operand()) = box->get();
+    = expect<insider::box>(istate.stack()->local(istate.read_operand()));
+  istate.stack()->local(istate.read_operand()) = box->get();
 }
 
 static void
 box_set(instruction_state& istate) {
   auto box
-    = expect<insider::box>(istate.stack()->local(istate.reader.read_operand()));
+    = expect<insider::box>(istate.stack()->local(istate.read_operand()));
   box->set(istate.context().store,
-           istate.stack()->local(istate.reader.read_operand()));
+           istate.stack()->local(istate.read_operand()));
 }
 
 static void
 cons(instruction_state& istate) {
-  ptr<> car = istate.stack()->local(istate.reader.read_operand());
-  ptr<> cdr = istate.stack()->local(istate.reader.read_operand());
-  istate.stack()->local(istate.reader.read_operand())
+  ptr<> car = istate.stack()->local(istate.read_operand());
+  ptr<> cdr = istate.stack()->local(istate.read_operand());
+  istate.stack()->local(istate.read_operand())
     = make<pair>(istate.context(), car, cdr);
 }
 
 static void
 car(instruction_state& istate) {
-  ptr<pair> p = expect<pair>(istate.stack()->local(istate.reader.read_operand()));
-  istate.stack()->local(istate.reader.read_operand()) = car(p);
+  ptr<pair> p = expect<pair>(istate.stack()->local(istate.read_operand()));
+  istate.stack()->local(istate.read_operand()) = car(p);
 }
 
 static void
 cdr(instruction_state& istate) {
-  ptr<pair> p = expect<pair>(istate.stack()->local(istate.reader.read_operand()));
-  istate.stack()->local(istate.reader.read_operand()) = cdr(p);
+  ptr<pair> p = expect<pair>(istate.stack()->local(istate.read_operand()));
+  istate.stack()->local(istate.read_operand()) = cdr(p);
 }
 
 static void
 eq(instruction_state& istate) {
-  ptr<> lhs = istate.stack()->local(istate.reader.read_operand());
-  ptr<> rhs = istate.stack()->local(istate.reader.read_operand());
-  istate.stack()->local(istate.reader.read_operand())
+  ptr<> lhs = istate.stack()->local(istate.read_operand());
+  ptr<> rhs = istate.stack()->local(istate.read_operand());
+  istate.stack()->local(istate.read_operand())
     = lhs == rhs
       ? istate.context().constants->t
       : istate.context().constants->f;
@@ -812,11 +796,11 @@ eq(instruction_state& istate) {
 static void
 vector_set(instruction_state& istate) {
   ptr<vector> v
-    = expect<vector>(istate.stack()->local(istate.reader.read_operand()));
+    = expect<vector>(istate.stack()->local(istate.read_operand()));
   integer::value_type i = expect<integer>(
-    istate.stack()->local(istate.reader.read_operand())
+    istate.stack()->local(istate.read_operand())
   ).value();
-  ptr<> o = istate.stack()->local(istate.reader.read_operand());
+  ptr<> o = istate.stack()->local(istate.read_operand());
 
   if (i < 0)
     throw std::runtime_error{"vector-set!: Negative index"};
@@ -827,21 +811,21 @@ vector_set(instruction_state& istate) {
 static void
 vector_ref(instruction_state& istate) {
   ptr<vector> v
-    = expect<vector>(istate.stack()->local(istate.reader.read_operand()));
+    = expect<vector>(istate.stack()->local(istate.read_operand()));
   integer::value_type i = expect<integer>(
-    istate.stack()->local(istate.reader.read_operand())
+    istate.stack()->local(istate.read_operand())
   ).value();
 
   if (i < 0)
     throw std::runtime_error{"vector-ref: Negative index"};
 
-  istate.stack()->local(istate.reader.read_operand()) = v->ref(i);
+  istate.stack()->local(istate.read_operand()) = v->ref(i);
 }
 
 static void
 type(instruction_state& istate) {
-  ptr<> o = istate.stack()->local(istate.reader.read_operand());
-  istate.stack()->local(istate.reader.read_operand())
+  ptr<> o = istate.stack()->local(istate.read_operand());
+  istate.stack()->local(istate.read_operand())
     = type(istate.context(), o);
 }
 
@@ -851,9 +835,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   assert(is<procedure>(current_frame_callable(state.stack)));
 
   instruction_state istate{state};
-  bytecode_reader& reader = istate.reader;
-
-  opcode opcode = istate.reader.read_opcode();
+  opcode opcode = istate.read_opcode();
 
   switch (opcode) {
   case opcode::no_operation:
@@ -891,8 +873,8 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
     break;
 
   case opcode::set: {
-    operand src = reader.read_operand();
-    operand dst = reader.read_operand();
+    operand src = istate.read_operand();
+    operand dst = istate.read_operand();
     state.stack->local(dst) = state.stack->local(src);
     break;
   }
