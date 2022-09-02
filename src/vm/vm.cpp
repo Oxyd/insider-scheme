@@ -188,12 +188,10 @@ clear_native_continuations(frame_reference frame) {
 namespace {
   struct instruction_state {
     insider::execution_state& execution_state;
-    bytecode const&           bc_;
 
     explicit
     instruction_state(insider::execution_state& es)
       : execution_state{es}
-      , bc_{assume<procedure>(current_frame_callable(es.stack))->code}
     { }
 
     ptr<call_stack>
@@ -202,11 +200,22 @@ namespace {
     insider::context&
     context() { return execution_state.ctx; }
 
+    insider::bytecode const&
+    bytecode() const {
+      return assume<procedure>(
+        current_frame_callable(execution_state.stack)
+      )->code;
+    }
+
     opcode
-    read_opcode() { return insider::read_opcode(bc_, execution_state.pc); }
+    read_opcode() {
+      return insider::read_opcode(bytecode(), execution_state.pc);
+    }
 
     operand
-    read_operand() { return insider::read_operand(bc_, execution_state.pc); }
+    read_operand() {
+      return insider::read_operand(bytecode(), execution_state.pc);
+    }
   };
 }
 
