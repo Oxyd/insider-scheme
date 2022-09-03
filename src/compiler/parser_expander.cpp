@@ -241,7 +241,7 @@ static ptr<syntax>
 call_transformer_with_continuation_barrier(context& ctx, ptr<> callable,
                                            ptr<syntax> stx) {
   ptr<> result
-    = call_with_continuation_barrier(ctx, callable, {stx}).get();
+    = call_with_continuation_barrier(ctx, callable, {stx});
   if (auto s = match<syntax>(result))
     return s;
   else
@@ -315,7 +315,7 @@ expand(parsing_context& pc, ptr<syntax> stx) {
 }
 
 template <auto Analyse>
-static tracked_ptr<>
+static ptr<>
 eval_at_expand_time(parsing_context& pc, ptr<syntax> datum) {
   auto meta_pc = make_subcontext(pc);
   auto proc = compile_syntax(meta_pc.ctx, Analyse(meta_pc, datum),
@@ -324,12 +324,12 @@ eval_at_expand_time(parsing_context& pc, ptr<syntax> datum) {
 }
 
 // Causes a garbage collection.
-static tracked_ptr<>
+static ptr<>
 eval_meta(parsing_context& pc, ptr<syntax> datum) {
   return eval_at_expand_time<analyse_meta>(pc, datum);
 }
 
-static tracked_ptr<>
+static ptr<>
 eval_transformer(parsing_context& pc, ptr<syntax> datum) {
   return eval_at_expand_time<analyse_transformer>(pc, datum);
 }
@@ -339,7 +339,7 @@ static ptr<transformer>
 make_transformer(parsing_context& pc, ptr<syntax> expr) {
   parser_action a(pc.ctx, expr, "Evaluating transformer");
   auto transformer_proc = eval_transformer(pc, expr); // GC
-  return make<transformer>(pc.ctx, transformer_proc.get());
+  return make<transformer>(pc.ctx, transformer_proc);
 }
 
 namespace {
@@ -451,7 +451,7 @@ process_define_syntax(parsing_context& pc, ptr<syntax> stx) {
     define(pc.ctx.store, name, new_tr);
 }
 
-static tracked_ptr<>
+static ptr<>
 eval_meta_expression(parsing_context& pc, ptr<syntax> stx) {
   parser_action a{pc.ctx, stx, "Evaluating meta expression"};
   ptr<> datum = syntax_to_list(pc.ctx, stx);
@@ -1063,8 +1063,8 @@ parse_syntax_error(parsing_context& pc, ptr<syntax> stx) {
 
 static expression
 parse_meta(parsing_context& pc, ptr<syntax> stx) {
-  tracked_ptr<> datum = eval_meta_expression(pc, stx);
-  return make<literal_expression>(pc.ctx, datum.get());
+  ptr<> datum = eval_meta_expression(pc, stx);
+  return make<literal_expression>(pc.ctx, datum);
 }
 
 namespace {
@@ -1658,7 +1658,7 @@ process_top_level_form(parsing_context& pc,
         return {};
       } else if (form == pc.ctx.constants->meta) {
         tracker t{pc.ctx, stx};
-        ptr<> datum = eval_meta_expression(pc, stx).get();
+        ptr<> datum = eval_meta_expression(pc, stx);
         return datum_to_syntax(pc.ctx, stx, datum);
       }
     }

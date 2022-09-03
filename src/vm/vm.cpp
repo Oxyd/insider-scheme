@@ -557,34 +557,32 @@ pop_frame(execution_state& state) {
   state.stack->pop_frame();
 }
 
-static ptr<>
+static void
 resume_native_call(execution_state& state, ptr<> scheme_result);
 
-static ptr<>
+static void
 return_value_to_caller(execution_state& state, ptr<> result, operand reg) {
   assert(result);
 
   if (state.stack->empty())
     // We are returning from the global procedure, so we return back to the
     // calling C++ code.
-    return result;
-
-  if (is_native_frame(current_frame(state.stack)))
-    return resume_native_call(state, result);
-
-  current_frame_local(state.stack, reg) = result;
-  return {};
+    state.result = result;
+  else if (is_native_frame(current_frame(state.stack)))
+    resume_native_call(state, result);
+  else
+    current_frame_local(state.stack, reg) = result;
 }
 
-static ptr<>
+static void
 pop_native_frame(execution_state& state, ptr<> result) {
   ptr<call_stack> stack = state.stack;
   operand result_reg = current_frame(stack).result_register();
   pop_frame(state);
-  return return_value_to_caller(state, result, result_reg);
+  return_value_to_caller(state, result, result_reg);
 }
 
-static ptr<>
+static void
 call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
   ptr<> result;
   do
@@ -595,11 +593,10 @@ call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
   if (is_native_frame(current_frame(state.stack)))
     // Return from a native call (potentially a different native call than
     // what we started with, due to native tail-calls).
-    return pop_native_frame(state, result);
-  else
-    // Otherwise, the native procedure frame was replaced (by means of a tail
-    // call) with a Scheme procedure.
-    return {};
+    pop_native_frame(state, result);
+
+  // Otherwise, the native procedure frame was replaced (by means of a tail
+  // call) with a Scheme procedure.
 }
 
 static void
@@ -614,11 +611,11 @@ make_native_frame(ptr<native_procedure> proc, execution_state& state,
     make_native_tail_call_frame(state.stack, proc, base, num_args);
 }
 
-static ptr<>
+static void
 do_native_call(ptr<native_procedure> proc, execution_state& state,
                bool is_tail) {
   make_native_frame(proc, state, is_tail);
-  return call_native_procedure(state);
+  call_native_procedure(state);
 }
 
 static bool
@@ -628,44 +625,43 @@ is_tail(opcode opcode) {
          || opcode == opcode::tail_call_static;
 }
 
-static ptr<>
+static void
 call(opcode opcode, execution_state& state) {
   auto [call_target, closure] = read_callee_and_closure(opcode, state);
 
-  if (auto scheme_proc = match<procedure>(call_target)) {
+  if (auto scheme_proc = match<procedure>(call_target))
     push_scheme_call_frame(scheme_proc, closure, state, is_tail(opcode));
-    return {};
-  } else if (auto native_proc = match<native_procedure>(call_target)) {
+  else if (auto native_proc = match<native_procedure>(call_target)) {
     assert(!closure);
-    return do_native_call(native_proc, state, is_tail(opcode));
+    do_native_call(native_proc, state, is_tail(opcode));
   } else
     throw make_error("Application: Not a procedure: {}",
                      datum_to_string(state.ctx, call_target));
 }
 
-static ptr<>
+static void
 resume_native_call(execution_state& state, ptr<> scheme_result) {
   auto frame = current_frame(state.stack);
   discard_later_native_continuations(frame.extra(), state.pc);
 
   if (native_continuation_type const& nc
       = find_current_native_continuation(frame))
-    return call_native_procedure(state, scheme_result);
+    call_native_procedure(state, scheme_result);
   else
     // Return to a non-continuable native procedure. We'll abandon run()
     // immediately; the native procedure will then return back to a previous
     // run() call.
-    return scheme_result;
+    state.result = scheme_result;
 }
 
-static ptr<>
+static void
 ret(execution_state& state) {
   operand result_reg = read_operand(state);
   ptr<> result = state.stack->local(result_reg);
   operand dest_reg = current_frame(state.stack).result_register();
 
   pop_frame(state);
-  return return_value_to_caller(state, result, dest_reg);
+  return_value_to_caller(state, result, dest_reg);
 }
 
 static void
@@ -799,7 +795,7 @@ type(execution_state& state) {
     = type(state.ctx, o);
 }
 
-static ptr<>
+static void
 do_instruction(execution_state& state, gc_disabler& no_gc) {
   assert(!state.stack->empty());
   assert(is<procedure>(current_frame_callable(state.stack)));
@@ -854,17 +850,17 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::call_static:
   case opcode::tail_call_top_level:
   case opcode::tail_call_static: {
-    ptr<> result = call(opcode, state);
-    if (result)
-      return result;
+    call(opcode, state);
+    if (state.result)
+      return;
     no_gc.force_update();
     break;
   }
 
   case opcode::ret: {
-    ptr<> result = ret(state);
-    if (result)
-      return result;
+    ret(state);
+    if (state.result)
+      return;
     no_gc.force_update();
     break;
   }
@@ -923,29 +919,21 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   default:
     assert(false); // Invalid opcode
   } // end switch
-
-  return {};
 }
 
 static ptr<tail_call_tag_type>
 raise(context& ctx, ptr<> e);
 
-static tracked_ptr<>
-run(execution_state& state) {
-  std::optional<execution_action> a;
+static void
+do_instructions(execution_state& state) {
   gc_disabler no_gc{state.ctx.store};
-  tracked_ptr<> result{state.ctx.store};
-
-  if (!current_frame(state.stack).parent())
-    // Only create an execution_action if this is the top-level execution.
-    a.emplace(state);
 
   while (true)
     try {
       while (true) {
-        result = do_instruction(state, no_gc);
-        if (result)
-          return result;
+        do_instruction(state, no_gc);
+        if (state.result)
+          return;
       }
     } catch (ptr<> e) {
       raise(state.ctx, e);
@@ -960,6 +948,22 @@ run(execution_state& state) {
     }
 
   assert(false); // The only way the loop above will exit is via return.
+}
+
+static ptr<>
+run(execution_state& state) {
+  std::optional<execution_action> a;
+  assert(!state.result);
+
+  if (!current_frame(state.stack).parent())
+    // Only create an execution_action if this is the top-level execution.
+    a.emplace(state);
+
+  do_instructions(state);
+
+  ptr<> result = state.result;
+  state.result = {};
+  return result;
 }
 
 static std::tuple<ptr<procedure>, ptr<closure>>
@@ -1038,19 +1042,17 @@ setup_native_frame_for_call_from_native(execution_state& state,
   return current_frame(state.stack);
 }
 
-static tracked_ptr<>
+static ptr<>
 call_native_in_current_frame(execution_state& state, ptr<native_procedure> proc,
                              std::vector<ptr<>> const& arguments) {
-  tracked_ptr<> result{state.ctx.store,
-                       proc->target(state.ctx, proc,
-                                    object_span(arguments.begin(),
-                                                arguments.end()))};
+  ptr<> result = proc->target(state.ctx, proc,
+                              object_span(arguments.begin(), arguments.end()));
   state.pc = current_frame_previous_pc(state.stack);
   state.stack->pop_frame();
   return result;
 }
 
-static tracked_ptr<>
+static ptr<>
 call_native_from_native(execution_state& state, ptr<native_procedure> proc,
                         std::vector<ptr<>> const& arguments) {
   setup_native_frame_for_call_from_native(state, proc);
@@ -1060,7 +1062,7 @@ call_native_from_native(execution_state& state, ptr<native_procedure> proc,
 static void
 set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value);
 
-static tracked_ptr<>
+static ptr<>
 call_native_with_continuation_barrier(execution_state& state,
                                       ptr<native_procedure> proc,
                                       std::vector<ptr<>> const& arguments,
@@ -1105,7 +1107,7 @@ setup_scheme_frame_for_potential_call_from_native(
                                                 get_native_pc(state));
 }
 
-static tracked_ptr<>
+static ptr<>
 call_scheme_with_continuation_barrier(execution_state& state,
                                       ptr<closure> callable,
                                       std::vector<ptr<>> const& arguments,
@@ -1157,7 +1159,7 @@ mark_frame_noncontinuable(frame_reference frame) {
       e->native_continuations.emplace_back();
 }
 
-tracked_ptr<>
+ptr<>
 call_parameterized_with_continuation_barrier(
   context& ctx, ptr<> callable,
   std::vector<ptr<>> const& arguments,
@@ -1179,7 +1181,7 @@ call_parameterized_with_continuation_barrier(
     );
 }
 
-tracked_ptr<>
+ptr<>
 call_with_continuation_barrier(context& ctx, ptr<> callable,
                                std::vector<ptr<>> const& arguments) {
   return call_parameterized_with_continuation_barrier(ctx, callable, arguments,
@@ -1190,8 +1192,8 @@ static ptr<>
 call_native_continuable(execution_state& state, ptr<native_procedure> proc,
                         std::vector<ptr<>> const& arguments,
                         native_continuation_type const& cont) {
-  tracked_ptr<> result = call_native_from_native(state, proc, arguments);
-  return cont(state.ctx, result.get());
+  ptr<> result = call_native_from_native(state, proc, arguments);
+  return cont(state.ctx, result);
 }
 
 static ptr<>
@@ -1821,13 +1823,13 @@ eval_proc(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
   return tail_call(ctx, f, {});
 }
 
-tracked_ptr<>
+ptr<>
 eval(context& ctx, tracked_ptr<module_> const& mod, ptr<syntax> expr) {
   auto f = compile_expression(ctx, expr, mod, make_eval_origin());
   return call_with_continuation_barrier(ctx, f, {});
 }
 
-tracked_ptr<>
+ptr<>
 eval(context& ctx, tracked_ptr<module_> const& mod, std::string const& expr) {
   if (auto stx = match<syntax>(read_syntax(ctx, expr)))
     return eval(ctx, mod, stx);

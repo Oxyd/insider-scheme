@@ -117,7 +117,7 @@ define_top_level(context&, std::string const& name, ptr<module_>, bool export_,
 // module's body and return the result of the last expression in its body.
 //
 // Causes garbage collection.
-tracked_ptr<>
+ptr<>
 execute(context&, tracked_ptr<module_> const&);
 
 tracked_ptr<module_>

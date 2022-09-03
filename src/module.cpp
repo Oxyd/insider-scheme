@@ -354,14 +354,14 @@ define_top_level(context& ctx, std::string const& name, ptr<module_> m,
   return index;
 }
 
-static tracked_ptr<>
+static ptr<>
 run_module(context& ctx, ptr<module_> m) {
   return call_with_continuation_barrier(ctx, m->top_level_procedure(), {});
 }
 
-tracked_ptr<>
+ptr<>
 execute(context& ctx, tracked_ptr<module_> const& mod) {
-  tracked_ptr<> result = run_module(ctx, mod.get());
+  ptr<> result = run_module(ctx, mod.get());
   mod->mark_active();
 
   return result;

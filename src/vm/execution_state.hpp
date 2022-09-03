@@ -14,6 +14,7 @@ public:
   context&            ctx;
   integer::value_type pc = -1;
   ptr<call_stack>     stack;
+  ptr<>               result;
 
   execution_state(context& ctx);
 

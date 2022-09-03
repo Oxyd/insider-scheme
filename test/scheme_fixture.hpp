@@ -39,7 +39,7 @@ struct scheme_fixture : testing::Test {
                                 m,
                                 {&provider, "<unit test expression>"},
                                 std::move(passes));
-    return call_with_continuation_barrier(ctx, f, {}).get();
+    return call_with_continuation_barrier(ctx, f, {});
   }
 
   insider::ptr<>
@@ -60,7 +60,7 @@ struct scheme_fixture : testing::Test {
       {&provider, "<unit test main module>"},
       std::move(passes)
     );
-    return execute(ctx, m).get();
+    return execute(ctx, m);
   }
 
   void

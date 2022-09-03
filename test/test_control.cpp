@@ -350,7 +350,7 @@ TEST_F(control, barrier_prevents_jump_in) {
   );
 }
 
-static tracked_ptr<>
+static ptr<>
 f3(context& ctx, ptr<> g) {
   return call_with_continuation_barrier(ctx, g, {});
 }

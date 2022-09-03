@@ -273,10 +273,10 @@ static expression
 evaluate_constant_application(context& ctx, ptr<> callable,
                               ptr<application_expression> app) {
   try {
-    tracked_ptr<> result = call_with_continuation_barrier(
+    ptr<> result = call_with_continuation_barrier(
       ctx, callable, make_arguments_for_constant_evaluation(ctx, app)
     );
-    return make<literal_expression>(ctx, result.get());
+    return make<literal_expression>(ctx, result);
   } catch (...) {
     return {};
   }

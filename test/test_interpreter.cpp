@@ -68,7 +68,7 @@ TEST_F(interpreter, exec_arithmetic) {
     0
   );
   auto result = call_with_continuation_barrier(ctx, proc, {});
-  EXPECT_EQ(assume<integer>(result.get()).value(), 18);
+  EXPECT_EQ(assume<integer>(result).value(), 18);
 }
 
 TEST_F(interpreter, can_access_arguments_from_callee) {
@@ -93,7 +93,7 @@ TEST_F(interpreter, can_access_arguments_from_callee) {
     2, 0
   );
   auto result = call_with_continuation_barrier(ctx, f, {});
-  EXPECT_EQ(expect<integer>(result.get()).value(), 3);
+  EXPECT_EQ(expect<integer>(result).value(), 3);
 }
 
 TEST_F(interpreter, exec_calls) {
@@ -142,7 +142,7 @@ TEST_F(interpreter, exec_calls) {
   auto result = call_with_continuation_barrier(ctx, global, {});
 
   auto native_f = [] (int x, int y) { return 2 * x + y; };
-  EXPECT_EQ(assume<integer>(result.get()).value(),
+  EXPECT_EQ(assume<integer>(result).value(),
             3 * native_f(5, 7) + native_f(2, native_f(3, 4)));
 }
 
@@ -175,7 +175,7 @@ TEST_F(interpreter, exec_tail_calls) {
                    instruction{opcode::ret, operand{0}}}),
     3, 0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {}).get();
+  auto result = call_with_continuation_barrier(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(), 12);
 }
 
@@ -205,7 +205,7 @@ TEST_F(interpreter, exec_loop) {
     6,
     0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {}).get();
+  auto result = call_with_continuation_barrier(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(), 45);
 }
 
@@ -231,7 +231,7 @@ TEST_F(interpreter, exec_native_call) {
     5,
     0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {}).get();
+  auto result = call_with_continuation_barrier(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(),
             2 * 10 + 3 * 20 + 5 * 30);
 }
@@ -258,7 +258,7 @@ TEST_F(interpreter, exec_closure_ref) {
                    instruction{opcode::ret, operand{0}}}),
     5, 0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {}).get();
+  auto result = call_with_continuation_barrier(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(), 5 + 3);
 }
 
@@ -279,7 +279,7 @@ TEST_F(interpreter, exec_cons) {
     5, 0
   );
   auto result = call_with_continuation_barrier(ctx, global, {});
-  EXPECT_TRUE(equal(result.get(), read("(1 2 3)")));
+  EXPECT_TRUE(equal(result, read("(1 2 3)")));
 }
 
 TEST_F(interpreter, exec_car_cdr) {
@@ -318,12 +318,12 @@ TEST_F(interpreter, test_eq) {
   auto result1 = call_with_continuation_barrier(
     ctx, are_eq.get(), {ctx.intern("foo"), ctx.intern("bar")}
   );
-  EXPECT_EQ(result1.get(), ctx.constants->f);
+  EXPECT_EQ(result1, ctx.constants->f);
 
   auto result2 = call_with_continuation_barrier(
     ctx, are_eq.get(), {ctx.intern("foo"), ctx.intern("foo")}
   );
-  EXPECT_EQ(result2.get(), ctx.constants->t);
+  EXPECT_EQ(result2, ctx.constants->t);
 }
 
 TEST_F(interpreter, exec_load_dynamic_top_level) {
@@ -388,7 +388,7 @@ TEST_F(interpreter, call_variadic_scheme_procedure_from_native) {
   ptr<> f = eval("(lambda args args)");
   ptr<> result = call_with_continuation_barrier(
     ctx, f, {to_scheme(ctx, 0), to_scheme(ctx, 1), to_scheme(ctx, 2)}
-  ).get();
+  );
   EXPECT_TRUE(equal(result, read("(0 1 2)")));
 }
 
@@ -433,7 +433,8 @@ do_recursion(context& ctx, int i, int accum, ptr<> recurse, ptr<> base) {
   if (i == 0)
     return tail_call(ctx, base, {to_scheme(ctx, accum)});
   else
-    return tail_call(ctx, recurse, {to_scheme(ctx, i - 1), to_scheme(ctx, accum + i), recurse, base});
+    return tail_call(ctx, recurse, {to_scheme(ctx, i - 1),
+                                    to_scheme(ctx, accum + i), recurse, base});
 }
 
 TEST_F(interpreter, native_tail_calls) {
@@ -518,14 +519,14 @@ struct repl_fixture : interpreter {
 };
 
 TEST_F(repl_fixture, eval_simple_expression_in_interactive_module) {
-  ptr<> result = insider::eval(ctx, m, "(* 7 3)").get();
+  ptr<> result = insider::eval(ctx, m, "(* 7 3)");
   EXPECT_EQ(expect<integer>(result).value(), 21);
 }
 
 TEST_F(repl_fixture, define_top_level_in_interactive_module) {
   insider::eval(ctx, m, "(define x 7)");
   insider::eval(ctx, m, "(define y 3)");
-  ptr<> result = insider::eval(ctx, m, "(* x y)").get();
+  ptr<> result = insider::eval(ctx, m, "(* x y)");
   EXPECT_EQ(expect<integer>(result).value(), 21);
 }
 
@@ -533,7 +534,7 @@ TEST_F(repl_fixture, reference_variable_before_definition) {
   insider::eval(ctx, m, "(define f (lambda () (* a 2)))");
   EXPECT_THROW(insider::eval(ctx, m, "(f)"), unbound_variable_error);
   insider::eval(ctx, m, "(define a 4)");
-  ptr<> result = insider::eval(ctx, m, "(f)").get();
+  ptr<> result = insider::eval(ctx, m, "(f)");
   EXPECT_EQ(expect<integer>(result).value(), 8);
 }
 
@@ -546,13 +547,13 @@ TEST_F(repl_fixture, reference_to_top_level_variable_doesnt_bind_to_local) {
 TEST_F(repl_fixture, reference_procedure_before_definition) {
   insider::eval(ctx, m, "(define f (lambda () (a 2)))");
   insider::eval(ctx, m, "(define a (lambda (x) (* 2 x)))");
-  ptr<> result = insider::eval(ctx, m, "(f)").get();
+  ptr<> result = insider::eval(ctx, m, "(f)");
   EXPECT_EQ(expect<integer>(result).value(), 4);
 }
 
 TEST_F(repl_fixture, define_syntax_in_repl) {
   insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'4))");
-  ptr<> result = insider::eval(ctx, m, "(a)").get();
+  ptr<> result = insider::eval(ctx, m, "(a)");
   EXPECT_EQ(expect<integer>(result).value(), 4);
 }
 
@@ -573,24 +574,24 @@ TEST_F(repl_fixture, reference_to_unknown_variable_doesnt_bind_to_syntax) {
 TEST_F(repl_fixture, redefine_variable_in_repl) {
   insider::eval(ctx, m, "(define x 1)");
   insider::eval(ctx, m, "(define x 2)");
-  ptr<> result = insider::eval(ctx, m, "x").get();
+  ptr<> result = insider::eval(ctx, m, "x");
   EXPECT_EQ(expect<integer>(result).value(), 2);
 }
 
 TEST_F(repl_fixture, redefine_syntax_in_repl) {
   insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'4))");
   insider::eval(ctx, m, "(define f (lambda () (a)))");
-  ptr<> result1 = insider::eval(ctx, m, "(f)").get();
+  ptr<> result1 = insider::eval(ctx, m, "(f)");
   EXPECT_EQ(expect<integer>(result1).value(), 4);
 
   // f still uses the definition that was visible when it was defined.
   insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'8))");
-  ptr<> result2 = insider::eval(ctx, m, "(f)").get();
+  ptr<> result2 = insider::eval(ctx, m, "(f)");
   EXPECT_EQ(expect<integer>(result2).value(), 4);
 
   // The new definition of f will use the new definition of a.
   insider::eval(ctx, m, "(define f (lambda () (a)))");
-  ptr<> result3 = insider::eval(ctx, m, "(f)").get();
+  ptr<> result3 = insider::eval(ctx, m, "(f)");
   EXPECT_EQ(expect<integer>(result3).value(), 8);
 }
 
@@ -605,7 +606,7 @@ TEST_F(repl_fixture, eval_sets_current_module_parameter) {
                            (find-parameter-value
                             current-expand-module-tag)))))
           (s))
-      )").get();
+      )");
   EXPECT_EQ(result, m.get());
 }
 
@@ -639,7 +640,7 @@ TEST_F(repl_fixture, dynamic_import_performs_imports) {
   );
 
   insider::eval(ctx, m, "(dynamic-import m '(foo))");
-  ptr<> result = insider::eval(ctx, m, "var").get();
+  ptr<> result = insider::eval(ctx, m, "var");
   EXPECT_EQ(expect<integer>(result).value(), 13);
 }
 
@@ -663,7 +664,7 @@ TEST_F(interpreter, repl_define_using_macro) {
       import_modules(module_name{"foo"})
     );
   insider::eval(ctx, m, "(def x)");
-  ptr<> result = insider::eval(ctx, m, "x").get();
+  ptr<> result = insider::eval(ctx, m, "x");
   EXPECT_EQ(expect<integer>(result).value(), 0);
 }
 
@@ -795,14 +796,14 @@ static char const* introduce_macro_def = R"(
 
 TEST_F(repl_fixture, reference_and_set_variable_introduced_by_macro) {
   insider::eval(ctx, m, introduce_macro_def);
-  ptr<> result = insider::eval(ctx, m, "(introduce x (set! x 1) x)").get();
+  ptr<> result = insider::eval(ctx, m, "(introduce x (set! x 1) x)");
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
 
 TEST_F(repl_fixture, set_variable_introduced_by_macro_in_meta) {
   insider::eval(ctx, m, introduce_macro_def);
   ptr<> result
-    = insider::eval(ctx, m, "(meta (introduce x (set! x 1) x))").get();
+    = insider::eval(ctx, m, "(meta (introduce x (set! x 1) x))");
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
 

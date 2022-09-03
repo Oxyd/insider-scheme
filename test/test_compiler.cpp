@@ -668,7 +668,7 @@ TEST_F(compiler, call_from_native) {
   auto f = expect<closure>(eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"));
   ptr<> result = call_with_continuation_barrier(
     ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})}
-  ).get();
+  );
   EXPECT_EQ(expect<integer>(result).value(), 2 * 5 + 3 * 4);
 }
 

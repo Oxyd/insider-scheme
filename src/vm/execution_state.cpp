@@ -15,6 +15,7 @@ execution_state::execution_state(context& ctx)
 void
 execution_state::visit_roots(member_visitor const& f) {
   f(stack);
+  f(result);
 }
 
 } // namespace insider
