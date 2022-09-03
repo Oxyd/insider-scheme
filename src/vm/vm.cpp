@@ -982,9 +982,11 @@ run(execution_state& state) {
 
   while (true)
     try {
-      result = do_instruction(state, no_gc);
-      if (result)
-        return result;
+      while (true) {
+        result = do_instruction(state, no_gc);
+        if (result)
+          return result;
+      }
     } catch (ptr<> e) {
       raise(state.ctx, e);
     } catch (tracked_ptr<> const& e) {
