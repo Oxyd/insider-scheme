@@ -185,67 +185,50 @@ clear_native_continuations(frame_reference frame) {
     e->native_continuations.clear();
 }
 
-namespace {
-  struct instruction_state {
-    insider::execution_state& execution_state;
+static insider::bytecode const&
+state_bytecode(execution_state& state) {
+  return assume<procedure>(
+    current_frame_callable(state.stack)
+  )->code;
+}
 
-    explicit
-    instruction_state(insider::execution_state& es)
-      : execution_state{es}
-    { }
+static opcode
+read_opcode(execution_state& state) {
+  return insider::read_opcode(state_bytecode(state), state.pc);
+}
 
-    ptr<call_stack>
-    stack() const { return execution_state.stack; }
-
-    insider::context&
-    context() { return execution_state.ctx; }
-
-    insider::bytecode const&
-    bytecode() const {
-      return assume<procedure>(
-        current_frame_callable(execution_state.stack)
-      )->code;
-    }
-
-    opcode
-    read_opcode() {
-      return insider::read_opcode(bytecode(), execution_state.pc);
-    }
-
-    operand
-    read_operand() {
-      return insider::read_operand(bytecode(), execution_state.pc);
-    }
-  };
+static operand
+read_operand(execution_state& state) {
+  return insider::read_operand(state_bytecode(state), state.pc);
 }
 
 static void
-load_static(instruction_state& istate) {
-  operand static_num = istate.read_operand();
-  operand dest = istate.read_operand();
-  istate.stack()->local(dest) = istate.context().get_static(static_num);
+load_static(execution_state& state) {
+  operand static_num = read_operand(state);
+  operand dest = read_operand(state);
+  state.stack->local(dest) = state.ctx.get_static(static_num);
 }
 
 static void
-load_top_level(instruction_state& istate) {
-  operand global_num = istate.read_operand();
-  operand dest = istate.read_operand();
-  istate.stack()->local(dest) = istate.context().get_top_level(global_num);
+load_top_level(execution_state& state) {
+  operand global_num = read_operand(state);
+  operand dest = read_operand(state);
+  state.stack->local(dest) = state.ctx.get_top_level(global_num);
 }
 
 static void
-load_dynamic_top_level(instruction_state& istate) {
-  operand id_idx = istate.read_operand();
-  operand dest = istate.read_operand();
+load_dynamic_top_level(execution_state& state) {
+  operand id_idx = read_operand(state);
+  operand dest = read_operand(state);
 
-  auto id = assume<syntax>(istate.context().get_static(id_idx));
+  auto id = assume<syntax>(state.ctx.get_static(id_idx));
   assert(id->contains<symbol>());
 
   if (auto binding = lookup(id))
     if (binding->variable) {
       assert(is<top_level_variable>(binding->variable));
 
-      istate.stack()->local(dest) = istate.context().get_top_level(
+      state.stack->local(dest) = state.ctx.get_top_level(
         assume<top_level_variable>(binding->variable)->index
       );
       return;
@@ -257,42 +240,42 @@ load_dynamic_top_level(instruction_state& istate) {
 }
 
 static void
-store_top_level(instruction_state& istate) {
-  operand reg = istate.read_operand();
-  operand global_num = istate.read_operand();
-  istate.context().set_top_level(global_num, istate.stack()->local(reg));
+store_top_level(execution_state& state) {
+  operand reg = read_operand(state);
+  operand global_num = read_operand(state);
+  state.ctx.set_top_level(global_num, state.stack->local(reg));
 }
 
 static void
-arithmetic(opcode opcode, instruction_state& istate) {
-  ptr<> lhs = istate.stack()->local(istate.read_operand());
-  ptr<> rhs = istate.stack()->local(istate.read_operand());
-  operand dest = istate.read_operand();
+arithmetic(opcode opcode, execution_state& state) {
+  ptr<> lhs = state.stack->local(read_operand(state));
+  ptr<> rhs = state.stack->local(read_operand(state));
+  operand dest = read_operand(state);
 
   if (is<integer>(lhs) && is<integer>(rhs) && opcode != opcode::divide) {
     switch (opcode) {
     case opcode::add:
       if (ptr<> result = add_fixnums(assume<integer>(lhs).value(),
                                      assume<integer>(rhs).value()))
-        istate.stack()->local(dest) = result;
+        state.stack->local(dest) = result;
       else
-        istate.stack()->local(dest) = add(istate.context(), lhs, rhs);
+        state.stack->local(dest) = add(state.ctx, lhs, rhs);
       break;
 
     case opcode::subtract:
       if (ptr<> result = subtract_fixnums(assume<integer>(lhs).value(),
                                           assume<integer>(rhs).value()))
-        istate.stack()->local(dest) = result;
+        state.stack->local(dest) = result;
       else
-        istate.stack()->local(dest) = subtract(istate.context(), lhs, rhs);
+        state.stack->local(dest) = subtract(state.ctx, lhs, rhs);
       break;
 
     case opcode::multiply:
       if (ptr<> result = multiply_fixnums(assume<integer>(lhs).value(),
                                           assume<integer>(rhs).value()))
-        istate.stack()->local(dest) = result;
+        state.stack->local(dest) = result;
       else
-        istate.stack()->local(dest) = multiply(istate.context(), lhs, rhs);
+        state.stack->local(dest) = multiply(state.ctx, lhs, rhs);
       break;
 
     default:
@@ -305,16 +288,16 @@ arithmetic(opcode opcode, instruction_state& istate) {
 
   switch (opcode) {
   case opcode::add:
-    istate.stack()->local(dest) = add(istate.context(), lhs, rhs);
+    state.stack->local(dest) = add(state.ctx, lhs, rhs);
     break;
   case opcode::subtract:
-    istate.stack()->local(dest) = subtract(istate.context(), lhs, rhs);
+    state.stack->local(dest) = subtract(state.ctx, lhs, rhs);
     break;
   case opcode::multiply:
-    istate.stack()->local(dest) = multiply(istate.context(), lhs, rhs);
+    state.stack->local(dest) = multiply(state.ctx, lhs, rhs);
     break;
   case opcode::divide:
-    istate.stack()->local(dest) = divide(istate.context(), lhs, rhs);
+    state.stack->local(dest) = divide(state.ctx, lhs, rhs);
     break;
   default:
     assert(!"Cannot get here");
@@ -322,36 +305,36 @@ arithmetic(opcode opcode, instruction_state& istate) {
 }
 
 static void
-relational(opcode opcode, instruction_state& istate) {
-  ptr<> lhs = istate.stack()->local(istate.read_operand());
-  ptr<> rhs = istate.stack()->local(istate.read_operand());
-  operand dest = istate.read_operand();
+relational(opcode opcode, execution_state& state) {
+  ptr<> lhs = state.stack->local(read_operand(state));
+  ptr<> rhs = state.stack->local(read_operand(state));
+  operand dest = read_operand(state);
 
   if (is<integer>(lhs) && is<integer>(rhs)) {
     integer::value_type x = assume<integer>(lhs).value();
     integer::value_type y = assume<integer>(rhs).value();
-    ptr<> t = istate.context().constants->t;
-    ptr<> f = istate.context().constants->f;
+    ptr<> t = state.ctx.constants->t;
+    ptr<> f = state.ctx.constants->f;
 
     switch (opcode) {
     case opcode::arith_equal:
-      istate.stack()->local(dest) = x == y ? t : f;
+      state.stack->local(dest) = x == y ? t : f;
       break;
 
     case opcode::less:
-      istate.stack()->local(dest) = x < y ? t : f;
+      state.stack->local(dest) = x < y ? t : f;
       break;
 
     case opcode::greater:
-      istate.stack()->local(dest) = x > y ? t : f;
+      state.stack->local(dest) = x > y ? t : f;
       break;
 
     case opcode::less_or_equal:
-      istate.stack()->local(dest) = x <= y ? t : f;
+      state.stack->local(dest) = x <= y ? t : f;
       break;
 
     case opcode::greater_or_equal:
-      istate.stack()->local(dest) = x >= y ? t : f;
+      state.stack->local(dest) = x >= y ? t : f;
       break;
 
     default:
@@ -363,19 +346,19 @@ relational(opcode opcode, instruction_state& istate) {
 
   switch (opcode) {
   case opcode::arith_equal:
-    istate.stack()->local(dest) = arith_equal(istate.context(), lhs, rhs);
+    state.stack->local(dest) = arith_equal(state.ctx, lhs, rhs);
     break;
   case opcode::less:
-    istate.stack()->local(dest) = less(istate.context(), lhs, rhs);
+    state.stack->local(dest) = less(state.ctx, lhs, rhs);
     break;
   case opcode::greater:
-    istate.stack()->local(dest) = greater(istate.context(), lhs, rhs);
+    state.stack->local(dest) = greater(state.ctx, lhs, rhs);
     break;
   case opcode::less_or_equal:
-    istate.stack()->local(dest) = less_or_equal(istate.context(), lhs, rhs);
+    state.stack->local(dest) = less_or_equal(state.ctx, lhs, rhs);
     break;
   case opcode::greater_or_equal:
-    istate.stack()->local(dest) = greater_or_equal(istate.context(), lhs, rhs);
+    state.stack->local(dest) = greater_or_equal(state.ctx, lhs, rhs);
     break;
   default:
     assert(!"Cannot get here");
@@ -383,14 +366,14 @@ relational(opcode opcode, instruction_state& istate) {
 }
 
 static ptr<>
-find_callee(opcode opcode, instruction_state& istate) {
-  return find_callee_value(istate.context(), opcode, istate.stack(),
-                           istate.read_operand());
+find_callee(opcode opcode, execution_state& state) {
+  return find_callee_value(state.ctx, opcode, state.stack,
+                           read_operand(state));
 }
 
 static std::tuple<ptr<>, ptr<closure>>
-read_callee_and_closure(opcode opcode, instruction_state& istate) {
-  ptr<> callee = find_callee(opcode, istate);
+read_callee_and_closure(opcode opcode, execution_state& state) {
+  ptr<> callee = find_callee(opcode, state);
   ptr<closure> closure;
   if (auto cls = match<insider::closure>(callee)) {
     callee = cls->procedure();
@@ -421,27 +404,6 @@ push_closure(ptr<procedure> proc, ptr<insider::closure> closure,
 
   for (std::size_t i = 0; i < closure_size; ++i)
     frame.local(operand(begin + i)) = closure->ref(i);
-}
-
-namespace {
-  class instruction_argument_reader {
-  public:
-    explicit
-    instruction_argument_reader(instruction_state& istate)
-      : istate_{istate}
-      , parent_frame_{istate_.execution_state.stack,
-                      current_frame_parent(istate.execution_state.stack)}
-    { }
-
-    ptr<>
-    operator () () {
-      return parent_frame_.local(istate_.read_operand());
-    }
-
-  private:
-    instruction_state& istate_;
-    frame_reference    parent_frame_;
-  };
 }
 
 static void
@@ -476,16 +438,16 @@ jump_to_procedure(execution_state& state) {
 }
 
 static frame_reference
-push_scheme_frame(instruction_state& istate, ptr<procedure> proc,
+push_scheme_frame(execution_state& state, ptr<procedure> proc,
                   operand base, operand result_reg) {
-  istate.execution_state.stack->push_frame(
+  state.stack->push_frame(
     proc,
-    current_frame(istate.execution_state.stack).base() + base,
+    current_frame(state.stack).base() + base,
     proc->locals_size,
-    istate.execution_state.pc,
+    state.pc,
     result_reg
   );
-  return current_frame(istate.execution_state.stack);
+  return current_frame(state.stack);
 }
 
 static frame_reference
@@ -506,51 +468,51 @@ make_scheme_tail_call_frame(ptr<call_stack> stack, ptr<procedure> proc,
 }
 
 static void
-check_and_convert_scheme_call_arguments(instruction_state& istate,
+check_and_convert_scheme_call_arguments(execution_state& state,
                                         ptr<procedure> proc,
                                         operand base) {
-  operand num_args = istate.read_operand();
+  operand num_args = read_operand(state);
   throw_if_wrong_number_of_args(proc, num_args);
-  convert_tail_args(istate.context(),
-                    current_frame(istate.execution_state.stack),
+  convert_tail_args(state.ctx,
+                    current_frame(state.stack),
                     proc, base, num_args);
 }
 
 static frame_reference
-make_scheme_frame(ptr<procedure> proc, instruction_state& istate,
+make_scheme_frame(ptr<procedure> proc, execution_state& state,
                   bool is_tail) {
-  operand base = istate.read_operand();
-  check_and_convert_scheme_call_arguments(istate, proc, base);
+  operand base = read_operand(state);
+  check_and_convert_scheme_call_arguments(state, proc, base);
   if (!is_tail) {
-    operand result_reg = istate.read_operand();
-    return push_scheme_frame(istate, proc, base, result_reg);
+    operand result_reg = read_operand(state);
+    return push_scheme_frame(state, proc, base, result_reg);
   } else {
-    return make_scheme_tail_call_frame(istate.execution_state.stack, proc,
-                                       base, actual_args_size(proc));
+    return make_scheme_tail_call_frame(state.stack, proc, base,
+                                       actual_args_size(proc));
   }
 }
 
 static void
 push_scheme_call_frame(ptr<procedure> proc, ptr<insider::closure> closure,
-                       instruction_state& istate, bool is_tail) {
-  frame_reference new_frame = make_scheme_frame(proc, istate, is_tail);
+                       execution_state& state, bool is_tail) {
+  frame_reference new_frame = make_scheme_frame(proc, state, is_tail);
   push_closure(proc, closure, new_frame);
 
-  jump_to_procedure(istate.execution_state);
+  jump_to_procedure(state);
 }
 
 static frame_reference
-make_native_non_tail_call_frame(instruction_state& istate,
+make_native_non_tail_call_frame(execution_state& state,
                                 ptr<native_procedure> proc, std::size_t base,
                                 std::size_t num_args, operand dest_reg) {
-  istate.execution_state.stack->push_frame(
+  state.stack->push_frame(
     proc,
-    current_frame(istate.execution_state.stack).base() + base,
+    current_frame(state.stack).base() + base,
     num_args,
-    istate.execution_state.pc,
+    state.pc,
     dest_reg
   );
-  return current_frame(istate.execution_state.stack);
+  return current_frame(state.stack);
 }
 
 static frame_reference
@@ -641,23 +603,22 @@ call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
 }
 
 static void
-make_native_frame(ptr<native_procedure> proc, instruction_state& istate,
+make_native_frame(ptr<native_procedure> proc, execution_state& state,
                   bool is_tail) {
-  auto base = istate.read_operand();
-  auto num_args = istate.read_operand();
+  auto base = read_operand(state);
+  auto num_args = read_operand(state);
   if (!is_tail) {
-    auto dest_reg = istate.read_operand();
-    make_native_non_tail_call_frame(istate, proc, base, num_args, dest_reg);
+    auto dest_reg = read_operand(state);
+    make_native_non_tail_call_frame(state, proc, base, num_args, dest_reg);
   } else
-    make_native_tail_call_frame(istate.execution_state.stack, proc,
-                                base, num_args);
+    make_native_tail_call_frame(state.stack, proc, base, num_args);
 }
 
 static ptr<>
-do_native_call(ptr<native_procedure> proc, instruction_state& istate,
+do_native_call(ptr<native_procedure> proc, execution_state& state,
                bool is_tail) {
-  make_native_frame(proc, istate, is_tail);
-  return call_native_procedure(istate.execution_state);
+  make_native_frame(proc, state, is_tail);
+  return call_native_procedure(state);
 }
 
 static bool
@@ -668,18 +629,18 @@ is_tail(opcode opcode) {
 }
 
 static ptr<>
-call(opcode opcode, instruction_state& istate) {
-  auto [call_target, closure] = read_callee_and_closure(opcode, istate);
+call(opcode opcode, execution_state& state) {
+  auto [call_target, closure] = read_callee_and_closure(opcode, state);
 
   if (auto scheme_proc = match<procedure>(call_target)) {
-    push_scheme_call_frame(scheme_proc, closure, istate, is_tail(opcode));
+    push_scheme_call_frame(scheme_proc, closure, state, is_tail(opcode));
     return {};
   } else if (auto native_proc = match<native_procedure>(call_target)) {
     assert(!closure);
-    return do_native_call(native_proc, istate, is_tail(opcode));
+    return do_native_call(native_proc, state, is_tail(opcode));
   } else
     throw make_error("Application: Not a procedure: {}",
-                     datum_to_string(istate.context(), call_target));
+                     datum_to_string(state.ctx, call_target));
 }
 
 static ptr<>
@@ -698,144 +659,144 @@ resume_native_call(execution_state& state, ptr<> scheme_result) {
 }
 
 static ptr<>
-ret(instruction_state& istate) {
-  operand result_reg = istate.read_operand();
-  ptr<> result = istate.stack()->local(result_reg);
-  operand dest_reg = current_frame(istate.stack()).result_register();
+ret(execution_state& state) {
+  operand result_reg = read_operand(state);
+  ptr<> result = state.stack->local(result_reg);
+  operand dest_reg = current_frame(state.stack).result_register();
 
-  pop_frame(istate.execution_state);
-  return return_value_to_caller(istate.execution_state, result, dest_reg);
+  pop_frame(state);
+  return return_value_to_caller(state, result, dest_reg);
 }
 
 static void
-jump(opcode opcode, instruction_state& istate) {
+jump(opcode opcode, execution_state& state) {
   operand off;
   operand condition_reg{};
 
   if (opcode == opcode::jump || opcode == opcode::jump_back)
-    off = istate.read_operand();
+    off = read_operand(state);
   else {
-    condition_reg = istate.read_operand();
-    off = istate.read_operand();
+    condition_reg = read_operand(state);
+    off = read_operand(state);
   }
 
   int offset = (opcode == opcode::jump_back
                 || opcode == opcode::jump_back_unless) ? -off : off;
   if (opcode == opcode::jump_unless || opcode == opcode::jump_back_unless) {
-    ptr<> test_value = istate.stack()->local(condition_reg);
+    ptr<> test_value = state.stack->local(condition_reg);
 
     // The only false value in Scheme is #f. So we only jump if the test_value
     // is exactly #f.
 
-    if (test_value != istate.context().constants->f)
+    if (test_value != state.ctx.constants->f)
       return;
   }
 
-  istate.execution_state.pc += offset;
+  state.pc += offset;
 }
 
 static void
-make_closure(instruction_state& istate) {
+make_closure(execution_state& state) {
   ptr<procedure> proc
-    = assume<procedure>(istate.stack()->local(istate.read_operand()));
-  operand captures_base = istate.read_operand();
-  auto num_captures = istate.read_operand();
-  operand dest = istate.read_operand();
+    = assume<procedure>(state.stack->local(read_operand(state)));
+  operand captures_base = read_operand(state);
+  auto num_captures = read_operand(state);
+  operand dest = read_operand(state);
 
-  auto result = make<closure>(istate.context(), proc, num_captures);
+  auto result = make<closure>(state.ctx, proc, num_captures);
   for (std::size_t i = 0; i < num_captures; ++i)
-    result->set(istate.context().store, i,
-                istate.stack()->local(operand(captures_base + i)));
+    result->set(state.ctx.store, i,
+                state.stack->local(operand(captures_base + i)));
 
-  istate.stack()->local(dest) = result;
+  state.stack->local(dest) = result;
 }
 
 static void
-make_box(instruction_state& istate) {
-  ptr<> value = istate.stack()->local(istate.read_operand());
-  istate.stack()->local(istate.read_operand())
-    = istate.context().store.make<box>(value);
+make_box(execution_state& state) {
+  ptr<> value = state.stack->local(read_operand(state));
+  state.stack->local(read_operand(state))
+    = state.ctx.store.make<box>(value);
 }
 
 static void
-unbox(instruction_state& istate) {
+unbox(execution_state& state) {
   auto box
-    = expect<insider::box>(istate.stack()->local(istate.read_operand()));
-  istate.stack()->local(istate.read_operand()) = box->get();
+    = expect<insider::box>(state.stack->local(read_operand(state)));
+  state.stack->local(read_operand(state)) = box->get();
 }
 
 static void
-box_set(instruction_state& istate) {
+box_set(execution_state& state) {
   auto box
-    = expect<insider::box>(istate.stack()->local(istate.read_operand()));
-  box->set(istate.context().store,
-           istate.stack()->local(istate.read_operand()));
+    = expect<insider::box>(state.stack->local(read_operand(state)));
+  box->set(state.ctx.store,
+           state.stack->local(read_operand(state)));
 }
 
 static void
-cons(instruction_state& istate) {
-  ptr<> car = istate.stack()->local(istate.read_operand());
-  ptr<> cdr = istate.stack()->local(istate.read_operand());
-  istate.stack()->local(istate.read_operand())
-    = make<pair>(istate.context(), car, cdr);
+cons(execution_state& state) {
+  ptr<> car = state.stack->local(read_operand(state));
+  ptr<> cdr = state.stack->local(read_operand(state));
+  state.stack->local(read_operand(state))
+    = make<pair>(state.ctx, car, cdr);
 }
 
 static void
-car(instruction_state& istate) {
-  ptr<pair> p = expect<pair>(istate.stack()->local(istate.read_operand()));
-  istate.stack()->local(istate.read_operand()) = car(p);
+car(execution_state& state) {
+  ptr<pair> p = expect<pair>(state.stack->local(read_operand(state)));
+  state.stack->local(read_operand(state)) = car(p);
 }
 
 static void
-cdr(instruction_state& istate) {
-  ptr<pair> p = expect<pair>(istate.stack()->local(istate.read_operand()));
-  istate.stack()->local(istate.read_operand()) = cdr(p);
+cdr(execution_state& state) {
+  ptr<pair> p = expect<pair>(state.stack->local(read_operand(state)));
+  state.stack->local(read_operand(state)) = cdr(p);
 }
 
 static void
-eq(instruction_state& istate) {
-  ptr<> lhs = istate.stack()->local(istate.read_operand());
-  ptr<> rhs = istate.stack()->local(istate.read_operand());
-  istate.stack()->local(istate.read_operand())
+eq(execution_state& state) {
+  ptr<> lhs = state.stack->local(read_operand(state));
+  ptr<> rhs = state.stack->local(read_operand(state));
+  state.stack->local(read_operand(state))
     = lhs == rhs
-      ? istate.context().constants->t
-      : istate.context().constants->f;
+      ? state.ctx.constants->t
+      : state.ctx.constants->f;
 }
 
 static void
-vector_set(instruction_state& istate) {
+vector_set(execution_state& state) {
   ptr<vector> v
-    = expect<vector>(istate.stack()->local(istate.read_operand()));
+    = expect<vector>(state.stack->local(read_operand(state)));
   integer::value_type i = expect<integer>(
-    istate.stack()->local(istate.read_operand())
+    state.stack->local(read_operand(state))
   ).value();
-  ptr<> o = istate.stack()->local(istate.read_operand());
+  ptr<> o = state.stack->local(read_operand(state));
 
   if (i < 0)
     throw std::runtime_error{"vector-set!: Negative index"};
 
-  v->set(istate.context().store, static_cast<std::size_t>(i), o);
+  v->set(state.ctx.store, static_cast<std::size_t>(i), o);
 }
 
 static void
-vector_ref(instruction_state& istate) {
+vector_ref(execution_state& state) {
   ptr<vector> v
-    = expect<vector>(istate.stack()->local(istate.read_operand()));
+    = expect<vector>(state.stack->local(read_operand(state)));
   integer::value_type i = expect<integer>(
-    istate.stack()->local(istate.read_operand())
+    state.stack->local(read_operand(state))
   ).value();
 
   if (i < 0)
     throw std::runtime_error{"vector-ref: Negative index"};
 
-  istate.stack()->local(istate.read_operand()) = v->ref(i);
+  state.stack->local(read_operand(state)) = v->ref(i);
 }
 
 static void
-type(instruction_state& istate) {
-  ptr<> o = istate.stack()->local(istate.read_operand());
-  istate.stack()->local(istate.read_operand())
-    = type(istate.context(), o);
+type(execution_state& state) {
+  ptr<> o = state.stack->local(read_operand(state));
+  state.stack->local(read_operand(state))
+    = type(state.ctx, o);
 }
 
 static ptr<>
@@ -843,34 +804,33 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   assert(!state.stack->empty());
   assert(is<procedure>(current_frame_callable(state.stack)));
 
-  instruction_state istate{state};
-  opcode opcode = istate.read_opcode();
+  opcode opcode = read_opcode(state);
 
   switch (opcode) {
   case opcode::no_operation:
     break;
 
   case opcode::load_static:
-    load_static(istate);
+    load_static(state);
     break;
 
   case opcode::load_top_level:
-    load_top_level(istate);
+    load_top_level(state);
     break;
 
   case opcode::load_dynamic_top_level:
-    load_dynamic_top_level(istate);
+    load_dynamic_top_level(state);
     break;
 
   case opcode::store_top_level:
-    store_top_level(istate);
+    store_top_level(state);
     break;
 
   case opcode::add:
   case opcode::subtract:
   case opcode::multiply:
   case opcode::divide:
-    arithmetic(opcode, istate);
+    arithmetic(opcode, state);
     break;
 
   case opcode::arith_equal:
@@ -878,12 +838,12 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::greater:
   case opcode::less_or_equal:
   case opcode::greater_or_equal:
-    relational(opcode, istate);
+    relational(opcode, state);
     break;
 
   case opcode::set: {
-    operand src = istate.read_operand();
-    operand dst = istate.read_operand();
+    operand src = read_operand(state);
+    operand dst = read_operand(state);
     state.stack->local(dst) = state.stack->local(src);
     break;
   }
@@ -894,7 +854,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::call_static:
   case opcode::tail_call_top_level:
   case opcode::tail_call_static: {
-    ptr<> result = call(opcode, istate);
+    ptr<> result = call(opcode, state);
     if (result)
       return result;
     no_gc.force_update();
@@ -902,7 +862,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   }
 
   case opcode::ret: {
-    ptr<> result = ret(istate);
+    ptr<> result = ret(state);
     if (result)
       return result;
     no_gc.force_update();
@@ -913,51 +873,51 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::jump_back:
   case opcode::jump_unless:
   case opcode::jump_back_unless:
-    jump(opcode, istate);
+    jump(opcode, state);
     break;
 
   case opcode::make_closure:
-    make_closure(istate);
+    make_closure(state);
     break;
 
   case opcode::box:
-    make_box(istate);
+    make_box(state);
     break;
 
   case opcode::unbox:
-    unbox(istate);
+    unbox(state);
     break;
 
   case opcode::box_set:
-    box_set(istate);
+    box_set(state);
     break;
 
   case opcode::cons:
-    cons(istate);
+    cons(state);
     break;
 
   case opcode::car:
-    car(istate);
+    car(state);
     break;
 
   case opcode::cdr:
-    cdr(istate);
+    cdr(state);
     break;
 
   case opcode::eq:
-    eq(istate);
+    eq(state);
     break;
 
   case opcode::vector_set:
-    vector_set(istate);
+    vector_set(state);
     break;
 
   case opcode::vector_ref:
-    vector_ref(istate);
+    vector_ref(state);
     break;
 
   case opcode::type:
-    type(istate);
+    type(state);
     break;
 
   default:
