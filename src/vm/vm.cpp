@@ -365,6 +365,13 @@ relational(opcode opcode, execution_state& state) {
   }
 }
 
+static void
+set(execution_state& state) {
+  operand src = read_operand(state);
+  operand dst = read_operand(state);
+  state.stack->local(dst) = state.stack->local(src);
+}
+
 static ptr<>
 find_callee(opcode opcode, execution_state& state) {
   return find_callee_value(state.ctx, opcode, state.stack,
@@ -838,9 +845,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
     break;
 
   case opcode::set: {
-    operand src = read_operand(state);
-    operand dst = read_operand(state);
-    state.stack->local(dst) = state.stack->local(src);
+    set(state);
     break;
   }
 
