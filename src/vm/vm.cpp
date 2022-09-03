@@ -856,17 +856,11 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::tail_call_top_level:
   case opcode::tail_call_static: {
     call(opcode, state);
-    if (state.result)
-      return;
-    no_gc.force_update();
     break;
   }
 
   case opcode::ret: {
     ret(state);
-    if (state.result)
-      return;
-    no_gc.force_update();
     break;
   }
 
@@ -924,6 +918,9 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   default:
     assert(false); // Invalid opcode
   } // end switch
+
+  if (opcode == opcode::ret)
+    no_gc.force_update();
 }
 
 static ptr<tail_call_tag_type>
