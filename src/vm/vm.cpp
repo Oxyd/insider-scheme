@@ -932,7 +932,10 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
     assert(false); // Invalid opcode
   } // end switch
 
-  if (opcode == opcode::ret)
+  if (opcode == opcode::ret
+      || opcode == opcode::tail_call
+      || opcode == opcode::tail_call_static
+      || opcode == opcode::tail_call_top_level)
     no_gc.force_update();
 }
 
