@@ -1049,8 +1049,7 @@ call_native_in_current_frame(execution_state& state, ptr<native_procedure> proc,
                              std::vector<ptr<>> const& arguments) {
   ptr<> result = proc->target(state.ctx, proc,
                               object_span(arguments.begin(), arguments.end()));
-  state.pc = current_frame_previous_pc(state.stack);
-  state.stack->pop_frame();
+  pop_frame(state);
   return result;
 }
 
