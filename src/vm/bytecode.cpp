@@ -69,12 +69,12 @@ encode_instruction(bytecode& bc, instruction const& instr) {
 }
 
 instruction
-read_instruction(bytecode const& bc, std::size_t& pc) {
-  instruction result{read_opcode(bc, pc)};
+read_instruction(instruction_pointer& ip) {
+  instruction result{read_opcode(ip)};
   instruction_info info = opcode_to_info(result.opcode);
 
   for (std::size_t i = 0; i < info.num_operands; ++i)
-    result.operands.push_back(read_operand(bc, pc));
+    result.operands.push_back(read_operand(ip));
 
   return result;
 }

@@ -60,23 +60,29 @@ is_native_frame(frame_reference frame) {
 }
 
 static std::size_t
-find_index_of_call_instruction(std::size_t call_pc) {
+find_index_of_call_instruction(ptr<procedure> proc,
+                               instruction_pointer call_ip) {
   assert(opcode_to_info(opcode::call).num_operands == 4);
   assert(opcode_to_info(opcode::call_top_level).num_operands == 4);
   assert(opcode_to_info(opcode::call_static).num_operands == 4);
   static constexpr std::size_t call_instruction_size = 5;
-  return call_pc - call_instruction_size;
+  return call_ip - proc->code.data() - call_instruction_size;
 }
+
+static instruction_pointer const dummy_ip
+  = reinterpret_cast<instruction_pointer>(
+      std::numeric_limits<std::size_t>::max()
+    );
 
 static std::vector<std::string>
 find_inlined_procedures(frame_reference frame,
-                        std::optional<std::size_t> call_pc) {
-  if (call_pc) {
-    assert(*call_pc != std::numeric_limits<std::size_t>::max());
-    std::size_t call_idx = find_index_of_call_instruction(*call_pc);
+                        std::optional<instruction_pointer> call_ip) {
+  if (call_ip) {
+    assert(*call_ip != dummy_ip);
 
-    debug_info_map const& debug_info
-      = assume<procedure>(frame.callable())->debug_info;
+    ptr<procedure> proc = assume<procedure>(frame.callable());
+    std::size_t call_idx = find_index_of_call_instruction(proc, *call_ip);
+    debug_info_map const& debug_info = proc->debug_info;
     if (auto di = debug_info.find(call_idx); di != debug_info.end())
       return di->second.inlined_call_chain;
   }
@@ -87,8 +93,8 @@ static void
 append_scheme_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
                                   ptr<procedure> proc,
                                   frame_reference frame,
-                                  std::optional<std::size_t> call_pc) {
-  auto inlined = find_inlined_procedures(frame, call_pc);
+                                  std::optional<instruction_pointer> call_ip) {
+  auto inlined = find_inlined_procedures(frame, call_ip);
   for (std::string const& inlined_proc : inlined)
     trace.push_back({inlined_proc, stacktrace_record::kind::scheme});
 
@@ -99,7 +105,7 @@ append_scheme_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
 static void
 append_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
                            frame_reference frame,
-                           std::optional<std::size_t> call_pc) {
+                           std::optional<instruction_pointer> call_ip) {
   ptr<> proc = frame.callable();
   if (auto cls = match<closure>(proc))
     proc = cls->procedure();
@@ -108,17 +114,17 @@ append_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
     trace.push_back({np->name, stacktrace_record::kind::native});
   else
     append_scheme_frame_to_stacktrace(trace, assume<procedure>(proc), frame,
-                                      call_pc);
+                                      call_ip);
 }
 
 static std::vector<stacktrace_record>
 stacktrace(execution_state& state) {
   std::vector<stacktrace_record> result;
-  std::optional<std::size_t> call_pc;
+  std::optional<instruction_pointer> call_ip;
   for (call_stack::frame_index idx : state.stack->frames_range()) {
     frame_reference frame{state.stack, idx};
-    append_frame_to_stacktrace(result, frame, call_pc);
-    call_pc = frame.previous_pc();
+    append_frame_to_stacktrace(result, frame, call_ip);
+    call_ip = frame.previous_ip();
   }
   return result;
 }
@@ -186,21 +192,14 @@ clear_native_continuations(frame_reference frame) {
     e->native_continuations.clear();
 }
 
-static insider::bytecode const&
-state_bytecode(execution_state& state) {
-  return assume<procedure>(
-    current_frame_callable(state.stack)
-  )->code;
-}
-
 static opcode
 read_opcode(execution_state& state) {
-  return insider::read_opcode(state_bytecode(state), state.pc);
+  return insider::read_opcode(state.ip);
 }
 
 static operand
 read_operand(execution_state& state) {
-  return insider::read_operand(state_bytecode(state), state.pc);
+  return insider::read_operand(state.ip);
 }
 
 static void
@@ -440,9 +439,14 @@ convert_tail_args(context& ctx, frame_reference frame, ptr<procedure> proc,
                               num_args - proc->min_args);
 }
 
+static instruction_pointer
+current_procedure_bytecode_base(execution_state const& state) {
+  return assume<procedure>(current_frame(state.stack).callable())->code.data();
+}
+
 static void
 jump_to_procedure(execution_state& state) {
-  state.pc = 0;
+  state.ip = current_procedure_bytecode_base(state);
 }
 
 static frame_reference
@@ -452,7 +456,7 @@ push_scheme_frame(execution_state& state, ptr<procedure> proc,
     proc,
     current_frame(state.stack).base() + base,
     proc->locals_size,
-    state.pc,
+    state.ip,
     result_reg
   );
   return current_frame(state.stack);
@@ -517,7 +521,7 @@ make_native_non_tail_call_frame(execution_state& state,
     proc,
     current_frame(state.stack).base() + base,
     num_args,
-    state.pc,
+    state.ip,
     dest_reg
   );
   return current_frame(state.stack);
@@ -532,9 +536,9 @@ make_native_tail_call_frame(ptr<call_stack> stack,
 
 static void
 discard_later_native_continuations(ptr<stack_frame_extra_data> e,
-                                   std::size_t pc) {
+                                   std::size_t continuations_size) {
   if (e)
-    e->native_continuations.resize(pc);
+    e->native_continuations.resize(continuations_size);
 }
 
 static native_continuation_type
@@ -561,8 +565,10 @@ call_native_frame_target(context& ctx, ptr<call_stack> stack,
 
 static void
 pop_frame(execution_state& state) {
-  state.pc = current_frame_previous_pc(state.stack);
+  instruction_pointer previous_ip = current_frame_previous_ip(state.stack);
+
   state.stack->pop_frame();
+  state.ip = previous_ip;
 }
 
 static void
@@ -647,10 +653,16 @@ call(opcode opcode, execution_state& state) {
                      datum_to_string(state.ctx, call_target));
 }
 
+static std::size_t
+native_continuations_size(execution_state const& state) {
+  return reinterpret_cast<std::size_t>(state.ip);
+}
+
 static void
 resume_native_call(execution_state& state, ptr<> scheme_result) {
   auto frame = current_frame(state.stack);
-  discard_later_native_continuations(frame.extra(), state.pc);
+  discard_later_native_continuations(frame.extra(),
+                                     native_continuations_size(state));
 
   if (native_continuation_type const& nc
       = find_current_native_continuation(frame))
@@ -696,7 +708,7 @@ jump(opcode opcode, execution_state& state) {
       return;
   }
 
-  state.pc += offset;
+  state.ip += offset;
 }
 
 static void
@@ -1001,21 +1013,21 @@ static frame_reference
 make_scheme_frame_for_call_from_native(execution_state& state,
                                        ptr<closure> callable,
                                        std::vector<ptr<>> const& arguments,
-                                       std::size_t previous_pc) {
+                                       instruction_pointer previous_ip) {
   auto [proc, closure] =
     split_scheme_callable_into_procedure_and_closure(callable);
 
   throw_if_wrong_number_of_args(proc, arguments.size());
 
   state.stack->push_frame(proc, state.stack->size(), proc->locals_size,
-                          previous_pc, {});
+                          previous_ip, {});
 
   auto new_frame = current_frame(state.stack);
   push_scheme_arguments_for_call_from_native(state.ctx, callable->procedure(),
                                              new_frame, arguments);
   push_closure(proc, closure, new_frame);
 
-  state.pc = 0;
+  state.ip = current_procedure_bytecode_base(state);
   return new_frame;
 }
 
@@ -1040,8 +1052,7 @@ erect_barrier(context& ctx, frame_reference frame,
 static frame_reference
 setup_native_frame_for_call_from_native(execution_state& state,
                                         ptr<native_procedure> proc) {
-  state.stack->push_frame(proc, state.stack->size(), 0, -1, {});
-  current_frame_set_previous_pc(state.stack, state.pc);
+  state.stack->push_frame(proc, state.stack->size(), 0, state.ip, {});
   return current_frame(state.stack);
 }
 
@@ -1081,21 +1092,26 @@ call_native_with_continuation_barrier(execution_state& state,
   return call_native_in_current_frame(state, proc, arguments);
 }
 
-static std::size_t
-get_native_pc(frame_reference frame) {
-  if (auto e = frame.extra())
-    return e->native_continuations.size();
-  else
-    return std::numeric_limits<std::size_t>::max();
+static instruction_pointer
+continuations_size_to_ip(std::size_t size) {
+  return reinterpret_cast<instruction_pointer>(size);
 }
 
-static std::size_t
-get_native_pc(execution_state& state) {
+static instruction_pointer
+get_native_ip(frame_reference frame) {
+  if (auto e = frame.extra())
+    return continuations_size_to_ip(e->native_continuations.size());
+  else
+    return continuations_size_to_ip(std::numeric_limits<std::size_t>::max());
+}
+
+static instruction_pointer
+get_native_ip(execution_state& state) {
   auto parent = current_frame(state.stack);
   if (parent && is_native_frame(parent))
-    return get_native_pc(parent);
+    return get_native_ip(parent);
   else
-    return std::numeric_limits<std::size_t>::max();
+    return continuations_size_to_ip(std::numeric_limits<std::size_t>::max());
 }
 
 static frame_reference
@@ -1106,7 +1122,7 @@ setup_scheme_frame_for_potential_call_from_native(
 ) {
   assert(is_callable(callable));
   return make_scheme_frame_for_call_from_native(state, callable, arguments,
-                                                get_native_pc(state));
+                                                get_native_ip(state));
 }
 
 static ptr<>
@@ -1117,7 +1133,7 @@ call_scheme_with_continuation_barrier(execution_state& state,
                                       ptr<> parameter_value) {
   auto frame = make_scheme_frame_for_call_from_native(state, callable,
                                                       arguments,
-                                                      get_native_pc(state));
+                                                      get_native_ip(state));
   if (frame.parent())
     erect_barrier(state.ctx, frame, false, false);
 
@@ -1275,16 +1291,16 @@ make_tail_call_frame_for_call_from_native(context& ctx, ptr<> callable,
 }
 
 static void
-install_call_frame(context& ctx, frame_reference frame) {
+install_call_frame(execution_state& state, frame_reference frame) {
   if (!is_native_frame(frame))
-    ctx.current_execution->pc = 0;
+    state.ip = current_procedure_bytecode_base(state);
 }
 
 ptr<tail_call_tag_type>
 tail_call(context& ctx, ptr<> callable,
           std::vector<ptr<>> const& arguments) {
   install_call_frame(
-    ctx,
+    *ctx.current_execution,
     make_tail_call_frame_for_call_from_native(ctx, callable, arguments)
   );
   return ctx.constants->tail_call_tag;
@@ -1578,7 +1594,7 @@ add_parameter_value(context& ctx, frame_reference frame, ptr<parameter_tag> tag,
 static frame_reference
 push_dummy_frame(context& ctx) {
   auto stack = ctx.current_execution->stack;
-  stack->push_frame({}, stack->size(), 0, -1, {});
+  stack->push_frame({}, stack->size(), 0, dummy_ip, {});
   return current_frame(stack);
 }
 

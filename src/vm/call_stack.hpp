@@ -7,6 +7,7 @@
 #include "runtime/integer.hpp"
 #include "util/integer_cast.hpp"
 #include "util/object_span.hpp"
+#include "vm/bytecode.hpp"
 #include "vm/operand.hpp"
 
 #include <functional>
@@ -66,7 +67,7 @@ public:
 
   void
   push_frame(ptr<> callable, std::size_t base, std::size_t locals_size,
-             std::size_t previous_pc, operand result_register,
+             instruction_pointer previous_ip, operand result_register,
              ptr<stack_frame_extra_data> extra = {});
 
   void
@@ -134,14 +135,14 @@ public:
       return std::nullopt;
   }
 
-  std::size_t
-  previous_pc(frame_index frame) const {
-    return frames_[frame].previous_pc;
+  instruction_pointer
+  previous_ip(frame_index frame) const {
+    return frames_[frame].previous_ip;
   }
 
   void
-  set_previous_pc(frame_index frame, std::size_t pc) {
-    frames_[frame].previous_pc = pc;
+  set_previous_ip(frame_index frame, instruction_pointer ip) {
+    frames_[frame].previous_ip = ip;
   }
 
   operand
@@ -201,7 +202,7 @@ private:
   struct frame {
     std::size_t                 base;
     std::size_t                 size;
-    std::size_t                 previous_pc;
+    instruction_pointer         previous_ip;
     operand                     result_register;
     ptr<>                       callable;
     ptr<stack_frame_extra_data> extra;
@@ -251,14 +252,14 @@ current_frame_parent(ptr<call_stack> stack) {
   return stack->parent(*stack->current_frame_index());
 }
 
-inline integer::value_type
-current_frame_previous_pc(ptr<call_stack> stack) {
-  return stack->previous_pc(*stack->current_frame_index());
+inline instruction_pointer
+current_frame_previous_ip(ptr<call_stack> stack) {
+  return stack->previous_ip(*stack->current_frame_index());
 }
 
 inline void
-current_frame_set_previous_pc(ptr<call_stack> stack, integer::value_type pc) {
-  stack->set_previous_pc(*stack->current_frame_index(), pc);
+current_frame_set_previous_ip(ptr<call_stack> stack, instruction_pointer ip) {
+  stack->set_previous_ip(*stack->current_frame_index(), ip);
 }
 
 inline void
@@ -293,12 +294,12 @@ public:
     stack_->set_extra(*idx_, value);
   }
 
-  integer::value_type
-  previous_pc() const { return stack_->previous_pc(*idx_); }
+  instruction_pointer
+  previous_ip() const { return stack_->previous_ip(*idx_); }
 
   void
-  set_previous_pc(integer::value_type pc) const {
-    stack_->set_previous_pc(*idx_, pc);
+  set_previous_ip(instruction_pointer ip) const {
+    stack_->set_previous_ip(*idx_, ip);
   }
 
   operand

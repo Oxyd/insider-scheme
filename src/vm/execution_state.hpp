@@ -2,7 +2,7 @@
 #define INSIDER_VM_EXECUTION_STATE_HPP
 
 #include "memory/root_provider.hpp"
-#include "runtime/integer.hpp"
+#include "vm/bytecode.hpp"
 
 namespace insider {
 
@@ -12,7 +12,7 @@ class context;
 class execution_state : public root_provider {
 public:
   context&            ctx;
-  std::size_t         pc = -1;
+  instruction_pointer ip{};
   ptr<call_stack>     stack;
   ptr<>               result;
 

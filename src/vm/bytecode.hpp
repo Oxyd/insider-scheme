@@ -218,22 +218,23 @@ struct instruction {
 };
 
 using bytecode = std::vector<std::uint16_t>;
+using instruction_pointer = std::uint16_t*;
 
 std::size_t
 encode_instruction(bytecode&, instruction const&);
 
 inline opcode
-read_opcode(bytecode const& bc, std::size_t& pc) {
-  return static_cast<opcode>(bc[pc++]);
+read_opcode(instruction_pointer& ip) {
+  return static_cast<opcode>(*ip++);
 }
 
 inline operand
-read_operand(bytecode const& bc, std::size_t& pc) {
-  return bc[pc++];
+read_operand(instruction_pointer& ip) {
+  return *ip++;
 }
 
 instruction
-read_instruction(bytecode const&, std::size_t& pc);
+read_instruction(instruction_pointer& ip);
 
 } // namespace insider
 

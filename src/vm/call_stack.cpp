@@ -50,7 +50,7 @@ call_stack::operator = (call_stack const& other) {
 
 void
 call_stack::push_frame(ptr<> callable, std::size_t base,
-                       std::size_t locals_size, std::size_t previous_pc,
+                       std::size_t locals_size, instruction_pointer previous_ip,
                        operand result_register,
                        ptr<stack_frame_extra_data> extra) {
   assert(!callable || is_procedure(callable));
@@ -58,7 +58,7 @@ call_stack::push_frame(ptr<> callable, std::size_t base,
   assert(frames_.empty() || base >= frames_.back().base);
   assert(frames_.empty() || base <= frames_.back().base + frames_.back().size);
 
-  frames_.emplace_back(frame{base, locals_size, previous_pc,
+  frames_.emplace_back(frame{base, locals_size, previous_ip,
                              result_register, callable, extra});
   update_current_frame();
 }

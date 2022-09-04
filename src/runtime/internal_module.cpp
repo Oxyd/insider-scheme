@@ -89,14 +89,17 @@ known_module(context& ctx, ptr<syntax> name) {
 
 static ptr<>
 procedure_bytecode(context& ctx, ptr<procedure> f) {
-  std::size_t pc = 0;
+  instruction_pointer ip = f->code.data();
   std::vector<std::tuple<std::size_t, std::size_t, instruction>> instrs;
 
-  while (pc < f->code.size()) {
-    std::size_t pos = pc;
-    instruction instr = read_instruction(f->code, pc);
+  while (ip != f->code.data() + f->code.size()) {
+    instruction_pointer old_ip = ip;
+    instruction instr = read_instruction(ip);
 
-    instrs.emplace_back(pos, pc - pos, instr);
+    std::size_t pos = old_ip - f->code.data();
+    std::size_t size = ip - old_ip;
+
+    instrs.emplace_back(pos, size, instr);
   }
 
   return make_list_from_range(
