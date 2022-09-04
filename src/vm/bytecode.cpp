@@ -69,7 +69,7 @@ encode_instruction(bytecode& bc, instruction const& instr) {
 }
 
 instruction
-read_instruction(bytecode const& bc, integer::value_type& pc) {
+read_instruction(bytecode const& bc, std::size_t& pc) {
   instruction result{read_opcode(bc, pc)};
   instruction_info info = opcode_to_info(result.opcode);
 

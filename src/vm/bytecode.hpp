@@ -1,7 +1,6 @@
 #ifndef INSIDER_VM_BYTECODE_HPP
 #define INSIDER_VM_BYTECODE_HPP
 
-#include "runtime/integer.hpp"
 #include "vm/operand.hpp"
 
 #include <array>
@@ -224,17 +223,17 @@ std::size_t
 encode_instruction(bytecode&, instruction const&);
 
 inline opcode
-read_opcode(bytecode const& bc, integer::value_type& pc) {
+read_opcode(bytecode const& bc, std::size_t& pc) {
   return static_cast<opcode>(bc[pc++]);
 }
 
 inline operand
-read_operand(bytecode const& bc, integer::value_type& pc) {
+read_operand(bytecode const& bc, std::size_t& pc) {
   return bc[pc++];
 }
 
 instruction
-read_instruction(bytecode const&, integer::value_type& pc);
+read_instruction(bytecode const&, std::size_t& pc);
 
 } // namespace insider
 

@@ -12,7 +12,7 @@ class context;
 class execution_state : public root_provider {
 public:
   context&            ctx;
-  integer::value_type pc = -1;
+  std::size_t         pc = -1;
   ptr<call_stack>     stack;
   ptr<>               result;
 

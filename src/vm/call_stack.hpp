@@ -66,7 +66,7 @@ public:
 
   void
   push_frame(ptr<> callable, std::size_t base, std::size_t locals_size,
-             integer::value_type previous_pc, operand result_register,
+             std::size_t previous_pc, operand result_register,
              ptr<stack_frame_extra_data> extra = {});
 
   void
@@ -134,13 +134,13 @@ public:
       return std::nullopt;
   }
 
-  integer::value_type
+  std::size_t
   previous_pc(frame_index frame) const {
     return frames_[frame].previous_pc;
   }
 
   void
-  set_previous_pc(frame_index frame, integer::value_type pc) {
+  set_previous_pc(frame_index frame, std::size_t pc) {
     frames_[frame].previous_pc = pc;
   }
 
@@ -201,7 +201,7 @@ private:
   struct frame {
     std::size_t                 base;
     std::size_t                 size;
-    integer::value_type         previous_pc;
+    std::size_t                 previous_pc;
     operand                     result_register;
     ptr<>                       callable;
     ptr<stack_frame_extra_data> extra;

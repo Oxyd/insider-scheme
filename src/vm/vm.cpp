@@ -20,6 +20,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <vector>
@@ -59,7 +60,7 @@ is_native_frame(frame_reference frame) {
 }
 
 static std::size_t
-find_index_of_call_instruction(integer::value_type call_pc) {
+find_index_of_call_instruction(std::size_t call_pc) {
   assert(opcode_to_info(opcode::call).num_operands == 4);
   assert(opcode_to_info(opcode::call_top_level).num_operands == 4);
   assert(opcode_to_info(opcode::call_static).num_operands == 4);
@@ -69,9 +70,9 @@ find_index_of_call_instruction(integer::value_type call_pc) {
 
 static std::vector<std::string>
 find_inlined_procedures(frame_reference frame,
-                        std::optional<integer::value_type> call_pc) {
+                        std::optional<std::size_t> call_pc) {
   if (call_pc) {
-    assert(*call_pc != -1);
+    assert(*call_pc != std::numeric_limits<std::size_t>::max());
     std::size_t call_idx = find_index_of_call_instruction(*call_pc);
 
     debug_info_map const& debug_info
@@ -86,7 +87,7 @@ static void
 append_scheme_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
                                   ptr<procedure> proc,
                                   frame_reference frame,
-                                  std::optional<integer::value_type> call_pc) {
+                                  std::optional<std::size_t> call_pc) {
   auto inlined = find_inlined_procedures(frame, call_pc);
   for (std::string const& inlined_proc : inlined)
     trace.push_back({inlined_proc, stacktrace_record::kind::scheme});
@@ -98,7 +99,7 @@ append_scheme_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
 static void
 append_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
                            frame_reference frame,
-                           std::optional<integer::value_type> call_pc) {
+                           std::optional<std::size_t> call_pc) {
   ptr<> proc = frame.callable();
   if (auto cls = match<closure>(proc))
     proc = cls->procedure();
@@ -113,7 +114,7 @@ append_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
 static std::vector<stacktrace_record>
 stacktrace(execution_state& state) {
   std::vector<stacktrace_record> result;
-  std::optional<integer::value_type> call_pc;
+  std::optional<std::size_t> call_pc;
   for (call_stack::frame_index idx : state.stack->frames_range()) {
     frame_reference frame{state.stack, idx};
     append_frame_to_stacktrace(result, frame, call_pc);
@@ -531,7 +532,7 @@ make_native_tail_call_frame(ptr<call_stack> stack,
 
 static void
 discard_later_native_continuations(ptr<stack_frame_extra_data> e,
-                                   integer::value_type pc) {
+                                   std::size_t pc) {
   if (e)
     e->native_continuations.resize(pc);
 }
@@ -1000,7 +1001,7 @@ static frame_reference
 make_scheme_frame_for_call_from_native(execution_state& state,
                                        ptr<closure> callable,
                                        std::vector<ptr<>> const& arguments,
-                                       integer::value_type previous_pc) {
+                                       std::size_t previous_pc) {
   auto [proc, closure] =
     split_scheme_callable_into_procedure_and_closure(callable);
 
@@ -1080,21 +1081,21 @@ call_native_with_continuation_barrier(execution_state& state,
   return call_native_in_current_frame(state, proc, arguments);
 }
 
-static integer::value_type
+static std::size_t
 get_native_pc(frame_reference frame) {
   if (auto e = frame.extra())
     return e->native_continuations.size();
   else
-    return -1;
+    return std::numeric_limits<std::size_t>::max();
 }
 
-static integer::value_type
+static std::size_t
 get_native_pc(execution_state& state) {
   auto parent = current_frame(state.stack);
   if (parent && is_native_frame(parent))
     return get_native_pc(parent);
   else
-    return -1;
+    return std::numeric_limits<std::size_t>::max();
 }
 
 static frame_reference

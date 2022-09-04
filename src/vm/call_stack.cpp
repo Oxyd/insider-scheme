@@ -50,7 +50,7 @@ call_stack::operator = (call_stack const& other) {
 
 void
 call_stack::push_frame(ptr<> callable, std::size_t base,
-                       std::size_t locals_size, integer::value_type previous_pc,
+                       std::size_t locals_size, std::size_t previous_pc,
                        operand result_register,
                        ptr<stack_frame_extra_data> extra) {
   assert(!callable || is_procedure(callable));
