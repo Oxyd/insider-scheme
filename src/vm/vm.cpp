@@ -1267,6 +1267,8 @@ make_scheme_tail_call_frame_for_call_from_native(
   auto [proc, closure] =
     split_scheme_callable_into_procedure_and_closure(callable);
 
+  throw_if_wrong_number_of_args(proc, arguments.size());
+
   stack->replace_frame(proc, proc->locals_size);
   auto frame = current_frame(stack);
   push_scheme_arguments_for_call_from_native(ctx, proc, frame, arguments);

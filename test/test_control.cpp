@@ -773,6 +773,20 @@ TEST_F(control, apply_with_multiple_arguments_and_variadic_lambda) {
   EXPECT_TRUE(equal(result, read("(1 2 3)")));
 }
 
+TEST_F(control, apply_with_too_many_arguments_throws_exception) {
+  EXPECT_THROW(
+    eval("(apply (lambda () #t) '(1 2 3))"),
+    std::runtime_error
+  );
+}
+
+TEST_F(control, apply_with_too_few_arguments_throws_exception) {
+  EXPECT_THROW(
+    eval("(apply (lambda (x y z) #t) '())"),
+    std::runtime_error
+  );
+}
+
 TEST_F(control, call_with_values_single_value) {
   auto result = eval(R"(
     (call-with-values
