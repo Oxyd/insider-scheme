@@ -1133,7 +1133,7 @@ TEST_F(ast, direct_use_of_variable_in_its_assignment_counts_as_read) {
   EXPECT_TRUE(var->flags().is_read);
 }
 
-TEST_F(ast, variable_thats_only_set_is_set_eliminable) {
+TEST_F(ast, variable_that_is_only_set_is_set_eliminable) {
   ptr<local_variable> var = parse_and_get_local_variable("x", R"(
     (let ((x #void))
       (set! x 2))
@@ -1177,7 +1177,10 @@ TEST_F(ast, variable_that_is_set_after_read_is_not_set_eliminable) {
   EXPECT_FALSE(var->flags().is_set_eliminable);
 }
 
-TEST_F(ast, variable_that_is_set_in_lambda_is_not_set_eliminable) {
+TEST_F(
+  ast,
+  variable_that_is_set_in_lambda_that_refers_to_itself_is_not_set_eliminable
+) {
   ptr<local_variable> var = parse_and_get_local_variable("f", R"(
     (let ((f #void))
       (set! f
@@ -1187,4 +1190,63 @@ TEST_F(ast, variable_that_is_set_in_lambda_is_not_set_eliminable) {
       (f))
   )");
   EXPECT_FALSE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, variable_that_is_conditionally_set_is_not_set_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (let ((x 0))
+      (if #f (set! x 1))
+      x)
+  )");
+  EXPECT_FALSE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, variable_introduced_in_if_branch_can_be_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (if #f
+        (let ((x 0))
+          (set! x 1)))
+  )");
+  EXPECT_TRUE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, lambda_parameter_can_be_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (lambda (x)
+      (set! x 2)
+      x)
+  )");
+  EXPECT_TRUE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, variable_set_in_inner_lambda_is_not_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (let ((x 0) (f #void))
+      (set! f
+        (lambda ()
+          (set! x 1)))
+      (if #f (f))
+      x)
+  )");
+  EXPECT_FALSE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, variable_that_is_set_after_a_lambda_definition_is_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (let ((x 0) (f #void))
+      (set! f (lambda () #f))
+      (set! x 2)
+      x)
+  )");
+  EXPECT_TRUE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, variable_that_is_set_after_an_if_can_be_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (let ((x 0))
+      (if #f 0 1)
+      (set! x 2)
+      x)
+  )");
+  EXPECT_TRUE(var->flags().is_set_eliminable);
 }

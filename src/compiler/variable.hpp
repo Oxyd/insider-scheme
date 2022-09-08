@@ -12,8 +12,8 @@
 namespace insider {
 
 // A variable is set!-eliminable if it is never set! after being read. I.e. its
-// lifetime consists of a single set!, followed by a read phase where it's only
-// ever read.
+// lifetime consists of a single unconditional set!, followed by a read phase
+// where it's only ever read.
 //
 // A set!-eliminable variable can be treated as if it were a constant
 // initialised to the right-hand side of its last set!.
@@ -22,6 +22,9 @@ namespace insider {
 // exception of lambda expressions appearing in the right-hand side of a set!
 // for this variable. I.e. a variable bound to a self-recursive procedure is
 // set!-eliminable.
+//
+// A set! is unconditional if it is always executed, i.e. it isn't nested in an
+// if expression that follows the variable declaration.
 
 struct variable_flags {
   bool is_set            = false;

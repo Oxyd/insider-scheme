@@ -38,30 +38,96 @@ apply_passes(context& ctx, expression e, analysis_context ac,
 
 namespace {
   struct variable_analysis_visitor {
-    context&              ctx;
-    analysis_context      ac;
-    std::vector<variable> entered_sets;
+    context&                           ctx;
+    analysis_context                   ac;
+    std::vector<variable>              entered_sets;
+    std::vector<std::vector<variable>> current_variables{{}};
+
+    variable_analysis_visitor(context& ctx, analysis_context ac)
+      : ctx{ctx}
+      , ac{ac}
+    { }
+
+    ~variable_analysis_visitor() {
+      assert(entered_sets.empty());
+      assert(current_variables.size() == 1);
+    }
 
     void
     enter(expression e, dfs_stack<expression>& stack) {
-      if (auto local_set = match<local_set_expression>(e))
-        enter_set(local_set->target(), local_set->expression());
-      else if (auto top_level_set = match<top_level_set_expression>(e))
-        enter_set(top_level_set->target(), top_level_set->expression());
-
-      visit([&] (auto expr) { push_children(expr, stack); },
-            e);
+      visit(
+        [&] (auto expr) {
+          enter_expression(expr);
+          push_children(expr, stack);
+        },
+        e
+      );
     }
 
     void
     leave(expression e) {
-      visit([&] (auto e) { visit_variables(e); }, e);
-
-      if (auto local_set = match<local_set_expression>(e))
-        leave_set(local_set->target());
-      else if (auto top_level_set = match<top_level_set_expression>(e))
-        leave_set(top_level_set->target());
+      visit(
+        [&] (auto e) {
+          visit_variables(e);
+          leave_expression(e);
+        },
+        e
+      );
     }
+
+    void
+    enter_expression(ptr<local_set_expression> set) {
+      enter_set(set->target(), set->expression());
+    }
+
+    void
+    enter_expression(ptr<top_level_set_expression> set) {
+      enter_set(set->target(), set->expression());
+    }
+
+    void
+    enter_expression(ptr<if_expression>) {
+      current_variables.emplace_back();
+    }
+
+    void
+    enter_expression(ptr<lambda_expression> lambda) {
+      current_variables.emplace_back();
+      for (auto const& var : lambda->parameters())
+        current_variables.back().push_back(var);
+    }
+
+    void
+    enter_expression(ptr<let_expression> let) {
+      for (auto const& dp : let->definitions())
+        current_variables.back().push_back(dp.variable());
+    }
+
+    void
+    enter_expression(auto) { }
+
+    void
+    leave_expression(ptr<local_set_expression> set) {
+      leave_set(set->target());
+    }
+
+    void
+    leave_expression(ptr<top_level_set_expression> set) {
+      leave_set(set->target());
+    }
+
+    void
+    leave_expression(ptr<if_expression>) {
+      current_variables.pop_back();
+    }
+
+    void
+    leave_expression(ptr<lambda_expression>) {
+      current_variables.pop_back();
+    }
+
+    void
+    leave_expression(auto) { }
 
     void
     enter_set(variable v, expression rhs) {
@@ -75,10 +141,17 @@ namespace {
         entered_sets.pop_back();
     }
 
+    bool
+    is_current(variable v) {
+      return std::ranges::find(current_variables.back(), v)
+             != current_variables.back().end();
+    }
+
     void
     update_variable_flags(ptr<local_set_expression> set) {
       variable_flags& flags = set->target()->flags();
-      flags.is_set_eliminable = !flags.is_read && !flags.is_set;
+      flags.is_set_eliminable = !flags.is_read && !flags.is_set
+                                && is_current(set->target());
       flags.is_set = true;
     }
 
@@ -86,7 +159,8 @@ namespace {
     update_variable_flags(ptr<top_level_set_expression> set) {
       if (!set->is_initialisation()) {
         variable_flags& flags = set->target()->flags();
-        flags.is_set_eliminable = !flags.is_read && !flags.is_set;
+        flags.is_set_eliminable = !flags.is_read && !flags.is_set
+                                  && is_current(set->target());
         flags.is_set = true;
         set->target()->set_constant_initialiser(ctx.store, {});
       }
@@ -140,13 +214,12 @@ namespace {
       if (ac == analysis_context::closed)
         find_constant_values(e);
     }
-
   };
 }
 
 expression
 analyse_variables(context& ctx, expression expr, analysis_context ac) {
-  depth_first_search(expr, variable_analysis_visitor{ctx, ac, {}});
+  depth_first_search(expr, variable_analysis_visitor{ctx, ac});
   return expr;
 }
 
