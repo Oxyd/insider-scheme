@@ -254,7 +254,7 @@ TEST_F(ast, set_variable_is_not_marked_as_constant) {
       (set! v 5)
       (+ v 4))
   )");
-  EXPECT_TRUE(var->is_set());
+  EXPECT_TRUE(var->flags().is_set);
   EXPECT_FALSE(var->constant_initialiser());
 }
 
@@ -263,7 +263,7 @@ TEST_F(ast, variable_with_non_constant_initialiser_is_not_constant) {
     (let ((v (read)))
       (+ v 2))
   )");
-  EXPECT_FALSE(var->is_set());
+  EXPECT_FALSE(var->flags().is_set);
   EXPECT_FALSE(var->constant_initialiser());
 }
 
@@ -276,7 +276,7 @@ TEST_F(ast, top_level_variable_is_recognised_as_constant) {
       (define other 17)
     )"
   );
-  EXPECT_FALSE(var->is_set());
+  EXPECT_FALSE(var->flags().is_set);
   EXPECT_EQ(expect<integer>(constant_value(var)).value(), 12);
 }
 
@@ -291,7 +291,7 @@ TEST_F(ast, top_level_variable_is_not_constant_if_it_is_set) {
           (set! top-level 24)))
     )"
   );
-  EXPECT_TRUE(var->is_set());
+  EXPECT_TRUE(var->flags().is_set);
   EXPECT_FALSE(var->constant_initialiser());
 }
 
@@ -306,7 +306,7 @@ TEST_F(ast, top_level_variable_is_not_constant_if_it_is_set_before_definition) {
       (define top-level 12)
     )"
   );
-  EXPECT_TRUE(var->is_set());
+  EXPECT_TRUE(var->flags().is_set);
   EXPECT_FALSE(var->constant_initialiser());
 }
 
@@ -1079,4 +1079,112 @@ TEST_F(ast, sequence_of_a_single_constant_expression_is_constant_expression) {
   e = ignore_lets_and_sequences(e);
   ASSERT_TRUE(is<literal_expression>(e));
   EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 2);
+}
+
+TEST_F(ast, unused_variable_is_not_read) {
+  ptr<local_variable> var = parse_and_get_local_variable("v", R"(
+    (let ((v 5))
+      #t)
+  )");
+  EXPECT_FALSE(var->flags().is_read);
+}
+
+TEST_F(ast, local_variable_used_in_expression_is_marked_as_read) {
+  ptr<local_variable> var = parse_and_get_local_variable("v", R"(
+    (let ((v 5))
+      (+ v 4))
+  )");
+  EXPECT_TRUE(var->flags().is_read);
+}
+
+TEST_F(ast, top_level_variable_used_in_expression_is_marked_as_read) {
+  ptr<top_level_variable> var = parse_module_and_get_top_level_variable(
+    "var",
+    R"(
+      (import (insider internal))
+      (define var 4)
+      (define foo (* 2 var))
+    )"
+  );
+  EXPECT_TRUE(var->flags().is_read);
+}
+
+TEST_F(ast, local_variable_captured_by_lambda_is_marked_as_read) {
+  ptr<local_variable> var = parse_and_get_local_variable("v", R"(
+    (let ((v 2))
+      (lambda () v))
+  )");
+  EXPECT_TRUE(var->flags().is_read);
+}
+
+TEST_F(ast, capture_of_variable_in_its_assignment_does_not_count_as_read) {
+  ptr<local_variable> var = parse_and_get_local_variable("f", R"(
+    (let ((f #void))
+      (set! f (lambda () (f))))
+  )");
+  EXPECT_FALSE(var->flags().is_read);
+}
+
+TEST_F(ast, direct_use_of_variable_in_its_assignment_counts_as_read) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (let ((x 2))
+      (set! x (* 2 x)))
+  )");
+  EXPECT_TRUE(var->flags().is_read);
+}
+
+TEST_F(ast, variable_thats_only_set_is_set_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (let ((x #void))
+      (set! x 2))
+  )");
+  EXPECT_TRUE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, variable_that_is_set_multiple_times_is_not_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (let ((x #void))
+      (set! x 2)
+      (set! x 3))
+  )");
+  EXPECT_FALSE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, variable_that_is_read_after_being_set_is_set_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (let ((x #void))
+      (set! x 2)
+      x)
+  )");
+  EXPECT_TRUE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, variable_that_is_never_set_is_not_set_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (let ((x #void))
+      x)
+  )");
+  EXPECT_FALSE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, variable_that_is_set_after_read_is_not_set_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("x", R"(
+    (let ((x #void))
+      (let ((f (lambda () x)))
+        (set! x 2)
+        f))
+  )");
+  EXPECT_FALSE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, variable_that_is_set_in_lambda_is_not_set_eliminable) {
+  ptr<local_variable> var = parse_and_get_local_variable("f", R"(
+    (let ((f #void))
+      (set! f
+        (lambda ()
+          (set! f (lambda () #f))
+          #t))
+      (f))
+  )");
+  EXPECT_FALSE(var->flags().is_set_eliminable);
 }

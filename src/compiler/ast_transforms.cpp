@@ -36,54 +36,117 @@ apply_passes(context& ctx, expression e, analysis_context ac,
   return e;
 }
 
-static void
-mark_set_variables(context&, ptr<local_set_expression> set) {
-  set->target()->mark_as_set();
-}
+namespace {
+  struct variable_analysis_visitor {
+    context&              ctx;
+    analysis_context      ac;
+    std::vector<variable> entered_sets;
 
-static void
-mark_set_variables(context& ctx, ptr<top_level_set_expression> set) {
-  if (!set->is_initialisation()) {
-    set->target()->mark_as_set();
-    set->target()->set_constant_initialiser(ctx.store, {});
-  }
-}
+    void
+    enter(expression e, dfs_stack<expression>& stack) {
+      if (auto local_set = match<local_set_expression>(e))
+        enter_set(local_set->target(), local_set->expression());
+      else if (auto top_level_set = match<top_level_set_expression>(e))
+        enter_set(top_level_set->target(), top_level_set->expression());
 
-static void
-mark_set_variables(context&, auto) { }
+      visit([&] (auto expr) { push_children(expr, stack); },
+            e);
+    }
 
-static void
-assign_constant_initialiser(context& ctx, auto var, expression e) {
-  if (is<literal_expression>(e) || is<lambda_expression>(e))
-    var->set_constant_initialiser(ctx.store, e);
-}
+    void
+    leave(expression e) {
+      visit([&] (auto e) { visit_variables(e); }, e);
 
-static void
-find_constant_values(context& ctx, ptr<let_expression> let) {
-  for (definition_pair_expression const& dp : let->definitions())
-    if (!dp.variable()->is_set())
-      assign_constant_initialiser(ctx, dp.variable(), dp.expression());
-}
+      if (auto local_set = match<local_set_expression>(e))
+        leave_set(local_set->target());
+      else if (auto top_level_set = match<top_level_set_expression>(e))
+        leave_set(top_level_set->target());
+    }
 
-static void
-find_constant_values(context& ctx, ptr<top_level_set_expression> set) {
-  if (set->is_initialisation() && !set->target()->is_set())
-    assign_constant_initialiser(ctx, set->target(), set->expression());
-}
+    void
+    enter_set(variable v, expression rhs) {
+      if (is<lambda_expression>(rhs))
+        entered_sets.push_back(v);
+    }
 
-static void
-find_constant_values(context&, auto) { }
+    void
+    leave_set(variable v) {
+      if (!entered_sets.empty() && entered_sets.back() == v)
+        entered_sets.pop_back();
+    }
 
-static void
-visit_variables(context& ctx, analysis_context ac, auto e) {
-  mark_set_variables(ctx, e);
-  if (ac == analysis_context::closed)
-    find_constant_values(ctx, e);
+    void
+    update_variable_flags(ptr<local_set_expression> set) {
+      variable_flags& flags = set->target()->flags();
+      flags.is_set_eliminable = !flags.is_read && !flags.is_set;
+      flags.is_set = true;
+    }
+
+    void
+    update_variable_flags(ptr<top_level_set_expression> set) {
+      if (!set->is_initialisation()) {
+        variable_flags& flags = set->target()->flags();
+        flags.is_set_eliminable = !flags.is_read && !flags.is_set;
+        flags.is_set = true;
+        set->target()->set_constant_initialiser(ctx.store, {});
+      }
+    }
+
+    bool
+    variable_use_counts_as_read(variable var) {
+      return std::ranges::find(entered_sets, var) == entered_sets.end();
+    }
+
+    void
+    update_variable_flags(ptr<local_reference_expression> ref) {
+      if (variable_use_counts_as_read(ref->variable()))
+        ref->variable()->flags().is_read = true;
+    }
+
+    void
+    update_variable_flags(ptr<top_level_reference_expression> ref) {
+      if (variable_use_counts_as_read(ref->variable()))
+        ref->variable()->flags().is_read = true;
+    }
+
+    void
+    update_variable_flags(auto) { }
+
+    void
+    assign_constant_initialiser(auto var, expression e) {
+      if (is<literal_expression>(e) || is<lambda_expression>(e))
+        var->set_constant_initialiser(ctx.store, e);
+    }
+
+    void
+    find_constant_values(ptr<let_expression> let) {
+      for (definition_pair_expression const& dp : let->definitions())
+        if (!dp.variable()->flags().is_set)
+          assign_constant_initialiser(dp.variable(), dp.expression());
+    }
+
+    void
+    find_constant_values(ptr<top_level_set_expression> set) {
+      if (set->is_initialisation() && !set->target()->flags().is_set)
+        assign_constant_initialiser(set->target(), set->expression());
+    }
+
+    void
+    find_constant_values(auto) { }
+
+    void
+    visit_variables(auto e) {
+      update_variable_flags(e);
+      if (ac == analysis_context::closed)
+        find_constant_values(e);
+    }
+
+  };
 }
 
 expression
 analyse_variables(context& ctx, expression expr, analysis_context ac) {
-  traverse_postorder(expr, [&] (auto e) { visit_variables(ctx, ac, e); });
+  depth_first_search(expr, variable_analysis_visitor{ctx, ac, {}});
   return expr;
 }
 
@@ -186,7 +249,7 @@ update_let_definitions(context& ctx,
       result.push_back(dp);
 
     if (!is_const(dp) && constant_value_for_expression(dp.expression())
-        && !dp.variable()->is_set()) {
+        && !dp.variable()->flags().is_set) {
       // The variable was made constant in this pass. We need to mark it as
       // constant and do another pass to propagate it into the body of this let.
 
@@ -843,14 +906,14 @@ find_set_variables(ptr<let_expression> let) {
   auto rng = let->definitions()
     | std::views::transform([] (auto const& dp) { return dp.variable(); })
     | std::views::filter([] (ptr<local_variable> v) {
-        return v->is_set();
+        return v->flags().is_set;
       });
   return std::vector<ptr<local_variable>>(rng.begin(), rng.end());
 }
 
 static definition_pair_expression
 box_definition_pair(context& ctx, definition_pair_expression const& dp) {
-  dp.variable()->mark_as_not_set();
+  dp.variable()->flags().is_set = false;
   return {dp.variable(), make_application(ctx, "box", dp.expression())};
 }
 
@@ -859,7 +922,7 @@ box_definition_pairs(context& ctx,
                      std::vector<definition_pair_expression> const& dps) {
   auto rng = dps | std::views::transform(
     [&] (definition_pair_expression const& dp) {
-      if (dp.variable()->is_set())
+      if (dp.variable()->flags().is_set)
         return box_definition_pair(ctx, dp);
       else
         return dp;
@@ -885,7 +948,10 @@ box_set_variables(context& ctx, ptr<let_expression> let) {
 
 static bool
 any_param_set(ptr<lambda_expression> lambda) {
-  return std::ranges::any_of(lambda->parameters(), &local_variable::is_set);
+  return std::ranges::any_of(
+    lambda->parameters(),
+    [] (ptr<local_variable> v) { return v->flags().is_set; }
+  );
 }
 
 static std::vector<expression>
@@ -893,7 +959,7 @@ box_lambda_parameters(context& ctx, ptr<lambda_expression> lambda) {
   std::vector<expression> new_body;
   expression body = lambda->body();
   for (ptr<local_variable> param : lambda->parameters())
-    if (param->is_set()) {
+    if (param->flags().is_set) {
       body = box_variable_references(ctx, body, param);
       new_body.emplace_back(
         make<local_set_expression>(

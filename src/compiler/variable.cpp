@@ -30,17 +30,27 @@ top_level_variable_constant_initialiser(context& ctx,
     return ctx.constants->f;
 }
 
+static bool
+local_variable_is_set(ptr<local_variable> var) {
+  return var->flags().is_set;
+}
+
+static bool
+top_level_variable_is_set(ptr<top_level_variable> var) {
+  return var->flags().is_set;
+}
+
 void
 export_variable(context& ctx, ptr<module_> result) {
   define_struct<local_variable>(ctx, "local-variable", result)
     .field<&local_variable::name>("name")
-    .field<&local_variable::is_set>("set?")
+    .field<&local_variable_is_set>("set?")
     .field<&local_variable_constant_initialiser>("constant-initialiser")
     ;
 
   define_struct<top_level_variable>(ctx, "top-level-variable", result)
     .field<&top_level_variable::name>("name")
-    .field<&top_level_variable::is_set>("set?")
+    .field<&top_level_variable_is_set>("set?")
     .field<&top_level_variable_constant_initialiser>("constant-initialiser")
     ;
 }

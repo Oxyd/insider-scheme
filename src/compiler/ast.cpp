@@ -29,6 +29,15 @@ pop_vector(result_stack& stack, std::size_t n) {
   return result;
 }
 
+static std::vector<expression>
+pop_vector_reverse(result_stack& stack, std::size_t n) {
+  std::vector<expression> result;
+  result.resize(n);
+  for (std::size_t i = 0; i < n; ++i)
+    result[result.size() - i - 1] = pop(stack);
+  return result;
+}
+
 literal_expression::literal_expression(ptr<> value)
   : value_{value}
 { }
@@ -161,7 +170,7 @@ sequence_expression::visit_members(member_visitor const& f) {
 void
 sequence_expression::update(context& ctx, result_stack& stack) {
   update_member(ctx.store, this, expressions_,
-                pop_vector(stack, expressions_.size()));
+                pop_vector_reverse(stack, expressions_.size()));
   update_size_estimate();
 }
 
@@ -202,8 +211,8 @@ let_expression::visit_members(member_visitor const& f) {
 
 void
 let_expression::update(context& ctx, result_stack& stack) {
-  auto definition_exprs = pop_vector(stack, definitions_.size());
   auto body = pop<sequence_expression>(stack);
+  auto definition_exprs = pop_vector_reverse(stack, definitions_.size());
 
   update_member(ctx.store, this, body_, body);
 

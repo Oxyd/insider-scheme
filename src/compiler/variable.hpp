@@ -11,6 +11,24 @@
 
 namespace insider {
 
+// A variable is set!-eliminable if it is never set! after being read. I.e. its
+// lifetime consists of a single set!, followed by a read phase where it's only
+// ever read.
+//
+// A set!-eliminable variable can be treated as if it were a constant
+// initialised to the right-hand side of its last set!.
+//
+// Lambda expressions -- i.e. closure captures -- count as reads, with the
+// exception of lambda expressions appearing in the right-hand side of a set!
+// for this variable. I.e. a variable bound to a self-recursive procedure is
+// set!-eliminable.
+
+struct variable_flags {
+  bool is_set            = false;
+  bool is_read           = false;
+  bool is_set_eliminable = false;
+};
+
 // The binding between a name and its value. For top-level values, this directly
 // contains the index of the value. Otherwise, it's just an object representing
 // the binding itself and the compiler will use these to translate them to local
@@ -27,14 +45,8 @@ public:
   std::string const&
   name() const { return name_; }
 
-  bool
-  is_set() const { return is_set_; }
-
-  void
-  mark_as_set() { is_set_ = true; }
-
-  void
-  mark_as_not_set() { is_set_ = false; }
+  variable_flags&
+  flags() { return flags_; }
 
   expression
   constant_initialiser() const { return constant_initialiser_; }
@@ -49,9 +61,9 @@ protected:
   set_constant_initialiser(free_store& fs, ptr<> self, expression e);
 
 private:
-  std::string name_;
-  bool        is_set_ = false;
-  expression  constant_initialiser_;
+  std::string    name_;
+  variable_flags flags_;
+  expression     constant_initialiser_;
 };
 
 class local_variable

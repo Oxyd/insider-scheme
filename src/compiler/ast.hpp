@@ -224,7 +224,7 @@ public:
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    for (expression e : expressions_)
+    for (expression e : expressions_ | std::views::reverse)
       f(e);
   }
 
@@ -283,9 +283,9 @@ public:
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    for (auto const& def : definitions_)
-      f(def.expression());
     f(body_);
+    for (auto const& def : definitions_ | std::views::reverse)
+      f(def.expression());
   }
 
   void

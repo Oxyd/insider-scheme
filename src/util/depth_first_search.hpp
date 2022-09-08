@@ -45,7 +45,7 @@ struct dfs_visitor {
 
 template <typename Node, typename Visitor>
 void
-depth_first_search(Node n, Visitor& v) {
+depth_first_search(Node n, Visitor&& v) {
   dfs_stack<Node> stack;
   stack.push_back(n);
 
