@@ -53,7 +53,7 @@ call_stack::push_frame(ptr<> callable, std::size_t base,
                        std::size_t locals_size, instruction_pointer previous_ip,
                        operand result_register,
                        ptr<stack_frame_extra_data> extra) {
-  assert(!callable || is_procedure(callable));
+  assert(!callable || is_callable(callable));
   assert(!frames_.empty() || base == 0);
   assert(frames_.empty() || base >= frames_.back().base);
   assert(frames_.empty() || base <= frames_.back().base + frames_.back().size);
@@ -71,6 +71,9 @@ call_stack::pop_frame() {
 
 void
 call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size) {
+  assert(!frames_.empty());
+  assert(is_callable(new_callable));
+
   frames_.back().callable = new_callable;
   frames_.back().size = new_locals_size;
   update_current_frame();
@@ -80,6 +83,8 @@ void
 call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size,
                           std::size_t args_base, std::size_t args_size) {
   assert(!frames_.empty());
+  assert(is_callable(new_callable));
+
   std::size_t current_base = frames_.back().base;
 
   std::size_t dest_begin = current_base;
