@@ -18,7 +18,7 @@ make_static(context& ctx, Args&&... args) {
 
 static ptr<closure>
 make_closure(context& ctx, bytecode const& bc, unsigned locals_size,
-               unsigned min_args, bool has_rest = false) {
+             unsigned min_args, bool has_rest = false) {
   return make_closure_from_bytecode(ctx, bc, locals_size, min_args, has_rest,
                                     "<test procedure>");
 }
@@ -345,6 +345,50 @@ TEST_F(interpreter, exec_load_dynamic_top_level) {
   );
   auto result = call_with_continuation_barrier(ctx, f, {});
   EXPECT_EQ(expect<symbol>(result)->value(), "foo");
+}
+
+TEST_F(interpreter, load_self_in_plain_procedure) {
+  auto f = track(
+    ctx,
+    make_closure(
+      ctx,
+      make_bytecode({
+        instruction{opcode::load_self, operand{0}},
+        instruction{opcode::ret, operand{0}}
+      }),
+      1, 0
+    )
+  );
+  auto result = call_with_continuation_barrier(ctx, f.get(), {});
+  EXPECT_EQ(result, f.get());
+}
+
+TEST_F(interpreter, load_self_in_closure) {
+  auto f = make_static_procedure(
+    ctx,
+    make_bytecode({
+      instruction{opcode::load_self, operand{1}},
+      instruction{opcode::ret, operand{1}}
+    }),
+    2, 0
+  );
+  auto zero = make_static<integer>(ctx, 0);
+  auto global = make_closure(
+    ctx,
+    make_bytecode({
+      instruction{opcode::load_static, f, operand{0}},
+      instruction{opcode::load_static, zero, operand{1}},
+      instruction{opcode::make_closure, operand{0}, operand{1}, operand{1},
+                                        operand{0}},
+      instruction{opcode::call, operand{0}, operand{1}, operand{0},
+                                operand{1}},
+      instruction{opcode::eq, operand{0}, operand{1}, operand{0}},
+      instruction{opcode::ret, operand{0}},
+    }),
+    2, 0
+  );
+  auto result = call_with_continuation_barrier(ctx, global, {});
+  EXPECT_EQ(result, ctx.constants->t);
 }
 
 static integer

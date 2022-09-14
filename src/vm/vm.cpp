@@ -247,6 +247,12 @@ store_top_level(execution_state& state) {
 }
 
 static void
+load_self(execution_state& state) {
+  operand reg = read_operand(state);
+  state.stack->local(reg) = state.stack->callable();
+}
+
+static void
 arithmetic(opcode opcode, execution_state& state) {
   ptr<> lhs = state.stack->local(read_operand(state));
   ptr<> rhs = state.stack->local(read_operand(state));
@@ -827,6 +833,10 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
 
   case opcode::store_top_level:
     store_top_level(state);
+    break;
+
+  case opcode::load_self:
+    load_self(state);
     break;
 
   case opcode::add:
