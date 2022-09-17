@@ -1042,7 +1042,7 @@ find_set_variables(ptr<let_expression> let) {
   auto rng = let->definitions()
     | std::views::transform([] (auto const& dp) { return dp.variable(); })
     | std::views::filter([] (ptr<local_variable> v) {
-        return v->flags().is_set;
+        return v->flags().is_set && !v->flags().is_set_eliminable;
       });
   return std::vector<ptr<local_variable>>(rng.begin(), rng.end());
 }

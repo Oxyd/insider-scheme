@@ -876,6 +876,7 @@ TEST_F(ast, variables_are_not_boxed_twice) {
       (define foo
         (lambda ()
           (let ((var #void))
+            var ; Ensure it is not set!-eliminable
             (set! var 5)
             'hi)))
     )"
@@ -1249,6 +1250,22 @@ TEST_F(ast, variable_that_is_set_after_an_if_can_be_eliminable) {
       x)
   )");
   EXPECT_TRUE(var->flags().is_set_eliminable);
+}
+
+TEST_F(ast, set_eliminable_variable_is_not_boxed) {
+  expression e = analyse(
+    R"(
+      (let ((x 0))
+        (set! x 1)
+        x)
+    )",
+    {&analyse_variables, box_set_variables}
+  );
+
+  auto let = expect<let_expression>(e);
+  ASSERT_EQ(let->body()->expressions().size(), 2);
+  EXPECT_TRUE(is<local_set_expression>(let->body()->expressions()[0]));
+  EXPECT_TRUE(is<local_reference_expression>(let->body()->expressions()[1]));
 }
 
 TEST_F(ast, self_referential_local_lambda_uses_self_variable) {
