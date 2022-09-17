@@ -371,6 +371,13 @@ static void
 compile_expression(context& ctx, procedure_context& proc, expression,
                    bool tail, result_location&);
 
+static void
+compile_expression_with_unused_result(context& ctx, procedure_context& proc,
+                                      expression expr) {
+  result_location subresult{false};
+  compile_expression(ctx, proc, expr, false, subresult);
+}
+
 static shared_register
 compile_expression_to_register(context& ctx, procedure_context& proc,
                                expression const& stx, bool tail) {
@@ -671,17 +678,48 @@ compile_box_set(context& ctx, procedure_context& proc,
 }
 
 static void
+compile_non_eliminable_variable_definition(context& ctx, procedure_context& proc,
+                                           variable_bindings::scope& scope,
+                                           ptr<local_variable> var,
+                                           expression expr) {
+  shared_register value
+    = compile_expression_to_register(ctx, proc, expr, false);
+  scope.emplace_back(variable_bindings::binding{var, std::move(value)});
+}
+
+static void
+compile_eliminable_variable_definition(context& ctx, procedure_context& proc,
+                                       variable_bindings::scope& scope,
+                                       ptr<local_variable> var,
+                                       expression expr) {
+  compile_expression_with_unused_result(ctx, proc, expr);
+  scope.emplace_back(
+    variable_bindings::binding{var, proc.registers.allocate_register()}
+  );
+}
+
+static variable_bindings::scope
+compile_let_definitions(context& ctx, procedure_context& proc,
+                        ptr<let_expression> stx) {
+  variable_bindings::scope scope;
+  for (auto const& def : stx->definitions())
+    if (def.variable()->flags().is_set_eliminable)
+      compile_eliminable_variable_definition(ctx, proc, scope,
+                                             def.variable(),
+                                             def.expression());
+    else
+      compile_non_eliminable_variable_definition(ctx, proc, scope,
+                                                 def.variable(),
+                                                 def.expression());
+
+  return scope;
+}
+
+static void
 compile_expression(context& ctx, procedure_context& proc,
                    ptr<let_expression> stx, bool tail,
                    result_location& result) {
-  variable_bindings::scope scope;
-  for (auto const& def : stx->definitions()) {
-    shared_register value
-      = compile_expression_to_register(ctx, proc, def.expression(), false);
-    scope.emplace_back(variable_bindings::binding{def.variable(),
-                                                  std::move(value)});
-  }
-
+  variable_bindings::scope scope = compile_let_definitions(ctx, proc, stx);
   variable_bindings::unique_scope us
     = proc.bindings.push_scope(std::move(scope));
   compile_expression(ctx, proc, stx->body(), tail, result);
@@ -1128,10 +1166,8 @@ compile_expression(context& ctx, procedure_context& proc,
     bool last = std::next(expr) == stx->expressions().end();
     if (last)
       compile_expression(ctx, proc, *expr, tail && last, result);
-    else {
-      result_location subresult{false};
-      compile_expression(ctx, proc, *expr, false, subresult);
-    }
+    else
+      compile_expression_with_unused_result(ctx, proc, *expr);
   }
 }
 
