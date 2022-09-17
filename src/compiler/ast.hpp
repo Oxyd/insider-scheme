@@ -390,7 +390,17 @@ class lambda_expression : public composite_object<lambda_expression> {
 public:
   static constexpr char const* scheme_name = "insider::lambda_expression";
 
-  lambda_expression(std::vector<ptr<local_variable>> parameters,
+  // Duplicate a lambda expression with new self variable and without free
+  // variables.
+  lambda_expression(ptr<lambda_expression> source,
+                    ptr<local_variable> new_self_variable);
+
+  // Duplicate a lambda expression with a new body.
+  lambda_expression(ptr<lambda_expression> source,
+                    ptr<sequence_expression> new_body);
+
+  lambda_expression(context&,
+                    std::vector<ptr<local_variable>> parameters,
                     bool has_rest,
                     ptr<sequence_expression> body,
                     std::string name,
@@ -417,6 +427,9 @@ public:
   void
   add_free_variable(free_store& fs, ptr<local_variable> v);
 
+  ptr<local_variable>
+  self_variable() const { return self_variable_; }
+
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
@@ -440,6 +453,7 @@ private:
   ptr<sequence_expression>         body_;
   std::string                      name_;
   std::vector<ptr<local_variable>> free_variables_;
+  ptr<local_variable>              self_variable_;
   std::size_t                      size_estimate_ = 0;
 };
 

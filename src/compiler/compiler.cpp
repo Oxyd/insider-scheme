@@ -97,7 +97,16 @@ namespace {
         : variable{variable}
         , destination{std::move(destination)}
       { }
+
+      explicit
+      binding(ptr<local_variable> variable)
+        : variable{variable}
+      { }
+
+      bool
+      self_binding() const { return !destination; }
     };
+
     using scope = std::vector<binding>;
     using free_variables_map = std::unordered_map<ptr<local_variable>,
                                                   shared_register>;
@@ -327,6 +336,35 @@ to_operand(T value) {
     };
 
   return operand(value);
+}
+
+static void
+emit_register_reference(procedure_context& proc, shared_register const& reg,
+                        result_location& result) {
+  if (!result.has_result())
+    result.set(reg);
+  else {
+    shared_register result_reg = result.get(proc);
+    if (reg != result_reg)
+      encode_instruction(proc.bytecode_stack.back().bc,
+                         instruction{opcode::set, *reg, *result_reg});
+  }
+}
+
+static void
+emit_self_reference(procedure_context& proc, result_location& result) {
+  encode_instruction(proc.bytecode_stack.back().bc,
+                     instruction{opcode::load_self, *result.get(proc)});
+}
+
+static void
+emit_variable_reference(procedure_context& proc, ptr<local_variable> var,
+                        result_location& result) {
+  shared_register var_reg = proc.bindings.lookup(var);
+  if (var_reg)
+    emit_register_reference(proc, var_reg, result);
+  else
+    emit_self_reference(proc, result);
 }
 
 static void
@@ -654,7 +692,9 @@ compile_expression(context& ctx, procedure_context& proc,
                    ptr<local_set_expression> stx, bool,
                    result_location& result) {
   result_location dest_loc;
-  dest_loc.set(proc.bindings.lookup(stx->target()));
+  shared_register reg = proc.bindings.lookup(stx->target());
+  assert(reg);
+  dest_loc.set(reg);
   compile_expression(ctx, proc, stx->expression(), false, dest_loc);
   compile_static_reference(proc, ctx.statics.void_, result);
 }
@@ -717,6 +757,11 @@ push_parameters_and_closure_scope(procedure_context& proc,
                                   ptr<lambda_expression> stx) {
   variable_bindings::scope param_and_closure_scope;
 
+  // Self variable.
+  param_and_closure_scope.push_back(
+    variable_bindings::binding{stx->self_variable()}
+  );
+
   for (ptr<local_variable> param : stx->parameters())
     param_and_closure_scope.push_back(variable_bindings::binding{
       param, proc.registers.allocate_register()
@@ -751,10 +796,8 @@ emit_make_closure(context& ctx, procedure_context& parent,
   std::vector<shared_register> temp_registers;
   for (ptr<local_variable> var : stx->free_variables()) {
     shared_register r = parent.registers.allocate_argument_register();
-    encode_instruction(
-      parent.bytecode_stack.back().bc,
-      instruction{opcode::set, *parent.bindings.lookup(var), *r}
-    );
+    result_location result{r};
+    emit_variable_reference(parent, var, result);
     temp_registers.push_back(std::move(r));
   }
 
@@ -1008,21 +1051,10 @@ compile_expression(context& ctx, procedure_context& proc,
 
 static void
 compile_expression(context&, procedure_context& proc,
-                  ptr<local_reference_expression> stx, bool,
-                  result_location& result) {
-  if (!result.result_used())
-    return;
-
-  shared_register var_reg = proc.bindings.lookup(stx->variable());
-
-  if (!result.has_result())
-    result.set(var_reg);
-  else {
-    shared_register result_reg = result.get(proc);
-    if (var_reg != result_reg)
-      encode_instruction(proc.bytecode_stack.back().bc,
-                         instruction{opcode::set, *var_reg, *result_reg});
-  }
+                   ptr<local_reference_expression> stx, bool,
+                   result_location& result) {
+  if (result.result_used())
+    emit_variable_reference(proc, stx->variable(), result);
 }
 
 static void

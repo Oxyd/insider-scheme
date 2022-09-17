@@ -1250,3 +1250,78 @@ TEST_F(ast, variable_that_is_set_after_an_if_can_be_eliminable) {
   )");
   EXPECT_TRUE(var->flags().is_set_eliminable);
 }
+
+TEST_F(ast, self_referential_local_lambda_uses_self_variable) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda ()
+            f)))
+    )",
+    {&analyse_variables, &find_self_variables}
+  );
+  for_each<lambda_expression>(
+    e,
+    [] (ptr<lambda_expression> f) {
+      ASSERT_EQ(f->body()->expressions().size(), 1);
+      EXPECT_EQ(expect<local_reference_expression>(
+                  f->body()->expressions().front()
+                )->variable(),
+                f->self_variable());
+    }
+  );
+}
+
+TEST_F(ast, self_variable_is_bound_within_the_lambda) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda ()
+            f)))
+    )",
+    {&analyse_variables, &find_self_variables, &analyse_free_variables}
+  );
+  for_each<lambda_expression>(
+    e,
+    [] (ptr<lambda_expression> f) {
+      EXPECT_TRUE(f->free_variables().empty());
+    }
+  );
+}
+
+TEST_F(ast, self_variable_in_inlined_procedure_is_consistent) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export foo)
+
+      (define foo
+        (lambda ()
+          (let ((f #void))
+            (set! f (lambda () f)))))
+    )"
+  );
+
+  expression e = analyse_module(
+    R"(
+      (import (insider internal) (foo))
+      (foo)
+    )"
+  );
+  for_each<lambda_expression>(
+    e,
+    [] (ptr<lambda_expression> f) {
+      ASSERT_EQ(f->body()->expressions().size(), 1);
+      EXPECT_EQ(
+        expect<local_reference_expression>(
+          f->body()->expressions().front()
+        )->variable(),
+        f->self_variable()
+      );
+    }
+  );
+}

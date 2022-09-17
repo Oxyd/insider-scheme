@@ -291,7 +291,27 @@ top_level_set_expression::update_size_estimate() {
   size_estimate_ = 1 + insider::size_estimate(expression_);
 }
 
+lambda_expression::lambda_expression(ptr<lambda_expression> source,
+                                     ptr<local_variable> new_self_variable)
+  : parameters_{source->parameters_}
+  , has_rest_{source->has_rest_}
+  , body_{source->body_}
+  , name_{source->name_}
+  , self_variable_{new_self_variable}
+{ }
+
+lambda_expression::lambda_expression(ptr<lambda_expression> source,
+                                     ptr<sequence_expression> new_body)
+  : parameters_{source->parameters_}
+  , has_rest_{source->has_rest_}
+  , body_{new_body}
+  , name_{source->name_}
+  , free_variables_{source->free_variables_}
+  , self_variable_{source->self_variable_}
+{ }
+
 lambda_expression::lambda_expression(
+  context& ctx,
   std::vector<ptr<local_variable>> parameters,
   bool has_rest,
   ptr<sequence_expression> body,
@@ -303,6 +323,9 @@ lambda_expression::lambda_expression(
   , body_{body}
   , name_{std::move(name)}
   , free_variables_{std::move(free_variables)}
+  , self_variable_{
+      make<local_variable>(ctx, fmt::format("<self variable for {}>", name_))
+    }
 { }
 
 void
@@ -318,6 +341,7 @@ lambda_expression::visit_members(member_visitor const& f) {
   f(body_);
   for (auto& fv : free_variables_)
     f(fv);
+  f(self_variable_);
 }
 
 void

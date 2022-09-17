@@ -881,6 +881,7 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
 
   return make<lambda_expression>(
     pc.ctx,
+    pc.ctx,
     std::move(parameters),
     has_rest,
     body,

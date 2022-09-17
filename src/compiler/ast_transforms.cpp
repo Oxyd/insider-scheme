@@ -14,6 +14,7 @@ namespace insider {
 
 pass_list const all_passes{
   analyse_variables,
+  find_self_variables,
   inline_procedures,
   propagate_and_evaluate_constants,
   box_set_variables,
@@ -22,6 +23,7 @@ pass_list const all_passes{
 
 pass_list const no_optimisations{
   analyse_variables,
+  find_self_variables,
   box_set_variables,
   analyse_free_variables
 };
@@ -221,6 +223,73 @@ expression
 analyse_variables(context& ctx, expression expr, analysis_context ac) {
   depth_first_search(expr, variable_analysis_visitor{ctx, ac});
   return expr;
+}
+
+static expression
+do_substitute_variable(context& ctx,
+                       ptr<local_variable> from,
+                       ptr<local_variable> to,
+                       ptr<local_reference_expression> ref) {
+  if (ref->variable() == from)
+    return make<local_reference_expression>(ctx, to);
+  else
+    return ref;
+}
+
+static expression
+do_substitute_variable(context&,
+                       [[maybe_unused]] ptr<local_variable> from,
+                       ptr<local_variable>,
+                       ptr<local_set_expression> set) {
+  assert(set->target() != from);
+  return set;
+}
+
+static expression
+do_substitute_variable(context&,
+                       [[maybe_unused]] ptr<local_variable>,
+                       ptr<local_variable>,
+                       auto e) {
+  return e;
+}
+
+static expression
+substitute_variable(context& ctx,
+                    ptr<local_variable> from,
+                    ptr<local_variable> to,
+                    expression e) {
+  return map_ast(ctx, e, [&] (auto expr) {
+    return do_substitute_variable(ctx, from, to, expr);
+  });
+}
+
+static expression
+substitute_self_variable(context& ctx, ptr<lambda_expression> lambda,
+                         ptr<local_variable> var) {
+  return substitute_variable(ctx, var, lambda->self_variable(), lambda);
+}
+
+static expression
+find_self_variables(context& ctx, ptr<local_set_expression> set) {
+  if (set->target()->flags().is_set_eliminable
+      && is<lambda_expression>(set->expression()))
+    return make<local_set_expression>(
+      ctx, set->target(),
+      substitute_self_variable(ctx,
+                               assume<lambda_expression>(set->expression()),
+                               set->target())
+    );
+  else
+    return set;
+}
+
+static expression
+find_self_variables(context&, auto e) { return e; }
+
+expression
+find_self_variables(context& ctx, expression expr, analysis_context) {
+  return map_ast(ctx, expr,
+                 [&] (auto e) { return find_self_variables(ctx, e); });
 }
 
 static bool
@@ -549,6 +618,12 @@ namespace {
     }
 
     void
+    enter(ptr<lambda_expression> lambda) {
+      auto copy = make<local_variable>(ctx, *lambda->self_variable());
+      map.emplace(lambda->self_variable(), copy);
+    }
+
+    void
     enter(auto) { }
 
     expression
@@ -577,21 +652,9 @@ namespace {
 
     expression
     leave(ptr<lambda_expression> lambda) {
-      // Need to remove free variable information; it will be recomputed when
-      // analyse_free_variables visits this for the AST this lambda is being
-      // inlined into.
-
-      if (!lambda->free_variables().empty())
-        return make<lambda_expression>(
-          ctx,
-          lambda->parameters(),
-          lambda->has_rest(),
-          lambda->body(),
-          lambda->name(),
-          std::vector<ptr<local_variable>>{} // free_variables
-        );
-      else
-        return lambda;
+      auto new_self = map.find(lambda->self_variable());
+      assert(new_self != map.end());
+      return make<lambda_expression>(ctx, lambda, new_self->second);
     }
 
     expression
@@ -1057,9 +1120,7 @@ static expression
 box_lambda(context& ctx, ptr<lambda_expression> lambda) {
   std::vector<expression> body_exprs = box_lambda_parameters(ctx, lambda);
   return make<lambda_expression>(
-    ctx, lambda->parameters(), lambda->has_rest(),
-    make<sequence_expression>(ctx, std::move(body_exprs)), lambda->name(),
-    lambda->free_variables()
+    ctx, lambda, make<sequence_expression>(ctx, std::move(body_exprs))
   );
 }
 
@@ -1107,6 +1168,7 @@ namespace {
       bound_vars_stack.emplace_back();
       for (ptr<local_variable> param : lambda->parameters())
         bound_vars_stack.back().emplace(param);
+      bound_vars_stack.back().emplace(lambda->self_variable());
 
       return true;
     }

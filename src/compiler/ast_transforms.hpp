@@ -23,6 +23,9 @@ expression
 analyse_variables(context&, expression, analysis_context);
 
 expression
+find_self_variables(context&, expression, analysis_context);
+
+expression
 propagate_and_evaluate_constants(context&, expression, analysis_context);
 
 expression
