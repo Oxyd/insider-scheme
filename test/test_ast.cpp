@@ -251,6 +251,7 @@ TEST_F(ast, analyse_variables_recognises_constants) {
 TEST_F(ast, set_variable_is_not_marked_as_constant) {
   ptr<local_variable> var = parse_and_get_local_variable("v", R"(
     (let ((v 2))
+      v  ; Force non-eliminable
       (set! v 5)
       (+ v 4))
   )");
@@ -1379,4 +1380,132 @@ TEST_F(ast, references_in_inner_lambdas_count_as_self_references) {
       EXPECT_EQ(lambda->num_self_references(), 1);
     }
   );
+}
+
+TEST_F(ast, set_eliminable_variables_are_constants) {
+  expression e = analyse(
+    R"(
+      (let ((n #void))
+        (set! n 2)
+        (+ n (read)))
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+
+  for_each<application_expression>(
+    e,
+    [] (ptr<application_expression> app) {
+      auto target = assume<top_level_reference_expression>(app->target());
+      if (target->variable()->name() == "+") {
+        ASSERT_EQ(app->arguments().size(), 2);
+        EXPECT_TRUE(is<literal_expression>(app->arguments()[0]));
+      }
+    }
+  );
+}
+
+TEST_F(ast, set_eliminable_local_definitions_are_constants) {
+  expression e = analyse(
+    R"(
+      (lambda ()
+        (define n 2)
+        (+ n (read)))
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+
+  for_each<application_expression>(
+    e,
+    [] (ptr<application_expression> app) {
+      auto target = assume<top_level_reference_expression>(app->target());
+      if (target->variable()->name() == "+") {
+        ASSERT_EQ(app->arguments().size(), 2);
+        EXPECT_TRUE(is<literal_expression>(app->arguments()[0]));
+      }
+    }
+  );
+}
+
+TEST_F(ast, procedures_bound_to_set_eliminable_variables_are_inlined) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda (x y)
+            (+ x y)))
+        (f 1 2))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+  for_each<application_expression>(
+    e,
+    [] (ptr<application_expression> app) {
+      auto target = expect<top_level_reference_expression>(app->target());
+      EXPECT_EQ(target->variable()->name(), "+");
+    }
+  );
+}
+
+TEST_F(ast, self_referential_lambda_expressions_are_not_inlined) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda ()
+            (f)))
+        (f))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+
+  auto let = expect<let_expression>(e);
+  ASSERT_EQ(let->body()->expressions().size(), 2);
+
+  auto app = expect<application_expression>(let->body()->expressions()[1]);
+  auto target = expect<local_reference_expression>(app->target());
+  EXPECT_EQ(target->variable()->name(), "f");
+}
+
+TEST_F(ast, set_eliminable_variables_are_retained_in_lets) {
+  expression e = analyse(
+    R"(
+      (let ((x 0))
+        (set! x 1)
+        x)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  auto let = expect<let_expression>(e);
+  ASSERT_EQ(let->definitions().size(), 1);
+  EXPECT_EQ(let->definitions()[0].variable()->name(), "x");
+}
+
+TEST_F(ast, non_set_eliminable_variable_does_not_have_constant_initialiser) {
+  auto var = parse_and_get_local_variable(
+    "x",
+    R"(
+      (let ((x #void))
+        (set! x 0)
+        (set! x 1))
+    )"
+  );
+  EXPECT_FALSE(var->constant_initialiser());
+}
+
+TEST_F(ast, local_definition_of_set_variable_is_retained) {
+  expression e = analyse(
+    R"(
+      (let ()
+        (define x 0)
+        (set! x 1)
+        x)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+
+  auto seq = expect<sequence_expression>(e);
+  ASSERT_EQ(seq->expressions().size(), 1);
+
+  auto let = expect<let_expression>(seq->expressions()[0]);
+  EXPECT_EQ(let->definitions().size(), 1);
 }

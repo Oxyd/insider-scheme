@@ -155,6 +155,9 @@ namespace {
       flags.is_set_eliminable = !flags.is_read && !flags.is_set
                                 && is_current(set->target());
       flags.is_set = true;
+
+      if (!flags.is_set_eliminable)
+        set->target()->set_constant_initialiser(ctx.store, {});
     }
 
     void
@@ -199,6 +202,12 @@ namespace {
       for (definition_pair_expression const& dp : let->definitions())
         if (!dp.variable()->flags().is_set)
           assign_constant_initialiser(dp.variable(), dp.expression());
+    }
+
+    void
+    find_constant_values(ptr<local_set_expression> set) {
+      if (set->target()->flags().is_set_eliminable)
+        assign_constant_initialiser(set->target(), set->expression());
     }
 
     void
@@ -389,7 +398,9 @@ update_let_definitions(context& ctx,
                        bool& go_again) {
   std::vector<definition_pair_expression> result;
   for (definition_pair_expression dp : dps) {
-    if (!is_const(dp))
+    // set!-eliminable variable definitions need to be retained because they're
+    // still going to be set!.
+    if (!is_const(dp) || dp.variable()->flags().is_set_eliminable)
       result.push_back(dp);
 
     if (!is_const(dp) && constant_value_for_expression(dp.expression())
@@ -790,8 +801,14 @@ namespace {
     }
 
     bool
+    is_self_referential(ptr<lambda_expression> called_lambda) {
+      return called_lambda->num_self_references() != 0u;
+    }
+
+    bool
     can_inline(ptr<application_expression> app, ptr<lambda_expression> lambda) {
       return !is_self_recursive_call(lambda)
+             && !is_self_referential(lambda)
              && arity_matches(app, lambda)
              && is_small_enough_to_inline(lambda);
     }
