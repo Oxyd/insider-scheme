@@ -298,6 +298,7 @@ lambda_expression::lambda_expression(ptr<lambda_expression> source,
   , body_{source->body_}
   , name_{source->name_}
   , self_variable_{new_self_variable}
+  , num_self_references_{source->num_self_references_}
 { }
 
 lambda_expression::lambda_expression(ptr<lambda_expression> source,
@@ -308,6 +309,7 @@ lambda_expression::lambda_expression(ptr<lambda_expression> source,
   , name_{source->name_}
   , free_variables_{source->free_variables_}
   , self_variable_{source->self_variable_}
+  , num_self_references_{source->num_self_references_}
 { }
 
 lambda_expression::lambda_expression(

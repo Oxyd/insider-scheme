@@ -1342,3 +1342,41 @@ TEST_F(ast, self_variable_in_inlined_procedure_is_consistent) {
     }
   );
 }
+
+TEST_F(ast, simple_loop_lambda_has_one_self_reference) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda ()
+            (f))))
+    )",
+    {&analyse_variables, &find_self_variables}
+  );
+  for_each<lambda_expression>(
+    e,
+    [] (ptr<lambda_expression> lambda) {
+      EXPECT_EQ(lambda->num_self_references(), 1);
+    }
+  );
+}
+
+TEST_F(ast, references_in_inner_lambdas_count_as_self_references) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda ()
+            (lambda ()
+              (f)))))
+    )",
+    {&analyse_variables, &find_self_variables}
+  );
+  for_each<local_set_expression>(
+    e,
+    [] (ptr<local_set_expression> set) {
+      auto lambda = expect<lambda_expression>(set->expression());
+      EXPECT_EQ(lambda->num_self_references(), 1);
+    }
+  );
+}

@@ -430,6 +430,12 @@ public:
   ptr<local_variable>
   self_variable() const { return self_variable_; }
 
+  std::size_t
+  num_self_references() const { return num_self_references_; }
+
+  void
+  set_num_self_references(std::size_t n) { num_self_references_ = n; }
+
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
@@ -455,6 +461,7 @@ private:
   std::vector<ptr<local_variable>> free_variables_;
   ptr<local_variable>              self_variable_;
   std::size_t                      size_estimate_ = 0;
+  std::size_t                      num_self_references_ = 0;
 };
 
 class if_expression : public composite_object<if_expression> {

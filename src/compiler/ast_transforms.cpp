@@ -225,48 +225,50 @@ analyse_variables(context& ctx, expression expr, analysis_context ac) {
   return expr;
 }
 
-static expression
-do_substitute_variable(context& ctx,
-                       ptr<local_variable> from,
-                       ptr<local_variable> to,
-                       ptr<local_reference_expression> ref) {
-  if (ref->variable() == from)
-    return make<local_reference_expression>(ctx, to);
-  else
-    return ref;
-}
+namespace {
+  struct variable_substitutor {
+    context&            ctx;
+    ptr<local_variable> from;
+    ptr<local_variable> to;
+    std::size_t         substitutions_count = 0;
 
-static expression
-do_substitute_variable(context&,
-                       [[maybe_unused]] ptr<local_variable> from,
-                       ptr<local_variable>,
-                       ptr<local_set_expression> set) {
-  assert(set->target() != from);
-  return set;
-}
+    variable_substitutor(context& ctx, ptr<local_variable> from,
+                         ptr<local_variable> to)
+      : ctx{ctx}
+      , from{from}
+      , to{to}
+    { }
 
-static expression
-do_substitute_variable(context&,
-                       [[maybe_unused]] ptr<local_variable>,
-                       ptr<local_variable>,
-                       auto e) {
-  return e;
-}
+    expression
+    leave(ptr<local_reference_expression> ref) {
+      if (ref->variable() == from) {
+        ++substitutions_count;
+        return make<local_reference_expression>(ctx, to);
+      } else
+        return ref;
+    }
 
-static expression
-substitute_variable(context& ctx,
-                    ptr<local_variable> from,
-                    ptr<local_variable> to,
-                    expression e) {
-  return map_ast(ctx, e, [&] (auto expr) {
-    return do_substitute_variable(ctx, from, to, expr);
-  });
-}
+    expression
+    leave(ptr<local_set_expression> set) const {
+      assert(set->target() != from);
+      return set;
+    }
 
-static expression
+    expression
+    leave(auto e) const { return e; }
+
+    void
+    enter(auto) { }
+  };
+} // anonymous namespace
+
+static ptr<lambda_expression>
 substitute_self_variable(context& ctx, ptr<lambda_expression> lambda,
                          ptr<local_variable> var) {
-  return substitute_variable(ctx, var, lambda->self_variable(), lambda);
+  variable_substitutor s{ctx, var, lambda->self_variable()};
+  auto new_lambda = assume<lambda_expression>(transform_ast(ctx, lambda, s));
+  new_lambda->set_num_self_references(s.substitutions_count);
+  return new_lambda;
 }
 
 static expression
