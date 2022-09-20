@@ -191,7 +191,7 @@ struct instruction {
 };
 
 using bytecode = std::vector<std::uint16_t>;
-using instruction_pointer = std::uint16_t*;
+using instruction_pointer = std::uint16_t const*;
 
 std::size_t
 encode_instruction(bytecode&, instruction const&);
