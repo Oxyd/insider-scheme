@@ -1,5 +1,6 @@
 #include "scheme_fixture.hpp"
 
+#include "compiler/cfg.hpp"
 #include "runtime/numeric.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
@@ -744,4 +745,23 @@ TEST_F(compiler, stack_trace_can_reconstruct_inlined_procedures) {
       (three)
     )"
   );
+}
+
+TEST_F(compiler, find_incoming_blocks) {
+  cfg g(6);
+  g[0].ending = flow_off{};
+  g[1].ending = unconditional_jump{3};
+  g[3].ending = conditional_jump{operand{0}, 5};
+  g[4].ending = flow_off{};
+  g[5].ending = unconditional_jump{4};
+
+  find_incoming_blocks(g);
+
+  using bs = std::unordered_set<std::size_t>;
+  EXPECT_EQ(g[0].incoming_blocks, bs{});
+  EXPECT_EQ(g[1].incoming_blocks, bs{0});
+  EXPECT_EQ(g[2].incoming_blocks, bs{});
+  EXPECT_EQ(g[3].incoming_blocks, (bs{1, 2}));
+  EXPECT_EQ(g[4].incoming_blocks, (bs{3, 5}));
+  EXPECT_EQ(g[5].incoming_blocks, (bs{4, 3}));
 }

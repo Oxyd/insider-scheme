@@ -54,6 +54,8 @@ set(scheme_sources
         src/compiler/ast.hpp
         src/compiler/ast_transforms.cpp
         src/compiler/ast_transforms.hpp
+        src/compiler/cfg.cpp
+        src/compiler/cfg.hpp
         src/compiler/compiler.cpp
         src/compiler/compiler.hpp
         src/compiler/debug_info.hpp

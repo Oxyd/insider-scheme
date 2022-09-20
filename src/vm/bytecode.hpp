@@ -189,7 +189,9 @@ inline auto const // std::array<instruction_info, N>
 opcode_value_to_info = detail::make_opcodes(instructions);
 
 inline auto
-opcode_to_info(opcode oc) { return opcode_value_to_info[static_cast<std::size_t>(oc)]; }
+opcode_to_info(opcode oc) {
+  return opcode_value_to_info[static_cast<std::size_t>(oc)];
+}
 
 instruction_info
 mnemonic_to_info(std::string_view);
