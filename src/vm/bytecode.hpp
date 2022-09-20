@@ -46,8 +46,10 @@ enum class opcode : std::uint16_t {
   ret,              // ret <return value>
   jump,             // jump <offset>
   jump_back,        // jump-back <offset>
+  jump_absolute,    // jump-absolute <offset from start of bytecode>
   jump_unless,      // jump-unless <register> <offset>
   jump_back_unless, // jump-back-unless <register> <offset>
+  jump_absolute_unless, // jump-absolute-unless <register> <offset>
   make_closure,     // make-closure <procedure> <base> <num free> <destination>
   box,              // box <what> <destination> -- make a box containing what -- 20
   unbox,            // unbox <what> <destination> -- extract contained value from a box
@@ -134,8 +136,10 @@ instructions{
   std::tuple{"ret", opcode::ret, std::size_t{1}},
   std::tuple{"jump", opcode::jump, std::size_t{1}},
   std::tuple{"jump-back", opcode::jump_back, std::size_t{1}},
+  std::tuple{"jump-absolute", opcode::jump_absolute, std::size_t{1}},
   std::tuple{"jump-unless", opcode::jump_unless, std::size_t{2}},
   std::tuple{"jump-back-unless", opcode::jump_back_unless, std::size_t{2}},
+  std::tuple{"jump-absolute-unless", opcode::jump_absolute_unless, std::size_t{2}},
   std::tuple{"make-closure", opcode::make_closure, std::size_t{4}},
   std::tuple{"box", opcode::box, std::size_t{2}},
   std::tuple{"unbox", opcode::unbox, std::size_t{2}},

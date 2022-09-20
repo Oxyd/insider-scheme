@@ -191,17 +191,21 @@ TEST_F(interpreter, exec_loop) {
   auto one = make_static<integer>(ctx, 1);
   auto global = make_closure(
     ctx,
-    make_bytecode({instruction{opcode::load_static, zero,       operand{3}},
-                   instruction{opcode::load_static, ten,        operand{4}},
-                   instruction{opcode::load_static, one,        operand{5}},
-                   instruction{opcode::set,         operand{3}, operand{0}},
-                   instruction{opcode::set,         operand{3}, operand{1}},
-                   instruction{opcode::less,        operand{1}, operand{4}, operand{2}},
-                   instruction{opcode::jump_unless, operand{2}, operand{10}},
-                   instruction{opcode::add,         operand{0}, operand{1}, operand{0}},
-                   instruction{opcode::add,         operand{1}, operand{5}, operand{1}},
-                   instruction{opcode::jump_back,   operand{17}},
-                   instruction{opcode::ret,         operand{0}}}),
+    make_bytecode(
+      {
+        instruction{opcode::load_static, zero, operand{3}}, // 0
+        instruction{opcode::load_static, ten, operand{4}}, // 3
+        instruction{opcode::load_static, one, operand{5}}, // 6
+        instruction{opcode::set, operand{3}, operand{0}}, // 9
+        instruction{opcode::set, operand{3}, operand{1}}, // 12
+        instruction{opcode::less, operand{1}, operand{4}, operand{2}}, // 15
+        instruction{opcode::jump_absolute_unless, operand{2}, operand{32}}, // 19
+        instruction{opcode::add, operand{0}, operand{1}, operand{0}}, // 22
+        instruction{opcode::add, operand{1}, operand{5}, operand{1}}, // 26
+        instruction{opcode::jump_absolute, operand{15}}, // 30
+        instruction{opcode::ret, operand{0}} // 32
+      }
+    ),
     6,
     0
   );

@@ -705,6 +705,20 @@ jump(opcode opcode, execution_state& state) {
 }
 
 static void
+jump_absolute(execution_state& state) {
+  operand offset = read_operand(state);
+  state.ip = current_procedure_bytecode_base(state) + offset;
+}
+
+static void
+jump_absolute_unless(execution_state& state) {
+  ptr<> test_value = state.stack->local(read_operand(state));
+  operand offset = read_operand(state);
+  if (test_value == state.ctx.constants->f)
+    state.ip = current_procedure_bytecode_base(state) + offset;
+}
+
+static void
 make_closure(execution_state& state) {
   ptr<procedure> proc
     = assume<procedure>(state.stack->local(read_operand(state)));
@@ -879,6 +893,14 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::jump_unless:
   case opcode::jump_back_unless:
     jump(opcode, state);
+    break;
+
+  case opcode::jump_absolute:
+    jump_absolute(state);
+    break;
+
+  case opcode::jump_absolute_unless:
+    jump_absolute_unless(state);
     break;
 
   case opcode::make_closure:
