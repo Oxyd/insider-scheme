@@ -23,8 +23,10 @@ TEST_F(compiler, compile_unary_operators) {
   EXPECT_EQ(expect<integer>(result1).value(), -2);
 
   ptr<> result2 = eval("(/ 3)");
-  EXPECT_EQ(expect<integer>(expect<fraction>(result2)->numerator()).value(), 1);
-  EXPECT_EQ(expect<integer>(expect<fraction>(result2)->denominator()).value(), 3);
+  EXPECT_EQ(expect<integer>(expect<fraction>(result2)->numerator()).value(),
+            1);
+  EXPECT_EQ(expect<integer>(expect<fraction>(result2)->denominator()).value(),
+            3);
 }
 
 TEST_F(compiler, compile_let) {
@@ -99,7 +101,11 @@ TEST_F(compiler, compile_lambda) {
         (list 1 2 3))
    )"
   );
-  EXPECT_TRUE(equal(result4, make_list(ctx, integer_to_ptr(integer{1}), integer_to_ptr(integer{2}), integer_to_ptr(integer{3}))));
+  EXPECT_TRUE(equal(result4,
+                    make_list(ctx,
+                              integer_to_ptr(integer{1}),
+                              integer_to_ptr(integer{2}),
+                              integer_to_ptr(integer{3}))));
 
   ptr<> result5 = eval(
     R"(
@@ -523,11 +529,13 @@ TEST_F(compiler, syntax) {
 
   auto car_stx = assume<syntax>(car(assume<pair>(result1_expr)));
   ASSERT_TRUE(is<symbol>(car_stx->update_and_get_expression(ctx)));
-  EXPECT_EQ(assume<symbol>(car_stx->update_and_get_expression(ctx))->value(), "a");
+  EXPECT_EQ(assume<symbol>(car_stx->update_and_get_expression(ctx))->value(),
+            "a");
 
   auto result2 = eval("#'(a b c)");
   ASSERT_TRUE(is<syntax>(result2));
-  EXPECT_TRUE(equal(syntax_to_datum(ctx, assume<syntax>(result2)), read("(a b c)")));
+  EXPECT_TRUE(equal(syntax_to_datum(ctx, assume<syntax>(result2)),
+                    read("(a b c)")));
 }
 
 TEST_F(compiler, quasiquote) {
@@ -576,8 +584,12 @@ TEST_F(compiler, quasiquote) {
   auto result15 = eval("(let ((b '(b1 b2))) `#(a1 a2 ,@b))");
   EXPECT_TRUE(equal(result15, read("#(a1 a2 b1 b2)")));
 
-  auto result16 = eval("(let ((b '(b1 b2))) ``(a1 a2 ,b c1 c2 ,(d1 d2 ,b e1 e2)))");
-  EXPECT_TRUE(equal(result16, read("(quasiquote (a1 a2 (unquote b) c1 c2 (unquote (d1 d2 (b1 b2) e1 e2))))")));
+  auto result16
+    = eval("(let ((b '(b1 b2))) ``(a1 a2 ,b c1 c2 ,(d1 d2 ,b e1 e2)))");
+  EXPECT_TRUE(equal(result16,
+                    read(R"((quasiquote
+                              (a1 a2 (unquote b) c1 c2
+                                  (unquote (d1 d2 (b1 b2) e1 e2)))))")));
 
   auto result17 = eval("(let ((x '(x1 x2))) `(,@x . y))");
   EXPECT_TRUE(equal(result17, read("(x1 x2 . y)")));
