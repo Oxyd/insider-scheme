@@ -777,3 +777,98 @@ TEST_F(compiler, find_incoming_blocks) {
   EXPECT_EQ(g[4].incoming_blocks, (bs{3, 5}));
   EXPECT_EQ(g[5].incoming_blocks, (bs{4, 3}));
 }
+
+static void
+expect_cfg_equiv(cfg& g, std::vector<instruction> const& ref_instrs) {
+  auto cfg_instrs = bytecode_to_instructions(cfg_to_bytecode(g));
+  EXPECT_EQ(cfg_instrs, ref_instrs);
+}
+
+TEST_F(compiler, single_cfg_block_to_bytecode) {
+  cfg g(1);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{1}, operand{0});
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{2}, operand{0});
+  g[0].body.emplace_back(opcode::ret, operand{0});
+
+  bytecode bc = cfg_to_bytecode(g);
+  std::vector<instruction> instrs = bytecode_to_instructions(bc);
+
+  expect_cfg_equiv(
+    g,
+    {
+      instruction{opcode::add, operand{0}, operand{1}, operand{0}},
+      instruction{opcode::add, operand{0}, operand{2}, operand{0}},
+      instruction{opcode::ret, operand{0}}
+    }
+  );
+}
+
+TEST_F(compiler, compile_flow_off_into_another_block) {
+  cfg g(2);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{1}, operand{2});
+  g[1].body.emplace_back(opcode::add, operand{3}, operand{4}, operand{5});
+
+  expect_cfg_equiv(
+    g,
+    {
+      instruction{opcode::add, operand{0}, operand{1}, operand{2}},
+      instruction{opcode::add, operand{3}, operand{4}, operand{5}}
+    }
+  );
+}
+
+TEST_F(compiler, compile_unconditional_jump_backward) {
+  cfg g(3);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
+  g[1].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{1});
+  g[2].body.emplace_back(opcode::add, operand{2}, operand{2}, operand{2});
+  g[2].ending = unconditional_jump{1};
+
+  expect_cfg_equiv(
+    g,
+    {
+      instruction{opcode::add, operand{0}, operand{0}, operand{0}},
+      instruction{opcode::add, operand{1}, operand{1}, operand{1}},
+      instruction{opcode::add, operand{2}, operand{2}, operand{2}},
+      instruction{opcode::jump_absolute, operand{4}}
+    }
+  );
+}
+
+TEST_F(compiler, compile_unconditional_jump_forward) {
+  cfg g(3);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
+  g[0].ending = unconditional_jump{2};
+  g[1].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{1});
+  g[2].body.emplace_back(opcode::add, operand{2}, operand{2}, operand{2});
+  g[2].ending = unconditional_jump{1};
+
+  expect_cfg_equiv(
+    g,
+    {
+      instruction{opcode::add, operand{0}, operand{0}, operand{0}}, // 0
+      instruction{opcode::jump_absolute, operand{10}},              // 4
+      instruction{opcode::add, operand{1}, operand{1}, operand{1}}, // 6
+      instruction{opcode::add, operand{2}, operand{2}, operand{2}}, // 10
+      instruction{opcode::jump_absolute, operand{6}}                // 14
+    }
+  );
+}
+
+TEST_F(compiler, compile_conditional_jump) {
+  cfg g(3);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
+  g[0].ending = conditional_jump{operand{0}, 2};
+  g[1].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{1});
+  g[2].body.emplace_back(opcode::add, operand{2}, operand{2}, operand{2});
+
+  expect_cfg_equiv(
+    g,
+    {
+      instruction{opcode::add, operand{0}, operand{0}, operand{0}},       // 0
+      instruction{opcode::jump_absolute_unless, operand{0}, operand{11}}, // 4
+      instruction{opcode::add, operand{1}, operand{1}, operand{1}},       // 7
+      instruction{opcode::add, operand{2}, operand{2}, operand{2}}        // 11
+    }
+  );
+}

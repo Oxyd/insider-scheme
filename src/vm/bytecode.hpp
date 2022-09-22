@@ -188,13 +188,23 @@ struct instruction {
   { }
 
   instruction(std::string_view mnemonic, std::vector<operand> operands);
+
+  bool
+  operator == (instruction const&) const = default;
 };
+
+std::ostream&
+operator << (std::ostream&, instruction const&);
 
 using bytecode = std::vector<std::uint16_t>;
 using instruction_pointer = std::uint16_t const*;
 
 std::size_t
 encode_instruction(bytecode&, instruction const&);
+
+// Number of words an instruction will take when encoded.
+std::size_t
+instruction_size(instruction const&);
 
 inline opcode
 read_opcode(instruction_pointer& ip) {
@@ -208,6 +218,9 @@ read_operand(instruction_pointer& ip) {
 
 instruction
 read_instruction(instruction_pointer& ip);
+
+std::vector<instruction>
+bytecode_to_instructions(bytecode const&);
 
 } // namespace insider
 

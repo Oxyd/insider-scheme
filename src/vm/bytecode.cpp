@@ -44,6 +44,17 @@ mnemonic_to_info(std::string_view mnemonic) {
   return it->second;
 }
 
+std::ostream&
+operator << (std::ostream& out, instruction const& i) {
+  auto info = opcode_to_info(i.opcode);
+  if (i.operands.empty())
+    return out << "{" << info.mnemonic << "}";
+  else
+    return out << fmt::format("{{{} {}}}",
+                              info.mnemonic,
+                              fmt::join(i.operands, ", "));
+}
+
 static void
 encode(bytecode& bc, opcode oc) {
   bc.push_back(static_cast<std::uint16_t>(oc));
@@ -68,6 +79,11 @@ encode_instruction(bytecode& bc, instruction const& instr) {
   return index;
 }
 
+std::size_t
+instruction_size(instruction const& i) {
+  return 1 + i.operands.size();
+}
+
 instruction
 read_instruction(instruction_pointer& ip) {
   instruction result{read_opcode(ip)};
@@ -76,6 +92,15 @@ read_instruction(instruction_pointer& ip) {
   for (std::size_t i = 0; i < info.num_operands; ++i)
     result.operands.push_back(read_operand(ip));
 
+  return result;
+}
+
+std::vector<instruction>
+bytecode_to_instructions(bytecode const& bc) {
+  instruction_pointer ip = bc.data();
+  std::vector<instruction> result;
+  while (ip != bc.data() + bc.size())
+    result.push_back(read_instruction(ip));
   return result;
 }
 
