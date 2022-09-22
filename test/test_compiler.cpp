@@ -796,9 +796,9 @@ TEST_F(compiler, single_cfg_block_to_bytecode) {
   expect_cfg_equiv(
     g,
     {
-      instruction{opcode::add, operand{0}, operand{1}, operand{0}},
-      instruction{opcode::add, operand{0}, operand{2}, operand{0}},
-      instruction{opcode::ret, operand{0}}
+      {opcode::add, operand{0}, operand{1}, operand{0}},
+      {opcode::add, operand{0}, operand{2}, operand{0}},
+      {opcode::ret, operand{0}}
     }
   );
 }
@@ -811,8 +811,8 @@ TEST_F(compiler, compile_flow_off_into_another_block) {
   expect_cfg_equiv(
     g,
     {
-      instruction{opcode::add, operand{0}, operand{1}, operand{2}},
-      instruction{opcode::add, operand{3}, operand{4}, operand{5}}
+      {opcode::add, operand{0}, operand{1}, operand{2}},
+      {opcode::add, operand{3}, operand{4}, operand{5}}
     }
   );
 }
@@ -827,10 +827,10 @@ TEST_F(compiler, compile_unconditional_jump_backward) {
   expect_cfg_equiv(
     g,
     {
-      instruction{opcode::add, operand{0}, operand{0}, operand{0}},
-      instruction{opcode::add, operand{1}, operand{1}, operand{1}},
-      instruction{opcode::add, operand{2}, operand{2}, operand{2}},
-      instruction{opcode::jump_absolute, operand{4}}
+      {opcode::add, operand{0}, operand{0}, operand{0}},
+      {opcode::add, operand{1}, operand{1}, operand{1}},
+      {opcode::add, operand{2}, operand{2}, operand{2}},
+      {opcode::jump_absolute, operand{4}}
     }
   );
 }
@@ -846,11 +846,11 @@ TEST_F(compiler, compile_unconditional_jump_forward) {
   expect_cfg_equiv(
     g,
     {
-      instruction{opcode::add, operand{0}, operand{0}, operand{0}}, // 0
-      instruction{opcode::jump_absolute, operand{10}},              // 4
-      instruction{opcode::add, operand{1}, operand{1}, operand{1}}, // 6
-      instruction{opcode::add, operand{2}, operand{2}, operand{2}}, // 10
-      instruction{opcode::jump_absolute, operand{6}}                // 14
+      {opcode::add, operand{0}, operand{0}, operand{0}}, // 0
+      {opcode::jump_absolute, operand{10}},              // 4
+      {opcode::add, operand{1}, operand{1}, operand{1}}, // 6
+      {opcode::add, operand{2}, operand{2}, operand{2}}, // 10
+      {opcode::jump_absolute, operand{6}}                // 14
     }
   );
 }
@@ -865,10 +865,10 @@ TEST_F(compiler, compile_conditional_jump) {
   expect_cfg_equiv(
     g,
     {
-      instruction{opcode::add, operand{0}, operand{0}, operand{0}},       // 0
-      instruction{opcode::jump_absolute_unless, operand{0}, operand{11}}, // 4
-      instruction{opcode::add, operand{1}, operand{1}, operand{1}},       // 7
-      instruction{opcode::add, operand{2}, operand{2}, operand{2}}        // 11
+      {opcode::add, operand{0}, operand{0}, operand{0}},       // 0
+      {opcode::jump_absolute_unless, operand{0}, operand{11}}, // 4
+      {opcode::add, operand{1}, operand{1}, operand{1}},       // 7
+      {opcode::add, operand{2}, operand{2}, operand{2}}        // 11
     }
   );
 }

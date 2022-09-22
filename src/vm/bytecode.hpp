@@ -170,24 +170,15 @@ struct instruction {
 
   instruction() = default;
 
-  explicit
   instruction(insider::opcode oc)
     : opcode{oc}
   { }
 
-  instruction(insider::opcode oc, std::vector<operand> operands)
-    : opcode{oc}
-    , operands{std::move(operands)}
-  { }
-
   template <typename... Op>
-  explicit
   instruction(insider::opcode oc, Op... operands)
     : opcode{oc}
     , operands{operands...}
   { }
-
-  instruction(std::string_view mnemonic, std::vector<operand> operands);
 
   bool
   operator == (instruction const&) const = default;

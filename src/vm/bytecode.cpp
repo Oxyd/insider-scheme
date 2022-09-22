@@ -8,12 +8,6 @@
 
 namespace insider {
 
-instruction::instruction(std::string_view mnemonic,
-                         std::vector<operand> operands)
-  : opcode{mnemonic_to_info(mnemonic).opcode}
-  , operands{std::move(operands)}
-{ }
-
 namespace {
   template <std::size_t N, std::size_t... Is>
   std::unordered_map<std::string_view, instruction_info>
