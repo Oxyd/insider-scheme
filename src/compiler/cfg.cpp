@@ -70,17 +70,28 @@ encode_ending(bytecode& bc, basic_block::ending_type e, cfg const& g) {
 }
 
 static void
-encode_block(bytecode& bc, basic_block const& block, cfg const& g) {
-  for (instruction const& i : block.body)
-    encode_instruction(bc, i);
-  encode_ending(bc, block.ending, g);
+encode_body(bytecode_and_debug_info& bc_di, basic_block const& block) {
+  for (std::size_t k = 0; k < block.body.size(); ++k) {
+    instruction const& i = block.body[k];
+    std::size_t instruction_offset = encode_instruction(bc_di.bc, i);
+
+    if (auto di = block.debug_info.find(k); di != block.debug_info.end())
+      bc_di.debug_info[instruction_offset] = di->second;
+  }
 }
 
-bytecode
+static void
+encode_block(bytecode_and_debug_info& bc_di, basic_block const& block,
+             cfg const& g) {
+  encode_body(bc_di, block);
+  encode_ending(bc_di.bc, block.ending, g);
+}
+
+bytecode_and_debug_info
 analyse_and_compile_cfg(cfg& g) {
   find_block_lengths_and_offsets(g);
 
-  bytecode result;
+  bytecode_and_debug_info result;
   for (basic_block const& b : g)
     encode_block(result, b, g);
   return result;

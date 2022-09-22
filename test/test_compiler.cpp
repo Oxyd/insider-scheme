@@ -780,7 +780,7 @@ TEST_F(compiler, find_incoming_blocks) {
 
 static void
 expect_cfg_equiv(cfg& g, std::vector<instruction> const& ref_instrs) {
-  auto cfg_instrs = bytecode_to_instructions(analyse_and_compile_cfg(g));
+  auto cfg_instrs = bytecode_to_instructions(analyse_and_compile_cfg(g).bc);
   EXPECT_EQ(cfg_instrs, ref_instrs);
 }
 
@@ -790,7 +790,7 @@ TEST_F(compiler, single_cfg_block_to_bytecode) {
   g[0].body.emplace_back(opcode::add, operand{0}, operand{2}, operand{0});
   g[0].body.emplace_back(opcode::ret, operand{0});
 
-  bytecode bc = analyse_and_compile_cfg(g);
+  bytecode bc = analyse_and_compile_cfg(g).bc;
   std::vector<instruction> instrs = bytecode_to_instructions(bc);
 
   expect_cfg_equiv(
@@ -871,4 +871,17 @@ TEST_F(compiler, compile_conditional_jump) {
       {opcode::add, operand{2}, operand{2}, operand{2}}        // 11
     }
   );
+}
+
+TEST_F(compiler, cfg_compilation_preserves_debug_info) {
+  cfg g(2);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0}); // 0
+  g[1].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{0}); // 4
+  g[1].body.emplace_back(opcode::add, operand{2}, operand{2}, operand{0}); // 8
+  g[1].body.emplace_back(opcode::call, operand{1}, operand{0}, operand{1}, // 12
+                                       operand{0});
+  g[1].debug_info[2].inlined_call_chain = {"foo", "bar"};
+
+  auto [bc, di] = analyse_and_compile_cfg(g);
+  EXPECT_EQ(di[12].inlined_call_chain, (std::vector<std::string>{"foo", "bar"}));
 }
