@@ -36,7 +36,7 @@ void
 find_incoming_blocks(cfg&);
 
 bytecode
-cfg_to_bytecode(cfg&);
+analyse_and_compile_cfg(cfg&);
 
 } // namespace insider
 

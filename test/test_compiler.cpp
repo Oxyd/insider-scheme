@@ -780,7 +780,7 @@ TEST_F(compiler, find_incoming_blocks) {
 
 static void
 expect_cfg_equiv(cfg& g, std::vector<instruction> const& ref_instrs) {
-  auto cfg_instrs = bytecode_to_instructions(cfg_to_bytecode(g));
+  auto cfg_instrs = bytecode_to_instructions(analyse_and_compile_cfg(g));
   EXPECT_EQ(cfg_instrs, ref_instrs);
 }
 
@@ -790,7 +790,7 @@ TEST_F(compiler, single_cfg_block_to_bytecode) {
   g[0].body.emplace_back(opcode::add, operand{0}, operand{2}, operand{0});
   g[0].body.emplace_back(opcode::ret, operand{0});
 
-  bytecode bc = cfg_to_bytecode(g);
+  bytecode bc = analyse_and_compile_cfg(g);
   std::vector<instruction> instrs = bytecode_to_instructions(bc);
 
   expect_cfg_equiv(

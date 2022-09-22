@@ -77,7 +77,7 @@ encode_block(bytecode& bc, basic_block const& block, cfg const& g) {
 }
 
 bytecode
-cfg_to_bytecode(cfg& g) {
+analyse_and_compile_cfg(cfg& g) {
   find_block_lengths_and_offsets(g);
 
   bytecode result;
