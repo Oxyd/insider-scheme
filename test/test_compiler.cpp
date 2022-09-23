@@ -911,21 +911,33 @@ TEST_F(compiler, unreachable_blocks_are_not_emitted) {
 }
 
 TEST_F(compiler, jumps_to_jumps_are_collapsed) {
-  cfg g(3);
+  cfg g(5);
   g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
-  g[0].ending = conditional_jump{operand{0}, 1};
-  g[1].ending = unconditional_jump{2};
-  g[2].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{1});
-  g[2].ending = conditional_jump{operand{0}, 1};
+  g[0].ending = conditional_jump{operand{0}, 2};
+
+  g[1].body.emplace_back(opcode::add, operand{3}, operand{3}, operand{3});
+
+  g[2].ending = unconditional_jump{4};
+
+  g[3].body.emplace_back(opcode::add, operand{2}, operand{2}, operand{2});
+
+  g[4].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{1});
+  g[4].ending = conditional_jump{operand{0}, 3};
 
   expect_cfg_equiv(
     g,
     {
       {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
-      {opcode::jump_unless, operand{0}, operand{9}},      // 4
-      {opcode::jump, operand{9}},                         // 7
-      {opcode::add, operand{1}, operand{1}, operand{1}},  // 9
-      {opcode::jump_unless, operand{0}, operand{9}}       // 13
+      {opcode::jump_unless, operand{0}, operand{17}},     // 4
+
+      {opcode::add, operand{3}, operand{3}, operand{3}},  // 7
+
+      {opcode::jump, operand{17}},                        // 11
+
+      {opcode::add, operand{2}, operand{2}, operand{2}},  // 13
+
+      {opcode::add, operand{1}, operand{1}, operand{1}},  // 17
+      {opcode::jump_unless, operand{0}, operand{13}}      // 21
     }
   );
 }
@@ -1022,6 +1034,41 @@ TEST_F(compiler, jump_after_tail_call_is_pruned) {
     g,
     {
       {opcode::tail_call, operand{0}, operand{0}, operand{0}}
+    }
+  );
+}
+
+TEST_F(compiler, jump_to_following_block_is_removed) {
+  cfg g(3);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
+  g[0].ending = unconditional_jump{1};
+  g[1].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{1});
+  g[1].ending = conditional_jump{operand{0}, 2};
+  g[2].body.emplace_back(opcode::add, operand{2}, operand{2}, operand{2});
+
+  expect_cfg_equiv(
+    g,
+    {
+      {opcode::add, operand{0}, operand{0}, operand{0}},
+      {opcode::add, operand{1}, operand{1}, operand{1}},
+      {opcode::add, operand{2}, operand{2}, operand{2}},
+    }
+  );
+}
+
+TEST_F(compiler, jump_that_collapses_to_the_following_block_is_removed) {
+  cfg g(3);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
+  g[0].ending = unconditional_jump{2};
+  g[1].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{1});
+  g[2].ending = unconditional_jump{1};
+
+  expect_cfg_equiv(
+    g,
+    {
+      {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
+      {opcode::add, operand{1}, operand{1}, operand{1}},  // 4
+      {opcode::jump, operand{4}}                          // 8
     }
   );
 }

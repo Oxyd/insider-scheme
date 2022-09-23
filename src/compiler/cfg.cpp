@@ -33,11 +33,29 @@ can_be_followed(basic_block const& block) {
              && !is_tail_call(block.body.back().opcode));
 }
 
+static std::size_t
+jump_target(cfg const& g, std::size_t idx) {
+  if (auto const* uj = std::get_if<unconditional_jump>(&g[idx].ending))
+    return uj->target_block;
+  else if (auto const* cj = std::get_if<conditional_jump>(&g[idx].ending))
+    return cj->target_block;
+  else {
+    assert(idx + 1 < g.size());
+    return idx + 1;
+  }
+}
+
+static bool
+is_pointless_jump(cfg const& g, std::size_t idx) {
+  return !std::holds_alternative<flow_off>(g[idx].ending)
+         && jump_target(g, idx) == idx + 1;
+}
+
 static void
-prune_impossible_jumps(cfg& g) {
-  for (basic_block& block : g)
-    if (!can_be_followed(block))
-      block.ending = flow_off{};
+prune_impossible_and_pointless_jumps(cfg& g) {
+  for (std::size_t i = 0; i < g.size(); ++i)
+    if (!can_be_followed(g[i]) || is_pointless_jump(g, i))
+      g[i].ending = flow_off{};
 }
 
 static void
@@ -61,17 +79,6 @@ find_incoming_blocks(cfg& g) {
 static bool
 is_collapsible(basic_block const& b) {
   return b.body.empty() && !std::holds_alternative<conditional_jump>(b.ending);
-}
-
-static std::size_t
-jump_target(cfg const& g, std::size_t idx) {
-  if (auto const* uj = std::get_if<unconditional_jump>(&g[idx].ending))
-    return uj->target_block;
-  else {
-    assert(std::holds_alternative<flow_off>(g[idx].ending));
-    assert(idx + 1 < g.size());
-    return idx + 1;
-  }
 }
 
 static std::size_t
@@ -116,22 +123,25 @@ collapse_return(basic_block& block, basic_block const& return_block) {
 }
 
 static void
-collapse_block(cfg& g, basic_block& block) {
+collapse_block(cfg& g, std::size_t block_idx) {
+  basic_block& block = g[block_idx];
   std::size_t original_target = ending_target(block.ending);
   std::size_t new_target = collapse_jump_target(g, original_target);
 
   if (is_return_block(g[new_target])
       && std::holds_alternative<unconditional_jump>(block.ending))
     collapse_return(block, g[new_target]);
+  else if (new_target == block_idx + 1)
+    block.ending = flow_off{};
   else
     change_target(block.ending, new_target);
 }
 
 static void
 collapse_jumps(cfg& g) {
-  for (basic_block& block : g)
-    if (!std::holds_alternative<flow_off>(block.ending))
-      collapse_block(g, block);
+  for (std::size_t i = 0; i < g.size(); ++i)
+    if (!std::holds_alternative<flow_off>(g[i].ending))
+      collapse_block(g, i);
 }
 
 static void
@@ -238,7 +248,7 @@ encode_block(bytecode_and_debug_info& bc_di, basic_block const& block,
 bytecode_and_debug_info
 analyse_and_compile_cfg(cfg& g) {
   prune_dead_code(g);
-  prune_impossible_jumps(g);
+  prune_impossible_and_pointless_jumps(g);
   collapse_jumps(g);
   find_incoming_blocks(g);
   prune_unreachable_blocks(g);
