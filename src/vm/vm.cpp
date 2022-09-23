@@ -434,13 +434,12 @@ convert_tail_args(context& ctx, frame_reference frame, ptr<procedure> proc,
 
 static instruction_pointer
 current_procedure_bytecode_base(execution_state const& state) {
-  return assume<closure>(current_frame(state.stack).callable())->procedure()
-         ->code.data();
+  return assume<closure>(state.stack->callable())->procedure()->code.data();
 }
 
 static void
-jump_to_procedure(execution_state& state) {
-  state.ip = current_procedure_bytecode_base(state);
+reload_ip(execution_state& state) {
+  state.bytecode_base = state.ip = current_procedure_bytecode_base(state);
 }
 
 static frame_reference
@@ -504,7 +503,7 @@ push_scheme_call_frame(ptr<insider::closure> closure, execution_state& state,
   frame_reference new_frame = make_scheme_frame(closure, state, is_tail);
   push_closure(closure, new_frame);
 
-  jump_to_procedure(state);
+  reload_ip(state);
 }
 
 static frame_reference
@@ -562,6 +561,8 @@ pop_frame(execution_state& state) {
   instruction_pointer previous_ip = current_frame_previous_ip(state.stack);
 
   state.stack->pop_frame();
+  if (!state.stack->empty() && !is_native_frame(current_frame(state.stack)))
+    state.bytecode_base = current_procedure_bytecode_base(state);
   state.ip = previous_ip;
 }
 
@@ -680,7 +681,7 @@ ret(execution_state& state) {
 static void
 jump(execution_state& state) {
   operand offset = read_operand(state);
-  state.ip = current_procedure_bytecode_base(state) + offset;
+  state.ip = state.bytecode_base + offset;
 }
 
 static void
@@ -688,7 +689,7 @@ jump_unless(execution_state& state) {
   ptr<> test_value = state.stack->local(read_operand(state));
   operand offset = read_operand(state);
   if (test_value == state.ctx.constants->f)
-    state.ip = current_procedure_bytecode_base(state) + offset;
+    state.ip = state.bytecode_base + offset;
 }
 
 static void
@@ -1015,7 +1016,7 @@ make_scheme_frame_for_call_from_native(execution_state& state,
                                              new_frame, arguments);
   push_closure(closure, new_frame);
 
-  state.ip = current_procedure_bytecode_base(state);
+  reload_ip(state);
   return new_frame;
 }
 
@@ -1283,7 +1284,7 @@ make_tail_call_frame_for_call_from_native(context& ctx, ptr<> callable,
 static void
 install_call_frame(execution_state& state, frame_reference frame) {
   if (!is_native_frame(frame))
-    state.ip = current_procedure_bytecode_base(state);
+    reload_ip(state);
 }
 
 ptr<tail_call_tag_type>
