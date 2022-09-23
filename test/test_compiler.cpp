@@ -222,6 +222,32 @@ TEST_F(compiler, compile_if) {
     )"
   );
   EXPECT_EQ(expect<integer>(result11).value(), 15);
+
+  ptr<> result12 = eval(
+    R"(
+      (if (eq? 'foo 'foo)
+          (if (eq? 'bar 'bar)
+              #t
+              #f)
+          #f)
+    )",
+    no_optimisations
+  );
+  EXPECT_EQ(result12, ctx.constants->t);
+
+  ptr<> result13 = eval_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda (x)
+          x))
+
+      (foo (if #t (if #t #t #f) #f))
+    )",
+    no_optimisations
+  );
+  EXPECT_EQ(result13, ctx.constants->t);
 }
 
 TEST_F(compiler, let_does_not_mutate_variables) {
