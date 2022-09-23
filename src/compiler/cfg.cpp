@@ -15,6 +15,9 @@ find_incoming_blocks(cfg& g) {
       if (i + 1 < g.size())
         g[i + 1].incoming_blocks.emplace(i);
     }
+
+  if (!g.empty())
+    g.front().incoming_blocks.emplace(entry_block_idx);
 }
 
 static std::size_t
@@ -40,12 +43,13 @@ ending_length(basic_block::ending_type e) {
 static void
 find_block_lengths_and_offsets(cfg& g) {
   std::size_t offset = 0;
-  for (basic_block& block : g) {
-    block.start_offset = offset;
-    block.bytecode_length = instructions_size(block.body)
-                            + ending_length(block.ending);
-    offset += block.bytecode_length;
-  }
+  for (basic_block& block : g)
+    if (!block.incoming_blocks.empty()) {
+      block.start_offset = offset;
+      block.bytecode_length = instructions_size(block.body)
+        + ending_length(block.ending);
+      offset += block.bytecode_length;
+    }
 }
 
 static void
@@ -89,11 +93,13 @@ encode_block(bytecode_and_debug_info& bc_di, basic_block const& block,
 
 bytecode_and_debug_info
 analyse_and_compile_cfg(cfg& g) {
+  find_incoming_blocks(g);
   find_block_lengths_and_offsets(g);
 
   bytecode_and_debug_info result;
   for (basic_block const& b : g)
-    encode_block(result, b, g);
+    if (!b.incoming_blocks.empty())
+      encode_block(result, b, g);
   return result;
 }
 

@@ -4,6 +4,7 @@
 #include "compiler/debug_info.hpp"
 #include "vm/bytecode.hpp"
 
+#include <limits>
 #include <unordered_set>
 #include <variant>
 
@@ -19,6 +20,8 @@ struct conditional_jump {
   operand     test_register;
   std::size_t target_block;
 };
+
+constexpr std::size_t entry_block_idx = std::numeric_limits<std::size_t>::max();
 
 struct basic_block {
   using ending_type

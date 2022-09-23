@@ -796,7 +796,7 @@ TEST_F(compiler, find_incoming_blocks) {
   find_incoming_blocks(g);
 
   using bs = std::unordered_set<std::size_t>;
-  EXPECT_EQ(g[0].incoming_blocks, bs{});
+  EXPECT_EQ(g[0].incoming_blocks, bs{entry_block_idx});
   EXPECT_EQ(g[1].incoming_blocks, bs{0});
   EXPECT_EQ(g[2].incoming_blocks, bs{});
   EXPECT_EQ(g[3].incoming_blocks, (bs{1, 2}));
@@ -892,7 +892,7 @@ TEST_F(compiler, compile_conditional_jump) {
     g,
     {
       {opcode::add, operand{0}, operand{0}, operand{0}},       // 0
-      {opcode::jump_unless, operand{0}, operand{11}}, // 4
+      {opcode::jump_unless, operand{0}, operand{11}},          // 4
       {opcode::add, operand{1}, operand{1}, operand{1}},       // 7
       {opcode::add, operand{2}, operand{2}, operand{2}}        // 11
     }
@@ -910,4 +910,21 @@ TEST_F(compiler, cfg_compilation_preserves_debug_info) {
 
   auto [bc, di] = analyse_and_compile_cfg(g);
   EXPECT_EQ(di[12].inlined_call_chain, (std::vector<std::string>{"foo", "bar"}));
+}
+
+TEST_F(compiler, unreachable_blocks_are_not_emitted) {
+  cfg g(3);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
+  g[0].ending = unconditional_jump{2};
+  g[1].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{1});
+  g[2].body.emplace_back(opcode::add, operand{2}, operand{2}, operand{2});
+
+  expect_cfg_equiv(
+    g,
+    {
+      {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
+      {opcode::jump, operand{6}},                         // 4
+      {opcode::add, operand{2}, operand{2}, operand{2}}   // 6
+    }
+  );
 }
