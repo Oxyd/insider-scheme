@@ -42,9 +42,6 @@ struct bytecode_and_debug_info {
   debug_info_map debug_info;
 };
 
-void
-find_incoming_blocks(cfg&);
-
 bytecode_and_debug_info
 analyse_and_compile_cfg(cfg&);
 

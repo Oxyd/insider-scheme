@@ -2,7 +2,7 @@
 
 namespace insider {
 
-void
+static void
 find_incoming_blocks(cfg& g) {
   for (std::size_t i = 0; i < g.size(); ++i)
     if (std::get_if<flow_off>(&g[i].ending)) {
