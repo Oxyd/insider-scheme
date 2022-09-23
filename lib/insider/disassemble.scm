@@ -79,79 +79,17 @@
       ""
       (make-string (- target-column current-column) #\space)))
 
-(define (first-operand instr)
-  (car (instruction-operands instr)))
-
-(define (second-operand instr)
-  (cadr (instruction-operands instr)))
-
-(define (jump-target instruction-record)
-  (let* ((location (car instruction-record))
-         (size (cadr instruction-record))
-         (next-location (+ location size))
-         (instr (caddr instruction-record))
-         (mnemonic (instruction-mnemonic instr)))
-    (case mnemonic
-      ((jump)
-       (+ next-location (first-operand instr)))
-      ((jump-back)
-       (- next-location (first-operand instr)))
-      ((jump-unless)
-       (+ next-location (second-operand instr)))
-      (('jump-back-unless)
-       (- next-location (second-operand instr)))
-      (else #f))))
-
-(define (prepend-unique x lst compare)
-  (if (member x lst compare)
-      lst
-      (cons x lst)))
-
-(define (prepend-unique/eq? x lst)
-  (prepend-unique x lst eq?))
-
-(define (prepend-unique/eqv? x lst)
-  (prepend-unique x lst eqv?))
-
-(define (build-jump-alist f)
-  (define instrs (procedure-bytecode f))
- 
-  (define jump-targets
-    (let loop ((result '())
-               (instrs instrs))
-      (if (null? instrs)
-          result
-          (loop (let ((target (jump-target (car instrs))))
-                  (if target
-                      (prepend-unique/eqv? target result)
-                      result))
-                (cdr instrs)))))
-
-  (let loop ((targets jump-targets)
-             (current (length jump-targets))
-             (result '()))
-    (if (null? targets)
-        (reverse result)
-        (loop (cdr targets)
-              (- current 1)
-              (cons (cons (car targets)
-                          (string-append "L" (number->string current)))
-                    result)))))
-
-(define (instruction-comment instruction-record jump-alist)
+(define (instruction-comment instruction-record)
   (let* ((instr (caddr instruction-record))
          (related-static (related-static instr))
-         (related-name (related-top-level-name instr))
-         (target (jump-target instruction-record)))
+         (related-name (related-top-level-name instr)))
     (cond
      (related-static (format-related 'static related-static))
      (related-name (format-related 'top-level related-name))
-     (target (string-append "=> " (cdr (assv target jump-alist))))
      (else #f))))
 
-(define (disassemble-procedure f number-kind number)
-  (display (let ((name (procedure-name f)))
-             (if name name "<lambda>")))
+(define (display-procedure-header f number-kind number)
+  (display (or (procedure-name f) "<lambda>"))
 
   (when number
     (display " (")
@@ -161,34 +99,35 @@
     (display ")"))
 
   (display #\:)
-  (newline)
+  (newline))
 
-  (let ((jump-alist (build-jump-alist f)))
-    (let loop ((instruction-records (procedure-bytecode f)))
-      (unless (null? instruction-records)
-        (let* ((record (car instruction-records))
-               (location (car record))
-               (instr (caddr record)))
-          (let ((location-label (assv location jump-alist)))
-            (if location-label
-                (begin
-                  (display (cdr location-label))
-                  (display (make-indent instruction-column
-                                        (string-length (cdr location-label)))))
-                (display (make-indent instruction-column 0))))
+(define (display-location-and-indent location)
+  (let ((location-string (number->string location)))
+    (display location-string)
+    (display (make-indent instruction-column (string-length location-string)))))
 
-          (let ((formatted-instr (format-instruction instr)))
-            (display formatted-instr)
+(define (disassemble-procedure f number-kind number)
+  (display-procedure-header f number-kind number)
 
-            (let ((comment (instruction-comment record jump-alist)))
-              (when comment
-                (display (make-indent comment-column
-                                      (string-length formatted-instr)))
-                (display " ; ")
-                (display comment))))
+  (let loop ((instruction-records (procedure-bytecode f)))
+    (unless (null? instruction-records)
+      (let* ((record (car instruction-records))
+             (location (car record))
+             (instr (caddr record)))
+        (display-location-and-indent location)
 
-          (newline)
-          (loop (cdr instruction-records)))))))
+        (let ((formatted-instr (format-instruction instr)))
+          (display formatted-instr)
+
+          (let ((comment (instruction-comment record)))
+            (when comment
+              (display (make-indent comment-column
+                                    (string-length formatted-instr)))
+              (display " ; ")
+              (display comment))))
+
+        (newline)
+        (loop (cdr instruction-records))))))
 
 (define (related-procedure record recurse-to-top-levels?)
   (define (find getter name)
