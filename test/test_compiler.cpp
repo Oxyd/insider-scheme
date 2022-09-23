@@ -909,3 +909,45 @@ TEST_F(compiler, unreachable_blocks_are_not_emitted) {
     }
   );
 }
+
+TEST_F(compiler, jumps_to_jumps_are_collapsed) {
+  cfg g(3);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
+  g[0].ending = conditional_jump{operand{0}, 1};
+  g[1].ending = unconditional_jump{2};
+  g[2].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{1});
+  g[2].ending = conditional_jump{operand{0}, 1};
+
+  expect_cfg_equiv(
+    g,
+    {
+      {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
+      {opcode::jump_unless, operand{0}, operand{9}},      // 4
+      {opcode::jump, operand{9}},                         // 7
+      {opcode::add, operand{1}, operand{1}, operand{1}},  // 9
+      {opcode::jump_unless, operand{0}, operand{9}}       // 13
+    }
+  );
+}
+
+TEST_F(compiler,
+       blocks_that_are_skipped_due_to_jump_collapsing_are_not_emitted) {
+  cfg g(4);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
+  g[0].ending = unconditional_jump{1};
+  g[1].ending = unconditional_jump{3};
+  g[2].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{1});
+  g[3].body.emplace_back(opcode::add, operand{2}, operand{2}, operand{2});
+  g[3].ending = unconditional_jump{2};
+
+  expect_cfg_equiv(
+    g,
+    {
+      {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
+      {opcode::jump, operand{10}},                        // 4
+      {opcode::add, operand{1}, operand{1}, operand{1}},  // 6
+      {opcode::add, operand{2}, operand{2}, operand{2}},  // 10
+      {opcode::jump, operand{6}}                          // 14
+    }
+  );
+}

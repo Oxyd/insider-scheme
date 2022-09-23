@@ -1,5 +1,7 @@
 #include "compiler/cfg.hpp"
 
+#include <cassert>
+
 namespace insider {
 
 static void
@@ -18,6 +20,53 @@ find_incoming_blocks(cfg& g) {
 
   if (!g.empty())
     g.front().incoming_blocks.emplace(entry_block_idx);
+}
+
+static bool
+is_collapsible(basic_block const& b) {
+  return b.body.empty() && std::holds_alternative<unconditional_jump>(b.ending);
+}
+
+static std::size_t
+collapse_jump_target(cfg const& g, std::size_t target) {
+  while (is_collapsible(g[target]))
+    target = std::get<unconditional_jump>(g[target].ending).target_block;
+  return target;
+}
+
+static std::size_t
+ending_target(basic_block::ending_type e) {
+  if (auto* uj = std::get_if<unconditional_jump>(&e))
+    return uj->target_block;
+  else if (auto* cj = std::get_if<conditional_jump>(&e))
+    return cj->target_block;
+
+  assert(false);
+  return 0;
+}
+
+static void
+change_target(basic_block::ending_type& e, std::size_t new_target) {
+  if (auto* uj = std::get_if<unconditional_jump>(&e))
+    uj->target_block = new_target;
+  else if (auto* cj = std::get_if<conditional_jump>(&e))
+    cj->target_block = new_target;
+  else
+    assert(false);
+}
+
+static void
+collapse_block(cfg& g, basic_block& block) {
+  std::size_t original_target = ending_target(block.ending);
+  std::size_t new_target = collapse_jump_target(g, original_target);
+  change_target(block.ending, new_target);
+}
+
+static void
+collapse_jumps(cfg& g) {
+  for (basic_block& block : g)
+    if (!std::holds_alternative<flow_off>(block.ending))
+      collapse_block(g, block);
 }
 
 static std::size_t
@@ -93,6 +142,7 @@ encode_block(bytecode_and_debug_info& bc_di, basic_block const& block,
 
 bytecode_and_debug_info
 analyse_and_compile_cfg(cfg& g) {
+  collapse_jumps(g);
   find_incoming_blocks(g);
   find_block_lengths_and_offsets(g);
 
