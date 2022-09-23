@@ -973,3 +973,16 @@ TEST_F(compiler, jumps_to_rets_are_collapsed) {
     }
   );
 }
+
+TEST_F(compiler, code_after_tail_calls_is_pruned) {
+  cfg g(1);
+  g[0].body.emplace_back(opcode::tail_call, operand{0}, operand{0}, operand{0});
+  g[0].body.emplace_back(opcode::ret, operand{0});
+
+  expect_cfg_equiv(
+    g,
+    {
+      {opcode::tail_call, operand{0}, operand{0}, operand{0}}
+    }
+  );
+}

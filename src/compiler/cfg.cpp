@@ -4,6 +4,28 @@
 
 namespace insider {
 
+static bool
+is_tail_call(opcode oc) {
+  return oc == opcode::tail_call
+         || oc == opcode::tail_call_top_level
+         || oc == opcode::tail_call_static;
+}
+
+static void
+prune_dead_code(basic_block& block) {
+  for (auto instr = block.body.begin(); instr != block.body.end(); ++instr)
+    if (is_tail_call(instr->opcode)) {
+      block.body.erase(instr + 1, block.body.end());
+      return;
+    }
+}
+
+static void
+prune_dead_code(cfg& g) {
+  for (basic_block& block : g)
+    prune_dead_code(block);
+}
+
 static void
 find_incoming_blocks(cfg& g) {
   for (std::size_t i = 0; i < g.size(); ++i)
@@ -160,6 +182,7 @@ encode_block(bytecode_and_debug_info& bc_di, basic_block const& block,
 
 bytecode_and_debug_info
 analyse_and_compile_cfg(cfg& g) {
+  prune_dead_code(g);
   collapse_jumps(g);
   find_incoming_blocks(g);
   find_block_lengths_and_offsets(g);
