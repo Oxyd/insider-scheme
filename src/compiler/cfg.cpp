@@ -55,11 +55,29 @@ change_target(basic_block::ending_type& e, std::size_t new_target) {
     assert(false);
 }
 
+static bool
+is_return_block(basic_block const& block) {
+  return block.body.size() == 1 && block.body.front().opcode == opcode::ret;
+}
+
+static void
+collapse_return(basic_block& block, basic_block const& return_block) {
+  assert(return_block.body.size() == 1);
+
+  block.body.push_back(return_block.body.front());
+  block.ending = flow_off{};
+}
+
 static void
 collapse_block(cfg& g, basic_block& block) {
   std::size_t original_target = ending_target(block.ending);
   std::size_t new_target = collapse_jump_target(g, original_target);
-  change_target(block.ending, new_target);
+
+  if (is_return_block(g[new_target])
+      && std::holds_alternative<unconditional_jump>(block.ending))
+    collapse_return(block, g[new_target]);
+  else
+    change_target(block.ending, new_target);
 }
 
 static void

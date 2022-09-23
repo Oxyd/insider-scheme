@@ -951,3 +951,25 @@ TEST_F(compiler,
     }
   );
 }
+
+TEST_F(compiler, jumps_to_rets_are_collapsed) {
+  cfg g(4);
+  g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
+  g[0].ending = conditional_jump{operand{0}, 2};
+  g[1].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{1});
+  g[1].ending = unconditional_jump{3};
+  g[2].body.emplace_back(opcode::add, operand{2}, operand{2}, operand{2});
+  g[3].body.emplace_back(opcode::ret, operand{0});
+
+  expect_cfg_equiv(
+    g,
+    {
+      {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
+      {opcode::jump_unless, operand{0}, operand{13}},     // 4
+      {opcode::add, operand{1}, operand{1}, operand{1}},  // 7
+      {opcode::ret, operand{0}},                          // 11
+      {opcode::add, operand{2}, operand{2}, operand{2}},  // 13
+      {opcode::ret, operand{0}}                           // 17
+    }
+  );
+}
