@@ -986,3 +986,42 @@ TEST_F(compiler, code_after_tail_calls_is_pruned) {
     }
   );
 }
+
+TEST_F(compiler, block_whose_predecesors_end_in_ret_is_pruned) {
+  cfg g(2);
+  g[0].body.emplace_back(opcode::ret, operand{0});
+  g[1].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
+
+  expect_cfg_equiv(
+    g,
+    {
+      {opcode::ret, operand{0}}
+    }
+  );
+}
+
+TEST_F(compiler, jump_to_empty_block_followed_by_ret_is_collapsed) {
+  cfg g(3);
+  g[0].ending = unconditional_jump{1};
+  g[2].body.emplace_back(opcode::ret, operand{0});
+
+  expect_cfg_equiv(
+    g,
+    {
+      {opcode::ret, operand{0}}
+    }
+  );
+}
+
+TEST_F(compiler, jump_after_tail_call_is_pruned) {
+  cfg g(2);
+  g[0].body.emplace_back(opcode::tail_call, operand{0}, operand{0}, operand{0});
+  g[0].ending = unconditional_jump{1};
+
+  expect_cfg_equiv(
+    g,
+    {
+      {opcode::tail_call, operand{0}, operand{0}, operand{0}}
+    }
+  );
+}

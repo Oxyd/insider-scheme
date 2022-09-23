@@ -26,11 +26,25 @@ prune_dead_code(cfg& g) {
     prune_dead_code(block);
 }
 
+static bool
+can_be_followed(basic_block const& block) {
+  return block.body.empty()
+         || (block.body.back().opcode != opcode::ret
+             && !is_tail_call(block.body.back().opcode));
+}
+
+static void
+prune_impossible_jumps(cfg& g) {
+  for (basic_block& block : g)
+    if (!can_be_followed(block))
+      block.ending = flow_off{};
+}
+
 static void
 find_incoming_blocks(cfg& g) {
   for (std::size_t i = 0; i < g.size(); ++i)
     if (std::get_if<flow_off>(&g[i].ending)) {
-      if (i + 1 < g.size())
+      if (i + 1 < g.size() && can_be_followed(g[i]))
         g[i + 1].incoming_blocks.emplace(i);
     } else if (auto* uj = std::get_if<unconditional_jump>(&g[i].ending))
       g[uj->target_block].incoming_blocks.emplace(i);
@@ -46,13 +60,24 @@ find_incoming_blocks(cfg& g) {
 
 static bool
 is_collapsible(basic_block const& b) {
-  return b.body.empty() && std::holds_alternative<unconditional_jump>(b.ending);
+  return b.body.empty() && !std::holds_alternative<conditional_jump>(b.ending);
+}
+
+static std::size_t
+jump_target(cfg const& g, std::size_t idx) {
+  if (auto const* uj = std::get_if<unconditional_jump>(&g[idx].ending))
+    return uj->target_block;
+  else {
+    assert(std::holds_alternative<flow_off>(g[idx].ending));
+    assert(idx + 1 < g.size());
+    return idx + 1;
+  }
 }
 
 static std::size_t
 collapse_jump_target(cfg const& g, std::size_t target) {
   while (is_collapsible(g[target]))
-    target = std::get<unconditional_jump>(g[target].ending).target_block;
+    target = jump_target(g, target);
   return target;
 }
 
@@ -109,6 +134,37 @@ collapse_jumps(cfg& g) {
       collapse_block(g, block);
 }
 
+static void
+clear_block(basic_block& block) {
+  block.body.clear();
+  block.ending = flow_off{};
+}
+
+static bool
+remove_incoming_edges_from(cfg& g, std::size_t from) {
+  bool removed_any = false;
+  for (basic_block& block : g) {
+    std::size_t removed_count = block.incoming_blocks.erase(from);
+    removed_any = removed_any || removed_count > 0;
+  }
+  return removed_any;
+}
+
+static void
+prune_unreachable_blocks(cfg& g) {
+  bool any_change{};
+  do {
+    any_change = false;
+
+    for (std::size_t i = 0; i < g.size(); ++i)
+      if (g[i].incoming_blocks.empty()) {
+        clear_block(g[i]);
+        bool removed = remove_incoming_edges_from(g, i);
+        any_change = any_change || removed;
+      }
+  } while (any_change);
+}
+
 static std::size_t
 instructions_size(std::vector<instruction> const& instrs) {
   std::size_t result = 0;
@@ -132,13 +188,12 @@ ending_length(basic_block::ending_type e) {
 static void
 find_block_lengths_and_offsets(cfg& g) {
   std::size_t offset = 0;
-  for (basic_block& block : g)
-    if (!block.incoming_blocks.empty()) {
-      block.start_offset = offset;
-      block.bytecode_length = instructions_size(block.body)
-        + ending_length(block.ending);
-      offset += block.bytecode_length;
-    }
+  for (basic_block& block : g) {
+    block.start_offset = offset;
+    block.bytecode_length = instructions_size(block.body)
+      + ending_length(block.ending);
+    offset += block.bytecode_length;
+  }
 }
 
 static void
@@ -183,14 +238,15 @@ encode_block(bytecode_and_debug_info& bc_di, basic_block const& block,
 bytecode_and_debug_info
 analyse_and_compile_cfg(cfg& g) {
   prune_dead_code(g);
+  prune_impossible_jumps(g);
   collapse_jumps(g);
   find_incoming_blocks(g);
+  prune_unreachable_blocks(g);
   find_block_lengths_and_offsets(g);
 
   bytecode_and_debug_info result;
   for (basic_block const& b : g)
-    if (!b.incoming_blocks.empty())
-      encode_block(result, b, g);
+    encode_block(result, b, g);
   return result;
 }
 
