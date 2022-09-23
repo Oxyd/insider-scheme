@@ -1,9 +1,10 @@
 (library (insider disassemble))
-(import (insider syntax) (insider basic-procedures) (insider io) (insider string) (insider list)
-        (insider vector) (insider numeric)
+(import (insider syntax) (insider basic-procedures) (insider io)
+        (insider string) (insider list) (insider vector) (insider numeric)
         (only (insider internal)
-              procedure-bytecode procedure-name opcodes instruction-opcode instruction-operands
-              top-level-name static-value top-level-value closure-procedure))
+              procedure-bytecode procedure-name opcodes instruction-opcode
+              instruction-operands top-level-name static-value top-level-value
+              closure-procedure))
 (export disassemble)
 
 (define instruction-column 8)
@@ -59,7 +60,8 @@
 (define (format-instruction instr)
   (string-append (format-mnemonic (instruction-mnemonic instr))
                  " "
-                 (string-join (map number->string (instruction-operands instr)) ", ")))
+                 (string-join (map number->string (instruction-operands instr))
+                              ", ")))
 
 (define (format-related kind value)
   (string-append (symbol->string kind)
@@ -171,7 +173,8 @@
             (if location-label
                 (begin
                   (display (cdr location-label))
-                  (display (make-indent instruction-column (string-length (cdr location-label)))))
+                  (display (make-indent instruction-column
+                                        (string-length (cdr location-label)))))
                 (display (make-indent instruction-column 0))))
 
           (let ((formatted-instr (format-instruction instr)))
@@ -179,7 +182,8 @@
 
             (let ((comment (instruction-comment record jump-alist)))
               (when comment
-                (display (make-indent comment-column (string-length formatted-instr)))
+                (display (make-indent comment-column
+                                      (string-length formatted-instr)))
                 (display " ; ")
                 (display comment))))
 
@@ -206,7 +210,8 @@
              (result '()))
     (if (null? instruction-records)
         result
-        (let ((related (related-procedure (car instruction-records) recurse-to-top-levels?)))
+        (let ((related (related-procedure (car instruction-records)
+                                          recurse-to-top-levels?)))
           (loop (cdr instruction-records)
                 (if related
                     (cons related result)
@@ -218,7 +223,8 @@
     (if (null? new)
         result
         (loop (cdr new)
-              (if (or (member (car new) result (lambda (x y) (eq? (caddr x) (caddr y))))
+              (if (or (member (car new) result
+                              (lambda (x y) (eq? (caddr x) (caddr y))))
                       (memq (caddr (car new)) done))
                   result
                   (cons (car new) result))))))
@@ -241,4 +247,5 @@
             (loop done*
                   (add-to-do (cdr to-do)
                              done*
-                             (find-related-procedures current-proc done* to-do recurse-to-top-levels?)))))))))
+                             (find-related-procedures current-proc done* to-do
+                                                      recurse-to-top-levels?)))))))))
