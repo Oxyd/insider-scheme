@@ -28,10 +28,10 @@ instructions_size(std::vector<instruction> const& instrs) {
 static std::size_t
 ending_length(basic_block::ending_type e) {
   if (std::holds_alternative<unconditional_jump>(e))
-    return instruction_size({opcode::jump_absolute, operand{}});
+    return instruction_size({opcode::jump, operand{}});
   else if (std::holds_alternative<conditional_jump>(e))
     return instruction_size(
-      {opcode::jump_absolute_unless, operand{}, operand{}}
+      {opcode::jump_unless, operand{}, operand{}}
     );
   else
     return 0;
@@ -54,14 +54,14 @@ encode_ending(bytecode&, flow_off, cfg const&) { }
 static void
 encode_ending(bytecode& bc, unconditional_jump uj, cfg const& g) {
   operand target = g[uj.target_block].start_offset;
-  encode_instruction(bc, {opcode::jump_absolute, target});
+  encode_instruction(bc, {opcode::jump, target});
 }
 
 static void
 encode_ending(bytecode& bc, conditional_jump cj, cfg const& g) {
   operand target = g[cj.target_block].start_offset;
   encode_instruction(bc,
-                     {opcode::jump_absolute_unless, cj.test_register, target});
+                     {opcode::jump_unless, cj.test_register, target});
 }
 
 static void

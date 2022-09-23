@@ -194,10 +194,10 @@ TEST_F(interpreter, exec_loop) {
         {opcode::set, operand{3}, operand{0}},                   // 9
         {opcode::set, operand{3}, operand{1}},                   // 12
         {opcode::less, operand{1}, operand{4}, operand{2}},      // 15
-        {opcode::jump_absolute_unless, operand{2}, operand{32}}, // 19
+        {opcode::jump_unless, operand{2}, operand{32}}, // 19
         {opcode::add, operand{0}, operand{1}, operand{0}},       // 22
         {opcode::add, operand{1}, operand{5}, operand{1}},       // 26
-        {opcode::jump_absolute, operand{15}},                    // 30
+        {opcode::jump, operand{15}},                    // 30
         {opcode::ret, operand{0}}                                // 32
       }
     ),
