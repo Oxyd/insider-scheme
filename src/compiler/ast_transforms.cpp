@@ -919,16 +919,30 @@ build_top_level_procedure_graph(ptr<sequence_expression> top_level) {
 
 static ptr<top_level_variable>
 find_procedure_with_least_number_of_callees(
-  top_level_procedure_graph const& graph
+  top_level_procedure_graph const& graph,
+  ptr<sequence_expression> top_level
 ) {
   std::size_t min_num_callees = std::numeric_limits<std::size_t>::max();
   ptr<top_level_variable> result;
 
-  for (auto const& [var, info] : graph)
-    if (info.callees.size() < min_num_callees) {
-      result = var;
-      min_num_callees = info.callees.size();
-    }
+  // Iterating over the top level procedures might seem pointless and
+  // inefficient here, and indeed it is inefficient. However, the order in which
+  // things appear in top_level is well-defined, unlike the order of iteration
+  // of graph because that's an unordered_map and it uses variable addresses
+  // as keys.
+  //
+  // Having a well-defined order of inlining makes the intepreter deterministic,
+  // which is helpful for debugging. The top level should be relatively small
+  // anyway, likely few hundred to low thousands of definitions on the top end.
+
+  for (ptr<top_level_set_expression> set : top_level_procedures(top_level)) {
+    ptr<top_level_variable> var = set->target();
+    if (auto info = graph.find(var); info != graph.end())
+      if (info->second.callees.size() < min_num_callees) {
+        result = var;
+        min_num_callees = info->second.callees.size();
+      }
+  }
 
   return result;
 }
@@ -948,10 +962,11 @@ remove_procedure(top_level_procedure_graph& graph,
 }
 
 static std::vector<ptr<top_level_variable>>
-sort_top_level_procedure_graph(top_level_procedure_graph graph) {
+sort_top_level_procedure_graph(top_level_procedure_graph graph,
+                               ptr<sequence_expression> top_level) {
   std::vector<ptr<top_level_variable>> result;
   while (!graph.empty()) {
-    auto proc = find_procedure_with_least_number_of_callees(graph);
+    auto proc = find_procedure_with_least_number_of_callees(graph, top_level);
     result.push_back(proc);
     remove_procedure(graph, proc);
   }
@@ -993,7 +1008,8 @@ inline_top_level(context& ctx,
 expression
 inline_top_level(context& ctx, ptr<sequence_expression> top_level) {
   auto inlining_order
-    = sort_top_level_procedure_graph(build_top_level_procedure_graph(top_level));
+    = sort_top_level_procedure_graph(build_top_level_procedure_graph(top_level),
+                                     top_level);
   auto procedure_map = build_top_level_procedure_map(top_level);
 
   for (auto var : inlining_order)
