@@ -1199,7 +1199,10 @@ to_float_value(ptr<> x) {
 
 static ptr<floating_point>
 make_float(context& ctx, ptr<> x) {
-  return make<floating_point>(ctx, to_float_value(x));
+  if (auto fp = match<floating_point>(x))
+    return fp;
+  else
+    return make<floating_point>(ctx, to_float_value(x));
 }
 
 template <auto F>
