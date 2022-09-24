@@ -56,15 +56,41 @@ can_be_followed(basic_block const& block) {
 }
 
 static bool
-is_pointless_jump(cfg const& g, std::size_t idx) {
+is_jump_to_following_block(cfg const& g, std::size_t idx) {
   return !std::holds_alternative<flow_off>(g[idx].ending)
          && jump_target(g, idx) == idx + 1;
+}
+
+static bool
+is_end_of_program(cfg const& g, std::size_t idx) {
+  while (idx < g.size()) {
+    if (!g[idx].body.empty()
+        || !std::holds_alternative<flow_off>(g[idx].ending))
+      return false;
+
+    ++idx;
+  }
+
+  return true;
+}
+
+// Jump to end (i.e. to flow off the end of a procedure) is not valid and would
+// crash the VM. The compiler will sometimes emit them after tail-calls which
+// means they won't be executed anyway.
+//
+// Rather than detect whether such an invalid jump can ever be taken, we'll
+// assume that it can't and remove them outright.
+static bool
+is_jump_to_end_of_program(cfg const& g, std::size_t idx) {
+  return !std::holds_alternative<flow_off>(g[idx].ending)
+         && is_end_of_program(g, jump_target(g, idx));
 }
 
 static void
 prune_impossible_and_pointless_jumps(cfg& g) {
   for (std::size_t i = 0; i < g.size(); ++i)
-    if (!can_be_followed(g[i]) || is_pointless_jump(g, i))
+    if (!can_be_followed(g[i]) || is_jump_to_following_block(g, i)
+        || is_jump_to_end_of_program(g, i))
       g[i].ending = flow_off{};
 }
 
@@ -87,13 +113,14 @@ find_incoming_blocks(cfg& g) {
 }
 
 static bool
-is_collapsible(basic_block const& b) {
-  return b.body.empty() && !std::holds_alternative<conditional_jump>(b.ending);
+can_be_skipped(basic_block const& block) {
+  return block.body.empty()
+         && !std::holds_alternative<conditional_jump>(block.ending);
 }
 
 static std::size_t
 collapse_jump_target(cfg const& g, std::size_t target) {
-  while (is_collapsible(g[target]))
+  while (can_be_skipped(g[target]))
     target = jump_target(g, target);
   return target;
 }

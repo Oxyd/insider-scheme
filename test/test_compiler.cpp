@@ -1072,3 +1072,20 @@ TEST_F(compiler, jump_that_collapses_to_the_following_block_is_removed) {
     }
   );
 }
+
+TEST_F(compiler, pointless_jump_to_end_from_unreachable_block_is_removed) {
+  cfg g(6);
+  g[0].ending = conditional_jump{operand{0}, 3};
+  g[1].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
+  g[2].ending = unconditional_jump{4};
+  g[3].body.emplace_back(opcode::tail_call, operand{0}, operand{0}, operand{0});
+
+  expect_cfg_equiv(
+    g,
+    {
+      {opcode::jump_unless, operand{0}, operand{7}},           // 0
+      {opcode::add, operand{0}, operand{0}, operand{0}},       // 3
+      {opcode::tail_call, operand{0}, operand{0}, operand{0}}  // 7
+    }
+  );
+}
