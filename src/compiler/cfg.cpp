@@ -4,30 +4,6 @@
 
 namespace insider {
 
-static bool
-is_empty(basic_block const& block) {
-  return block.body.empty() && std::holds_alternative<flow_off>(block.ending);
-}
-
-static std::unordered_map<std::size_t, std::size_t>
-remove_empty_blocks(cfg& g) {
-  std::unordered_map<std::size_t, std::size_t> block_renames;
-
-  std::size_t original_index = 0;
-  std::size_t current_index = 0;
-  while (current_index < g.size()) {
-    block_renames[original_index] = current_index;
-
-    if (is_empty(g[current_index]))
-      g.erase(g.begin() + current_index);
-    else
-      ++current_index;
-    ++original_index;
-  }
-
-  return block_renames;
-}
-
 static std::size_t
 jump_target(cfg const& g, std::size_t idx) {
   if (auto const* uj = std::get_if<unconditional_jump>(&g[idx].ending))
@@ -48,22 +24,6 @@ change_target(basic_block::ending_type& e, std::size_t new_target) {
     cj->target_block = new_target;
   else
     assert(false);
-}
-
-static void
-rename_blocks(cfg& g,
-              std::unordered_map<std::size_t, std::size_t> const& renames) {
-  for (std::size_t i = 0; i < g.size(); ++i) {
-    basic_block& block = g[i];
-    if (!std::holds_alternative<flow_off>(block.ending))
-      change_target(block.ending, renames.at(jump_target(g, i)));
-  }
-}
-
-static void
-prune_empty_blocks(cfg& g) {
-  auto renames = remove_empty_blocks(g);
-  rename_blocks(g, renames);
 }
 
 static bool
@@ -287,7 +247,6 @@ encode_block(bytecode_and_debug_info& bc_di, basic_block const& block,
 
 bytecode_and_debug_info
 analyse_and_compile_cfg(cfg& g) {
-  prune_empty_blocks(g);
   prune_dead_code(g);
   prune_impossible_and_pointless_jumps(g);
   collapse_jumps(g);
