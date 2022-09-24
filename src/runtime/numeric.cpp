@@ -2064,7 +2064,7 @@ compare(context& ctx, ptr<> lhs, ptr<> rhs) {
     auto x = make_float(ctx, lhs);
     auto y = make_float(ctx, rhs);
 
-    if (is_nan(x) || is_nan(y))
+    if (std::isnan(x->value) || std::isnan(y->value))
       return general_compare_result::incomparable;
     else if (x->value < y->value)
       return general_compare_result::less;
