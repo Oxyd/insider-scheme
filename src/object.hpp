@@ -68,10 +68,17 @@ clamp_hash(word_type h) {
   return h & ((static_cast<word_type>(1) << hash_width) - 1);
 }
 
-inline std::vector<type_descriptor>&
+constexpr std::size_t max_types = 256;
+
+struct type_vector {
+  std::array<type_descriptor, max_types> types;
+  std::size_t                            size;
+};
+
+inline type_vector&
 types() {
   // Reserve first type descriptor for the invalid type descriptor.
-  static std::vector<type_descriptor> value{{}};
+  static type_vector value{{}, 1};
   return value;
 }
 
@@ -116,10 +123,10 @@ inline word_type
 object_type_index(ptr<> o) { return type_index(header_word(o)); }
 
 inline std::string
-type_name(word_type index) { return types()[index].name; }
+type_name(word_type index) { return types().types[index].name; }
 
 inline type_descriptor const&
-object_type(word_type header) { return types()[type_index(header)]; }
+object_type(word_type header) { return types().types[type_index(header)]; }
 
 inline type_descriptor const&
 object_type(ptr<> o) { return object_type(header_word(o)); }

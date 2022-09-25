@@ -262,7 +262,7 @@ trace(std::vector<ptr<>> const& permanent_roots,
             && object_color(member.value) == color::white
             && object_generation(member.value) <= max_generation) {
           assert(is_alive(member.value));
-          assert(object_type_index(member.value) < types().size());
+          assert(object_type_index(member.value) < types().size);
 
           stack.push_back(member.value);
           set_object_color(member.value, color::grey);
