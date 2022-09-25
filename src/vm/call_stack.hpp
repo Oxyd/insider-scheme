@@ -102,6 +102,11 @@ public:
   }
 
   ptr<stack_frame_extra_data>
+  extra() {
+    return frames_.back().extra;
+  }
+
+  ptr<stack_frame_extra_data>
   extra(frame_index frame) {
     return frames_[frame].extra;
   }

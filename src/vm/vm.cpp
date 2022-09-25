@@ -187,8 +187,8 @@ throw_if_wrong_number_of_args(ptr<> callable, std::size_t num_args) {
 }
 
 static void
-clear_native_continuations(frame_reference frame) {
-  if (auto e = frame.extra())
+clear_native_continuations(ptr<call_stack> stack) {
+  if (auto e = stack->extra())
     e->native_continuations.clear();
 }
 
@@ -398,12 +398,12 @@ actual_args_size(ptr<procedure> proc) {
 }
 
 static void
-push_closure(ptr<insider::closure> closure, frame_reference frame) {
+push_closure(ptr<insider::closure> closure, ptr<call_stack> stack) {
   std::size_t closure_size = get_closure_size(closure);
   std::size_t begin = actual_args_size(closure->procedure());
 
   for (std::size_t i = 0; i < closure_size; ++i)
-    frame.local(operand(begin + i)) = closure->ref(i);
+    stack->local(operand(begin + i)) = closure->ref(i);
 }
 
 static void
@@ -455,21 +455,19 @@ push_scheme_frame(execution_state& state, ptr<closure> cls,
   return current_frame(state.stack);
 }
 
-static frame_reference
+static void
 make_tail_call_frame(ptr<call_stack> stack, ptr<> proc,
                      std::size_t locals_size,
                      std::size_t args_base, std::size_t num_args) {
   stack->replace_frame(proc, locals_size, args_base, num_args);
-  frame_reference frame = current_frame(stack);
-  clear_native_continuations(frame);
-  return frame;
+  clear_native_continuations(stack);
 }
 
-static frame_reference
+static void
 make_scheme_tail_call_frame(ptr<call_stack> stack, ptr<closure> cls,
                             std::size_t args_base, std::size_t num_args) {
-  return make_tail_call_frame(stack, cls, cls->procedure()->locals_size,
-                              args_base, num_args);
+  make_tail_call_frame(stack, cls, cls->procedure()->locals_size, args_base,
+                       num_args);
 }
 
 static void
@@ -483,25 +481,24 @@ check_and_convert_scheme_call_arguments(execution_state& state,
                     proc, base, num_args);
 }
 
-static frame_reference
+static void
 make_scheme_frame(ptr<closure> cls, execution_state& state,
                   bool is_tail) {
   operand base = read_operand(state);
   check_and_convert_scheme_call_arguments(state, cls->procedure(), base);
   if (!is_tail) {
     operand result_reg = read_operand(state);
-    return push_scheme_frame(state, cls, base, result_reg);
-  } else {
-    return make_scheme_tail_call_frame(state.stack, cls, base,
-                                       actual_args_size(cls->procedure()));
-  }
+    push_scheme_frame(state, cls, base, result_reg);
+  } else
+    make_scheme_tail_call_frame(state.stack, cls, base,
+                                actual_args_size(cls->procedure()));
 }
 
 static void
 push_scheme_call_frame(ptr<insider::closure> closure, execution_state& state,
                        bool is_tail) {
-  frame_reference new_frame = make_scheme_frame(closure, state, is_tail);
-  push_closure(closure, new_frame);
+  make_scheme_frame(closure, state, is_tail);
+  push_closure(closure, state.stack);
 
   reload_ip(state);
 }
@@ -520,11 +517,11 @@ make_native_non_tail_call_frame(execution_state& state,
   return current_frame(state.stack);
 }
 
-static frame_reference
+static void
 make_native_tail_call_frame(ptr<call_stack> stack,
                             ptr<native_procedure> proc,
                             std::size_t args_base, std::size_t num_args) {
-  return make_tail_call_frame(stack, proc, num_args, args_base, num_args);
+  make_tail_call_frame(stack, proc, num_args, args_base, num_args);
 }
 
 static void
@@ -998,7 +995,7 @@ push_scheme_arguments_for_call_from_native(context& ctx,
     push_rest_argument_for_call_from_native(ctx, proc, frame, args);
 }
 
-static frame_reference
+static void
 make_scheme_frame_for_call_from_native(execution_state& state,
                                        ptr<closure> callable,
                                        std::vector<ptr<>> const& arguments,
@@ -1014,10 +1011,9 @@ make_scheme_frame_for_call_from_native(execution_state& state,
   auto new_frame = current_frame(state.stack);
   push_scheme_arguments_for_call_from_native(state.ctx, callable->procedure(),
                                              new_frame, arguments);
-  push_closure(closure, new_frame);
+  push_closure(closure, state.stack);
 
   reload_ip(state);
-  return new_frame;
 }
 
 static ptr<stack_frame_extra_data>
@@ -1103,15 +1099,15 @@ get_native_ip(execution_state& state) {
     return continuations_size_to_ip(std::numeric_limits<std::size_t>::max());
 }
 
-static frame_reference
+static void
 setup_scheme_frame_for_potential_call_from_native(
   execution_state& state,
   ptr<closure> callable,
   std::vector<ptr<>> const& arguments
 ) {
   assert(is_callable(callable));
-  return make_scheme_frame_for_call_from_native(state, callable, arguments,
-                                                get_native_ip(state));
+  make_scheme_frame_for_call_from_native(state, callable, arguments,
+                                         get_native_ip(state));
 }
 
 static ptr<>
@@ -1120,9 +1116,9 @@ call_scheme_with_continuation_barrier(execution_state& state,
                                       std::vector<ptr<>> const& arguments,
                                       ptr<parameter_tag> parameter,
                                       ptr<> parameter_value) {
-  auto frame = make_scheme_frame_for_call_from_native(state, callable,
-                                                      arguments,
-                                                      get_native_ip(state));
+  make_scheme_frame_for_call_from_native(state, callable, arguments,
+                                         get_native_ip(state));
+  frame_reference frame = current_frame(state.stack);
   if (frame.parent())
     erect_barrier(state.ctx, frame, false, false);
 
@@ -1238,7 +1234,7 @@ make_native_tail_call_frame_for_call_from_native(
 ) {
   stack->replace_frame(callable, arguments.size());
   frame_reference frame = current_frame(stack);
-  clear_native_continuations(frame);
+  clear_native_continuations(stack);
   for (std::size_t i = 0; i < arguments.size(); ++i)
     frame.local(operand(i)) = arguments[i];
 }
@@ -1258,8 +1254,8 @@ make_scheme_tail_call_frame_for_call_from_native(
   stack->replace_frame(closure, proc->locals_size);
   auto frame = current_frame(stack);
   push_scheme_arguments_for_call_from_native(ctx, proc, frame, arguments);
-  push_closure(closure, frame);
-  clear_native_continuations(frame);
+  push_closure(closure, stack);
+  clear_native_continuations(stack);
 }
 
 static frame_reference
