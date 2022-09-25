@@ -66,7 +66,7 @@ call_stack::push_frame(ptr<> callable, std::size_t base,
 void
 call_stack::pop_frame() {
   frames_.pop_back();
-  update_current_frame();
+  check_update_current_frame();
 }
 
 void
@@ -101,7 +101,8 @@ call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size,
   frames_.back().callable = new_callable;
   frames_.back().size = new_locals_size;
 
-  update_current_frame();
+  size_ = current_base_ + new_locals_size;
+  ensure_capacity(size_);
 }
 
 void
@@ -160,13 +161,17 @@ call_stack::visit_members(member_visitor const& f) {
 }
 
 void
-call_stack::update_current_frame() {
-  if (!frames_.empty()) {
-    current_base_ = frames_.back().base;
-    size_ = current_base_ + frames_.back().size;
-  } else
+call_stack::check_update_current_frame() {
+  if (!frames_.empty())
+    update_current_frame();
+  else
     size_ = 0;
+}
 
+void
+call_stack::update_current_frame() {
+  current_base_ = frames_.back().base;
+  size_ = current_base_ + frames_.back().size;
   ensure_capacity(size_);
 }
 

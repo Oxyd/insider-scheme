@@ -220,6 +220,9 @@ private:
   std::size_t              current_base_ = 0;
 
   void
+  check_update_current_frame();
+
+  void
   update_current_frame();
 
   void
