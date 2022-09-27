@@ -271,13 +271,12 @@ class let_expression : public composite_object<let_expression> {
 public:
   static constexpr char const* scheme_name = "insider::let_expression";
 
-  let_expression(std::vector<definition_pair_expression> defs,
-                 ptr<sequence_expression> body);
+  let_expression(std::vector<definition_pair_expression> defs, expression body);
 
   std::vector<definition_pair_expression> const&
   definitions() const { return definitions_; }
 
-  ptr<sequence_expression>
+  expression
   body() const { return body_; }
 
   template <typename F>
@@ -299,7 +298,7 @@ public:
 
 private:
   std::vector<definition_pair_expression> definitions_;
-  ptr<sequence_expression>                body_;
+  expression                              body_;
   std::size_t                             size_estimate_ = 0;
 
   void
@@ -402,7 +401,7 @@ public:
   lambda_expression(context&,
                     std::vector<ptr<local_variable>> parameters,
                     bool has_rest,
-                    ptr<sequence_expression> body,
+                    expression body,
                     std::string name,
                     std::vector<ptr<local_variable>> free_variables);
 
@@ -412,7 +411,7 @@ public:
   bool
   has_rest() const { return has_rest_; }
 
-  ptr<sequence_expression>
+  expression
   body() { return body_; }
 
   std::string const&
@@ -456,7 +455,7 @@ public:
 private:
   std::vector<ptr<local_variable>> parameters_;
   bool                             has_rest_;
-  ptr<sequence_expression>         body_;
+  expression                       body_;
   std::string                      name_;
   std::vector<ptr<local_variable>> free_variables_;
   ptr<local_variable>              self_variable_;

@@ -774,7 +774,7 @@ arity_matches(ptr<application_expression> app, ptr<lambda_expression> lambda) {
 
 static bool
 is_small_enough_to_inline(ptr<lambda_expression> lambda) {
-  return lambda->body()->size_estimate() < inline_size_limit;
+  return size_estimate(lambda->body()) < inline_size_limit;
 }
 
 namespace {

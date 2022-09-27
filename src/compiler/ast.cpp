@@ -195,7 +195,7 @@ definition_pair_expression::visit_members(member_visitor const& f) {
 }
 
 let_expression::let_expression(std::vector<definition_pair_expression> defs,
-                               ptr<sequence_expression> body)
+                               expression body)
   : definitions_{std::move(defs)}
   , body_{body}
 {
@@ -206,7 +206,7 @@ void
 let_expression::visit_members(member_visitor const& f) {
   for (definition_pair_expression& dp : definitions_)
     dp.visit_members(f);
-  f(body_);
+  body_.visit_members(f);
 }
 
 void
@@ -234,7 +234,7 @@ let_expression::update(context& ctx, result_stack& stack) {
 
 void
 let_expression::update_size_estimate() {
-  size_estimate_ = body_->size_estimate();
+  size_estimate_ = insider::size_estimate(body_);
   for (definition_pair_expression const& dp : definitions_)
     size_estimate_ += insider::size_estimate(dp.expression());
 }
@@ -316,7 +316,7 @@ lambda_expression::lambda_expression(
   context& ctx,
   std::vector<ptr<local_variable>> parameters,
   bool has_rest,
-  ptr<sequence_expression> body,
+  expression body,
   std::string name,
   std::vector<ptr<local_variable>> free_variables
 )
@@ -340,7 +340,7 @@ void
 lambda_expression::visit_members(member_visitor const& f) {
   for (auto& p : parameters_)
     f(p);
-  f(body_);
+  body_.visit_members(f);
   for (auto& fv : free_variables_)
     f(fv);
   f(self_variable_);

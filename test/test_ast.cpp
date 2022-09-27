@@ -602,6 +602,22 @@ find_top_level_definition_for(expression root, std::string const& name) {
   return result;
 }
 
+static expression
+first_subexpression(ptr<let_expression> let) {
+  if (auto seq = match<sequence_expression>(let->body()))
+    return seq->expressions().front();
+  else
+    return let->body();
+}
+
+static expression
+first_subexpression(ptr<lambda_expression> lambda) {
+  if (auto seq = match<sequence_expression>(lambda->body()))
+    return seq->expressions().front();
+  else
+    return lambda->body();
+}
+
 TEST_F(ast, recursive_procedures_are_not_inlined) {
   expression e = analyse_module(
     R"(
@@ -617,7 +633,7 @@ TEST_F(ast, recursive_procedures_are_not_inlined) {
   auto foo_def
     = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
   auto app
-    = expect<application_expression>(foo_def->body()->expressions().front());
+    = expect<application_expression>(first_subexpression(foo_def));
   auto target = expect<top_level_reference_expression>(app->target());
   EXPECT_EQ(target->variable(), foo_var);
 }
@@ -638,9 +654,9 @@ TEST_F(ast, outer_lambda_is_not_inlined_into_inner_lambda) {
   auto foo_def
     = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
   auto inner_lambda
-    = expect<lambda_expression>(foo_def->body()->expressions().front());
+    = expect<lambda_expression>(first_subexpression(foo_def));
   EXPECT_TRUE(
-    is<application_expression>(inner_lambda->body()->expressions().front())
+    is<application_expression>(first_subexpression(inner_lambda))
   );
 }
 
@@ -664,12 +680,12 @@ TEST_F(ast, inlined_code_does_not_share_ast) {
 
   auto foo_def
     = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
-  auto foo_body = foo_def->body()->expressions().front();
+  auto foo_body = first_subexpression(foo_def);
 
   auto bar_def
     = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
-  auto bar_let = expect<let_expression>(bar_def->body()->expressions().front());
-  auto bar_body = bar_let->body()->expressions().front();
+  auto bar_let = expect<let_expression>(first_subexpression(bar_def));
+  auto bar_body = first_subexpression(bar_let);
 
   EXPECT_NE(foo_body, bar_body);
 }
@@ -686,7 +702,7 @@ TEST_F(ast, inlined_code_does_not_share_lambda_variables) {
 
   auto bar_def
     = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
-  auto bar_let = expect<let_expression>(bar_def->body()->expressions().front());
+  auto bar_let = expect<let_expression>(first_subexpression(bar_def));
   auto bar_var = bar_let->definitions().front().variable();
 
   EXPECT_NE(foo_param, bar_var);
@@ -711,15 +727,15 @@ TEST_F(ast, inlined_code_does_not_share_internal_variables) {
 
   auto foo_def
     = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
-  auto foo_let = expect<let_expression>(foo_def->body()->expressions().front());
+  auto foo_let = expect<let_expression>(first_subexpression(foo_def));
   auto foo_var = foo_let->definitions().front().variable();
 
   auto bar_def
     = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
   auto bar_outer_let
-    = expect<let_expression>(bar_def->body()->expressions().front());
+    = expect<let_expression>(first_subexpression(bar_def));
   auto bar_inner_let
-    = expect<let_expression>(bar_outer_let->body()->expressions().front());
+    = expect<let_expression>(first_subexpression(bar_outer_let));
   auto bar_var = bar_inner_let->definitions().front().variable();
 
   EXPECT_NE(foo_var, bar_var);
@@ -764,7 +780,7 @@ TEST_F(ast, variadic_procedures_are_inlined) {
     = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
   assert_procedure_not_called(bar_def, "foo");
 
-  auto let = expect<let_expression>(bar_def->body()->expressions().front());
+  auto let = expect<let_expression>(first_subexpression(bar_def));
   ASSERT_EQ(let->definitions().size(), 2);
   EXPECT_EQ(
     expect<integer>(
@@ -844,7 +860,7 @@ TEST_F(ast, inlined_call_of_mutative_procedure_across_modules_boxes_argument) {
 
   auto var = let->definitions().front().variable();
   auto box_set
-    = expect<application_expression>(let->body()->expressions().front());
+    = expect<application_expression>(first_subexpression(let));
   auto box_set_ref = expect<local_reference_expression>(box_set->arguments()[0]);
   EXPECT_EQ(box_set_ref->variable(), var);
 }
@@ -909,10 +925,9 @@ TEST_F(ast, variables_are_not_boxed_twice) {
 static expression
 ignore_lets_and_sequences(expression e) {
   while (true) {
-    if (auto let = match<let_expression>(e)) {
-      assert(let->body()->expressions().size() == 1);
-      e = let->body()->expressions().front();
-    } else if (auto seq = match<sequence_expression>(e)) {
+    if (auto let = match<let_expression>(e))
+      e = first_subexpression(let);
+    else if (auto seq = match<sequence_expression>(e)) {
       assert(seq->expressions().size() == 1);
       e = seq->expressions().front();
     } else
@@ -938,8 +953,9 @@ TEST_F(ast, inlined_applications_carry_debug_info) {
 
   auto three_def
     = expect<lambda_expression>(find_top_level_definition_for(e, "three"));
-  auto three_app
-    = expect<application_expression>(ignore_lets_and_sequences(three_def->body()));
+  auto three_app = expect<application_expression>(
+    ignore_lets_and_sequences(three_def->body())
+  );
   EXPECT_EQ(
     expect<top_level_reference_expression>(
       three_app->target()
@@ -951,10 +967,11 @@ TEST_F(ast, inlined_applications_carry_debug_info) {
   EXPECT_EQ(three_app->debug_info()->inlined_call_chain,
             (std::vector{"one"s, "two"s}));
 
-  auto top_level_app
-    = expect<application_expression>(
-        ignore_lets_and_sequences(expect<sequence_expression>(e)->expressions().back())
-      );
+  auto top_level_app = expect<application_expression>(
+    ignore_lets_and_sequences(
+      expect<sequence_expression>(e)->expressions().back()
+    )
+  );
   EXPECT_EQ(
     expect<top_level_reference_expression>(
       top_level_app->target()
@@ -1264,9 +1281,10 @@ TEST_F(ast, set_eliminable_variable_is_not_boxed) {
   );
 
   auto let = expect<let_expression>(e);
-  ASSERT_EQ(let->body()->expressions().size(), 2);
-  EXPECT_TRUE(is<local_set_expression>(let->body()->expressions()[0]));
-  EXPECT_TRUE(is<local_reference_expression>(let->body()->expressions()[1]));
+  auto seq = expect<sequence_expression>(let->body());
+  ASSERT_EQ(seq->expressions().size(), 2);
+  EXPECT_TRUE(is<local_set_expression>(seq->expressions()[0]));
+  EXPECT_TRUE(is<local_reference_expression>(seq->expressions()[1]));
 }
 
 TEST_F(ast, self_referential_local_lambda_uses_self_variable) {
@@ -1282,9 +1300,8 @@ TEST_F(ast, self_referential_local_lambda_uses_self_variable) {
   for_each<lambda_expression>(
     e,
     [] (ptr<lambda_expression> f) {
-      ASSERT_EQ(f->body()->expressions().size(), 1);
       EXPECT_EQ(expect<local_reference_expression>(
-                  f->body()->expressions().front()
+                  first_subexpression(f)
                 )->variable(),
                 f->self_variable());
     }
@@ -1333,10 +1350,9 @@ TEST_F(ast, self_variable_in_inlined_procedure_is_consistent) {
   for_each<lambda_expression>(
     e,
     [] (ptr<lambda_expression> f) {
-      ASSERT_EQ(f->body()->expressions().size(), 1);
       EXPECT_EQ(
         expect<local_reference_expression>(
-          f->body()->expressions().front()
+          first_subexpression(f)
         )->variable(),
         f->self_variable()
       );
@@ -1459,9 +1475,10 @@ TEST_F(ast, self_referential_lambda_expressions_are_not_inlined) {
   );
 
   auto let = expect<let_expression>(e);
-  ASSERT_EQ(let->body()->expressions().size(), 2);
+  auto seq = expect<sequence_expression>(let->body());
+  ASSERT_EQ(seq->expressions().size(), 2);
 
-  auto app = expect<application_expression>(let->body()->expressions()[1]);
+  auto app = expect<application_expression>(seq->expressions()[1]);
   auto target = expect<local_reference_expression>(app->target());
   EXPECT_EQ(target->variable()->name(), "f");
 }
