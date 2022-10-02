@@ -811,6 +811,23 @@ TEST_F(compiler, compile_loop_inlined_twice) {
   EXPECT_EQ(expect<integer>(result).value(), 30);
 }
 
+TEST_F(compiler, inlined_loop_does_not_mutate_variables_outside) {
+  auto result = eval_module(R"(
+    (import (insider internal))
+
+    (define len
+      (lambda (lst)
+        (if (eq? lst '())
+            #t
+            (len (cdr lst)))))
+
+    (let ((lst (begin #f '(1 2 3))))  ;; Prevent constant propagation
+      (len lst)
+      lst)
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2 3)")));
+}
+
 static void
 expect_cfg_equiv(cfg& g, std::vector<instruction> const& ref_instrs) {
   auto cfg_instrs = bytecode_to_instructions(analyse_and_compile_cfg(g).bc);

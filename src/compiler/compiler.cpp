@@ -443,6 +443,17 @@ compile_box_set(context& ctx, procedure_context& proc,
 }
 
 static void
+compile_loop_variable_definition(context& ctx, procedure_context& proc,
+                                 variable_bindings::scope& scope,
+                                 ptr<local_variable> var,
+                                 expression expr) {
+  shared_register reg = proc.registers.allocate_register();
+  result_location res{reg};
+  compile_expression(ctx, proc, expr, false, res);
+  scope.emplace_back(variable_bindings::binding{var, std::move(reg)});
+}
+
+static void
 compile_non_eliminable_variable_definition(context& ctx, procedure_context& proc,
                                            variable_bindings::scope& scope,
                                            ptr<local_variable> var,
@@ -468,7 +479,11 @@ compile_let_definitions(context& ctx, procedure_context& proc,
                         ptr<let_expression> stx) {
   variable_bindings::scope scope;
   for (auto const& def : stx->definitions())
-    if (def.variable()->flags().is_set_eliminable)
+    if (def.variable()->flags().is_loop_variable)
+      compile_loop_variable_definition(ctx, proc, scope,
+                                       def.variable(),
+                                       def.expression());
+    else if (def.variable()->flags().is_set_eliminable)
       compile_eliminable_variable_definition(ctx, proc, scope,
                                              def.variable(),
                                              def.expression());
