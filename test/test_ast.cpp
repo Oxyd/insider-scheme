@@ -1308,6 +1308,24 @@ TEST_F(ast, self_referential_local_lambda_uses_self_variable) {
   );
 }
 
+TEST_F(ast, self_referential_top_level_procedure_uses_self_variable) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define f
+        (lambda ()
+          f))
+    )",
+    {&analyse_variables, &find_self_variables}
+  );
+
+  auto f = expect<lambda_expression>(find_top_level_definition_for(e, "f"));
+  auto ref
+    = expect<local_reference_expression>(ignore_lets_and_sequences(f->body()));
+  EXPECT_EQ(ref->variable(), f->self_variable());
+}
+
 TEST_F(ast, self_variable_is_bound_within_the_lambda) {
   expression e = analyse(
     R"(
@@ -1636,6 +1654,24 @@ TEST_F(ast, self_call_in_variadic_procedure_is_not_replaced_with_loop) {
     }
   );
   EXPECT_TRUE(called);
+}
+
+TEST_F(ast, self_call_in_top_level_procedure_is_replaced_with_loop) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define f
+        (lambda ()
+          (f)))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+
+  auto f_def = expect<lambda_expression>(find_top_level_definition_for(e, "f"));
+  auto loop = expect<loop_body>(ignore_lets_and_sequences(f_def->body()));
+  auto body = ignore_lets_and_sequences(loop->body());
+  EXPECT_TRUE(is<loop_continue>(body));
 }
 
 TEST_F(ast, let_expressions_are_created_if_loop_variables_would_overwrite) {
