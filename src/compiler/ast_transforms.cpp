@@ -430,11 +430,14 @@ update_let_definitions(context& ctx,
   for (definition_pair_expression dp : dps) {
     // set!-eliminable variable definitions need to be retained because they're
     // still going to be set!.
-    if (!is_const(dp) || dp.variable()->flags().is_set_eliminable)
+    if (!is_const(dp)
+        || dp.variable()->flags().is_set_eliminable
+        || dp.variable()->flags().is_loop_variable)
       result.push_back(dp);
 
     if (!is_const(dp) && constant_value_for_expression(dp.expression())
-        && !dp.variable()->flags().is_set) {
+        && !dp.variable()->flags().is_set
+        && !dp.variable()->flags().is_loop_variable) {
       // The variable was made constant in this pass. We need to mark it as
       // constant and do another pass to propagate it into the body of this let.
 
@@ -961,6 +964,23 @@ namespace {
 }
 
 static void
+mark_lambda_parameters_as_loop_variables(ptr<lambda_expression> lambda) {
+  for (auto var : lambda->parameters())
+    var->flags().is_loop_variable = true;
+}
+
+static void
+replace_lambda_body_with_loop(
+  context& ctx, ptr<lambda_expression> lambda,
+  std::unordered_set<ptr<application_expression>> const& calls
+) {
+  auto body = make<loop_body>(ctx, lambda->body(), make<loop_id>(ctx));
+  transform_ast(ctx, body, loop_substitutor{ctx, lambda, calls, body});
+  lambda->update_body(ctx.store, body);
+  mark_lambda_parameters_as_loop_variables(lambda);
+}
+
+static void
 replace_self_calls_with_loops(context& ctx, ptr<lambda_expression> lambda) {
   if (lambda->has_rest())
     return;
@@ -969,9 +989,7 @@ replace_self_calls_with_loops(context& ctx, ptr<lambda_expression> lambda) {
   if (calls.empty())
     return;
 
-  auto body = make<loop_body>(ctx, lambda->body(), make<loop_id>(ctx));
-  transform_ast(ctx, body, loop_substitutor{ctx, lambda, calls, body});
-  lambda->update_body(ctx.store, body);
+  replace_lambda_body_with_loop(ctx, lambda, calls);
 }
 
 static std::vector<definition_pair_expression>

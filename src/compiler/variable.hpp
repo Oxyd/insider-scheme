@@ -25,11 +25,15 @@ namespace insider {
 //
 // A set! is unconditional if it is always executed, i.e. it isn't nested in an
 // if expression that follows the variable declaration.
+//
+// Another special case is loop variables. They are mutated as the loop
+// executes, but they don't require boxing.
 
 struct variable_flags {
   bool is_set            = false;
   bool is_read           = false;
   bool is_set_eliminable = false;
+  bool is_loop_variable  = false;
 };
 
 // The binding between a name and its value. For top-level values, this directly

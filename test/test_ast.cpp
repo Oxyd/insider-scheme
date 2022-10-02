@@ -1765,3 +1765,23 @@ TEST_F(ast, inlined_loop_uses_correct_variables) {
   EXPECT_EQ(cont->variables()[0].variable(), var_m);
   EXPECT_EQ(cont->variables()[1].variable(), var_n);
 }
+
+TEST_F(ast, loop_variable_is_not_constant) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda (m n)
+            (f m n)))
+        (f 5 (read)))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures,
+     &propagate_and_evaluate_constants}
+  );
+
+  auto outer_let = expect<let_expression>(e);
+  auto seq = expect<sequence_expression>(outer_let->body());
+  ASSERT_EQ(seq->expressions().size(), 2);
+  auto inner_let = expect<let_expression>(seq->expressions()[1]);
+  EXPECT_EQ(inner_let->definitions().size(), 2);
+}
