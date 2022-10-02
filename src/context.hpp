@@ -71,7 +71,7 @@ public:
     ptr<eof_type>           eof;
     ptr<tail_call_tag_type> tail_call_tag;
     ptr<core_form_type>
-      let, set, lambda, if_, define, define_syntax, begin, quote,
+      let, set, init, lambda, if_, define, define_syntax, begin, quote,
       quasiquote, unquote, unquote_splicing, syntax, quasisyntax, unsyntax,
       unsyntax_splicing, syntax_trap, syntax_error, let_syntax, letrec_syntax,
       meta;

@@ -490,6 +490,17 @@ TEST_F(compiler, compile_internal_define) {
   EXPECT_EQ(expect<integer>(result2).value(), 4 + 5 + 4 * 5 + 4 * 4 + 5 * 5);
 }
 
+TEST_F(compiler, define_in_expression_context_is_an_error) {
+  EXPECT_THROW(
+    eval_module(R"(
+      (import (insider internal))
+      (define f (lambda (x) x))
+      (f (begin (define a 1)))
+    )"),
+    syntax_error
+  );
+}
+
 static int
 arith(int a, int b) {
   return 2 * a + b;

@@ -66,6 +66,8 @@ context::context()
     internal_module()->export_(name);
   }
 
+  constants->init = make<core_form_type>(*this, "init");
+
   statics.null = intern_static(constants->null);
   statics.void_ = intern_static(constants->void_);
   statics.t = intern_static(constants->t);
@@ -188,6 +190,7 @@ context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.constants->tail_call_tag);
   f(ctx_.constants->let);
   f(ctx_.constants->set);
+  f(ctx_.constants->init);
   f(ctx_.constants->lambda);
   f(ctx_.constants->if_);
   f(ctx_.constants->define);

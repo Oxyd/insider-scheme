@@ -1008,7 +1008,12 @@ make_set_expression(parsing_context& pc, ptr<syntax> name,
 }
 
 static expression
-parse_define(parsing_context& pc, ptr<syntax> stx) {
+parse_define(ptr<syntax> stx) {
+  throw make_compile_error<syntax_error>(stx, "Unexpected define");
+}
+
+static expression
+parse_init(parsing_context& pc, ptr<syntax> stx) {
   auto [name, expr] = parse_name_and_expr(pc, stx, "define");
 
   auto var = lookup_variable(pc, name);
@@ -1577,7 +1582,9 @@ parse(parsing_context& pc, ptr<syntax> s) {
       else if (form == pc.ctx.constants->begin)
         return parse_sequence(pc, syntax_cdr(pc.ctx, stx));
       else if (form == pc.ctx.constants->define)
-        return parse_define(pc, stx);
+        return parse_define(stx);
+      else if (form == pc.ctx.constants->init)
+        return parse_init(pc, stx);
       else if (form == pc.ctx.constants->quote)
         return make<literal_expression>(
           pc.ctx, syntax_to_datum(pc.ctx, syntax_cadr(pc.ctx, stx))
@@ -1623,7 +1630,7 @@ parse(parsing_context& pc, ptr<syntax> s) {
     );
 }
 
-static void
+static ptr<syntax>
 process_top_level_define(parsing_context& pc, ptr<syntax> stx) {
   if (pc.module_->get_type() == module_::type::immutable)
     throw std::runtime_error{"Can't mutate an immutable environment"};
@@ -1636,6 +1643,12 @@ process_top_level_define(parsing_context& pc, ptr<syntax> stx) {
     var = make<top_level_variable>(pc.ctx, identifier_name(name), index);
     define(pc.ctx.store, name, var);
   }
+
+  return make<syntax>(pc.ctx,
+                      make_list(pc.ctx,
+                                make<syntax>(pc.ctx, pc.ctx.constants->init),
+                                name,
+                                expr));
 }
 
 static ptr<syntax>
@@ -1652,8 +1665,7 @@ process_top_level_form(parsing_context& pc,
         process_define_syntax(pc, stx);
         return {};
       } else if (form == pc.ctx.constants->define) {
-        process_top_level_define(pc, stx);
-        return stx;
+        return process_top_level_define(pc, stx);
       } else if (form == pc.ctx.constants->begin) {
         expand_begin(pc, stx, stack);
         return {};
