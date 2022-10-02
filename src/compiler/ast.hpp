@@ -414,6 +414,9 @@ public:
   expression
   body() { return body_; }
 
+  void
+  update_body(free_store&, expression new_body);
+
   std::string const&
   name() const { return name_; }
 
@@ -434,6 +437,12 @@ public:
 
   void
   set_num_self_references(std::size_t n) { num_self_references_ = n; }
+
+  void
+  remove_self_reference() {
+    assert(num_self_references_ > 0);
+    --num_self_references_;
+  }
 
   template <typename F>
   void

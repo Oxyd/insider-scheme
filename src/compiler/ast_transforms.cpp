@@ -710,6 +710,20 @@ namespace {
     }
 
     expression
+    leave(ptr<loop_continue> cont) {
+      std::vector<definition_pair_expression> new_dps;
+      new_dps.reserve(cont->variables().size());
+
+      for (definition_pair_expression const& var : cont->variables())
+        if (auto mapping = map.find(var.variable()); mapping != map.end())
+          new_dps.emplace_back(mapping->second, var.expression());
+        else
+          new_dps.emplace_back(var);
+
+      return make<loop_continue>(ctx, cont->id(), std::move(new_dps));
+    }
+
+    expression
     leave(auto e) { return e; }
   };
 }
@@ -870,6 +884,8 @@ namespace {
 
     expression
     substitute_self_call(ptr<application_expression> app) const {
+      lambda->remove_self_reference();
+
       auto loop_vars = make_loop_variables(app);
       auto to_precalc = find_variables_to_precalculate(loop_vars);
       if (to_precalc.empty())
@@ -944,20 +960,18 @@ namespace {
   };
 }
 
-static ptr<lambda_expression>
+static void
 replace_self_calls_with_loops(context& ctx, ptr<lambda_expression> lambda) {
   if (lambda->has_rest())
-    return lambda;
+    return;
 
   auto calls = find_self_tail_calls(lambda);
   if (calls.empty())
-    return lambda;
+    return;
 
   auto body = make<loop_body>(ctx, lambda->body(), make<loop_id>(ctx));
-  return make<lambda_expression>(
-    ctx, lambda, transform_ast(ctx, body,
-                               loop_substitutor{ctx, lambda, calls, body})
-  );
+  transform_ast(ctx, body, loop_substitutor{ctx, lambda, calls, body});
+  lambda->update_body(ctx.store, body);
 }
 
 static std::vector<definition_pair_expression>
@@ -1092,7 +1106,8 @@ namespace {
     leave(ptr<lambda_expression> lambda) {
       assert(entered_lambdas.back() == lambda);
       entered_lambdas.pop_back();
-      return replace_self_calls_with_loops(ctx, lambda);
+      replace_self_calls_with_loops(ctx, lambda);
+      return lambda;
     }
 
     expression

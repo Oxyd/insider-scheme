@@ -331,6 +331,12 @@ lambda_expression::lambda_expression(
 { }
 
 void
+lambda_expression::update_body(free_store& fs, expression new_body) {
+  body_ = new_body;
+  fs.notify_arc(this, body_.get());
+}
+
+void
 lambda_expression::add_free_variable(free_store& fs, ptr<local_variable> v) {
   free_variables_.push_back(v);
   fs.notify_arc(this, v);

@@ -1486,7 +1486,7 @@ TEST_F(ast, self_referential_lambda_expressions_are_not_inlined) {
       (let ((f #void))
         (set! f
           (lambda ()
-            (f)))
+            f))
         (f))
     )",
     {&analyse_variables, &find_self_variables, &inline_procedures}
@@ -1696,4 +1696,72 @@ TEST_F(ast, let_expressions_are_created_if_loop_variables_would_overwrite) {
     = expect<local_reference_expression>(let->definitions()[0].expression());
   auto var = expect<local_variable>(ref->variable());
   EXPECT_EQ(var->name(), "x");
+}
+
+TEST_F(ast, loops_arent_self_references) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f (lambda () (f))))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+
+  for_each<lambda_expression>(
+    e,
+    [] (ptr<lambda_expression> lambda) {
+      EXPECT_EQ(lambda->num_self_references(), 0);
+    }
+  );
+}
+
+TEST_F(ast, loops_in_top_level_procedures_are_not_self_references) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define f
+        (lambda ()
+          (f)))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+
+  for_each<lambda_expression>(
+    e,
+    [] (ptr<lambda_expression> lambda) {
+      EXPECT_EQ(lambda->num_self_references(), 0);
+    }
+  );
+}
+
+TEST_F(ast, inlined_loop_uses_correct_variables) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define f
+        (lambda (m n)
+          (f (* m 2) (+ n 1))))
+
+      (define g
+        (lambda ()
+          (f 1 0)))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+
+  auto g_def = expect<lambda_expression>(find_top_level_definition_for(e, "g"));
+  auto g_body = expect<sequence_expression>(g_def->body());
+  ASSERT_EQ(g_body->expressions().size(), 1);
+  auto let = expect<let_expression>(g_body->expressions().front());
+  ASSERT_EQ(let->definitions().size(),2 );
+  auto var_m = let->definitions()[0].variable();
+  auto var_n = let->definitions()[1].variable();
+  auto loop = expect<loop_body>(ignore_lets_and_sequences(let->body()));
+  auto cont = expect<loop_continue>(ignore_lets_and_sequences(loop->body()));
+  ASSERT_EQ(cont->variables().size(), 2);
+
+  EXPECT_EQ(cont->variables()[0].variable(), var_m);
+  EXPECT_EQ(cont->variables()[1].variable(), var_n);
 }
