@@ -638,7 +638,7 @@ append_procedure_name_to_debug_info(ptr<application_expression> app,
   ensure_debug_info(app).inlined_call_chain.emplace_back(std::move(name));
 }
 
-using loop_map = std::unordered_map<ptr<loop_body>, ptr<loop_body>>;
+using loop_map = std::unordered_map<ptr<loop_id>, ptr<loop_id>>;
 
 namespace {
   // Visitor that clones the variables in a part of an AST. Inlining can cause
@@ -646,7 +646,8 @@ namespace {
   // contexts. These different contexts may require separate variables.
   struct clone_variables_visitor {
     context&                   ctx;
-    variable_map               map;
+    variable_map               variables;
+    loop_map                   loops;
     std::optional<std::string> procedure_name_to_append;
 
     explicit
@@ -659,16 +660,22 @@ namespace {
     void
     enter(ptr<let_expression> let) {
       for (auto const& dp : let->definitions()) {
-        assert(!map.contains(dp.variable()));
+        assert(!variables.contains(dp.variable()));
         auto copy = make<local_variable>(ctx, *dp.variable());
-        map.emplace(dp.variable(), copy);
+        variables.emplace(dp.variable(), copy);
       }
     }
 
     void
     enter(ptr<lambda_expression> lambda) {
       auto copy = make<local_variable>(ctx, *lambda->self_variable());
-      map.emplace(lambda->self_variable(), copy);
+      variables.emplace(lambda->self_variable(), copy);
+    }
+
+    void
+    enter(ptr<loop_body> loop) {
+      auto new_id = make<loop_id>(ctx);
+      loops.emplace(loop->id(), new_id);
     }
 
     void
@@ -676,7 +683,8 @@ namespace {
 
     expression
     leave(ptr<local_reference_expression> ref) {
-      if (auto mapping = map.find(ref->variable()); mapping != map.end())
+      if (auto mapping = variables.find(ref->variable());
+          mapping != variables.end())
         return make<local_reference_expression>(ctx, mapping->second);
       else
         return ref;
@@ -684,7 +692,8 @@ namespace {
 
     expression
     leave(ptr<local_set_expression> set) {
-      if (auto mapping = map.find(set->target()); mapping != map.end())
+      if (auto mapping = variables.find(set->target());
+          mapping != variables.end())
         return make<local_set_expression>(ctx, mapping->second,
                                           set->expression());
       else
@@ -693,15 +702,17 @@ namespace {
 
     expression
     leave(ptr<let_expression> let) {
-      return make<let_expression>(ctx,
-                                  map_definition_pairs(map, let->definitions()),
-                                  let->body());
+      return make<let_expression>(
+        ctx,
+        map_definition_pairs(variables, let->definitions()),
+        let->body()
+      );
     }
 
     expression
     leave(ptr<lambda_expression> lambda) {
-      auto new_self = map.find(lambda->self_variable());
-      assert(new_self != map.end());
+      auto new_self = variables.find(lambda->self_variable());
+      assert(new_self != variables.end());
       return make<lambda_expression>(ctx, lambda, new_self->second);
     }
 
@@ -718,12 +729,19 @@ namespace {
       new_dps.reserve(cont->variables().size());
 
       for (definition_pair_expression const& var : cont->variables())
-        if (auto mapping = map.find(var.variable()); mapping != map.end())
+        if (auto mapping = variables.find(var.variable());
+            mapping != variables.end())
           new_dps.emplace_back(mapping->second, var.expression());
         else
           new_dps.emplace_back(var);
 
-      return make<loop_continue>(ctx, cont->id(), std::move(new_dps));
+      return make<loop_continue>(ctx, loops.at(cont->id()), std::move(new_dps));
+    }
+
+    expression
+    leave(ptr<loop_body> loop) {
+      ptr<loop_id> new_id = loops.at(loop->id());
+      return make<loop_body>(ctx, loop->body(), new_id);
     }
 
     expression
