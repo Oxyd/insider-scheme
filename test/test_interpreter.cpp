@@ -698,9 +698,9 @@ TEST_F(interpreter, repl_define_using_macro) {
 
   tracked_ptr<module_> m
     = make_interactive_module(
-      ctx,
-      import_modules(module_name{"foo"})
-    );
+        ctx,
+        import_modules(module_name{"foo"})
+      );
   insider::eval(ctx, m, "(def x)");
   ptr<> result = insider::eval(ctx, m, "x");
   EXPECT_EQ(expect<integer>(result).value(), 0);
