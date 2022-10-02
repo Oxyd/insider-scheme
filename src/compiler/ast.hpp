@@ -396,7 +396,7 @@ public:
 
   // Duplicate a lambda expression with a new body.
   lambda_expression(ptr<lambda_expression> source,
-                    ptr<sequence_expression> new_body);
+                    expression new_body);
 
   lambda_expression(context&,
                     std::vector<ptr<local_variable>> parameters,
@@ -500,6 +500,85 @@ private:
   expression  consequent_;
   expression  alternative_;
   std::size_t size_estimate_ = 0;
+
+  void
+  update_size_estimate();
+};
+
+class loop_id : public leaf_object<loop_id> {
+public:
+  static constexpr char const* scheme_name = "insider::loop_id";
+};
+
+class loop_body : public composite_object<loop_body> {
+public:
+  static constexpr char const* scheme_name = "insider::loop_body";
+
+  loop_body(expression body, ptr<loop_id> id);
+
+  expression
+  body() const { return body_; }
+
+  ptr<loop_id>
+  id() const { return id_; }
+
+  template <typename F>
+  void
+  visit_subexpressions(F&& f) const {
+    f(body_);
+  }
+
+  void
+  visit_members(member_visitor const&);
+
+  void
+  update(context&, result_stack&);
+
+  std::size_t
+  size_estimate() const;
+
+private:
+  expression   body_;
+  ptr<loop_id> id_;
+};
+
+// Performs two things: First it assigns new values to the loop variables, then
+// goes back to the corresponding loop_body. The assignments do not need to be
+// boxed, so they are a part of this expression rather than explicit
+// local_set_expression's.
+class loop_continue : public composite_object<loop_continue> {
+public:
+  static constexpr char const* scheme_name = "insider::loop_continue";
+
+  loop_continue(ptr<loop_id> id,
+                std::vector<definition_pair_expression> loop_vars);
+
+  ptr<loop_id>
+  id() const { return id_; }
+
+  std::vector<definition_pair_expression>
+  variables() const { return vars_; }
+
+  template <typename F>
+  void
+  visit_subexpressions(F&& f) const {
+    for (auto const& dp : vars_ | std::views::reverse)
+      f(dp.expression());
+  }
+
+  void
+  visit_members(member_visitor const&);
+
+  void
+  update(context&, result_stack&);
+
+  std::size_t
+  size_estimate() const { return size_estimate_; }
+
+private:
+  ptr<loop_id>                            id_;
+  std::vector<definition_pair_expression> vars_;
+  std::size_t                             size_estimate_ = 0;
 
   void
   update_size_estimate();

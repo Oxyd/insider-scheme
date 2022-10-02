@@ -26,11 +26,12 @@ namespace insider {
 
 namespace {
   struct procedure_context {
-    procedure_context*            parent = nullptr;
-    register_allocator            registers;
-    variable_bindings             bindings;
-    insider::cfg                  cfg;
-    tracked_ptr<insider::module_> module_;
+    procedure_context*                            parent = nullptr;
+    register_allocator                            registers;
+    variable_bindings                             bindings;
+    insider::cfg                                  cfg;
+    tracked_ptr<insider::module_>                 module_;
+    std::unordered_map<ptr<loop_id>, std::size_t> loop_headers;
 
     procedure_context(procedure_context* parent,
                       tracked_ptr<insider::module_> m)
@@ -919,6 +920,33 @@ static void
 compile_expression(context& ctx, procedure_context& proc,
                    ptr<literal_expression> lit, bool, result_location& result) {
   compile_static_reference(proc, ctx.intern_static(lit->value()), result);
+}
+
+static void
+compile_expression(context& ctx, procedure_context& proc,
+                   ptr<loop_body> loop, bool tail, result_location& result) {
+  assert(!proc.loop_headers.contains(loop->id()));
+  proc.loop_headers.emplace(loop->id(), proc.start_new_block());
+  compile_expression(ctx, proc, loop->body(), tail, result);
+}
+
+static void
+compile_loop_assignments(context& ctx, procedure_context& proc,
+                         ptr<loop_continue> cont) {
+  for (definition_pair_expression const& var : cont->variables()) {
+    shared_register reg = proc.bindings.lookup(var.variable());
+    result_location dest{reg};
+    compile_expression(ctx, proc, var.expression(), false, dest);
+  }
+}
+
+static void
+compile_expression(context& ctx, procedure_context& proc,
+                   ptr<loop_continue> cont, bool, result_location&) {
+  compile_loop_assignments(ctx, proc, cont);
+  proc.current_block().ending
+    = unconditional_jump{proc.loop_headers.at(cont->id())};
+  proc.start_new_block();
 }
 
 // Translate an expression and return the register where the result is stored.

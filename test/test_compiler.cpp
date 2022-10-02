@@ -785,6 +785,19 @@ TEST_F(compiler, stack_trace_can_reconstruct_inlined_procedures) {
   );
 }
 
+TEST_F(compiler, compile_loop) {
+  auto result = eval(R"(
+    (let ((f #void))
+      (set! f
+        (lambda (n a)
+          (if (= n 0)
+              a
+              (f (- n 1) (+ a n)))))
+      (f 5 0))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 15);
+}
+
 static void
 expect_cfg_equiv(cfg& g, std::vector<instruction> const& ref_instrs) {
   auto cfg_instrs = bytecode_to_instructions(analyse_and_compile_cfg(g).bc);

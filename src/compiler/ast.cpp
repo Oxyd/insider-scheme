@@ -211,7 +211,7 @@ let_expression::visit_members(member_visitor const& f) {
 
 void
 let_expression::update(context& ctx, result_stack& stack) {
-  auto body = pop<sequence_expression>(stack);
+  auto body = pop(stack);
   auto definition_exprs = pop_vector_reverse(stack, definitions_.size());
 
   update_member(ctx.store, this, body_, body);
@@ -302,7 +302,7 @@ lambda_expression::lambda_expression(ptr<lambda_expression> source,
 { }
 
 lambda_expression::lambda_expression(ptr<lambda_expression> source,
-                                     ptr<sequence_expression> new_body)
+                                     expression new_body)
   : parameters_{source->parameters_}
   , has_rest_{source->has_rest_}
   , body_{new_body}
@@ -348,7 +348,7 @@ lambda_expression::visit_members(member_visitor const& f) {
 
 void
 lambda_expression::update(context& ctx, result_stack& stack) {
-  update_member(ctx.store, this, body_, pop<sequence_expression>(stack));
+  update_member(ctx.store, this, body_, pop(stack));
 }
 
 if_expression::if_expression(expression test, expression consequent,
@@ -383,6 +383,69 @@ if_expression::update_size_estimate() {
   size_estimate_
     = 1 + insider::size_estimate(test_) + insider::size_estimate(consequent_)
     + 1 + insider::size_estimate(alternative_);
+}
+
+loop_body::loop_body(expression body, ptr<loop_id> id)
+  : body_{body}
+  , id_{id}
+{ }
+
+void
+loop_body::visit_members(member_visitor const& f) {
+  body_.visit_members(f);
+  f(id_);
+}
+
+void
+loop_body::update(context& ctx, result_stack& stack) {
+  update_member(ctx.store, this, body_, pop(stack));
+}
+
+std::size_t
+loop_body::size_estimate() const {
+  return insider::size_estimate(body_);
+}
+
+loop_continue::loop_continue(ptr<loop_id> id,
+                             std::vector<definition_pair_expression> vars)
+  : id_{id}
+  , vars_{std::move(vars)}
+{
+  update_size_estimate();
+}
+
+void
+loop_continue::visit_members(member_visitor const& f) {
+  f(id_);
+  for (definition_pair_expression& var : vars_)
+    var.visit_members(f);
+}
+
+void
+loop_continue::update(context& ctx, result_stack& stack) {
+  auto var_exprs = pop_vector_reverse(stack, vars_.size());
+
+  std::vector<definition_pair_expression> new_vars;
+  new_vars.reserve(vars_.size());
+  for (std::size_t i = 0; i < vars_.size(); ++i)
+    new_vars.emplace_back(vars_[i].variable(), var_exprs[i]);
+
+  if (vars_ != new_vars) {
+    vars_ = std::move(new_vars);
+    for (definition_pair_expression& var : vars_) {
+      ctx.store.notify_arc(this, var.variable());
+      ctx.store.notify_arc(this, var.expression().get());
+    }
+  }
+
+  update_size_estimate();
+}
+
+void
+loop_continue::update_size_estimate() {
+  size_estimate_ = 1;
+  for (definition_pair_expression const& var : vars_)
+    size_estimate_ += insider::size_estimate(var.expression());
 }
 
 expression

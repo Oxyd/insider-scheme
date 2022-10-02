@@ -1526,3 +1526,138 @@ TEST_F(ast, local_definition_of_set_variable_is_retained) {
   auto let = expect<let_expression>(seq->expressions()[0]);
   EXPECT_EQ(let->definitions().size(), 1);
 }
+
+TEST_F(ast, simple_local_loop_is_replaced_with_loop_expressions) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f (lambda () (f))))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+  for_each<lambda_expression>(
+    e,
+    [] (ptr<lambda_expression> lambda) {
+      expression fun_body = ignore_lets_and_sequences(lambda->body());
+      ASSERT_TRUE(is<loop_body>(fun_body));
+
+      expression body
+        = ignore_lets_and_sequences(assume<loop_body>(fun_body)->body());
+      EXPECT_TRUE(is<loop_continue>(body));
+    }
+  );
+}
+
+TEST_F(ast, self_call_with_parameters_is_replaced_with_loop_expression) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda (n)
+            (f (+ n 1)))))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+
+  for_each<loop_continue>(
+    e,
+    [] (ptr<loop_continue> cont) {
+      ASSERT_EQ(cont->variables().size(), 1);
+      EXPECT_EQ(expect<local_variable>(cont->variables()[0].variable())->name(),
+                "n");
+
+      auto expr
+        = expect<application_expression>(cont->variables()[0].expression());
+      auto tgt = expect<top_level_reference_expression>(expr->target());
+      EXPECT_EQ(tgt->variable()->name(), "+");
+    }
+  );
+}
+
+TEST_F(ast, self_call_in_non_tail_position_is_not_replaced_with_loop) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda ()
+            (f)
+            0)))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+
+  for_each<lambda_expression>(
+    e,
+    [] (ptr<lambda_expression> lambda) {
+      auto body = expect<sequence_expression>(lambda->body());
+      ASSERT_EQ(body->expressions().size(), 2);
+      EXPECT_TRUE(is<application_expression>(body->expressions()[0]));
+    }
+  );
+}
+
+TEST_F(ast, self_call_with_wrong_arity_is_not_replaced_with_loop) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda (x)
+            (f x x))))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+
+  bool called = false;
+  for_each<application_expression>(
+    e,
+    [&] (ptr<application_expression>) {
+      called = true;
+    }
+  );
+  EXPECT_TRUE(called);
+}
+
+TEST_F(ast, self_call_in_variadic_procedure_is_not_replaced_with_loop) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda args
+            (f 0))))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+
+  bool called = false;
+  for_each<application_expression>(
+    e,
+    [&] (ptr<application_expression>) {
+      called = true;
+    }
+  );
+  EXPECT_TRUE(called);
+}
+
+TEST_F(ast, let_expressions_are_created_if_loop_variables_would_overwrite) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda (x y)
+            (f y x))))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+
+  auto set = expect<local_set_expression>(ignore_lets_and_sequences(e));
+  auto lambda = expect<lambda_expression>(set->expression());
+  auto loop = expect<loop_body>(ignore_lets_and_sequences(lambda->body()));
+  auto seq = expect<sequence_expression>(loop->body());
+  ASSERT_EQ(seq->expressions().size(), 1);
+  auto let = expect<let_expression>(seq->expressions().front());
+  ASSERT_EQ(let->definitions().size(), 1);
+  auto ref
+    = expect<local_reference_expression>(let->definitions()[0].expression());
+  auto var = expect<local_variable>(ref->variable());
+  EXPECT_EQ(var->name(), "x");
+}

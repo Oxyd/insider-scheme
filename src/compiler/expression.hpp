@@ -16,7 +16,9 @@ using expression = sum_type<
   class local_set_expression,
   class top_level_set_expression,
   class lambda_expression,
-  class if_expression
+  class if_expression,
+  class loop_body,
+  class loop_continue
 >;
 
 using tracked_expression = tracked_sum_type<expression>;

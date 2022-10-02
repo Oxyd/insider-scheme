@@ -605,6 +605,8 @@ append_procedure_name_to_debug_info(ptr<application_expression> app,
   ensure_debug_info(app).inlined_call_chain.emplace_back(std::move(name));
 }
 
+using loop_map = std::unordered_map<ptr<loop_body>, ptr<loop_body>>;
+
 namespace {
   // Visitor that clones the variables in a part of an AST. Inlining can cause
   // the same subtree to appear multiple times in an AST, but in different
@@ -698,6 +700,234 @@ clone_ast(context& ctx, ptr<T> e,
           std::optional<std::string> procedure_name_to_append = {}) {
   return assume<T>(clone_ast(ctx, expression{e},
                              std::move(procedure_name_to_append)));
+}
+
+static bool
+is_self_call(ptr<local_variable> self_var,
+             ptr<application_expression> app) {
+  if (auto local_ref = match<local_reference_expression>(app->target()))
+    return local_ref->variable() == self_var;
+  else
+    return false;
+}
+
+namespace {
+  struct self_tail_call_visitor {
+    ptr<local_variable>                             self;
+    std::unordered_set<ptr<application_expression>> result;
+
+    explicit
+    self_tail_call_visitor(ptr<local_variable> self)
+      : self{self}
+    { }
+
+    void
+    enter(expression e, dfs_stack<expression>& stack) {
+      visit([&] (auto expr) { enter_expression(expr, stack); }, e);
+    }
+
+    void
+    enter_expression(ptr<sequence_expression> seq,
+                     dfs_stack<expression>& stack) {
+      if (!seq->expressions().empty())
+        stack.push_back(seq->expressions().back());
+    }
+
+    void
+    enter_expression(ptr<if_expression> ifexpr,
+                     dfs_stack<expression>& stack) {
+      stack.push_back(ifexpr->consequent());
+      stack.push_back(ifexpr->alternative());
+    }
+
+    void
+    enter_expression(ptr<let_expression> let,
+                     dfs_stack<expression>& stack) {
+      stack.push_back(let->body());
+    }
+
+    void
+    enter_expression(auto, dfs_stack<expression>&) { }
+
+    void
+    leave(expression e) {
+      visit([&] (auto expr) { leave_expression(expr); }, e);
+    }
+
+    void
+    leave_expression(ptr<application_expression> app) {
+      if (is_self_call(self, app))
+        result.emplace(app);
+    }
+
+    void
+    leave_expression(auto) { }
+  };
+}
+
+static std::unordered_set<ptr<application_expression>>
+find_self_tail_calls(ptr<lambda_expression> lambda) {
+  self_tail_call_visitor v{lambda->self_variable()};
+  depth_first_search(lambda->body(), v);
+  return v.result;
+}
+
+namespace {
+  struct uses_any_of_visitor {
+    std::unordered_set<ptr<local_variable>> const& vars;
+    bool result = false;
+
+    void
+    enter(expression e, dfs_stack<expression>& stack) {
+      visit([&] (auto expr) { push_children(expr, stack); }, e);
+    }
+
+    void
+    leave(expression e) {
+      visit([&] (auto expr) { leave_expression(expr); }, e);
+    }
+
+    void
+    leave_expression(ptr<local_reference_expression> ref) {
+      if (vars.contains(ref->variable()))
+        result = true;
+    }
+
+    void
+    leave_expression(auto) { }
+  };
+}
+
+static bool
+uses_any_of(std::unordered_set<ptr<local_variable>> const& vars, expression e) {
+  uses_any_of_visitor v{vars};
+  depth_first_search(e, v);
+  return v.result;
+}
+
+namespace {
+  struct loop_substitutor {
+    context&                                               ctx;
+    ptr<lambda_expression>                                 lambda;
+    std::unordered_set<ptr<application_expression>> const& calls;
+    ptr<loop_body>                                         loop;
+
+    loop_substitutor(
+      context& ctx, ptr<lambda_expression> lambda,
+      std::unordered_set<ptr<application_expression>> const& calls,
+      ptr<loop_body> loop
+    )
+      : ctx{ctx}
+      , lambda{lambda}
+      , calls{calls}
+      , loop{loop}
+    { }
+
+    void
+    enter(auto) { }
+
+    expression
+    leave(ptr<application_expression> app) {
+      if (calls.contains(app)
+          && app->arguments().size() == lambda->parameters().size())
+        return substitute_self_call(app);
+      else
+        return app;
+    }
+
+    expression
+    leave(auto e) { return e; }
+
+    expression
+    substitute_self_call(ptr<application_expression> app) const {
+      auto loop_vars = make_loop_variables(app);
+      auto to_precalc = find_variables_to_precalculate(loop_vars);
+      if (to_precalc.empty())
+        return make<loop_continue>(ctx, loop->id(), std::move(loop_vars));
+      else
+        return make_continue_with_precalculation(loop_vars, to_precalc);
+    }
+
+    std::vector<definition_pair_expression>
+    make_loop_variables(ptr<application_expression> app) const {
+      assert(app->arguments().size() == lambda->parameters().size());
+
+      std::vector<definition_pair_expression> result;
+      result.reserve(app->arguments().size());
+
+      for (std::size_t i = 0; i < app->arguments().size(); ++i)
+        result.emplace_back(lambda->parameters()[i], app->arguments()[i]);
+
+      return result;
+    }
+
+    std::unordered_set<ptr<local_variable>>
+    find_variables_to_precalculate(
+      std::vector<definition_pair_expression> const& vars
+    ) const {
+      assert(vars.size() == lambda->parameters().size());
+
+      if (lambda->parameters().empty())
+        return {};
+
+      std::unordered_set<ptr<local_variable>> result;
+      std::unordered_set<ptr<local_variable>> dead_vars{
+        lambda->parameters().front()
+      };
+
+      for (std::size_t i = 1; i < lambda->parameters().size(); ++i) {
+        if (uses_any_of(dead_vars, vars[i].expression()))
+          result.emplace(lambda->parameters()[i]);
+        dead_vars.emplace(lambda->parameters()[i]);
+      }
+
+      return result;
+    }
+
+    expression
+    make_continue_with_precalculation(
+      std::vector<definition_pair_expression> const& vars,
+      std::unordered_set<ptr<local_variable>> const& to_precalc
+    ) const {
+      std::vector<definition_pair_expression> new_vars;
+      new_vars.reserve(vars.size());
+
+      std::vector<definition_pair_expression> precalc_vars;
+      precalc_vars.reserve(to_precalc.size());
+
+      for (definition_pair_expression const& dp : vars)
+        if (!to_precalc.contains(dp.variable()))
+          new_vars.emplace_back(dp.variable(), dp.expression());
+        else {
+          auto new_var = make<local_variable>(ctx, dp.variable()->name());
+          precalc_vars.emplace_back(new_var, dp.expression());
+          new_vars.emplace_back(dp.variable(),
+                                make<local_reference_expression>(ctx, new_var));
+        }
+
+      return make<let_expression>(
+        ctx,
+        precalc_vars,
+        make<loop_continue>(ctx, loop->id(), std::move(new_vars))
+      );
+    }
+  };
+}
+
+static ptr<lambda_expression>
+replace_self_calls_with_loops(context& ctx, ptr<lambda_expression> lambda) {
+  if (lambda->has_rest())
+    return lambda;
+
+  auto calls = find_self_tail_calls(lambda);
+  if (calls.empty())
+    return lambda;
+
+  auto body = make<loop_body>(ctx, lambda->body(), make<loop_id>(ctx));
+  return make<lambda_expression>(
+    ctx, lambda, transform_ast(ctx, body,
+                               loop_substitutor{ctx, lambda, calls, body})
+  );
 }
 
 static std::vector<definition_pair_expression>
@@ -829,10 +1059,10 @@ namespace {
     }
 
     expression
-    leave([[maybe_unused]] ptr<lambda_expression> lambda) {
+    leave(ptr<lambda_expression> lambda) {
       assert(entered_lambdas.back() == lambda);
       entered_lambdas.pop_back();
-      return lambda;
+      return replace_self_calls_with_loops(ctx, lambda);
     }
 
     expression
