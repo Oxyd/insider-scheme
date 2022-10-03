@@ -1565,6 +1565,35 @@ box_set_variables(context& ctx, ptr<lambda_expression> lambda) {
     return lambda;
 }
 
+static definition_pair_expression
+box_loop_variable(context& ctx, definition_pair_expression const& var) {
+  return definition_pair_expression{
+    var.variable(),
+    make<application_expression>(ctx, make_internal_reference(ctx, "box"),
+                                 var.expression())
+  };
+}
+
+static std::vector<definition_pair_expression>
+box_loop_variables(context& ctx, ptr<loop_continue> cont) {
+  std::vector<definition_pair_expression> new_vars;
+  for (auto const& var : cont->variables())
+    if (var.variable()->flags().is_set)
+      new_vars.emplace_back(box_loop_variable(ctx, var));
+    else
+      new_vars.emplace_back(var);
+  return new_vars;
+}
+
+static expression
+box_set_variables(context& ctx, ptr<loop_continue> cont) {
+  auto new_vars = box_loop_variables(ctx, cont);
+  if (new_vars != cont->variables())
+    return make<loop_continue>(ctx, cont->id(), std::move(new_vars));
+  else
+    return cont;
+}
+
 static expression
 box_set_variables(context&, auto e) {
   return e;

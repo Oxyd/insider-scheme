@@ -1803,3 +1803,32 @@ TEST_F(ast, unnecessary_procedure_definitions_are_removed) {
   EXPECT_EQ(body->expressions().size(), 3);
   EXPECT_TRUE(is<let_expression>(body->expressions().back()));
 }
+
+TEST_F(ast, explicitly_set_loop_variable_is_boxed) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda (x y)
+            (set! y (cons x y))
+            (f (+ x 1) y))))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures,
+     &box_set_variables}
+  );
+  for_each<loop_continue>(
+    e,
+    [] (ptr<loop_continue> cont) {
+      ASSERT_EQ(cont->variables().size(), 2);
+      auto y_expr = cont->variables()[1].expression();
+      auto box = expect<application_expression>(y_expr);
+      auto box_ref = expect<top_level_reference_expression>(box->target());
+      EXPECT_EQ(box_ref->variable()->name(), "box");
+
+      ASSERT_EQ(box->arguments().size(), 1);
+      auto unbox = expect<application_expression>(box->arguments()[0]);
+      auto unbox_ref = expect<top_level_reference_expression>(unbox->target());
+      EXPECT_EQ(unbox_ref->variable()->name(), "unbox");
+    }
+  );
+}
