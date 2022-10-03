@@ -1533,8 +1533,8 @@ any_param_set(ptr<lambda_expression> lambda) {
   );
 }
 
-static std::vector<expression>
-box_lambda_parameters(context& ctx, ptr<lambda_expression> lambda) {
+static expression
+box_lambda(context& ctx, ptr<lambda_expression> lambda) {
   std::vector<expression> new_body;
   expression body = lambda->body();
   for (ptr<local_variable> param : lambda->parameters())
@@ -1552,14 +1552,8 @@ box_lambda_parameters(context& ctx, ptr<lambda_expression> lambda) {
     }
 
   new_body.emplace_back(lambda->body());
-  return new_body;
-}
-
-static expression
-box_lambda(context& ctx, ptr<lambda_expression> lambda) {
-  std::vector<expression> body_exprs = box_lambda_parameters(ctx, lambda);
   return make<lambda_expression>(
-    ctx, lambda, make<sequence_expression>(ctx, std::move(body_exprs))
+    ctx, lambda, make<sequence_expression>(ctx, std::move(new_body))
   );
 }
 
