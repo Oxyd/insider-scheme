@@ -29,6 +29,9 @@ expression
 propagate_and_evaluate_constants(context&, expression, analysis_context);
 
 expression
+remove_unnecessary_procedure_definitions(context&, expression, analysis_context);
+
+expression
 inline_procedures(context&, expression, analysis_context);
 
 expression

@@ -1785,3 +1785,21 @@ TEST_F(ast, loop_variable_is_not_constant) {
   auto inner_let = expect<let_expression>(seq->expressions()[1]);
   EXPECT_EQ(inner_let->definitions().size(), 2);
 }
+
+TEST_F(ast, unnecessary_procedure_definitions_are_removed) {
+  expression e = analyse(
+    R"(
+      (let ((f #void) (y 5))
+        (set! f (lambda (x) (* 2 x)))
+        (set! y 10)
+        (set! y 2)
+        (f y))
+    )",
+    {&analyse_variables, &inline_procedures,
+     &remove_unnecessary_procedure_definitions}
+  );
+  auto let = expect<let_expression>(e);
+  auto body = expect<sequence_expression>(let->body());
+  EXPECT_EQ(body->expressions().size(), 3);
+  EXPECT_TRUE(is<let_expression>(body->expressions().back()));
+}
