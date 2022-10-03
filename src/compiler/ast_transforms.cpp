@@ -1520,8 +1520,7 @@ box_set_variables(context& ctx, ptr<let_expression> let) {
     expression body = let->body();
     for (ptr<local_variable> v : set_vars)
       body = box_variable_references(ctx, body, v);
-    return make<let_expression>(ctx, std::move(dps),
-                                assume<sequence_expression>(body));
+    return make<let_expression>(ctx, std::move(dps), body);
   } else
     return let;
 }
@@ -1552,11 +1551,7 @@ box_lambda_parameters(context& ctx, ptr<lambda_expression> lambda) {
       );
     }
 
-  auto proper_body = assume<sequence_expression>(lambda->body());
-  new_body.insert(new_body.end(),
-                  proper_body->expressions().begin(),
-                  proper_body->expressions().end());
-
+  new_body.emplace_back(lambda->body());
   return new_body;
 }
 
