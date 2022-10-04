@@ -1065,6 +1065,7 @@ namespace {
           new_vars.emplace_back(dp.variable(), dp.expression());
         else {
           auto new_var = make<local_variable>(ctx, dp.variable()->name());
+          new_var->flags().is_loop_variable = true;
           precalc_vars.emplace_back(new_var, dp.expression());
           new_vars.emplace_back(dp.variable(),
                                 make<local_reference_expression>(ctx, new_var));

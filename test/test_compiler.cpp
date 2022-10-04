@@ -837,3 +837,16 @@ TEST_F(compiler, inlined_loop_does_not_mutate_variables_outside) {
   )");
   EXPECT_TRUE(equal(result, read("(1 2 3)")));
 }
+
+TEST_F(compiler, loop_expressions_are_evaluated_before_assignments) {
+  auto result = eval(R"(
+    (let ((loop #void))
+      (set! loop
+            (lambda (x y)
+              (if (= x 5)
+                  y
+                  (loop (+ x 1) x))))
+      (loop 0 #f))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 4);
+}
