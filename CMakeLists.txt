@@ -152,6 +152,7 @@ Set(test_sources
         test/test_ast.cpp
         test/test_bytecode.cpp
         test/test_call_stack.cpp
+        test/test_cfg.cpp
         test/test_character.cpp
         test/test_compiler.cpp
         test/test_control.cpp
