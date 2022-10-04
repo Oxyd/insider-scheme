@@ -172,18 +172,13 @@ namespace {
 }
 
 inline void
-throw_if_wrong_number_of_args(ptr<> callable, std::size_t num_args) {
-  if (auto cls = match<closure>(callable))
-    return throw_if_wrong_number_of_args(cls->procedure(), num_args);
-  else {
-    auto proc = assume<procedure>(callable);
-    if (num_args < proc->min_args
-        || (!proc->has_rest && num_args > proc->min_args))
-      throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
-                       proc->name,
-                       proc->has_rest ? "at least " : "",
-                       proc->min_args, num_args);
-  }
+throw_if_wrong_number_of_args(ptr<procedure> proc, std::size_t num_args) {
+  if (num_args < proc->min_args
+      || (!proc->has_rest && num_args > proc->min_args))
+    throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
+                     proc->name,
+                     proc->has_rest ? "at least " : "",
+                     proc->min_args, num_args);
 }
 
 static void
