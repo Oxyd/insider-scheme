@@ -156,6 +156,9 @@ public:
   }
 
   std::size_t
+  frame_base() const { return current_base_; }
+
+  std::size_t
   frame_base(frame_index frame) const {
     return frames_[frame].base;
   }

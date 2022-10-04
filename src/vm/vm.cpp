@@ -442,7 +442,7 @@ push_scheme_frame(execution_state& state, ptr<closure> cls,
                   operand base, operand result_reg) {
   state.stack->push_frame(
     cls,
-    current_frame(state.stack).base() + base,
+    state.stack->frame_base() + base,
     cls->procedure()->locals_size,
     state.ip,
     result_reg
