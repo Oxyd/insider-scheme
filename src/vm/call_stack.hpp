@@ -141,6 +141,11 @@ public:
   }
 
   instruction_pointer
+  previous_ip() const {
+    return frames_.back().previous_ip;
+  }
+
+  instruction_pointer
   previous_ip(frame_index frame) const {
     return frames_[frame].previous_ip;
   }
@@ -148,6 +153,11 @@ public:
   void
   set_previous_ip(frame_index frame, instruction_pointer ip) {
     frames_[frame].previous_ip = ip;
+  }
+
+  operand
+  result_register() const {
+    return frames_.back().result_register;
   }
 
   operand
@@ -261,16 +271,6 @@ current_frame_local(ptr<call_stack> stack, std::size_t i) {
 inline std::optional<call_stack::frame_index>
 current_frame_parent(ptr<call_stack> stack) {
   return stack->parent(*stack->current_frame_index());
-}
-
-inline instruction_pointer
-current_frame_previous_ip(ptr<call_stack> stack) {
-  return stack->previous_ip(*stack->current_frame_index());
-}
-
-inline void
-current_frame_set_previous_ip(ptr<call_stack> stack, instruction_pointer ip) {
-  stack->set_previous_ip(*stack->current_frame_index(), ip);
 }
 
 inline void

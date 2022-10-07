@@ -55,8 +55,19 @@ is_dummy_frame(frame_reference frame) {
 }
 
 static bool
+current_frame_is_dummy(ptr<call_stack> stack) {
+  return !stack->callable();
+}
+
+static bool
 is_native_frame(frame_reference frame) {
   return is_dummy_frame(frame) || is<native_procedure>(frame.callable());
+}
+
+static bool
+current_frame_is_native(ptr<call_stack> stack) {
+  return current_frame_is_dummy(stack)
+         || is<native_procedure>(stack->callable());
 }
 
 static std::size_t
@@ -550,10 +561,10 @@ call_native_frame_target(context& ctx, ptr<call_stack> stack,
 
 static void
 pop_frame(execution_state& state) {
-  instruction_pointer previous_ip = current_frame_previous_ip(state.stack);
+  instruction_pointer previous_ip = state.stack->previous_ip();
 
   state.stack->pop_frame();
-  if (!state.stack->empty() && !is_native_frame(current_frame(state.stack)))
+  if (!state.stack->empty() && !current_frame_is_native(state.stack))
     state.bytecode_base = current_procedure_bytecode_base(state);
   state.ip = previous_ip;
 }
@@ -569,7 +580,7 @@ return_value_to_caller(execution_state& state, ptr<> result, operand reg) {
     // We are returning from the global procedure, so we return back to the
     // calling C++ code.
     state.result = result;
-  else if (is_native_frame(current_frame(state.stack)))
+  else if (current_frame_is_native(state.stack))
     resume_native_call(state, result);
   else
     current_frame_local(state.stack, reg) = result;
@@ -664,7 +675,7 @@ static void
 ret(execution_state& state) {
   operand result_reg = read_operand(state);
   ptr<> result = state.stack->local(result_reg);
-  operand dest_reg = current_frame(state.stack).result_register();
+  operand dest_reg = state.stack->result_register();
 
   pop_frame(state);
   return_value_to_caller(state, result, dest_reg);
