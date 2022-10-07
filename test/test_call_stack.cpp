@@ -38,16 +38,16 @@ struct call_stack_fixture : scheme_fixture {
 
 TEST_F(call_stack_fixture, create_frame) {
   cs->push_frame(one, cs->size(), 0, nullptr, 0);
-  EXPECT_EQ(current_frame_callable(cs.get()), one);
+  EXPECT_EQ(cs->callable(), one);
 }
 
 TEST_F(call_stack_fixture, pop_frame) {
   cs->push_frame(one, cs->size(), 0, nullptr, 0);
   cs->push_frame(two, cs->size(), 0, nullptr, 0);
-  EXPECT_EQ(current_frame_callable(cs.get()), two);
+  EXPECT_EQ(cs->callable(), two);
 
   cs->pop_frame();
-  EXPECT_EQ(current_frame_callable(cs.get()), one);
+  EXPECT_EQ(cs->callable(), one);
 }
 
 TEST_F(call_stack_fixture, push_after_pop) {
@@ -56,9 +56,9 @@ TEST_F(call_stack_fixture, push_after_pop) {
   cs->pop_frame();
   cs->push_frame(three, cs->size(), 0, nullptr, 0);
 
-  EXPECT_EQ(current_frame_callable(cs.get()), three);
+  EXPECT_EQ(cs->callable(), three);
   cs->pop_frame();
-  EXPECT_EQ(current_frame_callable(cs.get()), one);
+  EXPECT_EQ(cs->callable(), one);
 }
 
 TEST_F(call_stack_fixture, new_call_stack_is_empty) {
@@ -79,47 +79,39 @@ TEST_F(call_stack_fixture, call_stack_is_empty_after_popping_all_frames) {
 
 TEST_F(call_stack_fixture, new_frame_has_no_extra_data) {
   cs->push_frame(one, cs->size(), 0, nullptr, 0);
-  EXPECT_EQ(current_frame_extra(cs.get()), ptr<>{});
+  EXPECT_EQ(cs->extra(), ptr<>{});
 }
 
 TEST_F(call_stack_fixture, can_set_and_retreive_extra_data) {
   cs->push_frame(one, cs->size(), 0, nullptr, 0);
 
   auto e = make<stack_frame_extra_data>(ctx);
-  current_frame_set_extra(cs.get(), e);
-  EXPECT_EQ(current_frame_extra(cs.get()), e);
+  cs->set_extra(e);
+  EXPECT_EQ(cs->extra(), e);
 }
 
 TEST_F(call_stack_fixture, can_set_frame_locals) {
   cs->push_frame(one, cs->size(), 1, nullptr, 0);
-  current_frame_local(cs.get(), 0) = integer_to_ptr(2);
-  EXPECT_EQ(current_frame_local(cs.get(), 0), integer_to_ptr(2));
+  cs->local(0) = integer_to_ptr(2);
+  EXPECT_EQ(cs->local(0), integer_to_ptr(2));
 }
 
 TEST_F(call_stack_fixture, get_local_of_parent_frame) {
   cs->push_frame(one, cs->size(), 1, nullptr, 0);
-  current_frame_local(cs.get(), 0) = integer_to_ptr(2);
+  cs->local(0) = integer_to_ptr(2);
 
   cs->push_frame(three, cs->size(), 1, nullptr, 0);
-  current_frame_local(cs.get(), 0) = integer_to_ptr(4);
+  cs->local(0) = integer_to_ptr(4);
 
-  EXPECT_EQ(
-    expect<integer>(cs->local(*current_frame_parent(cs.get()), 0)).value(),
-    2
-  );
-}
-
-TEST_F(call_stack_fixture, push_pop_individual) {
-  cs->push(integer_to_ptr(1));
-  EXPECT_EQ(expect<integer>(cs->pop()).value(), 1);
+  EXPECT_EQ(expect<integer>(cs->local(*cs->parent(), 0)).value(), 2);
 }
 
 TEST_F(call_stack_fixture, iterate_call_stacks) {
   cs->push_frame(one, cs->size(), 1, nullptr, 0);
-  current_frame_local(cs.get(), 0) = integer_to_ptr(1);
+  cs->local(0) = integer_to_ptr(1);
 
   cs->push_frame(two, cs->size(), 1, nullptr, 0);
-  current_frame_local(cs.get(), 0) = integer_to_ptr(2);
+  cs->local(0) = integer_to_ptr(2);
 
   for (call_stack::frame_index f : cs->frames_range()) {
     if (cs->callable(f) == one)
@@ -131,7 +123,7 @@ TEST_F(call_stack_fixture, iterate_call_stacks) {
 
 TEST_F(call_stack_fixture, capture_tail_part_of_stack_and_append_to_empty_stack) {
   make_4_frames();
-  call_stack::frame_index start = *cs->parent(*current_frame_parent(cs.get()));
+  call_stack::frame_index start = *cs->parent(*cs->parent());
   EXPECT_EQ(cs->callable(start), two);
 
   call_stack::frame_span tail = cs->frames(start, cs->frames_end());
@@ -149,7 +141,7 @@ TEST_F(call_stack_fixture, capture_tail_part_of_stack_and_append_to_empty_stack)
 TEST_F(call_stack_fixture,
        capture_tail_part_of_stack_and_append_to_nonempty_stack) {
   make_4_frames();
-  call_stack::frame_index start = *cs->parent(*current_frame_parent(cs.get()));
+  call_stack::frame_index start = *cs->parent(*cs->parent());
   EXPECT_EQ(cs->callable(start), two);
 
   call_stack::frame_span tail = cs->frames(start, cs->frames_end());
@@ -172,7 +164,7 @@ TEST_F(call_stack_fixture,
 TEST_F(call_stack_fixture,
        capture_middle_part_of_stack_and_append_to_empty_stack) {
   make_4_frames();
-  call_stack::frame_index start = *cs->parent(*current_frame_parent(cs.get()));
+  call_stack::frame_index start = *cs->parent(*cs->parent());
   call_stack::frame_index end = *cs->current_frame_index();
   call_stack::frame_span middle = cs->frames(start, end);
 

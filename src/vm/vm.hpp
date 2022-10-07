@@ -65,10 +65,10 @@ public:
   operator = (parameterize const&) = delete;
 
 private:
-  context&            ctx_;
-  integer::value_type frame_idx_ = -1;
-  ptr<parameter_tag>  tag_;
-  ptr<>               original_value_;
+  context&                   ctx_;
+  std::optional<std::size_t> frame_idx_;
+  ptr<parameter_tag>         tag_;
+  ptr<>                      original_value_;
 
   void
   visit_roots(member_visitor const&) override;

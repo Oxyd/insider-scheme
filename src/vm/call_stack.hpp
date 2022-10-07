@@ -112,6 +112,11 @@ public:
   }
 
   void
+  set_extra(ptr<stack_frame_extra_data> value) {
+    frames_.back().extra = value;
+  }
+
+  void
   set_extra(frame_index frame, ptr<stack_frame_extra_data> value) {
     frames_[frame].extra = value;
   }
@@ -130,6 +135,14 @@ public:
   current_frame_span() const {
     std::size_t base = frames_.back().base;
     return {&data_[base], &data_[base + frames_.back().size]};
+  }
+
+  std::optional<frame_index>
+  parent() const {
+    if (frames_.size() >= 2)
+      return frames_.size() - 2;
+    else
+      return std::nullopt;
   }
 
   std::optional<frame_index>
@@ -174,18 +187,14 @@ public:
   }
 
   std::size_t
+  frame_size() const {
+    return frames_.back().size;
+  }
+
+  std::size_t
   frame_size(frame_index frame) const {
     return frames_[frame].size;
   }
-
-  void
-  push(ptr<> x) {
-    ensure_capacity(size_ + 1);
-    data_[size_++] = x;
-  }
-
-  ptr<>
-  pop() { return data_[--size_]; }
 
   bool
   empty() const { return frames_.empty(); }
@@ -247,39 +256,6 @@ private:
   std::size_t
   find_new_capacity(std::size_t at_least) const;
 };
-
-inline ptr<>&
-current_frame_callable(ptr<call_stack> stack) {
-  return stack->callable();
-}
-
-inline ptr<stack_frame_extra_data>
-current_frame_extra(ptr<call_stack> stack) {
-  return stack->extra(*stack->current_frame_index());
-}
-
-inline void
-current_frame_set_extra(ptr<call_stack> stack, ptr<stack_frame_extra_data> e) {
-  stack->set_extra(*stack->current_frame_index(), e);
-}
-
-inline ptr<>&
-current_frame_local(ptr<call_stack> stack, std::size_t i) {
-  return stack->local(*stack->current_frame_index(), i);
-}
-
-inline std::optional<call_stack::frame_index>
-current_frame_parent(ptr<call_stack> stack) {
-  return stack->parent(*stack->current_frame_index());
-}
-
-inline void
-pop_n(ptr<call_stack> stack, std::size_t n) {
-  while (n > 0) {
-    stack->pop();
-    --n;
-  }
-}
 
 class frame_reference {
 public:
