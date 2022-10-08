@@ -412,7 +412,7 @@ convert_tail_args_to_list(context& ctx, ptr<call_stack> stack,
   // caller's frame.
 
   if (stack->frame_size() <= tail_base)
-    ctx.current_execution->stack->resize_current_frame(tail_base + 1);
+    stack->resize_current_frame(tail_base + 1);
 
   stack->local(operand(tail_base)) = make_list_from_range(
     ctx, std::views::iota(tail_base, tail_base + num_rest),
