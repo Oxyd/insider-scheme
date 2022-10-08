@@ -58,6 +58,10 @@ public:
     std::span<frame const> frames;
   };
 
+  enum class frame_type {
+    scheme, native, dummy
+  };
+
   call_stack();
 
   call_stack(call_stack const&);
@@ -100,6 +104,9 @@ public:
   callable(frame_index frame) {
     return frames_[frame].callable;
   }
+
+  frame_type
+  current_frame_type() const { return frames_.back().type; }
 
   ptr<stack_frame_extra_data>
   extra() {
@@ -233,6 +240,7 @@ private:
     operand                     result_register;
     ptr<>                       callable;
     ptr<stack_frame_extra_data> extra;
+    frame_type                  type;
   };
 
   std::vector<frame>       frames_;
@@ -240,6 +248,9 @@ private:
   std::size_t              capacity_     = 0;
   std::size_t              size_         = 0;
   std::size_t              current_base_ = 0;
+
+  frame_type
+  callable_to_frame_type(ptr<>);
 
   void
   check_update_current_frame();

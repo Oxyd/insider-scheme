@@ -50,14 +50,8 @@ find_callee_value(context& ctx, opcode opcode, ptr<call_stack> stack,
 }
 
 static bool
-current_frame_is_dummy(ptr<call_stack> stack) {
-  return !stack->callable();
-}
-
-static bool
 current_frame_is_native(ptr<call_stack> stack) {
-  return current_frame_is_dummy(stack)
-         || is<native_procedure>(stack->callable());
+  return stack->current_frame_type() != call_stack::frame_type::scheme;
 }
 
 static std::size_t

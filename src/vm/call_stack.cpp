@@ -59,7 +59,8 @@ call_stack::push_frame(ptr<> callable, std::size_t base,
   assert(frames_.empty() || base <= frames_.back().base + frames_.back().size);
 
   frames_.emplace_back(frame{base, locals_size, previous_ip,
-                             result_register, callable, extra});
+                             result_register, callable, extra,
+                             callable_to_frame_type(callable)});
   update_current_frame();
 }
 
@@ -76,6 +77,7 @@ call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size) {
 
   frames_.back().callable = new_callable;
   frames_.back().size = new_locals_size;
+  frames_.back().type = callable_to_frame_type(new_callable);
   update_current_frame();
 }
 
@@ -100,6 +102,7 @@ call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size,
 
   frames_.back().callable = new_callable;
   frames_.back().size = new_locals_size;
+  frames_.back().type = callable_to_frame_type(new_callable);
 
   size_ = current_base_ + new_locals_size;
   ensure_capacity(size_);
@@ -158,6 +161,18 @@ call_stack::visit_members(member_visitor const& f) {
   // invalid pointers to the GC which will crash.
 
   std::fill(data_.get() + size_, data_.get() + capacity_, ptr<>{});
+}
+
+auto
+call_stack::callable_to_frame_type(ptr<> callable) -> frame_type {
+  if (is<closure>(callable))
+    return frame_type::scheme;
+  else if (!callable)
+    return frame_type::dummy;
+  else {
+    assert(is<native_procedure>(callable));
+    return frame_type::native;
+  }
 }
 
 void
