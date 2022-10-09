@@ -104,19 +104,6 @@ public:
   ptr<symbol>
   intern(std::string const&);
 
-  operand
-  intern_static(ptr<> const&);
-
-  ptr<>
-  get_static(operand i) const {
-    assert(i >= 0);
-    assert(static_cast<std::size_t>(i) < statics_.size());
-    return statics_[i];
-  }
-
-  ptr<>
-  get_static_checked(operand) const;
-
   ptr<>
   get_top_level(operand i) const { return top_level_objects_[i]; }
 
@@ -172,14 +159,12 @@ private:
     visit_roots(member_visitor const&) override;
   };
 
-  root_provider root_provider_{*this};
-  std::unordered_map<std::string, ptr<symbol>> interned_symbols_;
-  std::vector<ptr<>> statics_;
-  eqv_unordered_map<ptr<>, operand> statics_cache_;
-  std::vector<ptr<>> top_level_objects_;
-  std::vector<std::string> top_level_binding_names_;
+  root_provider                                      root_provider_{*this};
+  std::unordered_map<std::string, ptr<symbol>>       interned_symbols_;
+  std::vector<ptr<>>                                 top_level_objects_;
+  std::vector<std::string>                           top_level_binding_names_;
   std::unordered_map<operand, special_top_level_tag> top_level_tags_;
-  insider::module_resolver module_resolver_{*this};
+  insider::module_resolver                           module_resolver_{*this};
 
   ptr<> features_;
   scope::id_type next_scope_id_ = 0;

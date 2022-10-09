@@ -138,11 +138,6 @@ top_level_name(context& ctx, operand op) {
 }
 
 static ptr<>
-static_value(context& ctx, operand op) {
-  return ctx.get_static_checked(op);
-}
-
-static ptr<>
 top_level_value(context& ctx, operand op) {
   return ctx.get_top_level_checked(op);
 }
@@ -234,7 +229,6 @@ make_internal_module(context& ctx) {
                    integer_to_ptr(immediate_bias));
 
   define_procedure<top_level_name>(ctx, "top-level-name", result);
-  define_procedure<static_value>(ctx, "static-value", result);
   define_procedure<top_level_value>(ctx, "top-level-value", result);
 
   define_procedure<set_verbose_colleection>(ctx, "set-verbose-collection!",

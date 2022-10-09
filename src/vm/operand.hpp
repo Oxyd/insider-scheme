@@ -10,6 +10,8 @@ using operand = std::uint16_t;
 
 using immediate_type = std::int16_t;
 
+constexpr operand operand_max = std::numeric_limits<operand>::max();
+
 constexpr immediate_type immediate_bias
   = std::numeric_limits<operand>::max() / 2;
 

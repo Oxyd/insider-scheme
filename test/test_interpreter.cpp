@@ -7,35 +7,13 @@
 
 using namespace insider;
 
-template <typename T, typename... Args>
-operand
-make_static(context& ctx, Args&&... args) {
-  if constexpr (std::is_same_v<T, integer>)
-    return ctx.intern_static(integer_to_ptr(integer{args...}));
-  else
-    return ctx.intern_static(make<T>(ctx, std::forward<Args>(args)...));
-}
-
 static ptr<closure>
-make_closure(context& ctx, bytecode const& bc, unsigned locals_size,
+make_closure(context& ctx, bytecode const& bc,
+             std::vector<ptr<>> constants,
+             unsigned locals_size,
              unsigned min_args, bool has_rest = false) {
   return make_closure_from_bytecode(ctx, bc, locals_size, min_args, has_rest,
-                                    "<test procedure>");
-}
-
-static operand
-make_static_closure(context& ctx, bytecode const& bc,
-                    unsigned locals_size, unsigned min_args) {
-  return ctx.intern_static(make_closure(ctx, bc, locals_size, min_args));
-}
-
-static operand
-make_static_procedure(context& ctx, bytecode const& bc,
-                      unsigned locals_size, unsigned min_args) {
-  return ctx.intern_static(
-    make_procedure_from_bytecode(ctx, bc, locals_size, min_args, false,
-                                 "<test procedure>")
-  );
+                                    "<test procedure>", std::move(constants));
 }
 
 static bytecode
@@ -50,20 +28,22 @@ make_bytecode(std::vector<instruction> const& instr) {
 struct interpreter : scheme_fixture { };
 
 TEST_F(interpreter, exec_arithmetic) {
-  // 2 * (3 + 6). The input constants are stored in statics, result is stored in
-  // local register 0.
-  auto two = make_static<integer>(ctx, 2);
-  auto three = make_static<integer>(ctx, 3);
-  auto six = make_static<integer>(ctx, 6);
+  // 2 * (3 + 6). The input constants are stored in the constants vector, result
+  // is stored in local register 0.
 
   auto proc = make_closure(
     ctx,
-    make_bytecode({{opcode::load_static, two,   operand{2}},
-                   {opcode::load_static, three, operand{3}},
-                   {opcode::load_static, six,   operand{4}},
+    make_bytecode({{opcode::load_constant, operand{0}, operand{2}},
+                   {opcode::load_constant, operand{1}, operand{3}},
+                   {opcode::load_constant, operand{2}, operand{4}},
                    {opcode::add,         operand{3}, operand{4}, operand{1}},
                    {opcode::multiply,    operand{2}, operand{1}, operand{0}},
                    {opcode::ret,         operand{0}}}),
+    {
+      integer_to_ptr(2),
+      integer_to_ptr(3),
+      integer_to_ptr(6)
+    },
     5,
     0
   );
@@ -72,24 +52,28 @@ TEST_F(interpreter, exec_arithmetic) {
 }
 
 TEST_F(interpreter, can_access_arguments_from_callee) {
-  auto one = make_static<integer>(ctx, 1);
-  auto two = make_static<integer>(ctx, 2);
-  operand add = make_static_closure(
+  ptr<closure> add = make_closure(
     ctx,
     make_bytecode({
       {opcode::add, operand{0}, operand{1}, operand{0}},
       {opcode::ret, operand{0}}
     }),
+    {},
     2, 2
   );
   auto f = make_closure(
     ctx,
     make_bytecode({
-      {opcode::load_static, one, operand{0}},
-      {opcode::load_static, two, operand{1}},
-      {opcode::call_static, add, operand{0}, operand{2}, operand{0}},
+      {opcode::load_constant, operand{0}, operand{0}},
+      {opcode::load_constant, operand{1}, operand{1}},
+      {opcode::call_constant, operand{2}, operand{0}, operand{2}, operand{0}},
       {opcode::ret, operand{0}}
     }),
+    {
+      integer_to_ptr(1),
+      integer_to_ptr(2),
+      add
+    },
     2, 0
   );
   auto result = call_with_continuation_barrier(ctx, f, {});
@@ -100,39 +84,43 @@ TEST_F(interpreter, exec_calls) {
   // f(x, y) = 2 * x + y
   // Evaluate: 3 * f(5, 7) + f(2, f(3, 4))
 
-  auto two = make_static<integer>(ctx, 2);
-
-  auto f = make_static_closure(
+  ptr<closure> f = make_closure(
     ctx,
-    make_bytecode({{opcode::load_static, two, operand{3}},
+    make_bytecode({{opcode::load_constant, operand{0}, operand{3}},
                    {opcode::multiply, operand{3}, operand{0}, operand{2}},
                    {opcode::add, operand{2}, operand{1}, operand{2}},
                    {opcode::ret, operand{2}}}),
+    {
+      integer_to_ptr(2)
+    },
     4, 2
   );
 
-  auto three = make_static<integer>(ctx, 3);
-  auto five = make_static<integer>(ctx, 5);
-  auto seven = make_static<integer>(ctx, 7);
-  auto four = make_static<integer>(ctx, 4);
-
   auto global = make_closure(
     ctx,
-    make_bytecode({{opcode::load_static, f,     operand{0}},
-                   {opcode::load_static, five,  operand{1}},
-                   {opcode::load_static, seven, operand{2}},
+    make_bytecode({{opcode::load_constant, operand{5}, operand{0}},
+                   {opcode::load_constant, operand{2}, operand{1}},
+                   {opcode::load_constant, operand{3}, operand{2}},
                    {opcode::call, operand{0}, operand{1}, operand{2},
                                   operand{1}},
-                   {opcode::load_static, three, operand{2}},
+                   {opcode::load_constant, operand{1}, operand{2}},
                    {opcode::multiply, operand{2}, operand{1}, operand{1}},
-                   {opcode::load_static, four,  operand{3}},
+                   {opcode::load_constant, operand{4}, operand{3}},
                    {opcode::call, operand{0}, operand{2}, operand{2},
                                   operand{3}},
-                   {opcode::load_static, two,   operand{2}},
+                   {opcode::load_constant, operand{0}, operand{2}},
                    {opcode::call, operand{0}, operand{2}, operand{2},
                                   operand{0}},
                    {opcode::add, operand{0}, operand{1}, operand{0}},
                    {opcode::ret, operand{0}}}),
+    {
+      integer_to_ptr(2),  // 0
+      integer_to_ptr(3),  // 1
+      integer_to_ptr(5),  // 2
+      integer_to_ptr(7),  // 3
+      integer_to_ptr(4),  // 4
+      f                   // 5
+    },
     4,
     0
   );
@@ -146,28 +134,36 @@ TEST_F(interpreter, exec_calls) {
 TEST_F(interpreter, exec_tail_calls) {
   // f(x) = g(x)
   // g(x) = 2 * x
-  auto two = make_static<integer>(ctx, 2);
-  auto g = make_static_closure(
+  ptr<closure> g = make_closure(
     ctx,
-    make_bytecode({{opcode::load_static, two, operand{2}},
+    make_bytecode({{opcode::load_constant, operand{0}, operand{2}},
                    {opcode::multiply, operand{2}, operand{0}, operand{1}},
                    {opcode::ret, operand{1}}}),
+    {
+      integer_to_ptr(2)
+    },
     3, 1
   );
-  auto f = make_static_closure(
+  ptr<closure> f = make_closure(
     ctx,
-    make_bytecode({{opcode::load_static, g, operand{1}},
+    make_bytecode({{opcode::load_constant, operand{0}, operand{1}},
                    {opcode::tail_call, operand{1}, operand{0}, operand{1}}}),
+    {
+      g
+    },
     2, 1
   );
-  auto six = make_static<integer>(ctx, 6);
   auto global = make_closure(
     ctx,
-    make_bytecode({{opcode::load_static, f, operand{1}},
-                   {opcode::load_static, six, operand{2}},
+    make_bytecode({{opcode::load_constant, operand{0}, operand{1}},
+                   {opcode::load_constant, operand{1}, operand{2}},
                    {opcode::call, operand{1}, operand{2}, operand{1},
                                   operand{0}},
                    {opcode::ret, operand{0}}}),
+    {
+      f,
+      integer_to_ptr(6)
+    },
     3, 0
   );
   auto result = call_with_continuation_barrier(ctx, global, {});
@@ -181,26 +177,28 @@ TEST_F(interpreter, exec_loop) {
   //   sum += i
   //   i += 1
 
-  auto zero = make_static<integer>(ctx, 0);
-  auto ten = make_static<integer>(ctx, 10);
-  auto one = make_static<integer>(ctx, 1);
   auto global = make_closure(
     ctx,
     make_bytecode(
       {
-        {opcode::load_static, zero, operand{3}},                 // 0
-        {opcode::load_static, ten, operand{4}},                  // 3
-        {opcode::load_static, one, operand{5}},                  // 6
+        {opcode::load_constant, operand{0}, operand{3}},         // 0
+        {opcode::load_constant, operand{1}, operand{4}},         // 3
+        {opcode::load_constant, operand{2}, operand{5}},         // 6
         {opcode::set, operand{3}, operand{0}},                   // 9
         {opcode::set, operand{3}, operand{1}},                   // 12
         {opcode::less, operand{1}, operand{4}, operand{2}},      // 15
-        {opcode::jump_unless, operand{2}, operand{32}}, // 19
+        {opcode::jump_unless, operand{2}, operand{32}},          // 19
         {opcode::add, operand{0}, operand{1}, operand{0}},       // 22
         {opcode::add, operand{1}, operand{5}, operand{1}},       // 26
-        {opcode::jump, operand{15}},                    // 30
+        {opcode::jump, operand{15}},                             // 30
         {opcode::ret, operand{0}}                                // 32
       }
     ),
+    {
+      integer_to_ptr(0),
+      integer_to_ptr(10),
+      integer_to_ptr(1)
+    },
     6,
     0
   );
@@ -214,19 +212,21 @@ TEST_F(interpreter, exec_native_call) {
                                   + 3 * expect<integer>(args[1]).value()
                                   + 5 * expect<integer>(args[2]).value()});
   };
-  auto native_static = make_static<native_procedure>(ctx, native);
-  auto ten = make_static<integer>(ctx, 10);
-  auto twenty = make_static<integer>(ctx, 20);
-  auto thirty = make_static<integer>(ctx, 30);
   auto global = make_closure(
     ctx,
-    make_bytecode({{opcode::load_static, native_static, operand{0}},
-                   {opcode::load_static, ten,           operand{1}},
-                   {opcode::load_static, twenty,        operand{2}},
-                   {opcode::load_static, thirty,        operand{3}},
+    make_bytecode({{opcode::load_constant, operand{0}, operand{0}},
+                   {opcode::load_constant, operand{1}, operand{1}},
+                   {opcode::load_constant, operand{2}, operand{2}},
+                   {opcode::load_constant, operand{3}, operand{3}},
                    {opcode::call, operand{0}, operand{1}, operand{3},
                                   operand{0}},
                    {opcode::ret, operand{0}}}),
+    {
+      make<native_procedure>(ctx, native),
+      integer_to_ptr(10),
+      integer_to_ptr(20),
+      integer_to_ptr(30)
+    },
     5,
     0
   );
@@ -236,24 +236,29 @@ TEST_F(interpreter, exec_native_call) {
 }
 
 TEST_F(interpreter, exec_closure_ref) {
-  auto add = make_static_procedure(
+  ptr<procedure> add = make_procedure_from_bytecode(
     ctx,
     make_bytecode({{opcode::add, operand{0}, operand{1}, operand{0}},
                    {opcode::ret, operand{0}}}),
-    2, 1
+    2, 1,
+    false, "add",
+    {}
   );
-  auto three = make_static<integer>(ctx, 3);
-  auto five = make_static<integer>(ctx, 5);
   auto global = make_closure(
     ctx,
-    make_bytecode({{opcode::load_static, add,   operand{2}},
-                   {opcode::load_static, three, operand{3}},
-                   {opcode::load_static, five,  operand{4}},
+    make_bytecode({{opcode::load_constant, operand{0}, operand{2}},
+                   {opcode::load_constant, operand{1}, operand{3}},
+                   {opcode::load_constant, operand{2}, operand{4}},
                    {opcode::make_closure, operand{2}, operand{3}, operand{1},
                                           operand{1}},
                    {opcode::call, operand{1}, operand{4}, operand{1},
                                   operand{0}},
                    {opcode::ret, operand{0}}}),
+    {
+      add,
+      integer_to_ptr(3),
+      integer_to_ptr(5)
+    },
     5, 0
   );
   auto result = call_with_continuation_barrier(ctx, global, {});
@@ -261,21 +266,23 @@ TEST_F(interpreter, exec_closure_ref) {
 }
 
 TEST_F(interpreter, exec_cons) {
-  auto one = make_static<integer>(ctx, 1);
-  auto two = make_static<integer>(ctx, 2);
-  auto three = make_static<integer>(ctx, 3);
   auto global = make_closure(
     ctx,
     make_bytecode(
-      {{opcode::load_null,                     operand{1}},
-       {opcode::load_static, one,              operand{2}},
-       {opcode::load_static, two,              operand{3}},
-       {opcode::load_static, three,            operand{4}},
-       {opcode::cons,        operand{4},       operand{1}, operand{0}},
-       {opcode::cons,        operand{3},       operand{0}, operand{0}},
-       {opcode::cons,        operand{2},       operand{0}, operand{0}},
-       {opcode::ret,         operand{0}}}
+      {{opcode::load_null,     operand{1}},
+       {opcode::load_constant, operand{0}, operand{2}},
+       {opcode::load_constant, operand{1}, operand{3}},
+       {opcode::load_constant, operand{2}, operand{4}},
+       {opcode::cons,          operand{4}, operand{1}, operand{0}},
+       {opcode::cons,          operand{3}, operand{0}, operand{0}},
+       {opcode::cons,          operand{2}, operand{0}, operand{0}},
+       {opcode::ret,           operand{0}}}
     ),
+    {
+      integer_to_ptr(1),
+      integer_to_ptr(2),
+      integer_to_ptr(3)
+    },
     5, 0
   );
   auto result = call_with_continuation_barrier(ctx, global, {});
@@ -289,6 +296,7 @@ TEST_F(interpreter, exec_car_cdr) {
     ctx,
     make_bytecode({{opcode::car, operand{0}, operand{0}},
                    {opcode::ret, operand{0}}}),
+    {},
     1, 1
   );
   auto result1 = call_with_continuation_barrier(ctx, first, {p.get()});
@@ -298,6 +306,7 @@ TEST_F(interpreter, exec_car_cdr) {
     ctx,
     make_bytecode({{opcode::cdr, operand{0}, operand{0}},
                    {opcode::ret, operand{0}}}),
+    {},
     1, 1
   );
   auto result2 = call_with_continuation_barrier(ctx, second, {p.get()});
@@ -311,6 +320,7 @@ TEST_F(interpreter, test_eq) {
       ctx,
       make_bytecode({{opcode::eq, operand{0}, operand{1}, operand{0}},
                      {opcode::ret, operand{0}}}),
+      {},
       1, 2
     )
   );
@@ -333,14 +343,16 @@ TEST_F(interpreter, exec_load_dynamic_top_level) {
   auto id = make<syntax>(ctx, ctx.intern("top-level"),
                          scope_set{top_level_scope});
   define(ctx.store, id, var);
-  operand id_index = ctx.intern_static(id);
 
   auto f = make_closure(
     ctx,
     make_bytecode({
-      {opcode::load_dynamic_top_level, id_index, operand{0}},
+      {opcode::load_dynamic_top_level, operand{0}, operand{0}},
       {opcode::ret, operand{0}}
     }),
+    {
+      id
+    },
     1, 0
   );
   auto result = call_with_continuation_barrier(ctx, f, {});
@@ -354,6 +366,7 @@ TEST_F(interpreter, load_self_in_plain_procedure) {
       ctx,
       make_bytecode({{opcode::load_self, operand{0}},
                      {opcode::ret, operand{0}}}),
+      {},
       1, 0
     )
   );
@@ -362,23 +375,26 @@ TEST_F(interpreter, load_self_in_plain_procedure) {
 }
 
 TEST_F(interpreter, load_self_in_closure) {
-  auto f = make_static_procedure(
+  auto f = make_procedure_from_bytecode(
     ctx,
     make_bytecode({{opcode::load_self, operand{1}},
                    {opcode::ret, operand{1}}}),
-    2, 0
+    2, 0, false, "f", {}
   );
-  auto zero = make_static<integer>(ctx, 0);
   auto global = make_closure(
     ctx,
     make_bytecode({
-      {opcode::load_static, f, operand{0}},
-      {opcode::load_static, zero, operand{1}},
+      {opcode::load_constant, operand{0}, operand{0}},
+      {opcode::load_constant, operand{1}, operand{1}},
       {opcode::make_closure, operand{0}, operand{1}, operand{1}, operand{0}},
       {opcode::call, operand{0}, operand{1}, operand{0}, operand{1}},
       {opcode::eq, operand{0}, operand{1}, operand{0}},
       {opcode::ret, operand{0}},
     }),
+    {
+      f,
+      integer_to_ptr(0)
+    },
     2, 0
   );
   auto result = call_with_continuation_barrier(ctx, global, {});

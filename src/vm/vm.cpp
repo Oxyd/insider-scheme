@@ -28,6 +28,13 @@
 namespace insider {
 
 static ptr<>
+get_constant(ptr<call_stack> stack, operand index) {
+  auto proc = expect<closure>(stack->callable())->procedure();
+  assert(index < proc->constants.size());
+  return proc->constants[index];
+}
+
+static ptr<>
 find_callee_value(context& ctx, opcode opcode, ptr<call_stack> stack,
                   operand reg) {
   switch (opcode) {
@@ -39,9 +46,9 @@ find_callee_value(context& ctx, opcode opcode, ptr<call_stack> stack,
   case opcode::tail_call_top_level:
     return ctx.get_top_level(reg);
 
-  case opcode::call_static:
-  case opcode::tail_call_static:
-    return ctx.get_static(reg);
+  case opcode::call_constant:
+  case opcode::tail_call_constant:
+    return get_constant(stack, reg);
 
   default:
     assert(false);
@@ -59,7 +66,7 @@ find_index_of_call_instruction(ptr<procedure> proc,
                                instruction_pointer call_ip) {
   assert(opcode_to_info(opcode::call).num_operands == 4);
   assert(opcode_to_info(opcode::call_top_level).num_operands == 4);
-  assert(opcode_to_info(opcode::call_static).num_operands == 4);
+  assert(opcode_to_info(opcode::call_constant).num_operands == 4);
   static constexpr std::size_t call_instruction_size = 5;
   return call_ip - proc->code.data() - call_instruction_size;
 }
@@ -193,10 +200,10 @@ read_operand(execution_state& state) {
 }
 
 static void
-load_static(execution_state& state) {
-  operand static_num = read_operand(state);
+load_constant(execution_state& state) {
+  operand const_num = read_operand(state);
   operand dest = read_operand(state);
-  state.stack->local(dest) = state.ctx.get_static(static_num);
+  state.stack->local(dest) = get_constant(state.stack, const_num);
 }
 
 static void
@@ -211,7 +218,7 @@ load_dynamic_top_level(execution_state& state) {
   operand id_idx = read_operand(state);
   operand dest = read_operand(state);
 
-  auto id = assume<syntax>(state.ctx.get_static(id_idx));
+  auto id = assume<syntax>(get_constant(state.stack, id_idx));
   assert(id->contains<symbol>());
 
   if (auto binding = lookup(id))
@@ -244,16 +251,16 @@ load_self(execution_state& state) {
 
 template <auto Constant>
 static void
-load_constant(execution_state& state) {
+load_special_constant(execution_state& state) {
   operand dest = read_operand(state);
   state.stack->local(dest) = (state.ctx.constants.get())->*Constant;
 }
 
-auto load_null = load_constant<&context::constants::null>;
-auto load_void = load_constant<&context::constants::void_>;
-auto load_t = load_constant<&context::constants::t>;
-auto load_f = load_constant<&context::constants::f>;
-auto load_eof = load_constant<&context::constants::eof>;
+auto load_null = load_special_constant<&context::constants::null>;
+auto load_void = load_special_constant<&context::constants::void_>;
+auto load_t = load_special_constant<&context::constants::t>;
+auto load_f = load_special_constant<&context::constants::f>;
+auto load_eof = load_special_constant<&context::constants::eof>;
 
 static void
 load_fixnum(execution_state& state) {
@@ -632,7 +639,7 @@ static bool
 is_tail(opcode opcode) {
   return opcode == opcode::tail_call
          || opcode == opcode::tail_call_top_level
-         || opcode == opcode::tail_call_static;
+         || opcode == opcode::tail_call_constant;
 }
 
 static void
@@ -804,7 +811,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
 
   switch (opcode) {
   case opcode::no_operation:                                          break;
-  case opcode::load_static:            load_static(state);            break;
+  case opcode::load_constant:            load_constant(state);            break;
   case opcode::load_top_level:         load_top_level(state);         break;
   case opcode::load_dynamic_top_level: load_dynamic_top_level(state); break;
   case opcode::store_top_level:        store_top_level(state);        break;
@@ -828,9 +835,9 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::tail_call:
   case opcode::call:
   case opcode::call_top_level:
-  case opcode::call_static:
+  case opcode::call_constant:
   case opcode::tail_call_top_level:
-  case opcode::tail_call_static:       call(opcode, state);           break;
+  case opcode::tail_call_constant:       call(opcode, state);           break;
   case opcode::ret:                    ret(state);                    break;
   case opcode::jump:                   jump(state);                   break;
   case opcode::jump_unless:            jump_unless(state);            break;
@@ -852,7 +859,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
 
   if (opcode == opcode::ret
       || opcode == opcode::tail_call
-      || opcode == opcode::tail_call_static
+      || opcode == opcode::tail_call_constant
       || opcode == opcode::tail_call_top_level)
     no_gc.force_update();
 }

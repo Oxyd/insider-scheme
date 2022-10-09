@@ -373,25 +373,31 @@ private:
 
 // Callable bytecode container. Contains all the information necessary to create
 // a call frame inside the VM.
-class procedure : public leaf_object<procedure> {
+class procedure : public composite_object<procedure> {
 public:
   static constexpr char const* scheme_name = "insider::procedure";
 
-  bytecode       code;
-  debug_info_map debug_info;
-  unsigned       locals_size;
-  unsigned       min_args;
-  bool           has_rest;
-  std::string    name;
+  bytecode           code;
+  debug_info_map     debug_info;
+  unsigned           locals_size;
+  unsigned           min_args;
+  bool               has_rest;
+  std::string        name;
+  std::vector<ptr<>> constants;
 
   procedure(bytecode bc, debug_info_map dim, unsigned locals_size,
-            unsigned min_args, bool has_rest, std::string name);
+            unsigned min_args, bool has_rest, std::string name,
+            std::vector<ptr<>> constants);
+
+  void
+  visit_members(member_visitor const& f);
 };
 
 ptr<procedure>
 make_procedure_from_bytecode(context& ctx, bytecode bc,
                              unsigned locals_size, unsigned min_args,
-                             bool has_rest, std::string name);
+                             bool has_rest, std::string name,
+                             std::vector<ptr<>> constants);
 
 // A procedure plus a list of captured objects.
 class closure : public dynamic_size_object<closure, ptr<>> {
@@ -429,7 +435,8 @@ make_empty_closure(context&, ptr<procedure>);
 ptr<closure>
 make_closure_from_bytecode(context& ctx, bytecode const& bc,
                            unsigned locals_size, unsigned min_args,
-                           bool has_rest, std::string name);
+                           bool has_rest, std::string name,
+                           std::vector<ptr<>> constants);
 
 // Like procedure, but when invoked, it calls a C++ function.
 class native_procedure : public leaf_object<native_procedure> {

@@ -30,7 +30,7 @@ struct call_stack_fixture : scheme_fixture {
     return make<closure>(
       ctx,
       make<procedure>(ctx, bytecode{}, debug_info_map{}, 0, 0, false,
-                      "<dummy>"),
+                      "<dummy>", std::vector<ptr<>>{}),
       0
     );
   }

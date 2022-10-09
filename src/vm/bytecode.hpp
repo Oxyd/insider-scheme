@@ -22,7 +22,7 @@ namespace insider {
 // This enum defines the numeric opcode values.
 enum class opcode : std::uint16_t {
   no_operation,
-  load_static,      // load-static <static number> <destination>
+  load_constant,    // load-constant <constant number> <destination>
   load_top_level,   // load-top-level <top-level number> <destination>
   store_top_level,  // store-top-level <value> <top-level number>
   load_dynamic_top_level, // load-dynamic-top-level <static num> <destination>
@@ -45,10 +45,10 @@ enum class opcode : std::uint16_t {
   set,              // set <source> <destination>
   call,             // call <procedure> <base> <number of arguments> <result register>
   call_top_level,   // same as call, but <procedure> is the index of a top-level
-  call_static,      //                   -- "" --                      static
+  call_constant,    //                   -- "" --                      constant
   tail_call,        // tail-call <procedure> <base> <number of arguments>
   tail_call_top_level,
-  tail_call_static,
+  tail_call_constant,
   ret,              // ret <return value>
   jump,             // jump-absolute <offset from start of bytecode>
   jump_unless,      // jump-absolute-unless <register> <offset>
@@ -112,7 +112,7 @@ namespace detail {
 constexpr std::array
 instructions{
   std::tuple{"no-operation", opcode::no_operation, std::size_t{0}},
-  std::tuple{"load-static", opcode::load_static, std::size_t{2}},
+  std::tuple{"load-constant", opcode::load_constant, std::size_t{2}},
   std::tuple{"load-top-level", opcode::load_top_level, std::size_t{2}},
   std::tuple{"store-top-level", opcode::store_top_level, std::size_t{2}},
   std::tuple{"load-dynamic-top-level", opcode::load_dynamic_top_level,
@@ -136,11 +136,11 @@ instructions{
   std::tuple{"set!", opcode::set, std::size_t{2}},
   std::tuple{"call", opcode::call, std::size_t{4}},
   std::tuple{"call-top-level", opcode::call_top_level, std::size_t{4}},
-  std::tuple{"call-static", opcode::call_static, std::size_t{4}},
+  std::tuple{"call-constant", opcode::call_constant, std::size_t{4}},
   std::tuple{"tail-call", opcode::tail_call, std::size_t{3}},
   std::tuple{"tail-call-top-level", opcode::tail_call_top_level,
              std::size_t{3}},
-  std::tuple{"tail-call-static", opcode::tail_call_static, std::size_t{3}},
+  std::tuple{"tail-call-constant", opcode::tail_call_constant, std::size_t{3}},
   std::tuple{"ret", opcode::ret, std::size_t{1}},
   std::tuple{"jump", opcode::jump, std::size_t{1}},
   std::tuple{"jump-unless", opcode::jump_unless, std::size_t{2}},

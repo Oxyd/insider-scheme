@@ -16,9 +16,7 @@
 
 namespace insider {
 
-context::context()
-  : statics_cache_{0, {}, eqv_compare{*this}}
-{
+context::context() {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);
   constants->void_ = make<void_type>(*this);
@@ -91,25 +89,6 @@ context::intern(std::string const& s) {
   interned_symbols_.emplace(s, result);
 
   return result;
-}
-
-operand
-context::intern_static(ptr<> const& x) {
-  auto it = statics_cache_.find(x);
-  if (it == statics_cache_.end()) {
-    statics_.push_back(x);
-    it = statics_cache_.emplace(x, statics_.size() - 1).first;
-  }
-
-  return it->second;
-}
-
-ptr<>
-context::get_static_checked(operand i) const {
-  if (static_cast<std::size_t>(i) >= statics_.size())
-    throw std::runtime_error{fmt::format("Nonexistent static object {}", i)};
-
-  return statics_[i];
 }
 
 ptr<>
@@ -213,12 +192,6 @@ context::root_provider::visit_roots(member_visitor const& f) {
 
   for (auto& [name, symbol] : ctx_.interned_symbols_)
     f(weak(symbol));
-
-  for (ptr<>& s : ctx_.statics_)
-    f(s);
-
-  for (auto& [value, op] : ctx_.statics_cache_)
-    f(const_cast<ptr<>&>(value));
 
   for (ptr<>& x : ctx_.top_level_objects_)
     f(x);

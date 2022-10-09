@@ -30,7 +30,7 @@ static bool
 is_tail_call(opcode oc) {
   return oc == opcode::tail_call
          || oc == opcode::tail_call_top_level
-         || oc == opcode::tail_call_static;
+         || oc == opcode::tail_call_constant;
 }
 
 static void

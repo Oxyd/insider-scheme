@@ -261,21 +261,31 @@ box::box(ptr<> value)
 { }
 
 procedure::procedure(bytecode bc, debug_info_map dim, unsigned locals_size,
-                     unsigned min_args, bool has_rest, std::string name)
+                     unsigned min_args, bool has_rest, std::string name,
+                     std::vector<ptr<>> constants)
   : code{std::move(bc)}
   , debug_info{std::move(dim)}
   , locals_size{locals_size}
   , min_args{min_args}
   , has_rest{has_rest}
   , name{std::move(name)}
+  , constants{std::move(constants)}
 { }
+
+void
+procedure::visit_members(member_visitor const& f) {
+  for (ptr<>& k : constants)
+    f(k);
+}
 
 ptr<procedure>
 make_procedure_from_bytecode(context& ctx, bytecode bc,
                              unsigned locals_size, unsigned min_args,
-                             bool has_rest, std::string name) {
+                             bool has_rest, std::string name,
+                             std::vector<ptr<>> constants) {
   return make<procedure>(ctx, std::move(bc), debug_info_map{}, locals_size,
-                         min_args, has_rest, std::move(name));
+                         min_args, has_rest, std::move(name),
+                         std::move(constants));
 }
 
 closure::closure(ptr<insider::procedure> p, std::size_t num_captures)
@@ -321,11 +331,12 @@ make_empty_closure(context& ctx, ptr<procedure> p) {
 ptr<closure>
 make_closure_from_bytecode(context& ctx, bytecode const& bc, unsigned locals_size,
                            unsigned min_args, bool has_rest,
-                           std::string name) {
+                           std::string name,
+                           std::vector<ptr<>> constants) {
   return make_empty_closure(
     ctx,
     make_procedure_from_bytecode(ctx, bc, locals_size, min_args, has_rest,
-                                 std::move(name))
+                                 std::move(name), std::move(constants))
   );
 }
 

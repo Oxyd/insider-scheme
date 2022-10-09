@@ -32,6 +32,7 @@ namespace {
     insider::cfg                                  cfg;
     tracked_ptr<insider::module_>                 module_;
     std::unordered_map<ptr<loop_id>, std::size_t> loop_headers;
+    std::vector<ptr<>>                            constants;
 
     procedure_context(procedure_context* parent,
                       tracked_ptr<insider::module_> m)
@@ -62,6 +63,9 @@ namespace {
     emit(instruction i) {
       current_block().body.emplace_back(std::move(i));
     }
+
+    operand
+    intern_constant(context&, ptr<> value);
   };
 
   // Caller can either not be interested in any result, or it can want the
@@ -99,6 +103,17 @@ namespace {
     shared_register reg_;
     bool            used_ = true;
   };
+}
+
+operand
+procedure_context::intern_constant(context& ctx, ptr<> value) {
+  for (operand i = 0; i < static_cast<operand>(constants.size()); ++i)
+    if (eqv(ctx, constants[i], value))
+      return i;
+
+  constants.push_back(value);
+  assert(constants.size() < operand_max);
+  return constants.size() - 1;
 }
 
 shared_register
@@ -531,22 +546,27 @@ compile_expression(context& ctx, procedure_context& proc,
 static ptr<procedure>
 make_procedure_from_bytecode(context& ctx, procedure_context& pc,
                              unsigned min_args, bool has_rest,
-                             std::string name) {
+                             std::string name,
+                             std::vector<ptr<>> constants) {
   auto [bc, di] = analyse_and_compile_cfg(pc.cfg);
   return make<procedure>(ctx,
                          std::move(bc),
                          std::move(di),
                          pc.registers.registers_used(), min_args, has_rest,
-                         std::move(name));
+                         std::move(name),
+                         std::move(constants));
 }
 
 static ptr<closure>
 make_closure_from_bytecode(context& ctx, procedure_context& pc,
                            unsigned min_args, bool has_rest,
-                           std::string name) {
-  return make_empty_closure(ctx, make_procedure_from_bytecode(ctx, pc, min_args,
-                                                              has_rest,
-                                                              std::move(name)));
+                           std::string name,
+                           std::vector<ptr<>> constants) {
+  return make_empty_closure(ctx,
+                            make_procedure_from_bytecode(ctx, pc, min_args,
+                                                         has_rest,
+                                                         std::move(name),
+                                                         std::move(constants)));
 }
 
 static variable_bindings::unique_scope
@@ -623,7 +643,7 @@ compile_expression(context& ctx, procedure_context& parent,
   auto p = make_procedure_from_bytecode(
     ctx, proc,
     static_cast<unsigned>(stx->parameters().size() - (stx->has_rest() ? 1 : 0)),
-    stx->has_rest(), stx->name()
+    stx->has_rest(), stx->name(), std::move(proc.constants)
   );
 
   if (stx->free_variables().empty())
@@ -866,8 +886,8 @@ compile_expression(context& ctx, procedure_context& proc,
     f = global->variable()->index;
     oc = tail ? opcode::tail_call_top_level : opcode::call_top_level;
   } else if (auto lit = match<literal_expression>(stx->target())) {
-    f = ctx.intern_static(lit->value());
-    oc = tail ? opcode::tail_call_static : opcode::call_static;
+    f = proc.intern_constant(ctx, lit->value());
+    oc = tail ? opcode::tail_call_constant : opcode::call_constant;
   } else {
     f_reg = compile_expression_to_register(ctx, proc, stx->target(), false);
     f = *f_reg;
@@ -903,7 +923,8 @@ compile_fixnum_reference(context& ctx, procedure_context& proc,
               immediate_to_operand(static_cast<immediate_type>(value)),
               *result.get(proc));
   else
-    proc.emit(opcode::load_static, ctx.intern_static(integer_to_ptr(value)),
+    proc.emit(opcode::load_constant,
+              proc.intern_constant(ctx, integer_to_ptr(value)),
               *result.get(proc));
 }
 
@@ -926,7 +947,8 @@ compile_static_reference(context& ctx, procedure_context& proc, ptr<> value,
   else if (auto fx = match<integer>(value))
     compile_fixnum_reference(ctx, proc, fx->value(), result);
   else
-    proc.emit(opcode::load_static, ctx.intern_static(value), *result.get(proc));
+    proc.emit(opcode::load_constant, proc.intern_constant(ctx, value),
+              *result.get(proc));
 }
 
 static void
@@ -952,7 +974,7 @@ compile_expression(context& ctx, procedure_context& proc,
   if (!result.result_used())
     return;
 
-  operand id_index = ctx.intern_static(stx->name());
+  operand id_index = proc.intern_constant(ctx, stx->name());
   proc.emit(opcode::load_dynamic_top_level, id_index, *result.get(proc));
 }
 
@@ -1033,7 +1055,8 @@ compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
     proc.emit(opcode::ret, *result);
 
   return make_empty_closure(
-    ctx, make_procedure_from_bytecode(ctx, proc, 0, false, "<expression>")
+    ctx, make_procedure_from_bytecode(ctx, proc, 0, false, "<expression>",
+                                      std::move(proc.constants))
   );
 }
 
@@ -1082,7 +1105,8 @@ compile_module_body(context& ctx, tracked_ptr<module_> const& m,
                                fmt::format("<module {} top-level>",
                                            pm.name
                                            ? module_name_to_string(*pm.name)
-                                           : "<unknown>"))
+                                           : "<unknown>"),
+                               std::move(proc.constants))
   );
 }
 
