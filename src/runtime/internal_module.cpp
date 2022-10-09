@@ -120,6 +120,11 @@ procedure_name(ptr<procedure> f) {
   return f->name;
 }
 
+static ptr<vector>
+procedure_constants(context& ctx, ptr<procedure> f) {
+  return make_vector(ctx, f->constants);
+}
+
 static integer
 instruction_opcode(ptr<opaque_value<instruction>> i) {
   return integer{static_cast<integer::value_type>(i->value.opcode)};
@@ -216,6 +221,7 @@ make_internal_module(context& ctx) {
 
   define_procedure<procedure_bytecode>(ctx, "procedure-bytecode", result);
   define_procedure<procedure_name>(ctx, "procedure-name", result);
+  define_procedure<procedure_constants>(ctx, "procedure-constants", result);
   define_procedure<&closure::procedure>(ctx, "closure-procedure", result);
 
   define_procedure<instruction_opcode>(ctx, "instruction-opcode", result);

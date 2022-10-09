@@ -3,8 +3,8 @@
         (insider string) (insider list) (insider vector) (insider numeric)
         (only (insider internal)
               procedure-bytecode procedure-name opcodes instruction-opcode
-              instruction-operands top-level-name static-value top-level-value
-              closure-procedure immediate-bias))
+              instruction-operands top-level-name procedure-constants
+              top-level-value closure-procedure immediate-bias))
 (export disassemble)
 
 (define instruction-column 8)
@@ -22,14 +22,11 @@
 (define (instruction-mnemonic instr)
   (opcode-mnemonic (instruction-opcode instr)))
 
-(define (related-static instr)
-  (let ((m (instruction-mnemonic instr)))
-    (if (or (eq? m 'load-static)
-            (eq? m 'call-static)
-            (eq? m 'tail-call-static))
-        (let ((static-num (car (instruction-operands instr))))
-          (cons static-num (static-value static-num)))
-        #f)))
+(define (related-constant instr)
+  (case (instruction-mnemonic instr)
+    ((load-constant call-constant tail-call-constant)
+     (car (instruction-operands instr)))
+    (else #f)))
 
 (define (related-top-level instr)
   (let ((m (instruction-mnemonic instr)))
@@ -77,30 +74,42 @@
     ((load-fixnum) (format-load-fixnum instr))
     (else          (format-general-instruction instr))))
 
-(define (format-related kind value)
-  (string-append (symbol->string kind)
-                 " "
-                 (number->string (car value))
-                 " = "
-                 (if (eq? kind 'static)
-                     (string-append (symbol->string (type (cdr value)))
-                                    " "
-                                    (datum->string (cdr value)))
-                     (cdr value))))
+(define (format-related-constant f index)
+  (string-append "constant " (number->string index) " = "
+                 (datum->string (vector-ref (procedure-constants f) index))))
+
+(define (format-related-top-level value)
+  (string-append "top-level " (number->string (car value)) " = " (cdr value)))
 
 (define (make-indent target-column current-column)
   (if (>= current-column target-column)
       ""
       (make-string (- target-column current-column) #\space)))
 
-(define (instruction-comment instruction-record)
+(define (instruction-comment f instruction-record)
   (let* ((instr (caddr instruction-record))
-         (related-static (related-static instr))
+         (related-constant (related-constant instr))
          (related-name (related-top-level-name instr)))
     (cond
-     (related-static (format-related 'static related-static))
-     (related-name (format-related 'top-level related-name))
+     (related-constant (format-related-constant f related-constant))
+     (related-name (format-related-top-level related-name))
      (else #f))))
+
+(define (display-procedure-constants f)
+  (display "Constants: ")
+  (newline)
+  (let* ((consts (procedure-constants f))
+         (len (vector-length consts)))
+    (do ((i 0 (+ i 1)))
+        ((= i len))
+      (let ((value (vector-ref consts i)))
+        (display "  ")
+        (display i)
+        (display ": ")
+        (display (type value))
+        (display ": ")
+        (write value)
+        (newline)))))
 
 (define (display-procedure-header f number-kind number)
   (display (or (procedure-name f) "<lambda>"))
@@ -113,7 +122,11 @@
     (display ")"))
 
   (display #\:)
-  (newline))
+  (newline)
+
+  (unless (zero? (vector-length (procedure-constants f)))
+    (display-procedure-constants f)
+    (newline)))
 
 (define (display-location-and-indent location)
   (let ((location-string (number->string location)))
@@ -122,6 +135,8 @@
 
 (define (disassemble-procedure f number-kind number)
   (display-procedure-header f number-kind number)
+  (display "Code:")
+  (newline)
 
   (let loop ((instruction-records (procedure-bytecode f)))
     (unless (null? instruction-records)
@@ -133,7 +148,7 @@
         (let ((formatted-instr (format-instruction instr)))
           (display formatted-instr)
 
-          (let ((comment (instruction-comment record)))
+          (let ((comment (instruction-comment f record)))
             (when comment
               (display (make-indent comment-column
                                     (string-length formatted-instr)))
@@ -155,20 +170,25 @@
                 #f))
           #f)))
 
-  (or (find related-static 'static)
+  (or (find related-constant 'constant)
       (and recurse-to-top-levels? (find related-top-level 'top-level))))
 
-(define (find-related-procedures f done to-do recurse-to-top-levels?)
-  (let loop ((instruction-records (procedure-bytecode f))
-             (result '()))
-    (if (null? instruction-records)
-        result
-        (let ((related (related-procedure (car instruction-records)
-                                          recurse-to-top-levels?)))
-          (loop (cdr instruction-records)
-                (if related
-                    (cons related result)
-                    result))))))
+(define (closure-procedure* closure-or-procedure)
+  (if (closure? closure-or-procedure)
+      (closure-procedure closure-or-procedure)
+      closure-or-procedure))
+
+(define (find-related-procedures f)
+  (let* ((consts (procedure-constants f))
+         (len (vector-length consts)))
+    (let loop ((i 0) (result '()))
+      (if (= i len)
+          result
+          (loop (+ i 1)
+                (let ((k (vector-ref consts i)))
+                  (if (scheme-procedure? k)
+                      (cons (list 'constant i (closure-procedure* k)) result)
+                      result)))))))
 
 (define (add-to-do old-to-do done new-to-do)
   (let loop ((new new-to-do)
@@ -182,23 +202,20 @@
                   result
                   (cons (car new) result))))))
 
-(define (disassemble f . rest)
+(define (disassemble f)
   (when (closure? f)
     (set! f (closure-procedure f)))
+  (let loop ((done '())
+             (to-do (list (list #f #f f))))
+    (unless (null? to-do)
+      (let* ((current (car to-do))
+             (current-proc (caddr current)))
+        (unless (null? done)
+          (newline))
 
-  (let ((recurse-to-top-levels? (and (not (null? rest)) (car rest))))
-    (let loop ((done '())
-               (to-do (list (list #f #f f))))
-      (unless (null? to-do)
-        (let* ((current (car to-do))
-               (current-proc (caddr current)))
-          (unless (null? done)
-            (newline))
-
-          (disassemble-procedure current-proc (car current) (cadr current))
-          (let ((done* (cons current-proc done)))
-            (loop done*
-                  (add-to-do (cdr to-do)
-                             done*
-                             (find-related-procedures current-proc done* to-do
-                                                      recurse-to-top-levels?)))))))))
+        (disassemble-procedure current-proc (car current) (cadr current))
+        (let ((done* (cons current-proc done)))
+          (loop done*
+                (add-to-do (cdr to-do)
+                           done*
+                           (find-related-procedures current-proc))))))))
