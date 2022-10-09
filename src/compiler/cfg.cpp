@@ -28,9 +28,7 @@ change_target(basic_block::ending_type& e, std::size_t new_target) {
 
 static bool
 is_tail_call(opcode oc) {
-  return oc == opcode::tail_call
-         || oc == opcode::tail_call_top_level
-         || oc == opcode::tail_call_constant;
+  return oc == opcode::tail_call;
 }
 
 static void

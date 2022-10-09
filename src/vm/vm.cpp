@@ -34,28 +34,6 @@ get_constant(ptr<call_stack> stack, operand index) {
   return proc->constants[index];
 }
 
-static ptr<>
-find_callee_value(context& ctx, opcode opcode, ptr<call_stack> stack,
-                  operand reg) {
-  switch (opcode) {
-  case opcode::call:
-  case opcode::tail_call:
-    return stack->local(reg);
-
-  case opcode::call_top_level:
-  case opcode::tail_call_top_level:
-    return ctx.get_top_level(reg);
-
-  case opcode::call_constant:
-  case opcode::tail_call_constant:
-    return get_constant(stack, reg);
-
-  default:
-    assert(false);
-    return {};
-  }
-}
-
 static bool
 current_frame_is_native(ptr<call_stack> stack) {
   return stack->current_frame_type() != call_stack::frame_type::scheme;
@@ -65,8 +43,6 @@ static std::size_t
 find_index_of_call_instruction(ptr<procedure> proc,
                                instruction_pointer call_ip) {
   assert(opcode_to_info(opcode::call).num_operands == 4);
-  assert(opcode_to_info(opcode::call_top_level).num_operands == 4);
-  assert(opcode_to_info(opcode::call_constant).num_operands == 4);
   static constexpr std::size_t call_instruction_size = 5;
   return call_ip - proc->code.data() - call_instruction_size;
 }
@@ -395,12 +371,6 @@ set(execution_state& state) {
   state.stack->local(dst) = state.stack->local(src);
 }
 
-static ptr<>
-find_callee(opcode opcode, execution_state& state) {
-  return find_callee_value(state.ctx, opcode, state.stack,
-                           read_operand(state));
-}
-
 static std::size_t
 get_closure_size(ptr<closure> cls) {
   if (cls)
@@ -637,14 +607,12 @@ do_native_call(ptr<native_procedure> proc, execution_state& state,
 
 static bool
 is_tail(opcode opcode) {
-  return opcode == opcode::tail_call
-         || opcode == opcode::tail_call_top_level
-         || opcode == opcode::tail_call_constant;
+  return opcode == opcode::tail_call;
 }
 
 static void
 call(opcode opcode, execution_state& state) {
-  ptr<> callee = find_callee(opcode, state);
+  ptr<> callee = state.stack->local(read_operand(state));
 
   if (auto scheme_closure = match<closure>(callee))
     push_scheme_call_frame(scheme_closure, state, is_tail(opcode));
@@ -833,11 +801,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::greater_or_equal:       relational(opcode, state);     break;
   case opcode::set:                    set(state);                    break;
   case opcode::tail_call:
-  case opcode::call:
-  case opcode::call_top_level:
-  case opcode::call_constant:
-  case opcode::tail_call_top_level:
-  case opcode::tail_call_constant:       call(opcode, state);           break;
+  case opcode::call:                   call(opcode, state);           break;
   case opcode::ret:                    ret(state);                    break;
   case opcode::jump:                   jump(state);                   break;
   case opcode::jump_unless:            jump_unless(state);            break;
@@ -857,10 +821,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
     assert(false); // Invalid opcode
   } // end switch
 
-  if (opcode == opcode::ret
-      || opcode == opcode::tail_call
-      || opcode == opcode::tail_call_constant
-      || opcode == opcode::tail_call_top_level)
+  if (opcode == opcode::ret || opcode == opcode::tail_call)
     no_gc.force_update();
 }
 

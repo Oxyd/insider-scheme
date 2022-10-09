@@ -66,7 +66,8 @@ TEST_F(interpreter, can_access_arguments_from_callee) {
     make_bytecode({
       {opcode::load_constant, operand{0}, operand{0}},
       {opcode::load_constant, operand{1}, operand{1}},
-      {opcode::call_constant, operand{2}, operand{0}, operand{2}, operand{0}},
+      {opcode::load_constant, operand{2}, operand{2}},
+      {opcode::call, operand{2}, operand{0}, operand{2}, operand{0}},
       {opcode::ret, operand{0}}
     }),
     {

@@ -875,31 +875,20 @@ compile_expression(context& ctx, procedure_context& proc,
       }
     }
 
-  opcode oc = tail ? opcode::tail_call : opcode::call;
-  operand f;
-  shared_register f_reg;
+  shared_register f
+    = compile_expression_to_register(ctx, proc, stx->target(), false);
 
   operand call_base = proc.registers.first_argument_register();
   auto arg_registers = compile_application_arguments(ctx, proc, stx);
 
-  if (auto global = match<top_level_reference_expression>(stx->target())) {
-    f = global->variable()->index;
-    oc = tail ? opcode::tail_call_top_level : opcode::call_top_level;
-  } else if (auto lit = match<literal_expression>(stx->target())) {
-    f = proc.intern_constant(ctx, lit->value());
-    oc = tail ? opcode::tail_call_constant : opcode::call_constant;
-  } else {
-    f_reg = compile_expression_to_register(ctx, proc, stx->target(), false);
-    f = *f_reg;
-  }
-
   instruction i;
   if (!tail)
-    i = {oc, f, call_base,
+    i = {opcode::call, *f, call_base,
          static_cast<operand>(stx->arguments().size()),
          *result.get(proc)};
   else
-    i = {oc, f, call_base, static_cast<operand>(stx->arguments().size())};
+    i = {opcode::tail_call, *f, call_base,
+         static_cast<operand>(stx->arguments().size())};
 
   proc.emit(std::move(i));
   if (stx->debug_info())

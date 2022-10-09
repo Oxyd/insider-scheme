@@ -44,11 +44,7 @@ enum class opcode : std::uint16_t {
   greater_or_equal,
   set,              // set <source> <destination>
   call,             // call <procedure> <base> <number of arguments> <result register>
-  call_top_level,   // same as call, but <procedure> is the index of a top-level
-  call_constant,    //                   -- "" --                      constant
   tail_call,        // tail-call <procedure> <base> <number of arguments>
-  tail_call_top_level,
-  tail_call_constant,
   ret,              // ret <return value>
   jump,             // jump-absolute <offset from start of bytecode>
   jump_unless,      // jump-absolute-unless <register> <offset>
@@ -135,12 +131,7 @@ instructions{
   std::tuple{"greater-or-equal", opcode::greater_or_equal, std::size_t{3}},
   std::tuple{"set!", opcode::set, std::size_t{2}},
   std::tuple{"call", opcode::call, std::size_t{4}},
-  std::tuple{"call-top-level", opcode::call_top_level, std::size_t{4}},
-  std::tuple{"call-constant", opcode::call_constant, std::size_t{4}},
   std::tuple{"tail-call", opcode::tail_call, std::size_t{3}},
-  std::tuple{"tail-call-top-level", opcode::tail_call_top_level,
-             std::size_t{3}},
-  std::tuple{"tail-call-constant", opcode::tail_call_constant, std::size_t{3}},
   std::tuple{"ret", opcode::ret, std::size_t{1}},
   std::tuple{"jump", opcode::jump, std::size_t{1}},
   std::tuple{"jump-unless", opcode::jump_unless, std::size_t{2}},
