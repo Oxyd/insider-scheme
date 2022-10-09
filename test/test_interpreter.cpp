@@ -267,7 +267,7 @@ TEST_F(interpreter, exec_cons) {
   auto global = make_closure(
     ctx,
     make_bytecode(
-      {{opcode::load_static, ctx.statics.null, operand{1}},
+      {{opcode::load_null,                     operand{1}},
        {opcode::load_static, one,              operand{2}},
        {opcode::load_static, two,              operand{3}},
        {opcode::load_static, three,            operand{4}},

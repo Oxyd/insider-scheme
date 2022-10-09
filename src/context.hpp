@@ -84,19 +84,8 @@ public:
     ptr<parameter_tag> interaction_environment_specifier_tag;
   };
 
-  struct statics_list {
-    operand
-      null,
-      void_,
-      t, f,
-      zero,
-      one
-      ;
-  };
-
   free_store                       store;
   std::unique_ptr<constants>       constants;
-  statics_list                     statics{};
   // Built from actions during stack unwinding.
   std::string                      error_backtrace;
   std::unique_ptr<execution_state> current_execution;

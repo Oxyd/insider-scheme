@@ -179,14 +179,14 @@ compile_expression(context&, procedure_context& proc,
                    result_location& result);
 
 static void
-compile_static_reference(procedure_context& proc, operand location,
+compile_static_reference(context& ctx, procedure_context& proc, ptr<> value,
                          result_location&);
 
 static shared_register
-compile_static_reference_to_register(procedure_context& proc,
-                                     operand static_num) {
+compile_static_reference_to_register(context& ctx, procedure_context& proc,
+                                     ptr<> value) {
   result_location result;
-  compile_static_reference(proc, static_num, result);
+  compile_static_reference(ctx, proc, value, result);
   return result.get(proc);
 }
 
@@ -223,11 +223,11 @@ compile_arithmetic(context& ctx, procedure_context& proc,
                    result_location& result) {
   if (stx->arguments().empty()) {
     if (tag == special_top_level_tag::plus) {
-      compile_static_reference(proc, ctx.statics.zero, result);
+      compile_static_reference(ctx, proc, integer_to_ptr(0), result);
       return;
     }
     else if (tag == special_top_level_tag::times) {
-      compile_static_reference(proc, ctx.statics.one, result);
+      compile_static_reference(ctx, proc, integer_to_ptr(1), result);
       return;
     }
     else
@@ -310,7 +310,7 @@ compile_vector_set(context& ctx, procedure_context& proc,
   proc.emit(opcode::vector_set,
             *arg_registers[0], *arg_registers[1], *arg_registers[2]);
 
-  compile_static_reference(proc, ctx.statics.void_, result);
+  compile_static_reference(ctx, proc, ctx.constants->void_, result);
 }
 
 static void
@@ -439,7 +439,7 @@ compile_box_set(context& ctx, procedure_context& proc,
     = compile_expression_to_register(ctx, proc, stx->arguments()[1], false);
 
   proc.emit(opcode::box_set, *box, *value);
-  compile_static_reference(proc, ctx.statics.void_, result);
+  compile_static_reference(ctx, proc, ctx.constants->void_, result);
 }
 
 static void
@@ -514,7 +514,7 @@ compile_expression(context& ctx, procedure_context& proc,
   assert(reg);
   dest_loc.set(reg);
   compile_expression(ctx, proc, stx->expression(), false, dest_loc);
-  compile_static_reference(proc, ctx.statics.void_, result);
+  compile_static_reference(ctx, proc, ctx.constants->void_, result);
 }
 
 static void
@@ -525,7 +525,7 @@ compile_expression(context& ctx, procedure_context& proc,
     = compile_expression_to_register(ctx, proc, stx->expression(), false);
   proc.emit(opcode::store_top_level, *value, stx->target()->index);
 
-  compile_static_reference(proc, ctx.statics.void_, result);
+  compile_static_reference(ctx, proc, ctx.constants->void_, result);
 }
 
 static ptr<procedure>
@@ -586,7 +586,7 @@ emit_make_closure(context& ctx, procedure_context& parent,
                   ptr<procedure> proc, ptr<lambda_expression> stx,
                   result_location& result) {
   shared_register p_reg
-    = compile_static_reference_to_register(parent, ctx.intern_static(proc));
+    = compile_static_reference_to_register(ctx, parent, proc);
 
   operand free_base = parent.registers.first_argument_register();
   std::vector<shared_register> temp_registers;
@@ -609,7 +609,7 @@ emit_reference_to_empty_closure(context& ctx, procedure_context& parent,
                                 ptr<procedure> proc,
                                 result_location& result) {
   auto cls = make_empty_closure(ctx, proc);
-  compile_static_reference(parent, ctx.intern_static(cls), result);
+  compile_static_reference(ctx, parent, cls, result);
 }
 
 static void
@@ -896,12 +896,23 @@ compile_expression(context&, procedure_context& proc,
 }
 
 static void
-compile_static_reference(procedure_context& proc, operand location,
+compile_static_reference(context& ctx, procedure_context& proc, ptr<> value,
                          result_location& result) {
   if (!result.result_used())
     return;
 
-  proc.emit(opcode::load_static, location, *result.get(proc));
+  if (value == ctx.constants->null)
+    proc.emit(opcode::load_null, *result.get(proc));
+  else if (value == ctx.constants->void_)
+    proc.emit(opcode::load_void, *result.get(proc));
+  else if (value == ctx.constants->t)
+    proc.emit(opcode::load_t, *result.get(proc));
+  else if (value == ctx.constants->f)
+    proc.emit(opcode::load_f, *result.get(proc));
+  else if (value == ctx.constants->eof)
+    proc.emit(opcode::load_eof, *result.get(proc));
+  else
+    proc.emit(opcode::load_static, ctx.intern_static(value), *result.get(proc));
 }
 
 static void
@@ -934,7 +945,7 @@ compile_expression(context& ctx, procedure_context& proc,
 static void
 compile_expression(context& ctx, procedure_context& proc,
                    ptr<literal_expression> lit, bool, result_location& result) {
-  compile_static_reference(proc, ctx.intern_static(lit->value()), result);
+  compile_static_reference(ctx, proc, lit->value(), result);
 }
 
 static void
@@ -977,7 +988,7 @@ compile_expression(context& ctx, procedure_context& proc,
                    ptr<sequence_expression> stx, bool tail,
                    result_location& result) {
   if (stx->expressions().empty())
-    compile_static_reference(proc, ctx.statics.void_, result);
+    compile_static_reference(ctx, proc, ctx.constants->void_, result);
 
   for (auto expr = stx->expressions().begin();
        expr != stx->expressions().end();

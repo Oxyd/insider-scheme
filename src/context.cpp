@@ -67,14 +67,6 @@ context::context()
   }
 
   constants->init = make<core_form_type>(*this, "init");
-
-  statics.null = intern_static(constants->null);
-  statics.void_ = intern_static(constants->void_);
-  statics.t = intern_static(constants->t);
-  statics.f = intern_static(constants->f);
-  statics.zero = intern_static(integer_to_ptr(0));
-  statics.one = intern_static(integer_to_ptr(1));
-
   features_ = make_list(*this, intern("r7rs"), intern("full-unicode"));
 }
 
