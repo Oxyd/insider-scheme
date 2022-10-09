@@ -4,7 +4,7 @@
         (only (insider internal)
               procedure-bytecode procedure-name opcodes instruction-opcode
               instruction-operands top-level-name static-value top-level-value
-              closure-procedure))
+              closure-procedure immediate-bias))
 (export disassemble)
 
 (define instruction-column 8)
@@ -57,11 +57,25 @@
     (string-append m
                    (make-string (- longest-mnemonic len) #\space))))
 
-(define (format-instruction instr)
+(define (format-load-fixnum instr)
+  (let ((operands (instruction-operands instr)))
+    (let ((imm (car operands)) (dest (cadr operands)))
+      (string-append (format-mnemonic 'load-fixnum)
+                     " $"
+                     (number->string (- imm immediate-bias))
+                     ", "
+                     (number->string dest)))))
+
+(define (format-general-instruction instr)
   (string-append (format-mnemonic (instruction-mnemonic instr))
                  " "
                  (string-join (map number->string (instruction-operands instr))
                               ", ")))
+
+(define (format-instruction instr)
+  (case (instruction-mnemonic instr)
+    ((load-fixnum) (format-load-fixnum instr))
+    (else          (format-general-instruction instr))))
 
 (define (format-related kind value)
   (string-append (symbol->string kind)

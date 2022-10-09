@@ -256,6 +256,13 @@ auto load_f = load_constant<&context::constants::f>;
 auto load_eof = load_constant<&context::constants::eof>;
 
 static void
+load_fixnum(execution_state& state) {
+  immediate_type value = operand_to_immediate(read_operand(state));
+  operand dest = read_operand(state);
+  state.stack->local(dest) = integer_to_ptr(value);
+}
+
+static void
 arithmetic(opcode opcode, execution_state& state) {
   ptr<> lhs = state.stack->local(read_operand(state));
   ptr<> rhs = state.stack->local(read_operand(state));
@@ -807,6 +814,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::load_t:                 load_t(state);                 break;
   case opcode::load_f:                 load_f(state);                 break;
   case opcode::load_eof:               load_eof(state);               break;
+  case opcode::load_fixnum:            load_fixnum(state);            break;
   case opcode::add:
   case opcode::subtract:
   case opcode::multiply:

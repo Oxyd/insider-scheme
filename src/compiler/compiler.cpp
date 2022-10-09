@@ -896,6 +896,18 @@ compile_expression(context&, procedure_context& proc,
 }
 
 static void
+compile_fixnum_reference(context& ctx, procedure_context& proc,
+                         integer::value_type value, result_location& result) {
+  if (value >= immediate_min && value <= immediate_max)
+    proc.emit(opcode::load_fixnum,
+              immediate_to_operand(static_cast<immediate_type>(value)),
+              *result.get(proc));
+  else
+    proc.emit(opcode::load_static, ctx.intern_static(integer_to_ptr(value)),
+              *result.get(proc));
+}
+
+static void
 compile_static_reference(context& ctx, procedure_context& proc, ptr<> value,
                          result_location& result) {
   if (!result.result_used())
@@ -911,6 +923,8 @@ compile_static_reference(context& ctx, procedure_context& proc, ptr<> value,
     proc.emit(opcode::load_f, *result.get(proc));
   else if (value == ctx.constants->eof)
     proc.emit(opcode::load_eof, *result.get(proc));
+  else if (auto fx = match<integer>(value))
+    compile_fixnum_reference(ctx, proc, fx->value(), result);
   else
     proc.emit(opcode::load_static, ctx.intern_static(value), *result.get(proc));
 }

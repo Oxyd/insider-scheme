@@ -230,6 +230,8 @@ make_internal_module(context& ctx) {
                                [&] (instruction_info const& info) {
                                  return ctx.intern(info.mnemonic);
                                }));
+  define_top_level(ctx, "immediate-bias", result, true,
+                   integer_to_ptr(immediate_bias));
 
   define_procedure<top_level_name>(ctx, "top-level-name", result);
   define_procedure<static_value>(ctx, "static-value", result);

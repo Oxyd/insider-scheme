@@ -32,6 +32,7 @@ enum class opcode : std::uint16_t {
   load_t,           // load-#t <destination>
   load_f,           // load-#f <destination>
   load_eof,         // load-eof <destination>
+  load_fixnum,      // load-fixnum <immediate> <destination>
   add,
   subtract,
   multiply,
@@ -122,6 +123,7 @@ instructions{
   std::tuple{"load-#t", opcode::load_t, std::size_t{1}},
   std::tuple{"load-#f", opcode::load_f, std::size_t{1}},
   std::tuple{"load-eof", opcode::load_eof, std::size_t{1}},
+  std::tuple{"load-fixnum", opcode::load_fixnum, std::size_t{2}},
   std::tuple{"add", opcode::add, std::size_t{3}},
   std::tuple{"subtract", opcode::subtract, std::size_t{3}},
   std::tuple{"multiply", opcode::multiply, std::size_t{3}},
