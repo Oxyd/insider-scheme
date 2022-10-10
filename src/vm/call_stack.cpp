@@ -91,10 +91,10 @@ call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size,
 
   std::size_t dest_begin = current_base;
   std::size_t src_begin  = current_base + args_base;
-  std::size_t src_end    = src_begin + args_size;
+  std::size_t src_end    = src_begin + args_size + 1;
 
   assert(src_end <= size_);
-  [[maybe_unused]] std::size_t dest_end = dest_begin + args_size;
+  [[maybe_unused]] std::size_t dest_end = dest_begin + args_size + 1;
   assert(dest_end <= size_);
 
   std::copy(data_.get() + src_begin, data_.get() + src_end,

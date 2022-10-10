@@ -55,19 +55,19 @@ TEST_F(interpreter, can_access_arguments_from_callee) {
   ptr<closure> add = make_closure(
     ctx,
     make_bytecode({
-      {opcode::add, operand{0}, operand{1}, operand{0}},
+      {opcode::add, operand{1}, operand{2}, operand{0}},
       {opcode::ret, operand{0}}
     }),
     {},
-    2, 2
+    3, 2
   );
   auto f = make_closure(
     ctx,
     make_bytecode({
-      {opcode::load_constant, operand{0}, operand{0}},
-      {opcode::load_constant, operand{1}, operand{1}},
-      {opcode::load_constant, operand{2}, operand{2}},
-      {opcode::call, operand{2}, operand{0}, operand{2}, operand{0}},
+      {opcode::load_constant, operand{2}, operand{0}},
+      {opcode::load_constant, operand{0}, operand{1}},
+      {opcode::load_constant, operand{1}, operand{2}},
+      {opcode::call, operand{0}, operand{2}, operand{0}},
       {opcode::ret, operand{0}}
     }),
     {
@@ -87,14 +87,14 @@ TEST_F(interpreter, exec_calls) {
 
   ptr<closure> f = make_closure(
     ctx,
-    make_bytecode({{opcode::load_constant, operand{0}, operand{3}},
-                   {opcode::multiply, operand{3}, operand{0}, operand{2}},
-                   {opcode::add, operand{2}, operand{1}, operand{2}},
-                   {opcode::ret, operand{2}}}),
+    make_bytecode({{opcode::load_constant, operand{0}, operand{4}},
+                   {opcode::multiply, operand{4}, operand{1}, operand{3}},
+                   {opcode::add, operand{3}, operand{2}, operand{3}},
+                   {opcode::ret, operand{3}}}),
     {
       integer_to_ptr(2)
     },
-    4, 2
+    5, 2
   );
 
   auto global = make_closure(
@@ -102,16 +102,15 @@ TEST_F(interpreter, exec_calls) {
     make_bytecode({{opcode::load_constant, operand{5}, operand{0}},
                    {opcode::load_constant, operand{2}, operand{1}},
                    {opcode::load_constant, operand{3}, operand{2}},
-                   {opcode::call, operand{0}, operand{1}, operand{2},
-                                  operand{1}},
+                   {opcode::call, operand{0}, operand{2}, operand{1}},
                    {opcode::load_constant, operand{1}, operand{2}},
                    {opcode::multiply, operand{2}, operand{1}, operand{1}},
-                   {opcode::load_constant, operand{4}, operand{3}},
-                   {opcode::call, operand{0}, operand{2}, operand{2},
-                                  operand{3}},
-                   {opcode::load_constant, operand{0}, operand{2}},
-                   {opcode::call, operand{0}, operand{2}, operand{2},
-                                  operand{0}},
+                   {opcode::load_constant, operand{4}, operand{4}},
+                   {opcode::set, operand{2}, operand{3}},
+                   {opcode::set, operand{0}, operand{2}},
+                   {opcode::call, operand{2}, operand{2}, operand{4}},
+                   {opcode::load_constant, operand{0}, operand{3}},
+                   {opcode::call, operand{2}, operand{2}, operand{0}},
                    {opcode::add, operand{0}, operand{1}, operand{0}},
                    {opcode::ret, operand{0}}}),
     {
@@ -138,7 +137,7 @@ TEST_F(interpreter, exec_tail_calls) {
   ptr<closure> g = make_closure(
     ctx,
     make_bytecode({{opcode::load_constant, operand{0}, operand{2}},
-                   {opcode::multiply, operand{2}, operand{0}, operand{1}},
+                   {opcode::multiply, operand{2}, operand{1}, operand{1}},
                    {opcode::ret, operand{1}}}),
     {
       integer_to_ptr(2)
@@ -147,8 +146,8 @@ TEST_F(interpreter, exec_tail_calls) {
   );
   ptr<closure> f = make_closure(
     ctx,
-    make_bytecode({{opcode::load_constant, operand{0}, operand{1}},
-                   {opcode::tail_call, operand{1}, operand{0}, operand{1}}}),
+    make_bytecode({{opcode::load_constant, operand{0}, operand{0}},
+                   {opcode::tail_call, operand{0}, operand{1}}}),
     {
       g
     },
@@ -158,8 +157,7 @@ TEST_F(interpreter, exec_tail_calls) {
     ctx,
     make_bytecode({{opcode::load_constant, operand{0}, operand{1}},
                    {opcode::load_constant, operand{1}, operand{2}},
-                   {opcode::call, operand{1}, operand{2}, operand{1},
-                                  operand{0}},
+                   {opcode::call, operand{1}, operand{1}, operand{0}},
                    {opcode::ret, operand{0}}}),
     {
       f,
@@ -219,8 +217,7 @@ TEST_F(interpreter, exec_native_call) {
                    {opcode::load_constant, operand{1}, operand{1}},
                    {opcode::load_constant, operand{2}, operand{2}},
                    {opcode::load_constant, operand{3}, operand{3}},
-                   {opcode::call, operand{0}, operand{1}, operand{3},
-                                  operand{0}},
+                   {opcode::call, operand{0}, operand{3}, operand{0}},
                    {opcode::ret, operand{0}}}),
     {
       make<native_procedure>(ctx, native),
@@ -239,9 +236,9 @@ TEST_F(interpreter, exec_native_call) {
 TEST_F(interpreter, exec_closure_ref) {
   ptr<procedure> add = make_procedure_from_bytecode(
     ctx,
-    make_bytecode({{opcode::add, operand{0}, operand{1}, operand{0}},
+    make_bytecode({{opcode::add, operand{1}, operand{2}, operand{0}},
                    {opcode::ret, operand{0}}}),
-    2, 1,
+    3, 1,
     false, "add",
     {}
   );
@@ -251,9 +248,8 @@ TEST_F(interpreter, exec_closure_ref) {
                    {opcode::load_constant, operand{1}, operand{3}},
                    {opcode::load_constant, operand{2}, operand{4}},
                    {opcode::make_closure, operand{2}, operand{3}, operand{1},
-                                          operand{1}},
-                   {opcode::call, operand{1}, operand{4}, operand{1},
-                                  operand{0}},
+                                          operand{3}},
+                   {opcode::call, operand{3}, operand{1}, operand{0}},
                    {opcode::ret, operand{0}}}),
     {
       add,
@@ -295,20 +291,20 @@ TEST_F(interpreter, exec_car_cdr) {
 
   auto first = make_closure(
     ctx,
-    make_bytecode({{opcode::car, operand{0}, operand{0}},
+    make_bytecode({{opcode::car, operand{1}, operand{0}},
                    {opcode::ret, operand{0}}}),
     {},
-    1, 1
+    2, 1
   );
   auto result1 = call_with_continuation_barrier(ctx, first, {p.get()});
   EXPECT_EQ(expect<integer>(result1).value(), 1);
 
   auto second = make_closure(
     ctx,
-    make_bytecode({{opcode::cdr, operand{0}, operand{0}},
+    make_bytecode({{opcode::cdr, operand{1}, operand{0}},
                    {opcode::ret, operand{0}}}),
     {},
-    1, 1
+    2, 1
   );
   auto result2 = call_with_continuation_barrier(ctx, second, {p.get()});
   EXPECT_EQ(expect<integer>(result2).value(), 2);
@@ -319,10 +315,10 @@ TEST_F(interpreter, test_eq) {
     ctx,
     make_closure(
       ctx,
-      make_bytecode({{opcode::eq, operand{0}, operand{1}, operand{0}},
+      make_bytecode({{opcode::eq, operand{1}, operand{2}, operand{0}},
                      {opcode::ret, operand{0}}}),
       {},
-      1, 2
+      3, 2
     )
   );
 
@@ -388,7 +384,7 @@ TEST_F(interpreter, load_self_in_closure) {
       {opcode::load_constant, operand{0}, operand{0}},
       {opcode::load_constant, operand{1}, operand{1}},
       {opcode::make_closure, operand{0}, operand{1}, operand{1}, operand{0}},
-      {opcode::call, operand{0}, operand{1}, operand{0}, operand{1}},
+      {opcode::call, operand{0}, operand{0}, operand{1}},
       {opcode::eq, operand{0}, operand{1}, operand{0}},
       {opcode::ret, operand{0}},
     }),

@@ -42,8 +42,8 @@ current_frame_is_native(ptr<call_stack> stack) {
 static std::size_t
 find_index_of_call_instruction(ptr<procedure> proc,
                                instruction_pointer call_ip) {
-  assert(opcode_to_info(opcode::call).num_operands == 4);
-  static constexpr std::size_t call_instruction_size = 5;
+  assert(opcode_to_info(opcode::call).num_operands == 3);
+  static constexpr std::size_t call_instruction_size = 4;
   return call_ip - proc->code.data() - call_instruction_size;
 }
 
@@ -387,7 +387,7 @@ actual_args_size(ptr<procedure> proc) {
 static void
 push_closure(ptr<insider::closure> closure, ptr<call_stack> stack) {
   std::size_t closure_size = get_closure_size(closure);
-  std::size_t begin = actual_args_size(closure->procedure());
+  std::size_t begin = actual_args_size(closure->procedure()) + 1;
 
   for (std::size_t i = 0; i < closure_size; ++i)
     stack->local(operand(begin + i)) = closure->ref(i);
@@ -415,7 +415,7 @@ static void
 convert_tail_args(context& ctx, ptr<call_stack> stack, ptr<procedure> proc,
                   std::size_t base, std::size_t num_args) {
   if (proc->has_rest)
-    convert_tail_args_to_list(ctx, stack, base + proc->min_args,
+    convert_tail_args_to_list(ctx, stack, base + proc->min_args + 1,
                               num_args - proc->min_args);
 }
 
@@ -467,8 +467,7 @@ check_and_convert_scheme_call_arguments(execution_state& state,
 
 static void
 make_scheme_frame(ptr<closure> cls, execution_state& state,
-                  bool is_tail) {
-  operand base = read_operand(state);
+                  operand base, bool is_tail) {
   check_and_convert_scheme_call_arguments(state, cls->procedure(), base);
   if (!is_tail) {
     operand result_reg = read_operand(state);
@@ -480,8 +479,8 @@ make_scheme_frame(ptr<closure> cls, execution_state& state,
 
 static void
 push_scheme_call_frame(ptr<insider::closure> closure, execution_state& state,
-                       bool is_tail) {
-  make_scheme_frame(closure, state, is_tail);
+                       operand base, bool is_tail) {
+  make_scheme_frame(closure, state, base, is_tail);
   push_closure(closure, state.stack);
 
   reload_ip(state);
@@ -494,7 +493,7 @@ make_native_non_tail_call_frame(execution_state& state,
   state.stack->push_frame(
     proc,
     state.stack->frame_base() + base,
-    num_args,
+    num_args + 1,
     state.ip,
     dest_reg
   );
@@ -504,7 +503,7 @@ static void
 make_native_tail_call_frame(ptr<call_stack> stack,
                             ptr<native_procedure> proc,
                             std::size_t args_base, std::size_t num_args) {
-  make_tail_call_frame(stack, proc, num_args, args_base, num_args);
+  make_tail_call_frame(stack, proc, num_args + 1, args_base, num_args);
 }
 
 static void
@@ -530,7 +529,8 @@ call_native_frame_target(context& ctx, ptr<call_stack> stack,
     return cont(ctx, scheme_result);
   else {
     auto proc = assume<native_procedure>(stack->callable());
-    return proc->target(ctx, proc, stack->current_frame_span());
+    auto proc_and_args = stack->current_frame_span();
+    return proc->target(ctx, proc, proc_and_args.subspan<1>());
   }
 }
 
@@ -588,8 +588,7 @@ call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
 
 static void
 make_native_frame(ptr<native_procedure> proc, execution_state& state,
-                  bool is_tail) {
-  auto base = read_operand(state);
+                  operand base, bool is_tail) {
   auto num_args = read_operand(state);
   if (!is_tail) {
     auto dest_reg = read_operand(state);
@@ -600,8 +599,8 @@ make_native_frame(ptr<native_procedure> proc, execution_state& state,
 
 static void
 do_native_call(ptr<native_procedure> proc, execution_state& state,
-               bool is_tail) {
-  make_native_frame(proc, state, is_tail);
+               operand base, bool is_tail) {
+  make_native_frame(proc, state, base, is_tail);
   call_native_procedure(state);
 }
 
@@ -612,12 +611,13 @@ is_tail(opcode opcode) {
 
 static void
 call(opcode opcode, execution_state& state) {
-  ptr<> callee = state.stack->local(read_operand(state));
+  operand base = read_operand(state);
+  ptr<> callee = state.stack->local(base);
 
   if (auto scheme_closure = match<closure>(callee))
-    push_scheme_call_frame(scheme_closure, state, is_tail(opcode));
+    push_scheme_call_frame(scheme_closure, state, base, is_tail(opcode));
   else if (auto native_proc = match<native_procedure>(callee))
-    do_native_call(native_proc, state, is_tail(opcode));
+    do_native_call(native_proc, state, base, is_tail(opcode));
   else
     throw make_error("Application: Not a procedure: {}",
                      datum_to_string(state.ctx, callee));
@@ -880,7 +880,7 @@ push_rest_argument_for_call_from_native(context& ctx,
                                         ptr<procedure> proc,
                                         ptr<call_stack> stack,
                                         std::vector<ptr<>> const& args) {
-  stack->local(operand(proc->min_args))
+  stack->local(operand(proc->min_args + 1))
     = make_list_from_range(ctx,
                            std::ranges::subrange(args.begin() + proc->min_args,
                                                  args.end()));
@@ -888,11 +888,14 @@ push_rest_argument_for_call_from_native(context& ctx,
 
 static void
 push_scheme_arguments_for_call_from_native(context& ctx,
-                                           ptr<procedure> proc,
+                                           ptr<closure> callable,
                                            ptr<call_stack> stack,
                                            std::vector<ptr<>> const& args) {
+  ptr<procedure> proc = callable->procedure();
+
+  stack->local(operand{0}) = callable;
   for (std::size_t i = 0; i < proc->min_args; ++i)
-    stack->local(operand(i)) = args[i];
+    stack->local(operand(i) + 1) = args[i];
 
   if (proc->has_rest)
     push_rest_argument_for_call_from_native(ctx, proc, stack, args);
@@ -911,8 +914,8 @@ make_scheme_frame_for_call_from_native(execution_state& state,
   state.stack->push_frame(closure, state.stack->size(), proc->locals_size,
                           previous_ip, {});
 
-  push_scheme_arguments_for_call_from_native(state.ctx, callable->procedure(),
-                                             state.stack, arguments);
+  push_scheme_arguments_for_call_from_native(state.ctx, callable, state.stack,
+                                             arguments);
   push_closure(closure, state.stack);
 
   reload_ip(state);
@@ -1133,10 +1136,11 @@ make_native_tail_call_frame_for_call_from_native(
   ptr<native_procedure> callable,
   std::vector<ptr<>> const& arguments
 ) {
-  stack->replace_frame(callable, arguments.size());
+  stack->replace_frame(callable, arguments.size() + 1);
   clear_native_continuations(stack);
+  stack->local(operand{0}) = callable;
   for (std::size_t i = 0; i < arguments.size(); ++i)
-    stack->local(operand(i)) = arguments[i];
+    stack->local(operand(i + 1)) = arguments[i];
 }
 
 static void
@@ -1152,7 +1156,7 @@ make_scheme_tail_call_frame_for_call_from_native(
   throw_if_wrong_number_of_args(proc, arguments.size());
 
   stack->replace_frame(closure, proc->locals_size);
-  push_scheme_arguments_for_call_from_native(ctx, proc, stack, arguments);
+  push_scheme_arguments_for_call_from_native(ctx, callable, stack, arguments);
   push_closure(closure, stack);
   clear_native_continuations(stack);
 }

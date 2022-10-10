@@ -578,6 +578,7 @@ push_parameters_and_closure_scope(procedure_context& proc,
   param_and_closure_scope.push_back(
     variable_bindings::binding{stx->self_variable()}
   );
+  shared_register self = proc.registers.allocate_register();
 
   for (ptr<local_variable> param : stx->parameters())
     param_and_closure_scope.push_back(variable_bindings::binding{
@@ -875,19 +876,20 @@ compile_expression(context& ctx, procedure_context& proc,
       }
     }
 
-  shared_register f
-    = compile_expression_to_register(ctx, proc, stx->target(), false);
-
   operand call_base = proc.registers.first_argument_register();
+
+  result_location f_loc{proc.registers.allocate_argument_register()};
+  compile_expression(ctx, proc, stx->target(), false, f_loc);
+
   auto arg_registers = compile_application_arguments(ctx, proc, stx);
 
   instruction i;
   if (!tail)
-    i = {opcode::call, *f, call_base,
+    i = {opcode::call, call_base,
          static_cast<operand>(stx->arguments().size()),
          *result.get(proc)};
   else
-    i = {opcode::tail_call, *f, call_base,
+    i = {opcode::tail_call, call_base,
          static_cast<operand>(stx->arguments().size())};
 
   proc.emit(std::move(i));

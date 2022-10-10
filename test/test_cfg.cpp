@@ -106,8 +106,7 @@ TEST_F(cfg_fixture, cfg_compilation_preserves_debug_info) {
   g[0].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0}); // 0
   g[1].body.emplace_back(opcode::add, operand{1}, operand{1}, operand{0}); // 4
   g[1].body.emplace_back(opcode::add, operand{2}, operand{2}, operand{0}); // 8
-  g[1].body.emplace_back(opcode::call, operand{1}, operand{0}, operand{1}, // 12
-                                       operand{0});
+  g[1].body.emplace_back(opcode::call, operand{1}, operand{0}, operand{1}); // 12
   g[1].debug_info[2].inlined_call_chain = {"foo", "bar"};
 
   auto [bc, di] = analyse_and_compile_cfg(g);
@@ -209,13 +208,13 @@ TEST_F(cfg_fixture, jumps_to_rets_are_collapsed) {
 
 TEST_F(cfg_fixture, code_after_tail_calls_is_pruned) {
   cfg g(1);
-  g[0].body.emplace_back(opcode::tail_call, operand{0}, operand{0}, operand{0});
+  g[0].body.emplace_back(opcode::tail_call, operand{0}, operand{0});
   g[0].body.emplace_back(opcode::ret, operand{0});
 
   expect_cfg_equiv(
     g,
     {
-      {opcode::tail_call, operand{0}, operand{0}, operand{0}}
+      {opcode::tail_call, operand{0}, operand{0}}
     }
   );
 }
@@ -248,13 +247,13 @@ TEST_F(cfg_fixture, jump_to_empty_block_followed_by_ret_is_collapsed) {
 
 TEST_F(cfg_fixture, jump_after_tail_call_is_pruned) {
   cfg g(2);
-  g[0].body.emplace_back(opcode::tail_call, operand{0}, operand{0}, operand{0});
+  g[0].body.emplace_back(opcode::tail_call, operand{0}, operand{0});
   g[0].ending = unconditional_jump{1};
 
   expect_cfg_equiv(
     g,
     {
-      {opcode::tail_call, operand{0}, operand{0}, operand{0}}
+      {opcode::tail_call, operand{0}, operand{0}}
     }
   );
 }
@@ -299,14 +298,14 @@ TEST_F(cfg_fixture, pointless_jump_to_end_from_unreachable_block_is_removed) {
   g[0].ending = conditional_jump{operand{0}, 3};
   g[1].body.emplace_back(opcode::add, operand{0}, operand{0}, operand{0});
   g[2].ending = unconditional_jump{4};
-  g[3].body.emplace_back(opcode::tail_call, operand{0}, operand{0}, operand{0});
+  g[3].body.emplace_back(opcode::tail_call, operand{0}, operand{0});
 
   expect_cfg_equiv(
     g,
     {
       {opcode::jump_unless, operand{0}, operand{7}},           // 0
       {opcode::add, operand{0}, operand{0}, operand{0}},       // 3
-      {opcode::tail_call, operand{0}, operand{0}, operand{0}}  // 7
+      {opcode::tail_call, operand{0}, operand{0}}              // 7
     }
   );
 }
