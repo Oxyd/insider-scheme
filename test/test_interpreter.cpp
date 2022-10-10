@@ -247,8 +247,7 @@ TEST_F(interpreter, exec_closure_ref) {
     make_bytecode({{opcode::load_constant, operand{0}, operand{2}},
                    {opcode::load_constant, operand{1}, operand{3}},
                    {opcode::load_constant, operand{2}, operand{4}},
-                   {opcode::make_closure, operand{2}, operand{3}, operand{1},
-                                          operand{3}},
+                   {opcode::make_closure, operand{2}, operand{1}, operand{3}},
                    {opcode::call, operand{3}, operand{1}, operand{0}},
                    {opcode::ret, operand{0}}}),
     {
@@ -383,7 +382,7 @@ TEST_F(interpreter, load_self_in_closure) {
     make_bytecode({
       {opcode::load_constant, operand{0}, operand{0}},
       {opcode::load_constant, operand{1}, operand{1}},
-      {opcode::make_closure, operand{0}, operand{1}, operand{1}, operand{0}},
+      {opcode::make_closure, operand{0}, operand{1}, operand{0}},
       {opcode::call, operand{0}, operand{0}, operand{1}},
       {opcode::eq, operand{0}, operand{1}, operand{0}},
       {opcode::ret, operand{0}},

@@ -668,10 +668,11 @@ jump_unless(execution_state& state) {
 
 static void
 make_closure(execution_state& state) {
-  ptr<procedure> proc
-    = assume<procedure>(state.stack->local(read_operand(state)));
-  operand captures_base = read_operand(state);
+  operand base = read_operand(state);
+  ptr<procedure> proc = assume<procedure>(state.stack->local(base));
+
   auto num_captures = read_operand(state);
+  operand captures_base = base + 1;
   operand dest = read_operand(state);
 
   auto result = make<closure>(state.ctx, proc, num_captures);

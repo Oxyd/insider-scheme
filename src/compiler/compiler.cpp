@@ -197,14 +197,6 @@ static void
 compile_static_reference(context& ctx, procedure_context& proc, ptr<> value,
                          result_location&);
 
-static shared_register
-compile_static_reference_to_register(context& ctx, procedure_context& proc,
-                                     ptr<> value) {
-  result_location result;
-  compile_static_reference(ctx, proc, value, result);
-  return result.get(proc);
-}
-
 static void
 compile_global_reference(procedure_context& proc, operand global_num,
                          result_location&);
@@ -606,10 +598,10 @@ static void
 emit_make_closure(context& ctx, procedure_context& parent,
                   ptr<procedure> proc, ptr<lambda_expression> stx,
                   result_location& result) {
-  shared_register p_reg
-    = compile_static_reference_to_register(ctx, parent, proc);
+  operand base = parent.registers.first_argument_register();
+  result_location parent_loc{parent.registers.allocate_argument_register()};
+  compile_static_reference(ctx, parent, proc, parent_loc);
 
-  operand free_base = parent.registers.first_argument_register();
   std::vector<shared_register> temp_registers;
   for (ptr<local_variable> var : stx->free_variables()) {
     shared_register r = parent.registers.allocate_argument_register();
@@ -619,8 +611,7 @@ emit_make_closure(context& ctx, procedure_context& parent,
   }
 
   parent.emit(opcode::make_closure,
-              *p_reg,
-              free_base,
+              base,
               static_cast<operand>(temp_registers.size()),
               *result.get(parent));
 }
