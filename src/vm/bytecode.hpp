@@ -158,23 +158,43 @@ instruction_info
 mnemonic_to_info(std::string_view);
 
 struct instruction {
-  insider::opcode opcode{};
-  std::vector<operand> operands;
+  insider::opcode opcode;
+  operand a;
+  operand b;
+  operand c;
 
   instruction() = default;
 
   instruction(insider::opcode oc)
     : opcode{oc}
+    , a{}
+    , b{}
+    , c{}
   { }
 
-  template <typename... Op>
-  instruction(insider::opcode oc, Op... operands)
+  instruction(insider::opcode oc, operand a)
     : opcode{oc}
-    , operands{operands...}
+    , a{a}
+    , b{}
+    , c{}
   { }
 
-  bool
-  operator == (instruction const&) const = default;
+  instruction(insider::opcode oc, operand a, operand b)
+    : opcode{oc}
+    , a{a}
+    , b{b}
+    , c{}
+  { }
+
+  instruction(insider::opcode oc, operand a, operand b, operand c)
+    : opcode{oc}
+    , a{a}
+    , b{b}
+    , c{c}
+  { }
+
+  friend bool
+  operator == (instruction const&, instruction const&) = default;
 };
 
 std::ostream&
@@ -188,7 +208,10 @@ encode_instruction(bytecode&, instruction const&);
 
 // Number of words an instruction will take when encoded.
 std::size_t
-instruction_size(instruction const&);
+instruction_size(opcode);
+
+std::vector<operand>
+instruction_operands_vector(instruction);
 
 inline opcode
 read_opcode(instruction_pointer& ip) {
@@ -214,7 +237,9 @@ namespace std {
     std::size_t
     operator () (insider::instruction i) const {
       return std::hash<insider::opcode>{}(i.opcode)
-             ^ (!i.operands.empty() ? i.operands.front() : 0);
+             ^ std::hash<insider::operand>{}(i.a)
+             ^ std::hash<insider::operand>{}(i.b)
+             ^ std::hash<insider::operand>{}(i.c);
     }
   };
 }

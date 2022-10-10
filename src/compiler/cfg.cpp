@@ -204,18 +204,16 @@ static std::size_t
 instructions_size(std::vector<instruction> const& instrs) {
   std::size_t result = 0;
   for (instruction const& i : instrs)
-    result += instruction_size(i);
+    result += instruction_size(i.opcode);
   return result;
 }
 
 static std::size_t
 ending_length(basic_block::ending_type e) {
   if (std::holds_alternative<unconditional_jump>(e))
-    return instruction_size({opcode::jump, operand{}});
+    return instruction_size(opcode::jump);
   else if (std::holds_alternative<conditional_jump>(e))
-    return instruction_size(
-      {opcode::jump_unless, operand{}, operand{}}
-    );
+    return instruction_size(opcode::jump_unless);
   else
     return 0;
 }

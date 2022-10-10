@@ -41,12 +41,12 @@ mnemonic_to_info(std::string_view mnemonic) {
 std::ostream&
 operator << (std::ostream& out, instruction const& i) {
   auto info = opcode_to_info(i.opcode);
-  if (i.operands.empty())
+  if (info.num_operands == 0)
     return out << "{" << info.mnemonic << "}";
   else
     return out << fmt::format("{{{} {}}}",
                               info.mnemonic,
-                              fmt::join(i.operands, ", "));
+                              fmt::join(instruction_operands_vector(i), ", "));
 }
 
 static void
@@ -62,20 +62,33 @@ encode(bytecode& bc, operand op) {
 std::size_t
 encode_instruction(bytecode& bc, instruction const& instr) {
   instruction_info info = opcode_to_info(instr.opcode);
-  assert(instr.operands.size() == info.num_operands);
 
   std::size_t index = bc.size();
 
   encode(bc, instr.opcode);
-  for (std::size_t i = 0; i < info.num_operands; ++i)
-    encode(bc, instr.operands[i]);
+  for (operand op : instruction_operands_vector(instr))
+    encode(bc, op);
 
   return index;
 }
 
 std::size_t
-instruction_size(instruction const& i) {
-  return 1 + i.operands.size();
+instruction_size(opcode oc) {
+  return 1 + opcode_to_info(oc).num_operands;
+}
+
+std::vector<operand>
+instruction_operands_vector(instruction instr) {
+  std::size_t num_operands = opcode_to_info(instr.opcode).num_operands;
+  switch (num_operands) {
+  case 0: return {};
+  case 1: return {instr.a};
+  case 2: return {instr.a, instr.b};
+  case 3: return {instr.a, instr.b, instr.c};
+  default:
+    assert(false);
+    return {};
+  }
 }
 
 instruction
@@ -83,8 +96,10 @@ read_instruction(instruction_pointer& ip) {
   instruction result{read_opcode(ip)};
   instruction_info info = opcode_to_info(result.opcode);
 
+  operand* ops[]{&result.a, &result.b, &result.c};
+  operand** op = ops;
   for (std::size_t i = 0; i < info.num_operands; ++i)
-    result.operands.push_back(read_operand(ip));
+    (**op++) = read_operand(ip);
 
   return result;
 }

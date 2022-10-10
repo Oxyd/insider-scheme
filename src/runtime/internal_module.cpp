@@ -133,7 +133,7 @@ instruction_opcode(ptr<opaque_value<instruction>> i) {
 static ptr<>
 instruction_operands(context& ctx, ptr<opaque_value<instruction>> i) {
   instruction instr = i->value;
-  return make_list_from_range(ctx, instr.operands,
+  return make_list_from_range(ctx, instruction_operands_vector(instr),
                                [&] (operand o) { return integer_to_ptr(o); });
 }
 
