@@ -360,8 +360,7 @@ TEST_F(interpreter, load_self_in_plain_procedure) {
     ctx,
     make_closure(
       ctx,
-      make_bytecode({{opcode::load_self, operand{0}},
-                     {opcode::ret, operand{0}}}),
+      make_bytecode({{opcode::ret, operand{0}}}),
       {},
       1, 0
     )
@@ -373,8 +372,7 @@ TEST_F(interpreter, load_self_in_plain_procedure) {
 TEST_F(interpreter, load_self_in_closure) {
   auto f = make_procedure_from_bytecode(
     ctx,
-    make_bytecode({{opcode::load_self, operand{1}},
-                   {opcode::ret, operand{1}}}),
+    make_bytecode({{opcode::ret, operand{0}}}),
     2, 0, false, "f", {}
   );
   auto global = make_closure(

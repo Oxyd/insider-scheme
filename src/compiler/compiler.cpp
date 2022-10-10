@@ -151,18 +151,11 @@ emit_register_reference(procedure_context& proc, shared_register const& reg,
 }
 
 static void
-emit_self_reference(procedure_context& proc, result_location& result) {
-  proc.emit(opcode::load_self, *result.get(proc));
-}
-
-static void
 emit_variable_reference(procedure_context& proc, ptr<local_variable> var,
                         result_location& result) {
   shared_register var_reg = proc.bindings.lookup(var);
-  if (var_reg)
-    emit_register_reference(proc, var_reg, result);
-  else
-    emit_self_reference(proc, result);
+  assert(var_reg);
+  emit_register_reference(proc, var_reg, result);
 }
 
 static void
@@ -568,19 +561,19 @@ push_parameters_and_closure_scope(procedure_context& proc,
 
   // Self variable.
   param_and_closure_scope.push_back(
-    variable_bindings::binding{stx->self_variable()}
+    variable_bindings::binding{stx->self_variable(),
+                               proc.registers.allocate_register()}
   );
-  shared_register self = proc.registers.allocate_register();
 
   for (ptr<local_variable> param : stx->parameters())
-    param_and_closure_scope.push_back(variable_bindings::binding{
-      param, proc.registers.allocate_register()
-    });
+    param_and_closure_scope.push_back(
+      variable_bindings::binding{param, proc.registers.allocate_register()}
+    );
 
   for (ptr<local_variable> free : stx->free_variables())
-    param_and_closure_scope.push_back(variable_bindings::binding{
-      free, proc.registers.allocate_register()
-    });
+    param_and_closure_scope.push_back(
+      variable_bindings::binding{free, proc.registers.allocate_register()}
+    );
 
   return proc.bindings.push_scope(std::move(param_and_closure_scope));
 }

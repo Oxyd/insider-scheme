@@ -26,7 +26,6 @@ enum class opcode : std::uint16_t {
   load_top_level,   // load-top-level <top-level number> <destination>
   store_top_level,  // store-top-level <value> <top-level number>
   load_dynamic_top_level, // load-dynamic-top-level <static num> <destination>
-  load_self,        // load-self <destination>
   load_null,        // load-null <destination>
   load_void,        // load-void <destination>
   load_t,           // load-#t <destination>
@@ -113,7 +112,6 @@ instructions{
   std::tuple{"store-top-level", opcode::store_top_level, std::size_t{2}},
   std::tuple{"load-dynamic-top-level", opcode::load_dynamic_top_level,
              std::size_t{2}},
-  std::tuple{"load-self", opcode::load_self, std::size_t{1}},
   std::tuple{"load-null", opcode::load_null, std::size_t{1}},
   std::tuple{"load-void", opcode::load_void, std::size_t{1}},
   std::tuple{"load-#t", opcode::load_t, std::size_t{1}},

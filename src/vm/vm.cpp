@@ -219,12 +219,6 @@ store_top_level(execution_state& state) {
   state.ctx.set_top_level(global_num, state.stack->local(reg));
 }
 
-static void
-load_self(execution_state& state) {
-  operand reg = read_operand(state);
-  state.stack->local(reg) = state.stack->callable();
-}
-
 template <auto Constant>
 static void
 load_special_constant(execution_state& state) {
@@ -784,7 +778,6 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::load_top_level:         load_top_level(state);         break;
   case opcode::load_dynamic_top_level: load_dynamic_top_level(state); break;
   case opcode::store_top_level:        store_top_level(state);        break;
-  case opcode::load_self:              load_self(state);              break;
   case opcode::load_null:              load_null(state);              break;
   case opcode::load_void:              load_void(state);              break;
   case opcode::load_t:                 load_t(state);                 break;
