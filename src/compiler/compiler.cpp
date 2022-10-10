@@ -1022,9 +1022,17 @@ compile_expression(context& ctx, ptr<syntax> datum,
                         mod);
 }
 
+static shared_register
+reserve_register_for_self_variable(procedure_context& proc) {
+  shared_register self = proc.registers.allocate_register();
+  assert(*self == operand{0});
+  return self;
+}
+
 ptr<closure>
 compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
   procedure_context proc{nullptr, mod};
+  shared_register self = reserve_register_for_self_variable(proc);
   shared_register result = compile_expression_to_register(ctx, proc, e, true);
   if (result)
     proc.emit(opcode::ret, *result);
@@ -1069,6 +1077,7 @@ compile_module_body(context& ctx, tracked_ptr<module_> const& m,
   auto body_expr = analyse_module(ctx, m, pm, std::move(passes), main_module);
 
   procedure_context proc{nullptr, m};
+  shared_register self = reserve_register_for_self_variable(proc);
   result_location result;
   compile_expression(ctx, proc, body_expr, true, result);
   if (result.has_result())

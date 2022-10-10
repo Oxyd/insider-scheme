@@ -522,8 +522,8 @@ call_native_frame_target(context& ctx, ptr<call_stack> stack,
   if (native_continuation_type cont = find_current_native_continuation(stack))
     return cont(ctx, scheme_result);
   else {
-    auto proc = assume<native_procedure>(stack->callable());
     auto proc_and_args = stack->current_frame_span();
+    auto proc = assume<native_procedure>(proc_and_args[0]);
     return proc->target(ctx, proc, proc_and_args.subspan<1>());
   }
 }

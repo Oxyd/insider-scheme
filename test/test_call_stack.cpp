@@ -19,10 +19,14 @@ struct call_stack_fixture : scheme_fixture {
 
   void
   make_4_frames() {
-    cs->push_frame(one, cs->size(), 0, 0, 0);
-    cs->push_frame(two, cs->size(), 0, 0, 0);
-    cs->push_frame(three, cs->size(), 0, 0, 0);
-    cs->push_frame(four, cs->size(), 0, 0, 0);
+    cs->push_frame(one, cs->size(), 1, 0, 0);
+    cs->local(0) = one;
+    cs->push_frame(two, cs->size(), 1, 0, 0);
+    cs->local(0) = two;
+    cs->push_frame(three, cs->size(), 1, 0, 0);
+    cs->local(0) = three;
+    cs->push_frame(four, cs->size(), 1, 0, 0);
+    cs->local(0) = four;
   }
 
   ptr<closure>
@@ -37,13 +41,16 @@ struct call_stack_fixture : scheme_fixture {
 };
 
 TEST_F(call_stack_fixture, create_frame) {
-  cs->push_frame(one, cs->size(), 0, nullptr, 0);
+  cs->push_frame(one, cs->size(), 1, nullptr, 0);
+  cs->local(0) = one;
   EXPECT_EQ(cs->callable(), one);
 }
 
 TEST_F(call_stack_fixture, pop_frame) {
-  cs->push_frame(one, cs->size(), 0, nullptr, 0);
-  cs->push_frame(two, cs->size(), 0, nullptr, 0);
+  cs->push_frame(one, cs->size(), 1, nullptr, 0);
+  cs->local(0) = one;
+  cs->push_frame(two, cs->size(), 1, nullptr, 0);
+  cs->local(0) = two;
   EXPECT_EQ(cs->callable(), two);
 
   cs->pop_frame();
@@ -51,10 +58,13 @@ TEST_F(call_stack_fixture, pop_frame) {
 }
 
 TEST_F(call_stack_fixture, push_after_pop) {
-  cs->push_frame(one, cs->size(), 0, nullptr, 0);
-  cs->push_frame(two, cs->size(), 0, nullptr, 0);
+  cs->push_frame(one, cs->size(), 1, nullptr, 0);
+  cs->local(0) = one;
+  cs->push_frame(two, cs->size(), 1, nullptr, 0);
+  cs->local(0) = two;
   cs->pop_frame();
-  cs->push_frame(three, cs->size(), 0, nullptr, 0);
+  cs->push_frame(three, cs->size(), 1, nullptr, 0);
+  cs->local(0) = three;
 
   EXPECT_EQ(cs->callable(), three);
   cs->pop_frame();
@@ -107,17 +117,19 @@ TEST_F(call_stack_fixture, get_local_of_parent_frame) {
 }
 
 TEST_F(call_stack_fixture, iterate_call_stacks) {
-  cs->push_frame(one, cs->size(), 1, nullptr, 0);
-  cs->local(0) = integer_to_ptr(1);
+  cs->push_frame(one, cs->size(), 2, nullptr, 0);
+  cs->local(0) = one;
+  cs->local(1) = integer_to_ptr(1);
 
-  cs->push_frame(two, cs->size(), 1, nullptr, 0);
-  cs->local(0) = integer_to_ptr(2);
+  cs->push_frame(two, cs->size(), 2, nullptr, 0);
+  cs->local(0) = two;
+  cs->local(1) = integer_to_ptr(2);
 
   for (call_stack::frame_index f : cs->frames_range()) {
     if (cs->callable(f) == one)
-      EXPECT_EQ(expect<integer>(cs->local(f, 0)).value(), 1);
+      EXPECT_EQ(expect<integer>(cs->local(f, 1)).value(), 1);
     else
-      EXPECT_EQ(expect<integer>(cs->local(f, 0)).value(), 2);
+      EXPECT_EQ(expect<integer>(cs->local(f, 1)).value(), 2);
   }
 }
 
@@ -148,7 +160,9 @@ TEST_F(call_stack_fixture,
 
   auto new_cs = make<call_stack>(ctx);
   new_cs->push_frame(ten, new_cs->size(), 4, nullptr, 0);
+  new_cs->local(0) = ten;
   new_cs->push_frame(twenty, new_cs->size(), 8, nullptr, 0);
+  new_cs->local(0) = twenty;
 
   new_cs->append_frames(tail);
 

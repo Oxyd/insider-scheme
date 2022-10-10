@@ -59,7 +59,7 @@ call_stack::push_frame(ptr<> callable, std::size_t base,
   assert(frames_.empty() || base <= frames_.back().base + frames_.back().size);
 
   frames_.emplace_back(frame{base, locals_size, previous_ip,
-                             result_register, callable, extra,
+                             result_register, extra,
                              callable_to_frame_type(callable)});
   update_current_frame();
 }
@@ -75,7 +75,6 @@ call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size) {
   assert(!frames_.empty());
   assert(is_callable(new_callable));
 
-  frames_.back().callable = new_callable;
   frames_.back().size = new_locals_size;
   frames_.back().type = callable_to_frame_type(new_callable);
   update_current_frame();
@@ -100,7 +99,6 @@ call_stack::replace_frame(ptr<> new_callable, std::size_t new_locals_size,
   std::copy(data_.get() + src_begin, data_.get() + src_end,
             data_.get() + dest_begin);
 
-  frames_.back().callable = new_callable;
   frames_.back().size = new_locals_size;
   frames_.back().type = callable_to_frame_type(new_callable);
 
@@ -146,10 +144,8 @@ call_stack::append_frames(frame_span frames) {
 
 void
 call_stack::visit_members(member_visitor const& f) {
-  for (frame& fr : frames_) {
-    f(fr.callable);
+  for (frame& fr : frames_)
     f(fr.extra);
-  }
 
   for (std::size_t i = 0; i < size_; ++i)
     f(data_[i]);

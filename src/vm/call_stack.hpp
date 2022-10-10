@@ -96,14 +96,10 @@ public:
   }
 
   ptr<>&
-  callable() {
-    return frames_.back().callable;
-  }
+  callable() { return local(0); }
 
   ptr<>&
-  callable(frame_index frame) {
-    return frames_[frame].callable;
-  }
+  callable(frame_index frame) { return local(frame, 0); }
 
   frame_type
   current_frame_type() const { return frames_.back().type; }
@@ -130,6 +126,7 @@ public:
 
   ptr<>&
   local(operand local) {
+    assert(local < frames_.back().size);
     return data_[current_base_ + local];
   }
 
@@ -238,7 +235,6 @@ private:
     std::size_t                 size;
     instruction_pointer         previous_ip;
     operand                     result_register;
-    ptr<>                       callable;
     ptr<stack_frame_extra_data> extra;
     frame_type                  type;
   };
