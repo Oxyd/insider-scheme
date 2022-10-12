@@ -4,6 +4,7 @@
 #include "memory/page_allocator.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
+#include "runtime/basic_types.hpp"
 #include "runtime/integer.hpp"
 #include "util/integer_cast.hpp"
 #include "util/object_span.hpp"
@@ -72,17 +73,56 @@ public:
   void
   push_frame(ptr<> callable, std::size_t base, std::size_t locals_size,
              instruction_pointer previous_ip, operand result_register,
-             ptr<stack_frame_extra_data> extra = {});
+             ptr<stack_frame_extra_data> extra = {}) {
+    assert(!frames_.empty() || base == 0);
+    assert(frames_.empty() || base >= frames_.back().base);
+    assert(frames_.empty() || base <= frames_.back().base + frames_.back().size);
+
+    frames_.emplace_back(frame{base, locals_size, previous_ip,
+                               result_register, extra,
+                               callable_to_frame_type(callable)});
+    update_current_frame();
+  }
 
   void
-  pop_frame();
+  pop_frame() {
+    frames_.pop_back();
+    check_update_current_frame();
+  }
 
   void
-  replace_frame(ptr<> new_callable, std::size_t new_locals_size);
+  replace_frame(ptr<> new_callable, std::size_t new_locals_size) {
+    assert(!frames_.empty());
+
+    frames_.back().size = new_locals_size;
+    frames_.back().type = callable_to_frame_type(new_callable);
+    update_current_frame();
+  }
 
   void
   replace_frame(ptr<> new_callable, std::size_t new_locals_size,
-                std::size_t args_base, std::size_t args_size);
+                std::size_t args_base, std::size_t args_size) {
+    assert(!frames_.empty());
+
+    std::size_t current_base = frames_.back().base;
+
+    std::size_t dest_begin = current_base;
+    std::size_t src_begin  = current_base + args_base;
+    std::size_t src_end    = src_begin + args_size + 1;
+
+    assert(src_end <= size_);
+    [[maybe_unused]] std::size_t dest_end = dest_begin + args_size + 1;
+    assert(dest_end <= size_);
+
+    std::copy(data_.get() + src_begin, data_.get() + src_end,
+              data_.get() + dest_begin);
+
+    frames_.back().size = new_locals_size;
+    frames_.back().type = callable_to_frame_type(new_callable);
+
+    size_ = current_base_ + new_locals_size;
+    ensure_capacity(size_);
+  }
 
   void
   resize_current_frame(std::size_t new_size);
@@ -246,16 +286,37 @@ private:
   std::size_t              current_base_ = 0;
 
   frame_type
-  callable_to_frame_type(ptr<>);
+  callable_to_frame_type(ptr<> callable) {
+    if (is<closure>(callable))
+      return frame_type::scheme;
+    else if (!callable)
+      return frame_type::dummy;
+    else {
+      assert(is<native_procedure>(callable));
+      return frame_type::native;
+    }
+  }
 
   void
-  check_update_current_frame();
+  check_update_current_frame() {
+    if (!frames_.empty())
+      update_current_frame();
+    else
+      size_ = 0;
+  }
 
   void
-  update_current_frame();
+  update_current_frame() {
+    current_base_ = frames_.back().base;
+    size_ = current_base_ + frames_.back().size;
+    ensure_capacity(size_);
+  }
 
   void
-  ensure_capacity(std::size_t required_size);
+  ensure_capacity(std::size_t required_size) {
+    if (required_size >= capacity_) [[unlikely]]
+      grow_capacity(required_size);
+  }
 
   void
   grow_capacity(std::size_t requested_capacity);

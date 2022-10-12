@@ -6,7 +6,6 @@
 #include "memory/tracked_ptr.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
-#include "vm/call_stack.hpp"
 
 #include <cassert>
 #include <cstddef>

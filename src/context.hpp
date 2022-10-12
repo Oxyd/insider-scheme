@@ -1,7 +1,6 @@
 #ifndef INSIDER_CONTEXT_HPP
 #define INSIDER_CONTEXT_HPP
 
-#include "compiler/debug_info.hpp"
 #include "compiler/scope.hpp"
 #include "memory/free_store.hpp"
 #include "module_resolver.hpp"
@@ -25,6 +24,7 @@ class integer;
 class module_;
 class null_type;
 class parameter_map;
+class parameter_tag;
 class procedure;
 class scope;
 class symbol;

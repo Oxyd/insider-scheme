@@ -1,6 +1,7 @@
 #include "vm/execution_state.hpp"
 
 #include "context.hpp"
+#include "vm/call_stack.hpp"
 
 namespace insider {
 

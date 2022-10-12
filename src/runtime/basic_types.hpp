@@ -1,11 +1,13 @@
 #ifndef INSIDER_RUNTIME_BASIC_TYPES_HPP
 #define INSIDER_RUNTIME_BASIC_TYPES_HPP
 
+#include "compiler/debug_info.hpp"
 #include "context.hpp"
 #include "memory/free_store.hpp"
 #include "module.hpp"
 #include "object.hpp"
 #include "runtime/compare.hpp"
+#include "util/object_span.hpp"
 #include "vm/bytecode.hpp"
 
 #include <ranges>

@@ -5,6 +5,7 @@
 #include "object.hpp"
 #include "ptr.hpp"
 #include "runtime/error.hpp"
+#include "util/object_conversions.hpp"
 
 #include <fmt/format.h>
 
