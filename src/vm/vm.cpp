@@ -540,9 +540,13 @@ pop_frame(execution_state& state) {
 static void
 resume_native_call(execution_state& state, ptr<> scheme_result);
 
-static void
-return_value_to_caller(execution_state& state, ptr<> result, operand reg) {
+static inline void // GCC won't inline this function automatically.
+pop_frame_and_set_return_value(execution_state& state, ptr<> result) {
   assert(result);
+
+  ptr<call_stack> stack = state.stack;
+  operand dest_reg = stack->result_register();
+  pop_frame(state);
 
   if (state.stack->empty())
     // We are returning from the global procedure, so we return back to the
@@ -551,15 +555,7 @@ return_value_to_caller(execution_state& state, ptr<> result, operand reg) {
   else if (current_frame_is_native(state.stack))
     resume_native_call(state, result);
   else
-    state.stack->local(reg) = result;
-}
-
-static void
-pop_native_frame(execution_state& state, ptr<> result) {
-  ptr<call_stack> stack = state.stack;
-  operand result_reg = stack->result_register();
-  pop_frame(state);
-  return_value_to_caller(state, result, result_reg);
+    state.stack->local(dest_reg) = result;
 }
 
 static void
@@ -573,7 +569,7 @@ call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
   if (current_frame_is_native(state.stack))
     // Return from a native call (potentially a different native call than
     // what we started with, due to native tail-calls).
-    pop_native_frame(state, result);
+    pop_frame_and_set_return_value(state, result);
 
   // Otherwise, the native procedure frame was replaced (by means of a tail
   // call) with a Scheme procedure.
@@ -637,12 +633,8 @@ resume_native_call(execution_state& state, ptr<> scheme_result) {
 
 static void
 ret(execution_state& state) {
-  operand result_reg = read_operand(state);
-  ptr<> result = state.stack->local(result_reg);
-  operand dest_reg = state.stack->result_register();
-
-  pop_frame(state);
-  return_value_to_caller(state, result, dest_reg);
+  ptr<> result = state.stack->local(read_operand(state));
+  pop_frame_and_set_return_value(state, result);
 }
 
 static void
