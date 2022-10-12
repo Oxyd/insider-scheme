@@ -45,8 +45,8 @@ enum class opcode : std::uint16_t {
   call,             // call <base> <number of arguments> <result register>
   tail_call,        // tail-call <base> <number of arguments>
   ret,              // ret <return value>
-  jump,             // jump-absolute <offset from start of bytecode>
-  jump_unless,      // jump-absolute-unless <register> <offset>
+  jump,             // jump <offset>
+  jump_unless,      // jump-unless <register> <offset>
   make_closure,     // make-closure <base> <num free> <destination>
   box,              // box <what> <destination> -- make a box containing what -- 20
   unbox,            // unbox <what> <destination> -- extract contained value from a box

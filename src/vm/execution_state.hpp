@@ -12,7 +12,6 @@ class context;
 class execution_state : public root_provider {
 public:
   context&            ctx;
-  instruction_pointer bytecode_base{};
   instruction_pointer ip{};
   ptr<call_stack>     stack;
   ptr<>               result;

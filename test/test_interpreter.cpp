@@ -181,17 +181,17 @@ TEST_F(interpreter, exec_loop) {
     ctx,
     make_bytecode(
       {
-        {opcode::load_constant, operand{0}, operand{4}},         // 0
-        {opcode::load_constant, operand{1}, operand{5}},         // 3
-        {opcode::load_constant, operand{2}, operand{6}},         // 6
-        {opcode::set, operand{4}, operand{1}},                   // 9
-        {opcode::set, operand{4}, operand{2}},                   // 12
-        {opcode::less, operand{2}, operand{5}, operand{3}},      // 15
-        {opcode::jump_unless, operand{3}, operand{32}},          // 19
-        {opcode::add, operand{1}, operand{2}, operand{1}},       // 22
-        {opcode::add, operand{2}, operand{6}, operand{2}},       // 26
-        {opcode::jump, operand{15}},                             // 30
-        {opcode::ret, operand{1}}                                // 32
+        {opcode::load_constant, operand{0}, operand{4}},             // 0
+        {opcode::load_constant, operand{1}, operand{5}},             // 3
+        {opcode::load_constant, operand{2}, operand{6}},             // 6
+        {opcode::set, operand{4}, operand{1}},                       // 9
+        {opcode::set, operand{4}, operand{2}},                       // 12
+        {opcode::less, operand{2}, operand{5}, operand{3}},          // 15
+        {opcode::jump_unless, operand{3}, immediate_to_operand(10)}, // 19
+        {opcode::add, operand{1}, operand{2}, operand{1}},           // 22
+        {opcode::add, operand{2}, operand{6}, operand{2}},           // 26
+        {opcode::jump, immediate_to_operand(-17)},                   // 30
+        {opcode::ret, operand{1}}                                    // 32
       }
     ),
     {

@@ -421,7 +421,7 @@ current_procedure_bytecode_base(execution_state const& state) {
 
 static void
 reload_ip(execution_state& state) {
-  state.bytecode_base = state.ip = current_procedure_bytecode_base(state);
+  state.ip = current_procedure_bytecode_base(state);
 }
 
 static void
@@ -534,8 +534,6 @@ pop_frame(execution_state& state) {
   instruction_pointer previous_ip = state.stack->previous_ip();
 
   state.stack->pop_frame();
-  if (!state.stack->empty() && !current_frame_is_native(state.stack))
-    state.bytecode_base = current_procedure_bytecode_base(state);
   state.ip = previous_ip;
 }
 
@@ -649,16 +647,16 @@ ret(execution_state& state) {
 
 static void
 jump(execution_state& state) {
-  operand offset = read_operand(state);
-  state.ip = state.bytecode_base + offset;
+  immediate_type offset = operand_to_immediate(read_operand(state));
+  state.ip += offset;
 }
 
 static void
 jump_unless(execution_state& state) {
   ptr<> test_value = state.stack->local(read_operand(state));
-  operand offset = read_operand(state);
+  immediate_type offset = operand_to_immediate(read_operand(state));
   if (test_value == state.ctx.constants->f)
-    state.ip = state.bytecode_base + offset;
+    state.ip += offset;
 }
 
 static void

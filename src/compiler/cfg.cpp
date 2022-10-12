@@ -1,5 +1,7 @@
 #include "compiler/cfg.hpp"
 
+#include "util/integer_cast.hpp"
+
 #include <cassert>
 
 namespace insider {
@@ -232,17 +234,34 @@ find_block_lengths_and_offsets(cfg& g) {
 static void
 encode_ending(bytecode&, flow_off, cfg const&) { }
 
+static operand
+jump_offset(operand target, operand source) {
+  auto offset = target - source;
+  if (offset > immediate_max || offset < immediate_min)
+    throw std::runtime_error{fmt::format("Jump offset too large: {}", offset)};
+  return immediate_to_operand(static_cast<immediate_type>(offset));
+}
+
+static operand
+jump_source(bytecode const& bc, opcode instr) {
+  return bc.size() + instruction_size(instr);
+}
+
 static void
 encode_ending(bytecode& bc, unconditional_jump uj, cfg const& g) {
   operand target = g[uj.target_block].start_offset;
-  encode_instruction(bc, {opcode::jump, target});
+  encode_instruction(bc, {opcode::jump,
+                          jump_offset(target, jump_source(bc, opcode::jump))});
 }
 
 static void
 encode_ending(bytecode& bc, conditional_jump cj, cfg const& g) {
   operand target = g[cj.target_block].start_offset;
-  encode_instruction(bc,
-                     {opcode::jump_unless, cj.test_register, target});
+  encode_instruction(
+    bc,
+    {opcode::jump_unless, cj.test_register,
+     jump_offset(target, jump_source(bc, opcode::jump_unless))}
+  );
 }
 
 static void

@@ -55,10 +55,11 @@ TEST_F(cfg_fixture, compile_unconditional_jump_backward) {
   expect_cfg_equiv(
     g,
     {
-      {opcode::add, operand{0}, operand{0}, operand{0}},
-      {opcode::add, operand{1}, operand{1}, operand{1}},
-      {opcode::add, operand{2}, operand{2}, operand{2}},
-      {opcode::jump, operand{4}}
+      {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
+      {opcode::add, operand{1}, operand{1}, operand{1}},  // 4
+      {opcode::add, operand{2}, operand{2}, operand{2}},  // 8
+      {opcode::jump, immediate_to_operand(-10)}           // 12
+                                                          // 14
     }
   );
 }
@@ -75,10 +76,11 @@ TEST_F(cfg_fixture, compile_unconditional_jump_forward) {
     g,
     {
       {opcode::add, operand{0}, operand{0}, operand{0}}, // 0
-      {opcode::jump, operand{10}},              // 4
+      {opcode::jump, immediate_to_operand(4)},           // 4
       {opcode::add, operand{1}, operand{1}, operand{1}}, // 6
       {opcode::add, operand{2}, operand{2}, operand{2}}, // 10
-      {opcode::jump, operand{6}}                // 14
+      {opcode::jump, immediate_to_operand(-10)}          // 14
+                                                         // 16
     }
   );
 }
@@ -93,10 +95,10 @@ TEST_F(cfg_fixture, compile_conditional_jump) {
   expect_cfg_equiv(
     g,
     {
-      {opcode::add, operand{0}, operand{0}, operand{0}},       // 0
-      {opcode::jump_unless, operand{0}, operand{11}},          // 4
-      {opcode::add, operand{1}, operand{1}, operand{1}},       // 7
-      {opcode::add, operand{2}, operand{2}, operand{2}}        // 11
+      {opcode::add, operand{0}, operand{0}, operand{0}},           // 0
+      {opcode::jump_unless, operand{0}, immediate_to_operand(4)},  // 4
+      {opcode::add, operand{1}, operand{1}, operand{1}},           // 7
+      {opcode::add, operand{2}, operand{2}, operand{2}}            // 11
     }
   );
 }
@@ -124,7 +126,7 @@ TEST_F(cfg_fixture, unreachable_blocks_are_not_emitted) {
     g,
     {
       {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
-      {opcode::jump, operand{6}},                         // 4
+      {opcode::jump, immediate_to_operand(0)},            // 4
       {opcode::add, operand{2}, operand{2}, operand{2}}   // 6
     }
   );
@@ -147,17 +149,18 @@ TEST_F(cfg_fixture, jumps_to_jumps_are_collapsed) {
   expect_cfg_equiv(
     g,
     {
-      {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
-      {opcode::jump_unless, operand{0}, operand{17}},     // 4
+      {opcode::add, operand{0}, operand{0}, operand{0}},            // 0
+      {opcode::jump_unless, operand{0}, immediate_to_operand(10)},  // 4
 
-      {opcode::add, operand{3}, operand{3}, operand{3}},  // 7
+      {opcode::add, operand{3}, operand{3}, operand{3}},            // 7
 
-      {opcode::jump, operand{17}},                        // 11
+      {opcode::jump, immediate_to_operand(4)},                      // 11
 
-      {opcode::add, operand{2}, operand{2}, operand{2}},  // 13
+      {opcode::add, operand{2}, operand{2}, operand{2}},            // 13
 
-      {opcode::add, operand{1}, operand{1}, operand{1}},  // 17
-      {opcode::jump_unless, operand{0}, operand{13}}      // 21
+      {opcode::add, operand{1}, operand{1}, operand{1}},            // 17
+      {opcode::jump_unless, operand{0}, immediate_to_operand(-11)}  // 21
+                                                                    // 24
     }
   );
 }
@@ -176,10 +179,11 @@ TEST_F(cfg_fixture,
     g,
     {
       {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
-      {opcode::jump, operand{10}},                        // 4
+      {opcode::jump, immediate_to_operand(4)},            // 4
       {opcode::add, operand{1}, operand{1}, operand{1}},  // 6
       {opcode::add, operand{2}, operand{2}, operand{2}},  // 10
-      {opcode::jump, operand{6}}                          // 14
+      {opcode::jump, immediate_to_operand(-10)}           // 14
+                                                          // 16
     }
   );
 }
@@ -196,12 +200,12 @@ TEST_F(cfg_fixture, jumps_to_rets_are_collapsed) {
   expect_cfg_equiv(
     g,
     {
-      {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
-      {opcode::jump_unless, operand{0}, operand{13}},     // 4
-      {opcode::add, operand{1}, operand{1}, operand{1}},  // 7
-      {opcode::ret, operand{0}},                          // 11
-      {opcode::add, operand{2}, operand{2}, operand{2}},  // 13
-      {opcode::ret, operand{0}}                           // 17
+      {opcode::add, operand{0}, operand{0}, operand{0}},           // 0
+      {opcode::jump_unless, operand{0}, immediate_to_operand(6)},  // 4
+      {opcode::add, operand{1}, operand{1}, operand{1}},           // 7
+      {opcode::ret, operand{0}},                                   // 11
+      {opcode::add, operand{2}, operand{2}, operand{2}},           // 13
+      {opcode::ret, operand{0}}                                    // 17
     }
   );
 }
@@ -288,7 +292,8 @@ TEST_F(cfg_fixture, jump_that_collapses_to_the_following_block_is_removed) {
     {
       {opcode::add, operand{0}, operand{0}, operand{0}},  // 0
       {opcode::add, operand{1}, operand{1}, operand{1}},  // 4
-      {opcode::jump, operand{4}}                          // 8
+      {opcode::jump, immediate_to_operand(-6)}            // 8
+                                                          // 10
     }
   );
 }
@@ -303,9 +308,9 @@ TEST_F(cfg_fixture, pointless_jump_to_end_from_unreachable_block_is_removed) {
   expect_cfg_equiv(
     g,
     {
-      {opcode::jump_unless, operand{0}, operand{7}},           // 0
-      {opcode::add, operand{0}, operand{0}, operand{0}},       // 3
-      {opcode::tail_call, operand{0}, operand{0}}              // 7
+      {opcode::jump_unless, operand{0}, immediate_to_operand(4)},  // 0
+      {opcode::add, operand{0}, operand{0}, operand{0}},           // 3
+      {opcode::tail_call, operand{0}, operand{0}}                  // 7
     }
   );
 }
