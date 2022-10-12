@@ -376,7 +376,7 @@ private:
 // Static information about a Scheme procedure.
 class procedure_prototype : public composite_object<procedure_prototype> {
 public:
-  static constexpr char const* scheme_name = "insider::procedure";
+  static constexpr char const* scheme_name = "insider::procedure_prototype";
 
   bytecode           code;
   debug_info_map     debug_info;
@@ -403,7 +403,7 @@ make_procedure_prototype(context& ctx, bytecode bc,
 // Callable Scheme code, together with any captured free variables.
 class procedure : public dynamic_size_object<procedure, ptr<>> {
 public:
-  static constexpr char const* scheme_name = "insider::closure";
+  static constexpr char const* scheme_name = "insider::procedure";
 
   static std::size_t
   extra_elements(ptr<procedure_prototype>, std::size_t num_captures) {

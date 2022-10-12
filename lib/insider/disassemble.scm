@@ -2,9 +2,10 @@
 (import (insider syntax) (insider basic-procedures) (insider io)
         (insider string) (insider list) (insider vector) (insider numeric)
         (only (insider internal)
-              procedure-bytecode procedure-name opcodes instruction-opcode
-              instruction-operands top-level-name procedure-constants
-              top-level-value closure-procedure immediate-bias))
+              procedure-prototype-bytecode procedure-prototype-name opcodes
+              instruction-opcode instruction-operands top-level-name
+              procedure-prototype-constants top-level-value immediate-bias
+              procedure-prototype))
 (export disassemble)
 
 (define instruction-column 8)
@@ -21,6 +22,59 @@
 
 (define (instruction-mnemonic instr)
   (opcode-mnemonic (instruction-opcode instr)))
+
+(define (opcode-mnemonic opcode)
+  (vector-ref opcodes opcode))
+
+(define (format-mnemonic mnemonic)
+  (let* ((m (symbol->string mnemonic))
+         (len (string-length m)))
+    (string-append m
+                   (make-string (- longest-mnemonic len) #\space))))
+
+(define (immediate-value imm)
+  (- imm immediate-bias))
+
+(define (format-immediate imm)
+  (string-append "$" (number->string (immediate-value imm))))
+
+(define (format-load-fixnum instr)
+  (let ((operands (instruction-operands instr)))
+    (let ((imm (car operands)) (dest (cadr operands)))
+      (string-append (format-mnemonic 'load-fixnum)
+                     " "
+                     (format-immediate imm)
+                     ", "
+                     (number->string dest)))))
+
+(define (format-jump instr)
+  (let ((offset (car (instruction-operands instr))))
+    (string-append (format-mnemonic 'jump)
+                   " "
+                   (format-immediate offset))))
+
+(define (format-jump-unless instr)
+  (let* ((operands (instruction-operands instr))
+         (register (car operands))
+         (offset (cadr operands)))
+    (string-append (format-mnemonic 'jump-unless)
+                   " "
+                   (number->string register)
+                   ", "
+                   (format-immediate offset))))
+
+(define (format-general-instruction instr)
+  (string-append (format-mnemonic (instruction-mnemonic instr))
+                 " "
+                 (string-join (map number->string (instruction-operands instr))
+                              ", ")))
+
+(define (format-instruction instr)
+  (case (instruction-mnemonic instr)
+    ((load-fixnum) (format-load-fixnum instr))
+    ((jump)        (format-jump instr))
+    ((jump-unless) (format-jump-unless instr))
+    (else          (format-general-instruction instr))))
 
 (define (related-constant instr)
   (case (instruction-mnemonic instr)
@@ -45,60 +99,49 @@
         (cons (car related) (top-level-name (car related)))
         #f)))
 
-(define (opcode-mnemonic opcode)
-  (vector-ref opcodes opcode))
+(define (jump-offset instr)
+  (immediate-value (case (instruction-mnemonic instr)
+                     ((jump)        (car (instruction-operands instr)))
+                     ((jump-unless) (cadr (instruction-operands instr))))))
 
-(define (format-mnemonic mnemonic)
-  (let* ((m (symbol->string mnemonic))
-         (len (string-length m)))
-    (string-append m
-                   (make-string (- longest-mnemonic len) #\space))))
+(define (related-jump-address address size instr)
+  (+ address size (jump-offset instr)))
 
-(define (format-load-fixnum instr)
-  (let ((operands (instruction-operands instr)))
-    (let ((imm (car operands)) (dest (cadr operands)))
-      (string-append (format-mnemonic 'load-fixnum)
-                     " $"
-                     (number->string (- imm immediate-bias))
-                     ", "
-                     (number->string dest)))))
-
-(define (format-general-instruction instr)
-  (string-append (format-mnemonic (instruction-mnemonic instr))
-                 " "
-                 (string-join (map number->string (instruction-operands instr))
-                              ", ")))
-
-(define (format-instruction instr)
-  (case (instruction-mnemonic instr)
-    ((load-fixnum) (format-load-fixnum instr))
-    (else          (format-general-instruction instr))))
+(define (related-address instruction-record)
+  (let ((address (car instruction-record))
+        (size (cadr instruction-record))
+        (instr (caddr instruction-record)))
+    (case (instruction-mnemonic instr)
+      ((jump jump-unless)
+       (related-jump-address address size instr))
+      (else #f))))
 
 (define (format-related-constant f index)
   (string-append "constant " (number->string index) " = "
-                 (datum->string (vector-ref (procedure-constants f) index))))
+                 (datum->string (vector-ref (procedure-prototype-constants f)
+                                            index))))
 
 (define (format-related-top-level value)
   (string-append "top-level " (number->string (car value)) " = " (cdr value)))
 
-(define (make-indent target-column current-column)
-  (if (>= current-column target-column)
-      ""
-      (make-string (- target-column current-column) #\space)))
+(define (format-related-address address)
+  (string-append "=> " (number->string address)))
 
 (define (instruction-comment f instruction-record)
   (let* ((instr (caddr instruction-record))
          (related-constant (related-constant instr))
-         (related-name (related-top-level-name instr)))
+         (related-name (related-top-level-name instr))
+         (related-address (related-address instruction-record)))
     (cond
      (related-constant (format-related-constant f related-constant))
      (related-name (format-related-top-level related-name))
+     (related-address (format-related-address related-address))
      (else #f))))
 
 (define (display-procedure-constants f)
   (display "Constants: ")
   (newline)
-  (let* ((consts (procedure-constants f))
+  (let* ((consts (procedure-prototype-constants f))
          (len (vector-length consts)))
     (do ((i 0 (+ i 1)))
         ((= i len))
@@ -112,7 +155,7 @@
         (newline)))))
 
 (define (display-procedure-header f number-kind number)
-  (display (or (procedure-name f) "<lambda>"))
+  (display (or (procedure-prototype-name f) "<lambda>"))
 
   (when number
     (display " (")
@@ -124,9 +167,14 @@
   (display #\:)
   (newline)
 
-  (unless (zero? (vector-length (procedure-constants f)))
+  (unless (zero? (vector-length (procedure-prototype-constants f)))
     (display-procedure-constants f)
     (newline)))
+
+(define (make-indent target-column current-column)
+  (if (>= current-column target-column)
+      ""
+      (make-string (- target-column current-column) #\space)))
 
 (define (display-location-and-indent location)
   (let ((location-string (number->string location)))
@@ -138,7 +186,7 @@
   (display "Code:")
   (newline)
 
-  (let loop ((instruction-records (procedure-bytecode f)))
+  (let loop ((instruction-records (procedure-prototype-bytecode f)))
     (unless (null? instruction-records)
       (let* ((record (car instruction-records))
              (location (car record))
@@ -163,23 +211,24 @@
     (let ((related (getter (caddr record))))
       (if related
           (let ((related* (cdr related)))
-            (if (scheme-procedure? related*)
-                (if (plain-procedure? related*)
+            (if (or (scheme-procedure? related*)
+                    (procedure-prototype? related*))
+                (if (procedure-prototype? related*)
                     (list name (car related) related*)
-                    (list name (car related) (closure-procedure related*)))
+                    (list name (car related) (procedure-prototype related*)))
                 #f))
           #f)))
 
   (or (find related-constant 'constant)
       (and recurse-to-top-levels? (find related-top-level 'top-level))))
 
-(define (closure-procedure* closure-or-procedure)
-  (if (closure? closure-or-procedure)
-      (closure-procedure closure-or-procedure)
-      closure-or-procedure))
+(define (procedure-prototype* procedure-or-prototype)
+  (if (scheme-procedure? procedure-or-prototype)
+      (procedure-prototype procedure-or-prototype)
+      procedure-or-prototype))
 
 (define (find-related-procedures f)
-  (let* ((consts (procedure-constants f))
+  (let* ((consts (procedure-prototype-constants f))
          (len (vector-length consts)))
     (let loop ((i 0) (result '()))
       (if (= i len)
@@ -187,7 +236,7 @@
           (loop (+ i 1)
                 (let ((k (vector-ref consts i)))
                   (if (scheme-procedure? k)
-                      (cons (list 'constant i (closure-procedure* k)) result)
+                      (cons (list 'constant i (procedure-prototype* k)) result)
                       result)))))))
 
 (define (add-to-do old-to-do done new-to-do)
@@ -203,8 +252,8 @@
                   (cons (car new) result))))))
 
 (define (disassemble f)
-  (when (closure? f)
-    (set! f (closure-procedure f)))
+  (when (scheme-procedure? f)
+    (set! f (procedure-prototype f)))
   (let loop ((done '())
              (to-do (list (list #f #f f))))
     (unless (null? to-do)
