@@ -714,7 +714,7 @@ TEST_F(compiler, quasisyntax) {
 }
 
 TEST_F(compiler, call_from_native) {
-  auto f = expect<closure>(eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"));
+  auto f = expect<procedure>(eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"));
   ptr<> result = call_with_continuation_barrier(
     ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})}
   );

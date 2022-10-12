@@ -89,14 +89,15 @@ known_module(context& ctx, ptr<syntax> name) {
 
 static ptr<>
 procedure_bytecode(context& ctx, ptr<procedure> f) {
-  instruction_pointer ip = f->code.data();
+  ptr<procedure_prototype> proto = f->prototype();
+  instruction_pointer ip = proto->code.data();
   std::vector<std::tuple<std::size_t, std::size_t, instruction>> instrs;
 
-  while (ip != f->code.data() + f->code.size()) {
+  while (ip != proto->code.data() + proto->code.size()) {
     instruction_pointer old_ip = ip;
     instruction instr = read_instruction(ip);
 
-    std::size_t pos = old_ip - f->code.data();
+    std::size_t pos = old_ip - proto->code.data();
     std::size_t size = ip - old_ip;
 
     instrs.emplace_back(pos, size, instr);
@@ -117,12 +118,12 @@ procedure_bytecode(context& ctx, ptr<procedure> f) {
 
 static std::string
 procedure_name(ptr<procedure> f) {
-  return f->name;
+  return f->prototype()->name;
 }
 
 static ptr<vector>
 procedure_constants(context& ctx, ptr<procedure> f) {
-  return make_vector(ctx, f->constants);
+  return make_vector(ctx, f->prototype()->constants);
 }
 
 static integer
@@ -222,7 +223,6 @@ make_internal_module(context& ctx) {
   define_procedure<procedure_bytecode>(ctx, "procedure-bytecode", result);
   define_procedure<procedure_name>(ctx, "procedure-name", result);
   define_procedure<procedure_constants>(ctx, "procedure-constants", result);
-  define_procedure<&closure::procedure>(ctx, "closure-procedure", result);
 
   define_procedure<instruction_opcode>(ctx, "instruction-opcode", result);
   define_procedure<instruction_operands>(ctx, "instruction-operands", result);

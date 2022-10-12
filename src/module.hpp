@@ -15,8 +15,8 @@
 
 namespace insider {
 
-class closure;
 class context;
+class procedure;
 class symbol;
 
 // A module is a map from symbols to top-level variable indices. It also
@@ -51,11 +51,11 @@ public:
   std::unordered_set<std::string> const&
   exports() const { return exports_; }
 
-  ptr<closure>
+  ptr<procedure>
   top_level_procedure() const;
 
   void
-  set_top_level_procedure(free_store& fs, ptr<closure> const& p) {
+  set_top_level_procedure(free_store& fs, ptr<procedure> const& p) {
     proc_ = p;
     fs.notify_arc(this, p);
   }
@@ -82,7 +82,7 @@ private:
   ptr<insider::scope>             env_;
   // Bindings available for export to other modules.
   std::unordered_set<std::string> exports_;
-  ptr<closure>                    proc_;
+  ptr<procedure>                  proc_;
   bool                            active_ = false;
   type                            type_ = type::loaded;
   std::optional<module_name>      name_;

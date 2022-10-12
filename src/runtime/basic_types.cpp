@@ -260,9 +260,13 @@ box::box(ptr<> value)
   : value_{value}
 { }
 
-procedure::procedure(bytecode bc, debug_info_map dim, unsigned locals_size,
-                     unsigned min_args, bool has_rest, std::string name,
-                     std::vector<ptr<>> constants)
+procedure_prototype::procedure_prototype(bytecode bc,
+                                         debug_info_map dim,
+                                         unsigned locals_size,
+                                         unsigned min_args,
+                                         bool has_rest,
+                                         std::string name,
+                                         std::vector<ptr<>> constants)
   : code{std::move(bc)}
   , debug_info{std::move(dim)}
   , locals_size{locals_size}
@@ -273,42 +277,43 @@ procedure::procedure(bytecode bc, debug_info_map dim, unsigned locals_size,
 { }
 
 void
-procedure::visit_members(member_visitor const& f) {
+procedure_prototype::visit_members(member_visitor const& f) {
   for (ptr<>& k : constants)
     f(k);
 }
 
-ptr<procedure>
-make_procedure_from_bytecode(context& ctx, bytecode bc,
-                             unsigned locals_size, unsigned min_args,
-                             bool has_rest, std::string name,
-                             std::vector<ptr<>> constants) {
-  return make<procedure>(ctx, std::move(bc), debug_info_map{}, locals_size,
-                         min_args, has_rest, std::move(name),
-                         std::move(constants));
+ptr<procedure_prototype>
+make_procedure_prototype(context& ctx, bytecode bc,
+                         unsigned locals_size, unsigned min_args,
+                         bool has_rest, std::string name,
+                         std::vector<ptr<>> constants) {
+  return make<procedure_prototype>(ctx, std::move(bc), debug_info_map{},
+                                   locals_size, min_args, has_rest,
+                                   std::move(name), std::move(constants));
 }
 
-closure::closure(ptr<insider::procedure> p, std::size_t num_captures)
+procedure::procedure(ptr<procedure_prototype> p,
+                     std::size_t num_captures)
   : dynamic_size_object{num_captures}
-  , procedure_{p}
+  , prototype_{p}
 { }
 
-closure::closure(closure&& other) noexcept
+procedure::procedure(procedure&& other) noexcept
   : dynamic_size_object{other.size_}
-  , procedure_{other.procedure_}
+  , prototype_{other.prototype_}
 {
   for (std::size_t i = 0; i < size_; ++i)
     storage_element(i) = other.storage_element(i);
 }
 
 ptr<>
-closure::ref(std::size_t i) const {
+procedure::ref(std::size_t i) const {
   assert(i < size_);
   return storage_element(i);
 }
 
 void
-closure::set(free_store& store, std::size_t i, ptr<> value) {
+procedure::set(free_store& store, std::size_t i, ptr<> value) {
   assert(i < size_);
   assert(value);
 
@@ -317,37 +322,36 @@ closure::set(free_store& store, std::size_t i, ptr<> value) {
 }
 
 void
-closure::visit_members(member_visitor const& f) {
-  f(procedure_);
+procedure::visit_members(member_visitor const& f) {
+  f(prototype_);
   for (std::size_t i = 0; i < size_; ++i)
     f(storage_element(i));
 }
 
-ptr<closure>
-make_empty_closure(context& ctx, ptr<procedure> p) {
-  return make<closure>(ctx, p, 0);
+ptr<procedure>
+make_captureless_procedure(context& ctx, ptr<procedure_prototype> p) {
+  return make<procedure>(ctx, p, 0);
 }
 
-ptr<closure>
-make_closure_from_bytecode(context& ctx, bytecode const& bc, unsigned locals_size,
-                           unsigned min_args, bool has_rest,
-                           std::string name,
-                           std::vector<ptr<>> constants) {
-  return make_empty_closure(
+ptr<procedure>
+make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
+               unsigned min_args, bool has_rest, std::string name,
+               std::vector<ptr<>> constants) {
+  return make_captureless_procedure(
     ctx,
-    make_procedure_from_bytecode(ctx, bc, locals_size, min_args, has_rest,
+    make_procedure_prototype(ctx, bc, locals_size, min_args, has_rest,
                                  std::move(name), std::move(constants))
   );
 }
 
 bool
 is_callable(ptr<> x) {
-  return is<native_procedure>(x) || is<closure>(x);
+  return is<native_procedure>(x) || is<procedure>(x);
 }
 
 bool
 is_procedure(ptr<> x) {
-  return is<native_procedure>(x) || is<procedure>(x);
+  return is<native_procedure>(x) || is<procedure_prototype>(x);
 }
 
 ptr<>

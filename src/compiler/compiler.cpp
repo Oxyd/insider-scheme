@@ -528,30 +528,32 @@ compile_expression(context& ctx, procedure_context& proc,
   compile_static_reference(ctx, proc, ctx.constants->void_, result);
 }
 
-static ptr<procedure>
-make_procedure_from_bytecode(context& ctx, procedure_context& pc,
-                             unsigned min_args, bool has_rest,
-                             std::string name,
-                             std::vector<ptr<>> constants) {
+static ptr<procedure_prototype>
+make_procedure_prototype(context& ctx, procedure_context& pc,
+                         unsigned min_args, bool has_rest,
+                         std::string name,
+                         std::vector<ptr<>> constants) {
   auto [bc, di] = analyse_and_compile_cfg(pc.cfg);
-  return make<procedure>(ctx,
-                         std::move(bc),
-                         std::move(di),
-                         pc.registers.registers_used(), min_args, has_rest,
-                         std::move(name),
-                         std::move(constants));
+  return make<procedure_prototype>(ctx,
+                                   std::move(bc),
+                                   std::move(di),
+                                   pc.registers.registers_used(),
+                                   min_args,
+                                   has_rest,
+                                   std::move(name),
+                                   std::move(constants));
 }
 
-static ptr<closure>
-make_closure_from_bytecode(context& ctx, procedure_context& pc,
-                           unsigned min_args, bool has_rest,
-                           std::string name,
-                           std::vector<ptr<>> constants) {
-  return make_empty_closure(ctx,
-                            make_procedure_from_bytecode(ctx, pc, min_args,
-                                                         has_rest,
-                                                         std::move(name),
-                                                         std::move(constants)));
+static ptr<procedure>
+make_procedure(context& ctx, procedure_context& pc, unsigned min_args,
+               bool has_rest, std::string name, std::vector<ptr<>> constants) {
+  return make_captureless_procedure(
+    ctx,
+    make_procedure_prototype(ctx, pc, min_args,
+                             has_rest,
+                             std::move(name),
+                             std::move(constants))
+  );
 }
 
 static variable_bindings::unique_scope
@@ -589,7 +591,7 @@ compile_lambda_body(context& ctx, procedure_context& proc,
 
 static void
 emit_make_closure(context& ctx, procedure_context& parent,
-                  ptr<procedure> proc, ptr<lambda_expression> stx,
+                  ptr<procedure_prototype> proc, ptr<lambda_expression> stx,
                   result_location& result) {
   operand base = parent.registers.first_argument_register();
   result_location parent_loc{parent.registers.allocate_argument_register()};
@@ -611,9 +613,9 @@ emit_make_closure(context& ctx, procedure_context& parent,
 
 static void
 emit_reference_to_empty_closure(context& ctx, procedure_context& parent,
-                                ptr<procedure> proc,
+                                ptr<procedure_prototype> proc,
                                 result_location& result) {
-  auto cls = make_empty_closure(ctx, proc);
+  auto cls = make_captureless_procedure(ctx, proc);
   compile_static_reference(ctx, parent, cls, result);
 }
 
@@ -625,7 +627,7 @@ compile_expression(context& ctx, procedure_context& parent,
   auto us = push_parameters_and_closure_scope(proc, stx);
   compile_lambda_body(ctx, proc, stx);
 
-  auto p = make_procedure_from_bytecode(
+  auto p = make_procedure_prototype(
     ctx, proc,
     static_cast<unsigned>(stx->parameters().size() - (stx->has_rest() ? 1 : 0)),
     stx->has_rest(), stx->name(), std::move(proc.constants)
@@ -1012,7 +1014,7 @@ compile_expression(context& ctx, procedure_context& proc,
   }
 }
 
-ptr<closure>
+ptr<procedure>
 compile_expression(context& ctx, ptr<syntax> datum,
                    tracked_ptr<module_> const& mod,
                    source_file_origin const& origin,
@@ -1029,7 +1031,7 @@ reserve_register_for_self_variable(procedure_context& proc) {
   return self;
 }
 
-ptr<closure>
+ptr<procedure>
 compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
   procedure_context proc{nullptr, mod};
   shared_register self = reserve_register_for_self_variable(proc);
@@ -1037,8 +1039,8 @@ compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
   if (result)
     proc.emit(opcode::ret, *result);
 
-  return make_empty_closure(
-    ctx, make_procedure_from_bytecode(ctx, proc, 0, false, "<expression>",
+  return make_captureless_procedure(
+    ctx, make_procedure_prototype(ctx, proc, 0, false, "<expression>",
                                       std::move(proc.constants))
   );
 }
@@ -1085,12 +1087,12 @@ compile_module_body(context& ctx, tracked_ptr<module_> const& m,
 
   m->set_top_level_procedure(
     ctx.store,
-    make_closure_from_bytecode(ctx, proc, 0, false,
-                               fmt::format("<module {} top-level>",
-                                           pm.name
-                                           ? module_name_to_string(*pm.name)
-                                           : "<unknown>"),
-                               std::move(proc.constants))
+    make_procedure(ctx, proc, 0, false,
+                   fmt::format("<module {} top-level>",
+                               pm.name
+                               ? module_name_to_string(*pm.name)
+                               : "<unknown>"),
+                   std::move(proc.constants))
   );
 }
 

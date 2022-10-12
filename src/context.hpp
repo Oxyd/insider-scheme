@@ -25,7 +25,7 @@ class module_;
 class null_type;
 class parameter_map;
 class parameter_tag;
-class procedure;
+class procedure_prototype;
 class scope;
 class symbol;
 class tail_call_tag_type;

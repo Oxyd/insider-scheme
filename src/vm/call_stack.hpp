@@ -287,7 +287,7 @@ private:
 
   frame_type
   callable_to_frame_type(ptr<> callable) {
-    if (is<closure>(callable))
+    if (is<procedure>(callable))
       return frame_type::scheme;
     else if (!callable)
       return frame_type::dummy;

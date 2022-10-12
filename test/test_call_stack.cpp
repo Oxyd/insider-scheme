@@ -6,12 +6,12 @@ using namespace insider;
 
 struct call_stack_fixture : scheme_fixture {
   tracked_ptr<call_stack> cs;
-  ptr<closure> one = make_dummy_closure();
-  ptr<closure> two = make_dummy_closure();
-  ptr<closure> three = make_dummy_closure();
-  ptr<closure> four = make_dummy_closure();
-  ptr<closure> ten = make_dummy_closure();
-  ptr<closure> twenty = make_dummy_closure();
+  ptr<procedure> one = make_dummy_procedure();
+  ptr<procedure> two = make_dummy_procedure();
+  ptr<procedure> three = make_dummy_procedure();
+  ptr<procedure> four = make_dummy_procedure();
+  ptr<procedure> ten = make_dummy_procedure();
+  ptr<procedure> twenty = make_dummy_procedure();
 
   call_stack_fixture()
     : cs{make_tracked<call_stack>(ctx)}
@@ -29,11 +29,11 @@ struct call_stack_fixture : scheme_fixture {
     cs->local(0) = four;
   }
 
-  ptr<closure>
-  make_dummy_closure() {
-    return make<closure>(
+  ptr<procedure>
+  make_dummy_procedure() {
+    return make<procedure>(
       ctx,
-      make<procedure>(ctx, bytecode{}, debug_info_map{}, 0, 0, false,
+      make<procedure_prototype>(ctx, bytecode{}, debug_info_map{}, 0, 0, false,
                       "<dummy>", std::vector<ptr<>>{}),
       0
     );

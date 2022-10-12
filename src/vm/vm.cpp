@@ -29,9 +29,9 @@ namespace insider {
 
 static ptr<>
 get_constant(ptr<call_stack> stack, operand index) {
-  auto proc = expect<closure>(stack->callable())->procedure();
-  assert(index < proc->constants.size());
-  return proc->constants[index];
+  auto proto = expect<procedure>(stack->callable())->prototype();
+  assert(index < proto->constants.size());
+  return proto->constants[index];
 }
 
 static bool
@@ -40,11 +40,11 @@ current_frame_is_native(ptr<call_stack> stack) {
 }
 
 static std::size_t
-find_index_of_call_instruction(ptr<procedure> proc,
+find_index_of_call_instruction(ptr<procedure_prototype> proto,
                                instruction_pointer call_ip) {
   assert(opcode_to_info(opcode::call).num_operands == 3);
   static constexpr std::size_t call_instruction_size = 4;
-  return call_ip - proc->code.data() - call_instruction_size;
+  return call_ip - proto->code.data() - call_instruction_size;
 }
 
 static instruction_pointer const dummy_ip
@@ -58,9 +58,10 @@ find_inlined_procedures(frame_reference frame,
   if (call_ip) {
     assert(*call_ip != dummy_ip);
 
-    ptr<procedure> proc = assume<closure>(frame.callable())->procedure();
-    std::size_t call_idx = find_index_of_call_instruction(proc, *call_ip);
-    debug_info_map const& debug_info = proc->debug_info;
+    ptr<procedure_prototype> proto
+      = assume<procedure>(frame.callable())->prototype();
+    std::size_t call_idx = find_index_of_call_instruction(proto, *call_ip);
+    debug_info_map const& debug_info = proto->debug_info;
     if (auto di = debug_info.find(call_idx); di != debug_info.end())
       return di->second.inlined_call_chain;
   }
@@ -69,15 +70,14 @@ find_inlined_procedures(frame_reference frame,
 
 static void
 append_scheme_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
-                                  ptr<procedure> proc,
+                                  ptr<procedure_prototype> proto,
                                   frame_reference frame,
                                   std::optional<instruction_pointer> call_ip) {
   auto inlined = find_inlined_procedures(frame, call_ip);
   for (std::string const& inlined_proc : inlined)
     trace.push_back({inlined_proc, stacktrace_record::kind::scheme});
 
-  trace.push_back({assume<procedure>(proc)->name,
-      stacktrace_record::kind::scheme});
+  trace.push_back({proto->name, stacktrace_record::kind::scheme});
 }
 
 static void
@@ -85,13 +85,12 @@ append_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
                            frame_reference frame,
                            std::optional<instruction_pointer> call_ip) {
   ptr<> proc = frame.callable();
-  if (auto cls = match<closure>(proc))
-    proc = cls->procedure();
-
   if (auto np = match<native_procedure>(proc))
     trace.push_back({np->name, stacktrace_record::kind::native});
   else
-    append_scheme_frame_to_stacktrace(trace, assume<procedure>(proc), frame,
+    append_scheme_frame_to_stacktrace(trace,
+                                      assume<procedure>(proc)->prototype(),
+                                      frame,
                                       call_ip);
 }
 
@@ -150,7 +149,8 @@ namespace {
 }
 
 inline void
-throw_if_wrong_number_of_args(ptr<procedure> proc, std::size_t num_args) {
+throw_if_wrong_number_of_args(ptr<procedure_prototype> proc,
+                              std::size_t num_args) {
   if (num_args < proc->min_args
       || (!proc->has_rest && num_args > proc->min_args))
     throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
@@ -366,25 +366,25 @@ set(execution_state& state) {
 }
 
 static std::size_t
-get_closure_size(ptr<closure> cls) {
-  if (cls)
-    return cls->size();
+get_closure_size(ptr<procedure> proc) {
+  if (proc)
+    return proc->size();
   else
     return 0;
 }
 
 static std::size_t
-actual_args_size(ptr<procedure> proc) {
-  return proc->min_args + (proc->has_rest ? 1 : 0);
+actual_args_size(ptr<procedure_prototype> proto) {
+  return proto->min_args + (proto->has_rest ? 1 : 0);
 }
 
 static void
-push_closure(ptr<insider::closure> closure, ptr<call_stack> stack) {
-  std::size_t closure_size = get_closure_size(closure);
-  std::size_t begin = actual_args_size(closure->procedure()) + 1;
+push_closure(ptr<procedure> proc, ptr<call_stack> stack) {
+  std::size_t closure_size = get_closure_size(proc);
+  std::size_t begin = actual_args_size(proc->prototype()) + 1;
 
   for (std::size_t i = 0; i < closure_size; ++i)
-    stack->local(operand(begin + i)) = closure->ref(i);
+    stack->local(operand(begin + i)) = proc->ref(i);
 }
 
 static void
@@ -406,16 +406,17 @@ convert_tail_args_to_list(context& ctx, ptr<call_stack> stack,
 }
 
 static void
-convert_tail_args(context& ctx, ptr<call_stack> stack, ptr<procedure> proc,
-                  std::size_t base, std::size_t num_args) {
-  if (proc->has_rest)
-    convert_tail_args_to_list(ctx, stack, base + proc->min_args + 1,
-                              num_args - proc->min_args);
+convert_tail_args(context& ctx, ptr<call_stack> stack,
+                  ptr<procedure_prototype> proto, std::size_t base,
+                  std::size_t num_args) {
+  if (proto->has_rest)
+    convert_tail_args_to_list(ctx, stack, base + proto->min_args + 1,
+                              num_args - proto->min_args);
 }
 
 static instruction_pointer
 current_procedure_bytecode_base(execution_state const& state) {
-  return assume<closure>(state.stack->callable())->procedure()->code.data();
+  return assume<procedure>(state.stack->callable())->prototype()->code.data();
 }
 
 static void
@@ -424,12 +425,12 @@ reload_ip(execution_state& state) {
 }
 
 static void
-push_scheme_frame(execution_state& state, ptr<closure> cls,
+push_scheme_frame(execution_state& state, ptr<procedure> proc,
                   operand base, operand result_reg) {
   state.stack->push_frame(
-    cls,
+    proc,
     state.stack->frame_base() + base,
-    cls->procedure()->locals_size,
+    proc->prototype()->locals_size,
     state.ip,
     result_reg
   );
@@ -444,38 +445,38 @@ make_tail_call_frame(ptr<call_stack> stack, ptr<> proc,
 }
 
 static void
-make_scheme_tail_call_frame(ptr<call_stack> stack, ptr<closure> cls,
+make_scheme_tail_call_frame(ptr<call_stack> stack, ptr<procedure> proc,
                             std::size_t args_base, std::size_t num_args) {
-  make_tail_call_frame(stack, cls, cls->procedure()->locals_size, args_base,
+  make_tail_call_frame(stack, proc, proc->prototype()->locals_size, args_base,
                        num_args);
 }
 
 static void
 check_and_convert_scheme_call_arguments(execution_state& state,
-                                        ptr<procedure> proc,
+                                        ptr<procedure_prototype> proto,
                                         operand base) {
   operand num_args = read_operand(state);
-  throw_if_wrong_number_of_args(proc, num_args);
-  convert_tail_args(state.ctx, state.stack, proc, base, num_args);
+  throw_if_wrong_number_of_args(proto, num_args);
+  convert_tail_args(state.ctx, state.stack, proto, base, num_args);
 }
 
 static void
-make_scheme_frame(ptr<closure> cls, execution_state& state,
+make_scheme_frame(ptr<procedure> proc, execution_state& state,
                   operand base, bool is_tail) {
-  check_and_convert_scheme_call_arguments(state, cls->procedure(), base);
+  check_and_convert_scheme_call_arguments(state, proc->prototype(), base);
   if (!is_tail) {
     operand result_reg = read_operand(state);
-    push_scheme_frame(state, cls, base, result_reg);
+    push_scheme_frame(state, proc, base, result_reg);
   } else
-    make_scheme_tail_call_frame(state.stack, cls, base,
-                                actual_args_size(cls->procedure()));
+    make_scheme_tail_call_frame(state.stack, proc, base,
+                                actual_args_size(proc->prototype()));
 }
 
 static void
-push_scheme_call_frame(ptr<insider::closure> closure, execution_state& state,
+push_scheme_call_frame(ptr<procedure> proc, execution_state& state,
                        operand base, bool is_tail) {
-  make_scheme_frame(closure, state, base, is_tail);
-  push_closure(closure, state.stack);
+  make_scheme_frame(proc, state, base, is_tail);
+  push_closure(proc, state.stack);
 
   reload_ip(state);
 }
@@ -608,8 +609,8 @@ call(opcode opcode, execution_state& state) {
   operand base = read_operand(state);
   ptr<> callee = state.stack->local(base);
 
-  if (auto scheme_closure = match<closure>(callee))
-    push_scheme_call_frame(scheme_closure, state, base, is_tail(opcode));
+  if (auto scheme_proc = match<procedure>(callee))
+    push_scheme_call_frame(scheme_proc, state, base, is_tail(opcode));
   else if (auto native_proc = match<native_procedure>(callee))
     do_native_call(native_proc, state, base, is_tail(opcode));
   else
@@ -663,13 +664,14 @@ jump_unless(execution_state& state) {
 static void
 make_closure(execution_state& state) {
   operand base = read_operand(state);
-  ptr<procedure> proc = assume<procedure>(state.stack->local(base));
+  ptr<procedure_prototype> proto
+    = assume<procedure_prototype>(state.stack->local(base));
 
   auto num_captures = read_operand(state);
   operand captures_base = base + 1;
   operand dest = read_operand(state);
 
-  auto result = make<closure>(state.ctx, proc, num_captures);
+  auto result = make<procedure>(state.ctx, proto, num_captures);
   for (std::size_t i = 0; i < num_captures; ++i)
     result->set(state.ctx.store, i,
                 state.stack->local(operand(captures_base + i)));
@@ -768,13 +770,13 @@ type(execution_state& state) {
 static void
 do_instruction(execution_state& state, gc_disabler& no_gc) {
   assert(!state.stack->empty());
-  assert(is<closure>(state.stack->callable()));
+  assert(is<procedure>(state.stack->callable()));
 
   opcode opcode = read_opcode(state);
 
   switch (opcode) {
   case opcode::no_operation:                                          break;
-  case opcode::load_constant:            load_constant(state);            break;
+  case opcode::load_constant:          load_constant(state);          break;
   case opcode::load_top_level:         load_top_level(state);         break;
   case opcode::load_dynamic_top_level: load_dynamic_top_level(state); break;
   case opcode::store_top_level:        store_top_level(state);        break;
@@ -864,53 +866,45 @@ run(execution_state& state) {
   return result;
 }
 
-static std::tuple<ptr<procedure>, ptr<closure>>
-split_scheme_callable_into_procedure_and_closure(ptr<closure> callable) {
-  return {assume<procedure>(callable->procedure()), callable};
-}
-
 static void
 push_rest_argument_for_call_from_native(context& ctx,
-                                        ptr<procedure> proc,
+                                        ptr<procedure_prototype> proto,
                                         ptr<call_stack> stack,
                                         std::vector<ptr<>> const& args) {
-  stack->local(operand(proc->min_args + 1))
+  stack->local(operand(proto->min_args + 1))
     = make_list_from_range(ctx,
-                           std::ranges::subrange(args.begin() + proc->min_args,
+                           std::ranges::subrange(args.begin() + proto->min_args,
                                                  args.end()));
 }
 
 static void
 push_scheme_arguments_for_call_from_native(context& ctx,
-                                           ptr<closure> callable,
+                                           ptr<procedure> callable,
                                            ptr<call_stack> stack,
                                            std::vector<ptr<>> const& args) {
-  ptr<procedure> proc = callable->procedure();
+  ptr<procedure_prototype> proto = callable->prototype();
 
   stack->local(operand{0}) = callable;
-  for (std::size_t i = 0; i < proc->min_args; ++i)
+  for (std::size_t i = 0; i < proto->min_args; ++i)
     stack->local(operand(i) + 1) = args[i];
 
-  if (proc->has_rest)
-    push_rest_argument_for_call_from_native(ctx, proc, stack, args);
+  if (proto->has_rest)
+    push_rest_argument_for_call_from_native(ctx, proto, stack, args);
 }
 
 static void
 make_scheme_frame_for_call_from_native(execution_state& state,
-                                       ptr<closure> callable,
+                                       ptr<procedure> callable,
                                        std::vector<ptr<>> const& arguments,
                                        instruction_pointer previous_ip) {
-  auto [proc, closure] =
-    split_scheme_callable_into_procedure_and_closure(callable);
+  throw_if_wrong_number_of_args(callable->prototype(), arguments.size());
 
-  throw_if_wrong_number_of_args(proc, arguments.size());
-
-  state.stack->push_frame(closure, state.stack->size(), proc->locals_size,
-                          previous_ip, {});
+  state.stack->push_frame(callable, state.stack->size(),
+                          callable->prototype()->locals_size, previous_ip, {});
 
   push_scheme_arguments_for_call_from_native(state.ctx, callable, state.stack,
                                              arguments);
-  push_closure(closure, state.stack);
+  push_closure(callable, state.stack);
 
   reload_ip(state);
 }
@@ -1001,7 +995,7 @@ get_native_ip(ptr<call_stack> stack) {
 static void
 setup_scheme_frame_for_potential_call_from_native(
   execution_state& state,
-  ptr<closure> callable,
+  ptr<procedure> callable,
   std::vector<ptr<>> const& arguments
 ) {
   assert(is_callable(callable));
@@ -1011,7 +1005,7 @@ setup_scheme_frame_for_potential_call_from_native(
 
 static ptr<>
 call_scheme_with_continuation_barrier(execution_state& state,
-                                      ptr<closure> callable,
+                                      ptr<procedure> callable,
                                       std::vector<ptr<>> const& arguments,
                                       ptr<parameter_tag> parameter,
                                       ptr<> parameter_value) {
@@ -1077,7 +1071,7 @@ call_parameterized_with_continuation_barrier(
     );
   else
     return call_scheme_with_continuation_barrier(
-      *ctx.current_execution, assume<closure>(callable), arguments, tag,
+      *ctx.current_execution, assume<procedure>(callable), arguments, tag,
       parameter_value
     );
 }
@@ -1098,7 +1092,7 @@ call_native_continuable(execution_state& state, ptr<native_procedure> proc,
 }
 
 static ptr<>
-call_scheme_continuable(execution_state& state, ptr<closure> callable,
+call_scheme_continuable(execution_state& state, ptr<procedure> callable,
                         std::vector<ptr<>> const& arguments,
                         native_continuation_type cont) {
   auto extra = create_or_get_extra_data(state.ctx, state.stack);
@@ -1118,7 +1112,7 @@ call_continuable(context& ctx, ptr<> callable,
     call_native_continuable(*ctx.current_execution, native_proc, arguments,
                             cont);
   else
-    call_scheme_continuable(*ctx.current_execution, assume<closure>(callable),
+    call_scheme_continuable(*ctx.current_execution, assume<procedure>(callable),
                             arguments, std::move(cont));
 
   return ctx.constants->tail_call_tag;
@@ -1141,17 +1135,14 @@ static void
 make_scheme_tail_call_frame_for_call_from_native(
   context& ctx,
   ptr<call_stack> stack,
-  ptr<closure> callable,
+  ptr<procedure> callable,
   std::vector<ptr<>> const& arguments
 ) {
-  auto [proc, closure] =
-    split_scheme_callable_into_procedure_and_closure(callable);
+  throw_if_wrong_number_of_args(callable->prototype(), arguments.size());
 
-  throw_if_wrong_number_of_args(proc, arguments.size());
-
-  stack->replace_frame(closure, proc->locals_size);
+  stack->replace_frame(callable, callable->prototype()->locals_size);
   push_scheme_arguments_for_call_from_native(ctx, callable, stack, arguments);
-  push_closure(closure, stack);
+  push_closure(callable, stack);
   clear_native_continuations(stack);
 }
 
@@ -1168,7 +1159,7 @@ make_tail_call_frame_for_call_from_native(context& ctx, ptr<> callable,
     make_native_tail_call_frame_for_call_from_native(stack, native, arguments);
   else
     make_scheme_tail_call_frame_for_call_from_native(ctx, stack,
-                                                     assume<closure>(callable),
+                                                     assume<procedure>(callable),
                                                      arguments);
 }
 
@@ -1512,9 +1503,11 @@ parameterize::visit_roots(member_visitor const& f) {
 }
 
 static ptr<tail_call_tag_type>
-call_parameterized(context& ctx, ptr<parameter_tag> tag, ptr<> value, ptr<> callable) {
+call_parameterized(context& ctx, ptr<parameter_tag> tag, ptr<> value,
+                   ptr<> callable) {
   add_parameter_value(ctx, ctx.current_execution->stack, tag, value);
-  return call_continuable(ctx, callable, {}, [] (context&, ptr<> result) { return result; });
+  return call_continuable(ctx, callable, {},
+                          [] (context&, ptr<> result) { return result; });
 }
 
 static ptr<>

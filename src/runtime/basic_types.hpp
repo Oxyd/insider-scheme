@@ -373,9 +373,8 @@ private:
   ptr<> value_;
 };
 
-// Callable bytecode container. Contains all the information necessary to create
-// a call frame inside the VM.
-class procedure : public composite_object<procedure> {
+// Static information about a Scheme procedure.
+class procedure_prototype : public composite_object<procedure_prototype> {
 public:
   static constexpr char const* scheme_name = "insider::procedure";
 
@@ -387,36 +386,36 @@ public:
   std::string        name;
   std::vector<ptr<>> constants;
 
-  procedure(bytecode bc, debug_info_map dim, unsigned locals_size,
-            unsigned min_args, bool has_rest, std::string name,
-            std::vector<ptr<>> constants);
+  procedure_prototype(bytecode bc, debug_info_map dim, unsigned locals_size,
+                      unsigned min_args, bool has_rest, std::string name,
+                      std::vector<ptr<>> constants);
 
   void
   visit_members(member_visitor const& f);
 };
 
-ptr<procedure>
-make_procedure_from_bytecode(context& ctx, bytecode bc,
-                             unsigned locals_size, unsigned min_args,
-                             bool has_rest, std::string name,
-                             std::vector<ptr<>> constants);
+ptr<procedure_prototype>
+make_procedure_prototype(context& ctx, bytecode bc,
+                         unsigned locals_size, unsigned min_args,
+                         bool has_rest, std::string name,
+                         std::vector<ptr<>> constants);
 
-// A procedure plus a list of captured objects.
-class closure : public dynamic_size_object<closure, ptr<>> {
+// Callable Scheme code, together with any captured free variables.
+class procedure : public dynamic_size_object<procedure, ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::closure";
 
   static std::size_t
-  extra_elements(ptr<insider::procedure>, std::size_t num_captures) {
+  extra_elements(ptr<procedure_prototype>, std::size_t num_captures) {
     return num_captures;
   }
 
-  closure(ptr<insider::procedure>, std::size_t num_captures);
+  procedure(ptr<procedure_prototype>, std::size_t num_captures);
 
-  closure(closure&&) noexcept;
+  procedure(procedure&&) noexcept;
 
-  ptr<insider::procedure>
-  procedure() const { return procedure_; }
+  ptr<insider::procedure_prototype>
+  prototype() const { return prototype_; }
 
   ptr<>
   ref(std::size_t) const;
@@ -428,17 +427,17 @@ public:
   visit_members(member_visitor const&);
 
 private:
-  ptr<insider::procedure> procedure_;
+  ptr<procedure_prototype> prototype_;
 };
 
-ptr<closure>
-make_empty_closure(context&, ptr<procedure>);
+ptr<procedure>
+make_captureless_procedure(context&, ptr<procedure_prototype>);
 
-ptr<closure>
-make_closure_from_bytecode(context& ctx, bytecode const& bc,
-                           unsigned locals_size, unsigned min_args,
-                           bool has_rest, std::string name,
-                           std::vector<ptr<>> constants);
+ptr<procedure>
+make_procedure(context& ctx, bytecode const& bc,
+               unsigned locals_size, unsigned min_args,
+               bool has_rest, std::string name,
+               std::vector<ptr<>> constants);
 
 // Like procedure, but when invoked, it calls a C++ function.
 class native_procedure : public leaf_object<native_procedure> {

@@ -7,13 +7,13 @@
 
 using namespace insider;
 
-static ptr<closure>
-make_closure(context& ctx, bytecode const& bc,
-             std::vector<ptr<>> constants,
-             unsigned locals_size,
-             unsigned min_args, bool has_rest = false) {
-  return make_closure_from_bytecode(ctx, bc, locals_size, min_args, has_rest,
-                                    "<test procedure>", std::move(constants));
+static ptr<procedure>
+make_procedure(context& ctx, bytecode const& bc,
+               std::vector<ptr<>> constants,
+               unsigned locals_size,
+               unsigned min_args, bool has_rest = false) {
+  return make_procedure(ctx, bc, locals_size, min_args, has_rest,
+                        "<test procedure>", std::move(constants));
 }
 
 static bytecode
@@ -31,7 +31,7 @@ TEST_F(interpreter, exec_arithmetic) {
   // 2 * (3 + 6). The input constants are stored in the constants vector, result
   // is stored in local register 0.
 
-  auto proc = make_closure(
+  auto proc = make_procedure(
     ctx,
     make_bytecode({{opcode::load_constant, operand{0}, operand{2}},
                    {opcode::load_constant, operand{1}, operand{3}},
@@ -52,7 +52,7 @@ TEST_F(interpreter, exec_arithmetic) {
 }
 
 TEST_F(interpreter, can_access_arguments_from_callee) {
-  ptr<closure> add = make_closure(
+  ptr<procedure> add = make_procedure(
     ctx,
     make_bytecode({
       {opcode::add, operand{1}, operand{2}, operand{1}},
@@ -61,7 +61,7 @@ TEST_F(interpreter, can_access_arguments_from_callee) {
     {},
     3, 2
   );
-  auto f = make_closure(
+  auto f = make_procedure(
     ctx,
     make_bytecode({
       {opcode::load_constant, operand{2}, operand{1}},
@@ -85,7 +85,7 @@ TEST_F(interpreter, exec_calls) {
   // f(x, y) = 2 * x + y
   // Evaluate: 3 * f(5, 7) + f(2, f(3, 4))
 
-  ptr<closure> f = make_closure(
+  ptr<procedure> f = make_procedure(
     ctx,
     make_bytecode({{opcode::load_constant, operand{0}, operand{4}},
                    {opcode::multiply, operand{4}, operand{1}, operand{3}},
@@ -97,7 +97,7 @@ TEST_F(interpreter, exec_calls) {
     5, 2
   );
 
-  auto global = make_closure(
+  auto global = make_procedure(
     ctx,
     make_bytecode({{opcode::load_constant, operand{5}, operand{1}},
                    {opcode::load_constant, operand{2}, operand{2}},
@@ -134,7 +134,7 @@ TEST_F(interpreter, exec_calls) {
 TEST_F(interpreter, exec_tail_calls) {
   // f(x) = g(x)
   // g(x) = 2 * x
-  ptr<closure> g = make_closure(
+  ptr<procedure> g = make_procedure(
     ctx,
     make_bytecode({{opcode::load_constant, operand{0}, operand{2}},
                    {opcode::multiply, operand{2}, operand{1}, operand{1}},
@@ -144,7 +144,7 @@ TEST_F(interpreter, exec_tail_calls) {
     },
     3, 1
   );
-  ptr<closure> f = make_closure(
+  ptr<procedure> f = make_procedure(
     ctx,
     make_bytecode({{opcode::load_constant, operand{0}, operand{2}},
                    {opcode::set, operand{1}, operand{3}},
@@ -154,7 +154,7 @@ TEST_F(interpreter, exec_tail_calls) {
     },
     4, 1
   );
-  auto global = make_closure(
+  auto global = make_procedure(
     ctx,
     make_bytecode({{opcode::load_constant, operand{0}, operand{1}},
                    {opcode::load_constant, operand{1}, operand{2}},
@@ -177,7 +177,7 @@ TEST_F(interpreter, exec_loop) {
   //   sum += i
   //   i += 1
 
-  auto global = make_closure(
+  auto global = make_procedure(
     ctx,
     make_bytecode(
       {
@@ -212,7 +212,7 @@ TEST_F(interpreter, exec_native_call) {
                                   + 3 * expect<integer>(args[1]).value()
                                   + 5 * expect<integer>(args[2]).value()});
   };
-  auto global = make_closure(
+  auto global = make_procedure(
     ctx,
     make_bytecode({{opcode::load_constant, operand{0}, operand{1}},
                    {opcode::load_constant, operand{1}, operand{2}},
@@ -235,7 +235,7 @@ TEST_F(interpreter, exec_native_call) {
 }
 
 TEST_F(interpreter, exec_closure_ref) {
-  ptr<procedure> add = make_procedure_from_bytecode(
+  ptr<procedure_prototype> add = make_procedure_prototype(
     ctx,
     make_bytecode({{opcode::add, operand{1}, operand{2}, operand{1}},
                    {opcode::ret, operand{1}}}),
@@ -243,7 +243,7 @@ TEST_F(interpreter, exec_closure_ref) {
     false, "add",
     {}
   );
-  auto global = make_closure(
+  auto global = make_procedure(
     ctx,
     make_bytecode({{opcode::load_constant, operand{0}, operand{2}},
                    {opcode::load_constant, operand{1}, operand{3}},
@@ -263,7 +263,7 @@ TEST_F(interpreter, exec_closure_ref) {
 }
 
 TEST_F(interpreter, exec_cons) {
-  auto global = make_closure(
+  auto global = make_procedure(
     ctx,
     make_bytecode(
       {{opcode::load_null,     operand{1}},
@@ -289,7 +289,7 @@ TEST_F(interpreter, exec_cons) {
 TEST_F(interpreter, exec_car_cdr) {
   auto p = track(ctx, cons(ctx, integer_to_ptr(1), integer_to_ptr(2)));
 
-  auto first = make_closure(
+  auto first = make_procedure(
     ctx,
     make_bytecode({{opcode::car, operand{1}, operand{1}},
                    {opcode::ret, operand{1}}}),
@@ -299,7 +299,7 @@ TEST_F(interpreter, exec_car_cdr) {
   auto result1 = call_with_continuation_barrier(ctx, first, {p.get()});
   EXPECT_EQ(expect<integer>(result1).value(), 1);
 
-  auto second = make_closure(
+  auto second = make_procedure(
     ctx,
     make_bytecode({{opcode::cdr, operand{1}, operand{1}},
                    {opcode::ret, operand{1}}}),
@@ -313,7 +313,7 @@ TEST_F(interpreter, exec_car_cdr) {
 TEST_F(interpreter, test_eq) {
   auto are_eq = track(
     ctx,
-    make_closure(
+    make_procedure(
       ctx,
       make_bytecode({{opcode::eq, operand{1}, operand{2}, operand{1}},
                      {opcode::ret, operand{1}}}),
@@ -341,7 +341,7 @@ TEST_F(interpreter, exec_load_dynamic_top_level) {
                          scope_set{top_level_scope});
   define(ctx.store, id, var);
 
-  auto f = make_closure(
+  auto f = make_procedure(
     ctx,
     make_bytecode({
       {opcode::load_dynamic_top_level, operand{0}, operand{1}},
@@ -359,7 +359,7 @@ TEST_F(interpreter, exec_load_dynamic_top_level) {
 TEST_F(interpreter, load_self_in_plain_procedure) {
   auto f = track(
     ctx,
-    make_closure(
+    make_procedure(
       ctx,
       make_bytecode({{opcode::ret, operand{0}}}),
       {},
@@ -371,12 +371,12 @@ TEST_F(interpreter, load_self_in_plain_procedure) {
 }
 
 TEST_F(interpreter, load_self_in_closure) {
-  auto f = make_procedure_from_bytecode(
+  auto f = make_procedure_prototype(
     ctx,
     make_bytecode({{opcode::ret, operand{0}}}),
     2, 0, false, "f", {}
   );
-  auto global = make_closure(
+  auto global = make_procedure(
     ctx,
     make_bytecode({
       {opcode::load_constant, operand{0}, operand{1}},
@@ -397,7 +397,7 @@ TEST_F(interpreter, load_self_in_closure) {
 }
 
 static integer
-apply_and_double(context& ctx, ptr<closure> f, ptr<> arg) {
+apply_and_double(context& ctx, ptr<procedure> f, ptr<> arg) {
   return 2 * expect<integer>(call_with_continuation_barrier(ctx, f,
                                                             {arg})).value();
 }

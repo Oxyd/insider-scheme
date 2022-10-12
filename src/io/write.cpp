@@ -339,14 +339,13 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
     out->write(' ');
     write_simple(ctx, syntax_to_datum(ctx, stx), out);
     out->write(">");
-  } else if (auto proc = match<procedure>(datum))
-    out->write(fmt::format("<procedure {}>", proc->name));
+  } else if (auto proto = match<procedure_prototype>(datum))
+    out->write(fmt::format("<procedure prototype {}>", proto->name));
   else if (auto np = match<native_procedure>(datum)) {
     out->write(fmt::format("<native procedure {}>", np->name));
-  } else if (auto cls = match<closure>(datum)) {
-    auto proc = cls->procedure();
-    out->write(fmt::format("<closure {}>", proc->name));
-  } else if (auto core = match<core_form_type>(datum)) {
+  } else if (auto proc = match<procedure>(datum))
+    out->write(fmt::format("<procedure {}>", proc->prototype()->name));
+  else if (auto core = match<core_form_type>(datum)) {
     out->write(fmt::format("<core form {}>", core->name));
   } else if (auto e = match<error>(datum)) {
     out->write(fmt::format("<error: {} {}>", e->message(ctx)->value(),
