@@ -82,6 +82,8 @@ public:
     ptr<parameter_tag> is_main_module_tag;
     ptr<parameter_tag> current_expand_module_tag;
     ptr<parameter_tag> interaction_environment_specifier_tag;
+    ptr<symbol>        integer_type_symbol;
+    ptr<symbol>        character_type_symbol;
   };
 
   free_store                       store;
@@ -103,6 +105,9 @@ public:
   // using pointer comparison.
   ptr<symbol>
   intern(std::string const&);
+
+  ptr<symbol>
+  intern_type_name(word_type type_index);
 
   ptr<>
   get_top_level(operand i) const { return top_level_objects_[i]; }
@@ -165,6 +170,7 @@ private:
   std::vector<std::string>                           top_level_binding_names_;
   std::unordered_map<operand, special_top_level_tag> top_level_tags_;
   insider::module_resolver                           module_resolver_{*this};
+  std::vector<ptr<symbol>>                           type_name_symbols_;
 
   ptr<> features_;
   scope::id_type next_scope_id_ = 0;
@@ -197,13 +203,25 @@ tracked_ptr<T>
 track(context& ctx, ptr<T> o) { return {ctx.store, o}; }
 
 inline ptr<symbol>
+context::intern_type_name(word_type type_index) {
+  if (type_name_symbols_.size() <= type_index)
+    type_name_symbols_.resize(type_index + 1);
+
+  ptr<symbol> sym = type_name_symbols_[type_index];
+  if (!sym)
+    sym = type_name_symbols_[type_index]
+      = intern(types().types[type_index].name);
+  return sym;
+}
+
+inline ptr<symbol>
 type(context& ctx, ptr<> o) {
   if (is_object_ptr(o))
-    return ctx.intern(object_type(o).name);
+    return ctx.intern_type_name(object_type_index(o));
   else if (is_fixnum(o))
-    return ctx.intern(integer_type_name);
+    return ctx.constants->integer_type_symbol;
   else if (is_character(o))
-    return ctx.intern(character_type_name);
+    return ctx.constants->character_type_symbol;
 
   assert(false);
   return {};

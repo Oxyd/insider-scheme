@@ -24,6 +24,8 @@ context::context() {
   constants->f = make<boolean>(*this, false);
   constants->eof = make<eof_type>(*this);
   constants->tail_call_tag = make<tail_call_tag_type>(*this);
+  constants->integer_type_symbol = intern(integer_type_name);
+  constants->character_type_symbol = intern(character_type_name);
 
   parameters = make<parameter_map>(*this);
 
@@ -156,9 +158,11 @@ context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.constants->null);
   f(ctx_.constants->void_);
   f(ctx_.constants->t);
-  f(ctx_.constants->f);     // #t and #f.
+  f(ctx_.constants->f);
   f(ctx_.constants->eof);
   f(ctx_.constants->tail_call_tag);
+  f(ctx_.constants->integer_type_symbol);
+  f(ctx_.constants->character_type_symbol);
   f(ctx_.constants->let);
   f(ctx_.constants->set);
   f(ctx_.constants->init);
@@ -192,6 +196,9 @@ context::root_provider::visit_roots(member_visitor const& f) {
 
   for (auto& [name, symbol] : ctx_.interned_symbols_)
     f(weak(symbol));
+
+  for (ptr<symbol>& name : ctx_.type_name_symbols_)
+    f(name);
 
   for (ptr<>& x : ctx_.top_level_objects_)
     f(x);
