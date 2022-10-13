@@ -30,7 +30,7 @@ namespace insider {
 static ptr<>
 get_constant(ptr<call_stack> stack, operand index) {
   procedure_prototype const& proto
-    = expect<procedure>(stack->callable())->prototype();
+    = assume<procedure>(stack->callable())->prototype();
   assert(index < proto.constants_size);
   return proto.constants[index];
 }
