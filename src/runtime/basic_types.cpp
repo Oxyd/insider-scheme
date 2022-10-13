@@ -260,28 +260,33 @@ box::box(ptr<> value)
   : value_{value}
 { }
 
-procedure_prototype::procedure_prototype(mutable_bytecode bc,
-                                         debug_info_map dim,
-                                         unsigned locals_size,
-                                         unsigned min_args,
-                                         bool has_rest,
-                                         std::string name,
-                                         std::vector<ptr<>> constants)
+procedure_prototype::procedure_prototype(
+  mutable_bytecode bc,
+  debug_info_map const& dim,
+  unsigned locals_size,
+  unsigned min_args,
+  bool has_rest,
+  std::string const& name,
+  std::vector<ptr<>> const& constants_vec
+)
   : code_size{bc.size()}
-  , debug_info{std::move(dim)}
+  , debug_info{std::make_shared<debug_info_map>(dim)}
   , locals_size{locals_size}
   , min_args{min_args}
   , has_rest{has_rest}
-  , name{std::move(name)}
-  , constants{std::move(constants)}
+  , name{std::make_shared<std::string>(name)}
+  , constants_size{constants_vec.size()}
 {
   code = std::make_shared<std::uint16_t[]>(bc.size());
   std::ranges::copy(bc, code.get());
+
+  constants = std::make_shared<ptr<>[]>(constants_vec.size());
+  std::ranges::copy(constants_vec, constants.get());
 }
 
 void
 procedure_prototype::visit_members(member_visitor const& f) {
-  for (ptr<>& k : constants)
+  for (ptr<>& k : std::views::counted(constants.get(), constants_size))
     f(k);
 }
 

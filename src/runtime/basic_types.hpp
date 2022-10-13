@@ -378,18 +378,23 @@ class procedure_prototype : public composite_object<procedure_prototype> {
 public:
   static constexpr char const* scheme_name = "insider::procedure_prototype";
 
-  bytecode           code;
-  std::size_t        code_size;
-  debug_info_map     debug_info;
-  unsigned           locals_size;
-  unsigned           min_args;
-  bool               has_rest;
-  std::string        name;
-  std::vector<ptr<>> constants;
+  // A copy of all these members is made every time a new closure is created.
+  // The shared_ptr's are here to make creating these copies fast.
 
-  procedure_prototype(mutable_bytecode bc, debug_info_map dim,
+  bytecode                        code;
+  std::size_t                     code_size;
+  std::shared_ptr<debug_info_map> debug_info;
+  unsigned                        locals_size;
+  unsigned                        min_args;
+  bool                            has_rest;
+  std::shared_ptr<std::string>    name;
+  std::shared_ptr<ptr<>[]>        constants;
+  std::size_t                     constants_size;
+
+  procedure_prototype(mutable_bytecode bc, debug_info_map const& dim,
                       unsigned locals_size, unsigned min_args, bool has_rest,
-                      std::string name, std::vector<ptr<>> constants);
+                      std::string const& name,
+                      std::vector<ptr<>> const& constants);
 
   void
   visit_members(member_visitor const& f);

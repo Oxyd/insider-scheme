@@ -31,7 +31,7 @@ static ptr<>
 get_constant(ptr<call_stack> stack, operand index) {
   procedure_prototype const& proto
     = expect<procedure>(stack->callable())->prototype();
-  assert(index < proto.constants.size());
+  assert(index < proto.constants_size);
   return proto.constants[index];
 }
 
@@ -62,7 +62,7 @@ find_inlined_procedures(frame_reference frame,
     procedure_prototype const& proto
       = assume<procedure>(frame.callable())->prototype();
     std::size_t call_idx = find_index_of_call_instruction(proto, *call_ip);
-    debug_info_map const& debug_info = proto.debug_info;
+    debug_info_map const& debug_info = *proto.debug_info;
     if (auto di = debug_info.find(call_idx); di != debug_info.end())
       return di->second.inlined_call_chain;
   }
@@ -78,7 +78,7 @@ append_scheme_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
   for (std::string const& inlined_proc : inlined)
     trace.push_back({inlined_proc, stacktrace_record::kind::scheme});
 
-  trace.push_back({proto.name, stacktrace_record::kind::scheme});
+  trace.push_back({*proto.name, stacktrace_record::kind::scheme});
 }
 
 static void
@@ -155,7 +155,7 @@ throw_if_wrong_number_of_args(procedure_prototype const& proc,
   if (num_args < proc.min_args
       || (!proc.has_rest && num_args > proc.min_args))
     throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
-                     proc.name,
+                     *proc.name,
                      proc.has_rest ? "at least " : "",
                      proc.min_args, num_args);
 }

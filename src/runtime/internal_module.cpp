@@ -117,12 +117,14 @@ procedure_bytecode(context& ctx, ptr<procedure_prototype> proto) {
 
 static std::string
 procedure_name(ptr<procedure_prototype> f) {
-  return f->name;
+  return *f->name;
 }
 
 static ptr<vector>
 procedure_constants(context& ctx, ptr<procedure_prototype> f) {
-  return make_vector(ctx, f->constants);
+  return make_vector(
+    ctx, f->constants.get(), f->constants.get() + f->constants_size
+  );
 }
 
 static integer
