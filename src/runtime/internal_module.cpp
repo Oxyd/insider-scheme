@@ -89,14 +89,14 @@ known_module(context& ctx, ptr<syntax> name) {
 
 static ptr<>
 procedure_bytecode(context& ctx, ptr<procedure_prototype> proto) {
-  instruction_pointer ip = proto->code.data();
+  instruction_pointer ip = proto->code.get();
   std::vector<std::tuple<std::size_t, std::size_t, instruction>> instrs;
 
-  while (ip != proto->code.data() + proto->code.size()) {
+  while (ip != proto->code.get() + proto->code_size) {
     instruction_pointer old_ip = ip;
     instruction instr = read_instruction(ip);
 
-    std::size_t pos = old_ip - proto->code.data();
+    std::size_t pos = old_ip - proto->code.get();
     std::size_t size = ip - old_ip;
 
     instrs.emplace_back(pos, size, instr);
@@ -224,7 +224,8 @@ make_internal_module(context& ctx) {
   define_procedure<procedure_name>(ctx, "procedure-prototype-name", result);
   define_procedure<procedure_constants>(ctx, "procedure-prototype-constants",
                                         result);
-  define_procedure<&procedure::prototype>(ctx, "procedure-prototype", result);
+  define_procedure<&procedure::prototype_ptr>(ctx, "procedure-prototype",
+                                              result);
 
   define_procedure<instruction_opcode>(ctx, "instruction-opcode", result);
   define_procedure<instruction_operands>(ctx, "instruction-operands", result);

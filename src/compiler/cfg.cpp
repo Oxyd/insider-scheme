@@ -232,7 +232,7 @@ find_block_lengths_and_offsets(cfg& g) {
 }
 
 static void
-encode_ending(bytecode&, flow_off, cfg const&) { }
+encode_ending(mutable_bytecode&, flow_off, cfg const&) { }
 
 static operand
 jump_offset(operand target, operand source) {
@@ -243,19 +243,19 @@ jump_offset(operand target, operand source) {
 }
 
 static operand
-jump_source(bytecode const& bc, opcode instr) {
+jump_source(mutable_bytecode const& bc, opcode instr) {
   return bc.size() + instruction_size(instr);
 }
 
 static void
-encode_ending(bytecode& bc, unconditional_jump uj, cfg const& g) {
+encode_ending(mutable_bytecode& bc, unconditional_jump uj, cfg const& g) {
   operand target = g[uj.target_block].start_offset;
   encode_instruction(bc, {opcode::jump,
                           jump_offset(target, jump_source(bc, opcode::jump))});
 }
 
 static void
-encode_ending(bytecode& bc, conditional_jump cj, cfg const& g) {
+encode_ending(mutable_bytecode& bc, conditional_jump cj, cfg const& g) {
   operand target = g[cj.target_block].start_offset;
   encode_instruction(
     bc,
@@ -265,7 +265,7 @@ encode_ending(bytecode& bc, conditional_jump cj, cfg const& g) {
 }
 
 static void
-encode_ending(bytecode& bc, basic_block::ending_type e, cfg const& g) {
+encode_ending(mutable_bytecode& bc, basic_block::ending_type e, cfg const& g) {
   std::visit([&] (auto end) { encode_ending(bc, end, g); }, e);
 }
 

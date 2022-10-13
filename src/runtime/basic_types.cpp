@@ -260,21 +260,24 @@ box::box(ptr<> value)
   : value_{value}
 { }
 
-procedure_prototype::procedure_prototype(bytecode bc,
+procedure_prototype::procedure_prototype(mutable_bytecode bc,
                                          debug_info_map dim,
                                          unsigned locals_size,
                                          unsigned min_args,
                                          bool has_rest,
                                          std::string name,
                                          std::vector<ptr<>> constants)
-  : code{std::move(bc)}
+  : code_size{bc.size()}
   , debug_info{std::move(dim)}
   , locals_size{locals_size}
   , min_args{min_args}
   , has_rest{has_rest}
   , name{std::move(name)}
   , constants{std::move(constants)}
-{ }
+{
+  code = std::make_shared<std::uint16_t[]>(bc.size());
+  std::ranges::copy(bc, code.get());
+}
 
 void
 procedure_prototype::visit_members(member_visitor const& f) {
@@ -283,7 +286,7 @@ procedure_prototype::visit_members(member_visitor const& f) {
 }
 
 ptr<procedure_prototype>
-make_procedure_prototype(context& ctx, bytecode bc,
+make_procedure_prototype(context& ctx, mutable_bytecode bc,
                          unsigned locals_size, unsigned min_args,
                          bool has_rest, std::string name,
                          std::vector<ptr<>> constants) {
@@ -296,11 +299,13 @@ procedure::procedure(ptr<procedure_prototype> p,
                      std::size_t num_captures)
   : dynamic_size_object{num_captures}
   , prototype_{p}
+  , cached_prototype_{*p}
 { }
 
 procedure::procedure(procedure&& other) noexcept
   : dynamic_size_object{other.size_}
   , prototype_{other.prototype_}
+  , cached_prototype_{std::move(other.cached_prototype_)}
 {
   for (std::size_t i = 0; i < size_; ++i)
     storage_element(i) = other.storage_element(i);
@@ -324,6 +329,7 @@ procedure::set(free_store& store, std::size_t i, ptr<> value) {
 void
 procedure::visit_members(member_visitor const& f) {
   f(prototype_);
+  cached_prototype_.visit_members(f);
   for (std::size_t i = 0; i < size_; ++i)
     f(storage_element(i));
 }
@@ -334,7 +340,7 @@ make_captureless_procedure(context& ctx, ptr<procedure_prototype> p) {
 }
 
 ptr<procedure>
-make_procedure(context& ctx, bytecode const& bc, unsigned locals_size,
+make_procedure(context& ctx, mutable_bytecode const& bc, unsigned locals_size,
                unsigned min_args, bool has_rest, std::string name,
                std::vector<ptr<>> constants) {
   return make_captureless_procedure(

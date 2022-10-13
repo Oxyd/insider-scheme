@@ -50,17 +50,17 @@ operator << (std::ostream& out, instruction const& i) {
 }
 
 static void
-encode(bytecode& bc, opcode oc) {
+encode(mutable_bytecode& bc, opcode oc) {
   bc.push_back(static_cast<std::uint16_t>(oc));
 }
 
 static void
-encode(bytecode& bc, operand op) {
+encode(mutable_bytecode& bc, operand op) {
   bc.push_back(op);
 }
 
 std::size_t
-encode_instruction(bytecode& bc, instruction const& instr) {
+encode_instruction(mutable_bytecode& bc, instruction const& instr) {
   instruction_info info = opcode_to_info(instr.opcode);
 
   std::size_t index = bc.size();
@@ -105,7 +105,7 @@ read_instruction(instruction_pointer& ip) {
 }
 
 std::vector<instruction>
-bytecode_to_instructions(bytecode const& bc) {
+bytecode_to_instructions(mutable_bytecode const& bc) {
   instruction_pointer ip = bc.data();
   std::vector<instruction> result;
   while (ip != bc.data() + bc.size())

@@ -200,11 +200,12 @@ struct instruction {
 std::ostream&
 operator << (std::ostream&, instruction const&);
 
-using bytecode = std::vector<std::uint16_t>;
+using mutable_bytecode = std::vector<std::uint16_t>;
+using bytecode = std::shared_ptr<std::uint16_t[]>;
 using instruction_pointer = std::uint16_t const*;
 
 std::size_t
-encode_instruction(bytecode&, instruction const&);
+encode_instruction(mutable_bytecode&, instruction const&);
 
 // Number of words an instruction will take when encoded.
 std::size_t
@@ -227,7 +228,7 @@ instruction
 read_instruction(instruction_pointer& ip);
 
 std::vector<instruction>
-bytecode_to_instructions(bytecode const&);
+bytecode_to_instructions(mutable_bytecode const&);
 
 } // namespace insider
 

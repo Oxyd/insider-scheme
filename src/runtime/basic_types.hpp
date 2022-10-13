@@ -379,6 +379,7 @@ public:
   static constexpr char const* scheme_name = "insider::procedure_prototype";
 
   bytecode           code;
+  std::size_t        code_size;
   debug_info_map     debug_info;
   unsigned           locals_size;
   unsigned           min_args;
@@ -386,16 +387,16 @@ public:
   std::string        name;
   std::vector<ptr<>> constants;
 
-  procedure_prototype(bytecode bc, debug_info_map dim, unsigned locals_size,
-                      unsigned min_args, bool has_rest, std::string name,
-                      std::vector<ptr<>> constants);
+  procedure_prototype(mutable_bytecode bc, debug_info_map dim,
+                      unsigned locals_size, unsigned min_args, bool has_rest,
+                      std::string name, std::vector<ptr<>> constants);
 
   void
   visit_members(member_visitor const& f);
 };
 
 ptr<procedure_prototype>
-make_procedure_prototype(context& ctx, bytecode bc,
+make_procedure_prototype(context& ctx, mutable_bytecode bc,
                          unsigned locals_size, unsigned min_args,
                          bool has_rest, std::string name,
                          std::vector<ptr<>> constants);
@@ -414,8 +415,11 @@ public:
 
   procedure(procedure&&) noexcept;
 
-  ptr<insider::procedure_prototype>
-  prototype() const { return prototype_; }
+  procedure_prototype const&
+  prototype() const { return cached_prototype_; }
+
+  ptr<procedure_prototype>
+  prototype_ptr() const { return prototype_; }
 
   ptr<>
   ref(std::size_t) const;
@@ -428,13 +432,14 @@ public:
 
 private:
   ptr<procedure_prototype> prototype_;
+  procedure_prototype      cached_prototype_;
 };
 
 ptr<procedure>
 make_captureless_procedure(context&, ptr<procedure_prototype>);
 
 ptr<procedure>
-make_procedure(context& ctx, bytecode const& bc,
+make_procedure(context& ctx, mutable_bytecode const& bc,
                unsigned locals_size, unsigned min_args,
                bool has_rest, std::string name,
                std::vector<ptr<>> constants);

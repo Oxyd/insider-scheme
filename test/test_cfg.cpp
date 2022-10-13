@@ -18,7 +18,7 @@ TEST_F(cfg_fixture, single_cfg_block_to_bytecode) {
   g[0].body.emplace_back(opcode::add, operand{0}, operand{2}, operand{0});
   g[0].body.emplace_back(opcode::ret, operand{0});
 
-  bytecode bc = analyse_and_compile_cfg(g).bc;
+  mutable_bytecode bc = analyse_and_compile_cfg(g).bc;
   std::vector<instruction> instrs = bytecode_to_instructions(bc);
 
   expect_cfg_equiv(

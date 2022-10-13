@@ -38,8 +38,8 @@ struct basic_block {
 using cfg = std::vector<basic_block>;
 
 struct bytecode_and_debug_info {
-  bytecode       bc;
-  debug_info_map debug_info;
+  mutable_bytecode bc;
+  debug_info_map   debug_info;
 };
 
 bytecode_and_debug_info

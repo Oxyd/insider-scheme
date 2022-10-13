@@ -8,7 +8,7 @@
 using namespace insider;
 
 static ptr<procedure>
-make_procedure(context& ctx, bytecode const& bc,
+make_procedure(context& ctx, mutable_bytecode const& bc,
                std::vector<ptr<>> constants,
                unsigned locals_size,
                unsigned min_args, bool has_rest = false) {
@@ -16,9 +16,9 @@ make_procedure(context& ctx, bytecode const& bc,
                         "<test procedure>", std::move(constants));
 }
 
-static bytecode
+static mutable_bytecode
 make_bytecode(std::vector<instruction> const& instr) {
-  bytecode bc;
+  mutable_bytecode bc;
   for (instruction const& i : instr)
     encode_instruction(bc, i);
 
