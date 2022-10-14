@@ -74,19 +74,25 @@ private:
 template <typename T, typename... Ts>
 bool
 is(sum_type<Ts...> s) {
-  return is<T>(s.get());
+  return s && is<T>(s.get());
 }
 
 template <typename T, typename... Ts>
 ptr<T>
 expect(sum_type<Ts...> s) {
-  return expect<T>(s.get());
+  if (s)
+    return expect<T>(s.get());
+  else
+    throw make_type_error<T>(s.get());
 }
 
 template <typename T, typename... Ts>
 ptr<T>
 match(sum_type<Ts...> s) {
-  return match<T>(s.get());
+  if (s)
+    return match<T>(s.get());
+  else
+    return {};
 }
 
 template <typename T, typename... Ts>

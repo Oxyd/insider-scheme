@@ -197,13 +197,15 @@ type_name<char32_t>() {
 template <has_static_type_index T>
 bool
 is(ptr<> x) {
-  return x && is_object_ptr(x) && object_type_index(x) == T::static_type_index;
+  assert(x);
+  return is_object_ptr(x) && object_type_index(x) == T::static_type_index;
 }
 
 template <typename T>
 bool
 is(ptr<> x) {
-  return x && is_object_ptr(x) && object_type_index(x) == T::type_index;
+  assert(x);
+  return is_object_ptr(x) && object_type_index(x) == T::type_index;
 }
 
 template <>

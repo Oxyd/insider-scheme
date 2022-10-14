@@ -317,10 +317,10 @@ private:
 
   frame_type
   callable_to_frame_type(ptr<> callable) {
-    if (is<procedure>(callable))
-      return frame_type::scheme;
-    else if (!callable)
+    if (!callable)
       return frame_type::dummy;
+    else if (is<procedure>(callable))
+      return frame_type::scheme;
     else {
       assert(is<native_procedure>(callable));
       return frame_type::native;
