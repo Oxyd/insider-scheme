@@ -7,6 +7,7 @@
 #include "module.hpp"
 #include "object.hpp"
 #include "runtime/compare.hpp"
+#include "type_indexes.hpp"
 #include "util/object_span.hpp"
 #include "vm/bytecode.hpp"
 
@@ -22,6 +23,7 @@ class native_procedure;
 class null_type : public leaf_object<null_type> {
 public:
   static constexpr char const* scheme_name = "insider::null_type";
+  static constexpr word_type static_type_index = type_indexes::null;
 };
 
 // The empty value. Like null_type, there should only be exactly one instance
@@ -30,6 +32,7 @@ public:
 class void_type : public leaf_object<void_type> {
 public:
   static constexpr char const* scheme_name = "insider::void_type";
+  static constexpr word_type static_type_index = type_indexes::void_;
 };
 
 // End of file sentinel value. Dummy value returned from I/O operations at the
@@ -37,18 +40,21 @@ public:
 class eof_type : public leaf_object<eof_type> {
 public:
   static constexpr char const* scheme_name = "insider::eof_type";
+  static constexpr word_type static_type_index = type_indexes::eof;
 };
 
 // Dummy value for identifying parameters.
 class parameter_tag : public leaf_object<parameter_tag> {
 public:
   static constexpr char const* scheme_name = "insider::parameter_tag";
+  static constexpr word_type static_type_index = type_indexes::parameter_tag;
 };
 
 // Dummy value used to represent core forms.
 class core_form_type : public leaf_object<core_form_type> {
 public:
   static constexpr char const* scheme_name = "insider::core_form_type";
+  static constexpr word_type static_type_index = type_indexes::core_form;
 
   std::string name;
 
@@ -60,12 +66,14 @@ public:
 class tail_call_tag_type : public leaf_object<tail_call_tag_type> {
 public:
   static constexpr char const* scheme_name = "insider::tail_call_tag_type";
+  static constexpr word_type static_type_index = type_indexes::tail_call_tag;
 };
 
 // A boolean value.
 class boolean : public leaf_object<boolean> {
 public:
   static constexpr char const* scheme_name = "insider::boolean";
+  static constexpr word_type static_type_index = type_indexes::boolean;
 
   explicit
   boolean(bool value) : value_{value} { }
@@ -81,6 +89,7 @@ private:
 class pair : public composite_object<pair> {
 public:
   static constexpr char const* scheme_name = "insider::pair";
+  static constexpr word_type static_type_index = type_indexes::pair;
 
   pair(ptr<> car, ptr<> cdr)
     : car_{car}
@@ -284,6 +293,7 @@ map(context& ctx, ptr<> list, F&& f) {
 class vector : public dynamic_size_object<vector, ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::vector";
+  static constexpr word_type static_type_index = type_indexes::vector;
 
   static std::size_t
   extra_elements(std::size_t size, ptr<>) { return size; }
@@ -335,6 +345,7 @@ list_to_std_vector(ptr<>);
 class bytevector : public dynamic_size_object<bytevector, std::uint8_t> {
 public:
   static constexpr char const* scheme_name = "insider::bytevector";
+  static constexpr word_type static_type_index = type_indexes::bytevector;
 
   using element_type = std::uint8_t;
 
@@ -374,6 +385,7 @@ bytevector_data(ptr<bytevector>);
 class box : public composite_object<box> {
 public:
   static constexpr char const* scheme_name = "insider::box";
+  static constexpr word_type static_type_index = type_indexes::box;
 
   explicit
   box(ptr<>);
@@ -398,6 +410,8 @@ private:
 class procedure_prototype : public composite_object<procedure_prototype> {
 public:
   static constexpr char const* scheme_name = "insider::procedure_prototype";
+  static constexpr word_type static_type_index
+    = type_indexes::procedure_prototype;
 
   // A copy of all these members is made every time a new closure is created.
   // The shared_ptr's are here to make creating these copies fast.
@@ -431,6 +445,7 @@ make_procedure_prototype(context& ctx, mutable_bytecode bc,
 class procedure : public dynamic_size_object<procedure, ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::procedure";
+  static constexpr word_type static_type_index = type_indexes::procedure;
 
   static std::size_t
   extra_elements(ptr<procedure_prototype>, std::size_t num_captures) {
@@ -474,6 +489,7 @@ make_procedure(context& ctx, mutable_bytecode const& bc,
 class native_procedure : public leaf_object<native_procedure> {
 public:
   static constexpr char const* scheme_name = "insider::native_procedure";
+  static constexpr word_type static_type_index = type_indexes::native_procedure;
 
   class extra_data {
   public:
@@ -585,6 +601,7 @@ private:
 class values_tuple : public dynamic_size_object<values_tuple, ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::values_tuple";
+  static constexpr word_type static_type_index = type_indexes::values_tuple;
 
   static std::size_t
   extra_elements(object_span values) { return values.size(); }

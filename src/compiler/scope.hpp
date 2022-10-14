@@ -4,6 +4,7 @@
 #include "compiler/variable.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
+#include "type_indexes.hpp"
 
 #include <cstdint>
 #include <string>
@@ -75,6 +76,7 @@ scope_sets_equal(scope_set const& lhs, scope_set const& rhs);
 class scope : public composite_object<scope> {
 public:
   static constexpr char const* scheme_name = "insider::scope";
+  static constexpr word_type static_type_index = type_indexes::scope;
 
   struct binding {
     ptr<syntax>               id;

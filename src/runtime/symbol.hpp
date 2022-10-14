@@ -2,6 +2,7 @@
 #define INSIDER_RUNTIME_SYMBOL_HPP
 
 #include "object.hpp"
+#include "type_indexes.hpp"
 
 #include <string>
 
@@ -11,6 +12,7 @@ namespace insider {
 class symbol : public leaf_object<symbol> {
 public:
   static constexpr char const* scheme_name = "insider::symbol";
+  static constexpr word_type static_type_index = type_indexes::symbol;
 
   explicit
   symbol(std::string value) : value_{std::move(value)} { }

@@ -3,6 +3,7 @@
 
 #include "memory/free_store.hpp"
 #include "runtime/integer.hpp"
+#include "type_indexes.hpp"
 #include "util/object_span.hpp"
 
 #include <cassert>
@@ -37,6 +38,7 @@ namespace detail {
 class big_integer : public dynamic_size_object<big_integer, detail::limb_type> {
 public:
   static constexpr char const* scheme_name = "insider::big_integer";
+  static constexpr word_type static_type_index = type_indexes::big_integer;
 
   struct dont_initialize_t { } static constexpr dont_initialize{};
   using iterator = detail::limb_type*;
@@ -147,6 +149,7 @@ private:
 class fraction : public composite_object<fraction> {
 public:
   static constexpr char const* scheme_name = "insider::fraction";
+  static constexpr word_type static_type_index = type_indexes::fraction;
 
   fraction(ptr<> numerator, ptr<> denominator);
 
@@ -191,6 +194,7 @@ normalize_fraction(context& ctx, ptr<fraction> q);
 class floating_point : public leaf_object<floating_point> {
 public:
   static constexpr char const* scheme_name = "insider::floating_point";
+  static constexpr word_type static_type_index = type_indexes::floating_point;
 
   using value_type = double;
 
@@ -215,6 +219,7 @@ public:
 class complex : public composite_object<complex> {
 public:
   static constexpr char const* scheme_name = "insider::complex";
+  static constexpr word_type static_type_index = type_indexes::complex;
 
   complex(ptr<> r, ptr<> i) : real_{r}, imaginary_{i} { }
 

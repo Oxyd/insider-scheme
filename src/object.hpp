@@ -18,6 +18,11 @@ class integer;
 
 using word_type = std::uint64_t;
 
+template <typename T>
+concept has_static_type_index = requires {
+  { T::static_type_index } -> std::convertible_to<word_type>;
+};
+
 struct type_descriptor {
   char const* name = "invalid";
   void (*destroy)(ptr<>) = nullptr;
@@ -69,6 +74,7 @@ clamp_hash(word_type h) {
 }
 
 constexpr std::size_t max_types = 256;
+constexpr std::size_t first_dynamic_type_index = 64;
 
 struct type_vector {
   std::array<type_descriptor, max_types> types;
@@ -77,13 +83,12 @@ struct type_vector {
 
 inline type_vector&
 types() {
-  // Reserve first type descriptor for the invalid type descriptor.
-  static type_vector value{{}, 1};
+  static type_vector value{{}, first_dynamic_type_index};
   return value;
 }
 
 word_type
-new_type(type_descriptor);
+new_type(type_descriptor, std::optional<word_type> index);
 
 static constexpr word_type invalid_type = 0;
 static constexpr word_type no_type = std::numeric_limits<word_type>::max();
@@ -189,6 +194,12 @@ type_name<char32_t>() {
 }
 
 // Is a given object an instance of the given Scheme type?
+template <has_static_type_index T>
+bool
+is(ptr<> x) {
+  return x && is_object_ptr(x) && object_type_index(x) == T::static_type_index;
+}
+
 template <typename T>
 bool
 is(ptr<> x) {
@@ -245,16 +256,29 @@ struct leaf_object : object {
   static word_type const type_index;
 };
 
+namespace detail {
+  template <has_static_type_index T>
+  std::optional<word_type>
+  get_type_index() { return T::static_type_index; }
+
+  template <typename>
+  std::optional<word_type>
+  get_type_index() { return std::nullopt; }
+}
+
 template <typename Derived>
-word_type const leaf_object<Derived>::type_index = new_type(type_descriptor{
-  Derived::scheme_name,
-  detail::destroy<Derived>,
-  detail::move<Derived>,
-  [] (ptr<>, member_visitor const&) { },
-  true,
-  detail::round_to_words(sizeof(Derived)),
-  nullptr
-});
+word_type const leaf_object<Derived>::type_index = new_type(
+  type_descriptor{
+    Derived::scheme_name,
+    detail::destroy<Derived>,
+    detail::move<Derived>,
+    [] (ptr<>, member_visitor const&) { },
+    true,
+    detail::round_to_words(sizeof(Derived)),
+    nullptr
+  },
+  detail::get_type_index<Derived>()
+);
 
 // Object with a constant number of Scheme subobjects.
 template <typename Derived>
@@ -263,15 +287,18 @@ struct composite_object : object {
 };
 
 template <typename Derived>
-word_type const composite_object<Derived>::type_index = new_type(type_descriptor{
-  Derived::scheme_name,
-  detail::destroy<Derived>,
-  detail::move<Derived>,
-  detail::visit_members<Derived>,
-  true,
-  detail::round_to_words(sizeof(Derived)),
-  nullptr
-});
+word_type const composite_object<Derived>::type_index = new_type(
+  type_descriptor{
+    Derived::scheme_name,
+    detail::destroy<Derived>,
+    detail::move<Derived>,
+    detail::visit_members<Derived>,
+    true,
+    detail::round_to_words(sizeof(Derived)),
+    nullptr
+  },
+  detail::get_type_index<Derived>()
+);
 
 // Object whose size is determined at instantiation time.
 template <typename Derived, typename T>
@@ -312,15 +339,18 @@ protected:
 
 template <typename Derived, typename T>
 word_type const dynamic_size_object<Derived, T>::type_index
-  = new_type(type_descriptor{
-      Derived::scheme_name,
-      detail::destroy<Derived>,
-      detail::move<Derived>,
-      detail::visit_members<Derived>,
-      false,
-      0,
-      detail::size<Derived, T>
-    });
+  = new_type(
+      type_descriptor{
+        Derived::scheme_name,
+        detail::destroy<Derived>,
+        detail::move<Derived>,
+        detail::visit_members<Derived>,
+        false,
+        0,
+        detail::size<Derived, T>
+      },
+      detail::get_type_index<Derived>()
+    );
 
 enum class generation : word_type {
   stack     = 0,

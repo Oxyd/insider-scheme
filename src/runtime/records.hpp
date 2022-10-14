@@ -2,6 +2,7 @@
 #define INSIDER_RUNTIME_RECORDS_HPP
 
 #include "object.hpp"
+#include "type_indexes.hpp"
 
 #include <vector>
 
@@ -12,6 +13,7 @@ class module_;
 class record_type : public leaf_object<record_type> {
 public:
   static constexpr char const* scheme_name = "insider::record_type";
+  static constexpr word_type static_type_index = type_indexes::record_type;
 
   explicit
   record_type(std::size_t num_fields) : num_fields_{num_fields} { }
@@ -26,6 +28,7 @@ private:
 class record_instance : public dynamic_size_object<record_instance, ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::record_instance";
+  static constexpr word_type static_type_index = type_indexes::record_instance;
 
   static std::size_t
   extra_elements(ptr<record_type> type);

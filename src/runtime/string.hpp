@@ -2,6 +2,7 @@
 #define INSIDER_RUNTIME_STRING_HPP
 
 #include "object.hpp"
+#include "type_indexes.hpp"
 
 #include <string>
 
@@ -12,6 +13,7 @@ class bytevector;
 class string : public leaf_object<string> {
 public:
   static constexpr char const* scheme_name = "insider::string";
+  static constexpr word_type static_type_index = type_indexes::string;
 
   explicit
   string(std::size_t size) : data_(size, '\0') {}

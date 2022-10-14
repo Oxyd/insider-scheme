@@ -9,6 +9,7 @@
 #include "runtime/compare.hpp"
 #include "runtime/error.hpp"
 #include "runtime/symbol.hpp"
+#include "type_indexes.hpp"
 #include "util/named_runtime_error.hpp"
 #include "util/object_conversions.hpp"
 
@@ -45,6 +46,7 @@ lookup(ptr<syntax> id);
 class syntax : public composite_object<syntax> {
 public:
   static constexpr char const* scheme_name = "insider::syntax";
+  static constexpr word_type static_type_index = type_indexes::syntax;
 
   struct update_record {
     scope_set_operation operation;
