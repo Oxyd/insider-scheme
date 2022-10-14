@@ -19,6 +19,7 @@
 #include "vm/execution_state.hpp"
 
 #include <cassert>
+#include <concepts>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -855,32 +856,34 @@ static void
 push_rest_argument_for_call_from_native(context& ctx,
                                         procedure_prototype const& proto,
                                         ptr<call_stack> stack,
-                                        std::vector<ptr<>> const& args) {
+                                        auto tail_begin,
+                                        auto tail_end) {
   stack->local(operand(proto.min_args + 1))
     = make_list_from_range(ctx,
-                           std::ranges::subrange(args.begin() + proto.min_args,
-                                                 args.end()));
+                           std::ranges::subrange(tail_begin, tail_end));
 }
 
 static void
 push_scheme_arguments_for_call_from_native(context& ctx,
                                            ptr<procedure> callable,
                                            ptr<call_stack> stack,
-                                           std::vector<ptr<>> const& args) {
+                                           auto const& args) {
   procedure_prototype const& proto = callable->prototype();
 
   stack->local(operand{0}) = callable;
+  auto arg_it = args.begin();
   for (std::size_t i = 0; i < proto.min_args; ++i)
-    stack->local(operand(i) + 1) = args[i];
+    stack->local(operand(i) + 1) = *arg_it++;
 
   if (proto.has_rest)
-    push_rest_argument_for_call_from_native(ctx, proto, stack, args);
+    push_rest_argument_for_call_from_native(ctx, proto, stack,
+                                            arg_it, args.end());
 }
 
 static void
 make_scheme_frame_for_call_from_native(execution_state& state,
                                        ptr<procedure> callable,
-                                       std::vector<ptr<>> const& arguments,
+                                       auto const& arguments,
                                        instruction_pointer previous_ip) {
   throw_if_wrong_number_of_args(callable->prototype(), arguments.size());
 
@@ -1106,13 +1109,14 @@ static void
 make_native_tail_call_frame_for_call_from_native(
   ptr<call_stack> stack,
   ptr<native_procedure> callable,
-  std::vector<ptr<>> const& arguments
+  auto const& arguments
 ) {
   stack->replace_frame(callable, arguments.size() + 1);
   clear_native_continuations(stack);
   stack->local(operand{0}) = callable;
+  auto arg = arguments.begin();
   for (std::size_t i = 0; i < arguments.size(); ++i)
-    stack->local(operand(i + 1)) = arguments[i];
+    stack->local(operand(i + 1)) = *arg++;
 }
 
 static void
@@ -1120,7 +1124,7 @@ make_scheme_tail_call_frame_for_call_from_native(
   context& ctx,
   ptr<call_stack> stack,
   ptr<procedure> callable,
-  std::vector<ptr<>> const& arguments
+  auto const& arguments
 ) {
   throw_if_wrong_number_of_args(callable->prototype(), arguments.size());
 
@@ -1132,7 +1136,7 @@ make_scheme_tail_call_frame_for_call_from_native(
 
 static void
 make_tail_call_frame_for_call_from_native(context& ctx, ptr<> callable,
-                                          std::vector<ptr<>> const& arguments) {
+                                          auto const& arguments) {
   if (!is_callable(callable))
     throw std::runtime_error{"Expected a callable"};
 
@@ -1153,12 +1157,16 @@ install_call_frame(execution_state& state) {
     state.ip = current_procedure_bytecode_base(state);
 }
 
-ptr<tail_call_tag_type>
-tail_call(context& ctx, ptr<> callable,
-          std::vector<ptr<>> const& arguments) {
+static ptr<tail_call_tag_type>
+tail_call_range(context& ctx, ptr<> callable, auto const& arguments) {
   make_tail_call_frame_for_call_from_native(ctx, callable, arguments);
   install_call_frame(*ctx.current_execution);
   return ctx.constants->tail_call_tag;
+}
+
+ptr<tail_call_tag_type>
+tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  return tail_call_range(ctx, callable, arguments);
 }
 
 // A stack segment is a contiguous sequence of stack frames whose last frame has
@@ -1637,22 +1645,91 @@ raise_continuable(context& ctx, ptr<> e) {
     builtin_exception_handler(ctx, e);
 }
 
+namespace {
+  struct apply_args_iterator {
+    using iterator_concept = std::forward_iterator_tag;
+    using value_type = ptr<>;
+    using reference_type = ptr<>;
+    using difference_type = std::ptrdiff_t;
+
+    object_span args;
+    std::size_t current_arg;
+    ptr<>       current_tail_arg;
+
+    ptr<>
+    operator * () const {
+      if (current_tail_arg)
+        return car(assume<pair>(current_tail_arg));
+      else
+        return args[current_arg];
+    }
+
+    apply_args_iterator&
+    operator ++ () {
+      if (current_tail_arg)
+        current_tail_arg = cdr(assume<pair>(current_tail_arg));
+      else {
+        ++current_arg;
+        if (current_arg == args.size() - 1)
+          current_tail_arg = args.back();
+      }
+      return *this;
+    }
+
+    apply_args_iterator
+    operator ++ (int) {
+      apply_args_iterator result{*this};
+      operator ++ ();
+      return result;
+    }
+
+    bool
+    operator == (apply_args_iterator const& other) const {
+      return current_arg == other.current_arg
+             && current_tail_arg == other.current_tail_arg;
+    }
+  };
+
+  static_assert(std::forward_iterator<apply_args_iterator>);
+
+  struct apply_args_range {
+    object_span    args;
+    ptr<null_type> null;
+    std::size_t    args_size = 0;
+
+    apply_args_range(context& ctx, object_span args)
+      : args{args}
+      , null{ctx.constants->null}
+    {
+      assert(args.size() >= 2);
+      args_size = args.size() - 2 + list_length(args.back());
+    }
+
+    std::size_t
+    size() const { return args_size; }
+
+    apply_args_iterator
+    begin() const {
+      if (args.size() == 2)
+        return {args, 1, args.back()};
+      else
+        return {args, 1, {}};
+    }
+
+    apply_args_iterator
+    end() const {
+      return {args, args.size() - 1, null};
+    }
+  };
+}
+
 static ptr<>
 apply(context& ctx, object_span args) {
   if (args.size() < 2)
     throw std::runtime_error{"apply: Expected at least 2 arguments"};
 
   ptr<> f = args[0];
-
-  std::vector<ptr<>> args_vector;
-  for (std::size_t i = 1; i < args.size() - 1; ++i)
-    args_vector.push_back(args[i]);
-
-  std::vector<ptr<>> tail_args_vector = list_to_std_vector(args.back());
-  args_vector.insert(args_vector.end(), tail_args_vector.begin(),
-                     tail_args_vector.end());
-
-  return tail_call(ctx, f, args_vector);
+  return tail_call_range(ctx, f, apply_args_range{ctx, args});
 }
 
 static std::vector<ptr<>>

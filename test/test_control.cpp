@@ -787,6 +787,13 @@ TEST_F(control, apply_with_too_few_arguments_throws_exception) {
   );
 }
 
+TEST_F(control, apply_native_procedure) {
+  auto result = eval(R"(
+    (apply list '(1 2 3))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2 3)")));
+}
+
 TEST_F(control, call_with_values_single_value) {
   auto result = eval(R"(
     (call-with-values

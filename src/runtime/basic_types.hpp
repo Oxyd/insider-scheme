@@ -189,7 +189,7 @@ make_list(context& ctx, Ts... ts) {
   return result;
 }
 
-template <typename Range, typename Converter>
+template <std::ranges::bidirectional_range Range, typename Converter>
 ptr<>
 make_list_from_range(context& ctx, Range const& range,
                      Converter const& convert) {
@@ -197,6 +197,27 @@ make_list_from_range(context& ctx, Range const& range,
 
   for (auto&& elem : range | std::views::reverse)
     head = cons(ctx, to_scheme(ctx, convert(elem)), head);
+
+  return head;
+}
+
+template <std::ranges::forward_range Range, typename Converter>
+ptr<>
+make_list_from_range(context& ctx, Range const& range,
+                     Converter const& convert) {
+  if (std::ranges::empty(range))
+    return ctx.constants->null;
+
+  auto elem = std::ranges::begin(range);
+  auto end = std::ranges::end(range);
+  ptr<pair> head = cons(ctx, convert(*elem++), ctx.constants->null);
+  ptr<pair> current = head;
+
+  while (elem != end) {
+    ptr<pair> p = cons(ctx, convert(*elem++), ctx.constants->null);
+    current->set_cdr(ctx.store, p);
+    current = p;
+  }
 
   return head;
 }
