@@ -9,6 +9,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <list>
 #include <memory>
 #include <optional>
 #include <string>
@@ -121,7 +122,7 @@ public:
 
 private:
   page_allocator* allocator_ = nullptr;
-  std::vector<page> pages_;
+  std::list<page> pages_;
   std::size_t total_used_ = 0;
 };
 
