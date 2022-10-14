@@ -21,17 +21,23 @@ stack_frame_extra_data::visit_members(member_visitor const &f) {
 }
 
 call_stack::call_stack()
-  : data_{std::make_unique<ptr<>[]>(alloc_size)}
-  , data_capacity_{alloc_size}
+  : frames_{std::make_unique<frame[]>(frames_alloc_size)}
+  , frames_capacity_{frames_alloc_size}
+  , data_{std::make_unique<ptr<>[]>(data_alloc_size)}
+  , data_capacity_{data_alloc_size}
 { }
 
 call_stack::call_stack(call_stack const& other)
-  : frames_{other.frames_}
+  : frames_{std::make_unique<frame[]>(other.frames_capacity_)}
+  , frames_capacity_{other.frames_capacity_}
+  , frames_size_{other.frames_size_}
   , data_{std::make_unique<ptr<>[]>(other.data_capacity_)}
   , data_capacity_{other.data_capacity_}
   , data_size_{other.data_size_}
   , current_base_{other.current_base_}
 {
+  std::ranges::copy(std::views::counted(other.frames_.get(), frames_size_),
+                    frames_.get());
   std::ranges::copy(std::views::counted(other.data_.get(), data_size_),
                     data_.get());
 }
@@ -51,7 +57,7 @@ call_stack::operator = (call_stack const& other) {
 
 void
 call_stack::resize_current_frame(std::size_t new_size) {
-  frames_.back().size = new_size;
+  current_frame().size = new_size;
   update_current_frame();
 }
 
@@ -70,7 +76,8 @@ call_stack::append_frames(frame_span frames) {
   std::size_t frames_end
     = frames.frames.back().base + frames.frames.back().size;
   std::size_t frames_size = frames_end - frames_begin;
-  ensure_capacity(data_size_ + frames_size);
+  ensure_frames_capacity(frames_size + frames.frames.size());
+  ensure_data_capacity(data_size_ + frames_size);
 
   std::copy(frames.stack->data_.get() + frames_begin,
             frames.stack->data_.get() + frames_end,
@@ -79,7 +86,7 @@ call_stack::append_frames(frame_span frames) {
   int base_diff = to_signed<int>(data_size_) - frames.frames.front().base;
   for (frame f : frames.frames) {
     f.base += base_diff;
-    frames_.push_back(f);
+    frames_[frames_size_++] = f;
   }
 
   update_current_frame();
@@ -87,8 +94,8 @@ call_stack::append_frames(frame_span frames) {
 
 void
 call_stack::visit_members(member_visitor const& f) {
-  for (frame& fr : frames_)
-    f(fr.extra);
+  for (std::size_t i = 0; i < frames_size_; ++i)
+    f(frames_[i].extra);
 
   for (std::size_t i = 0; i < data_size_; ++i)
     f(data_[i]);
@@ -102,24 +109,37 @@ call_stack::visit_members(member_visitor const& f) {
   std::fill(data_.get() + data_size_, data_.get() + data_capacity_, ptr<>{});
 }
 
-void
-call_stack::grow_capacity(std::size_t requested_capacity) {
-  std::size_t new_cap = find_new_capacity(requested_capacity);
-  auto new_data = std::make_unique<ptr<>[]>(new_cap);
-  std::copy(data_.get(), data_.get() + data_size_, new_data.get());
-  data_ = std::move(new_data);
-  data_capacity_ = new_cap;
-}
-
-std::size_t
-call_stack::find_new_capacity(std::size_t at_least) const {
+static std::size_t
+find_new_capacity(std::size_t old_capacity, std::size_t at_least,
+                  std::size_t alloc_size) {
   // Normally we expect to grow the capacity by just a single alloc_size, so
   // this loop will only do a single iteration.
 
-  std::size_t result = data_capacity_;
+  std::size_t result = old_capacity;
   while (result < at_least)
     result += alloc_size;
   return result;
+}
+
+template <typename T>
+static void
+grow(std::unique_ptr<T[]>& container, std::size_t& capacity,
+     std::size_t requested_size, std::size_t alloc_size) {
+  std::size_t new_cap = find_new_capacity(capacity, requested_size, alloc_size);
+  auto new_data = std::make_unique<T[]>(new_cap);
+  std::copy(container.get(), container.get() + capacity, new_data.get());
+  container = std::move(new_data);
+  capacity = new_cap;
+}
+
+void
+call_stack::grow_frames(std::size_t requested_size) {
+  grow<frame>(frames_, frames_capacity_, requested_size, frames_alloc_size);
+}
+
+void
+call_stack::grow_data(std::size_t requested_size) {
+  grow<ptr<>>(data_, data_capacity_, requested_size, data_alloc_size);
 }
 
 } // namespace insider

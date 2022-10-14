@@ -74,42 +74,52 @@ public:
   push_frame(ptr<> callable, std::size_t base, std::size_t locals_size,
              instruction_pointer previous_ip, operand result_register,
              ptr<stack_frame_extra_data> extra = {}) {
-    assert(!frames_.empty() || base == 0);
-    assert(frames_.empty() || base >= frames_.back().base);
-    assert(frames_.empty() || base <= frames_.back().base + frames_.back().size);
+    assert(frames_size_ > 0 || base == 0);
+    assert(frames_size_ == 0 || base >= current_frame().base);
+    assert(frames_size_ == 0
+           || base <= current_frame().base + current_frame().size);
 
-    frames_.emplace_back(frame{base, locals_size, previous_ip,
-                               result_register, extra,
-                               callable_to_frame_type(callable)});
+    ensure_frames_capacity(frames_size_ + 1);
+
+    frames_[frames_size_++] = frame{base, locals_size, previous_ip,
+                                    result_register, extra,
+                                    callable_to_frame_type(callable)};
 
     current_base_ = base;
     data_size_ = base + locals_size;
-    ensure_capacity(data_size_);
+    ensure_data_capacity(data_size_);
   }
 
   void
   pop_frame() {
-    frames_.pop_back();
-    check_update_current_frame();
+    --frames_size_;
+    if (frames_size_ > 0) {
+      frame& f = current_frame();
+      current_base_ = f.base;
+      data_size_ = current_base_ + f.size;
+    } else
+      current_base_ = data_size_ = 0;
   }
 
   void
   replace_frame(ptr<> new_callable, std::size_t new_locals_size) {
-    assert(!frames_.empty());
+    assert(frames_size_ > 0);
 
-    frames_.back().size = new_locals_size;
-    frames_.back().type = callable_to_frame_type(new_callable);
+    frame& f = current_frame();
+    f.size = new_locals_size;
+    f.type = callable_to_frame_type(new_callable);
 
     data_size_ = current_base_ + new_locals_size;
-    ensure_capacity(data_size_);
+    ensure_data_capacity(data_size_);
   }
 
   void
   replace_frame(ptr<> new_callable, std::size_t new_locals_size,
                 std::size_t args_base, std::size_t args_size) {
-    assert(!frames_.empty());
+    assert(frames_size_ > 0);
 
-    std::size_t current_base = frames_.back().base;
+    frame& f = current_frame();
+    std::size_t current_base = f.base;
 
     std::size_t dest_begin = current_base;
     std::size_t src_begin  = current_base + args_base;
@@ -122,11 +132,11 @@ public:
     std::copy(data_.get() + src_begin, data_.get() + src_end,
               data_.get() + dest_begin);
 
-    frames_.back().size = new_locals_size;
-    frames_.back().type = callable_to_frame_type(new_callable);
+    f.size = new_locals_size;
+    f.type = callable_to_frame_type(new_callable);
 
     data_size_ = current_base_ + new_locals_size;
-    ensure_capacity(data_size_);
+    ensure_data_capacity(data_size_);
   }
 
   void
@@ -135,7 +145,7 @@ public:
   std::optional<frame_index>
   current_frame_index() const {
     if (!empty())
-      return frames_.size() - 1;
+      return frames_size_ - 1;
     else
       return std::nullopt;
   }
@@ -147,11 +157,11 @@ public:
   callable(frame_index frame) { return local(frame, 0); }
 
   frame_type
-  current_frame_type() const { return frames_.back().type; }
+  current_frame_type() const { return current_frame().type; }
 
   ptr<stack_frame_extra_data>
   extra() {
-    return frames_.back().extra;
+    return current_frame().extra;
   }
 
   ptr<stack_frame_extra_data>
@@ -161,7 +171,7 @@ public:
 
   void
   set_extra(ptr<stack_frame_extra_data> value) {
-    frames_.back().extra = value;
+    current_frame().extra = value;
   }
 
   void
@@ -171,7 +181,7 @@ public:
 
   ptr<>&
   local(operand local) {
-    assert(local < frames_.back().size);
+    assert(local < current_frame().size);
     return data_[current_base_ + local];
   }
 
@@ -182,14 +192,14 @@ public:
 
   object_span
   current_frame_span() const {
-    std::size_t base = frames_.back().base;
-    return {&data_[base], &data_[base + frames_.back().size]};
+    std::size_t base = current_frame().base;
+    return {&data_[base], &data_[base + current_frame().size]};
   }
 
   std::optional<frame_index>
   parent() const {
-    if (frames_.size() >= 2)
-      return frames_.size() - 2;
+    if (frames_size_ >= 2)
+      return frames_size_ - 2;
     else
       return std::nullopt;
   }
@@ -204,7 +214,7 @@ public:
 
   instruction_pointer
   previous_ip() const {
-    return frames_.back().previous_ip;
+    return current_frame().previous_ip;
   }
 
   instruction_pointer
@@ -219,7 +229,7 @@ public:
 
   operand
   result_register() const {
-    return frames_.back().result_register;
+    return current_frame().result_register;
   }
 
   operand
@@ -237,7 +247,7 @@ public:
 
   std::size_t
   frame_size() const {
-    return frames_.back().size;
+    return current_frame().size;
   }
 
   std::size_t
@@ -246,17 +256,17 @@ public:
   }
 
   bool
-  empty() const { return frames_.empty(); }
+  empty() const { return frames_size_ == 0; }
 
   std::size_t
   size() const { return data_size_; }
 
   void
-  clear() { frames_.clear(); data_size_ = 0; }
+  clear() { frames_size_ = 0; data_size_ = 0; }
 
   auto
   frames_range() const {
-    return std::views::iota(frame_index{0}, frames_.size())
+    return std::views::iota(frame_index{0}, frames_size_)
            | std::views::reverse;
   }
 
@@ -264,7 +274,7 @@ public:
   frames(frame_index begin, frame_index end) const;
 
   frame_index
-  frames_end() const { return frames_.size(); }
+  frames_end() const { return frames_size_; }
 
   void
   append_frames(frame_span);
@@ -273,7 +283,8 @@ public:
   visit_members(member_visitor const&);
 
 private:
-  static constexpr std::size_t alloc_size = 4096;
+  static constexpr std::size_t frames_alloc_size = 1024;
+  static constexpr std::size_t data_alloc_size = 4096;
 
   struct frame {
     std::size_t                 base;
@@ -284,11 +295,25 @@ private:
     frame_type                  type;
   };
 
-  std::vector<frame>       frames_;
+  std::unique_ptr<frame[]> frames_;
+  std::size_t              frames_capacity_ = 0;
+  std::size_t              frames_size_ = 0;
   std::unique_ptr<ptr<>[]> data_;
   std::size_t              data_capacity_ = 0;
   std::size_t              data_size_     = 0;
   std::size_t              current_base_  = 0;
+
+  frame&
+  current_frame() {
+    assert(frames_size_ > 0);
+    return frames_[frames_size_ - 1];
+  }
+
+  frame const&
+  current_frame() const {
+    assert(frames_size_ > 0);
+    return frames_[frames_size_ - 1];
+  }
 
   frame_type
   callable_to_frame_type(ptr<> callable) {
@@ -304,7 +329,7 @@ private:
 
   void
   check_update_current_frame() {
-    if (!frames_.empty())
+    if (!empty())
       update_current_frame();
     else
       data_size_ = 0;
@@ -312,22 +337,29 @@ private:
 
   void
   update_current_frame() {
-    current_base_ = frames_.back().base;
-    data_size_ = current_base_ + frames_.back().size;
-    ensure_capacity(data_size_);
+    frame& f = current_frame();
+    current_base_ = f.base;
+    data_size_ = current_base_ + f.size;
+    ensure_data_capacity(data_size_);
   }
 
   void
-  ensure_capacity(std::size_t required_size) {
+  ensure_frames_capacity(std::size_t required_size) {
+    if (required_size >= frames_capacity_) [[unlikely]]
+      grow_frames(required_size);
+  }
+
+  void
+  ensure_data_capacity(std::size_t required_size) {
     if (required_size >= data_capacity_) [[unlikely]]
-      grow_capacity(required_size);
+      grow_data(required_size);
   }
 
   void
-  grow_capacity(std::size_t requested_capacity);
+  grow_frames(std::size_t requested_size);
 
-  std::size_t
-  find_new_capacity(std::size_t at_least) const;
+  void
+  grow_data(std::size_t requested_size);
 };
 
 class frame_reference {
