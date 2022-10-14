@@ -110,9 +110,9 @@ public:
     std::size_t src_begin  = current_base + args_base;
     std::size_t src_end    = src_begin + args_size + 1;
 
-    assert(src_end <= size_);
+    assert(src_end <= data_size_);
     [[maybe_unused]] std::size_t dest_end = dest_begin + args_size + 1;
-    assert(dest_end <= size_);
+    assert(dest_end <= data_size_);
 
     std::copy(data_.get() + src_begin, data_.get() + src_end,
               data_.get() + dest_begin);
@@ -120,8 +120,8 @@ public:
     frames_.back().size = new_locals_size;
     frames_.back().type = callable_to_frame_type(new_callable);
 
-    size_ = current_base_ + new_locals_size;
-    ensure_capacity(size_);
+    data_size_ = current_base_ + new_locals_size;
+    ensure_capacity(data_size_);
   }
 
   void
@@ -244,10 +244,10 @@ public:
   empty() const { return frames_.empty(); }
 
   std::size_t
-  size() const { return size_; }
+  size() const { return data_size_; }
 
   void
-  clear() { frames_.clear(); size_ = 0; }
+  clear() { frames_.clear(); data_size_ = 0; }
 
   auto
   frames_range() const {
@@ -281,9 +281,9 @@ private:
 
   std::vector<frame>       frames_;
   std::unique_ptr<ptr<>[]> data_;
-  std::size_t              capacity_     = 0;
-  std::size_t              size_         = 0;
-  std::size_t              current_base_ = 0;
+  std::size_t              data_capacity_ = 0;
+  std::size_t              data_size_     = 0;
+  std::size_t              current_base_  = 0;
 
   frame_type
   callable_to_frame_type(ptr<> callable) {
@@ -302,19 +302,19 @@ private:
     if (!frames_.empty())
       update_current_frame();
     else
-      size_ = 0;
+      data_size_ = 0;
   }
 
   void
   update_current_frame() {
     current_base_ = frames_.back().base;
-    size_ = current_base_ + frames_.back().size;
-    ensure_capacity(size_);
+    data_size_ = current_base_ + frames_.back().size;
+    ensure_capacity(data_size_);
   }
 
   void
   ensure_capacity(std::size_t required_size) {
-    if (required_size >= capacity_) [[unlikely]]
+    if (required_size >= data_capacity_) [[unlikely]]
       grow_capacity(required_size);
   }
 
