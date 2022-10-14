@@ -81,7 +81,10 @@ public:
     frames_.emplace_back(frame{base, locals_size, previous_ip,
                                result_register, extra,
                                callable_to_frame_type(callable)});
-    update_current_frame();
+
+    current_base_ = base;
+    data_size_ = base + locals_size;
+    ensure_capacity(data_size_);
   }
 
   void
@@ -96,7 +99,9 @@ public:
 
     frames_.back().size = new_locals_size;
     frames_.back().type = callable_to_frame_type(new_callable);
-    update_current_frame();
+
+    data_size_ = current_base_ + new_locals_size;
+    ensure_capacity(data_size_);
   }
 
   void
