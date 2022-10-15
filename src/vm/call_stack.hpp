@@ -67,6 +67,8 @@ public:
 
   call_stack(call_stack const&);
 
+  call_stack(call_stack&&) = default;
+
   void
   push_frame(ptr<> callable, std::size_t base, std::size_t locals_size,
              instruction_pointer previous_ip, operand result_register,
