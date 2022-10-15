@@ -67,9 +67,6 @@ public:
 
   call_stack(call_stack const&);
 
-  call_stack&
-  operator = (call_stack const&);
-
   void
   push_frame(ptr<> callable, std::size_t base, std::size_t locals_size,
              instruction_pointer previous_ip, operand result_register,
@@ -99,6 +96,8 @@ public:
       data_size_ = current_base_ + f.size;
     } else
       current_base_ = data_size_ = 0;
+
+    assert(data_size_ <= data_capacity_);
   }
 
   void
@@ -360,6 +359,9 @@ private:
 
   void
   grow_data(std::size_t requested_size);
+
+  std::size_t
+  real_data_size() const;
 };
 
 class frame_reference {

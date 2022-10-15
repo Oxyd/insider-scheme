@@ -225,3 +225,17 @@ TEST_F(call_stack_fixture, stack_size_decreases_when_small_frame_is_pushed) {
   cs->pop_frame();
   EXPECT_EQ(cs->size(), 6);
 }
+
+TEST_F(call_stack_fixture, shrunk_stack_has_correct_capacity) {
+  cs->push_frame(one, 0, 6, nullptr, 0);
+  cs->push_frame(two, 2, 2, nullptr, 0);
+
+  auto copy = make<call_stack>(ctx, *cs.get());
+  copy->pop_frame();
+  copy->local(5) = integer_to_ptr(1);
+
+  copy->push_frame(three, 6, 10, nullptr, 0);
+  copy->pop_frame();
+
+  EXPECT_EQ(expect<integer>(copy->local(5)).value(), 1);
+}

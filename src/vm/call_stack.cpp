@@ -31,8 +31,8 @@ call_stack::call_stack(call_stack const& other)
   : frames_{std::make_unique<frame[]>(other.frames_size_)}
   , frames_capacity_{other.frames_size_}
   , frames_size_{other.frames_size_}
-  , data_{std::make_unique<ptr<>[]>(other.data_size_)}
-  , data_capacity_{other.data_size_}
+  , data_{std::make_unique<ptr<>[]>(other.real_data_size())}
+  , data_capacity_{other.real_data_size()}
   , data_size_{other.data_size_}
   , current_base_{other.current_base_}
 {
@@ -40,19 +40,6 @@ call_stack::call_stack(call_stack const& other)
                     frames_.get());
   std::ranges::copy(std::views::counted(other.data_.get(), data_size_),
                     data_.get());
-}
-
-call_stack&
-call_stack::operator = (call_stack const& other) {
-  if (this != &other) {
-    call_stack copy{other};
-    frames_ = std::move(copy.frames_);
-    data_ = std::move(copy.data_);
-    data_capacity_ = copy.data_capacity_;
-    data_size_ = copy.data_size_;
-  }
-
-  return *this;
 }
 
 void
@@ -140,6 +127,14 @@ call_stack::grow_frames(std::size_t requested_size) {
 void
 call_stack::grow_data(std::size_t requested_size) {
   grow<ptr<>>(data_, data_capacity_, requested_size, data_alloc_size);
+}
+
+std::size_t
+call_stack::real_data_size() const {
+  std::size_t result = 0;
+  for (std::size_t i = 0; i < frames_size_; ++i)
+    result = std::max(result, frames_[i].base + frames_[i].size);
+  return result;
 }
 
 } // namespace insider
