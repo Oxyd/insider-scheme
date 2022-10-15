@@ -28,11 +28,11 @@ call_stack::call_stack()
 { }
 
 call_stack::call_stack(call_stack const& other)
-  : frames_{std::make_unique<frame[]>(other.frames_capacity_)}
-  , frames_capacity_{other.frames_capacity_}
+  : frames_{std::make_unique<frame[]>(other.frames_size_)}
+  , frames_capacity_{other.frames_size_}
   , frames_size_{other.frames_size_}
-  , data_{std::make_unique<ptr<>[]>(other.data_capacity_)}
-  , data_capacity_{other.data_capacity_}
+  , data_{std::make_unique<ptr<>[]>(other.data_size_)}
+  , data_capacity_{other.data_size_}
   , data_size_{other.data_size_}
   , current_base_{other.current_base_}
 {
