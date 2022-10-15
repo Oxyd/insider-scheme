@@ -51,7 +51,7 @@ find_index_of_call_instruction(procedure_prototype const& proto,
 
 static instruction_pointer const dummy_ip
   = reinterpret_cast<instruction_pointer>(
-      std::numeric_limits<std::size_t>::max()
+      std::numeric_limits<std::uintptr_t>::max()
     );
 
 static std::vector<std::string>
