@@ -124,19 +124,6 @@ context::get_top_level_name(operand i) const {
 }
 
 void
-context::tag_top_level(operand i, special_top_level_tag tag) {
-  top_level_tags_.emplace(i, tag);
-}
-
-std::optional<special_top_level_tag>
-context::find_tag(operand i) const {
-  if (auto it = top_level_tags_.find(i); it != top_level_tags_.end())
-    return it->second;
-  else
-    return {};
-}
-
-void
 context::add_feature(std::string const& f) {
   auto f_sym = intern(f);
   if (!memq(f_sym, features_))

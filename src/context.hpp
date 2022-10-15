@@ -37,30 +37,6 @@ class execution_state;
 
 class source_code_provider;
 
-// Some top-level values are tagged to let the compiler understand them and
-// optimise them.
-enum class special_top_level_tag {
-  plus,
-  minus,
-  times,
-  divide,
-  arith_equal,
-  less_than,
-  less_or_equal,
-  greater_than,
-  greater_or_equal,
-  vector_set,
-  vector_ref,
-  type,
-  cons,
-  car,
-  cdr,
-  eq,
-  box,
-  unbox,
-  box_set
-};
-
 // Evaluation context.
 class context {
 public:
@@ -125,12 +101,6 @@ public:
   get_top_level_name(operand) const;
 
   void
-  tag_top_level(operand, special_top_level_tag);
-
-  std::optional<special_top_level_tag>
-  find_tag(operand) const;
-
-  void
   add_feature(std::string const&);
 
   insider::module_resolver&
@@ -168,7 +138,6 @@ private:
   std::unordered_map<std::string, ptr<symbol>>       interned_symbols_;
   std::vector<ptr<>>                                 top_level_objects_;
   std::vector<std::string>                           top_level_binding_names_;
-  std::unordered_map<operand, special_top_level_tag> top_level_tags_;
   insider::module_resolver                           module_resolver_{*this};
   std::vector<ptr<symbol>>                           type_name_symbols_;
 

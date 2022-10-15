@@ -4,6 +4,7 @@
 #include "vm/operand.hpp"
 
 #include <array>
+#include <cassert>
 #include <climits>
 #include <cstddef>
 #include <cstdint>

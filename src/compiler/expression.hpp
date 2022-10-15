@@ -11,6 +11,7 @@ using expression = sum_type<
   class top_level_reference_expression,
   class unknown_reference_expression,
   class application_expression,
+  class built_in_operation_expression,
   class sequence_expression,
   class let_expression,
   class local_set_expression,

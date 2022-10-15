@@ -481,12 +481,9 @@ export_basic_types(context& ctx, ptr<module_> result) {
     ctx, "make-vector", result,
     [] (context& ctx) { return ctx.constants->void_; }
   );
-  define_tagged_procedure<&vector::ref>(ctx, "vector-ref", result,
-                                        special_top_level_tag::vector_ref,
-                                        true);
+  define_constant_evaluable_procedure<&vector::ref>(ctx, "vector-ref", result);
 
-  define_tagged_procedure<vector_set>(ctx, "vector-set!", result,
-                                      special_top_level_tag::vector_set);
+  define_procedure<vector_set>(ctx, "vector-set!", result);
 
   define_procedure<make_error_proc>(ctx, "make-error", result);
   define_constant_evaluable_procedure<&error::message>(ctx, "error-message",
@@ -520,12 +517,9 @@ export_basic_types(context& ctx, ptr<module_> result) {
   define_constant_evaluable_procedure<&values_tuple::ref>(
     ctx, "values-tuple-ref", result
   );
-  define_tagged_procedure<make_box>(ctx, "box", result,
-                                    special_top_level_tag::box);
-  define_tagged_procedure<unbox>(ctx, "unbox", result,
-                                 special_top_level_tag::unbox);
-  define_tagged_procedure<box_set>(ctx, "box-set!", result,
-                                   special_top_level_tag::box_set);
+  define_procedure<make_box>(ctx, "box", result);
+  define_procedure<unbox>(ctx, "unbox", result);
+  define_procedure<box_set>(ctx, "box-set!", result);
 }
 
 } // namespace insider

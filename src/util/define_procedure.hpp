@@ -417,19 +417,6 @@ define_raw_procedure(context& ctx, std::string name, ptr<module_> m,
                                                       constant_evaluable);
 }
 
-template <auto F>
-void
-define_tagged_procedure(context& ctx, std::string name, ptr<module_> result,
-                        special_top_level_tag tag,
-                        bool constant_evaluable = false) {
-  operand index{};
-  if (constant_evaluable)
-    index = define_constant_evaluable_procedure<F>(ctx, std::move(name), result);
-  else
-    index = define_procedure<F>(ctx, std::move(name), result);
-  ctx.tag_top_level(index, tag);
-}
-
 } // namespace insider
 
 #endif

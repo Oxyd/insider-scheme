@@ -155,6 +155,34 @@ application_expression::update_size_estimate() {
     + 1;
 }
 
+built_in_operation_expression::built_in_operation_expression(
+  opcode op, std::vector<expression> operands, bool has_result
+)
+  : operation_{op}
+  , operands_{std::move(operands)}
+  , has_result_{has_result}
+{
+  update_size_estimate();
+}
+
+void
+built_in_operation_expression::visit_members(member_visitor const& f) {
+  for (expression& operand : operands_)
+    operand.visit_members(f);
+}
+
+void
+built_in_operation_expression::update(context& ctx, result_stack& stack) {
+  auto operands = pop_vector(stack, operands_.size());
+  update_member(ctx.store, this, operands_, std::move(operands));
+  update_size_estimate();
+}
+
+void
+built_in_operation_expression::update_size_estimate() {
+  size_estimate_ = 1 + sum_size_estimates(operands_);
+}
+
 sequence_expression::sequence_expression(std::vector<expression> exprs)
   : expressions_{std::move(exprs)}
 {

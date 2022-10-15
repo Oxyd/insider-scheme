@@ -195,254 +195,6 @@ compile_global_reference(procedure_context& proc, operand global_num,
                          result_location&);
 
 static void
-compile_fold(context& ctx, procedure_context& proc,
-             std::vector<expression> const& arguments,
-             opcode op, result_location& result) {
-  std::vector<shared_register> arg_registers;
-  arg_registers.reserve(arguments.size());
-  for (expression arg : arguments)
-    arg_registers.push_back(
-      compile_expression_to_register(ctx, proc, arg, false)
-    );
-
-  if (!result.result_used())
-    return;
-
-  operand previous = *arg_registers.front();
-  for (auto operand = arg_registers.begin() + 1;
-       operand != arg_registers.end();
-       ++operand) {
-    proc.emit(op, previous, **operand, *result.get(proc));
-    previous = *result.get(proc);
-  }
-}
-
-static void
-compile_arithmetic(context& ctx, procedure_context& proc,
-                   ptr<application_expression> stx, special_top_level_tag tag,
-                   result_location& result) {
-  if (stx->arguments().empty()) {
-    if (tag == special_top_level_tag::plus) {
-      compile_static_reference(ctx, proc, integer_to_ptr(0), result);
-      return;
-    }
-    else if (tag == special_top_level_tag::times) {
-      compile_static_reference(ctx, proc, integer_to_ptr(1), result);
-      return;
-    }
-    else
-      throw std::runtime_error{fmt::format(
-        "Not enough arguments for {}",
-        assume<top_level_reference_expression>(
-          stx->target())->variable()->name()
-        )
-      };
-  }
-
-  opcode op{};
-  switch (tag) {
-  case special_top_level_tag::plus:
-    op = opcode::add;
-    break;
-  case special_top_level_tag::minus:
-    op = opcode::subtract;
-    break;
-  case special_top_level_tag::times:
-    op = opcode::multiply;
-    break;
-  case special_top_level_tag::divide:
-    op = opcode::divide;
-    break;
-  default:
-    assert(!"Invalid tag");
-  }
-
-  compile_fold(ctx, proc, stx->arguments(), op, result);
-}
-
-static void
-compile_relational(context& ctx, procedure_context& proc,
-                   ptr<application_expression> stx, special_top_level_tag tag,
-                   result_location& result) {
-  if (stx->arguments().size() < 2)
-    throw std::runtime_error{
-      fmt::format(
-        "Not enough arguments for {}",
-        assume<local_reference_expression>(stx->target())->variable()->name()
-      )
-    };
-
-  opcode op{};
-  switch (tag) {
-  case special_top_level_tag::arith_equal:
-    op = opcode::arith_equal;
-    break;
-  case special_top_level_tag::less_than:
-    op = opcode::less;
-    break;
-  case special_top_level_tag::greater_than:
-    op = opcode::greater;
-    break;
-  case special_top_level_tag::less_or_equal:
-    op = opcode::less_or_equal;
-    break;
-  case special_top_level_tag::greater_or_equal:
-    op = opcode::greater_or_equal;
-    break;
-  default:
-    assert(!"Unimplemented");
-  }
-
-  compile_fold(ctx, proc, stx->arguments(), op, result);
-}
-
-static void
-compile_vector_set(context& ctx, procedure_context& proc,
-                   ptr<application_expression> stx, result_location& result) {
-  if (stx->arguments().size() != 3)
-    throw std::runtime_error{"vector-set!: Expected exactly 3 arguments"};
-
-  std::array<shared_register, 3> arg_registers;
-  for (std::size_t i = 0; i < 3; ++i)
-    arg_registers[i]
-      = compile_expression_to_register(ctx, proc, stx->arguments()[i], false);
-
-  proc.emit(opcode::vector_set,
-            *arg_registers[0], *arg_registers[1], *arg_registers[2]);
-
-  compile_static_reference(ctx, proc, ctx.constants->void_, result);
-}
-
-static void
-compile_vector_ref(context& ctx, procedure_context& proc,
-                   ptr<application_expression> stx, result_location& result) {
-  if (stx->arguments().size() != 2)
-    throw std::runtime_error{"vector-ref: Expected exactly 2 arguments"};
-
-  shared_register v_reg
-    = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-  shared_register i_reg
-    = compile_expression_to_register(ctx, proc, stx->arguments()[1], false);
-
-  if (result.result_used())
-    proc.emit(opcode::vector_ref, *v_reg, *i_reg, *result.get(proc));
-}
-
-static void
-compile_type(context& ctx, procedure_context& proc,
-             ptr<application_expression> stx, result_location& result) {
-  if (stx->arguments().size() != 1)
-    throw std::runtime_error{"type: Expected exactly 1 argument"};
-
-  shared_register expr_reg
-    = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-  if (result.result_used())
-    proc.emit(opcode::type, *expr_reg, *result.get(proc));
-}
-
-static void
-compile_cons_application(context& ctx, procedure_context& proc,
-                         ptr<application_expression> stx,
-                         result_location& result) {
-  if (stx->arguments().size() != 2)
-    throw std::runtime_error{"cons: Expected exactly 2 arguments"};
-
-  shared_register car_reg
-    = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-  shared_register cdr_reg
-    = compile_expression_to_register(ctx, proc, stx->arguments()[1], false);
-
-  if (result.result_used())
-    proc.emit(opcode::cons, *car_reg, *cdr_reg, *result.get(proc));
-}
-
-static void
-compile_car(context& ctx, procedure_context& proc,
-            ptr<application_expression> stx,
-            result_location& result) {
-  if (stx->arguments().size() != 1)
-    throw std::runtime_error{"car: Expected exactly 1 argument"};
-
-  shared_register pair_reg
-    = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-
-  if (result.result_used())
-    proc.emit(opcode::car, *pair_reg, *result.get(proc));
-}
-
-static void
-compile_cdr(context& ctx, procedure_context& proc,
-            ptr<application_expression> stx,
-            result_location& result) {
-  if (stx->arguments().size() != 1)
-    throw std::runtime_error{"cdr: Expected exactly 1 argument"};
-
-  shared_register pair_reg
-    = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-
-  if (result.result_used())
-    proc.emit(opcode::cdr, *pair_reg, *result.get(proc));
-}
-
-static void
-compile_eq(context& ctx, procedure_context& proc,
-           ptr<application_expression> stx,
-           result_location& result) {
-  if (stx->arguments().size() != 2)
-    throw std::runtime_error{"eq?: Expected exactly 2 arguments"};
-
-  shared_register lhs_reg
-    = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-  shared_register rhs_reg
-    = compile_expression_to_register(ctx, proc, stx->arguments()[1], false);
-
-  if (result.result_used())
-    proc.emit(opcode::eq, *lhs_reg, *rhs_reg, *result.get(proc));
-}
-
-static void
-compile_box(context& ctx, procedure_context& proc,
-            ptr<application_expression> stx,
-            result_location& result) {
-  if (stx->arguments().size() != 1)
-    throw std::runtime_error{"box: Expected exactly 1 argument"};
-
-  shared_register value
-    = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-  if (result.result_used())
-    proc.emit(opcode::box, *value, *result.get(proc));
-}
-
-static void
-compile_unbox(context& ctx, procedure_context& proc,
-              ptr<application_expression> stx,
-              result_location& result) {
-  if (stx->arguments().size() != 1)
-    throw std::runtime_error{"unbox: Expected exactly 1 argument"};
-
-  shared_register box
-    = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-  if (result.result_used())
-    proc.emit(opcode::unbox, *box, *result.get(proc));
-}
-
-static void
-compile_box_set(context& ctx, procedure_context& proc,
-                ptr<application_expression> stx,
-                result_location& result) {
-  if (stx->arguments().size() != 2)
-    throw std::runtime_error{"box-set!: Expected exactly 2 argument"};
-
-  shared_register box
-    = compile_expression_to_register(ctx, proc, stx->arguments()[0], false);
-  shared_register value
-    = compile_expression_to_register(ctx, proc, stx->arguments()[1], false);
-
-  proc.emit(opcode::box_set, *box, *value);
-  compile_static_reference(ctx, proc, ctx.constants->void_, result);
-}
-
-static void
 compile_loop_variable_definition(context& ctx, procedure_context& proc,
                                  variable_bindings::scope& scope,
                                  ptr<local_variable> var,
@@ -811,57 +563,6 @@ static void
 compile_expression(context& ctx, procedure_context& proc,
                    ptr<application_expression> stx, bool tail,
                    result_location& result) {
-  if (auto ref = match<top_level_reference_expression>(stx->target()))
-    if (std::optional<special_top_level_tag> tag
-        = ctx.find_tag(ref->variable()->index)) {
-      if ((*tag == special_top_level_tag::plus
-           || *tag == special_top_level_tag::minus
-           || *tag == special_top_level_tag::times
-           || *tag == special_top_level_tag::divide)
-          && stx->arguments().size() >= 2) {
-        compile_arithmetic(ctx, proc, stx, *tag, result);
-        return;
-      } else if ((*tag == special_top_level_tag::less_than
-                  || *tag == special_top_level_tag::greater_than
-                  || *tag == special_top_level_tag::less_or_equal
-                  || *tag == special_top_level_tag::greater_or_equal
-                  || *tag == special_top_level_tag::arith_equal)
-                 && stx->arguments().size() == 2){
-        compile_relational(ctx, proc, stx, *tag, result);
-        return;
-      } else if (*tag == special_top_level_tag::vector_set) {
-        compile_vector_set(ctx, proc, stx, result);
-        return;
-      } else if (*tag == special_top_level_tag::vector_ref) {
-        compile_vector_ref(ctx, proc, stx, result);
-        return;
-      } else if (*tag == special_top_level_tag::type) {
-        compile_type(ctx, proc, stx, result);
-        return;
-      } else if (*tag == special_top_level_tag::cons) {
-        compile_cons_application(ctx, proc, stx, result);
-        return;
-      } else if (*tag == special_top_level_tag::car) {
-        compile_car(ctx, proc, stx, result);
-        return;
-      } else if (*tag == special_top_level_tag::cdr) {
-        compile_cdr(ctx, proc, stx, result);
-        return;
-      } else if (*tag == special_top_level_tag::eq) {
-        compile_eq(ctx, proc, stx, result);
-        return;
-      } else if (*tag == special_top_level_tag::box) {
-        compile_box(ctx, proc, stx, result);
-        return;
-      } else if (*tag == special_top_level_tag::unbox) {
-        compile_unbox(ctx, proc, stx, result);
-        return;
-      } else if (*tag == special_top_level_tag::box_set) {
-        compile_box_set(ctx, proc, stx, result);
-        return;
-      }
-    }
-
   operand call_base = proc.registers.first_argument_register();
 
   result_location f_loc{proc.registers.allocate_argument_register()};
@@ -882,6 +583,42 @@ compile_expression(context& ctx, procedure_context& proc,
   if (stx->debug_info())
     proc.current_block().debug_info[proc.current_block().body.size() - 1]
       = *stx->debug_info();
+}
+
+static std::vector<shared_register>
+compile_operands(context& ctx, procedure_context& proc,
+                 ptr<built_in_operation_expression> stx) {
+  std::vector<shared_register> result;
+  for (expression arg : stx->operands())
+    result.emplace_back(compile_expression_to_register(ctx, proc, arg, false));
+  return result;
+}
+
+static instruction
+make_instruction_from_vector(opcode oc,
+                             std::vector<shared_register> const& operands) {
+  switch (operands.size()) {
+  case 0: return {oc};
+  case 1: return {oc, *operands[0]};
+  case 2: return {oc, *operands[0], *operands[1]};
+  case 3: return {oc, *operands[0], *operands[1], *operands[2]};
+  default:
+    assert(false);
+  }
+}
+
+static void
+compile_expression(context& ctx, procedure_context& proc,
+                   ptr<built_in_operation_expression> stx, bool,
+                   result_location& result) {
+  std::vector<shared_register> operands = compile_operands(ctx, proc, stx);
+  if (stx->has_result()) {
+    operands.push_back(result.get(proc));
+    proc.emit(make_instruction_from_vector(stx->operation(), operands));
+  } else {
+    proc.emit(make_instruction_from_vector(stx->operation(), operands));
+    compile_static_reference(ctx, proc, ctx.constants->void_, result);
+  }
 }
 
 static void

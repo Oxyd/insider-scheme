@@ -35,6 +35,9 @@ expression
 inline_procedures(context&, expression, analysis_context);
 
 expression
+inline_built_in_operations(context&, expression, analysis_context);
+
+expression
 box_set_variables(context&, expression, analysis_context);
 
 expression

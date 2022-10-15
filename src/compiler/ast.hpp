@@ -202,6 +202,51 @@ private:
   update_size_estimate();
 };
 
+class built_in_operation_expression
+  : public composite_object<built_in_operation_expression>
+{
+public:
+  static constexpr char const* scheme_name
+    = "insider::built_in_operation_expression";
+
+  built_in_operation_expression(opcode, std::vector<expression>,
+                                bool has_result);
+
+  opcode
+  operation() const { return operation_; }
+
+  std::vector<expression> const&
+  operands() const { return operands_; }
+
+  bool
+  has_result() const { return has_result_; }
+
+  template <typename F>
+  void
+  visit_subexpressions(F&& f) const {
+    for (auto const& op : operands_)
+      f(op);
+  }
+
+  void
+  visit_members(member_visitor const&);
+
+  void
+  update(context&, result_stack&);
+
+  std::size_t
+  size_estimate() const { return size_estimate_; }
+
+private:
+  opcode                  operation_;
+  std::vector<expression> operands_;
+  bool                    has_result_;
+  std::size_t             size_estimate_ = 0;
+
+  void
+  update_size_estimate();
+};
+
 class sequence_expression : public composite_object<sequence_expression>  {
 public:
   static constexpr char const* scheme_name = "insider::sequence_expression";

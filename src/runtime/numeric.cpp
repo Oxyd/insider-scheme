@@ -2246,11 +2246,9 @@ gcd(context& ctx, ptr<> x, ptr<> y) {
 
 static void
 export_native(context& ctx, ptr<module_> m, char const* name,
-              ptr<> (*f)(context&, ptr<native_procedure>, object_span),
-              special_top_level_tag tag) {
+              ptr<> (*f)(context&, ptr<native_procedure>, object_span)) {
   auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f, true, name),
                                  name);
-  ctx.tag_top_level(index, tag);
 
   auto name_sym = ctx.intern(name);
   auto id = make<syntax>(ctx, name_sym, scope_set{m->scope()});
@@ -2906,24 +2904,15 @@ imag_part(ptr<> x) {
 
 void
 export_numeric(context& ctx, ptr<module_> result) {
-  export_native(ctx, result, "+", add_native_proc_arg<add>,
-                special_top_level_tag::plus);
-  export_native(ctx, result, "-", add_native_proc_arg<subtract>,
-                special_top_level_tag::minus);
-  export_native(ctx, result, "*", add_native_proc_arg<multiply>,
-                special_top_level_tag::times);
-  export_native(ctx, result, "/", add_native_proc_arg<divide>,
-                special_top_level_tag::divide);
-  export_native(ctx, result, "=", add_native_proc_arg<arith_equal>,
-                special_top_level_tag::arith_equal);
-  export_native(ctx, result, "<", add_native_proc_arg<less>,
-                special_top_level_tag::less_than);
-  export_native(ctx, result, "<=", add_native_proc_arg<less_or_equal>,
-                special_top_level_tag::less_or_equal);
-  export_native(ctx, result, ">", add_native_proc_arg<greater>,
-                special_top_level_tag::greater_than);
-  export_native(ctx, result, ">=", add_native_proc_arg<greater_or_equal>,
-                special_top_level_tag::greater_or_equal);
+  export_native(ctx, result, "+", add_native_proc_arg<add>);
+  export_native(ctx, result, "-", add_native_proc_arg<subtract>);
+  export_native(ctx, result, "*", add_native_proc_arg<multiply>);
+  export_native(ctx, result, "/", add_native_proc_arg<divide>);
+  export_native(ctx, result, "=", add_native_proc_arg<arith_equal>);
+  export_native(ctx, result, "<", add_native_proc_arg<less>);
+  export_native(ctx, result, "<=", add_native_proc_arg<less_or_equal>);
+  export_native(ctx, result, ">", add_native_proc_arg<greater>);
+  export_native(ctx, result, ">=", add_native_proc_arg<greater_or_equal>);
   define_constant_evaluable_procedure<gcd>(ctx, "gcd", result);
   define_constant_evaluable_procedure<arithmetic_shift>(ctx, "arithmetic-shift",
                                                         result);

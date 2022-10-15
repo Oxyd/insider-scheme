@@ -193,13 +193,12 @@ make_internal_module(context& ctx) {
   export_variable(ctx, result);
 
   define_raw_procedure<append>(ctx, "append", result);
-  define_tagged_procedure<cons>(ctx, "cons", result,
-                                special_top_level_tag::cons);
-  define_tagged_procedure<static_cast<ptr<> (*)(ptr<pair>)>(car)>(
-    ctx, "car", result, special_top_level_tag::car, true
+  define_procedure<cons>(ctx, "cons", result);
+  define_constant_evaluable_procedure<static_cast<ptr<> (*)(ptr<pair>)>(car)>(
+    ctx, "car", result
   );
-  define_tagged_procedure<static_cast<ptr<> (*)(ptr<pair>)>(cdr)>(
-    ctx, "cdr", result, special_top_level_tag::cdr, true
+  define_constant_evaluable_procedure<static_cast<ptr<> (*)(ptr<pair>)>(cdr)>(
+    ctx, "cdr", result
   );
   define_constant_evaluable_procedure<cadr>(ctx, "cadr", result);
   define_constant_evaluable_procedure<caddr>(ctx, "caddr", result);
@@ -209,12 +208,9 @@ make_internal_module(context& ctx) {
   define_procedure<set_car>(ctx, "set-car!", result);
   define_procedure<set_cdr>(ctx, "set-cdr!", result);
 
-  define_tagged_procedure<type>(ctx, "type", result,
-                                special_top_level_tag::type,
-                                true);
+  define_constant_evaluable_procedure<type>(ctx, "type", result);
 
-  define_tagged_procedure<eq>(ctx, "eq?", result, special_top_level_tag::eq,
-                              true);
+  define_constant_evaluable_procedure<eq>(ctx, "eq?", result);
   define_constant_evaluable_procedure<eqv>(ctx, "eqv?", result);
   define_constant_evaluable_procedure<equal>(ctx, "equal?", result);
 

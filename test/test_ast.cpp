@@ -431,11 +431,14 @@ TEST_F(ast, constant_definitions_are_removed_from_lets) {
 }
 
 TEST_F(ast, top_level_constants_are_folded_into_expressions) {
-  expression e = analyse_module(R"(
-    (import (insider internal))
-    (define foo 12)
-    (define bar (* (read) foo))
-  )");
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+      (define foo 12)
+      (define bar (* (read) foo))
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
   for_each<top_level_set_expression>(
     e,
     [] (ptr<top_level_set_expression> set) {
@@ -449,11 +452,14 @@ TEST_F(ast, top_level_constants_are_folded_into_expressions) {
 }
 
 TEST_F(ast, top_level_constants_are_folded_into_expressions_before_definition) {
-  expression e = analyse_module(R"(
-    (import (insider internal))
-    (define bar (* (read) foo))
-    (define foo 12)
-  )");
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+      (define bar (* (read) foo))
+      (define foo 12)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
   for_each<top_level_set_expression>(
     e,
     [] (ptr<top_level_set_expression> set) {
@@ -843,11 +849,14 @@ TEST_F(ast, inlined_call_of_mutative_procedure_across_modules_boxes_argument) {
     )"
   );
 
-  expression e = analyse_module(R"(
-    (import (insider internal) (foo))
+  expression e = analyse_module(
+    R"(
+      (import (insider internal) (foo))
 
-    (foo 2)
-  )");
+      (foo 2)
+    )",
+    {&analyse_variables, &inline_procedures, &box_set_variables}
+  );
 
   auto let = expect<let_expression>(e);
   ASSERT_EQ(let->definitions().size(), 1);
@@ -910,16 +919,11 @@ TEST_F(ast, variables_are_not_boxed_twice) {
   );
   ASSERT_EQ(let->definitions().size(), 1);
   auto var_def = let->definitions()[0].expression();
-  auto var_app = expect<application_expression>(var_def);
-  EXPECT_EQ(
-    expect<top_level_reference_expression>(
-      var_app->target()
-    )->variable()->name(),
-    "box"
-  );
+  auto var_op = expect<built_in_operation_expression>(var_def);
+  EXPECT_EQ(var_op->operation(), opcode::box);
 
-  ASSERT_EQ(var_app->arguments().size(), 1);
-  EXPECT_TRUE(is<literal_expression>(var_app->arguments()[0]));
+  ASSERT_EQ(var_op->operands().size(), 1);
+  EXPECT_TRUE(is<literal_expression>(var_op->operands()[0]));
 }
 
 static expression
@@ -1831,4 +1835,22 @@ TEST_F(ast, explicitly_set_loop_variable_is_boxed) {
       EXPECT_EQ(unbox_ref->variable()->name(), "unbox");
     }
   );
+}
+
+TEST_F(ast, call_to_special_procedure_is_replaced_with_built_operation) {
+  expression e = analyse(
+    "(eq? (read) (read))",
+    {&analyse_variables, &inline_built_in_operations}
+  );
+  ASSERT_TRUE(is<built_in_operation_expression>(e));
+  auto op = expect<built_in_operation_expression>(e);
+  EXPECT_EQ(op->operation(), opcode::eq);
+}
+
+TEST_F(ast, special_procedure_is_not_replaced_when_called_with_unusual_arity) {
+  expression e = analyse(
+    "(eq? (read) (read) (read))",
+    {&analyse_variables, &inline_built_in_operations}
+  );
+  EXPECT_TRUE(is<application_expression>(e));
 }
