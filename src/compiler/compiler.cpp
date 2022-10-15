@@ -604,6 +604,7 @@ make_instruction_from_vector(opcode oc,
   case 3: return {oc, *operands[0], *operands[1], *operands[2]};
   default:
     assert(false);
+    return {};
   }
 }
 
