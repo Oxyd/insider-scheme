@@ -19,30 +19,6 @@ extern pass_list const no_optimisations;
 expression
 apply_passes(context&, expression, analysis_context, pass_list const&);
 
-expression
-analyse_variables(context&, expression, analysis_context);
-
-expression
-find_self_variables(context&, expression, analysis_context);
-
-expression
-propagate_and_evaluate_constants(context&, expression, analysis_context);
-
-expression
-remove_unnecessary_procedure_definitions(context&, expression, analysis_context);
-
-expression
-inline_procedures(context&, expression, analysis_context);
-
-expression
-inline_built_in_operations(context&, expression, analysis_context);
-
-expression
-box_set_variables(context&, expression, analysis_context);
-
-expression
-analyse_free_variables(context&, expression, analysis_context);
-
 } // namespace insider
 
 #endif

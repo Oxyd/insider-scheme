@@ -1,11 +1,19 @@
 #include "scheme_fixture.hpp"
 
+#include "compiler/analyse_free_variables_pass.hpp"
+#include "compiler/analyse_variables_pass.hpp"
 #include "compiler/analyser.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/ast_transforms.hpp"
+#include "compiler/box_set_variables_pass.hpp"
+#include "compiler/evaluate_constants_pass.hpp"
 #include "compiler/expression.hpp"
+#include "compiler/find_self_variables_pass.hpp"
+#include "compiler/inline_built_in_operations_pass.hpp"
+#include "compiler/inline_procedures_pass.hpp"
 #include "compiler/parser_expander.hpp"
 #include "compiler/parsing_context.hpp"
+#include "compiler/remove_unnecessary_procedure_definitions_pass.hpp"
 
 using namespace insider;
 

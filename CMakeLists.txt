@@ -47,6 +47,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(scheme_sources
+        src/compiler/analyse_free_variables_pass.cpp
+        src/compiler/analyse_free_variables_pass.hpp
+        src/compiler/analyse_variables_pass.cpp
+        src/compiler/analyse_variables_pass.hpp
         src/compiler/analyser.cpp
         src/compiler/analyser.hpp
         src/compiler/analysis_context.hpp
@@ -54,12 +58,24 @@ set(scheme_sources
         src/compiler/ast.hpp
         src/compiler/ast_transforms.cpp
         src/compiler/ast_transforms.hpp
+        src/compiler/box_set_variables_pass.cpp
+        src/compiler/box_set_variables_pass.hpp
         src/compiler/cfg.cpp
         src/compiler/cfg.hpp
+        src/compiler/clone_ast.cpp
+        src/compiler/clone_ast.hpp
         src/compiler/compiler.cpp
         src/compiler/compiler.hpp
         src/compiler/debug_info.hpp
+        src/compiler/evaluate_constants_pass.cpp
+        src/compiler/evaluate_constants_pass.hpp
         src/compiler/expression.hpp
+        src/compiler/find_self_variables_pass.cpp
+        src/compiler/find_self_variables_pass.hpp
+        src/compiler/inline_built_in_operations_pass.cpp
+        src/compiler/inline_built_in_operations_pass.hpp
+        src/compiler/inline_procedures_pass.cpp
+        src/compiler/inline_procedures_pass.hpp
         src/compiler/module_name.cpp
         src/compiler/module_name.hpp
         src/compiler/module_specifier.cpp
@@ -70,6 +86,8 @@ set(scheme_sources
         src/compiler/parsing_context.hpp
         src/compiler/registers.cpp
         src/compiler/registers.hpp
+        src/compiler/remove_unnecessary_procedure_definitions_pass.cpp
+        src/compiler/remove_unnecessary_procedure_definitions_pass.hpp
         src/compiler/scope.cpp
         src/compiler/scope.hpp
         src/compiler/source_code_provider.cpp
