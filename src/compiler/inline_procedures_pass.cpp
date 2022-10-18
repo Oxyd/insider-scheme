@@ -4,6 +4,8 @@
 #include "compiler/clone_ast.hpp"
 #include "context.hpp"
 
+#include <fmt/format.h>
+
 namespace insider {
 
 static constexpr std::size_t inline_size_limit = 50;

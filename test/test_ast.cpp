@@ -1862,3 +1862,90 @@ TEST_F(ast, special_procedure_is_not_replaced_when_called_with_unusual_arity) {
   );
   EXPECT_TRUE(is<application_expression>(e));
 }
+
+TEST_F(ast, variable_bound_to_another_variable_is_inlined) {
+  expression e = analyse(
+    R"(
+      (let ((outer (read)))
+        (let ((inner outer))
+          inner))
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  for_each<local_reference_expression>(
+    e,
+    [] (ptr<local_reference_expression> ref) {
+      EXPECT_EQ(ref->variable()->name(), "outer");
+    }
+  );
+}
+
+TEST_F(ast, variable_bound_to_top_level_variable_is_inlined) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo (read))
+
+      (let ((x foo))
+        x)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  auto seq = expect<sequence_expression>(e);
+  ASSERT_EQ(seq->expressions().size(), 2);
+  EXPECT_TRUE(
+    is<top_level_reference_expression>(
+      ignore_lets_and_sequences(seq->expressions()[1])
+    )
+  );
+}
+
+TEST_F(ast, top_level_reference_is_inlined_through_argument) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define compare?
+        (lambda (predicate? element)
+          (predicate? element 0)))
+
+      (define foo
+        (lambda (x)
+          (compare? eq? x)))
+    )",
+    {&analyse_variables, &inline_procedures, &propagate_and_evaluate_constants,
+     &analyse_free_variables}
+  );
+  auto foo_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
+  auto app = expect<application_expression>(
+    ignore_lets_and_sequences(foo_def->body())
+  );
+  auto target = expect<top_level_reference_expression>(app->target());
+  EXPECT_EQ(target->variable()->name(), "eq?");
+}
+
+TEST_F(ast, variable_reference_is_inlined_through_a_chain) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda (a)
+          (let ((b a))
+            (let ((c b))
+              c))))
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants,
+     &analyse_free_variables}
+  );
+
+  auto foo_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
+  auto param = foo_def->parameters().front();
+  auto body = expect<local_reference_expression>(
+    ignore_lets_and_sequences(foo_def->body())
+  );
+  EXPECT_EQ(body->variable(), param);
+}

@@ -13,29 +13,44 @@ is_initialised_to_constant(auto var) {
          && is<literal_expression>(var->constant_initialiser());
 }
 
+static bool
+is_constant_propagable_expression(expression e) {
+  return is<literal_expression>(e)
+         || is<local_reference_expression>(e)
+         || is<top_level_reference_expression>(e);
+}
+
+static bool
+is_constant_propagable(auto var) {
+  return var->constant_initialiser()
+         && is_constant_propagable_expression(var->constant_initialiser());
+}
+
 static expression
 propagate_and_evaluate_constants(context&,
                                  ptr<local_reference_expression> ref,
-                                 bool&) {
-  if (is_initialised_to_constant(ref->variable()))
+                                 bool& go_again) {
+  if (is_constant_propagable(ref->variable())) {
+    go_again = true;
     return ref->variable()->constant_initialiser();
-  else
+  } else
     return ref;
 }
 
 static expression
 propagate_and_evaluate_constants(context&,
                                  ptr<top_level_reference_expression> ref,
-                                 bool&) {
-  if (is_initialised_to_constant(ref->variable()))
+                                 bool& go_again) {
+  if (is_constant_propagable(ref->variable())) {
+    go_again = true;
     return ref->variable()->constant_initialiser();
-  else
+  } else
     return ref;
 }
 
 static bool
 is_const(definition_pair_expression const& dp) {
-  return is_initialised_to_constant(dp.variable());
+  return is_constant_propagable(dp.variable());
 }
 
 static ptr<>
@@ -85,15 +100,11 @@ constant_value_for_expression(expression e) {
 
 static expression
 constant_initialiser_expression(expression e) {
-  if (auto lit = match<literal_expression>(e))
-    return lit;
-  else if (auto seq = match<sequence_expression>(e)) {
+  if (auto seq = match<sequence_expression>(e)) {
     assert(seq->expressions().size() == 1);
     return constant_initialiser_expression(seq->expressions().front());
-  } else {
-    assert(false);
-    return {};
-  }
+  } else
+    return e;
 }
 
 static std::vector<definition_pair_expression>
@@ -109,7 +120,9 @@ update_let_definitions(context& ctx,
         || dp.variable()->flags().is_loop_variable)
       result.push_back(dp);
 
-    if (!is_const(dp) && constant_value_for_expression(dp.expression())
+    if (!is_const(dp)
+        && (constant_value_for_expression(dp.expression())
+            || is_constant_propagable_expression(dp.expression()))
         && !dp.variable()->flags().is_set
         && !dp.variable()->flags().is_loop_variable) {
       // The variable was made constant in this pass. We need to mark it as
@@ -118,6 +131,8 @@ update_let_definitions(context& ctx,
       dp.variable()->set_constant_initialiser(
         ctx.store, constant_initialiser_expression(dp.expression())
       );
+
+      assert(is_const(dp));
       go_again = true;
     }
   }

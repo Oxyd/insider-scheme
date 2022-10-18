@@ -4,6 +4,8 @@
 #include "compiler/variable.hpp"
 #include "context.hpp"
 
+#include <fmt/format.h>
+
 namespace insider {
 
 using variable_map
@@ -58,17 +60,13 @@ namespace {
 
     void
     enter(ptr<let_expression> let) {
-      for (auto const& dp : let->definitions()) {
-        assert(!variables.contains(dp.variable()));
-        auto copy = make<local_variable>(ctx, *dp.variable());
-        variables.emplace(dp.variable(), copy);
-      }
+      for (auto const& dp : let->definitions())
+        copy_variable(dp.variable());
     }
 
     void
     enter(ptr<lambda_expression> lambda) {
-      auto copy = make<local_variable>(ctx, *lambda->self_variable());
-      variables.emplace(lambda->self_variable(), copy);
+      copy_variable(lambda->self_variable());
     }
 
     void
@@ -82,11 +80,7 @@ namespace {
 
     expression
     leave(ptr<local_reference_expression> ref) {
-      if (auto mapping = variables.find(ref->variable());
-          mapping != variables.end())
-        return make<local_reference_expression>(ctx, mapping->second);
-      else
-        return ref;
+      return update_local_reference(ref);
     }
 
     expression
@@ -145,6 +139,30 @@ namespace {
 
     expression
     leave(auto e) { return e; }
+
+    void
+    copy_variable(ptr<local_variable> var) {
+      assert(!variables.contains(var));
+      auto copy = make<local_variable>(ctx, *var);
+      update_variable_initialiser(copy);
+      variables.emplace(var, copy);
+    }
+
+    void
+    update_variable_initialiser(ptr<local_variable> var) {
+      if (expression init = var->constant_initialiser())
+        if (auto ref = match<local_reference_expression>(init))
+          var->set_constant_initialiser(ctx.store, update_local_reference(ref));
+    }
+
+    ptr<local_reference_expression>
+    update_local_reference(ptr<local_reference_expression> ref) {
+      if (auto mapping = variables.find(ref->variable());
+          mapping != variables.end())
+        return make<local_reference_expression>(ctx, mapping->second);
+      else
+        return ref;
+    }
   };
 }
 
