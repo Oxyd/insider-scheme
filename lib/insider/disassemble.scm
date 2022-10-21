@@ -206,22 +206,6 @@
         (newline)
         (loop (cdr instruction-records))))))
 
-(define (related-procedure record recurse-to-top-levels?)
-  (define (find getter name)
-    (let ((related (getter (caddr record))))
-      (if related
-          (let ((related* (cdr related)))
-            (if (or (scheme-procedure? related*)
-                    (procedure-prototype? related*))
-                (if (procedure-prototype? related*)
-                    (list name (car related) related*)
-                    (list name (car related) (procedure-prototype related*)))
-                #f))
-          #f)))
-
-  (or (find related-constant 'constant)
-      (and recurse-to-top-levels? (find related-top-level 'top-level))))
-
 (define (procedure-prototype* procedure-or-prototype)
   (if (scheme-procedure? procedure-or-prototype)
       (procedure-prototype procedure-or-prototype)
@@ -235,7 +219,7 @@
           result
           (loop (+ i 1)
                 (let ((k (vector-ref consts i)))
-                  (if (scheme-procedure? k)
+                  (if (or (scheme-procedure? k) (procedure-prototype? k))
                       (cons (list 'constant i (procedure-prototype* k)) result)
                       result)))))))
 
