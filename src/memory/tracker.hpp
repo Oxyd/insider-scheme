@@ -38,7 +38,7 @@ namespace detail {
 template <typename... Ts>
 class tracker : public root_provider {
 public:
-  explicit
+  [[nodiscard]] explicit
   tracker(context& ctx, Ts&... xs)
     : root_provider(ctx.store)
     , ptrs_{xs...}
