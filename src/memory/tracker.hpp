@@ -1,6 +1,7 @@
 #ifndef INSIDER_MEMORY_TRACKER_HPP
 #define INSIDER_MEMORY_TRACKER_HPP
 
+#include "context.hpp"
 #include "memory/root_provider.hpp"
 
 #include <tuple>

@@ -10,6 +10,8 @@
 #include "compiler/inline_built_in_operations_pass.hpp"
 #include "compiler/inline_procedures_pass.hpp"
 #include "compiler/remove_unnecessary_procedure_definitions_pass.hpp"
+#include "context.hpp"
+#include "memory/tracker.hpp"
 
 namespace insider {
 
@@ -35,8 +37,12 @@ pass_list const no_optimisations{
 expression
 apply_passes(context& ctx, expression e, analysis_context ac,
              pass_list const& ps) {
-  for (pass p : ps)
+  tracker t{ctx, e};
+
+  for (pass p : ps) {
     e = p(ctx, e, ac);
+    ctx.store.update();
+  }
   return e;
 }
 
