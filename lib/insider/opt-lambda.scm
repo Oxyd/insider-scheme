@@ -19,7 +19,7 @@
                                      . body)
                              (if (= len (length '(provided-names --- provided-name)))
                                  (apply (lambda (provided-names --- provided-name)
-                                          (let ((opt-name opt-default) ---) . body))
+                                          (let* ((opt-name opt-default) ---) . body))
                                         tail)
                                  (clause ((provided-names provided-defaults) ---)
                                          ((provided-name provided-default) (opt-name opt-default) ---)
