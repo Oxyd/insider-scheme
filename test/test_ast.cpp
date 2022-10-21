@@ -1949,3 +1949,27 @@ TEST_F(ast, variable_reference_is_inlined_through_a_chain) {
   );
   EXPECT_EQ(body->variable(), param);
 }
+
+TEST_F(ast, reference_to_set_variable_is_not_inlined) {
+  expression e = analyse(
+    R"(
+      (let ((mutable 0))
+        (let ((copy mutable))
+          (set! mutable 1)
+          copy))
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants,
+     &analyse_free_variables}
+  );
+
+  auto mutable_let = expect<let_expression>(e);
+  auto copy_let = expect<let_expression>(
+    expect<sequence_expression>(mutable_let->body())->expressions().front()
+  );
+  auto copy_var = copy_let->definitions().front().variable();
+  auto body = expect<sequence_expression>(copy_let->body());
+  ASSERT_EQ(body->expressions().size(), 2);
+  EXPECT_TRUE(is<local_set_expression>(body->expressions()[0]));
+  auto copy_ref = expect<local_reference_expression>(body->expressions()[1]);
+  EXPECT_EQ(copy_ref->variable(), copy_var);
+}

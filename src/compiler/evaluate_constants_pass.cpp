@@ -14,10 +14,18 @@ is_initialised_to_constant(auto var) {
 }
 
 static bool
+is_reference_to_constant_variable(expression e) {
+  if (auto local_ref = match<local_reference_expression>(e))
+    return !local_ref->variable()->flags().is_set;
+  else if (auto top_level_ref = match<top_level_reference_expression>(e))
+    return !top_level_ref->variable()->flags().is_set;
+  else
+    return false;
+}
+
+static bool
 is_constant_propagable_expression(expression e) {
-  return is<literal_expression>(e)
-         || is<local_reference_expression>(e)
-         || is<top_level_reference_expression>(e);
+  return is<literal_expression>(e) || is_reference_to_constant_variable(e);
 }
 
 static bool
