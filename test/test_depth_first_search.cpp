@@ -48,13 +48,16 @@ struct depth_first_search_fixture : testing::Test {
 };
 
 TEST_F(depth_first_search_fixture, visitor_is_called_on_root_node) {
-  struct visitor : dfs_visitor {
+  struct visitor {
     unsigned count = 0;
 
     void
     enter(node*, dfs_stack<node*>&) {
       ++count;
     }
+
+    void
+    leave(node*) { }
   } v;
 
   auto tree = make(1, make(2), make(3));
@@ -63,7 +66,7 @@ TEST_F(depth_first_search_fixture, visitor_is_called_on_root_node) {
 }
 
 TEST_F(depth_first_search_fixture, visitor_is_called_on_all_nodes) {
-  struct visitor : dfs_visitor {
+  struct visitor {
     unsigned count = 0;
 
     void
@@ -73,6 +76,9 @@ TEST_F(depth_first_search_fixture, visitor_is_called_on_all_nodes) {
       for (auto& c : n->children)
         s.push_back(c.get());
     }
+
+    void
+    leave(node*) { }
   } v;
 
   auto tree = make(1, make(2), make(3));
@@ -81,7 +87,7 @@ TEST_F(depth_first_search_fixture, visitor_is_called_on_all_nodes) {
 }
 
 TEST_F(depth_first_search_fixture, leave_is_called_when_going_up) {
-  struct visitor : dfs_visitor {
+  struct visitor {
     unsigned left_nodes = 0;
 
     void
@@ -106,7 +112,7 @@ TEST_F(depth_first_search_fixture, leave_is_called_when_going_up) {
 }
 
 TEST_F(depth_first_search_fixture, search_without_explicit_visitor) {
-  struct visitor : dfs_visitor {
+  struct visitor {
     void
     enter(node* n, dfs_stack<node*>& s) {
       n->color = color::black;
@@ -114,6 +120,9 @@ TEST_F(depth_first_search_fixture, search_without_explicit_visitor) {
       for (auto& c : n->children)
         s.push_back(c.get());
     }
+
+    void
+    leave(node*) { }
   };
 
   auto tree = make(1);
@@ -122,7 +131,7 @@ TEST_F(depth_first_search_fixture, search_without_explicit_visitor) {
 }
 
 TEST_F(depth_first_search_fixture, tagged_nodes) {
-  struct visitor : dfs_visitor {
+  struct visitor {
     struct tagged_node {
       node* n;
       std::optional<int> tag;
@@ -149,7 +158,7 @@ TEST_F(depth_first_search_fixture, tagged_nodes) {
 }
 
 TEST_F(depth_first_search_fixture, expression_evaluator) {
-  struct visitor : dfs_visitor {
+  struct visitor {
     struct tagged_node {
       node*       n;
       std::size_t num_children = 0;

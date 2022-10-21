@@ -35,14 +35,6 @@ private:
   std::vector<record> stack_;
 };
 
-struct dfs_visitor {
-  static void
-  enter(auto&&, auto&&) { }
-
-  static void
-  leave(auto&&) { }
-};
-
 template <typename Node, typename Visitor>
 void
 depth_first_search(Node n, Visitor&& v) {

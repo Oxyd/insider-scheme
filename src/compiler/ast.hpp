@@ -661,7 +661,7 @@ push_children(auto expr, dfs_stack<expression>& stack) {
 template <typename F>
 void
 traverse_postorder(expression e, F&& f) {
-  struct visitor : dfs_visitor {
+  struct visitor {
     F& f;
 
     explicit
