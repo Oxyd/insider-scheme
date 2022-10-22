@@ -162,9 +162,10 @@ namespace {
     void
     enter_expression(auto, dfs_stack<expression>&) { }
 
-    void
-    leave(expression e) {
+    bool
+    leave(expression e, dfs_stack<expression>&) {
       visit([&] (auto expr) { leave_expression(expr); }, e);
+      return true;
     }
 
     void
@@ -195,9 +196,10 @@ namespace {
       visit([&] (auto expr) { push_children(expr, stack); }, e);
     }
 
-    void
-    leave(expression e) {
+    bool
+    leave(expression e, dfs_stack<expression>&) {
       visit([&] (auto expr) { leave_expression(expr); }, e);
+      return true;
     }
 
     void

@@ -36,8 +36,8 @@ namespace {
       );
     }
 
-    void
-    leave(expression e) {
+    bool
+    leave(expression e, dfs_stack<expression>&) {
       visit(
         [&] (auto e) {
           visit_variables(e);
@@ -45,6 +45,7 @@ namespace {
         },
         e
       );
+      return true;
     }
 
     void

@@ -673,9 +673,10 @@ traverse_postorder(expression e, F&& f) {
             e);
     }
 
-    void
-    leave(expression expr) {
+    bool
+    leave(expression expr, dfs_stack<expression>&) {
       visit(f, expr);
+      return true;
     }
   } v{f};
 
@@ -711,8 +712,8 @@ namespace detail {
       );
     }
 
-    void
-    leave(expression e) {
+    bool
+    leave(expression e, dfs_stack<expression>&) {
       auto result = visit(
         [&] (auto expr) -> expression {
           if constexpr (Copy)
@@ -723,6 +724,7 @@ namespace detail {
         e
       );
       results.push_back(result);
+      return true;
     }
   };
 

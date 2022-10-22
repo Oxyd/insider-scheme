@@ -50,8 +50,9 @@ depth_first_search(Node n, Visitor&& v) {
       break;
 
     case detail::direction::out:
-      v.leave(current.node);
-      stack.pop_back();
+      bool leave = v.leave(current.node, stack);
+      if (leave)
+        stack.pop_back();
       break;
     }
   }

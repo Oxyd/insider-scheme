@@ -56,8 +56,8 @@ TEST_F(depth_first_search_fixture, visitor_is_called_on_root_node) {
       ++count;
     }
 
-    void
-    leave(node*) { }
+    bool
+    leave(node*, dfs_stack<node*>&) { return true; }
   } v;
 
   auto tree = make(1, make(2), make(3));
@@ -77,8 +77,8 @@ TEST_F(depth_first_search_fixture, visitor_is_called_on_all_nodes) {
         s.push_back(c.get());
     }
 
-    void
-    leave(node*) { }
+    bool
+    leave(node*, dfs_stack<node*>&) { return true; }
   } v;
 
   auto tree = make(1, make(2), make(3));
@@ -98,11 +98,12 @@ TEST_F(depth_first_search_fixture, leave_is_called_when_going_up) {
         s.push_back(c.get());
     }
 
-    void
-    leave(node* n) {
+    bool
+    leave(node* n, dfs_stack<node*>&) {
       EXPECT_EQ(n->color, color::grey);
       n->color = color::black;
       ++left_nodes;
+      return true;
     }
   } v;
 
@@ -121,8 +122,8 @@ TEST_F(depth_first_search_fixture, search_without_explicit_visitor) {
         s.push_back(c.get());
     }
 
-    void
-    leave(node*) { }
+    bool
+    leave(node*, dfs_stack<node*>&) { return true; }
   };
 
   auto tree = make(1);
@@ -146,10 +147,11 @@ TEST_F(depth_first_search_fixture, tagged_nodes) {
         s.push_back(c.get());
     }
 
-    void
-    leave(tagged_node& n) {
-      ASSERT_TRUE(n.tag);
+    bool
+    leave(tagged_node& n, dfs_stack<tagged_node>&) {
+      assert(n.tag);
       EXPECT_EQ(*n.tag, n.n->value);
+      return true;
     }
   };
 
@@ -177,8 +179,8 @@ TEST_F(depth_first_search_fixture, expression_evaluator) {
         s.push_back(c.get());
     }
 
-    void
-    leave(tagged_node& n) {
+    bool
+    leave(tagged_node& n, dfs_stack<tagged_node>&) {
       switch (n.op) {
       case operation::constant:
         results.push_back(n.n->value);
@@ -211,6 +213,7 @@ TEST_F(depth_first_search_fixture, expression_evaluator) {
         break;
       }
       }
+      return true;
     }
   };
 
@@ -222,4 +225,46 @@ TEST_F(depth_first_search_fixture, expression_evaluator) {
   auto v = depth_first_search<visitor>(visitor::tagged_node{tree.get()});
   ASSERT_EQ(v.results.size(), 1);
   EXPECT_EQ(v.results.front(), 2 + 3 * 6 * (9 - 7));
+}
+
+TEST_F(depth_first_search_fixture, inorder_traversal) {
+  struct visitor {
+    struct tagged_node {
+      node*       n;
+      std::size_t visited = 0;
+
+      tagged_node(node* n)
+        : n{n}
+      { }
+    };
+
+    std::string result;
+
+    void
+    enter(tagged_node& n, dfs_stack<tagged_node>& stack) {
+      result += std::to_string(n.n->value);
+
+      if (!n.n->children.empty()) {
+        result += "(";
+        stack.push_back(n.n->children[n.visited++].get());
+      }
+    }
+
+    bool
+    leave(tagged_node& n, dfs_stack<tagged_node>& stack) {
+      if (n.visited < n.n->children.size()) {
+        result += ",";
+        stack.push_back(n.n->children[n.visited++].get());
+        return false;
+      } else {
+        if (!n.n->children.empty())
+          result += ")";
+        return true;
+      }
+    }
+  };
+
+  auto tree = make(1, make(2, make(3), make(4)), make(5), make(6, make(7)));
+  auto v = depth_first_search<visitor>(visitor::tagged_node{tree.get()});
+  EXPECT_EQ(v.result, "1(2(3,4),5,6(7))");
 }

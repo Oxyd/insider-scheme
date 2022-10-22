@@ -33,8 +33,8 @@ namespace {
     void
     enter_expression(auto) { }
 
-    void
-    leave(expression) { }
+    bool
+    leave(expression, dfs_stack<expression>&) { return true; }
   };
 }
 
