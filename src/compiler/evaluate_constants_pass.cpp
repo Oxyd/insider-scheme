@@ -34,33 +34,6 @@ is_constant_propagable(auto var) {
          && is_constant_propagable_expression(var->constant_initialiser());
 }
 
-static expression
-propagate_and_evaluate_constants(context&,
-                                 ptr<local_reference_expression> ref,
-                                 bool& go_again) {
-  if (is_constant_propagable(ref->variable())) {
-    go_again = true;
-    return ref->variable()->constant_initialiser();
-  } else
-    return ref;
-}
-
-static expression
-propagate_and_evaluate_constants(context&,
-                                 ptr<top_level_reference_expression> ref,
-                                 bool& go_again) {
-  if (is_constant_propagable(ref->variable())) {
-    go_again = true;
-    return ref->variable()->constant_initialiser();
-  } else
-    return ref;
-}
-
-static bool
-is_const(definition_pair_expression const& dp) {
-  return is_constant_propagable(dp.variable());
-}
-
 static ptr<>
 constant_value_for_expression(expression e);
 
@@ -113,51 +86,6 @@ constant_initialiser_expression(expression e) {
     return constant_initialiser_expression(seq->expressions().front());
   } else
     return e;
-}
-
-static std::vector<definition_pair_expression>
-update_let_definitions(context& ctx,
-                       std::vector<definition_pair_expression> const& dps,
-                       bool& go_again) {
-  std::vector<definition_pair_expression> result;
-  for (definition_pair_expression dp : dps) {
-    // set!-eliminable variable definitions need to be retained because they're
-    // still going to be set!.
-    if (!is_const(dp)
-        || dp.variable()->flags().is_set_eliminable
-        || dp.variable()->flags().is_loop_variable)
-      result.push_back(dp);
-
-    if (!is_const(dp)
-        && (constant_value_for_expression(dp.expression())
-            || is_constant_propagable_expression(dp.expression()))
-        && !dp.variable()->flags().is_set
-        && !dp.variable()->flags().is_loop_variable) {
-      // The variable was made constant in this pass. We need to mark it as
-      // constant and do another pass to propagate it into the body of this let.
-
-      dp.variable()->set_constant_initialiser(
-        ctx.store, constant_initialiser_expression(dp.expression())
-      );
-
-      assert(is_const(dp));
-      go_again = true;
-    }
-  }
-
-  return result;
-}
-
-static expression
-propagate_and_evaluate_constants(context& ctx, ptr<let_expression> let,
-                                 bool& go_again) {
-  auto new_dps = update_let_definitions(ctx, let->definitions(), go_again);
-  if (new_dps.empty())
-    return let->body();
-  else if (new_dps.size() < let->definitions().size())
-    return make<let_expression>(ctx, std::move(new_dps), let->body());
-  else
-    return let;
 }
 
 static ptr<>
@@ -230,50 +158,148 @@ evaluate_constant_application(context& ctx, ptr<> callable,
   }
 }
 
-static expression
-propagate_and_evaluate_constants(context& ctx,
-                                 ptr<application_expression> app,
-                                 bool&) {
-  if (can_be_constant_evaluated(app))
-    if (auto callable = find_constant_evaluable_callable(ctx, app))
-      if (auto result = evaluate_constant_application(ctx, callable, app))
-        return result;
-  return app;
-}
+namespace {
+  struct evaluate_constants_visitor {
+    struct node {
+      enum class state {
+        completed,
+        visited_definitions // For let_expression: Visited definitions, but not
+                            // yet the body.
+      };
 
-static expression
-propagate_and_evaluate_constants(context& ctx, ptr<if_expression> ifexpr,
-                                 bool&) {
-  if (auto test_value = constant_value_for_expression(ifexpr->test())) {
-    if (test_value == ctx.constants->f)
-      return ifexpr->alternative();
-    else
-      return ifexpr->consequent();
-  } else
-    return ifexpr;
-}
+      expression expr;
+      state      state = state::completed;
 
-static expression
-propagate_and_evaluate_constants(context&, auto x, bool&) { return x; }
+      node(expression e) : expr{e} { }
+    };
+
+    context&     ctx;
+    result_stack results;
+
+    explicit
+    evaluate_constants_visitor(context& ctx)
+      : ctx{ctx}
+    { }
+
+    void
+    enter(node& n, dfs_stack<node>& stack) {
+      visit([&] (auto expr) { enter_expression(expr, n, stack); },
+            n.expr);
+    }
+
+    bool
+    leave(node& n, dfs_stack<node>& stack) {
+      return visit([&] (auto expr) { return leave_expression(expr, n, stack); },
+                   n.expr);
+    }
+
+    void
+    enter_expression(ptr<let_expression> let, node& n, dfs_stack<node>& stack) {
+      // Process definition expressions first so that constant bindings for the
+      // introduced variables are known when processing the body.
+
+      n.state = node::state::visited_definitions;
+      for (auto const& def : let->definitions() | std::views::reverse)
+        stack.push_back({def.expression()});
+    }
+
+    void
+    enter_expression(auto expr, node&, dfs_stack<node>& stack) {
+      expr->visit_subexpressions([&] (expression child) {
+        stack.push_back({child});
+      });
+    }
+
+    bool
+    leave_expression(ptr<let_expression> let, node& n, dfs_stack<node>& stack) {
+      if (n.state == node::state::visited_definitions) {
+        n.state = node::state::completed;
+
+        update_let_bound_variables(let);
+        stack.push_back({let->body()});
+        return false;
+      } else
+        return leave_expression_for_final_time(let);
+    }
+
+    bool
+    leave_expression(auto e, node&, dfs_stack<node>&) {
+      return leave_expression_for_final_time(e);
+    }
+
+    bool
+    leave_expression_for_final_time(auto e) {
+      e->update(ctx, results);
+      results.push_back(combine(e));
+      return true;
+    }
+
+    void
+    update_let_bound_variables(ptr<let_expression> let) {
+      auto expressions = results
+        | std::views::drop(results.size() - let->definitions().size());
+
+      for (std::size_t i = 0; i < let->definitions().size(); ++i) {
+        auto var = let->definitions()[i].variable();
+        auto expr = expressions[i];
+        if ((constant_value_for_expression(expr)
+             || is_constant_propagable_expression(expr))
+            && !var->flags().is_set
+            && !var->flags().is_loop_variable)
+          var->set_constant_initialiser(
+            ctx.store, constant_initialiser_expression(expr)
+          );
+      }
+    }
+
+    expression
+    combine(ptr<top_level_reference_expression> ref) {
+      if (is_constant_propagable(ref->variable()))
+        return ref->variable()->constant_initialiser();
+      else
+        return ref;
+    }
+
+    expression
+    combine(ptr<local_reference_expression> ref) {
+      if (is_constant_propagable(ref->variable()))
+        return ref->variable()->constant_initialiser();
+      else
+        return ref;
+    }
+
+    expression
+    combine(ptr<application_expression> app) {
+      if (can_be_constant_evaluated(app))
+        if (auto callable = find_constant_evaluable_callable(ctx, app))
+          if (auto result = evaluate_constant_application(ctx, callable, app))
+            return result;
+      return app;
+    }
+
+    expression
+    combine(ptr<if_expression> ifexpr) {
+      if (auto test_value = constant_value_for_expression(ifexpr->test())) {
+        if (test_value == ctx.constants->f)
+          return ifexpr->alternative();
+        else
+          return ifexpr->consequent();
+      } else
+        return ifexpr;
+    }
+
+    expression
+    combine(auto e) {
+      return e;
+    }
+  };
+}
 
 expression
 propagate_and_evaluate_constants(context& ctx, expression e, analysis_context) {
-  bool go_again = false;
-  do {
-    go_again = false;
-    e = map_ast(
-      ctx, e,
-      [&] (expression expr) {
-        return visit(
-          [&] (auto e) {
-            return propagate_and_evaluate_constants(ctx, e, go_again);
-          },
-          expr
-        );
-      }
-    );
-  } while (go_again);
-  return e;
+  evaluate_constants_visitor v{ctx};
+  depth_first_search(evaluate_constants_visitor::node{e}, v);
+  return v.results.back();
 }
 
 } // namespace insider

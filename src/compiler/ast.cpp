@@ -9,6 +9,7 @@ namespace insider {
 
 static expression
 pop(result_stack& stack) {
+  assert(!stack.empty());
   expression result = stack.back();
   stack.pop_back();
   return result;
