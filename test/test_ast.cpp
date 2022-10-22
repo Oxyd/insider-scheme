@@ -13,7 +13,7 @@
 #include "compiler/inline_procedures_pass.hpp"
 #include "compiler/parser_expander.hpp"
 #include "compiler/parsing_context.hpp"
-#include "compiler/remove_unnecessary_procedure_definitions_pass.hpp"
+#include "compiler/remove_unnecessary_definitions_pass.hpp"
 
 using namespace insider;
 
@@ -1807,8 +1807,7 @@ TEST_F(ast, unnecessary_procedure_definitions_are_removed) {
         (set! y 2)
         (f y))
     )",
-    {&analyse_variables, &inline_procedures,
-     &remove_unnecessary_procedure_definitions}
+    {&analyse_variables, &inline_procedures, &remove_unnecessary_definitions}
   );
   auto let = expect<let_expression>(e);
   auto body = expect<sequence_expression>(let->body());

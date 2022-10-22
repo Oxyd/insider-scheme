@@ -1,4 +1,4 @@
-#include "compiler/remove_unnecessary_procedure_definitions_pass.hpp"
+#include "compiler/remove_unnecessary_definitions_pass.hpp"
 
 #include "compiler/ast.hpp"
 #include "compiler/variable.hpp"
@@ -96,8 +96,7 @@ remove_unnecessary_procedure_definitions(context&, auto e) {
 }
 
 expression
-remove_unnecessary_procedure_definitions(context& ctx, expression e,
-                                         analysis_context) {
+remove_unnecessary_definitions(context& ctx, expression e, analysis_context) {
   return map_ast(ctx, e,
                  [&] (auto expr) {
                    return remove_unnecessary_procedure_definitions(ctx, expr);

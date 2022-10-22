@@ -86,8 +86,8 @@ set(scheme_sources
         src/compiler/parsing_context.hpp
         src/compiler/registers.cpp
         src/compiler/registers.hpp
-        src/compiler/remove_unnecessary_procedure_definitions_pass.cpp
-        src/compiler/remove_unnecessary_procedure_definitions_pass.hpp
+        src/compiler/remove_unnecessary_definitions_pass.cpp
+        src/compiler/remove_unnecessary_definitions_pass.hpp
         src/compiler/scope.cpp
         src/compiler/scope.hpp
         src/compiler/source_code_provider.cpp
