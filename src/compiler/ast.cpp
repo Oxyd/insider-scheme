@@ -420,15 +420,19 @@ if_expression::update_size_estimate() {
     + 1 + insider::size_estimate(alternative_);
 }
 
-loop_body::loop_body(expression body, ptr<loop_id> id)
+loop_body::loop_body(expression body, ptr<loop_id> id,
+                     std::vector<ptr<local_variable>> loop_vars)
   : body_{body}
   , id_{id}
+  , vars_{std::move(loop_vars)}
 { }
 
 void
 loop_body::visit_members(member_visitor const& f) {
   body_.visit_members(f);
   f(id_);
+  for (ptr<local_variable>& var : vars_)
+    f(var);
 }
 
 void

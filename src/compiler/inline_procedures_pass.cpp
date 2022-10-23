@@ -343,7 +343,8 @@ replace_lambda_body_with_loop(
   context& ctx, ptr<lambda_expression> lambda,
   std::unordered_set<ptr<application_expression>> const& calls
 ) {
-  auto body = make<loop_body>(ctx, lambda->body(), make<loop_id>(ctx));
+  auto body = make<loop_body>(ctx, lambda->body(), make<loop_id>(ctx),
+                              lambda->parameters());
   transform_ast(ctx, body, loop_substitutor{ctx, lambda, calls, body});
   lambda->update_body(ctx.store, body);
   mark_lambda_parameters_as_loop_variables(lambda);

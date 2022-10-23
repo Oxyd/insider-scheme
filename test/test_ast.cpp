@@ -1857,6 +1857,33 @@ TEST_F(ast, explicitly_set_loop_variable_is_boxed) {
   );
 }
 
+TEST_F(ast, loop_body_knows_its_loop_variables) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda (x y)
+            (f (+ x 1) (- y 1))))
+        (f 0 1))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures}
+  );
+  auto outer_let = expect<let_expression>(ignore_sequences(e));
+  auto seq = expect<sequence_expression>(outer_let->body());
+  ASSERT_EQ(seq->expressions().size(), 2);
+
+  auto let = expect<let_expression>(ignore_sequences(seq->expressions().back()));
+  ASSERT_EQ(let->definitions().size(), 2);
+
+  auto x = let->definitions()[0].variable();
+  auto y = let->definitions()[1].variable();
+
+  auto body = expect<loop_body>(ignore_lets_and_sequences(let->body()));
+  ASSERT_EQ(body->variables().size(), 2);
+  EXPECT_EQ(body->variables()[0], x);
+  EXPECT_EQ(body->variables()[1], y);
+}
+
 TEST_F(ast, call_to_special_procedure_is_replaced_with_built_operation) {
   expression e = analyse(
     "(eq? (read) (read))",

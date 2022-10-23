@@ -583,13 +583,17 @@ class loop_body : public composite_object<loop_body> {
 public:
   static constexpr char const* scheme_name = "insider::loop_body";
 
-  loop_body(expression body, ptr<loop_id> id);
+  loop_body(expression body, ptr<loop_id> id,
+            std::vector<ptr<local_variable>> loop_vars);
 
   expression
   body() const { return body_; }
 
   ptr<loop_id>
   id() const { return id_; }
+
+  std::vector<ptr<local_variable>> const&
+  variables() const { return vars_; }
 
   template <typename F>
   void
@@ -607,8 +611,9 @@ public:
   size_estimate() const;
 
 private:
-  expression   body_;
-  ptr<loop_id> id_;
+  expression                       body_;
+  ptr<loop_id>                     id_;
+  std::vector<ptr<local_variable>> vars_;
 };
 
 // Performs two things: First it assigns new values to the loop variables, then

@@ -134,7 +134,8 @@ namespace {
     expression
     leave(ptr<loop_body> loop) {
       ptr<loop_id> new_id = loops.at(loop->id());
-      return make<loop_body>(ctx, loop->body(), new_id);
+      return make<loop_body>(ctx, loop->body(), new_id,
+                             map_variables(loop->variables()));
     }
 
     expression
@@ -162,6 +163,20 @@ namespace {
         return make<local_reference_expression>(ctx, mapping->second);
       else
         return ref;
+    }
+
+    std::vector<ptr<local_variable>>
+    map_variables(std::vector<ptr<local_variable>> const& vars) const {
+      std::vector<ptr<local_variable>> result;
+      result.reserve(vars.size());
+
+      for (ptr<local_variable> v : vars)
+        if (auto mapping = variables.find(v); mapping != variables.end())
+          result.push_back(mapping->second);
+        else
+          result.push_back(v);
+
+      return result;
     }
   };
 }
