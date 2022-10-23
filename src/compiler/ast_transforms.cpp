@@ -10,6 +10,7 @@
 #include "compiler/inline_built_in_operations_pass.hpp"
 #include "compiler/inline_procedures_pass.hpp"
 #include "compiler/remove_unnecessary_definitions_pass.hpp"
+#include "compiler/update_variables_pass.hpp"
 #include "context.hpp"
 #include "memory/tracker.hpp"
 
@@ -20,6 +21,7 @@ pass_list const all_passes{
   find_self_variables,
   inline_procedures,
   propagate_and_evaluate_constants,
+  update_variables,
   remove_unnecessary_definitions,
   box_set_variables,
   inline_built_in_operations,

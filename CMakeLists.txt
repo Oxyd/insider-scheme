@@ -96,6 +96,8 @@ set(scheme_sources
         src/compiler/source_file_origin.hpp
         src/compiler/source_location.cpp
         src/compiler/source_location.hpp
+        src/compiler/update_variables_pass.cpp
+        src/compiler/update_variables_pass.hpp
         src/compiler/variable.cpp
         src/compiler/variable.hpp
         src/context.cpp

@@ -935,6 +935,17 @@ TEST_F(ast, variables_are_not_boxed_twice) {
 }
 
 static expression
+ignore_sequences(expression e) {
+  while (true) {
+    if (auto seq = match<sequence_expression>(e)) {
+      assert(seq->expressions().size() == 1);
+      e = seq->expressions().front();
+    } else
+      return e;
+  }
+}
+
+static expression
 ignore_lets_and_sequences(expression e) {
   while (true) {
     if (auto let = match<let_expression>(e))
@@ -1520,7 +1531,8 @@ TEST_F(ast, set_eliminable_variables_are_retained_in_lets) {
         (set! x 1)
         x)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &propagate_and_evaluate_constants,
+     &remove_unnecessary_definitions}
   );
   auto let = expect<let_expression>(e);
   ASSERT_EQ(let->definitions().size(), 1);
@@ -1547,13 +1559,11 @@ TEST_F(ast, local_definition_of_set_variable_is_retained) {
         (set! x 1)
         x)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &propagate_and_evaluate_constants,
+     &remove_unnecessary_definitions}
   );
 
-  auto seq = expect<sequence_expression>(e);
-  ASSERT_EQ(seq->expressions().size(), 1);
-
-  auto let = expect<let_expression>(seq->expressions()[0]);
+  auto let = expect<let_expression>(ignore_sequences(e));
   EXPECT_EQ(let->definitions().size(), 1);
 }
 
@@ -1788,7 +1798,7 @@ TEST_F(ast, loop_variable_is_not_constant) {
         (f 5 (read)))
     )",
     {&analyse_variables, &find_self_variables, &inline_procedures,
-     &propagate_and_evaluate_constants}
+     &propagate_and_evaluate_constants, &remove_unnecessary_definitions}
   );
 
   auto outer_let = expect<let_expression>(e);
@@ -1971,4 +1981,32 @@ TEST_F(ast, reference_to_set_variable_is_not_inlined) {
   EXPECT_TRUE(is<local_set_expression>(body->expressions()[0]));
   auto copy_ref = expect<local_reference_expression>(body->expressions()[1]);
   EXPECT_EQ(copy_ref->variable(), copy_var);
+}
+
+TEST_F(ast, non_constant_initialiser_of_unused_variable_is_retained) {
+  expression e = analyse(
+    R"(
+      (let ((var (read)))
+        #f)
+    )",
+    {&analyse_variables, &remove_unnecessary_definitions}
+  );
+
+  auto seq = expect<sequence_expression>(e);
+  ASSERT_EQ(seq->expressions().size(), 2);
+  EXPECT_TRUE(is<application_expression>(seq->expressions()[0]));
+  EXPECT_TRUE(is<literal_expression>(ignore_sequences(seq->expressions()[1])));
+}
+
+TEST_F(ast, constant_initialiser_of_unused_variable_is_not_retained) {
+  expression e = analyse(
+    R"(
+      (let ((var 0))
+        #f)
+    )",
+    {&analyse_variables, &remove_unnecessary_definitions}
+  );
+  auto seq = expect<sequence_expression>(e);
+  ASSERT_EQ(seq->expressions().size(), 1);
+  EXPECT_TRUE(is<literal_expression>(ignore_sequences(seq)));
 }
