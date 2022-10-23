@@ -8,12 +8,6 @@
 namespace insider {
 
 static bool
-is_initialised_to_constant(auto var) {
-  return var->constant_initialiser()
-         && is<literal_expression>(var->constant_initialiser());
-}
-
-static bool
 is_reference_to_constant_variable(expression e) {
   if (auto local_ref = match<local_reference_expression>(e))
     return !local_ref->variable()->flags().is_set;
