@@ -248,6 +248,10 @@ compile_let_definitions(context& ctx, procedure_context& proc,
 }
 
 static void
+compile_expression(context&, procedure_context&, ptr<no_op_expression>, bool,
+                   result_location&) { }
+
+static void
 compile_expression(context& ctx, procedure_context& proc,
                    ptr<let_expression> stx, bool tail,
                    result_location& result) {

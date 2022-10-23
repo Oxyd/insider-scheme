@@ -76,10 +76,13 @@ remove_unnecessary_definitions(context& ctx, ptr<let_expression> let) {
 }
 
 static expression
-remove_unnecessary_definitions(context&, ptr<local_set_expression> set) {
-  if (!set->target()->flags().is_read)
-    return set->expression();
-  else
+remove_unnecessary_definitions(context& ctx, ptr<local_set_expression> set) {
+  if (!set->target()->flags().is_read) {
+    if (needs_to_be_retained(set->expression()))
+      return set->expression();
+    else
+      return make<no_op_expression>(ctx);
+  } else
     return set;
 }
 
