@@ -9,6 +9,7 @@
 #include "compiler/find_self_variables_pass.hpp"
 #include "compiler/inline_built_in_operations_pass.hpp"
 #include "compiler/inline_procedures_pass.hpp"
+#include "compiler/make_loop_temporaries_pass.hpp"
 #include "compiler/remove_unnecessary_definitions_pass.hpp"
 #include "compiler/update_variables_pass.hpp"
 #include "context.hpp"
@@ -23,6 +24,7 @@ pass_list const all_passes{
   propagate_and_evaluate_constants,
   update_variables,
   remove_unnecessary_definitions,
+  make_loop_temporaries,
   box_set_variables,
   inline_built_in_operations,
   analyse_free_variables

@@ -11,6 +11,7 @@
 #include "compiler/find_self_variables_pass.hpp"
 #include "compiler/inline_built_in_operations_pass.hpp"
 #include "compiler/inline_procedures_pass.hpp"
+#include "compiler/make_loop_temporaries_pass.hpp"
 #include "compiler/parser_expander.hpp"
 #include "compiler/parsing_context.hpp"
 #include "compiler/remove_unnecessary_definitions_pass.hpp"
@@ -1705,7 +1706,8 @@ TEST_F(ast, let_expressions_are_created_if_loop_variables_would_overwrite) {
           (lambda (x y)
             (f y x))))
     )",
-    {&analyse_variables, &find_self_variables, &inline_procedures}
+    {&analyse_variables, &find_self_variables, &inline_procedures,
+     &make_loop_temporaries}
   );
 
   auto set = expect<local_set_expression>(ignore_lets_and_sequences(e));

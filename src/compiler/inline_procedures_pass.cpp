@@ -187,40 +187,6 @@ find_self_tail_calls(ptr<lambda_expression> lambda) {
 }
 
 namespace {
-  struct uses_any_of_visitor {
-    std::unordered_set<ptr<local_variable>> const& vars;
-    bool result = false;
-
-    void
-    enter(expression e, dfs_stack<expression>& stack) {
-      visit([&] (auto expr) { push_children(expr, stack); }, e);
-    }
-
-    bool
-    leave(expression e, dfs_stack<expression>&) {
-      visit([&] (auto expr) { leave_expression(expr); }, e);
-      return true;
-    }
-
-    void
-    leave_expression(ptr<local_reference_expression> ref) {
-      if (vars.contains(ref->variable()))
-        result = true;
-    }
-
-    void
-    leave_expression(auto) { }
-  };
-}
-
-static bool
-uses_any_of(std::unordered_set<ptr<local_variable>> const& vars, expression e) {
-  uses_any_of_visitor v{vars};
-  depth_first_search(e, v);
-  return v.result;
-}
-
-namespace {
   struct loop_substitutor {
     context&                                               ctx;
     ptr<lambda_expression>                                 lambda;
@@ -256,13 +222,7 @@ namespace {
     expression
     substitute_self_call(ptr<application_expression> app) const {
       lambda->remove_self_reference();
-
-      auto loop_vars = make_loop_variables(app);
-      auto to_precalc = find_variables_to_precalculate(loop_vars);
-      if (to_precalc.empty())
-        return make<loop_continue>(ctx, loop->id(), std::move(loop_vars));
-      else
-        return make_continue_with_precalculation(loop_vars, to_precalc);
+      return make<loop_continue>(ctx, loop->id(), make_loop_variables(app));
     }
 
     std::vector<definition_pair_expression>
@@ -276,58 +236,6 @@ namespace {
         result.emplace_back(lambda->parameters()[i], app->arguments()[i]);
 
       return result;
-    }
-
-    std::unordered_set<ptr<local_variable>>
-    find_variables_to_precalculate(
-      std::vector<definition_pair_expression> const& vars
-    ) const {
-      assert(vars.size() == lambda->parameters().size());
-
-      if (lambda->parameters().empty())
-        return {};
-
-      std::unordered_set<ptr<local_variable>> result;
-      std::unordered_set<ptr<local_variable>> dead_vars{
-        lambda->parameters().front()
-      };
-
-      for (std::size_t i = 1; i < lambda->parameters().size(); ++i) {
-        if (uses_any_of(dead_vars, vars[i].expression()))
-          result.emplace(lambda->parameters()[i]);
-        dead_vars.emplace(lambda->parameters()[i]);
-      }
-
-      return result;
-    }
-
-    expression
-    make_continue_with_precalculation(
-      std::vector<definition_pair_expression> const& vars,
-      std::unordered_set<ptr<local_variable>> const& to_precalc
-    ) const {
-      std::vector<definition_pair_expression> new_vars;
-      new_vars.reserve(vars.size());
-
-      std::vector<definition_pair_expression> precalc_vars;
-      precalc_vars.reserve(to_precalc.size());
-
-      for (definition_pair_expression const& dp : vars)
-        if (!to_precalc.contains(dp.variable()))
-          new_vars.emplace_back(dp.variable(), dp.expression());
-        else {
-          auto new_var = make<local_variable>(ctx, dp.variable()->name());
-          new_var->flags().is_loop_variable = true;
-          precalc_vars.emplace_back(new_var, dp.expression());
-          new_vars.emplace_back(dp.variable(),
-                                make<local_reference_expression>(ctx, new_var));
-        }
-
-      return make<let_expression>(
-        ctx,
-        precalc_vars,
-        make<loop_continue>(ctx, loop->id(), std::move(new_vars))
-      );
     }
   };
 }

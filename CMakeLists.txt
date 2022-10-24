@@ -76,6 +76,8 @@ set(scheme_sources
         src/compiler/inline_built_in_operations_pass.hpp
         src/compiler/inline_procedures_pass.cpp
         src/compiler/inline_procedures_pass.hpp
+        src/compiler/make_loop_temporaries_pass.cpp
+        src/compiler/make_loop_temporaries_pass.hpp
         src/compiler/module_name.cpp
         src/compiler/module_name.hpp
         src/compiler/module_specifier.cpp
