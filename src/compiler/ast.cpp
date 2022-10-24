@@ -157,11 +157,13 @@ application_expression::update_size_estimate() {
 }
 
 built_in_operation_expression::built_in_operation_expression(
-  opcode op, std::vector<expression> operands, bool has_result
+  opcode op, std::vector<expression> operands, bool has_result,
+  ptr<native_procedure> proc
 )
   : operation_{op}
   , operands_{std::move(operands)}
   , has_result_{has_result}
+  , proc_{proc}
 {
   update_size_estimate();
 }
@@ -170,6 +172,7 @@ void
 built_in_operation_expression::visit_members(member_visitor const& f) {
   for (expression& operand : operands_)
     operand.visit_members(f);
+  f(proc_);
 }
 
 void

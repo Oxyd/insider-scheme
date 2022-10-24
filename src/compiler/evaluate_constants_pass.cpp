@@ -183,10 +183,10 @@ find_constant_evaluable_callable(context& ctx,
 }
 
 static bool
-can_be_constant_evaluated(ptr<application_expression> app,
+can_be_constant_evaluated(auto const& operands,
                           static_environment const& env) {
   return std::ranges::all_of(
-    app->arguments(),
+    operands,
     [&] (expression e) {
       return visit(
         [&] (auto expr) {
@@ -217,11 +217,11 @@ coalesce_eqv_values(context& ctx, std::vector<ptr<>>& values) {
 
 static std::vector<ptr<>>
 make_arguments_for_constant_evaluation(context& ctx,
-                                       ptr<application_expression> app,
+                                       auto const& arguments,
                                        static_environment const& env) {
   std::vector<ptr<>> result;
-  result.reserve(app->arguments().size());
-  for (expression arg : app->arguments())
+  result.reserve(arguments.size());
+  for (expression arg : arguments)
     result.push_back(constant_value_for_expression(arg, env));
 
   coalesce_eqv_values(ctx, result);
@@ -230,11 +230,11 @@ make_arguments_for_constant_evaluation(context& ctx,
 
 static expression
 evaluate_constant_application(context& ctx, ptr<> callable,
-                              ptr<application_expression> app,
+                              auto const& arguments,
                               static_environment const& env) {
   try {
     ptr<> result = call_with_continuation_barrier(
-      ctx, callable, make_arguments_for_constant_evaluation(ctx, app, env)
+      ctx, callable, make_arguments_for_constant_evaluation(ctx, arguments, env)
     );
     return make<literal_expression>(ctx, result);
   } catch (...) {
@@ -450,12 +450,23 @@ namespace {
 
     expression
     combine(ptr<application_expression> app) {
-      if (can_be_constant_evaluated(app, env))
+      if (can_be_constant_evaluated(app->arguments(), env))
         if (auto callable = find_constant_evaluable_callable(ctx, app))
-          if (auto result = evaluate_constant_application(ctx, callable, app,
+          if (auto result = evaluate_constant_application(ctx, callable,
+                                                          app->arguments(),
                                                           env))
             return result;
       return app;
+    }
+
+    expression
+    combine(ptr<built_in_operation_expression> bio) {
+      if (bio->procedure()->constant_evaluable
+          && can_be_constant_evaluated(bio->operands(), env))
+        if (auto result = evaluate_constant_application(ctx, bio->procedure(),
+                                                        bio->operands(), env))
+          return result;
+      return bio;
     }
 
     expression

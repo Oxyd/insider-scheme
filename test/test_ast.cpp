@@ -953,8 +953,10 @@ ignore_lets_and_sequences(expression e) {
     if (auto let = match<let_expression>(e))
       e = first_subexpression(let);
     else if (auto seq = match<sequence_expression>(e)) {
-      assert(seq->expressions().size() == 1);
-      e = seq->expressions().front();
+      if (seq->expressions().size() == 1)
+        e = seq->expressions().front();
+      else
+        return e;
     } else
       return e;
   }
@@ -1033,6 +1035,36 @@ TEST_F(ast, constant_calls_are_evaluated_recursively) {
   );
   ASSERT_TRUE(is<literal_expression>(e));
   EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 3);
+}
+
+TEST_F(ast, cross_module_call_is_constant_evaluated) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export null?)
+
+      (define null?
+        (lambda (x)
+          (eq? x '())))
+    )"
+  );
+
+  expression e = analyse_module(
+    R"(
+      (import (insider internal) (foo))
+
+      (define foo
+        (lambda ()
+          (null? '())))
+    )"
+  );
+  auto foo_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
+  auto body = ignore_lets_and_sequences(foo_def->body());
+  auto lit = expect<literal_expression>(body);
+  EXPECT_EQ(lit->value(), ctx.constants->t);
 }
 
 TEST_F(ast, constant_variables_are_used_in_evaluation_of_constant_calls) {
@@ -2124,4 +2156,31 @@ TEST_F(ast, loop_is_not_folded_if_later_iteration_becomes_non_const) {
   auto init = let->definitions().front().expression();
   EXPECT_EQ(expect<integer>(expect<literal_expression>(init)->value()).value(),
             0);
+}
+
+TEST_F(ast, can_constant_evaluate_length_of_literal_list) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define length
+        (lambda (lst)
+          (let ((loop #void))
+            (set! loop
+              (lambda (lst accum)
+                (if (eq? lst '())
+                    accum
+                    (loop (cdr lst) (+ accum 1)))))
+            (loop lst 0))))
+
+      (define foo
+        (lambda ()
+          (length '(1 2 3))))
+    )"
+  );
+  auto foo = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
+  auto seq = expect<sequence_expression>(ignore_lets_and_sequences(foo->body()));
+  ASSERT_EQ(seq->expressions().size(), 2);
+  auto lit = expect<literal_expression>(seq->expressions()[1]);
+  EXPECT_EQ(expect<integer>(lit->value()).value(), 3);
 }

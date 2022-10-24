@@ -3,6 +3,7 @@
 #include "compiler/ast.hpp"
 #include "compiler/variable.hpp"
 #include "context.hpp"
+#include "runtime/basic_types.hpp"
 #include "vm/bytecode.hpp"
 
 namespace insider {
@@ -33,7 +34,7 @@ namespace {
         if (auto op = operations_map.find(ref->variable());
             op != operations_map.end())
           if (app->arguments().size() == op->second.arity)
-            return substitute_operation(op->second, app);
+            return substitute_operation(op->second, app, ref->variable());
       return app;
     }
 
@@ -41,12 +42,14 @@ namespace {
     leave(auto e) { return e; }
 
     expression
-    substitute_operation(operation const& op, ptr<application_expression> app) {
+    substitute_operation(operation const& op, ptr<application_expression> app,
+                         ptr<top_level_variable> var) {
       return make<built_in_operation_expression>(
         ctx,
         op.operation,
         app->arguments(),
-        op.has_result
+        op.has_result,
+        assume<native_procedure>(ctx.get_top_level(var->index))
       );
     }
   };

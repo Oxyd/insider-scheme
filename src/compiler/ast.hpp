@@ -21,6 +21,7 @@
 
 namespace insider {
 
+class native_procedure;
 class syntax;
 class transformer;
 
@@ -225,7 +226,8 @@ public:
     = "insider::built_in_operation_expression";
 
   built_in_operation_expression(opcode, std::vector<expression>,
-                                bool has_result);
+                                bool has_result,
+                                ptr<native_procedure> proc);
 
   opcode
   operation() const { return operation_; }
@@ -235,6 +237,9 @@ public:
 
   bool
   has_result() const { return has_result_; }
+
+  ptr<native_procedure>
+  procedure() const { return proc_; }
 
   template <typename F>
   void
@@ -256,6 +261,7 @@ private:
   opcode                  operation_;
   std::vector<expression> operands_;
   bool                    has_result_;
+  ptr<native_procedure>   proc_;
   std::size_t             size_estimate_ = 0;
 
   void
