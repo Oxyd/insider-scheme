@@ -1,6 +1,7 @@
 #include "compiler/evaluate_constants_pass.hpp"
 
 #include "compiler/ast.hpp"
+#include "compiler/clone_ast.hpp"
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
 #include "vm/vm.hpp"
@@ -10,10 +11,13 @@
 
 namespace insider {
 
+static constexpr std::size_t max_loop_iterations = 1000;
+
 namespace {
   struct variable_info {
     variable   var;
     expression init_expr;
+    expression loop_init_expr;
 
     explicit
     variable_info(ptr<local_variable> var)
@@ -30,9 +34,8 @@ namespace {
 
   class static_environment {
   public:
-    ~static_environment() noexcept {
-      assert(scopes_.empty());
-    }
+    bool
+    empty() const { return scopes_.empty(); }
 
     void
     push_scope() {
@@ -145,6 +148,19 @@ constant_value_for_expression(expression e, static_environment const& env) {
 }
 
 static expression
+ignore_unitary_sequences(expression e) {
+  while (true) {
+    if (auto seq = match<sequence_expression>(e))
+      if (seq->expressions().size() == 1) {
+        e = seq->expressions().front();
+        continue;
+      }
+
+    return e;
+  }
+}
+
+static expression
 constant_initialiser_expression(expression e) {
   if (auto seq = match<sequence_expression>(e)) {
     assert(seq->expressions().size() == 1);
@@ -229,14 +245,8 @@ evaluate_constant_application(context& ctx, ptr<> callable,
 namespace {
   struct evaluate_constants_visitor {
     struct node {
-      enum class state {
-        completed,
-        visited_definitions // For let_expression: Visited definitions, but not
-                            // yet the body.
-      };
-
-      expression expr;
-      state      state = state::completed;
+      expression  expr;
+      std::size_t visit_count = 0;
 
       node(expression e) : expr{e} { }
     };
@@ -274,11 +284,10 @@ namespace {
     }
 
     void
-    enter_expression(ptr<let_expression> let, node& n, dfs_stack<node>& stack) {
+    enter_expression(ptr<let_expression> let, node&, dfs_stack<node>& stack) {
       // Process definition expressions first so that constant bindings for the
       // introduced variables are known when processing the body.
 
-      n.state = node::state::visited_definitions;
       for (auto const& def : let->definitions() | std::views::reverse)
         stack.push_back({def.expression()});
     }
@@ -303,9 +312,7 @@ namespace {
 
     bool
     leave_expression(ptr<let_expression> let, node& n, dfs_stack<node>& stack) {
-      if (n.state == node::state::visited_definitions) {
-        n.state = node::state::completed;
-
+      if (n.visit_count++ == 0) {
         update_let_bound_variables(let);
         stack.push_back({let->body()});
         return false;
@@ -313,6 +320,79 @@ namespace {
         env.pop_scope();
         return leave_expression_for_final_time(let);
       }
+    }
+
+    bool
+    leave_expression(ptr<loop_body> loop, node& n, dfs_stack<node>& stack) {
+      ++n.visit_count;
+
+      if (!can_be_folded(loop) && n.visit_count == 1)
+        return leave_expression_for_final_time(loop);
+      else if (n.visit_count == 1) {
+        fold_loop_entry(loop, stack);
+        return false;
+      } else if (n.visit_count > max_loop_iterations) {
+        results.pop_back();
+        push_loop_result(loop);
+        return true;
+      } else
+        return fold_loop_iteration(loop, stack);
+    }
+
+    bool
+    can_be_folded(ptr<loop_body> loop) {
+      return std::ranges::all_of(
+        loop->variables(),
+        [&] (ptr<local_variable> var) -> bool {
+          return static_cast<bool>(env.find_variable(var).loop_init_expr);
+        }
+      );
+    }
+
+    void
+    bind_initial_loop_values(ptr<loop_body> loop) {
+      env.push_scope();
+      for (ptr<local_variable> var : loop->variables()) {
+        variable_info info = env.find_variable(var);
+        env.add_variable(var).init_expr = info.loop_init_expr;
+      }
+    }
+
+    void
+    fold_loop_entry(ptr<loop_body> loop, dfs_stack<node>& stack) {
+      loop->update(ctx, results);
+      bind_initial_loop_values(loop);
+      stack.push_back(clone_ast(ctx, loop->body()));
+    }
+
+    void
+    push_loop_result(expression result) {
+      results.push_back(result);
+      env.pop_scope();
+    }
+
+    void
+    make_loop_iteration(ptr<loop_body> loop, ptr<loop_continue> cont,
+                        dfs_stack<node>& stack) {
+      for (auto const& dp : cont->variables())
+        env.find_variable(dp.variable()).init_expr = dp.expression();
+      stack.push_back(clone_ast(ctx, loop->body()));
+    }
+
+    bool
+    fold_loop_iteration(ptr<loop_body> loop, dfs_stack<node>& stack) {
+      auto body = ignore_unitary_sequences(results.back());
+      results.pop_back();
+
+      if (auto cont = match<loop_continue>(body)) {
+        make_loop_iteration(loop, cont, stack);
+        return false;
+      } else if (auto lit = match<literal_expression>(body))
+        push_loop_result(lit);
+      else 
+        push_loop_result(loop);
+
+      return true;
     }
 
     bool
@@ -341,9 +421,12 @@ namespace {
 
         if ((constant_value_for_expression(expr, env)
              || is_constant_propagable_expression(expr))
-            && !var->flags().is_set
-            && !var->flags().is_loop_variable)
-          info.init_expr = constant_initialiser_expression(expr);
+            && !var->flags().is_set) {
+          if (!var->flags().is_loop_variable)
+            info.init_expr = constant_initialiser_expression(expr);
+          else
+            info.loop_init_expr = constant_initialiser_expression(expr);
+        }
       }
     }
 
@@ -397,6 +480,8 @@ expression
 propagate_and_evaluate_constants(context& ctx, expression e, analysis_context) {
   evaluate_constants_visitor v{ctx};
   depth_first_search(evaluate_constants_visitor::node{e}, v);
+  assert(v.env.empty());
+  assert(v.results.size() == 1);
   return v.results.back();
 }
 

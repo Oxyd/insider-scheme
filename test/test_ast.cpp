@@ -2042,3 +2042,86 @@ TEST_F(ast, constant_initialiser_of_unused_variable_is_not_retained) {
   ASSERT_EQ(seq->expressions().size(), 1);
   EXPECT_TRUE(is<literal_expression>(ignore_sequences(seq)));
 }
+
+TEST_F(ast, simple_loop_is_constant_evaluated) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda (n accum)
+            (if (= n 5)
+                accum
+                (f (+ n 1) (+ accum n)))))
+        (f 0 0))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures,
+     &propagate_and_evaluate_constants, &update_variables,
+     &remove_unnecessary_definitions}
+  );
+  auto seq = expect<sequence_expression>(e);
+  ASSERT_EQ(seq->expressions().size(), 2);
+  auto lit = expect<literal_expression>(
+    ignore_lets_and_sequences(seq->expressions()[1])
+  );
+  EXPECT_EQ(expect<integer>(lit->value()).value(), 10);
+}
+
+TEST_F(ast, loop_with_non_constant_initial_value_is_not_folded) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda (x)
+            (if (= x 0) x (f (- x 1)))))
+        (f (read)))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures,
+     &propagate_and_evaluate_constants, &update_variables,
+     &remove_unnecessary_definitions}
+  );
+  auto seq = expect<sequence_expression>(e);
+  ASSERT_EQ(seq->expressions().size(), 2);
+  auto let = expect<let_expression>(seq->expressions()[1]);
+  EXPECT_TRUE(is<loop_body>(ignore_lets_and_sequences(let->body())));
+}
+
+TEST_F(ast, infinite_loop_is_not_folded) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f (lambda () (f)))
+        (f))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures,
+     &propagate_and_evaluate_constants, &update_variables,
+     &remove_unnecessary_definitions}
+  );
+  auto seq = expect<sequence_expression>(e);
+  ASSERT_EQ(seq->expressions().size(), 2);
+  auto loop = seq->expressions()[1];
+  EXPECT_TRUE(is<loop_body>(ignore_lets_and_sequences(loop)));
+}
+
+TEST_F(ast, loop_is_not_folded_if_later_iteration_becomes_non_const) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda (x)
+            (if (= x 1)
+                (f (read))
+                (f (+ x 1)))))
+        (f 0))
+    )",
+    {&analyse_variables, &find_self_variables, &inline_procedures,
+     &propagate_and_evaluate_constants, &update_variables,
+     &remove_unnecessary_definitions}
+  );
+  auto seq = expect<sequence_expression>(e);
+  ASSERT_EQ(seq->expressions().size(), 2);
+  auto let = expect<let_expression>(seq->expressions()[1]);
+  EXPECT_TRUE(is<loop_body>(ignore_lets_and_sequences(let->body())));
+  auto init = let->definitions().front().expression();
+  EXPECT_EQ(expect<integer>(expect<literal_expression>(init)->value()).value(),
+            0);
+}

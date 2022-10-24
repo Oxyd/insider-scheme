@@ -128,7 +128,11 @@ namespace {
         else
           new_dps.emplace_back(var);
 
-      return make<loop_continue>(ctx, loops.at(cont->id()), std::move(new_dps));
+      auto id = cont->id();
+      if (auto mapped_id = loops.find(id); mapped_id != loops.end())
+        id = mapped_id->second;
+
+      return make<loop_continue>(ctx, id, std::move(new_dps));
     }
 
     expression
