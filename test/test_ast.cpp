@@ -1157,6 +1157,45 @@ TEST_F(ast, sequence_of_a_single_constant_expression_is_constant_expression) {
   EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 2);
 }
 
+TEST_F(ast, lets_with_literals_can_be_evaluated_in_if_conditions) {
+  expression e = analyse(
+    R"(
+      (if (let ((x 0)) #t)
+          'yes
+          'no)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  auto lit = expect<literal_expression>(e);
+  EXPECT_EQ(expect<symbol>(lit->value())->value(), "yes");
+}
+
+TEST_F(ast, lets_with_lambdas_can_be_evaluated_in_if_conditions) {
+  expression e = analyse(
+    R"(
+      (if (let ((x (lambda () #f))) #t)
+          'yes
+          'no)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  auto lit = expect<literal_expression>(e);
+  EXPECT_EQ(expect<symbol>(lit->value())->value(), "yes");
+}
+
+TEST_F(ast, lets_with_constant_applications_can_be_evaluated_in_if_conditions) {
+  expression e = analyse(
+    R"(
+      (if (let ((x (eq? '() '()))) #t)
+          'yes
+          'no)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  auto lit = expect<literal_expression>(e);
+  EXPECT_EQ(expect<symbol>(lit->value())->value(), "yes");
+}
+
 TEST_F(ast, unused_variable_is_not_read) {
   ptr<local_variable> var = parse_and_get_local_variable("v", R"(
     (let ((v 5))
@@ -2163,12 +2202,16 @@ TEST_F(ast, can_constant_evaluate_length_of_literal_list) {
     R"(
       (import (insider internal))
 
+      (define null?
+        (lambda (x)
+          (eq? x '())))
+
       (define length
         (lambda (lst)
           (let ((loop #void))
             (set! loop
               (lambda (lst accum)
-                (if (eq? lst '())
+                (if (null? lst)
                     accum
                     (loop (cdr lst) (+ accum 1)))))
             (loop lst 0))))

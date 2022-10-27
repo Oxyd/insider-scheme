@@ -95,17 +95,51 @@ is_constant_propagable_expression(expression e) {
 }
 
 static ptr<>
-constant_value_for_expression(expression e, static_environment const& env);
+find_constant_evaluable_callable(context& ctx,
+                                 ptr<application_expression> app) {
+  if (auto ref = match<top_level_reference_expression>(app->target())) {
+    ptr<> callable = ctx.get_top_level(ref->variable()->index);
+    if (auto np = match<native_procedure>(callable))
+      if (np->constant_evaluable)
+        return np;
+  }
+
+  return {};
+}
+
+static bool
+can_be_constant_evaluated(context& ctx,
+                          static_environment const& env,
+                          auto const& operands) {
+  return std::ranges::all_of(
+    operands,
+    [&] (expression e) {
+      return visit(
+        [&] (auto expr) {
+          return constant_value_for_expression(ctx, env, expr) != nullptr;
+        },
+        e
+      );
+    }
+  );
+}
 
 static ptr<>
-constant_value_for_expression(ptr<literal_expression> lit,
-                              static_environment const&) {
+constant_value_for_expression(context&,
+                              static_environment const& env,
+                              expression e);
+
+static ptr<>
+constant_value_for_expression(context&,
+                              static_environment const&,
+                              ptr<literal_expression> lit) {
   return lit->value();
 }
 
 static ptr<>
-constant_value_for_expression(ptr<local_reference_expression> ref,
-                              static_environment const& env) {
+constant_value_for_expression(context&,
+                              static_environment const& env,
+                              ptr<local_reference_expression> ref) {
   auto info = env.find_variable(ref->variable());
   if (info.init_expr)
     if (auto lit = match<literal_expression>(info.init_expr))
@@ -114,8 +148,9 @@ constant_value_for_expression(ptr<local_reference_expression> ref,
 }
 
 static ptr<>
-constant_value_for_expression(ptr<top_level_reference_expression> ref,
-                              static_environment const& env) {
+constant_value_for_expression(context&,
+                              static_environment const& env,
+                              ptr<top_level_reference_expression> ref) {
   auto info = env.find_variable(ref->variable());
   if (info.init_expr)
     if (auto lit = match<literal_expression>(info.init_expr))
@@ -123,26 +158,72 @@ constant_value_for_expression(ptr<top_level_reference_expression> ref,
   return {};
 }
 
-static ptr<>
-constant_value_for_expression(ptr<sequence_expression> seq,
-                              static_environment const& env) {
-  // Technically the correct condition is "all subexpressions are constant",
-  // but it's quite unlikely that a sequence with multiple subexpressions will
-  // be all-constant.
+static bool
+can_be_ignored(context&, static_environment const&, ptr<literal_expression>) {
+  return true;
+}
 
-  if (seq->expressions().size() == 1)
-    return constant_value_for_expression(seq->expressions().front(), env);
+static bool
+can_be_ignored(context&, static_environment const&,ptr<lambda_expression>) {
+  return true;
+}
+
+static bool
+can_be_ignored(context& ctx, static_environment const& env,
+               ptr<application_expression> app) {
+  return find_constant_evaluable_callable(ctx, app)
+         && can_be_constant_evaluated(ctx, env, app->arguments());
+}
+
+static bool
+can_be_ignored(context&, static_environment const&, auto) { return false; }
+
+static bool
+can_be_ignored(context& ctx, static_environment const& env, expression e) {
+  return visit([&] (auto expr) { return can_be_ignored(ctx, env, expr); }, e);
+}
+
+static ptr<>
+constant_value_for_expression(context& ctx,
+                              static_environment const& env,
+                              ptr<let_expression> let) {
+  // Let can be constant-evaluated if all the initialisers can be ignored and
+  // the body is constant-evaluable. The body will be evaluated recursively, so
+  // we only need to worry about the initialisers.
+
+  if (std::ranges::all_of(let->definitions(),
+                          [&] (auto const& dp) {
+                            return can_be_ignored(ctx, env, dp.expression());
+                          }))
+    return constant_value_for_expression(ctx, env, let->body());
   else
     return {};
 }
 
 static ptr<>
-constant_value_for_expression(auto, static_environment const&) { return {}; }
+constant_value_for_expression(context& ctx,
+                              static_environment const& env,
+                              ptr<sequence_expression> seq) {
+  // Technically the correct condition is "all subexpressions are constant",
+  // but it's quite unlikely that a sequence with multiple subexpressions will
+  // be all-constant.
+
+  if (seq->expressions().size() == 1)
+    return constant_value_for_expression(ctx, env, seq->expressions().front());
+  else
+    return {};
+}
 
 static ptr<>
-constant_value_for_expression(expression e, static_environment const& env) {
+constant_value_for_expression(context&, static_environment const&, auto) {
+  return {};
+}
+
+static ptr<>
+constant_value_for_expression(context& ctx, static_environment const& env,
+                              expression e) {
   return visit(
-    [&] (auto expr) { return constant_value_for_expression(expr, env); },
+    [&] (auto expr) { return constant_value_for_expression(ctx, env, expr); },
     e
   );
 }
@@ -169,35 +250,6 @@ constant_initialiser_expression(expression e) {
     return e;
 }
 
-static ptr<>
-find_constant_evaluable_callable(context& ctx,
-                                 ptr<application_expression> app) {
-  if (auto ref = match<top_level_reference_expression>(app->target())) {
-    ptr<> callable = ctx.get_top_level(ref->variable()->index);
-    if (auto np = match<native_procedure>(callable))
-      if (np->constant_evaluable)
-        return np;
-  }
-
-  return {};
-}
-
-static bool
-can_be_constant_evaluated(auto const& operands,
-                          static_environment const& env) {
-  return std::ranges::all_of(
-    operands,
-    [&] (expression e) {
-      return visit(
-        [&] (auto expr) {
-          return constant_value_for_expression(expr, env) != nullptr;
-        },
-        e
-      );
-    }
-  );
-}
-
 static void
 coalesce_eqv_values(context& ctx, std::vector<ptr<>>& values) {
   // Values which are eqv? are meant to be coalesced within the whole program.
@@ -217,24 +269,25 @@ coalesce_eqv_values(context& ctx, std::vector<ptr<>>& values) {
 
 static std::vector<ptr<>>
 make_arguments_for_constant_evaluation(context& ctx,
-                                       auto const& arguments,
-                                       static_environment const& env) {
+                                       static_environment const& env,
+                                       auto const& arguments) {
   std::vector<ptr<>> result;
   result.reserve(arguments.size());
   for (expression arg : arguments)
-    result.push_back(constant_value_for_expression(arg, env));
+    result.push_back(constant_value_for_expression(ctx, env, arg));
 
   coalesce_eqv_values(ctx, result);
   return result;
 }
 
 static expression
-evaluate_constant_application(context& ctx, ptr<> callable,
-                              auto const& arguments,
-                              static_environment const& env) {
+evaluate_constant_application(context& ctx,
+                              static_environment const& env,
+                              ptr<> callable,
+                              auto const& arguments) {
   try {
     ptr<> result = call_with_continuation_barrier(
-      ctx, callable, make_arguments_for_constant_evaluation(ctx, arguments, env)
+      ctx, callable, make_arguments_for_constant_evaluation(ctx, env, arguments)
     );
     return make<literal_expression>(ctx, result);
   } catch (...) {
@@ -419,7 +472,7 @@ namespace {
         auto expr = expressions[i];
         auto& info = env.add_variable(var);
 
-        if ((constant_value_for_expression(expr, env)
+        if ((constant_value_for_expression(ctx, env, expr)
              || is_constant_propagable_expression(expr))
             && !var->flags().is_set) {
           if (!var->flags().is_loop_variable)
@@ -450,11 +503,10 @@ namespace {
 
     expression
     combine(ptr<application_expression> app) {
-      if (can_be_constant_evaluated(app->arguments(), env))
+      if (can_be_constant_evaluated(ctx, env, app->arguments()))
         if (auto callable = find_constant_evaluable_callable(ctx, app))
-          if (auto result = evaluate_constant_application(ctx, callable,
-                                                          app->arguments(),
-                                                          env))
+          if (auto result = evaluate_constant_application(ctx, env, callable,
+                                                          app->arguments()))
             return result;
       return app;
     }
@@ -462,16 +514,18 @@ namespace {
     expression
     combine(ptr<built_in_operation_expression> bio) {
       if (bio->procedure()->constant_evaluable
-          && can_be_constant_evaluated(bio->operands(), env))
-        if (auto result = evaluate_constant_application(ctx, bio->procedure(),
-                                                        bio->operands(), env))
+          && can_be_constant_evaluated(ctx, env, bio->operands()))
+        if (auto result = evaluate_constant_application(ctx, env,
+                                                        bio->procedure(),
+                                                        bio->operands()))
           return result;
       return bio;
     }
 
     expression
     combine(ptr<if_expression> ifexpr) {
-      if (auto test_value = constant_value_for_expression(ifexpr->test(), env)) {
+      if (auto test_value = constant_value_for_expression(ctx, env,
+                                                          ifexpr->test())) {
         if (test_value == ctx.constants->f)
           return ifexpr->alternative();
         else
