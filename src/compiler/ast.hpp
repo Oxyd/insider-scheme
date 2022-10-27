@@ -40,6 +40,9 @@ public:
 
   std::size_t
   size_estimate() const { return 0; }
+
+  std::string
+  show(context&, std::size_t indent) const;
 };
 
 class literal_expression : public composite_object<literal_expression> {
@@ -64,6 +67,9 @@ public:
 
   std::size_t
   size_estimate() const { return 1; }
+
+  std::string
+  show(context&, std::size_t indent) const;
 
 private:
   ptr<> value_;
@@ -95,6 +101,9 @@ public:
   std::size_t
   size_estimate() const { return 1; }
 
+  std::string
+  show(context&, std::size_t indent) const;
+
 private:
   ptr<local_variable> variable_;
 };
@@ -125,6 +134,9 @@ public:
   std::size_t
   size_estimate() const { return 1; }
 
+  std::string
+  show(context&, std::size_t indent) const;
+
 private:
   ptr<top_level_variable> variable_;
 };
@@ -154,6 +166,9 @@ public:
 
   std::size_t
   size_estimate() const { return 1; }
+
+  std::string
+  show(context&, std::size_t indent) const;
 
 private:
   ptr<syntax> name_;
@@ -208,6 +223,9 @@ public:
   std::size_t
   size_estimate() const { return size_estimate_; }
 
+  std::string
+  show(context&, std::size_t indent) const;
+
 private:
   expression                         target_;
   std::vector<expression>            arguments_;
@@ -257,6 +275,9 @@ public:
   std::size_t
   size_estimate() const { return size_estimate_; }
 
+  std::string
+  show(context&, std::size_t indent) const;
+
 private:
   opcode                  operation_;
   std::vector<expression> operands_;
@@ -302,6 +323,9 @@ public:
 
   std::size_t
   size_estimate() const { return size_estimate_; }
+
+  std::string
+  show(context&, std::size_t indent) const;
 
 private:
   std::vector<expression> expressions_;
@@ -362,6 +386,9 @@ public:
   std::size_t
   size_estimate() const { return size_estimate_; }
 
+  std::string
+  show(context&, std::size_t indent) const;
+
 private:
   std::vector<definition_pair_expression> definitions_;
   expression                              body_;
@@ -397,6 +424,9 @@ public:
 
   std::size_t
   size_estimate() const { return size_estimate_; }
+
+  std::string
+  show(context&, std::size_t indent) const;
 
 private:
   ptr<local_variable> target_;
@@ -440,6 +470,9 @@ public:
 
   std::size_t
   size_estimate() const { return size_estimate_; }
+
+  std::string
+  show(context&, std::size_t indent) const;
 
 private:
   ptr<top_level_variable> variable_;
@@ -527,6 +560,9 @@ public:
     return 1 + free_variables_.size();
   }
 
+  std::string
+  show(context&, std::size_t indent) const;
+
 private:
   std::vector<ptr<local_variable>> parameters_;
   bool                             has_rest_;
@@ -569,6 +605,9 @@ public:
 
   std::size_t
   size_estimate() const { return size_estimate_; }
+
+  std::string
+  show(context&, std::size_t indent) const;
 
 private:
   expression  test_;
@@ -616,6 +655,9 @@ public:
   std::size_t
   size_estimate() const;
 
+  std::string
+  show(context&, std::size_t indent) const;
+
 private:
   expression                       body_;
   ptr<loop_id>                     id_;
@@ -654,6 +696,9 @@ public:
 
   std::size_t
   size_estimate() const { return size_estimate_; }
+
+  std::string
+  show(context&, std::size_t indent) const;
 
 private:
   ptr<loop_id>                            id_;
@@ -804,6 +849,11 @@ map_ast_copy(context& ctx, expression e, F&& f) {
 inline std::size_t
 size_estimate(expression expr) {
   return visit([] (auto e) { return e->size_estimate(); }, expr);
+}
+
+inline std::string
+show(context& ctx, expression expr, std::size_t indent) {
+  return visit([&] (auto e) { return e->show(ctx, indent); }, expr);
 }
 
 } // namespace insider

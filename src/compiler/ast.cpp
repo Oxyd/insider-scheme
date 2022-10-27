@@ -1,6 +1,7 @@
 #include "compiler/ast.hpp"
 
 #include "context.hpp"
+#include "io/write.hpp"
 #include "module.hpp"
 #include "util/define_struct.hpp"
 #include "util/sum_type.hpp"
@@ -39,6 +40,16 @@ pop_vector_reverse(result_stack& stack, std::size_t n) {
   return result;
 }
 
+static std::string
+make_indent(std::size_t indent) {
+  return std::string(indent, ' ');
+}
+
+std::string
+no_op_expression::show(context&, std::size_t indent) const {
+  return make_indent(indent) + "- no-op";
+}
+
 literal_expression::literal_expression(ptr<> value)
   : value_{value}
 { }
@@ -50,6 +61,12 @@ literal_expression::visit_members(member_visitor const& f) {
 
 void
 literal_expression::update(context&, result_stack&) { }
+
+std::string
+literal_expression::show(context& ctx, std::size_t indent) const {
+  return fmt::format("{}- literal-expression: {}\n",
+                     make_indent(indent), datum_to_string(ctx, value_));
+}
 
 local_reference_expression::local_reference_expression(
   ptr<local_variable> var
@@ -65,6 +82,13 @@ local_reference_expression::visit_members(member_visitor const& f) {
 void
 local_reference_expression::update(context&, result_stack&) { }
 
+std::string
+local_reference_expression::show(context&, std::size_t indent) const {
+  return fmt::format("{}- local-reference: {}@{}\n",
+                     make_indent(indent),
+                     variable_->name(), static_cast<void*>(variable_.value()));
+}
+
 top_level_reference_expression::top_level_reference_expression(
   ptr<top_level_variable> v
 )
@@ -79,6 +103,13 @@ top_level_reference_expression::visit_members(member_visitor const& f) {
 void
 top_level_reference_expression::update(context&, result_stack&) { }
 
+std::string
+top_level_reference_expression::show(context&, std::size_t indent) const {
+  return fmt::format("{}- top-level-reference: {}@{}\n",
+                     make_indent(indent),
+                     variable_->name(), static_cast<void*>(variable_.value()));
+}
+
 unknown_reference_expression::unknown_reference_expression(ptr<syntax> name)
   : name_{name}
 { }
@@ -90,6 +121,12 @@ unknown_reference_expression::visit_members(member_visitor const& f) {
 
 void
 unknown_reference_expression::update(context&, result_stack&) { }
+
+std::string
+unknown_reference_expression::show(context& ctx, std::size_t indent) const {
+  return fmt::format("{}- unknown-reference: {}\n",
+                     make_indent(indent), datum_to_string(ctx, name_));
+}
 
 application_expression::application_expression(expression t,
                                                std::vector<expression> args)
@@ -156,6 +193,22 @@ application_expression::update_size_estimate() {
     + 1;
 }
 
+std::string
+application_expression::show(context& ctx, std::size_t indent) const {
+  std::string i = make_indent(indent);
+  std::string t = insider::show(ctx, target_, indent + 4);
+  std::string args;
+  for (expression e : arguments_)
+    args += insider::show(ctx, e, indent + 4);
+
+  return fmt::format("{}- application:\n"
+                     "{}  target:\n"
+                     "{}"
+                     "{}  arguments:\n"
+                     "{}",
+                     i, i, t, i, args);
+}
+
 built_in_operation_expression::built_in_operation_expression(
   opcode op, std::vector<expression> operands, bool has_result,
   ptr<native_procedure> proc
@@ -187,6 +240,20 @@ built_in_operation_expression::update_size_estimate() {
   size_estimate_ = 1 + sum_size_estimates(operands_);
 }
 
+std::string
+built_in_operation_expression::show(context& ctx, std::size_t indent) const {
+  std::string i = make_indent(indent);
+  std::string t = make_indent(indent + 4) + opcode_to_info(operation_).mnemonic;
+  std::string operands;
+  for (expression e : operands_)
+    operands += insider::show(ctx, e, indent + 4);
+
+  return fmt::format("{}- built-in-operation {}:\n"
+                     "{}  operands:\n"
+                     "{}\n",
+                     i, opcode_to_info(operation_).mnemonic, i, operands);
+}
+
 sequence_expression::sequence_expression(std::vector<expression> exprs)
   : expressions_{std::move(exprs)}
 {
@@ -209,6 +276,14 @@ sequence_expression::update(context& ctx, result_stack& stack) {
 void
 sequence_expression::update_size_estimate() {
   size_estimate_ = sum_size_estimates(expressions_);
+}
+
+std::string
+sequence_expression::show(context& ctx, std::size_t indent) const {
+  std::string subexprs;
+  for (expression e : expressions_)
+    subexprs += insider::show(ctx, e, indent + 2);
+  return fmt::format("{}- sequence:\n{}", make_indent(indent), subexprs);
 }
 
 definition_pair_expression::definition_pair_expression(
@@ -271,6 +346,24 @@ let_expression::update_size_estimate() {
     size_estimate_ += insider::size_estimate(dp.expression());
 }
 
+std::string
+let_expression::show(context& ctx, std::size_t indent) const {
+  std::string defs;
+  for (definition_pair_expression const& dp : definitions_)
+    defs += fmt::format("{}- {}@{}\n{}",
+                        make_indent(indent + 4),
+                        dp.variable()->name(),
+                        static_cast<void*>(dp.variable().value()),
+                        insider::show(ctx, dp.expression(), indent + 6));
+  std::string i = make_indent(indent);
+  return fmt::format("{}- let:\n"
+                     "{}  variables:\n"
+                     "{}"
+                     "{}  body:\n"
+                     "{}",
+                     i, i, defs, i, insider::show(ctx, body_, indent + 4));
+}
+
 local_set_expression::local_set_expression(ptr<local_variable> target,
                                            insider::expression expr)
   : target_{target}
@@ -294,6 +387,15 @@ local_set_expression::update(context& ctx, result_stack& stack) {
 void
 local_set_expression::update_size_estimate() {
   size_estimate_ = 1 + insider::size_estimate(expression_);
+}
+
+std::string
+local_set_expression::show(context& ctx, std::size_t indent) const {
+  return fmt::format("{}- local-set: {}@{}\n{}",
+                     make_indent(indent),
+                     target_->name(),
+                     static_cast<void*>(target_.value()),
+                     insider::show(ctx, expression_, indent + 2));
 }
 
 top_level_set_expression::top_level_set_expression(ptr<top_level_variable> var,
@@ -321,6 +423,15 @@ top_level_set_expression::update(context& ctx, result_stack& stack) {
 void
 top_level_set_expression::update_size_estimate() {
   size_estimate_ = 1 + insider::size_estimate(expression_);
+}
+
+std::string
+top_level_set_expression::show(context& ctx, std::size_t indent) const {
+  return fmt::format("{}- top-level-set: {}@{}\n{}",
+                     make_indent(indent),
+                     variable_->name(),
+                     static_cast<void*>(variable_.value()),
+                     insider::show(ctx, expression_, indent + 2));
 }
 
 lambda_expression::lambda_expression(ptr<lambda_expression> source,
@@ -389,6 +500,17 @@ lambda_expression::update(context& ctx, result_stack& stack) {
   update_member(ctx.store, this, body_, pop(stack));
 }
 
+std::string
+lambda_expression::show(context& ctx, std::size_t indent) const {
+  std::string params;
+  for (ptr<local_variable> p : parameters_)
+    params += fmt::format("{}@{} ", p->name(), static_cast<void*>(p.value()));
+
+  return fmt::format("{}- lambda: {} {}\n{}",
+                     make_indent(indent), name_, params,
+                     insider::show(ctx, body_, indent + 2));
+}
+
 if_expression::if_expression(expression test, expression consequent,
                              expression alternative)
   : test_{test}
@@ -423,6 +545,25 @@ if_expression::update_size_estimate() {
     + 1 + insider::size_estimate(alternative_);
 }
 
+std::string
+if_expression::show(context& ctx, std::size_t indent) const {
+  std::string i = make_indent(indent);
+  return fmt::format("{}- if\n"
+                     "{}  test:\n"
+                     "{}"
+                     "{}  consequent:\n"
+                     "{}"
+                     "{}  alternative:\n"
+                     "{}",
+                     i,
+                     i,
+                     insider::show(ctx, test_, indent + 4),
+                     i,
+                     insider::show(ctx, consequent_, indent + 4),
+                     i,
+                     insider::show(ctx, alternative_, indent + 4));
+}
+
 loop_body::loop_body(expression body, ptr<loop_id> id,
                      std::vector<ptr<local_variable>> loop_vars)
   : body_{body}
@@ -446,6 +587,14 @@ loop_body::update(context& ctx, result_stack& stack) {
 std::size_t
 loop_body::size_estimate() const {
   return insider::size_estimate(body_);
+}
+
+std::string
+loop_body::show(context& ctx, std::size_t indent) const {
+  return fmt::format("{}- loop-body: {}\n{}",
+                     make_indent(indent),
+                     static_cast<void*>(id_.value()),
+                     insider::show(ctx, body_, indent + 2));
 }
 
 loop_continue::loop_continue(ptr<loop_id> id,
@@ -488,6 +637,26 @@ loop_continue::update_size_estimate() {
   size_estimate_ = 1;
   for (definition_pair_expression const& var : vars_)
     size_estimate_ += insider::size_estimate(var.expression());
+}
+
+std::string
+loop_continue::show(context& ctx, std::size_t indent) const {
+  std::string vars;
+  for (definition_pair_expression const& dp : vars_)
+    vars += fmt::format("{}- {}@{}\n{}",
+                        make_indent(indent + 4),
+                        dp.variable()->name(),
+                        static_cast<void*>(dp.variable().value()),
+                        insider::show(ctx, dp.expression(), indent + 6));
+
+  std::string i = make_indent(indent);
+  return fmt::format("{}- loop-continue: {}\n"
+                     "{}  variables:\n"
+                     "{}",
+                     i,
+                     static_cast<void*>(id_.value()),
+                     i,
+                     vars);
 }
 
 expression
