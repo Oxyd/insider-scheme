@@ -1196,6 +1196,20 @@ TEST_F(ast, lets_with_constant_applications_can_be_evaluated_in_if_conditions) {
   EXPECT_EQ(expect<symbol>(lit->value())->value(), "yes");
 }
 
+TEST_F(ast, lets_with_lets_can_be_evaluated_in_if_conditions) {
+  expression e = analyse(
+    R"(
+      (if (let ((x (let ((y #f)) #f)))
+            #t)
+          'yes
+          'no)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  auto lit = expect<literal_expression>(e);
+  EXPECT_EQ(expect<symbol>(lit->value())->value(), "yes");
+}
+
 TEST_F(ast, unused_variable_is_not_read) {
   ptr<local_variable> var = parse_and_get_local_variable("v", R"(
     (let ((v 5))

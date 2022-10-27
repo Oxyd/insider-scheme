@@ -164,7 +164,7 @@ can_be_ignored(context&, static_environment const&, ptr<literal_expression>) {
 }
 
 static bool
-can_be_ignored(context&, static_environment const&,ptr<lambda_expression>) {
+can_be_ignored(context&, static_environment const&, ptr<lambda_expression>) {
   return true;
 }
 
@@ -173,6 +173,12 @@ can_be_ignored(context& ctx, static_environment const& env,
                ptr<application_expression> app) {
   return find_constant_evaluable_callable(ctx, app)
          && can_be_constant_evaluated(ctx, env, app->arguments());
+}
+
+static bool
+can_be_ignored(context& ctx, static_environment const& env,
+               ptr<let_expression> let) {
+  return constant_value_for_expression(ctx, env, let) != nullptr;
 }
 
 static bool
