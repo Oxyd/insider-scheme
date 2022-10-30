@@ -1377,7 +1377,7 @@ call_with_continuation_barrier(context& ctx, bool allow_out, bool allow_in,
 ptr<parameter_tag>
 create_parameter_tag(context& ctx, ptr<> initial_value) {
   auto tag = make<parameter_tag>(ctx);
-  ctx.parameters->add_value(tag, initial_value);
+  ctx.parameters->add_value(ctx.store, tag, initial_value);
   return tag;
 }
 

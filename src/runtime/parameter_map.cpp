@@ -28,8 +28,10 @@ parameter_map::set_value(free_store& fs, ptr<parameter_tag> tag,
 }
 
 void
-parameter_map::add_value(ptr<parameter_tag> tag, ptr<> value) {
+parameter_map::add_value(free_store& fs, ptr<parameter_tag> tag, ptr<> value) {
   values_.emplace_back(tag, value);
+  fs.notify_arc(this, tag);
+  fs.notify_arc(this, value);
 }
 
 void

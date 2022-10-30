@@ -21,7 +21,7 @@ public:
   set_value(free_store&, ptr<parameter_tag>, ptr<>);
 
   void
-  add_value(ptr<parameter_tag>, ptr<>);
+  add_value(free_store&, ptr<parameter_tag>, ptr<>);
 
   void
   visit_members(member_visitor const&);
