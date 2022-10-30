@@ -158,6 +158,7 @@ set(scheme_sources
         src/util/named_runtime_error.hpp
         src/util/object_conversions.hpp
         src/util/object_span.hpp
+        src/util/parameterize.hpp
         src/util/sum_type.hpp
         src/util/to_scheme.hpp
         src/vm/bytecode.cpp

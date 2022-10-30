@@ -552,6 +552,33 @@ TEST_F(modules, environment) {
             (std::set<std::string>{"one", "too"}));
 }
 
+TEST_F(modules,
+       errors_during_expansion_of_dynamically_loaded_module_cause_exceptions) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+
+      (define-syntax s
+        (lambda (stx)
+          (raise #t)))
+
+      (s)
+    )"
+  );
+
+  EXPECT_THROW(
+    eval_module(
+      R"(
+        (import (insider internal))
+        (environment '(foo))
+      )"
+    ),
+    std::runtime_error
+  );
+}
+
 struct export_all_imported_fixture : modules {
   export_all_imported_fixture() {
     add_source_file(

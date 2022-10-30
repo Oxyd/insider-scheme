@@ -6,11 +6,11 @@ namespace insider {
 
 ptr<>
 parameter_map::find_value(ptr<parameter_tag> tag) {
-  for (auto& [key, value] : values_)
+  for (auto const& [key, value] : values_)
     if (key == tag)
       return value;
 
-  assert(!"Can't happen");
+  assert(!"Parameter tag not found");
   return {};
 }
 
@@ -24,7 +24,7 @@ parameter_map::set_value(free_store& fs, ptr<parameter_tag> tag,
       return;
     }
 
-  assert(!"Can't happen");
+  assert(!"Parameter tag not found");
 }
 
 void

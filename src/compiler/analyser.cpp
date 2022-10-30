@@ -16,6 +16,8 @@
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
 #include "util/list_iterator.hpp"
+#include "util/parameterize.hpp"
+#include "util/parameterize.hpp"
 #include "vm/vm.hpp"
 
 #include <fmt/format.h>
@@ -85,15 +87,19 @@ analysis_context_for_module(ptr<module_> m) {
 expression
 analyse(context& ctx, ptr<syntax> stx, tracked_ptr<module_> const& m,
         pass_list passes, source_file_origin const& origin) {
-  parameterize origin_param{ctx, ctx.constants->current_source_file_origin_tag,
-                            make<opaque_value<source_file_origin>>(ctx, origin)};
-  parameterize module_param{ctx, ctx.constants->current_expand_module_tag,
-                            m.get()};
-  parsing_context pc{ctx, m.get(), std::move(passes), origin};
-  stx = stx->add_scope(ctx.store, m->scope());
-  return analyse_top_level_expressions(pc, m,
-                                       analysis_context_for_module(m.get()),
-                                       {stx});
+  return parameterize(
+    ctx,
+    {{ctx.constants->current_source_file_origin_tag,
+      make<opaque_value<source_file_origin>>(ctx, origin)},
+     {ctx.constants->current_expand_module_tag, m.get()}},
+    [&] {
+      parsing_context pc{ctx, m.get(), std::move(passes), origin};
+      stx = stx->add_scope(ctx.store, m->scope());
+      return analyse_top_level_expressions(pc, m,
+                                           analysis_context_for_module(m.get()),
+                                           {stx}).get();
+    }
+  );
 }
 
 static bool
@@ -515,20 +521,22 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
 expression
 analyse_module(context& ctx, tracked_ptr<module_> const& m,
                module_specifier const& pm, pass_list passes, bool main_module) {
-  parameterize origin_param{
-    ctx, ctx.constants->current_source_file_origin_tag,
-    make<opaque_value<source_file_origin>>(ctx, pm.origin)
-  };
-  parameterize main_module_param{
-    ctx, ctx.constants->is_main_module_tag,
-    main_module ? ctx.constants->t : ctx.constants->f
-  };
-  parameterize module_param{
-    ctx, ctx.constants->current_expand_module_tag, m.get()
-  };
-  parsing_context pc{ctx, m.get(), std::move(passes), pm.origin};
-
-  return analyse_top_level_expressions(pc, m, analysis_context::closed, pm.body);
+  return
+    parameterize(
+      ctx,
+      {{ctx.constants->current_source_file_origin_tag,
+        make<opaque_value<source_file_origin>>(ctx, pm.origin)},
+       {ctx.constants->is_main_module_tag,
+        main_module ? ctx.constants->t : ctx.constants->f},
+       {ctx.constants->current_expand_module_tag,
+        m.get()}},
+      [&] {
+        parsing_context pc{ctx, m.get(), std::move(passes), pm.origin};
+        return analyse_top_level_expressions(pc, m,
+                                             analysis_context::closed,
+                                             pm.body).get();
+      }
+    );
 }
 
 static expression

@@ -26,12 +26,18 @@ class parameter_tag;
 
 using native_continuation_type = std::function<ptr<>(context&, ptr<>)>;
 
+struct parameter_assignment {
+  ptr<parameter_tag> tag;
+  ptr<>              value;
+};
+
+using parameter_assignments = std::vector<parameter_assignment>;
+
 class stack_frame_extra_data : public composite_object<stack_frame_extra_data> {
 public:
   static constexpr char const* scheme_name = "insider::stack_frame_extra_data";
 
-  ptr<insider::parameter_tag>           parameter_tag;
-  ptr<>                                 parameter_value;
+  parameter_assignments                 parameters;
   std::vector<native_continuation_type> native_continuations;
   bool                                  allow_jump_out = true;
   bool                                  allow_jump_in  = true;
@@ -73,6 +79,7 @@ public:
   push_frame(ptr<> callable, std::size_t base, std::size_t locals_size,
              instruction_pointer previous_ip, operand result_register,
              ptr<stack_frame_extra_data> extra = {}) {
+    assert(locals_size > 0);
     assert(frames_size_ > 0 || base == 0);
     assert(frames_size_ == 0 || base >= current_frame().base);
     assert(frames_size_ == 0

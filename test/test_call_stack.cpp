@@ -76,8 +76,8 @@ TEST_F(call_stack_fixture, new_call_stack_is_empty) {
 }
 
 TEST_F(call_stack_fixture, call_stack_is_empty_after_popping_all_frames) {
-  cs->push_frame(one, cs->size(), 0, nullptr, 0);
-  cs->push_frame(two, cs->size(), 0, nullptr, 0);
+  cs->push_frame(one, cs->size(), 1, nullptr, 0);
+  cs->push_frame(two, cs->size(), 1, nullptr, 0);
   EXPECT_FALSE(cs->empty());
 
   cs->pop_frame();
@@ -88,12 +88,12 @@ TEST_F(call_stack_fixture, call_stack_is_empty_after_popping_all_frames) {
 }
 
 TEST_F(call_stack_fixture, new_frame_has_no_extra_data) {
-  cs->push_frame(one, cs->size(), 0, nullptr, 0);
+  cs->push_frame(one, cs->size(), 1, nullptr, 0);
   EXPECT_EQ(cs->extra(), ptr<>{});
 }
 
 TEST_F(call_stack_fixture, can_set_and_retreive_extra_data) {
-  cs->push_frame(one, cs->size(), 0, nullptr, 0);
+  cs->push_frame(one, cs->size(), 1, nullptr, 0);
 
   auto e = make<stack_frame_extra_data>(ctx);
   cs->set_extra(e);

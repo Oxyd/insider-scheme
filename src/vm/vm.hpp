@@ -43,10 +43,13 @@ call_with_continuation_barrier(context& ctx, ptr<> callable,
 // Like call_with_continuation_barrier but also sets a parameter in the created
 // call frame.
 ptr<>
-call_parameterized_with_continuation_barrier(context& ctx, ptr<> callable,
-                                             std::vector<ptr<>> const& arguments,
-                                             ptr<parameter_tag>,
-                                             ptr<> parameter_value);
+call_parameterized_with_continuation_barrier(
+  context& ctx,
+  parameter_assignments const& params,
+  ptr<> callable,
+  std::vector<ptr<>> const& arguments
+);
+
 
 // Make a new parameter tag and set its top-level value in the context.
 ptr<parameter_tag>
@@ -54,25 +57,6 @@ create_parameter_tag(context& ctx, ptr<> initial_value);
 
 ptr<>
 find_parameter_value(context&, ptr<parameter_tag>);
-
-class parameterize : public root_provider {
-public:
-  parameterize(context&, ptr<parameter_tag>, ptr<> value);
-  parameterize(parameterize const&) = delete;
-  ~parameterize() override;
-
-  void
-  operator = (parameterize const&) = delete;
-
-private:
-  context&                   ctx_;
-  std::optional<std::size_t> frame_idx_;
-  ptr<parameter_tag>         tag_;
-  ptr<>                      original_value_;
-
-  void
-  visit_roots(member_visitor const&) override;
-};
 
 // Pop the current call frame (which must be a native procedure frame), and
 // replace it with a call frame for the given procedure. This is used to

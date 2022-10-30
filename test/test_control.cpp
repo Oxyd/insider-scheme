@@ -4,6 +4,7 @@
 #include "runtime/symbol.hpp"
 #include "util/define_procedure.hpp"
 #include "util/from_scheme.hpp"
+#include "util/parameterize.hpp"
 #include "util/to_scheme.hpp"
 #include "vm/execution_state.hpp"
 
@@ -894,7 +895,7 @@ TEST_F(control, call_parameterized_with_continuation_barrier_sets_parameter_in_s
   EXPECT_EQ(expect<integer>(result1).value(), 0);
 
   auto result2 = call_parameterized_with_continuation_barrier(
-    ctx, get_value.get(), {}, tag.get(), integer_to_ptr(4)
+    ctx, {{tag.get(), integer_to_ptr(4)}}, get_value.get(), {}
   );
   EXPECT_EQ(expect<integer>(result2).value(), 4);
 }
@@ -922,7 +923,9 @@ TEST_F(control, call_parameterized_with_continuation_brrier_sets_parameter_in_na
   auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
   EXPECT_EQ(expect<integer>(result1).value(), 0);
 
-  auto result2 = call_parameterized_with_continuation_barrier(ctx, get_value.get(), {}, tag.get(), integer_to_ptr(4));
+  auto result2 = call_parameterized_with_continuation_barrier(
+    ctx, {{tag.get(), integer_to_ptr(4)}}, get_value.get(), {}
+  );
   EXPECT_EQ(expect<integer>(result2).value(), 4);
 }
 
@@ -935,11 +938,14 @@ TEST_F(control, native_parameterize_sets_parameter_in_scheme_frame) {
       (find-parameter-value p))
   )"));
 
-  {
-    parameterize p{ctx, tag.get(), integer_to_ptr(4)};
-    auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
-    EXPECT_EQ(expect<integer>(result1).value(), 4);
-  }
+  parameterize(
+    ctx, {{tag.get(), integer_to_ptr(4)}},
+    [&] {
+      auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
+      EXPECT_EQ(expect<integer>(result1).value(), 4);
+      return ptr<>{};
+    }
+  );
 
   auto result2 = call_with_continuation_barrier(ctx, get_value.get(), {});
   EXPECT_EQ(expect<integer>(result2).value(), 0);
@@ -965,17 +971,21 @@ TEST_F(control, native_parameterization_sets_parameter_in_native_frame) {
     std::make_unique<tag_closure>(tag)
   );
 
-  {
-    parameterize p{ctx, tag.get(), integer_to_ptr(4)};
-    auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
-    EXPECT_EQ(expect<integer>(result1).value(), 4);
-  }
+  parameterize(
+    ctx, {{tag.get(), integer_to_ptr(4)}},
+    [&] {
+      auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
+      EXPECT_EQ(expect<integer>(result1).value(), 4);
+      return ptr<>{};
+    }
+  );
 
   auto result2 = call_with_continuation_barrier(ctx, get_value.get(), {});
   EXPECT_EQ(expect<integer>(result2).value(), 0);
 }
 
-TEST_F(control, native_parameterization_sets_parameter_value_when_called_from_scheme) {
+TEST_F(control,
+       native_parameterization_sets_parameter_value_when_called_from_scheme) {
   auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
   define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
@@ -987,8 +997,13 @@ TEST_F(control, native_parameterization_sets_parameter_value_when_called_from_sc
   define_closure<ptr<>(context&)>(
     ctx, "get-value-parameterized", ctx.internal_module(),
     [&] (context& ctx) {
-      parameterize p{ctx, tag.get(), integer_to_ptr(4)};
-      return call_with_continuation_barrier(ctx, get_value, {});
+      return parameterize(
+        ctx,
+        {{tag.get(), integer_to_ptr(4)}},
+        [&] {
+          return call_with_continuation_barrier(ctx, get_value, {});
+        }
+      );
     }
   );
 

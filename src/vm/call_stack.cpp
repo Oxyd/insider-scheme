@@ -13,8 +13,10 @@ namespace insider {
 
 void
 stack_frame_extra_data::visit_members(member_visitor const &f) {
-  f(parameter_tag);
-  f(parameter_value);
+  for (auto& p : parameters) {
+    f(p.tag);
+    f(p.value);
+  }
   f(before_thunk);
   f(after_thunk);
   f(exception_handler);

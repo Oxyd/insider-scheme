@@ -927,7 +927,8 @@ erect_barrier(context& ctx, ptr<call_stack> stack,
 static void
 setup_native_frame_for_call_from_native(execution_state& state,
                                         ptr<native_procedure> proc) {
-  state.stack->push_frame(proc, state.stack->size(), 0, state.ip, {});
+  state.stack->push_frame(proc, state.stack->size(), 1, state.ip, {});
+  state.stack->local(0) = proc;
 }
 
 static ptr<>
@@ -947,21 +948,21 @@ call_native_from_native(execution_state& state, ptr<native_procedure> proc,
 }
 
 static void
-set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value);
+add_parameter_value(context& ctx, ptr<call_stack> stack, ptr<parameter_tag> tag,
+                    ptr<> value);
 
 static ptr<>
 call_native_with_continuation_barrier(execution_state& state,
                                       ptr<native_procedure> proc,
                                       std::vector<ptr<>> const& arguments,
-                                      ptr<parameter_tag> parameter,
-                                      ptr<> parameter_value) {
+                                      parameter_assignments const& params) {
   setup_native_frame_for_call_from_native(state, proc);
 
   if (state.stack->parent() != -1)
     erect_barrier(state.ctx, state.stack, false, false);
 
-  if (parameter)
-    set_parameter_value(state.ctx, parameter, parameter_value);
+  for (auto const& p : params)
+    add_parameter_value(state.ctx, state.stack, p.tag, p.value);
 
   return call_native_in_current_frame(state, proc, arguments);
 }
@@ -994,15 +995,14 @@ static ptr<>
 call_scheme_with_continuation_barrier(execution_state& state,
                                       ptr<procedure> callable,
                                       std::vector<ptr<>> const& arguments,
-                                      ptr<parameter_tag> parameter,
-                                      ptr<> parameter_value) {
+                                      parameter_assignments const& params) {
   make_scheme_frame_for_call_from_native(state, callable, arguments,
                                          get_native_ip(state.stack));
   if (state.stack->parent())
     erect_barrier(state.ctx, state.stack, false, false);
 
-  if (parameter)
-    set_parameter_value(state.ctx, parameter, parameter_value);
+  for (auto const& p : params)
+    add_parameter_value(state.ctx, state.stack, p.tag, p.value);
 
   return run(state);
 }
@@ -1043,9 +1043,10 @@ mark_current_frame_noncontinuable(ptr<call_stack> stack) {
 
 ptr<>
 call_parameterized_with_continuation_barrier(
-  context& ctx, ptr<> callable,
-  std::vector<ptr<>> const& arguments,
-  ptr<parameter_tag> tag, ptr<> parameter_value
+  context& ctx,
+  parameter_assignments const& params,
+  ptr<> callable,
+  std::vector<ptr<>> const& arguments
 ) {
   expect_callable(callable);
 
@@ -1054,20 +1055,19 @@ call_parameterized_with_continuation_barrier(
 
   if (auto native_proc = match<native_procedure>(callable))
     return call_native_with_continuation_barrier(
-      *ctx.current_execution, native_proc, arguments, tag, parameter_value
+      *ctx.current_execution, native_proc, arguments, params
     );
   else
     return call_scheme_with_continuation_barrier(
-      *ctx.current_execution, assume<procedure>(callable), arguments, tag,
-      parameter_value
+      *ctx.current_execution, assume<procedure>(callable), arguments, params
     );
 }
 
 ptr<>
 call_with_continuation_barrier(context& ctx, ptr<> callable,
                                std::vector<ptr<>> const& arguments) {
-  return call_parameterized_with_continuation_barrier(ctx, callable, arguments,
-                                                      {}, {});
+  return call_parameterized_with_continuation_barrier(ctx, {}, callable,
+                                                      arguments);
 }
 
 static ptr<>
@@ -1385,8 +1385,9 @@ static ptr<>
 find_parameter_in_frame(ptr<call_stack> stack, std::size_t frame_idx,
                         ptr<parameter_tag> tag) {
   if (ptr<stack_frame_extra_data> e = stack->extra(frame_idx))
-    if (ptr<parameter_tag> t = e->parameter_tag; t == tag)
-      return e->parameter_value;
+    for (auto const& p : e->parameters)
+      if (p.tag == tag)
+        return p.value;
 
   return {};
 }
@@ -1403,14 +1404,31 @@ find_stack_frame_for_parameter(ptr<call_stack> stack, ptr<parameter_tag> tag) {
 }
 
 static void
+set_parameter_value_in_frame(ptr<stack_frame_extra_data> extra,
+                             ptr<parameter_tag> tag, ptr<> value) {
+  for (auto& p : extra->parameters)
+    if (p.tag == tag) {
+      p.value = value;
+      return;
+    }
+
+  extra->parameters.push_back({tag, value});
+}
+
+static void
+set_parameter_value_in_frame(ptr<call_stack> stack, std::size_t frame,
+                             ptr<parameter_tag> tag, ptr<> value) {
+  auto extra = stack->extra(frame);
+  set_parameter_value_in_frame(extra, tag, value);
+}
+
+static void
 set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
   auto stack = ctx.current_execution->stack;
   auto frame = find_stack_frame_for_parameter(stack, tag);
-  if (frame) {
-    assert(stack->extra(*frame));
-    assert(stack->extra(*frame)->parameter_tag == tag);
-    stack->extra(*frame)->parameter_value = value;
-  } else
+  if (frame) 
+    set_parameter_value_in_frame(stack, *frame, tag, value);
+  else
     ctx.parameters->set_value(ctx.store, tag, value);
 }
 
@@ -1443,55 +1461,7 @@ static void
 add_parameter_value(context& ctx, ptr<call_stack> stack, ptr<parameter_tag> tag,
                     ptr<> value) {
   ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, stack);
-
-  assert(!extra->parameter_tag);
-  extra->parameter_tag = tag;
-  extra->parameter_value = value;
-}
-
-static void
-push_dummy_frame(context& ctx) {
-  auto stack = ctx.current_execution->stack;
-  stack->push_frame({}, stack->size(), 0, dummy_ip, {});
-}
-
-static std::size_t
-create_parameterization_frame(context& ctx, ptr<parameter_tag> tag,
-                              ptr<> value) {
-  push_dummy_frame(ctx);
-  add_parameter_value(ctx, ctx.current_execution->stack, tag, value);
-  return *ctx.current_execution->stack->current_frame_index();
-}
-
-parameterize::parameterize(context& ctx, ptr<parameter_tag> tag, ptr<> new_value)
-  : root_provider{ctx.store}
-  , ctx_{ctx}
-{
-  if (ctx.current_execution)
-    frame_idx_ = create_parameterization_frame(ctx, tag, new_value);
-  else {
-    tag_ = tag;
-    ptr<> value = ctx.parameters->find_value(tag);
-    original_value_ = value;
-    ctx.parameters->set_value(ctx.store, tag, new_value);
-  }
-}
-
-parameterize::~parameterize() {
-  if (frame_idx_) {
-    assert(ctx_.current_execution);
-    assert(ctx_.current_execution->stack->current_frame_index() == frame_idx_);
-    ctx_.current_execution->stack->pop_frame();
-  } else {
-    assert(!ctx_.current_execution);
-    ctx_.parameters->set_value(ctx_.store, tag_, original_value_);
-  }
-}
-
-void
-parameterize::visit_roots(member_visitor const& f) {
-  f(tag_);
-  f(original_value_);
+  set_parameter_value_in_frame(extra, tag, value);
 }
 
 static ptr<tail_call_tag_type>
