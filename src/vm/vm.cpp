@@ -955,11 +955,13 @@ static ptr<>
 call_native_with_continuation_barrier(execution_state& state,
                                       ptr<native_procedure> proc,
                                       std::vector<ptr<>> const& arguments,
-                                      parameter_assignments const& params) {
+                                      parameter_assignments const& params,
+                                      bool allow_jump_out,
+                                      bool allow_jump_in) {
   setup_native_frame_for_call_from_native(state, proc);
 
   if (state.stack->parent() != -1)
-    erect_barrier(state.ctx, state.stack, false, false);
+    erect_barrier(state.ctx, state.stack, allow_jump_out, allow_jump_in);
 
   for (auto const& p : params)
     add_parameter_value(state.ctx, state.stack, p.tag, p.value);
@@ -995,11 +997,13 @@ static ptr<>
 call_scheme_with_continuation_barrier(execution_state& state,
                                       ptr<procedure> callable,
                                       std::vector<ptr<>> const& arguments,
-                                      parameter_assignments const& params) {
+                                      parameter_assignments const& params,
+                                      bool allow_jump_out,
+                                      bool allow_jump_in) {
   make_scheme_frame_for_call_from_native(state, callable, arguments,
                                          get_native_ip(state.stack));
   if (state.stack->parent())
-    erect_barrier(state.ctx, state.stack, false, false);
+    erect_barrier(state.ctx, state.stack, allow_jump_out, allow_jump_in);
 
   for (auto const& p : params)
     add_parameter_value(state.ctx, state.stack, p.tag, p.value);
@@ -1046,7 +1050,9 @@ call_parameterized_with_continuation_barrier(
   context& ctx,
   parameter_assignments const& params,
   ptr<> callable,
-  std::vector<ptr<>> const& arguments
+  std::vector<ptr<>> const& arguments,
+  bool allow_jump_out,
+  bool allow_jump_in
 ) {
   expect_callable(callable);
 
@@ -1055,11 +1061,13 @@ call_parameterized_with_continuation_barrier(
 
   if (auto native_proc = match<native_procedure>(callable))
     return call_native_with_continuation_barrier(
-      *ctx.current_execution, native_proc, arguments, params
+      *ctx.current_execution, native_proc, arguments, params,
+      allow_jump_out, allow_jump_in
     );
   else
     return call_scheme_with_continuation_barrier(
-      *ctx.current_execution, assume<procedure>(callable), arguments, params
+      *ctx.current_execution, assume<procedure>(callable), arguments, params,
+      allow_jump_out, allow_jump_in
     );
 }
 

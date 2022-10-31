@@ -10,8 +10,8 @@ namespace insider {
 
 class context;
 
-// Call given C++ procedure with continuation barrier and with the given
-// parameter set to the given value.
+// Call given C++ procedure with re-entry continuation barrier and with the
+// given parameter set to the given value.
 template <typename F>
 ptr<>
 parameterize(context& ctx, parameter_assignments const& params,
@@ -29,7 +29,8 @@ parameterize(context& ctx, parameter_assignments const& params,
     },
     std::make_unique<closure>(f)
   );
-  return call_parameterized_with_continuation_barrier(ctx, params, proc, {});
+  return call_parameterized_with_continuation_barrier(ctx, params, proc, {},
+                                                      true, false);
 }
 
 } // namespace insider

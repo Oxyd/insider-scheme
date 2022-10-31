@@ -47,7 +47,9 @@ call_parameterized_with_continuation_barrier(
   context& ctx,
   parameter_assignments const& params,
   ptr<> callable,
-  std::vector<ptr<>> const& arguments
+  std::vector<ptr<>> const& arguments,
+  bool allow_jump_out = false,
+  bool allow_jump_in = false
 );
 
 

@@ -579,6 +579,21 @@ TEST_F(modules,
   );
 }
 
+TEST_F(modules, exceptions_during_eval_can_be_caught_in_scheme) {
+  auto result = eval(
+    R"(
+      (capture-stack
+        (lambda (return)
+          (with-exception-handler
+            (lambda (e)
+              (replace-stack! return e))
+            (lambda ()
+              (eval '(define a 1) (environment '(insider internal)))))))
+    )"
+  );
+  EXPECT_TRUE(is<cxx_exception>(result));
+}
+
 struct export_all_imported_fixture : modules {
   export_all_imported_fixture() {
     add_source_file(
