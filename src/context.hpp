@@ -134,12 +134,12 @@ private:
     visit_roots(member_visitor const&) override;
   };
 
-  root_provider                                      root_provider_{*this};
-  std::unordered_map<std::string, ptr<symbol>>       interned_symbols_;
-  std::vector<ptr<>>                                 top_level_objects_;
-  std::vector<std::string>                           top_level_binding_names_;
-  insider::module_resolver                           module_resolver_{*this};
-  std::vector<ptr<symbol>>                           type_name_symbols_;
+  root_provider                                root_provider_{*this};
+  std::unordered_map<std::string, ptr<symbol>> interned_symbols_;
+  std::vector<ptr<>>                           top_level_objects_;
+  std::vector<std::string>                     top_level_binding_names_;
+  insider::module_resolver                     module_resolver_{*this};
+  std::vector<ptr<symbol>>                     type_name_symbols_;
 
   ptr<> features_;
   scope::id_type next_scope_id_ = 0;
