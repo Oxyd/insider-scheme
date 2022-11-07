@@ -924,11 +924,47 @@ erect_barrier(context& ctx, ptr<call_stack> stack,
   extra->allow_jump_in = allow_in;
 }
 
-static void
+namespace {
+  class native_frame_guard : public root_provider {
+  public:
+    native_frame_guard(context& ctx, ptr<call_stack> stack)
+      : root_provider{ctx.store}
+      , stack_{stack}
+    { }
+
+    ~native_frame_guard() override {
+      if (stack_)
+        stack_->pop_frame();
+    }
+
+    native_frame_guard(native_frame_guard const&) = delete;
+
+    native_frame_guard(native_frame_guard&& other) noexcept
+      : root_provider{std::move(other)}
+      , stack_{other.stack_}
+    {
+      other.stack_ = nullptr;
+    }
+
+    void
+    operator = (native_frame_guard const&) = delete;
+
+  private:
+    ptr<call_stack> stack_;
+
+    void
+    visit_roots(member_visitor const& f) override {
+      f(stack_);
+    }
+  };
+}
+
+[[nodiscard]] static native_frame_guard
 setup_native_frame_for_call_from_native(execution_state& state,
                                         ptr<native_procedure> proc) {
   state.stack->push_frame(proc, state.stack->size(), 1, state.ip, {});
   state.stack->local(0) = proc;
+  return {state.ctx, state.stack};
 }
 
 static ptr<>
@@ -936,14 +972,14 @@ call_native_in_current_frame(execution_state& state, ptr<native_procedure> proc,
                              std::vector<ptr<>> const& arguments) {
   ptr<> result = proc->target(state.ctx, proc,
                               object_span(arguments.begin(), arguments.end()));
-  pop_frame(state);
   return result;
 }
 
 static ptr<>
 call_native_from_native(execution_state& state, ptr<native_procedure> proc,
                         std::vector<ptr<>> const& arguments) {
-  setup_native_frame_for_call_from_native(state, proc);
+  native_frame_guard guard
+    = setup_native_frame_for_call_from_native(state, proc);
   return call_native_in_current_frame(state, proc, arguments);
 }
 
@@ -958,7 +994,8 @@ call_native_with_continuation_barrier(execution_state& state,
                                       parameter_assignments const& params,
                                       bool allow_jump_out,
                                       bool allow_jump_in) {
-  setup_native_frame_for_call_from_native(state, proc);
+  native_frame_guard guard
+    = setup_native_frame_for_call_from_native(state, proc);
 
   if (state.stack->parent() != -1)
     erect_barrier(state.ctx, state.stack, allow_jump_out, allow_jump_in);
