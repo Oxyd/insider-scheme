@@ -210,14 +210,15 @@ static ptr<>
 constant_value_for_expression(context& ctx,
                               static_environment const& env,
                               ptr<sequence_expression> seq) {
-  // Technically the correct condition is "all subexpressions are constant",
-  // but it's quite unlikely that a sequence with multiple subexpressions will
-  // be all-constant.
+  assert(!seq->expressions().empty());
 
-  if (seq->expressions().size() == 1)
-    return constant_value_for_expression(ctx, env, seq->expressions().front());
-  else
-    return {};
+  for (std::size_t i = 0; i < seq->expressions().size() - 1; ++i)
+    if (!constant_value_for_expression(ctx, env, seq->expressions()[i]))
+      return {};
+
+  ptr<> result
+    = constant_value_for_expression(ctx, env, seq->expressions().back());
+  return result;
 }
 
 static ptr<>
@@ -249,10 +250,9 @@ ignore_unitary_sequences(expression e) {
 
 static expression
 constant_initialiser_expression(expression e) {
-  if (auto seq = match<sequence_expression>(e)) {
-    assert(seq->expressions().size() == 1);
-    return constant_initialiser_expression(seq->expressions().front());
-  } else
+  if (auto seq = match<sequence_expression>(e))
+    return constant_initialiser_expression(seq->expressions().back());
+  else
     return e;
 }
 

@@ -1157,6 +1157,19 @@ TEST_F(ast, sequence_of_a_single_constant_expression_is_constant_expression) {
   EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 2);
 }
 
+TEST_F(ast, sequence_of_multiple_constant_expressions_is_constant_expression) {
+  expression e = analyse(
+    R"(
+      (let ((x (begin 1 2 3)))
+        x)
+    )",
+    {&analyse_variables, &propagate_and_evaluate_constants}
+  );
+  e = ignore_lets_and_sequences(e);
+  ASSERT_TRUE(is<literal_expression>(e));
+  EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 3);
+}
+
 TEST_F(ast, lets_with_literals_can_be_evaluated_in_if_conditions) {
   expression e = analyse(
     R"(
@@ -2212,9 +2225,12 @@ TEST_F(ast, loop_is_not_folded_if_later_iteration_becomes_non_const) {
 }
 
 TEST_F(ast, can_constant_evaluate_length_of_literal_list) {
-  expression e = analyse_module(
+  add_source_file(
+    "foo.scm",
     R"(
+      (library (foo))
       (import (insider internal))
+      (export length)
 
       (define null?
         (lambda (x)
@@ -2229,6 +2245,12 @@ TEST_F(ast, can_constant_evaluate_length_of_literal_list) {
                     accum
                     (loop (cdr lst) (+ accum 1)))))
             (loop lst 0))))
+    )"
+  );
+
+  expression e = analyse_module(
+    R"(
+      (import (insider internal) (foo))
 
       (define foo
         (lambda ()
