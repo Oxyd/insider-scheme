@@ -76,9 +76,9 @@ public:
   call_stack(call_stack&&) = default;
 
   void
-  push_frame(ptr<> callable, std::size_t base, std::size_t locals_size,
-             instruction_pointer previous_ip, operand result_register,
-             ptr<stack_frame_extra_data> extra = {}) {
+  push_frame(frame_type type, std::size_t base,
+             std::size_t locals_size, instruction_pointer previous_ip,
+             operand result_register, ptr<stack_frame_extra_data> extra = {}) {
     assert(locals_size > 0);
     assert(frames_size_ > 0 || base == 0);
     assert(frames_size_ == 0 || base >= current_frame().base);
@@ -88,8 +88,7 @@ public:
     ensure_frames_capacity(frames_size_ + 1);
 
     frames_[frames_size_++] = frame{base, locals_size, previous_ip,
-                                    result_register, extra,
-                                    callable_to_frame_type(callable)};
+                                    result_register, extra, type};
 
     current_base_ = base;
     data_size_ = base + locals_size;
@@ -110,19 +109,19 @@ public:
   }
 
   void
-  replace_frame(ptr<> new_callable, std::size_t new_locals_size) {
+  replace_frame(frame_type new_type, std::size_t new_locals_size) {
     assert(frames_size_ > 0);
 
     frame& f = current_frame();
     f.size = new_locals_size;
-    f.type = callable_to_frame_type(new_callable);
+    f.type = new_type;
 
     data_size_ = current_base_ + new_locals_size;
     ensure_data_capacity(data_size_);
   }
 
   void
-  replace_frame(ptr<> new_callable, std::size_t new_locals_size,
+  replace_frame(frame_type new_type, std::size_t new_locals_size,
                 std::size_t args_base, std::size_t args_size) {
     assert(frames_size_ > 0);
 
@@ -141,7 +140,7 @@ public:
               data_.get() + dest_begin);
 
     f.size = new_locals_size;
-    f.type = callable_to_frame_type(new_callable);
+    f.type = new_type;
 
     data_size_ = current_base_ + new_locals_size;
     ensure_data_capacity(data_size_);
@@ -323,18 +322,6 @@ private:
     return frames_[frames_size_ - 1];
   }
 
-  frame_type
-  callable_to_frame_type(ptr<> callable) {
-    if (!callable)
-      return frame_type::dummy;
-    else if (is<procedure>(callable))
-      return frame_type::scheme;
-    else {
-      assert(is<native_procedure>(callable));
-      return frame_type::native;
-    }
-  }
-
   void
   check_update_current_frame() {
     if (!empty())
@@ -436,6 +423,18 @@ private:
 inline frame_reference
 current_frame(ptr<call_stack> stack) {
   return {stack, stack->current_frame_index()};
+}
+
+inline call_stack::frame_type
+callable_to_frame_type(ptr<> callable) {
+  if (!callable)
+    return call_stack::frame_type::dummy;
+  else if (is<procedure>(callable))
+    return call_stack::frame_type::scheme;
+  else {
+    assert(is<native_procedure>(callable));
+    return call_stack::frame_type::native;
+  }
 }
 
 }

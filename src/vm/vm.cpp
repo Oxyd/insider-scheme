@@ -425,7 +425,7 @@ static void
 push_scheme_frame(execution_state& state, ptr<procedure> proc,
                   operand base, operand result_reg) {
   state.stack->push_frame(
-    proc,
+    call_stack::frame_type::scheme,
     state.stack->frame_base() + base,
     proc->prototype().locals_size,
     state.ip,
@@ -437,7 +437,8 @@ static void
 make_tail_call_frame(ptr<call_stack> stack, ptr<> proc,
                      std::size_t locals_size,
                      std::size_t args_base, std::size_t num_args) {
-  stack->replace_frame(proc, locals_size, args_base, num_args);
+  stack->replace_frame(callable_to_frame_type(proc), locals_size, args_base,
+                       num_args);
   clear_native_continuations(stack);
 }
 
@@ -478,11 +479,10 @@ push_scheme_call_frame(ptr<procedure> proc, execution_state& state,
 }
 
 static void
-make_native_non_tail_call_frame(execution_state& state,
-                                ptr<native_procedure> proc, std::size_t base,
+make_native_non_tail_call_frame(execution_state& state, std::size_t base,
                                 std::size_t num_args, operand dest_reg) {
   state.stack->push_frame(
-    proc,
+    call_stack::frame_type::native,
     state.stack->frame_base() + base,
     num_args + 1,
     state.ip,
@@ -577,7 +577,7 @@ make_native_frame(ptr<native_procedure> proc, execution_state& state,
   auto num_args = read_operand(state);
   if (!is_tail) {
     auto dest_reg = read_operand(state);
-    make_native_non_tail_call_frame(state, proc, base, num_args, dest_reg);
+    make_native_non_tail_call_frame(state, base, num_args, dest_reg);
   } else
     make_native_tail_call_frame(state.stack, proc, base, num_args);
 }
@@ -908,8 +908,11 @@ make_scheme_frame_for_call_from_native(execution_state& state,
                                        instruction_pointer previous_ip) {
   throw_if_wrong_number_of_args(callable->prototype(), arguments.size());
 
-  state.stack->push_frame(callable, state.stack->size(),
-                          callable->prototype().locals_size, previous_ip, {});
+  state.stack->push_frame(call_stack::frame_type::scheme,
+                          state.stack->size(),
+                          callable->prototype().locals_size,
+                          previous_ip,
+                          {});
 
   push_scheme_arguments_for_call_from_native(state.ctx, callable, state.stack,
                                              arguments);
@@ -983,7 +986,8 @@ namespace {
 [[nodiscard]] static native_frame_guard
 setup_native_frame_for_call_from_native(execution_state& state,
                                         ptr<native_procedure> proc) {
-  state.stack->push_frame(proc, state.stack->size(), 1, state.ip, {});
+  state.stack->push_frame(call_stack::frame_type::native, state.stack->size(),
+                          1, state.ip, {});
   state.stack->local(0) = proc;
   return {state.ctx, state.stack};
 }
@@ -1177,7 +1181,7 @@ make_native_tail_call_frame_for_call_from_native(
   ptr<native_procedure> callable,
   auto const& arguments
 ) {
-  stack->replace_frame(callable, arguments.size() + 1);
+  stack->replace_frame(call_stack::frame_type::native, arguments.size() + 1);
   clear_native_continuations(stack);
   stack->local(operand{0}) = callable;
   auto arg = arguments.begin();
@@ -1194,7 +1198,8 @@ make_scheme_tail_call_frame_for_call_from_native(
 ) {
   throw_if_wrong_number_of_args(callable->prototype(), arguments.size());
 
-  stack->replace_frame(callable, callable->prototype().locals_size);
+  stack->replace_frame(call_stack::frame_type::scheme,
+                       callable->prototype().locals_size);
   push_scheme_arguments_for_call_from_native(ctx, callable, stack, arguments);
   push_closure(callable, stack);
   clear_native_continuations(stack);
