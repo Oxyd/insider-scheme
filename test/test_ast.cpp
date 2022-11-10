@@ -2363,3 +2363,43 @@ TEST_F(ast, application_of_unknown_procedure_is_marked_as_generic) {
     = expect<application_expression>(ignore_lets_and_sequences(lambda->body()));
   EXPECT_EQ(app->kind(), application_expression::target_kind::generic);
 }
+
+TEST_F(ast, application_with_wrong_number_of_args_is_marked_as_generic) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo (lambda (x) (* 2 x)))
+      (define bar (lambda () (foo)))
+    )",
+    {&analyse_variables, &optimise_applications}
+  );
+
+  auto bar = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  for_each<application_expression>(
+    bar,
+    [] (ptr<application_expression> app) {
+      EXPECT_EQ(app->kind(), application_expression::target_kind::generic);
+    }
+  );
+}
+
+TEST_F(ast, application_of_variadic_procedure_is_marked_as_generic) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo (lambda (x . y) (cons x y)))
+      (define bar (lambda () (foo 1 2)))
+    )",
+    {&analyse_variables, &optimise_applications}
+  );
+
+  auto bar = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  for_each<application_expression>(
+    bar,
+    [] (ptr<application_expression> app) {
+      EXPECT_EQ(app->kind(), application_expression::target_kind::generic);
+    }
+  );
+}

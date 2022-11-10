@@ -460,8 +460,12 @@ check_and_convert_scheme_call_arguments(execution_state& state,
 
 static void
 make_scheme_frame(ptr<procedure> proc, execution_state& state,
-                  operand base, bool is_tail) {
-  check_and_convert_scheme_call_arguments(state, proc->prototype(), base);
+                  operand base, bool is_tail, bool check_and_convert_args) {
+  if (check_and_convert_args)
+    check_and_convert_scheme_call_arguments(state, proc->prototype(), base);
+  else
+    read_operand(state);
+
   if (!is_tail) {
     operand result_reg = read_operand(state);
     push_scheme_frame(state, proc, base, result_reg);
@@ -472,8 +476,9 @@ make_scheme_frame(ptr<procedure> proc, execution_state& state,
 
 static void
 push_scheme_call_frame(ptr<procedure> proc, execution_state& state,
-                       operand base, bool is_tail) {
-  make_scheme_frame(proc, state, base, is_tail);
+                       operand base, bool is_tail,
+                       bool check_and_convert_args) {
+  make_scheme_frame(proc, state, base, is_tail, check_and_convert_args);
   push_closure(proc, state.stack);
   state.ip = proc->prototype().code.get();
 }
@@ -613,7 +618,8 @@ call(opcode opcode, execution_state& state) {
 
   if (is_scheme_call(opcode) || is<procedure>(callee))
     push_scheme_call_frame(assume<procedure>(callee), state, base,
-                           is_tail_call(opcode));
+                           is_tail_call(opcode),
+                           !is_scheme_call(opcode));
   else if (is_native_call(opcode) || is<native_procedure>(callee))
     do_native_call(assume<native_procedure>(callee), state, base,
                    is_tail_call(opcode));

@@ -34,20 +34,21 @@ find_callable(context& ctx,
     return {};
 }
 
-static bool
-is_self_application(ptr<application_expression> app) {
-  if (auto ref = match<local_reference_expression>(app->target()))
-    return ref->variable()->flags().is_self_variable;
+static ptr<lambda_expression>
+find_scheme_application_target(ptr<application_expression> app) {
+  if (auto target = find_application_target(app))
+    return match<lambda_expression>(target);
   else
-    return false;
+    return {};
 }
 
 static bool
-is_scheme_application(ptr<application_expression> app) {
-  if (auto target = find_application_target(app))
-    return is<lambda_expression>(target);
+is_valid_scheme_application(ptr<application_expression> app) {
+  if (auto lambda = find_scheme_application_target(app))
+    return app->arguments().size() == lambda->parameters().size()
+           && !lambda->has_rest();
   else
-    return is_self_application(app);
+    return false;
 }
 
 static bool
@@ -60,7 +61,7 @@ is_native_application(context& ctx, ptr<application_expression> app) {
 
 static expression
 visit_application(context& ctx, ptr<application_expression> app) {
-  if (is_scheme_application(app))
+  if (is_valid_scheme_application(app))
     app->set_kind(application_expression::target_kind::scheme);
   else if (is_native_application(ctx, app))
     app->set_kind(application_expression::target_kind::native);
