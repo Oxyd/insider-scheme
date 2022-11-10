@@ -608,6 +608,22 @@ call(opcode opcode, execution_state& state) {
                      datum_to_string(state.ctx, callee));
 }
 
+static void
+scheme_call(opcode opcode, execution_state& state) {
+  operand base = read_operand(state);
+  ptr<> callee = state.stack->local(base);
+  push_scheme_call_frame(assume<procedure>(callee), state, base,
+                         opcode == opcode::scheme_tail_call);
+}
+
+static void
+native_call(opcode opcode, execution_state& state) {
+  operand base = read_operand(state);
+  ptr<> callee = state.stack->local(base);
+  do_native_call(assume<native_procedure>(callee), state, base,
+                 opcode == opcode::native_tail_call);
+}
+
 static std::size_t
 native_continuations_size(execution_state const& state) {
   return reinterpret_cast<std::size_t>(state.ip);
@@ -784,6 +800,10 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::set:                    set(state);                    break;
   case opcode::tail_call:
   case opcode::call:                   call(opcode, state);           break;
+  case opcode::scheme_tail_call:
+  case opcode::scheme_call:            scheme_call(opcode, state);    break;
+  case opcode::native_tail_call:
+  case opcode::native_call:            native_call(opcode, state);    break;
   case opcode::ret:                    ret(state);                    break;
   case opcode::jump:                   jump(state);                   break;
   case opcode::jump_unless:            jump_unless(state);            break;

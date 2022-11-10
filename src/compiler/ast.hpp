@@ -178,6 +178,10 @@ class application_expression : public composite_object<application_expression> {
 public:
   static constexpr char const* scheme_name = "insider::application_expression";
 
+  enum class target_kind {
+    generic, scheme, native
+  };
+
   application_expression(expression t, std::vector<expression> args);
 
   application_expression(expression t, std::ranges::range auto args)
@@ -206,6 +210,12 @@ public:
   std::optional<insider::debug_info>&
   debug_info() { return debug_info_; }
 
+  target_kind
+  kind() const { return kind_; }
+
+  void
+  set_kind(target_kind k) { kind_ = k; }
+
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
@@ -231,6 +241,7 @@ private:
   std::vector<expression>            arguments_;
   std::size_t                        size_estimate_ = 0;
   std::optional<insider::debug_info> debug_info_;
+  target_kind                        kind_ = target_kind::generic;
 
   void
   update_size_estimate();

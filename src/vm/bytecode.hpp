@@ -45,6 +45,10 @@ enum class opcode : std::uint16_t {
   set,              // set <source> <destination>
   call,             // call <base> <number of arguments> <result register>
   tail_call,        // tail-call <base> <number of arguments>
+  scheme_call,      // scheme-call <base> <number of arguments> <result reg>
+  scheme_tail_call, // scheme-tail-call <base> <number of arguments>
+  native_call,      // native-call <base> <number of arguments> <result reg>
+  native_tail_call, // native-tail-call <base> <number of arguments>
   ret,              // ret <return value>
   jump,             // jump <offset>
   jump_unless,      // jump-unless <register> <offset>
@@ -131,6 +135,10 @@ instructions{
   std::tuple{"set!", opcode::set, std::size_t{2}},
   std::tuple{"call", opcode::call, std::size_t{3}},
   std::tuple{"tail-call", opcode::tail_call, std::size_t{2}},
+  std::tuple{"scheme-call", opcode::scheme_call, std::size_t{3}},
+  std::tuple{"scheme-tail-call", opcode::scheme_tail_call, std::size_t{2}},
+  std::tuple{"native-call", opcode::native_call, std::size_t{3}},
+  std::tuple{"native-tail-call", opcode::native_tail_call, std::size_t{2}},
   std::tuple{"ret", opcode::ret, std::size_t{1}},
   std::tuple{"jump", opcode::jump, std::size_t{1}},
   std::tuple{"jump-unless", opcode::jump_unless, std::size_t{2}},

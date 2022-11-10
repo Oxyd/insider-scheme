@@ -34,6 +34,7 @@ struct variable_flags {
   bool is_read           = false;
   bool is_set_eliminable = false;
   bool is_loop_variable  = false;
+  bool is_self_variable  = false;
 };
 
 // The binding between a name and its value. For top-level values, this directly

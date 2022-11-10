@@ -563,6 +563,20 @@ compile_application_arguments(context& ctx, procedure_context& proc,
   return result;
 }
 
+static opcode
+application_opcode(ptr<application_expression> stx, bool tail) {
+  switch (stx->kind()) {
+  case application_expression::target_kind::generic:
+    return tail ? opcode::tail_call : opcode::call;
+  case application_expression::target_kind::scheme:
+    return tail ? opcode::scheme_tail_call : opcode::scheme_call;
+  case application_expression::target_kind::native:
+    return tail ? opcode::native_tail_call : opcode::native_call;
+  }
+  assert(false);
+  return {};
+}
+
 static void
 compile_expression(context& ctx, procedure_context& proc,
                    ptr<application_expression> stx, bool tail,
@@ -576,14 +590,16 @@ compile_expression(context& ctx, procedure_context& proc,
 
   instruction i;
   if (!tail)
-    i = {opcode::call, call_base,
+    i = {application_opcode(stx, tail),
+         call_base,
          static_cast<operand>(stx->arguments().size()),
          *result.get(proc)};
   else
-    i = {opcode::tail_call, call_base,
+    i = {application_opcode(stx, tail),
+         call_base,
          static_cast<operand>(stx->arguments().size())};
 
-  proc.emit(std::move(i));
+  proc.emit(i);
   if (stx->debug_info())
     proc.current_block().debug_info[proc.current_block().body.size() - 1]
       = *stx->debug_info();

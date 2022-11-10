@@ -471,7 +471,9 @@ lambda_expression::lambda_expression(
   , self_variable_{
       make<local_variable>(ctx, fmt::format("<self variable for {}>", name_))
     }
-{ }
+{
+  self_variable_->flags().is_self_variable = true;
+}
 
 void
 lambda_expression::update_body(free_store& fs, expression new_body) {

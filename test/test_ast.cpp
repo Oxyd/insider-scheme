@@ -12,6 +12,7 @@
 #include "compiler/inline_built_in_operations_pass.hpp"
 #include "compiler/inline_procedures_pass.hpp"
 #include "compiler/make_loop_temporaries_pass.hpp"
+#include "compiler/optimise_applications_pass.hpp"
 #include "compiler/parser_expander.hpp"
 #include "compiler/parsing_context.hpp"
 #include "compiler/remove_unnecessary_definitions_pass.hpp"
@@ -2262,4 +2263,103 @@ TEST_F(ast, can_constant_evaluate_length_of_literal_list) {
   ASSERT_EQ(seq->expressions().size(), 2);
   auto lit = expect<literal_expression>(seq->expressions()[1]);
   EXPECT_EQ(expect<integer>(lit->value()).value(), 3);
+}
+
+TEST_F(ast, application_of_scheme_procedure_is_marked_as_scheme) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo (lambda (x) (* 2 x)))
+      (define bar (lambda () (foo 4)))
+    )",
+    {&analyse_variables, &optimise_applications}
+  );
+
+  auto bar = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  for_each<application_expression>(
+    bar,
+    [] (ptr<application_expression> app) {
+      EXPECT_EQ(app->kind(), application_expression::target_kind::scheme);
+    }
+  );
+}
+
+TEST_F(ast, application_of_imported_scheme_procedure_is_marked_as_scheme) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export foo)
+      (define foo (lambda (x) (* 2 x)))
+    )"
+  );
+
+  expression e = analyse_module(
+    R"(
+      (import (insider internal) (foo))
+      (define bar (lambda () (foo 4)))
+    )",
+    {&analyse_variables, &optimise_applications}
+  );
+
+  auto bar = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  for_each<application_expression>(
+    bar,
+    [] (ptr<application_expression> app) {
+      EXPECT_EQ(app->kind(), application_expression::target_kind::scheme);
+    }
+  );
+}
+
+TEST_F(ast, application_of_local_scheme_procedure_is_marked_as_scheme) {
+  expression e = analyse(
+    R"(
+      (let ((f (lambda (x) (* 2 x))))
+        (f 4))
+    )",
+    {&analyse_variables, &optimise_applications}
+  );
+  auto let = expect<let_expression>(e);
+  auto app
+    = expect<application_expression>(ignore_lets_and_sequences(let->body()));
+  EXPECT_EQ(app->kind(), application_expression::target_kind::scheme);
+}
+
+TEST_F(ast, self_application_is_marked_as_scheme) {
+  expression e = analyse(
+    R"(
+      (let ((f #void))
+        (set! f
+          (lambda ()
+            (f)
+            #void)))
+    )",
+    {&analyse_variables, &find_self_variables, &optimise_applications}
+  );
+  for_each<application_expression>(
+    e,
+    [] (ptr<application_expression> app) {
+      EXPECT_EQ(app->kind(), application_expression::target_kind::scheme);
+    }
+  );
+}
+
+TEST_F(ast, application_of_top_level_native_procedure_is_marked_as_native) {
+  expression e = analyse("(cons 1 2)",
+                         {&analyse_variables, &optimise_applications});
+  auto app = expect<application_expression>(e);
+  EXPECT_EQ(app->kind(), application_expression::target_kind::native);
+}
+
+TEST_F(ast, application_of_unknown_procedure_is_marked_as_generic) {
+  expression e = analyse(
+    "(lambda (f) (f 0))",
+    {&analyse_variables, &optimise_applications}
+  );
+  auto lambda = expect<lambda_expression>(e);
+  auto app
+    = expect<application_expression>(ignore_lets_and_sequences(lambda->body()));
+  EXPECT_EQ(app->kind(), application_expression::target_kind::generic);
 }

@@ -10,6 +10,7 @@
 #include "compiler/inline_built_in_operations_pass.hpp"
 #include "compiler/inline_procedures_pass.hpp"
 #include "compiler/make_loop_temporaries_pass.hpp"
+#include "compiler/optimise_applications_pass.hpp"
 #include "compiler/remove_unnecessary_definitions_pass.hpp"
 #include "compiler/update_variables_pass.hpp"
 #include "context.hpp"
@@ -27,6 +28,7 @@ pass_list const all_passes{
   make_loop_temporaries,
   box_set_variables,
   inline_built_in_operations,
+  optimise_applications,
   analyse_free_variables
 };
 

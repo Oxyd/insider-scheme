@@ -82,6 +82,8 @@ set(scheme_sources
         src/compiler/module_name.hpp
         src/compiler/module_specifier.cpp
         src/compiler/module_specifier.hpp
+        src/compiler/optimise_applications_pass.cpp
+        src/compiler/optimise_applications_pass.hpp
         src/compiler/parser_expander.cpp
         src/compiler/parser_expander.hpp
         src/compiler/parsing_context.cpp
