@@ -569,9 +569,9 @@ application_opcode(ptr<application_expression> stx, bool tail) {
   case application_expression::target_kind::generic:
     return tail ? opcode::tail_call : opcode::call;
   case application_expression::target_kind::scheme:
-    return tail ? opcode::scheme_tail_call : opcode::scheme_call;
+    return tail ? opcode::tail_call_known_scheme : opcode::call_known_scheme;
   case application_expression::target_kind::native:
-    return tail ? opcode::native_tail_call : opcode::native_call;
+    return tail ? opcode::tail_call_known_native : opcode::call_known_native;
   }
   assert(false);
   return {};
