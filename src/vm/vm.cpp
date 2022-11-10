@@ -589,39 +589,19 @@ do_native_call(ptr<native_procedure> proc, execution_state& state,
   call_native_procedure(state);
 }
 
-static bool
-is_tail(opcode opcode) {
-  return opcode == opcode::tail_call;
-}
-
+template <bool Scheme, bool Native, bool Tail>
 static void
-call(opcode opcode, execution_state& state) {
+call(execution_state& state) {
   operand base = read_operand(state);
   ptr<> callee = state.stack->local(base);
 
-  if (auto scheme_proc = match<procedure>(callee))
-    push_scheme_call_frame(scheme_proc, state, base, is_tail(opcode));
-  else if (auto native_proc = match<native_procedure>(callee))
-    do_native_call(native_proc, state, base, is_tail(opcode));
+  if (Scheme || is<procedure>(callee))
+    push_scheme_call_frame(assume<procedure>(callee), state, base, Tail);
+  else if (Native || is<native_procedure>(callee))
+    do_native_call(assume<native_procedure>(callee), state, base, Tail);
   else
     throw make_error("Application: Not a procedure: {}",
                      datum_to_string(state.ctx, callee));
-}
-
-static void
-scheme_call(opcode opcode, execution_state& state) {
-  operand base = read_operand(state);
-  ptr<> callee = state.stack->local(base);
-  push_scheme_call_frame(assume<procedure>(callee), state, base,
-                         opcode == opcode::scheme_tail_call);
-}
-
-static void
-native_call(opcode opcode, execution_state& state) {
-  operand base = read_operand(state);
-  ptr<> callee = state.stack->local(base);
-  do_native_call(assume<native_procedure>(callee), state, base,
-                 opcode == opcode::native_tail_call);
 }
 
 static std::size_t
@@ -777,47 +757,47 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   opcode opcode = read_opcode(state);
 
   switch (opcode) {
-  case opcode::no_operation:                                          break;
-  case opcode::load_constant:          load_constant(state);          break;
-  case opcode::load_top_level:         load_top_level(state);         break;
-  case opcode::load_dynamic_top_level: load_dynamic_top_level(state); break;
-  case opcode::store_top_level:        store_top_level(state);        break;
-  case opcode::load_null:              load_null(state);              break;
-  case opcode::load_void:              load_void(state);              break;
-  case opcode::load_t:                 load_t(state);                 break;
-  case opcode::load_f:                 load_f(state);                 break;
-  case opcode::load_eof:               load_eof(state);               break;
-  case opcode::load_fixnum:            load_fixnum(state);            break;
+  case opcode::no_operation:                                             break;
+  case opcode::load_constant:          load_constant(state);             break;
+  case opcode::load_top_level:         load_top_level(state);            break;
+  case opcode::load_dynamic_top_level: load_dynamic_top_level(state);    break;
+  case opcode::store_top_level:        store_top_level(state);           break;
+  case opcode::load_null:              load_null(state);                 break;
+  case opcode::load_void:              load_void(state);                 break;
+  case opcode::load_t:                 load_t(state);                    break;
+  case opcode::load_f:                 load_f(state);                    break;
+  case opcode::load_eof:               load_eof(state);                  break;
+  case opcode::load_fixnum:            load_fixnum(state);               break;
   case opcode::add:
   case opcode::subtract:
   case opcode::multiply:
-  case opcode::divide:                 arithmetic(opcode, state);     break;
+  case opcode::divide:                 arithmetic(opcode, state);        break;
   case opcode::arith_equal:
   case opcode::less:
   case opcode::greater:
   case opcode::less_or_equal:
-  case opcode::greater_or_equal:       relational(opcode, state);     break;
-  case opcode::set:                    set(state);                    break;
-  case opcode::tail_call:
-  case opcode::call:                   call(opcode, state);           break;
-  case opcode::scheme_tail_call:
-  case opcode::scheme_call:            scheme_call(opcode, state);    break;
-  case opcode::native_tail_call:
-  case opcode::native_call:            native_call(opcode, state);    break;
-  case opcode::ret:                    ret(state);                    break;
-  case opcode::jump:                   jump(state);                   break;
-  case opcode::jump_unless:            jump_unless(state);            break;
-  case opcode::make_closure:           make_closure(state);           break;
-  case opcode::box:                    make_box(state);               break;
-  case opcode::unbox:                  unbox(state);                  break;
-  case opcode::box_set:                box_set(state);                break;
-  case opcode::cons:                   cons(state);                   break;
-  case opcode::car:                    car(state);                    break;
-  case opcode::cdr:                    cdr(state);                    break;
-  case opcode::eq:                     eq(state);                     break;
-  case opcode::vector_set:             vector_set(state);             break;
-  case opcode::vector_ref:             vector_ref(state);             break;
-  case opcode::type:                   type(state);                   break;
+  case opcode::greater_or_equal:       relational(opcode, state);        break;
+  case opcode::set:                    set(state);                       break;
+  case opcode::tail_call:              call<false, false, true>(state);  break;
+  case opcode::call:                   call<false, false, false>(state); break;
+  case opcode::scheme_tail_call:       call<true, false, true>(state);   break;
+  case opcode::scheme_call:            call<true, false, false>(state);  break;
+  case opcode::native_tail_call:       call<false, true, true>(state);   break;
+  case opcode::native_call:            call<false, true, false>(state);  break;
+  case opcode::ret:                    ret(state);                       break;
+  case opcode::jump:                   jump(state);                      break;
+  case opcode::jump_unless:            jump_unless(state);               break;
+  case opcode::make_closure:           make_closure(state);              break;
+  case opcode::box:                    make_box(state);                  break;
+  case opcode::unbox:                  unbox(state);                     break;
+  case opcode::box_set:                box_set(state);                   break;
+  case opcode::cons:                   cons(state);                      break;
+  case opcode::car:                    car(state);                       break;
+  case opcode::cdr:                    cdr(state);                       break;
+  case opcode::eq:                     eq(state);                        break;
+  case opcode::vector_set:             vector_set(state);                break;
+  case opcode::vector_ref:             vector_ref(state);                break;
+  case opcode::type:                   type(state);                      break;
 
   default:
     assert(false); // Invalid opcode
