@@ -69,8 +69,6 @@ TEST_F(records, test_record_type) {
                 #f)
             #f)))
 
-    (define list (lambda x x))
-
     (list (foo? (make-record-instance foo-type))
           (foo? foo-type)
           (foo? 'foo))

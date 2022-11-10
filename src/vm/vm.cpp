@@ -618,11 +618,13 @@ call(opcode opcode, execution_state& state) {
   operand base = read_operand(state);
   ptr<> callee = state.stack->local(base);
 
-  if (is_known_scheme_call(opcode) || is<procedure>(callee))
+  if (is_known_scheme_call(opcode)
+      || (!is_known_native_call(opcode) && is<procedure>(callee)))
     push_scheme_call_frame(assume<procedure>(callee), state, base,
                            is_tail_call(opcode),
                            !is_known_scheme_call(opcode));
-  else if (is_known_native_call(opcode) || is<native_procedure>(callee))
+  else if (is_known_native_call(opcode)
+           || (!is_known_scheme_call(opcode) && is<native_procedure>(callee)))
     do_native_call(assume<native_procedure>(callee), state, base,
                    is_tail_call(opcode));
   else
