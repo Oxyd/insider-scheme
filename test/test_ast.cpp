@@ -447,7 +447,7 @@ TEST_F(ast, top_level_constants_are_folded_into_expressions) {
       (define foo 12)
       (define bar (* (read) foo))
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   for_each<top_level_set_expression>(
     e,
@@ -468,7 +468,7 @@ TEST_F(ast, top_level_constants_are_folded_into_expressions_before_definition) {
       (define bar (* (read) foo))
       (define foo 12)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   for_each<top_level_set_expression>(
     e,
@@ -1014,7 +1014,7 @@ TEST_F(ast, inlined_applications_carry_debug_info) {
 TEST_F(ast, call_with_all_arguments_literal_is_constant_evaluated) {
   expression e = analyse(
     "(car '(1 . 2))",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   ASSERT_TRUE(is<literal_expression>(e));
   EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 1);
@@ -1023,7 +1023,7 @@ TEST_F(ast, call_with_all_arguments_literal_is_constant_evaluated) {
 TEST_F(ast, invalid_constant_evaluable_call_is_not_compilation_error) {
   expression e = analyse(
     R"((car "not a pair"))",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   EXPECT_TRUE(is<application_expression>(e));
 }
@@ -1031,7 +1031,7 @@ TEST_F(ast, invalid_constant_evaluable_call_is_not_compilation_error) {
 TEST_F(ast, constant_calls_are_evaluated_recursively) {
   expression e = analyse(
     "(+ (car '(1 . 2)) (cdr '(1 . 2)))",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   ASSERT_TRUE(is<literal_expression>(e));
   EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 3);
@@ -1073,7 +1073,7 @@ TEST_F(ast, constant_variables_are_used_in_evaluation_of_constant_calls) {
       (let ((k 5))
         (+ 2 k))
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   e = ignore_lets_and_sequences(e);
   ASSERT_TRUE(is<literal_expression>(e));
@@ -1086,7 +1086,7 @@ TEST_F(ast, let_variables_bound_to_constant_expressions_are_constants) {
       (let ((k1 (+ 2 3)))
         (* 2 k1))
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   e = ignore_lets_and_sequences(e);
   ASSERT_TRUE(is<literal_expression>(e));
@@ -1101,7 +1101,7 @@ TEST_F(ast, let_initialiser_are_constant_if_they_only_use_other_constants) {
         (let ((k2 (* k1 2)))
           (+ k2 1)))
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   e = ignore_lets_and_sequences(e);
   ASSERT_TRUE(is<literal_expression>(e));
@@ -1114,7 +1114,7 @@ TEST_F(ast, constant_ifs_are_removed) {
     R"(
       (if #f 1 2)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   e1 = ignore_lets_and_sequences(e1);
   ASSERT_TRUE(is<literal_expression>(e1));
@@ -1124,7 +1124,7 @@ TEST_F(ast, constant_ifs_are_removed) {
     R"(
       (if #t 1 2)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   e2 = ignore_lets_and_sequences(e2);
   ASSERT_TRUE(is<literal_expression>(e2));
@@ -1137,7 +1137,7 @@ TEST_F(ast, constant_expressions_in_if_tests_are_evaluated) {
       (let ((k (* 2 3)))
         (if (< k 10) 'yes 'no))
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   e = ignore_lets_and_sequences(e);
   ASSERT_TRUE(is<literal_expression>(e));
@@ -1150,7 +1150,7 @@ TEST_F(ast, sequence_of_a_single_constant_expression_is_constant_expression) {
       (let ((x (begin 2)))
         x)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   e = ignore_lets_and_sequences(e);
   ASSERT_TRUE(is<literal_expression>(e));
@@ -1163,7 +1163,7 @@ TEST_F(ast, sequence_of_multiple_constant_expressions_is_constant_expression) {
       (let ((x (begin 1 2 3)))
         x)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   e = ignore_lets_and_sequences(e);
   ASSERT_TRUE(is<literal_expression>(e));
@@ -1177,7 +1177,7 @@ TEST_F(ast, lets_with_literals_can_be_evaluated_in_if_conditions) {
           'yes
           'no)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   auto lit = expect<literal_expression>(e);
   EXPECT_EQ(expect<symbol>(lit->value())->value(), "yes");
@@ -1190,7 +1190,7 @@ TEST_F(ast, lets_with_lambdas_can_be_evaluated_in_if_conditions) {
           'yes
           'no)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   auto lit = expect<literal_expression>(e);
   EXPECT_EQ(expect<symbol>(lit->value())->value(), "yes");
@@ -1203,7 +1203,7 @@ TEST_F(ast, lets_with_constant_applications_can_be_evaluated_in_if_conditions) {
           'yes
           'no)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   auto lit = expect<literal_expression>(e);
   EXPECT_EQ(expect<symbol>(lit->value())->value(), "yes");
@@ -1217,7 +1217,7 @@ TEST_F(ast, lets_with_lets_can_be_evaluated_in_if_conditions) {
           'yes
           'no)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   auto lit = expect<literal_expression>(e);
   EXPECT_EQ(expect<symbol>(lit->value())->value(), "yes");
@@ -1546,7 +1546,7 @@ TEST_F(ast, set_eliminable_variables_are_constants) {
         (set! n 2)
         (+ n (read)))
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
 
   for_each<application_expression>(
@@ -1568,7 +1568,7 @@ TEST_F(ast, set_eliminable_local_definitions_are_constants) {
         (define n 2)
         (+ n (read)))
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
 
   for_each<application_expression>(
@@ -1631,7 +1631,7 @@ TEST_F(ast, set_eliminable_variables_are_retained_in_lets) {
         (set! x 1)
         x)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants,
+    {&analyse_variables, &evaluate_constants,
      &remove_unnecessary_definitions}
   );
   auto let = expect<let_expression>(e);
@@ -1659,7 +1659,7 @@ TEST_F(ast, local_definition_of_set_variable_is_retained) {
         (set! x 1)
         x)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants,
+    {&analyse_variables, &evaluate_constants,
      &remove_unnecessary_definitions}
   );
 
@@ -1899,7 +1899,7 @@ TEST_F(ast, loop_variable_is_not_constant) {
         (f 5 (read)))
     )",
     {&analyse_variables, &find_self_variables, &inline_procedures,
-     &propagate_and_evaluate_constants, &remove_unnecessary_definitions}
+     &evaluate_constants, &remove_unnecessary_definitions}
   );
 
   auto outer_let = expect<let_expression>(e);
@@ -2009,7 +2009,7 @@ TEST_F(ast, variable_bound_to_another_variable_is_inlined) {
         (let ((inner outer))
           inner))
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   for_each<local_reference_expression>(
     e,
@@ -2029,7 +2029,7 @@ TEST_F(ast, variable_bound_to_top_level_variable_is_inlined) {
       (let ((x foo))
         x)
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants}
+    {&analyse_variables, &evaluate_constants}
   );
   auto seq = expect<sequence_expression>(e);
   ASSERT_EQ(seq->expressions().size(), 2);
@@ -2053,7 +2053,7 @@ TEST_F(ast, top_level_reference_is_inlined_through_argument) {
         (lambda (x)
           (compare? eq? x)))
     )",
-    {&analyse_variables, &inline_procedures, &propagate_and_evaluate_constants,
+    {&analyse_variables, &inline_procedures, &evaluate_constants,
      &analyse_free_variables}
   );
   auto foo_def
@@ -2076,7 +2076,7 @@ TEST_F(ast, variable_reference_is_inlined_through_a_chain) {
             (let ((c b))
               c))))
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants,
+    {&analyse_variables, &evaluate_constants,
      &analyse_free_variables}
   );
 
@@ -2097,7 +2097,7 @@ TEST_F(ast, reference_to_set_variable_is_not_inlined) {
           (set! mutable 1)
           copy))
     )",
-    {&analyse_variables, &propagate_and_evaluate_constants,
+    {&analyse_variables, &evaluate_constants,
      &analyse_free_variables}
   );
 
@@ -2153,7 +2153,7 @@ TEST_F(ast, simple_loop_is_constant_evaluated) {
         (f 0 0))
     )",
     {&analyse_variables, &find_self_variables, &inline_procedures,
-     &propagate_and_evaluate_constants, &update_variables,
+     &evaluate_constants, &update_variables,
      &remove_unnecessary_definitions}
   );
   auto seq = expect<sequence_expression>(e);
@@ -2174,7 +2174,7 @@ TEST_F(ast, loop_with_non_constant_initial_value_is_not_folded) {
         (f (read)))
     )",
     {&analyse_variables, &find_self_variables, &inline_procedures,
-     &propagate_and_evaluate_constants, &update_variables,
+     &evaluate_constants, &update_variables,
      &remove_unnecessary_definitions}
   );
   auto seq = expect<sequence_expression>(e);
@@ -2191,7 +2191,7 @@ TEST_F(ast, infinite_loop_is_not_folded) {
         (f))
     )",
     {&analyse_variables, &find_self_variables, &inline_procedures,
-     &propagate_and_evaluate_constants, &update_variables,
+     &evaluate_constants, &update_variables,
      &remove_unnecessary_definitions}
   );
   auto seq = expect<sequence_expression>(e);
@@ -2212,7 +2212,7 @@ TEST_F(ast, loop_is_not_folded_if_later_iteration_becomes_non_const) {
         (f 0))
     )",
     {&analyse_variables, &find_self_variables, &inline_procedures,
-     &propagate_and_evaluate_constants, &update_variables,
+     &evaluate_constants, &update_variables,
      &remove_unnecessary_definitions}
   );
   auto seq = expect<sequence_expression>(e);

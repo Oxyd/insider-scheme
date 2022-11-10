@@ -548,7 +548,7 @@ namespace {
 }
 
 expression
-propagate_and_evaluate_constants(context& ctx, expression e, analysis_context) {
+evaluate_constants(context& ctx, expression e, analysis_context) {
   evaluate_constants_visitor v{ctx};
   depth_first_search(evaluate_constants_visitor::node{e}, v);
   assert(v.env.empty());

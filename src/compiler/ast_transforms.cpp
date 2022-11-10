@@ -21,7 +21,7 @@ pass_list const all_passes{
   analyse_variables,
   find_self_variables,
   inline_procedures,
-  propagate_and_evaluate_constants,
+  evaluate_constants,
   update_variables,
   remove_unnecessary_definitions,
   make_loop_temporaries,

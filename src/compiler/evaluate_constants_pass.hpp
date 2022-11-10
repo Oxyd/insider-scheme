@@ -9,7 +9,7 @@ namespace insider {
 class context;
 
 expression
-propagate_and_evaluate_constants(context&, expression, analysis_context);
+evaluate_constants(context&, expression, analysis_context);
 
 } // namespace insider
 
