@@ -589,16 +589,34 @@ do_native_call(ptr<native_procedure> proc, execution_state& state,
   call_native_procedure(state);
 }
 
-template <bool Scheme, bool Native, bool Tail>
+static bool
+is_scheme_call(opcode oc) {
+  return oc == opcode::scheme_call || oc == opcode::scheme_tail_call;
+}
+
+static bool
+is_native_call(opcode oc) {
+  return oc == opcode::native_call || oc == opcode::native_tail_call;
+}
+
+static bool
+is_tail_call(opcode oc) {
+  return oc == opcode::tail_call
+         || oc == opcode::scheme_tail_call
+         || oc == opcode::native_tail_call;
+}
+
 static void
-call(execution_state& state) {
+call(opcode opcode, execution_state& state) {
   operand base = read_operand(state);
   ptr<> callee = state.stack->local(base);
 
-  if (Scheme || is<procedure>(callee))
-    push_scheme_call_frame(assume<procedure>(callee), state, base, Tail);
-  else if (Native || is<native_procedure>(callee))
-    do_native_call(assume<native_procedure>(callee), state, base, Tail);
+  if (is_scheme_call(opcode) || is<procedure>(callee))
+    push_scheme_call_frame(assume<procedure>(callee), state, base,
+                           is_tail_call(opcode));
+  else if (is_native_call(opcode) || is<native_procedure>(callee))
+    do_native_call(assume<native_procedure>(callee), state, base,
+                   is_tail_call(opcode));
   else
     throw make_error("Application: Not a procedure: {}",
                      datum_to_string(state.ctx, callee));
@@ -778,12 +796,12 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::less_or_equal:
   case opcode::greater_or_equal:       relational(opcode, state);        break;
   case opcode::set:                    set(state);                       break;
-  case opcode::tail_call:              call<false, false, true>(state);  break;
-  case opcode::call:                   call<false, false, false>(state); break;
-  case opcode::scheme_tail_call:       call<true, false, true>(state);   break;
-  case opcode::scheme_call:            call<true, false, false>(state);  break;
-  case opcode::native_tail_call:       call<false, true, true>(state);   break;
-  case opcode::native_call:            call<false, true, false>(state);  break;
+  case opcode::tail_call:
+  case opcode::call:
+  case opcode::scheme_tail_call:
+  case opcode::scheme_call:
+  case opcode::native_tail_call:
+  case opcode::native_call:            call(opcode, state);  break;
   case opcode::ret:                    ret(state);                       break;
   case opcode::jump:                   jump(state);                      break;
   case opcode::jump_unless:            jump_unless(state);               break;
