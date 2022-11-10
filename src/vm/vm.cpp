@@ -803,7 +803,10 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
     assert(false); // Invalid opcode
   } // end switch
 
-  if (opcode == opcode::ret || opcode == opcode::tail_call)
+  if (opcode == opcode::ret
+      || opcode == opcode::tail_call
+      || opcode == opcode::scheme_tail_call
+      || opcode == opcode::native_tail_call)
     no_gc.force_update();
 }
 
