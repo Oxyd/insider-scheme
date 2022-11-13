@@ -12,7 +12,7 @@ namespace {
   struct built_in_operations_visitor {
     struct operation {
       std::string name;
-      opcode      operation;
+      opcode      instruction;
       std::size_t arity;
       bool        has_result;
     };
@@ -46,7 +46,7 @@ namespace {
                          ptr<top_level_variable> var) {
       return make<built_in_operation_expression>(
         ctx,
-        op.operation,
+        op.instruction,
         app->arguments(),
         op.has_result,
         assume<native_procedure>(ctx.get_top_level(var->index))

@@ -8,6 +8,7 @@
 #include "compiler/variable.hpp"
 #include "io/read.hpp"
 #include "runtime/basic_types.hpp"
+#include "util/integer_cast.hpp"
 
 #include <fmt/format.h>
 
@@ -113,7 +114,7 @@ procedure_context::intern_constant(context& ctx, ptr<> value) {
 
   constants.push_back(value);
   assert(constants.size() < operand_max);
-  return constants.size() - 1;
+  return to_smaller<operand>(constants.size() - 1);
 }
 
 shared_register

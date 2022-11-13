@@ -44,14 +44,14 @@ void
 export_variable(context& ctx, ptr<module_> result) {
   define_struct<local_variable>(ctx, "local-variable", result)
     .field<&local_variable::name>("name")
-    .field<&local_variable_is_set>("set?")
-    .field<&local_variable_constant_initialiser>("constant-initialiser")
+    .field<local_variable_is_set>("set?")
+    .field<local_variable_constant_initialiser>("constant-initialiser")
     ;
 
   define_struct<top_level_variable>(ctx, "top-level-variable", result)
     .field<&top_level_variable::name>("name")
-    .field<&top_level_variable_is_set>("set?")
-    .field<&top_level_variable_constant_initialiser>("constant-initialiser")
+    .field<top_level_variable_is_set>("set?")
+    .field<top_level_variable_constant_initialiser>("constant-initialiser")
     ;
 }
 

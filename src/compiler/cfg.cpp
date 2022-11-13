@@ -244,19 +244,19 @@ jump_offset(operand target, operand source) {
 
 static operand
 jump_source(mutable_bytecode const& bc, opcode instr) {
-  return bc.size() + instruction_size(instr);
+  return to_smaller<operand>(bc.size() + instruction_size(instr));
 }
 
 static void
 encode_ending(mutable_bytecode& bc, unconditional_jump uj, cfg const& g) {
-  operand target = g[uj.target_block].start_offset;
+  auto target = to_smaller<operand>(g[uj.target_block].start_offset);
   encode_instruction(bc, {opcode::jump,
                           jump_offset(target, jump_source(bc, opcode::jump))});
 }
 
 static void
 encode_ending(mutable_bytecode& bc, conditional_jump cj, cfg const& g) {
-  operand target = g[cj.target_block].start_offset;
+  auto target = to_smaller<operand>(g[cj.target_block].start_offset);
   encode_instruction(
     bc,
     {opcode::jump_unless, cj.test_register,

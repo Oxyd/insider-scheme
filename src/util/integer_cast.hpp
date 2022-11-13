@@ -24,6 +24,14 @@ to_signed(From from) {
   return static_cast<To>(from);
 }
 
+template <std::unsigned_integral To, std::unsigned_integral From>
+  requires(sizeof(To) < sizeof(From))
+To
+to_smaller(From from) {
+  assert(from <= static_cast<From>(std::numeric_limits<To>::max()));
+  return static_cast<To>(from);
+}
+
 } // namespace insider
 
 #endif
