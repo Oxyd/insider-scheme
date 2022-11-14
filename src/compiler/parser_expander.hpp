@@ -11,9 +11,9 @@
 namespace insider {
 
 // The parser/expander turns syntax objects into the internal representation
-// defined in expression.hpp. In Scheme, macro expansion and parsing can't
-// really be separated since they are fundamentally interleaved, thus this
-// module does both.
+// defined in ast.hpp. In Scheme, macro expansion and parsing can't really be
+// separated since they are fundamentally interleaved, thus this module does
+// both.
 
 class module_;
 class syntax;
