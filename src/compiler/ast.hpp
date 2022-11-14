@@ -499,6 +499,13 @@ class lambda_expression : public composite_object<lambda_expression> {
 public:
   static constexpr char const* scheme_name = "insider::lambda_expression";
 
+  struct parameter {
+    ptr<local_variable> variable;
+
+    void
+    visit_members(member_visitor const& f);
+  };
+
   // Duplicate a lambda expression with new self variable and without free
   // variables.
   lambda_expression(ptr<lambda_expression> source,
@@ -509,13 +516,13 @@ public:
                     expression new_body);
 
   lambda_expression(context&,
-                    std::vector<ptr<local_variable>> parameters,
+                    std::vector<parameter> parameters,
                     bool has_rest,
                     expression body,
                     std::string name,
                     std::vector<ptr<local_variable>> free_variables);
 
-  std::vector<ptr<local_variable>> const&
+  std::vector<parameter> const&
   parameters() const { return parameters_; }
 
   bool
@@ -575,7 +582,7 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  std::vector<ptr<local_variable>> parameters_;
+  std::vector<parameter>           parameters_;
   bool                             has_rest_;
   expression                       body_;
   std::string                      name_;

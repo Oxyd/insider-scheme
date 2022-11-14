@@ -100,7 +100,9 @@ static bool
 any_param_set(ptr<lambda_expression> lambda) {
   return std::ranges::any_of(
     lambda->parameters(),
-    [] (ptr<local_variable> v) { return v->flags().is_set; }
+    [] (lambda_expression::parameter const& p) {
+      return p.variable->flags().is_set;
+    }
   );
 }
 
@@ -108,15 +110,15 @@ static expression
 box_lambda(context& ctx, ptr<lambda_expression> lambda) {
   std::vector<expression> new_body;
   expression body = lambda->body();
-  for (ptr<local_variable> param : lambda->parameters())
-    if (param->flags().is_set) {
-      body = box_variable_references(ctx, body, param);
+  for (auto const& param : lambda->parameters())
+    if (param.variable->flags().is_set) {
+      body = box_variable_references(ctx, body, param.variable);
       new_body.emplace_back(
         make<local_set_expression>(
-          ctx, param,
+          ctx, param.variable,
           make_application(
             ctx, "box",
-            make<local_reference_expression>(ctx, param)
+            make<local_reference_expression>(ctx, param.variable)
           )
         )
       );

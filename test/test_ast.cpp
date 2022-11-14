@@ -77,9 +77,9 @@ find_variable(std::string const& name, ptr<top_level_set_expression> set) {
 
 static variable
 find_variable(std::string const& name, ptr<lambda_expression> lambda) {
-  for (ptr<local_variable> v : lambda->parameters())
-    if (v->name() == name)
-      return v;
+  for (auto const& param : lambda->parameters())
+    if (param.variable->name() == name)
+      return param.variable;
 
   return find_variable_in_subexpressions(name, lambda);
 }
@@ -722,7 +722,7 @@ TEST_F(ast, inlined_code_does_not_share_lambda_variables) {
   auto bar_let = expect<let_expression>(first_subexpression(bar_def));
   auto bar_var = bar_let->definitions().front().variable();
 
-  EXPECT_NE(foo_param, bar_var);
+  EXPECT_NE(foo_param.variable, bar_var);
 }
 
 TEST_F(ast, inlined_code_does_not_share_internal_variables) {
@@ -2087,7 +2087,7 @@ TEST_F(ast, variable_reference_is_inlined_through_a_chain) {
   auto body = expect<local_reference_expression>(
     ignore_lets_and_sequences(foo_def->body())
   );
-  EXPECT_EQ(body->variable(), param);
+  EXPECT_EQ(body->variable(), param.variable);
 }
 
 TEST_F(ast, reference_to_set_variable_is_not_inlined) {

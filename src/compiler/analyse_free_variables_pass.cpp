@@ -26,8 +26,8 @@ namespace {
     enter(ptr<lambda_expression> lambda) {
       free_vars_stack.emplace_back();
       bound_vars_stack.emplace_back();
-      for (ptr<local_variable> param : lambda->parameters())
-        bound_vars_stack.back().emplace(param);
+      for (lambda_expression::parameter const& param : lambda->parameters())
+        bound_vars_stack.back().emplace(param.variable);
       bound_vars_stack.back().emplace(lambda->self_variable());
 
       return true;

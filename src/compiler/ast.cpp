@@ -434,6 +434,11 @@ top_level_set_expression::show(context& ctx, std::size_t indent) const {
                      insider::show(ctx, expression_, indent + 2));
 }
 
+void
+lambda_expression::parameter::visit_members(member_visitor const& f) {
+  f(variable);
+}
+
 lambda_expression::lambda_expression(ptr<lambda_expression> source,
                                      ptr<local_variable> new_self_variable)
   : parameters_{source->parameters_}
@@ -457,7 +462,7 @@ lambda_expression::lambda_expression(ptr<lambda_expression> source,
 
 lambda_expression::lambda_expression(
   context& ctx,
-  std::vector<ptr<local_variable>> parameters,
+  std::vector<parameter> parameters,
   bool has_rest,
   expression body,
   std::string name,
@@ -492,7 +497,7 @@ lambda_expression::add_free_variable(free_store& fs, ptr<local_variable> v) {
 void
 lambda_expression::visit_members(member_visitor const& f) {
   for (auto& p : parameters_)
-    f(p);
+    p.visit_members(f);
   body_.visit_members(f);
   for (auto& fv : free_variables_)
     f(fv);
@@ -507,8 +512,10 @@ lambda_expression::update(context& ctx, result_stack& stack) {
 std::string
 lambda_expression::show(context& ctx, std::size_t indent) const {
   std::string params;
-  for (ptr<local_variable> p : parameters_)
-    params += fmt::format("{}@{} ", p->name(), static_cast<void*>(p.value()));
+  for (auto const& p : parameters_)
+    params += fmt::format("{}@{} ",
+                          p.variable->name(),
+                          static_cast<void*>(p.variable.value()));
 
   return fmt::format("{}- lambda: {} {}\n{}",
                      make_indent(indent), name_, params,
@@ -699,7 +706,10 @@ let_expression_definitions(context& ctx, ptr<let_expression> let) {
 
 static ptr<>
 lambda_expression_parameters(context& ctx, ptr<lambda_expression> lambda) {
-  return make_list_from_range(ctx, lambda->parameters());
+  return make_list_from_range(ctx, lambda->parameters(),
+                              [] (lambda_expression::parameter const& param) {
+                                return param.variable;
+                              });
 }
 
 static ptr<>

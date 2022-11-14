@@ -66,8 +66,8 @@ namespace {
     void
     enter_expression(ptr<lambda_expression> lambda) {
       current_variables.emplace_back();
-      for (auto const& var : lambda->parameters())
-        current_variables.back().push_back(var);
+      for (auto const& param : lambda->parameters())
+        current_variables.back().push_back(param.variable);
     }
 
     void

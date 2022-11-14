@@ -16,7 +16,7 @@ make_definition_pairs_for_mandatory_args(ptr<application_expression> app,
                                          std::size_t num_args) {
   std::vector<definition_pair_expression> dps;
   for (std::size_t i = 0; i < num_args; ++i)
-    dps.emplace_back(lambda->parameters()[i], app->arguments()[i]);
+    dps.emplace_back(lambda->parameters()[i].variable, app->arguments()[i]);
   return dps;
 }
 
@@ -57,7 +57,7 @@ inline_variadic_application(context& ctx, ptr<application_expression> app,
   std::vector<definition_pair_expression> dps
     = make_definition_pairs_for_mandatory_args(app, target, mandatory_args);
 
-  dps.emplace_back(target->parameters().back(),
+  dps.emplace_back(target->parameters().back().variable,
                    make_tail_args_expression(ctx, app, mandatory_args));
 
   return clone_ast(ctx,
@@ -233,7 +233,8 @@ namespace {
       result.reserve(app->arguments().size());
 
       for (std::size_t i = 0; i < app->arguments().size(); ++i)
-        result.emplace_back(lambda->parameters()[i], app->arguments()[i]);
+        result.emplace_back(lambda->parameters()[i].variable,
+                            app->arguments()[i]);
 
       return result;
     }
@@ -242,8 +243,16 @@ namespace {
 
 static void
 mark_lambda_parameters_as_loop_variables(ptr<lambda_expression> lambda) {
-  for (auto var : lambda->parameters())
-    var->flags().is_loop_variable = true;
+  for (auto const& param : lambda->parameters())
+    param.variable->flags().is_loop_variable = true;
+}
+
+static std::vector<ptr<local_variable>>
+make_loop_variables(ptr<lambda_expression> lambda) {
+  std::vector<ptr<local_variable>> result;
+  for (auto const& param : lambda->parameters())
+    result.push_back(param.variable);
+  return result;
 }
 
 static void
@@ -252,7 +261,7 @@ replace_lambda_body_with_loop(
   std::unordered_set<ptr<application_expression>> const& calls
 ) {
   auto body = make<loop_body>(ctx, lambda->body(), make<loop_id>(ctx),
-                              lambda->parameters());
+                              make_loop_variables(lambda));
   transform_ast(ctx, body, loop_substitutor{ctx, lambda, calls, body});
   lambda->update_body(ctx.store, body);
   mark_lambda_parameters_as_loop_variables(lambda);

@@ -336,7 +336,7 @@ namespace {
                      dfs_stack<node>& stack) {
       env.push_scope();
       for (auto p : lambda->parameters())
-        env.add_variable(p);
+        env.add_variable(p.variable);
       env.add_variable(lambda->self_variable());
 
       push_children(lambda, stack);

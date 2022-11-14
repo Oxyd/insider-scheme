@@ -317,9 +317,10 @@ push_parameters_and_closure_scope(procedure_context& proc,
                                proc.registers.allocate_register()}
   );
 
-  for (ptr<local_variable> param : stx->parameters())
+  for (auto const& param : stx->parameters())
     param_and_closure_scope.push_back(
-      variable_bindings::binding{param, proc.registers.allocate_register()}
+      variable_bindings::binding{param.variable,
+                                 proc.registers.allocate_register()}
     );
 
   for (ptr<local_variable> free : stx->free_variables())

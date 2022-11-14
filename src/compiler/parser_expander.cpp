@@ -821,11 +821,11 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
 static void
 parse_lambda_parameter(parsing_context& pc,
                        ptr<syntax> name,
-                       std::vector<insider::ptr<local_variable>>& parameters,
+                       std::vector<lambda_expression::parameter>& parameters,
                        ptr<scope> subscope) {
   auto name_with_scope = name->add_scope(pc.ctx.store, subscope);
   auto var = make<local_variable>(pc.ctx, identifier_name(name_with_scope));
-  parameters.push_back(var);
+  parameters.push_back({.variable = var});
   define(pc.ctx.store, name_with_scope, var);
 }
 
@@ -833,7 +833,7 @@ static auto
 parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
                         source_location const& loc) {
   ptr<> param_names = param_stx;
-  std::vector<ptr<local_variable>> parameters;
+  std::vector<lambda_expression::parameter> parameters;
   bool has_rest = false;
   auto subscope = make<scope>(
     pc.ctx, pc.ctx,
