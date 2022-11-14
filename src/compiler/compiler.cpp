@@ -312,7 +312,6 @@ push_parameters_and_closure_scope(procedure_context& proc,
                                   ptr<lambda_expression> stx) {
   variable_bindings::scope param_and_closure_scope;
 
-  // Self variable.
   param_and_closure_scope.push_back(
     variable_bindings::binding{stx->self_variable(),
                                proc.registers.allocate_register()}
