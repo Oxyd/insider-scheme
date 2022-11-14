@@ -17,7 +17,7 @@ make_procedure(context& ctx, mutable_bytecode const& bc,
     ctx, bc,
     procedure_prototype::meta{
       .locals_size = locals_size,
-      .min_args = min_args,
+      .num_required_args = min_args,
       .has_rest = has_rest,
       .name = std::make_shared<std::string>("<test procedure>"),
       .debug_info = std::make_shared<debug_info_map>()
@@ -251,7 +251,7 @@ TEST_F(interpreter, exec_closure_ref) {
                    {opcode::ret, operand{1}}}),
     procedure_prototype::meta{
       .locals_size = 3,
-      .min_args = 1,
+      .num_required_args = 1,
       .has_rest = false,
       .name = std::make_shared<std::string>("add"),
       .debug_info = std::make_shared<debug_info_map>()
@@ -391,7 +391,7 @@ TEST_F(interpreter, load_self_in_closure) {
     make_bytecode({{opcode::ret, operand{0}}}),
     procedure_prototype::meta{
       .locals_size = 2,
-      .min_args = 0,
+      .num_required_args = 0,
       .has_rest = false,
       .name = std::make_shared<std::string>("f"),
       .debug_info = std::make_shared<debug_info_map>()

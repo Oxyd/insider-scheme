@@ -381,7 +381,7 @@ compile_expression(context& ctx, procedure_context& parent,
     ctx, proc,
     procedure_prototype::meta{
       .locals_size = {},
-      .min_args = static_cast<unsigned>(
+      .num_required_args = static_cast<unsigned>(
         stx->parameters().size() - (stx->has_rest() ? 1 : 0)
       ),
       .has_rest = stx->has_rest(),
@@ -805,7 +805,7 @@ compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
       ctx, proc,
       procedure_prototype::meta{
         .locals_size = {},
-        .min_args = 0,
+        .num_required_args = 0,
         .has_rest = false,
         .name = std::make_shared<std::string>("<expression>"),
         .debug_info = {}
@@ -860,7 +860,7 @@ compile_module_body(context& ctx, tracked_ptr<module_> const& m,
     make_procedure(ctx, proc,
                    procedure_prototype::meta{
                      .locals_size = {},
-                     .min_args = 0,
+                     .num_required_args = 0,
                      .has_rest = false,
                      .name = std::make_shared<std::string>(
                        fmt::format("<module {} top-level>",

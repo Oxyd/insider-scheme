@@ -38,7 +38,7 @@ struct call_stack_fixture : scheme_fixture {
         mutable_bytecode{},
         procedure_prototype::meta{
           .locals_size = 0,
-          .min_args = 0,
+          .num_required_args = 0,
           .has_rest = false,
           .name = std::make_shared<std::string>("<dummy>"),
           .debug_info = std::make_shared<debug_info_map>()

@@ -153,12 +153,12 @@ namespace {
 inline void
 throw_if_wrong_number_of_args(procedure_prototype const& proc,
                               std::size_t num_args) {
-  if (num_args < proc.info.min_args
-      || (!proc.info.has_rest && num_args > proc.info.min_args))
+  if (num_args < proc.info.num_required_args
+      || (!proc.info.has_rest && num_args > proc.info.num_required_args))
     throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
                      *proc.info.name,
                      proc.info.has_rest ? "at least " : "",
-                     proc.info.min_args, num_args);
+                     proc.info.num_required_args, num_args);
 }
 
 static void
@@ -377,7 +377,7 @@ get_closure_size(ptr<procedure> proc) {
 
 static std::size_t
 actual_args_size(procedure_prototype const& proto) {
-  return proto.info.min_args + (proto.info.has_rest ? 1 : 0);
+  return proto.info.num_required_args + (proto.info.has_rest ? 1 : 0);
 }
 
 static void
@@ -412,8 +412,8 @@ convert_tail_args(context& ctx, ptr<call_stack> stack,
                   procedure_prototype const& proto, std::size_t base,
                   std::size_t num_args) {
   if (proto.info.has_rest)
-    convert_tail_args_to_list(ctx, stack, base + proto.info.min_args + 1,
-                              num_args - proto.info.min_args);
+    convert_tail_args_to_list(ctx, stack, base + proto.info.num_required_args + 1,
+                              num_args - proto.info.num_required_args);
 }
 
 static instruction_pointer
@@ -889,7 +889,7 @@ push_rest_argument_for_call_from_native(context& ctx,
                                         ptr<call_stack> stack,
                                         auto tail_begin,
                                         auto tail_end) {
-  stack->local(operand(proto.info.min_args + 1))
+  stack->local(operand(proto.info.num_required_args + 1))
     = make_list_from_range(ctx,
                            std::ranges::subrange(tail_begin, tail_end));
 }
@@ -903,7 +903,7 @@ push_scheme_arguments_for_call_from_native(context& ctx,
 
   stack->local(operand{0}) = callable;
   auto arg_it = args.begin();
-  for (std::size_t i = 0; i < proto.info.min_args; ++i)
+  for (std::size_t i = 0; i < proto.info.num_required_args; ++i)
     stack->local(operand(i) + 1) = *arg_it++;
 
   if (proto.info.has_rest)

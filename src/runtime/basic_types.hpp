@@ -435,7 +435,7 @@ public:
 
   struct meta {
     unsigned                        locals_size;
-    unsigned                        min_args;
+    unsigned                        num_required_args;
     bool                            has_rest;
     std::shared_ptr<std::string>    name;
     std::shared_ptr<debug_info_map> debug_info;
