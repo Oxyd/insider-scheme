@@ -13,8 +13,17 @@ make_procedure(context& ctx, mutable_bytecode const& bc,
                std::vector<ptr<>> constants,
                unsigned locals_size,
                unsigned min_args, bool has_rest = false) {
-  return make_procedure(ctx, bc, locals_size, min_args, has_rest,
-                        "<test procedure>", std::move(constants));
+  return make_procedure(
+    ctx, bc,
+    procedure_prototype::meta{
+      .locals_size = locals_size,
+      .min_args = min_args,
+      .has_rest = has_rest,
+      .name = std::make_shared<std::string>("<test procedure>"),
+      .debug_info = std::make_shared<debug_info_map>()
+    },
+    std::move(constants)
+  );
 }
 
 static mutable_bytecode
@@ -240,8 +249,13 @@ TEST_F(interpreter, exec_closure_ref) {
     ctx,
     make_bytecode({{opcode::add, operand{1}, operand{2}, operand{1}},
                    {opcode::ret, operand{1}}}),
-    3, 1,
-    false, "add",
+    procedure_prototype::meta{
+      .locals_size = 3,
+      .min_args = 1,
+      .has_rest = false,
+      .name = std::make_shared<std::string>("add"),
+      .debug_info = std::make_shared<debug_info_map>()
+    },
     {}
   );
   auto global = make_procedure(
@@ -375,7 +389,14 @@ TEST_F(interpreter, load_self_in_closure) {
   auto f = make_procedure_prototype(
     ctx,
     make_bytecode({{opcode::ret, operand{0}}}),
-    2, 0, false, "f", {}
+    procedure_prototype::meta{
+      .locals_size = 2,
+      .min_args = 0,
+      .has_rest = false,
+      .name = std::make_shared<std::string>("f"),
+      .debug_info = std::make_shared<debug_info_map>()
+    },
+    {}
   );
   auto global = make_procedure(
     ctx,

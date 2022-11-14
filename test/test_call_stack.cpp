@@ -33,8 +33,18 @@ struct call_stack_fixture : scheme_fixture {
   make_dummy_procedure() {
     return make<procedure>(
       ctx,
-      make<procedure_prototype>(ctx, mutable_bytecode{}, debug_info_map{}, 0, 0,
-                                false, "<dummy>", std::vector<ptr<>>{}),
+      make<procedure_prototype>(
+        ctx,
+        mutable_bytecode{},
+        procedure_prototype::meta{
+          .locals_size = 0,
+          .min_args = 0,
+          .has_rest = false,
+          .name = std::make_shared<std::string>("<dummy>"),
+          .debug_info = std::make_shared<debug_info_map>()
+        },
+        std::vector<ptr<>>{}
+      ),
       0
     );
   }

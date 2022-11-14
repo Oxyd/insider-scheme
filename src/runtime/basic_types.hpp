@@ -433,19 +433,21 @@ public:
   // A copy of all these members is made every time a new closure is created.
   // The shared_ptr's are here to make creating these copies fast.
 
-  bytecode                        code;
-  std::size_t                     code_size;
-  std::shared_ptr<debug_info_map> debug_info;
-  unsigned                        locals_size;
-  unsigned                        min_args;
-  bool                            has_rest;
-  std::shared_ptr<std::string>    name;
-  std::shared_ptr<ptr<>[]>        constants;
-  std::size_t                     constants_size;
+  struct meta {
+    unsigned                        locals_size;
+    unsigned                        min_args;
+    bool                            has_rest;
+    std::shared_ptr<std::string>    name;
+    std::shared_ptr<debug_info_map> debug_info;
+  };
 
-  procedure_prototype(mutable_bytecode bc, debug_info_map const& dim,
-                      unsigned locals_size, unsigned min_args, bool has_rest,
-                      std::string const& name,
+  bytecode                 code;
+  std::size_t              code_size;
+  std::shared_ptr<ptr<>[]> constants;
+  std::size_t              constants_size;
+  meta                     info;
+
+  procedure_prototype(mutable_bytecode bc, meta i,
                       std::vector<ptr<>> const& constants);
 
   void
@@ -454,8 +456,7 @@ public:
 
 ptr<procedure_prototype>
 make_procedure_prototype(context& ctx, mutable_bytecode bc,
-                         unsigned locals_size, unsigned min_args,
-                         bool has_rest, std::string name,
+                         procedure_prototype::meta i,
                          std::vector<ptr<>> constants);
 
 // Callable Scheme code, together with any captured free variables.
@@ -498,8 +499,7 @@ make_captureless_procedure(context&, ptr<procedure_prototype>);
 
 ptr<procedure>
 make_procedure(context& ctx, mutable_bytecode const& bc,
-               unsigned locals_size, unsigned min_args,
-               bool has_rest, std::string name,
+               procedure_prototype::meta i,
                std::vector<ptr<>> constants);
 
 // Like procedure, but when invoked, it calls a C++ function.

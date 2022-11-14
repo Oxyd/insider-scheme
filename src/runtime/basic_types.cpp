@@ -262,20 +262,12 @@ box::box(ptr<> value)
 
 procedure_prototype::procedure_prototype(
   mutable_bytecode bc,
-  debug_info_map const& dim,
-  unsigned locals_size,
-  unsigned min_args,
-  bool has_rest,
-  std::string const& name,
+  meta i,
   std::vector<ptr<>> const& constants_vec
 )
   : code_size{bc.size()}
-  , debug_info{std::make_shared<debug_info_map>(dim)}
-  , locals_size{locals_size}
-  , min_args{min_args}
-  , has_rest{has_rest}
-  , name{std::make_shared<std::string>(name)}
   , constants_size{constants_vec.size()}
+  , info{std::move(i)}
 {
   code = std::make_shared<std::uint16_t[]>(bc.size());
   std::ranges::copy(bc, code.get());
@@ -292,12 +284,10 @@ procedure_prototype::visit_members(member_visitor const& f) {
 
 ptr<procedure_prototype>
 make_procedure_prototype(context& ctx, mutable_bytecode bc,
-                         unsigned locals_size, unsigned min_args,
-                         bool has_rest, std::string name,
+                         procedure_prototype::meta i,
                          std::vector<ptr<>> constants) {
-  return make<procedure_prototype>(ctx, std::move(bc), debug_info_map{},
-                                   locals_size, min_args, has_rest,
-                                   std::move(name), std::move(constants));
+  return make<procedure_prototype>(ctx, std::move(bc), std::move(i),
+                                   std::move(constants));
 }
 
 procedure::procedure(ptr<procedure_prototype> p,
@@ -345,13 +335,11 @@ make_captureless_procedure(context& ctx, ptr<procedure_prototype> p) {
 }
 
 ptr<procedure>
-make_procedure(context& ctx, mutable_bytecode const& bc, unsigned locals_size,
-               unsigned min_args, bool has_rest, std::string name,
-               std::vector<ptr<>> constants) {
+make_procedure(context& ctx, mutable_bytecode const& bc,
+               procedure_prototype::meta i, std::vector<ptr<>> constants) {
   return make_captureless_procedure(
     ctx,
-    make_procedure_prototype(ctx, bc, locals_size, min_args, has_rest,
-                                 std::move(name), std::move(constants))
+    make_procedure_prototype(ctx, bc, std::move(i), std::move(constants))
   );
 }
 

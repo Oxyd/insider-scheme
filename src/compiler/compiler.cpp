@@ -287,29 +287,23 @@ compile_expression(context& ctx, procedure_context& proc,
 
 static ptr<procedure_prototype>
 make_procedure_prototype(context& ctx, procedure_context& pc,
-                         unsigned min_args, bool has_rest,
-                         std::string name,
+                         procedure_prototype::meta i,
                          std::vector<ptr<>> constants) {
   auto [bc, di] = analyse_and_compile_cfg(pc.cfg);
+  i.locals_size = pc.registers.registers_used();
+  i.debug_info = std::make_shared<debug_info_map>(std::move(di));
   return make<procedure_prototype>(ctx,
                                    std::move(bc),
-                                   std::move(di),
-                                   pc.registers.registers_used(),
-                                   min_args,
-                                   has_rest,
-                                   std::move(name),
+                                   std::move(i),
                                    std::move(constants));
 }
 
 static ptr<procedure>
-make_procedure(context& ctx, procedure_context& pc, unsigned min_args,
-               bool has_rest, std::string name, std::vector<ptr<>> constants) {
+make_procedure(context& ctx, procedure_context& pc, procedure_prototype::meta i,
+               std::vector<ptr<>> constants) {
   return make_captureless_procedure(
     ctx,
-    make_procedure_prototype(ctx, pc, min_args,
-                             has_rest,
-                             std::move(name),
-                             std::move(constants))
+    make_procedure_prototype(ctx, pc, std::move(i), std::move(constants))
   );
 }
 
@@ -386,8 +380,16 @@ compile_expression(context& ctx, procedure_context& parent,
 
   auto p = make_procedure_prototype(
     ctx, proc,
-    static_cast<unsigned>(stx->parameters().size() - (stx->has_rest() ? 1 : 0)),
-    stx->has_rest(), stx->name(), std::move(proc.constants)
+    procedure_prototype::meta{
+      .locals_size = {},
+      .min_args = static_cast<unsigned>(
+        stx->parameters().size() - (stx->has_rest() ? 1 : 0)
+      ),
+      .has_rest = stx->has_rest(),
+      .name = std::make_shared<std::string>(stx->name()),
+      .debug_info = {}
+    },
+    std::move(proc.constants)
   );
 
   if (stx->free_variables().empty())
@@ -799,8 +801,18 @@ compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
     proc.emit(opcode::ret, *result);
 
   return make_captureless_procedure(
-    ctx, make_procedure_prototype(ctx, proc, 0, false, "<expression>",
-                                      std::move(proc.constants))
+    ctx,
+    make_procedure_prototype(
+      ctx, proc,
+      procedure_prototype::meta{
+        .locals_size = {},
+        .min_args = 0,
+        .has_rest = false,
+        .name = std::make_shared<std::string>("<expression>"),
+        .debug_info = {}
+      },
+      std::move(proc.constants)
+    )
   );
 }
 
@@ -846,11 +858,19 @@ compile_module_body(context& ctx, tracked_ptr<module_> const& m,
 
   m->set_top_level_procedure(
     ctx.store,
-    make_procedure(ctx, proc, 0, false,
-                   fmt::format("<module {} top-level>",
-                               pm.name
-                               ? module_name_to_string(*pm.name)
-                               : "<unknown>"),
+    make_procedure(ctx, proc,
+                   procedure_prototype::meta{
+                     .locals_size = {},
+                     .min_args = 0,
+                     .has_rest = false,
+                     .name = std::make_shared<std::string>(
+                       fmt::format("<module {} top-level>",
+                                   pm.name
+                                   ? module_name_to_string(*pm.name)
+                                   : "<unknown>")
+                     ),
+                     .debug_info = {}
+                   },
                    std::move(proc.constants))
   );
 }

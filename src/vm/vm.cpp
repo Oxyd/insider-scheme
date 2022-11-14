@@ -63,7 +63,7 @@ find_inlined_procedures(frame_reference frame,
     procedure_prototype const& proto
       = assume<procedure>(frame.callable())->prototype();
     std::size_t call_idx = find_index_of_call_instruction(proto, *call_ip);
-    debug_info_map const& debug_info = *proto.debug_info;
+    debug_info_map const& debug_info = *proto.info.debug_info;
     if (auto di = debug_info.find(call_idx); di != debug_info.end())
       return di->second.inlined_call_chain;
   }
@@ -79,7 +79,7 @@ append_scheme_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
   for (std::string const& inlined_proc : inlined)
     trace.push_back({inlined_proc, stacktrace_record::kind::scheme});
 
-  trace.push_back({*proto.name, stacktrace_record::kind::scheme});
+  trace.push_back({*proto.info.name, stacktrace_record::kind::scheme});
 }
 
 static void
@@ -153,12 +153,12 @@ namespace {
 inline void
 throw_if_wrong_number_of_args(procedure_prototype const& proc,
                               std::size_t num_args) {
-  if (num_args < proc.min_args
-      || (!proc.has_rest && num_args > proc.min_args))
+  if (num_args < proc.info.min_args
+      || (!proc.info.has_rest && num_args > proc.info.min_args))
     throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
-                     *proc.name,
-                     proc.has_rest ? "at least " : "",
-                     proc.min_args, num_args);
+                     *proc.info.name,
+                     proc.info.has_rest ? "at least " : "",
+                     proc.info.min_args, num_args);
 }
 
 static void
@@ -377,7 +377,7 @@ get_closure_size(ptr<procedure> proc) {
 
 static std::size_t
 actual_args_size(procedure_prototype const& proto) {
-  return proto.min_args + (proto.has_rest ? 1 : 0);
+  return proto.info.min_args + (proto.info.has_rest ? 1 : 0);
 }
 
 static void
@@ -411,9 +411,9 @@ static void
 convert_tail_args(context& ctx, ptr<call_stack> stack,
                   procedure_prototype const& proto, std::size_t base,
                   std::size_t num_args) {
-  if (proto.has_rest)
-    convert_tail_args_to_list(ctx, stack, base + proto.min_args + 1,
-                              num_args - proto.min_args);
+  if (proto.info.has_rest)
+    convert_tail_args_to_list(ctx, stack, base + proto.info.min_args + 1,
+                              num_args - proto.info.min_args);
 }
 
 static instruction_pointer
@@ -427,7 +427,7 @@ push_scheme_frame(execution_state& state, ptr<procedure> proc,
   state.stack->push_frame(
     call_stack::frame_type::scheme,
     state.stack->frame_base() + base,
-    proc->prototype().locals_size,
+    proc->prototype().info.locals_size,
     state.ip,
     result_reg
   );
@@ -445,8 +445,8 @@ make_tail_call_frame(ptr<call_stack> stack, ptr<> proc,
 static void
 make_scheme_tail_call_frame(ptr<call_stack> stack, ptr<procedure> proc,
                             std::size_t args_base, std::size_t num_args) {
-  make_tail_call_frame(stack, proc, proc->prototype().locals_size, args_base,
-                       num_args);
+  make_tail_call_frame(stack, proc, proc->prototype().info.locals_size,
+                       args_base, num_args);
 }
 
 static void
@@ -889,7 +889,7 @@ push_rest_argument_for_call_from_native(context& ctx,
                                         ptr<call_stack> stack,
                                         auto tail_begin,
                                         auto tail_end) {
-  stack->local(operand(proto.min_args + 1))
+  stack->local(operand(proto.info.min_args + 1))
     = make_list_from_range(ctx,
                            std::ranges::subrange(tail_begin, tail_end));
 }
@@ -903,10 +903,10 @@ push_scheme_arguments_for_call_from_native(context& ctx,
 
   stack->local(operand{0}) = callable;
   auto arg_it = args.begin();
-  for (std::size_t i = 0; i < proto.min_args; ++i)
+  for (std::size_t i = 0; i < proto.info.min_args; ++i)
     stack->local(operand(i) + 1) = *arg_it++;
 
-  if (proto.has_rest)
+  if (proto.info.has_rest)
     push_rest_argument_for_call_from_native(ctx, proto, stack,
                                             arg_it, args.end());
 }
@@ -920,7 +920,7 @@ make_scheme_frame_for_call_from_native(execution_state& state,
 
   state.stack->push_frame(call_stack::frame_type::scheme,
                           state.stack->size(),
-                          callable->prototype().locals_size,
+                          callable->prototype().info.locals_size,
                           previous_ip,
                           {});
 
@@ -1209,7 +1209,7 @@ make_scheme_tail_call_frame_for_call_from_native(
   throw_if_wrong_number_of_args(callable->prototype(), arguments.size());
 
   stack->replace_frame(call_stack::frame_type::scheme,
-                       callable->prototype().locals_size);
+                       callable->prototype().info.locals_size);
   push_scheme_arguments_for_call_from_native(ctx, callable, stack, arguments);
   push_closure(callable, stack);
   clear_native_continuations(stack);
