@@ -21,6 +21,7 @@ class context;
 class core_form_type;
 class eof_type;
 class integer;
+class keyword;
 class module_;
 class null_type;
 class parameter_map;
@@ -82,6 +83,9 @@ public:
   ptr<symbol>
   intern(std::string const&);
 
+  ptr<keyword>
+  intern_keyword(std::string const&);
+
   ptr<symbol>
   intern_type_name(word_type type_index);
 
@@ -134,12 +138,13 @@ private:
     visit_roots(member_visitor const&) override;
   };
 
-  root_provider                                root_provider_{*this};
-  std::unordered_map<std::string, ptr<symbol>> interned_symbols_;
-  std::vector<ptr<>>                           top_level_objects_;
-  std::vector<std::string>                     top_level_binding_names_;
-  insider::module_resolver                     module_resolver_{*this};
-  std::vector<ptr<symbol>>                     type_name_symbols_;
+  root_provider                                 root_provider_{*this};
+  std::unordered_map<std::string, ptr<symbol>>  interned_symbols_;
+  std::unordered_map<std::string, ptr<keyword>> interned_keywords_;
+  std::vector<ptr<>>                            top_level_objects_;
+  std::vector<std::string>                      top_level_binding_names_;
+  insider::module_resolver                      module_resolver_{*this};
+  std::vector<ptr<symbol>>                      type_name_symbols_;
 
   ptr<> features_;
   scope::id_type next_scope_id_ = 0;

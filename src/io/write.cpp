@@ -291,6 +291,14 @@ symbol_requires_pipes(std::string const& sym) {
          || symbol_contains_character_that_requires_pipes(sym);
 }
 
+static bool
+keyword_requires_pipes(std::string const& kw) {
+  using namespace std::literals;
+  return kw.empty()
+         || kw == "."s
+         || symbol_contains_character_that_requires_pipes(kw);
+}
+
 static std::string
 escape_symbol(std::string const& s) {
   std::string result;
@@ -312,6 +320,14 @@ write_symbol(ptr<textual_output_port> const& out, ptr<symbol> sym) {
 }
 
 static void
+write_keyword(ptr<textual_output_port> out, ptr<keyword> kw) {
+  if (keyword_requires_pipes(kw->value()))
+    out->write(fmt::format("#:|{}|", escape_symbol(kw->value())));
+  else
+    out->write(fmt::format("#:{}", kw->value()));
+}
+
+static void
 write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   if (datum == ctx.constants->null)
     out->write("()");
@@ -325,6 +341,8 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
     write_number(ctx, datum, out);
   else if (auto sym = match<symbol>(datum))
     write_symbol(out, sym);
+  else if (auto kw = match<keyword>(datum))
+    write_keyword(out, kw);
   else if (auto bv = match<bytevector>(datum)) {
     out->write("#u8(");
     for (std::size_t i = 0; i < bv->size(); ++i) {

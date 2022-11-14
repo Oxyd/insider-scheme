@@ -194,6 +194,26 @@ TEST_F(io, read_string) {
   EXPECT_EQ(expect<string>(read(msvc_workaround12))->value(), "foobar");
 }
 
+TEST_F(io, read_simple_keyword) {
+  EXPECT_EQ(expect<keyword>(read("#:foo"))->value(), "foo");
+}
+
+TEST_F(io, keywords_are_interned) {
+  auto k1 = read("#:foo");
+  auto k2 = read("#:foo");
+  auto k3 = read("#:bar");
+  EXPECT_EQ(k1, k2);
+  EXPECT_NE(k1, k3);
+}
+
+TEST_F(io, keywords_can_be_case_folded) {
+  EXPECT_EQ(expect<keyword>(read("#!fold-case #:FOO"))->value(), "foo");
+}
+
+TEST_F(io, read_verbatim_keyword) {
+  EXPECT_EQ(expect<keyword>(read("#:|foo bar baz|"))->value(), "foo bar baz");
+}
+
 TEST_F(io, read_multiple) {
   std::vector<ptr<>> result1 = read_multiple(ctx, "foo bar baz");
   ASSERT_EQ(result1.size(), 3);
@@ -668,7 +688,7 @@ TEST_F(io, read_syntax_returns_eof_on_end) {
 }
 
 #define EXPECT_SYMBOL_EQ(x, y) \
-  EXPECT_EQ(datum_to_string(ctx, ctx.intern(x)), y);
+  do EXPECT_EQ(datum_to_string(ctx, ctx.intern(x)), y); while (false)
 
 TEST_F(io, write_simple_symbol) {
   EXPECT_SYMBOL_EQ("foo", "foo");
@@ -694,3 +714,20 @@ TEST_F(io, write_symbols_that_require_pipes) {
 }
 
 #undef EXPECT_SYMBOL_EQ
+
+#define EXPECT_KEYWORD_EQ(x, y) \
+  do EXPECT_EQ(datum_to_string(ctx, ctx.intern_keyword(x)), y); while (false)
+
+TEST_F(io, write_simple_keyword) {
+  EXPECT_KEYWORD_EQ("foo", "#:foo");
+  EXPECT_KEYWORD_EQ("123", "#:123");
+}
+
+TEST_F(io, write_keyword_that_requires_pipes) {
+  EXPECT_KEYWORD_EQ("", "#:||");
+  EXPECT_KEYWORD_EQ(".", "#:|.|");
+  EXPECT_KEYWORD_EQ("foo bar", "#:|foo bar|");
+  EXPECT_KEYWORD_EQ("foo|bar", "#:|foo\\|bar|");
+}
+
+#undef EXPECT_KEYWORD_EQ

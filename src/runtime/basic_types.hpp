@@ -62,6 +62,23 @@ public:
   core_form_type(std::string n) : name{std::move(n)} { }
 };
 
+// Symbol-like object but with different read syntax and used for different
+// syntactic purposes.
+class keyword : public leaf_object<keyword> {
+public:
+  static constexpr char const* scheme_name = "insider::keyword";
+  static constexpr word_type static_type_index = type_indexes::keyword;
+
+  explicit
+  keyword(std::string value) : value_{std::move(value)} { }
+
+  std::string
+  value() const { return value_; }
+
+private:
+  std::string value_;
+};
+
 // Dummy value used for implementing tail-calls from native procedures.
 class tail_call_tag_type : public leaf_object<tail_call_tag_type> {
 public:

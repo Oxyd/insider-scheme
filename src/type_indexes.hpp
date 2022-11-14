@@ -28,6 +28,7 @@ enum index {
   record_instance,
   string,
   symbol,
+  keyword,
   syntax,
   scope
 };

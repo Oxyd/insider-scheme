@@ -39,6 +39,10 @@ namespace {
     std::string value;
   };
 
+  struct keyword_literal {
+    std::string value;
+  };
+
   struct quote { };
   struct backquote { };
   struct comma { };
@@ -68,6 +72,7 @@ namespace {
       boolean_literal,
       void_literal,
       identifier,
+      keyword_literal,
       quote,
       backquote,
       comma,
@@ -785,15 +790,20 @@ read_special_literal(context& ctx, reader_stream& stream) {
   }
 }
 
-static token
-read_identifier(reader_stream& stream) {
-  source_location loc = stream.location();
+static std::string
+read_identifier_contents(reader_stream& stream) {
   std::u32string value = read_until_delimiter(stream);
 
   if (stream.fold_case)
     value = string_foldcase(value);
 
-  return {identifier{to_utf8(value)}, loc};
+  return to_utf8(value);
+}
+
+static token
+read_identifier(reader_stream& stream) {
+  source_location loc = stream.location();
+  return {identifier{read_identifier_contents(stream)}, loc};
 }
 
 static char32_t
@@ -852,11 +862,10 @@ read_string_escape(context& ctx, reader_stream& stream) {
   }
 }
 
-static token
-read_verbatim_identifier(context& ctx, reader_stream& stream) {
+static std::string
+read_verbatim_identifier_contents(context& ctx, reader_stream& stream) {
   // The opening | was consumed before calling this function.
 
-  source_location loc = stream.location();
   std::u32string value;
 
   std::optional<char32_t> c = stream.read();
@@ -872,7 +881,13 @@ read_verbatim_identifier(context& ctx, reader_stream& stream) {
   if (!c)
     throw read_error{"Unexpected end of input", stream.location()};
 
-  return {identifier{to_utf8(value)}, loc};
+  return to_utf8(value);
+}
+
+static token
+read_verbatim_identifier(context& ctx, reader_stream& stream) {
+  source_location loc = stream.location();
+  return {identifier{read_verbatim_identifier_contents(ctx, stream)}, loc};
 }
 
 static token
@@ -1015,6 +1030,22 @@ read_directive(context& ctx, reader_stream& stream) {
 }
 
 static token
+read_verbatim_keyword(context& ctx, reader_stream& stream,
+                      source_location const& loc) {
+  consume(stream, '|');
+  return {keyword_literal{read_verbatim_identifier_contents(ctx, stream)}, loc};
+}
+
+static token
+read_keyword(context& ctx, reader_stream& stream, source_location const& loc) {
+  consume(stream, ':');
+  if (stream.peek() == '|')
+    return read_verbatim_keyword(ctx, stream, loc);
+  else
+    return {keyword_literal{read_identifier_contents(stream)}, loc};
+}
+
+static token
 read_token_after_octothorpe(context& ctx, reader_stream& stream,
                             source_location const& loc) {
   std::optional<char32_t> c = stream.peek();
@@ -1045,6 +1076,8 @@ read_token_after_octothorpe(context& ctx, reader_stream& stream,
     return read_block_comment(ctx, stream);
   else if (*c == '!')
     return read_directive(ctx, stream);
+  else if (*c == ':')
+    return read_keyword(ctx, stream, loc);
   else if (*c == 'u') {
     consume(stream, 'u');
     expect(stream, '8');
@@ -1422,6 +1455,9 @@ read(context& ctx, token first_token, reader_stream& stream,
     return define_label_for_atomic_value(lit->value, labels, defining_label);
   else if (identifier* i = std::get_if<identifier>(&first_token.value))
     return define_label_for_atomic_value(ctx.intern(i->value), labels,
+                                         defining_label);
+  else if (keyword_literal* k = std::get_if<keyword_literal>(&first_token.value))
+    return define_label_for_atomic_value(ctx.intern_keyword(k->value), labels,
                                          defining_label);
   else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token.value))
     return define_label_for_atomic_value(

@@ -74,23 +74,35 @@ context::~context() {
   constants.reset();
 }
 
-ptr<symbol>
-context::intern(std::string const& s) {
-  auto interned = interned_symbols_.find(s);
-  if (interned != interned_symbols_.end()) {
-    if (ptr<symbol> sym = interned->second)
+template <typename T>
+static ptr<T>
+intern(context& ctx, std::string const& s,
+       std::unordered_map<std::string, ptr<T>>& map) {
+  auto interned = map.find(s);
+  if (interned != map.end()) {
+    if (ptr<T> sym = interned->second)
       return sym;
     else {
-      ptr<symbol> result = make<symbol>(*this, s);
+      ptr<T> result = make<T>(ctx, s);
       interned->second = result;
       return result;
     }
   }
 
-  ptr<symbol> result = make<symbol>(*this, s);
-  interned_symbols_.emplace(s, result);
+  ptr<T> result = make<T>(ctx, s);
+  map.emplace(s, result);
 
   return result;
+}
+
+ptr<symbol>
+context::intern(std::string const& s) {
+  return insider::intern<symbol>(*this, s, interned_symbols_);
+}
+
+ptr<keyword>
+context::intern_keyword(std::string const& s) {
+  return insider::intern<keyword>(*this, s, interned_keywords_);
 }
 
 ptr<>
