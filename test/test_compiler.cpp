@@ -98,7 +98,7 @@ TEST_F(compiler, compile_lambda) {
     R"(
       (let ((list (lambda args args)))
         (list 1 2 3))
-   )"
+    )"
   );
   EXPECT_TRUE(equal(result4,
                     make_list(ctx,
@@ -112,7 +112,7 @@ TEST_F(compiler, compile_lambda) {
                          (let ((addend (if (eq? rest '()) 1 (car rest))))
                            (+ value addend)))))
         (cons (increment 2) (increment 7 3)))
-   )"
+    )"
   );
   EXPECT_EQ(expect<integer>(car(expect<pair>(result5))).value(), 3);
   EXPECT_EQ(expect<integer>(cdr(expect<pair>(result5))).value(), 10);
@@ -121,7 +121,7 @@ TEST_F(compiler, compile_lambda) {
     R"(
       (let ((const (lambda () 2)))
         (const))
-   )"
+    )"
   );
   EXPECT_EQ(expect<integer>(result6).value(), 2);
 }
