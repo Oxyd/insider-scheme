@@ -1562,6 +1562,11 @@ parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
   );
 }
 
+static bool
+is_self_quoting(ptr<> value) {
+  return !is<keyword>(value);
+}
+
 expression
 parse(parsing_context& pc, ptr<syntax> s) {
   ptr<syntax> stx = expand(pc, s); // GC
@@ -1624,10 +1629,12 @@ parse(parsing_context& pc, ptr<syntax> s) {
 
     return parse_application(pc, stx);
   }
-  else
+  else if (is_self_quoting(stx->get_expression_without_update()))
     return make<literal_expression>(
       pc.ctx, syntax_to_datum(pc.ctx, stx)
     );
+  else
+    throw make_compile_error<syntax_error>(stx, "keyword used as expression");
 }
 
 static ptr<syntax>

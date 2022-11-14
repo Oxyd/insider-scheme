@@ -850,3 +850,7 @@ TEST_F(compiler, loop_expressions_are_evaluated_before_assignments) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 4);
 }
+
+TEST_F(compiler, keywords_are_not_self_quoting) {
+  EXPECT_THROW(eval("#:foo"), syntax_error);
+}
