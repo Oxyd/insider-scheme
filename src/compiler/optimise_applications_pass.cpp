@@ -43,12 +43,10 @@ find_scheme_application_target(ptr<application_expression> app) {
 }
 
 static bool
-is_valid_scheme_application(ptr<application_expression> app) {
-  if (auto lambda = find_scheme_application_target(app))
-    return app->arguments().size() == lambda->parameters().size()
-           && !lambda->has_rest();
-  else
-    return false;
+scheme_application_is_valid(ptr<application_expression> app,
+                            ptr<lambda_expression> lambda) {
+  return app->arguments().size() == lambda->parameters().size()
+         && !lambda->has_rest();
 }
 
 static bool
@@ -61,9 +59,10 @@ is_native_application(context& ctx, ptr<application_expression> app) {
 
 static expression
 visit_application(context& ctx, ptr<application_expression> app) {
-  if (is_valid_scheme_application(app))
-    app->set_kind(application_expression::target_kind::scheme);
-  else if (is_native_application(ctx, app))
+  if (auto lambda = find_scheme_application_target(app)) {
+    if (scheme_application_is_valid(app, lambda))
+      app->set_kind(application_expression::target_kind::scheme);
+  } else if (is_native_application(ctx, app))
     app->set_kind(application_expression::target_kind::native);
 
   return app;

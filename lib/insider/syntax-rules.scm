@@ -117,10 +117,6 @@
       (eq? (type x) 'insider::vector))))
 
 (meta
-  (define list
-    (lambda x x)))
-
-(meta
   (define caar
     (lambda (x)
       (car (car x)))))
