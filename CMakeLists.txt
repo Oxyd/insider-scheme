@@ -191,6 +191,7 @@ Set(test_sources
         test/test_macros.cpp
         test/test_modules.cpp
         test/test_numeric.cpp
+        test/test_parser.cpp
         test/test_port.cpp
         test/test_procedures.cpp
         test/test_reader_stream.cpp
