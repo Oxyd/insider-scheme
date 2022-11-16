@@ -1,7 +1,8 @@
 (library (insider syntax))
 (import (rename (insider internal)
                 (define %define)
-                (let %let))
+                (let %let)
+                (lambda %lambda))
         (insider syntax-rules))
 (export
  ;; From core
@@ -18,6 +19,51 @@
  ;; Defined here
  ... _ define let let* letrec let-values let*-values case when unless do
  or and define-auxiliary-syntax cond else =>)
+
+(define-syntax let*
+  (syntax-rules ()
+    ((let* () body0 body ...)
+     (begin body0 body ...))
+
+    ((let* ((var0 expr0) (var expr) ...) body0 body ...)
+     (%let ((var0 expr0))
+       (let* ((var expr) ...)
+         body0 body ...)))))
+
+(define-syntax lambda/emit
+  (syntax-rules ()
+    ((lambda/emit real-args () body)
+     (%lambda real-args . body))
+
+    ((lambda/emit real-args (default-exprs ...) body)
+     (%lambda real-args (let* (default-exprs ...) . body)))))
+
+(define-syntax lambda/collect-args
+  (syntax-rules ()
+    ((lambda/collect-args ((arg default-expr) . args)
+                          (real-args ...)
+                          (default-exprs ...)
+                          body)
+     (lambda/collect-args args
+                          (real-args ... (in-arg #:optional))
+                          (default-exprs ... (arg (if (eq? in-arg #default-value)
+                                                      default-expr
+                                                      in-arg)))
+                          body))
+
+    ((lambda/collect-args (arg . args) (real-args ...) (default-exprs ...) body)
+     (lambda/collect-args args (real-args ... arg) (default-exprs ...) body))
+
+    ((lambda/collect-args tail-arg (real-args ...) (default-exprs ...) body)
+     (lambda/emit (real-args ... . tail-arg) (default-exprs ...) body))
+
+    ((lambda/collect-args () real-args (default-exprs ...) body)
+     (lambda/emit real-args (default-exprs ...) body))))
+
+(define-syntax lambda
+  (syntax-rules ()
+    ((lambda in-args . body)
+     (lambda/collect-args in-args () () body))))
 
 (define-syntax define
   (syntax-rules ()
@@ -39,16 +85,6 @@
     ((let ((var expr) ...) body0 body ...)
      (%let ((var expr) ...)
        body0 body ...))))
-
-(define-syntax let*
-  (syntax-rules ()
-    ((let* () body0 body ...)
-     (begin body0 body ...))
-
-    ((let* ((var0 expr0) (var expr) ...) body0 body ...)
-     (let ((var0 expr0))
-       (let* ((var expr) ...)
-         body0 body ...)))))
 
 (define-syntax letrec*
   (syntax-rules ()

@@ -191,7 +191,22 @@
     (test-equal '(1 2 ())
                 (let ()
                   (define-values (a b . rest) (values 1 2))
-                  (list a b rest)))))
+                  (list a b rest)))
+
+    (test-equal 3
+                (let ((f (lambda (a b) (+ a b))))
+                  (f 1 2)))
+
+    (test-equal 5
+                (let ((f (lambda (a (b 3)) (+ a b))))
+                  (f 2)))
+
+    (let ((f (lambda ((a #f) (b #f) . tail) (list a b tail))))
+      (test-equal '(1 2 (3 4 5)) (f 1 2 3 4 5))
+      (test-equal '(1 2 (3)) (f 1 2 3))
+      (test-equal '(1 2 ()) (f 1 2))
+      (test-equal '(1 #f ()) (f 1))
+      (test-equal '(#f #f ()) (f)))))
 
 (when-main-module
  (test-syntax))
