@@ -522,6 +522,27 @@ lambda_expression::show(context& ctx, std::size_t indent) const {
                      insider::show(ctx, body_, indent + 2));
 }
 
+std::size_t
+required_parameter_count(ptr<lambda_expression> lambda) {
+  return positional_parameter_count(lambda) - optional_parameter_count(lambda);
+}
+
+std::size_t
+optional_parameter_count(ptr<lambda_expression> lambda) {
+  return std::ranges::count_if(
+    lambda->parameters(),
+    [] (lambda_expression::parameter const& p) { return p.optional; }
+  );
+}
+
+std::size_t
+positional_parameter_count(ptr<lambda_expression> lambda) {
+  if (lambda->has_rest())
+    return lambda->parameters().size() - 1;
+  else
+    return lambda->parameters().size();
+}
+
 if_expression::if_expression(expression test, expression consequent,
                              expression alternative)
   : test_{test}

@@ -45,8 +45,9 @@ find_scheme_application_target(ptr<application_expression> app) {
 static bool
 scheme_application_is_valid(ptr<application_expression> app,
                             ptr<lambda_expression> lambda) {
-  return app->arguments().size() == lambda->parameters().size()
-         && !lambda->has_rest();
+  return !lambda->has_rest()
+         && app->arguments().size() >= required_parameter_count(lambda)
+         && app->arguments().size() <= positional_parameter_count(lambda);
 }
 
 static bool
@@ -57,15 +58,65 @@ is_native_application(context& ctx, ptr<application_expression> app) {
     return false;
 }
 
+static bool
+has_unsupplied_optionals(ptr<application_expression> app,
+                         ptr<lambda_expression> lambda) {
+  return app->arguments().size() < positional_parameter_count(lambda);
+}
+
+static std::vector<expression>
+supplement_arguments_with_defaults(context& ctx,
+                                   ptr<application_expression> app,
+                                   ptr<lambda_expression> lambda) {
+  auto args = app->arguments();
+  std::size_t given_length = args.size();
+  std::size_t total_length = positional_parameter_count(lambda);
+  assert(given_length < total_length);
+
+  args.reserve(total_length);
+  for (std::size_t i = given_length; i < total_length; ++i)
+    args.emplace_back(
+      make<literal_expression>(ctx, ctx.constants->default_value)
+    );
+
+  return args;
+}
+
+static ptr<application_expression>
+supplement_application_with_default_values(context& ctx,
+                                           ptr<application_expression> app,
+                                           ptr<lambda_expression> lambda) {
+  auto new_args = supplement_arguments_with_defaults(ctx, app, lambda);
+  return make<application_expression>(ctx, app->target(), std::move(new_args));
+}
+
+static expression
+visit_scheme_application(context& ctx, ptr<application_expression> app,
+                         ptr<lambda_expression> lambda) {
+  if (!scheme_application_is_valid(app, lambda))
+    return app;
+
+  if (has_unsupplied_optionals(app, lambda))
+    app = supplement_application_with_default_values(ctx, app, lambda);
+
+  app->set_kind(application_expression::target_kind::scheme);
+  return app;
+}
+
+static expression
+visit_native_application(ptr<application_expression> app) {
+  app->set_kind(application_expression::target_kind::native);
+  return app;
+}
+
 static expression
 visit_application(context& ctx, ptr<application_expression> app) {
-  if (auto lambda = find_scheme_application_target(app)) {
-    if (scheme_application_is_valid(app, lambda))
-      app->set_kind(application_expression::target_kind::scheme);
-  } else if (is_native_application(ctx, app))
-    app->set_kind(application_expression::target_kind::native);
-
-  return app;
+  if (auto lambda = find_scheme_application_target(app))
+    return visit_scheme_application(ctx, app, lambda);
+  else if (is_native_application(ctx, app))
+    return visit_native_application(app);
+  else
+    return app;
 }
 
 static expression

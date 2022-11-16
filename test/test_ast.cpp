@@ -2423,3 +2423,27 @@ TEST_F(ast, application_of_redefined_variable_is_marked_correctly) {
     }
   );
 }
+
+TEST_F(ast,
+       application_of_procedure_with_optionals_is_supplemented_with_defaults) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo (lambda (a (b #:optional)) (cons a b)))
+      (define bar (lambda () (foo 1)))
+    )",
+    {&analyse_variables, &optimise_applications}
+  );
+
+  auto bar = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  for_each<application_expression>(
+    bar,
+    [] (ptr<application_expression> app) {
+      EXPECT_EQ(app->kind(), application_expression::target_kind::scheme);
+      ASSERT_EQ(app->arguments().size(), 2);
+      EXPECT_TRUE(is<literal_expression>(app->arguments()[0]));
+      EXPECT_TRUE(is<literal_expression>(app->arguments()[1]));
+    }
+  );
+}
