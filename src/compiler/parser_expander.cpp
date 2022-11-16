@@ -818,15 +818,52 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
   return parse_body(pc, body_with_scope, loc);
 }
 
-static void
-parse_lambda_parameter(parsing_context& pc,
-                       ptr<syntax> name,
-                       std::vector<lambda_expression::parameter>& parameters,
-                       ptr<scope> subscope) {
+static lambda_expression::parameter
+define_lambda_parameter(parsing_context& pc, ptr<syntax> name,
+                        ptr<scope> subscope, bool optional) {
   auto name_with_scope = name->add_scope(pc.ctx.store, subscope);
   auto var = make<local_variable>(pc.ctx, identifier_name(name_with_scope));
-  parameters.push_back({.variable = var});
   define(pc.ctx.store, name_with_scope, var);
+  return {.variable = var, .optional = optional};
+}
+
+static lambda_expression::parameter
+parse_required_lambda_parameter(parsing_context& pc, ptr<syntax> name,
+                                ptr<scope> subscope) {
+  return define_lambda_parameter(pc, name, subscope, false);
+}
+
+static void
+expect_keyword(context& ctx, ptr<syntax> stx, std::string const& kw) {
+  if (!syntax_is<keyword>(stx)
+      || syntax_assume<keyword>(ctx, stx)->value() != kw)
+    throw make_compile_error<syntax_error>(stx, "Expected #:{}", kw);
+}
+
+static lambda_expression::parameter
+parse_optional_lambda_parameter(parsing_context& pc, ptr<syntax> param,
+                                ptr<scope> subscope) {
+  ptr<> lst = syntax_to_list(pc.ctx, param);
+  if (!lst || list_length(lst) != 2)
+    throw make_compile_error<syntax_error>(param,
+                                           "Invalid optional parameter syntax");
+
+  auto name = expect<syntax>(car(assume<pair>(lst)));
+  auto optional_kw = expect<syntax>(cadr(assume<pair>(lst)));
+  expect_keyword(pc.ctx, optional_kw, "optional");
+
+  return define_lambda_parameter(pc, name, subscope, true);
+}
+
+static lambda_expression::parameter
+parse_lambda_parameter(parsing_context& pc, ptr<syntax> param,
+                       ptr<scope> subscope) {
+  if (syntax_is<pair>(param))
+    return parse_optional_lambda_parameter(pc, param, subscope);
+  else
+    return parse_required_lambda_parameter(pc,
+                                           expect_id(pc.ctx, param),
+                                           subscope);
 }
 
 static auto
@@ -840,14 +877,26 @@ parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
     fmt::format("lambda body at {}", format_location(loc))
   );
 
+  bool has_optional = false;
   while (!semisyntax_is<null_type>(param_names)) {
     if (auto param = semisyntax_match<pair>(pc.ctx, param_names)) {
-      parse_lambda_parameter(pc, expect_id(pc.ctx, expect<syntax>(car(param))),
-                             parameters, subscope);
+      auto p = parse_lambda_parameter(pc, expect<syntax>(car(param)),
+                                      subscope);
+      parameters.push_back(p);
+
+      if (has_optional && !p.optional)
+        throw make_compile_error<syntax_error>(
+          expect<syntax>(car(param)),
+          "Required parameter after optional"
+        );
+
+      has_optional = has_optional || p.optional;
+
       param_names = cdr(param);
     } else if (semisyntax_is<symbol>(param_names)) {
-      parse_lambda_parameter(pc, assume<syntax>(param_names), parameters,
-                             subscope);
+      auto p = parse_required_lambda_parameter(pc, assume<syntax>(param_names),
+                                               subscope);
+      parameters.push_back(p);
       has_rest = true;
       break;
     } else

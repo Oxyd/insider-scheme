@@ -501,6 +501,7 @@ public:
 
   struct parameter {
     ptr<local_variable> variable;
+    bool                optional;
 
     void
     visit_members(member_visitor const& f);
