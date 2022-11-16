@@ -1,5 +1,5 @@
 (library (insider io))
-(import (insider syntax) (insider control) (insider syntax) (insider error) (insider list) (insider opt-lambda)
+(import (insider syntax) (insider control) (insider syntax) (insider error) (insider list)
         (insider string) (insider char) (insider basic-procedures) (insider numeric) (insider bytevector)
         (rename (only (insider internal)
                       read-char peek-char read-u8 peek-u8 write-u8 write-char
@@ -91,52 +91,50 @@
 (define (coerce-value x)
   (or x <eof-object>))
 
-(define read-line
-  (opt-lambda ((port (current-input-port)))
-    (let ((result (string)))
-      (let loop ()
-        (let ((c (read-char port)))
-          (cond
-           ((eof-object? c)
-            (if (string-null? result)
-                (eof-object)
-                result))
-           ((char=? c #\newline)
-            result)
-           ((char=? c #\return)
-            ;; Consume either \r alone or the sequence \r\n.
-            (when (eq? (peek-char port) #\newline)
-              (read-char port))
-            result)
-           (else
-            (string-append-char! result c)
-            (loop))))))))
+(define (read-line (port (current-input-port)))
+  (let ((result (string)))
+    (let loop ()
+      (let ((c (read-char port)))
+        (cond
+         ((eof-object? c)
+          (if (string-null? result)
+              (eof-object)
+              result))
+         ((char=? c #\newline)
+          result)
+         ((char=? c #\return)
+          ;; Consume either \r alone or the sequence \r\n.
+          (when (eq? (peek-char port) #\newline)
+            (read-char port))
+          result)
+         (else
+          (string-append-char! result c)
+          (loop)))))))
 
-(define read-string
-  (opt-lambda (k (port (current-input-port)))
-    (if (eof-object? (peek-char port))
-        (eof-object)
-        (let ((result (string)))
-          (let loop ((k k))
-            (if (zero? k)
-                result
-                (let ((c (read-char port)))
-                  (cond ((eof-object? c)
-                         result)
-                        (else
-                         (string-append-char! result c)
-                         (loop (- k 1)))))))))))
+(define (read-string k (port (current-input-port)))
+  (if (eof-object? (peek-char port))
+      (eof-object)
+      (let ((result (string)))
+        (let loop ((k k))
+          (if (zero? k)
+              result
+              (let ((c (read-char port)))
+                (cond ((eof-object? c)
+                       result)
+                      (else
+                       (string-append-char! result c)
+                       (loop (- k 1))))))))))
 
-(define write-string
-  (opt-lambda (s (port (current-output-port)) (start (string-cursor-start s)) (end (string-cursor-end s)))
-    (string-for-each-cursor
-     (lambda (cursor)
-       (write-char (string-ref/cursor s cursor) port))
-     s start end)))
+(define (write-string s (port (current-output-port))
+                      (start (string-cursor-start s))
+                      (end (string-cursor-end s)))
+  (string-for-each-cursor
+   (lambda (cursor)
+     (write-char (string-ref/cursor s cursor) port))
+   s start end))
 
-(define flush-output-port
-  (opt-lambda ((port (current-output-port)))
-    (%flush-output-port port)))
+(define (flush-output-port (port (current-output-port)))
+  (%flush-output-port port))
 
 (define (reverse-list->bytevector/length elements length)
   (let ((result (make-bytevector length)))
@@ -145,41 +143,37 @@
         ((zero? i) result)
       (bytevector-u8-set! result (- i 1) (car current)))))
 
-(define read-bytevector
-  (opt-lambda (k (port (current-input-port)))
-    (if (eof-object? (peek-u8 port))
-        (eof-object)
-        (let loop ((k k) (length 0) (accum '()))
-          (if (zero? k)
-              (reverse-list->bytevector/length accum length)
-              (let ((c (read-u8 port)))
-                (if (eof-object? c)
-                    (reverse-list->bytevector/length accum length)
-                    (loop (- k 1) (+ length 1) (cons c accum)))))))))
+(define (read-bytevector k (port (current-input-port)))
+  (if (eof-object? (peek-u8 port))
+      (eof-object)
+      (let loop ((k k) (length 0) (accum '()))
+        (if (zero? k)
+            (reverse-list->bytevector/length accum length)
+            (let ((c (read-u8 port)))
+              (if (eof-object? c)
+                  (reverse-list->bytevector/length accum length)
+                  (loop (- k 1) (+ length 1) (cons c accum))))))))
 
-(define read-bytevector!
-  (opt-lambda (bv (port (current-input-port)) (start 0) (end (bytevector-length bv)))
-    (if (eof-object? (peek-u8 port))
-        (eof-object)
-        (let ((max-length (- end start)))
-          (let loop ((current start) (bytes-read 0))
-            (let ((byte (read-u8 port)))
-              (if (or (eof-object? byte) (= current end))
-                  bytes-read
-                  (begin
-                    (bytevector-u8-set! bv current byte)
-                    (loop (+ current 1) (+ bytes-read 1))))))))))
+(define (read-bytevector! bv (port (current-input-port)) (start 0) (end (bytevector-length bv)))
+  (if (eof-object? (peek-u8 port))
+      (eof-object)
+      (let ((max-length (- end start)))
+        (let loop ((current start) (bytes-read 0))
+          (let ((byte (read-u8 port)))
+            (if (or (eof-object? byte) (= current end))
+                bytes-read
+                (begin
+                  (bytevector-u8-set! bv current byte)
+                  (loop (+ current 1) (+ bytes-read 1)))))))))
 
-(define write-bytevector
-  (opt-lambda (bv (port (current-output-port)) (start 0) (end (bytevector-length bv)))
-    (do ((i start (+ i 1)))
-        ((= i end))
-      (write-u8 (bytevector-u8-ref bv i) port))))
+(define (write-bytevector bv (port (current-output-port))
+                          (start 0) (end (bytevector-length bv)))
+  (do ((i start (+ i 1)))
+      ((= i end))
+    (write-u8 (bytevector-u8-ref bv i) port)))
 
-(define char-ready?
-  (opt-lambda ((port (current-input-port)))
-    (%char-ready? port)))
+(define (char-ready? (port (current-input-port)))
+  (%char-ready? port))
 
-(define u8-ready?
-  (opt-lambda ((port (current-input-port)))
-    (%u8-ready? port)))
+(define (u8-ready? (port (current-input-port)))
+  (%u8-ready? port))

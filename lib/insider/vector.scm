@@ -1,5 +1,5 @@
 (library (insider vector))
-(import (insider syntax) (insider basic-procedures) (insider opt-lambda) (insider numeric) (insider list)
+(import (insider syntax) (insider basic-procedures) (insider numeric) (insider list)
         (insider control)
         (only (insider internal)
               vector list->vector vector->list vector-append vector->list
@@ -16,14 +16,13 @@
       ((= i len) result)
     (vector-set! result i (proc i))))
 
-(define vector-copy
-  (opt-lambda (v (start 0) (end (vector-length v)))
-    (let ((length (- end start)))
-      (do ((result (make-vector length))
-           (src start (+ src 1))
-           (dst 0 (+ dst 1)))
-          ((= src end) result)
-        (vector-set! result dst (vector-ref v src))))))
+(define (vector-copy v (start 0) (end (vector-length v)))
+  (let ((length (- end start)))
+    (do ((result (make-vector length))
+         (src start (+ src 1))
+         (dst 0 (+ dst 1)))
+        ((= src end) result)
+      (vector-set! result dst (vector-ref v src)))))
 
 (define (vector-copy!/forward to at from start end)
   (do ((from-current start (+ from-current 1))
@@ -37,17 +36,15 @@
       ((= from-current start))
     (vector-set! to (- to-current 1) (vector-ref from (- from-current 1)))))
 
-(define vector-copy!
-  (opt-lambda (to at from (start 0) (end (vector-length from)))
-    (if (and (eq? to from) (< start at))
-        (vector-copy!/backward to at from start end)
-        (vector-copy!/forward to at from start end))))
+(define (vector-copy! to at from (start 0) (end (vector-length from)))
+  (if (and (eq? to from) (< start at))
+      (vector-copy!/backward to at from start end)
+      (vector-copy!/forward to at from start end)))
 
-(define vector-fill!
-  (opt-lambda (v fill (start 0) (end (vector-length v)))
-    (do ((current start (+ current 1)))
-        ((= current end))
-      (vector-set! v current fill))))
+(define (vector-fill! v fill (start 0) (end (vector-length v)))
+  (do ((current start (+ current 1)))
+      ((= current end))
+    (vector-set! v current fill)))
 
 (define (vector-for-each/1 proc v)
   (let ((l (vector-length v)))
