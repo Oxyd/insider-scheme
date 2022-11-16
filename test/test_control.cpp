@@ -1084,3 +1084,14 @@ TEST_F(control, can_access_arguments_after_continuation_jump) {
   )");
   EXPECT_TRUE(equal(result, read("(5 5)")));
 }
+
+TEST_F(control, apply_lambda_with_optionals) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda (a (b #:optional))
+               (cons a b))))
+      (apply f '(1)))
+  )");
+  auto p = expect<pair>(result);
+  EXPECT_EQ(expect<integer>(car(p)).value(), 1);
+  EXPECT_TRUE(is<default_value_type>(cdr(p)));
+}

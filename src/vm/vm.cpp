@@ -959,8 +959,11 @@ push_scheme_arguments_for_call_from_native(context& ctx,
 
   stack->local(operand{0}) = callable;
   auto arg_it = args.begin();
-  for (std::size_t i = 0; i < proto.info.num_leading_args; ++i)
-    stack->local(operand(i) + 1) = *arg_it++;
+  std::size_t arg = 0;
+  while (arg < proto.info.num_leading_args && arg_it != args.end())
+    stack->local(operand(arg++) + 1) = *arg_it++;
+
+  fill_in_default_values(ctx, stack, proto, 0, arg);
 
   if (proto.info.has_rest)
     push_rest_argument_for_call_from_native(ctx, proto, stack,
