@@ -11,7 +11,7 @@
  define-type-predicate
  box? syntax? native-procedure? procedure-prototype? procedure?
  scheme-procedure?
- symbol? boolean?
+ symbol? boolean? keyword?
  not
  boolean=? symbol=?)
 
@@ -29,6 +29,7 @@
 (define-type-predicate symbol? insider::symbol)
 (define-type-predicate string? insider::string)
 (define-type-predicate boolean? insider::boolean)
+(define-type-predicate keyword? insider::keyword)
 
 (define (procedure? x)
   (or (scheme-procedure? x) (native-procedure? x)))
