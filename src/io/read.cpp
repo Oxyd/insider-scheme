@@ -35,6 +35,8 @@ namespace {
 
   struct void_literal { };
 
+  struct default_value_literal { };
+
   struct identifier {
     std::string value;
   };
@@ -71,6 +73,7 @@ namespace {
       generic_literal,
       boolean_literal,
       void_literal,
+      default_value_literal,
       identifier,
       keyword_literal,
       quote,
@@ -752,42 +755,25 @@ read_special_literal(context& ctx, reader_stream& stream) {
   if (!c)
     throw read_error{"Unexpected end of input", stream.location()};
 
-  source_location loc = stream.location();
-
-  switch (*c) {
-  case 't':
-  case 'f': {
-    // These can be either #t or #f, or #true or #false.
-    std::u32string literal = read_until_delimiter(stream);
-
-    if (literal != U"t" && literal != U"f"
-        && literal != U"true" && literal != U"false")
-      throw read_error{fmt::format("Invalid literal: {}", to_utf8(literal)),
-                       loc};
-
-    if (*c == 't')
-      return {boolean_literal{true}, loc};
-    else
-      return {boolean_literal{false}, loc};
-  }
-
-  case 'v': {
-    std::u32string literal = read_until_delimiter(stream);
-    if (literal != U"void")
-      throw read_error{fmt::format("Invalid literal: {}", to_utf8(literal)),
-                       loc};
-
-    return {void_literal{}, loc};
-  }
-
-  case '\\': {
+  if (*c == '\\') {
     stream.read();
     return read_character(ctx, stream);
   }
 
-  default:
-    throw read_error{fmt::format("Invalid literal: #{}", to_utf8(*c)), loc};
-  }
+  source_location loc = stream.location();
+  std::u32string literal = read_until_delimiter(stream);
+
+  if (literal == U"t" || literal == U"true")
+    return {boolean_literal{true}, loc};
+  else if (literal == U"f" || literal == U"false")
+    return {boolean_literal{false}, loc};
+  else if (literal == U"void")
+    return {void_literal{}, loc};
+  else if (literal == U"default-value")
+    return {default_value_literal{}, loc};
+  else
+    throw read_error{fmt::format("Invalid literal: {}", to_utf8(literal)),
+                     loc};
 }
 
 static std::string
@@ -1467,6 +1453,9 @@ read(context& ctx, token first_token, reader_stream& stream,
     );
   else if (std::holds_alternative<void_literal>(first_token.value))
     return define_label_for_atomic_value(ctx.constants->void_, labels,
+                                         defining_label);
+  else if (std::holds_alternative<default_value_literal>(first_token.value))
+    return define_label_for_atomic_value(ctx.constants->default_value, labels,
                                          defining_label);
   else if (std::holds_alternative<dot>(first_token.value))
     throw read_error{"Unexpected . token", first_token.location};

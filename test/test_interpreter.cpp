@@ -12,12 +12,13 @@ static ptr<procedure>
 make_procedure(context& ctx, mutable_bytecode const& bc,
                std::vector<ptr<>> constants,
                unsigned locals_size,
-               unsigned min_args, bool has_rest = false) {
+               unsigned positional_args, bool has_rest = false) {
   return make_procedure(
     ctx, bc,
     procedure_prototype::meta{
       .locals_size = locals_size,
-      .num_required_args = min_args,
+      .num_required_args = positional_args,
+      .num_positional_args = positional_args,
       .has_rest = has_rest,
       .name = std::make_shared<std::string>("<test procedure>"),
       .debug_info = std::make_shared<debug_info_map>()
@@ -252,6 +253,7 @@ TEST_F(interpreter, exec_closure_ref) {
     procedure_prototype::meta{
       .locals_size = 3,
       .num_required_args = 1,
+      .num_positional_args = 1,
       .has_rest = false,
       .name = std::make_shared<std::string>("add"),
       .debug_info = std::make_shared<debug_info_map>()
@@ -392,6 +394,7 @@ TEST_F(interpreter, load_self_in_closure) {
     procedure_prototype::meta{
       .locals_size = 2,
       .num_required_args = 0,
+      .num_positional_args = 0,
       .has_rest = false,
       .name = std::make_shared<std::string>("f"),
       .debug_info = std::make_shared<debug_info_map>()

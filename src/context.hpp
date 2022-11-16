@@ -19,6 +19,7 @@ namespace insider {
 class boolean;
 class context;
 class core_form_type;
+class default_value_type;
 class eof_type;
 class integer;
 class keyword;
@@ -46,6 +47,7 @@ public:
     ptr<insider::void_type> void_;
     ptr<boolean>            t, f;     // #t and #f.
     ptr<eof_type>           eof;
+    ptr<default_value_type> default_value;
     ptr<tail_call_tag_type> tail_call_tag;
     ptr<core_form_type>
       let, set, init, lambda, if_, define, define_syntax, begin, quote,

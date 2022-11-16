@@ -268,6 +268,10 @@ TEST_F(io, read_syntax_with_shared_data) {
   EXPECT_EQ(first, second);
 }
 
+TEST_F(io, read_default_value_literal) {
+  EXPECT_EQ(read("#default-value"), ctx.constants->default_value);
+}
+
 static std::string
 to_string_simple(context& ctx, ptr<> datum) {
   auto out = make<textual_output_port>(ctx, std::make_unique<string_port_sink>());

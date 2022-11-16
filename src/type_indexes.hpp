@@ -8,6 +8,7 @@ enum index {
   null = 1,
   void_,
   eof,
+  default_value,
   parameter_tag,
   core_form,
   tail_call_tag,

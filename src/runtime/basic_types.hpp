@@ -43,6 +43,13 @@ public:
   static constexpr word_type static_type_index = type_indexes::eof;
 };
 
+// The value passed when an optional parameter is left unspecified.
+class default_value_type : public leaf_object<default_value_type> {
+public:
+  static constexpr char const* scheme_name = "insider::default_value_type";
+  static constexpr word_type static_type_index = type_indexes::default_value;
+};
+
 // Dummy value for identifying parameters.
 class parameter_tag : public leaf_object<parameter_tag> {
 public:
@@ -436,6 +443,7 @@ public:
   struct meta {
     unsigned                        locals_size;
     unsigned                        num_required_args;
+    unsigned                        num_positional_args;
     bool                            has_rest;
     std::shared_ptr<std::string>    name;
     std::shared_ptr<debug_info_map> debug_info;

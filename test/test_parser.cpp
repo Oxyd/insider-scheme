@@ -87,3 +87,14 @@ TEST_F(parser, parse_lambda_with_optional_and_tail_params) {
   EXPECT_FALSE(l->parameters()[1].optional);
   EXPECT_TRUE(l->has_rest());
 }
+
+TEST_F(parser, parse_lambda_with_required_optional_and_tail_params) {
+  auto l = expect<lambda_expression>(
+    parse("(lambda (a (b #:optional) . tail) #t)")
+  );
+  ASSERT_EQ(l->parameters().size(), 3);
+  EXPECT_FALSE(l->parameters()[0].optional);
+  EXPECT_TRUE(l->parameters()[1].optional);
+  EXPECT_FALSE(l->parameters()[2].optional);
+  EXPECT_TRUE(l->has_rest());
+}

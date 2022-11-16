@@ -126,6 +126,78 @@ TEST_F(compiler, compile_lambda) {
   EXPECT_EQ(expect<integer>(result6).value(), 2);
 }
 
+TEST_F(compiler, call_lambda_with_optional_param_supplied) {
+  ptr<> result = eval(
+    R"(
+      (let ((f (lambda (a (b #:optional)) (+ a b))))
+        (f 1 2))
+    )"
+  );
+  EXPECT_EQ(expect<integer>(result).value(), 3);
+}
+
+TEST_F(compiler, call_lambda_with_optional_param_not_supplied) {
+  ptr<> result = eval(
+    R"(
+      (let ((f (lambda (a (b #:optional)) (cons a b))))
+        (f 0))
+    )"
+  );
+  auto p = expect<pair>(result);
+  EXPECT_EQ(expect<integer>(car(p)).value(), 0);
+  EXPECT_EQ(cdr(p), ctx.constants->default_value);
+}
+
+TEST_F(compiler, call_lambda_with_optionals_and_tail) {
+  ptr<> result1 = eval(
+    R"(
+      (let ((f (lambda (a (b #:optional) . rest)
+                 (list a b rest))))
+        (f 1 2 3 4))
+    )"
+  );
+  EXPECT_TRUE(equal(result1, read("(1 2 (3 4))")));
+
+  ptr<> result2 = eval(
+    R"(
+      (let ((f (lambda (a (b #:optional) . rest)
+                 (list a b rest))))
+        (f 1 2 3))
+    )"
+  );
+  EXPECT_TRUE(equal(result2, read("(1 2 (3))")));
+
+  ptr<> result3 = eval(
+    R"(
+      (let ((f (lambda (a (b #:optional) . rest)
+                 (list a b rest))))
+        (f 1 2))
+    )"
+  );
+  EXPECT_TRUE(equal(result3, read("(1 2 ())")));
+  
+  ptr<> result4 = eval(
+    R"(
+      (let ((f (lambda (a (b #:optional) . rest)
+                 (list a b rest))))
+        (f 1))
+    )"
+  );
+  EXPECT_TRUE(equal(result4, read("(1 #default-value ())")));
+}
+
+TEST_F(compiler, calling_lambda_with_not_enough_args_throws) {
+  EXPECT_THROW(
+    eval(
+      R"(
+        (let ((f (lambda (a b (c #:optional)) #t)))
+          (f 0))
+      )"
+    ),
+    std::runtime_error
+  );
+}
+
 TEST_F(compiler, compile_if) {
   ptr<> result1 = eval("(if #t 2 3)");
   EXPECT_EQ(expect<integer>(result1).value(), 2);

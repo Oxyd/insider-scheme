@@ -151,14 +151,44 @@ namespace {
 }
 
 inline void
-throw_if_wrong_number_of_args(procedure_prototype const& proc,
-                              std::size_t num_args) {
-  if (num_args < proc.info.num_required_args
-      || (!proc.info.has_rest && num_args > proc.info.num_required_args))
+check_argument_count_for_procedure_without_tail(procedure_prototype const& proc,
+                                                std::size_t num_args) {
+  unsigned min = proc.info.num_required_args;
+  unsigned max = proc.info.num_positional_args;
+  bool is_variadic = min != max;
+
+  if (num_args < min)
     throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
                      *proc.info.name,
-                     proc.info.has_rest ? "at least " : "",
-                     proc.info.num_required_args, num_args);
+                     is_variadic ? "at least" : "",
+                     min,
+                     num_args);
+  else if (num_args > max)
+    throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
+                     *proc.info.name,
+                     is_variadic ? "at most" : "",
+                     max,
+                     num_args);
+}
+
+inline void
+check_argument_count_for_procedure_with_tail(procedure_prototype const& proc,
+                                             std::size_t num_args) {
+  if (num_args < proc.info.num_required_args)
+    throw make_error(
+      "{}: Wrong number of arguments, expected at least {}, got {}",
+      *proc.info.name,
+      proc.info.num_required_args, num_args
+    );
+}
+
+inline void
+throw_if_wrong_number_of_args(procedure_prototype const& proc,
+                              std::size_t num_args) {
+  if (proc.info.has_rest)
+    check_argument_count_for_procedure_with_tail(proc, num_args);
+  else
+    check_argument_count_for_procedure_without_tail(proc, num_args);
 }
 
 static void
@@ -377,7 +407,7 @@ get_closure_size(ptr<procedure> proc) {
 
 static std::size_t
 actual_args_size(procedure_prototype const& proto) {
-  return proto.info.num_required_args + (proto.info.has_rest ? 1 : 0);
+  return proto.info.num_positional_args + (proto.info.has_rest ? 1 : 0);
 }
 
 static void
@@ -407,13 +437,38 @@ convert_tail_args_to_list(context& ctx, ptr<call_stack> stack,
   );
 }
 
+static std::size_t
+tail_args_length(procedure_prototype const& proto, std::size_t num_args) {
+  if (num_args >= proto.info.num_positional_args)
+    return num_args - proto.info.num_positional_args;
+  else
+    return 0;
+}
+
 static void
 convert_tail_args(context& ctx, ptr<call_stack> stack,
                   procedure_prototype const& proto, std::size_t base,
                   std::size_t num_args) {
   if (proto.info.has_rest)
-    convert_tail_args_to_list(ctx, stack, base + proto.info.num_required_args + 1,
-                              num_args - proto.info.num_required_args);
+    convert_tail_args_to_list(ctx, stack,
+                              base + proto.info.num_positional_args + 1,
+                              tail_args_length(proto, num_args));
+}
+
+static void
+fill_in_default_values(context& ctx, ptr<call_stack> stack,
+                       procedure_prototype const& proto, std::size_t base,
+                       std::size_t num_args) {
+  std::size_t begin = base + num_args + 1;
+  std::size_t end = base + proto.info.num_positional_args + 1;
+
+  if (begin < end) {
+    if (stack->frame_size() <= end)
+      stack->resize_current_frame(end + 1);
+
+    for (std::size_t arg = begin; arg < end; ++arg)
+      stack->local(operand(arg)) = ctx.constants->default_value;
+  }
 }
 
 static instruction_pointer
@@ -455,6 +510,7 @@ check_and_convert_scheme_call_arguments(execution_state& state,
                                         operand base) {
   operand num_args = read_operand(state);
   throw_if_wrong_number_of_args(proto, num_args);
+  fill_in_default_values(state.ctx, state.stack, proto, base, num_args);
   convert_tail_args(state.ctx, state.stack, proto, base, num_args);
 }
 
@@ -889,7 +945,7 @@ push_rest_argument_for_call_from_native(context& ctx,
                                         ptr<call_stack> stack,
                                         auto tail_begin,
                                         auto tail_end) {
-  stack->local(operand(proto.info.num_required_args + 1))
+  stack->local(operand(proto.info.num_positional_args + 1))
     = make_list_from_range(ctx,
                            std::ranges::subrange(tail_begin, tail_end));
 }
@@ -903,7 +959,7 @@ push_scheme_arguments_for_call_from_native(context& ctx,
 
   stack->local(operand{0}) = callable;
   auto arg_it = args.begin();
-  for (std::size_t i = 0; i < proto.info.num_required_args; ++i)
+  for (std::size_t i = 0; i < proto.info.num_positional_args; ++i)
     stack->local(operand(i) + 1) = *arg_it++;
 
   if (proto.info.has_rest)
