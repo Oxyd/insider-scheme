@@ -379,14 +379,14 @@ compile_expression(context& ctx, procedure_context& parent,
   compile_lambda_body(ctx, proc, stx);
 
   unsigned required_args = required_parameter_count(stx);
-  unsigned positional_args = leading_parameter_count(stx);
+  unsigned leading_args = leading_parameter_count(stx);
 
   auto p = make_procedure_prototype(
     ctx, proc,
     procedure_prototype::meta{
       .locals_size = {},
       .num_required_args = required_args,
-      .num_positional_args = positional_args,
+      .num_leading_args = leading_args,
       .has_rest = stx->has_rest(),
       .name = std::make_shared<std::string>(stx->name()),
       .debug_info = {}
@@ -809,7 +809,7 @@ compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
       procedure_prototype::meta{
         .locals_size = {},
         .num_required_args = 0,
-        .num_positional_args = 0,
+        .num_leading_args = 0,
         .has_rest = false,
         .name = std::make_shared<std::string>("<expression>"),
         .debug_info = {}
@@ -865,7 +865,7 @@ compile_module_body(context& ctx, tracked_ptr<module_> const& m,
                    procedure_prototype::meta{
                      .locals_size = {},
                      .num_required_args = 0,
-                     .num_positional_args = 0,
+                     .num_leading_args = 0,
                      .has_rest = false,
                      .name = std::make_shared<std::string>(
                        fmt::format("<module {} top-level>",

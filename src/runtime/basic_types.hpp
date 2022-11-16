@@ -443,7 +443,7 @@ public:
   struct meta {
     unsigned                        locals_size;
     unsigned                        num_required_args;
-    unsigned                        num_positional_args;
+    unsigned                        num_leading_args;
     bool                            has_rest;
     std::shared_ptr<std::string>    name;
     std::shared_ptr<debug_info_map> debug_info;
