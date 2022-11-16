@@ -464,7 +464,7 @@
 (meta
   (define emit-constant-matcher
     (lambda (pattern input body)
-      #`(if (equal? #,(syntax-expression pattern) (syntax-expression #,input))
+      #`(if (equal? '#,(syntax-expression pattern) (syntax-expression #,input))
             #,body
             <no-match>))))
 

@@ -56,6 +56,13 @@
        (_ #f)))
 
     (test-assert
+     "keywords"
+     (syntax-match #'(#:foo #:bar #:baz) ()
+       ((#:foo #:foo #:foo) #f)
+       ((#:foo #:bar #:baz) #t)
+       (_ #f)))
+
+    (test-assert
      "list of constants"
      (syntax-match #'(1 (2 3) 4) ()
        ((1 2 3 4) #f)
