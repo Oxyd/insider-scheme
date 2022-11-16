@@ -47,7 +47,7 @@ scheme_application_is_valid(ptr<application_expression> app,
                             ptr<lambda_expression> lambda) {
   return !lambda->has_rest()
          && app->arguments().size() >= required_parameter_count(lambda)
-         && app->arguments().size() <= positional_parameter_count(lambda);
+         && app->arguments().size() <= leading_parameter_count(lambda);
 }
 
 static bool
@@ -61,7 +61,7 @@ is_native_application(context& ctx, ptr<application_expression> app) {
 static bool
 has_unsupplied_optionals(ptr<application_expression> app,
                          ptr<lambda_expression> lambda) {
-  return app->arguments().size() < positional_parameter_count(lambda);
+  return app->arguments().size() < leading_parameter_count(lambda);
 }
 
 static std::vector<expression>
@@ -70,7 +70,7 @@ supplement_arguments_with_defaults(context& ctx,
                                    ptr<lambda_expression> lambda) {
   auto args = app->arguments();
   std::size_t given_length = args.size();
-  std::size_t total_length = positional_parameter_count(lambda);
+  std::size_t total_length = leading_parameter_count(lambda);
   assert(given_length < total_length);
 
   args.reserve(total_length);

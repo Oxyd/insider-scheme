@@ -524,11 +524,11 @@ lambda_expression::show(context& ctx, std::size_t indent) const {
 
 std::size_t
 required_parameter_count(ptr<lambda_expression> lambda) {
-  return positional_parameter_count(lambda) - optional_parameter_count(lambda);
+  return leading_parameter_count(lambda) - optional_leading_parameter_count(lambda);
 }
 
 std::size_t
-optional_parameter_count(ptr<lambda_expression> lambda) {
+optional_leading_parameter_count(ptr<lambda_expression> lambda) {
   return std::ranges::count_if(
     lambda->parameters(),
     [] (lambda_expression::parameter const& p) { return p.optional; }
@@ -536,7 +536,7 @@ optional_parameter_count(ptr<lambda_expression> lambda) {
 }
 
 std::size_t
-positional_parameter_count(ptr<lambda_expression> lambda) {
+leading_parameter_count(ptr<lambda_expression> lambda) {
   if (lambda->has_rest())
     return lambda->parameters().size() - 1;
   else

@@ -597,10 +597,10 @@ std::size_t
 required_parameter_count(ptr<lambda_expression> lambda);
 
 std::size_t
-optional_parameter_count(ptr<lambda_expression> lambda);
+optional_leading_parameter_count(ptr<lambda_expression> lambda);
 
 std::size_t
-positional_parameter_count(ptr<lambda_expression> lambda);
+leading_parameter_count(ptr<lambda_expression> lambda);
 
 class if_expression : public composite_object<if_expression> {
 public:
