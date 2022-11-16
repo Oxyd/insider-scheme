@@ -378,16 +378,8 @@ compile_expression(context& ctx, procedure_context& parent,
   auto us = push_parameters_and_closure_scope(proc, stx);
   compile_lambda_body(ctx, proc, stx);
 
-  unsigned required_args = std::ranges::count_if(
-    stx->parameters(),
-    [] (lambda_expression::parameter const& p) { return !p.optional; }
-  );
-  unsigned positional_args = stx->parameters().size();
-
-  if (stx->has_rest()) {
-    --required_args;
-    --positional_args;
-  }
+  unsigned required_args = required_parameter_count(stx);
+  unsigned positional_args = leading_parameter_count(stx);
 
   auto p = make_procedure_prototype(
     ctx, proc,
