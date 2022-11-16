@@ -11,22 +11,27 @@ namespace insider {
 static constexpr std::size_t inline_size_limit = 50;
 
 static std::vector<definition_pair_expression>
-make_definition_pairs_for_mandatory_args(ptr<application_expression> app,
-                                         ptr<lambda_expression> lambda,
-                                         std::size_t num_args) {
+make_definition_pairs_for_leading_args(context& ctx,
+                                       ptr<application_expression> app,
+                                       ptr<lambda_expression> lambda,
+                                       std::size_t num_args) {
   std::vector<definition_pair_expression> dps;
   for (std::size_t i = 0; i < num_args; ++i)
     dps.emplace_back(lambda->parameters()[i].variable, app->arguments()[i]);
+  for (std::size_t i = num_args; i < leading_parameter_count(lambda); ++i)
+    dps.emplace_back(
+      lambda->parameters()[i].variable,
+      make<literal_expression>(ctx, ctx.constants->default_value)
+    );
   return dps;
 }
 
 static expression
 inline_nonvariadic_application(context& ctx, ptr<application_expression> app,
                                ptr<lambda_expression> target) {
-  assert(app->arguments().size() == target->parameters().size());
   std::vector<definition_pair_expression> dps
-    = make_definition_pairs_for_mandatory_args(app, target,
-                                               app->arguments().size());
+    = make_definition_pairs_for_leading_args(ctx, app, target,
+                                             app->arguments().size());
 
   return clone_ast(ctx,
                    make<let_expression>(ctx, std::move(dps), target->body()),
@@ -35,9 +40,9 @@ inline_nonvariadic_application(context& ctx, ptr<application_expression> app,
 
 static expression
 make_tail_args_expression(context& ctx, ptr<application_expression> app,
-                          std::size_t mandatory_args) {
+                          std::size_t leading_args) {
   std::vector<expression> tail_args;
-  for (std::size_t i = mandatory_args; i < app->arguments().size(); ++i)
+  for (std::size_t i = leading_args; i < app->arguments().size(); ++i)
     tail_args.push_back(app->arguments()[i]);
 
   return make<application_expression>(
@@ -51,14 +56,15 @@ static expression
 inline_variadic_application(context& ctx, ptr<application_expression> app,
                             ptr<lambda_expression> target) {
   assert(!target->parameters().empty());
-  assert(app->arguments().size() >= target->parameters().size() - 1);
 
-  std::size_t mandatory_args = target->parameters().size() - 1;
+  std::size_t leading_args = leading_parameter_count(target);
   std::vector<definition_pair_expression> dps
-    = make_definition_pairs_for_mandatory_args(app, target, mandatory_args);
+    = make_definition_pairs_for_leading_args(ctx, app, target,
+                                             std::min(leading_args,
+                                                      app->arguments().size()));
 
   dps.emplace_back(target->parameters().back().variable,
-                   make_tail_args_expression(ctx, app, mandatory_args));
+                   make_tail_args_expression(ctx, app, leading_args));
 
   return clone_ast(ctx,
                    make<let_expression>(ctx, std::move(dps), target->body()),
@@ -77,9 +83,10 @@ inline_application(context& ctx, ptr<application_expression> app,
 static bool
 arity_matches(ptr<application_expression> app, ptr<lambda_expression> lambda) {
   if (!lambda->has_rest())
-    return app->arguments().size() == lambda->parameters().size();
+    return app->arguments().size() >= required_parameter_count(lambda)
+           && app->arguments().size() <= leading_parameter_count(lambda);
   else
-    return app->arguments().size() >= lambda->parameters().size() - 1;
+    return app->arguments().size() >= required_parameter_count(lambda);
 }
 
 static ptr<lambda_expression>

@@ -95,6 +95,48 @@ find_variable(std::string const& name, expression e) {
                e);
 }
 
+static expression
+first_subexpression(ptr<let_expression> let) {
+  if (auto seq = match<sequence_expression>(let->body()))
+    return seq->expressions().front();
+  else
+    return let->body();
+}
+
+static expression
+first_subexpression(ptr<lambda_expression> lambda) {
+  if (auto seq = match<sequence_expression>(lambda->body()))
+    return seq->expressions().front();
+  else
+    return lambda->body();
+}
+
+static expression
+ignore_sequences(expression e) {
+  while (true) {
+    if (auto seq = match<sequence_expression>(e)) {
+      assert(seq->expressions().size() == 1);
+      e = seq->expressions().front();
+    } else
+      return e;
+  }
+}
+
+static expression
+ignore_lets_and_sequences(expression e) {
+  while (true) {
+    if (auto let = match<let_expression>(e))
+      e = first_subexpression(let);
+    else if (auto seq = match<sequence_expression>(e)) {
+      if (seq->expressions().size() == 1)
+        e = seq->expressions().front();
+      else
+        return e;
+    } else
+      return e;
+  }
+}
+
 struct ast : scheme_fixture {
   expression
   make_nested_call() {
@@ -619,22 +661,6 @@ find_top_level_definition_for(expression root, std::string const& name) {
   return result;
 }
 
-static expression
-first_subexpression(ptr<let_expression> let) {
-  if (auto seq = match<sequence_expression>(let->body()))
-    return seq->expressions().front();
-  else
-    return let->body();
-}
-
-static expression
-first_subexpression(ptr<lambda_expression> lambda) {
-  if (auto seq = match<sequence_expression>(lambda->body()))
-    return seq->expressions().front();
-  else
-    return lambda->body();
-}
-
 TEST_F(ast, recursive_procedures_are_not_inlined) {
   expression e = analyse_module(
     R"(
@@ -846,6 +872,74 @@ TEST_F(ast, call_of_variadic_procedure_with_too_few_args_is_not_inlined) {
   assert_procedure_is_called(bar_def, "foo");
 }
 
+TEST_F(ast, call_with_optional_params_is_inlined) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda (a (b #:optional))
+          0))
+
+      (define bar
+        (lambda ()
+          (foo 1)))
+    )",
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+
+  auto bar_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  auto body = ignore_lets_and_sequences(bar_def->body());
+  EXPECT_TRUE(is<literal_expression>(body));
+}
+
+TEST_F(ast, correct_value_is_supplied_to_optional_parameter) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda (a (b #:optional) . tail)
+          b))
+
+      (define bar
+        (lambda ()
+          (foo 1 2)))
+    )",
+    {&analyse_variables, &inline_procedures, &evaluate_constants,
+     &analyse_free_variables}
+  );
+
+  auto bar_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  auto body = ignore_lets_and_sequences(bar_def->body());
+  auto lit = expect<literal_expression>(body);
+  EXPECT_EQ(expect<integer>(lit->value()).value(), 2);
+}
+
+TEST_F(ast, call_with_optional_and_tail_params_is_inlined) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda (a (b #:optional) . rest)
+          0))
+
+      (define bar
+        (lambda ()
+          (foo 1)))
+    )",
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+
+  auto bar_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  auto body = ignore_lets_and_sequences(bar_def->body());
+  EXPECT_TRUE(is<literal_expression>(body));
+}
+
 TEST_F(ast, inlined_call_of_mutative_procedure_across_modules_boxes_argument) {
   add_source_file(
     "foo.scm",
@@ -935,32 +1029,6 @@ TEST_F(ast, variables_are_not_boxed_twice) {
 
   ASSERT_EQ(var_op->operands().size(), 1);
   EXPECT_TRUE(is<literal_expression>(var_op->operands()[0]));
-}
-
-static expression
-ignore_sequences(expression e) {
-  while (true) {
-    if (auto seq = match<sequence_expression>(e)) {
-      assert(seq->expressions().size() == 1);
-      e = seq->expressions().front();
-    } else
-      return e;
-  }
-}
-
-static expression
-ignore_lets_and_sequences(expression e) {
-  while (true) {
-    if (auto let = match<let_expression>(e))
-      e = first_subexpression(let);
-    else if (auto seq = match<sequence_expression>(e)) {
-      if (seq->expressions().size() == 1)
-        e = seq->expressions().front();
-      else
-        return e;
-    } else
-      return e;
-  }
 }
 
 TEST_F(ast, inlined_applications_carry_debug_info) {
