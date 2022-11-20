@@ -944,12 +944,7 @@ do_instructions(execution_state& state) {
 
 static ptr<>
 run(execution_state& state) {
-  std::optional<execution_action> a;
   assert(!state.result);
-
-  if (!state.stack->parent())
-    // Only create an execution_action if this is the top-level execution.
-    a.emplace(state);
 
   do_instructions(state);
 
@@ -1128,6 +1123,7 @@ namespace {
       if (!ctx.current_execution) {
         ctx.current_execution = std::make_unique<execution_state>(ctx);
         created_ = true;
+        action_.emplace(*ctx.current_execution);
       }
     }
 
@@ -1140,8 +1136,9 @@ namespace {
     void operator = (current_execution_setter const&) = delete;
 
   private:
-    context& ctx_;
-    bool     created_ = false;
+    context&                        ctx_;
+    bool                            created_ = false;
+    std::optional<execution_action> action_;
   };
 }
 
