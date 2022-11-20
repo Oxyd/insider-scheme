@@ -3,6 +3,7 @@
 
 #include "memory/root_provider.hpp"
 #include "ptr.hpp"
+#include "runtime/basic_types.hpp"
 #include "runtime/integer.hpp"
 #include "vm/call_stack.hpp"
 
@@ -30,7 +31,7 @@ class tail_call_tag_type;
 // Causes garbage collection.
 ptr<tail_call_tag_type>
 call_continuable(context&, ptr<> callable, std::vector<ptr<>> const& arguments,
-                 native_continuation_type cont);
+                 native_continuation::target_type cont);
 
 // Add a call frame to the current execution state and run the procedure until
 // it returns. Creates a new top-level execution state if one does not already

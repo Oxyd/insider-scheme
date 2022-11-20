@@ -20,6 +20,7 @@ enum index {
   procedure_prototype,
   procedure,
   native_procedure,
+  native_continuation,
   values_tuple,
   big_integer,
   fraction,

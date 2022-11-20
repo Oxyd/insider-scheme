@@ -555,6 +555,32 @@ is_procedure(ptr<>);
 ptr<>
 expect_callable(ptr<> x);
 
+// The rest of a native procedure after a call to a Scheme procedure.
+class native_continuation : public composite_object<native_continuation> {
+public:
+  static constexpr char const* scheme_name = "insider::native_continuation";
+  static constexpr word_type static_type_index
+    = type_indexes::native_continuation;
+
+  using target_type = std::function<ptr<>(context&, ptr<>)>;
+
+  // proc is the procedure this is a continuation of. This is usually a
+  // native_procedure, but when an exception is raised during an execution of
+  // a Scheme procedure, a native_continuation will be created whose proc
+  // will be that Scheme procedure.
+
+  target_type target;
+  ptr<>       proc;
+
+  native_continuation(target_type t, ptr<> proc)
+    : target{std::move(t)}
+    , proc{proc}
+  { }
+
+  void
+  visit_members(member_visitor const& f) { f(proc); }
+};
+
 // Wrapper for C++ values that don't contain references to any Scheme objects.
 template <typename T>
 class opaque_value : public leaf_object<opaque_value<T>> {

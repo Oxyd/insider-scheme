@@ -66,7 +66,7 @@ public:
   };
 
   enum class frame_type {
-    scheme, native, dummy
+    scheme, native, native_continuation, dummy
   };
 
   call_stack();

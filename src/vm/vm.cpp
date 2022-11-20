@@ -83,17 +83,26 @@ append_scheme_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
 }
 
 static void
+append_callable_to_stacktrace(std::vector<stacktrace_record>& trace,
+                              frame_reference frame,
+                              ptr<> callable,
+                              std::optional<instruction_pointer> call_ip) {
+  if (auto np = match<native_procedure>(callable))
+    trace.push_back({np->name, stacktrace_record::kind::native});
+  else if (auto nc = match<native_continuation>(callable))
+    append_callable_to_stacktrace(trace, frame, nc->proc, call_ip);
+  else
+    append_scheme_frame_to_stacktrace(trace,
+                                      assume<procedure>(callable)->prototype(),
+                                      frame,
+                                      call_ip);
+}
+
+static void
 append_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
                            frame_reference frame,
                            std::optional<instruction_pointer> call_ip) {
-  ptr<> proc = frame.callable();
-  if (auto np = match<native_procedure>(proc))
-    trace.push_back({np->name, stacktrace_record::kind::native});
-  else
-    append_scheme_frame_to_stacktrace(trace,
-                                      assume<procedure>(proc)->prototype(),
-                                      frame,
-                                      call_ip);
+  append_callable_to_stacktrace(trace, frame, frame.callable(), call_ip);
 }
 
 static std::vector<stacktrace_record>
@@ -565,24 +574,32 @@ discard_later_native_continuations(ptr<stack_frame_extra_data> e,
     e->native_continuations.resize(continuations_size);
 }
 
-static native_continuation_type
-find_current_native_continuation(ptr<call_stack> stack) {
-  if (auto e = stack->extra())
-    if (!e->native_continuations.empty())
-      return e->native_continuations.back();
+static ptr<>
+call_native_procedure(context& ctx, ptr<call_stack> stack) {
+  auto proc_and_args = stack->current_frame_span();
+  auto proc = assume<native_procedure>(proc_and_args[0]);
+  return proc->target(ctx, proc, proc_and_args.subspan<1>());
+}
 
-  return {};
+static ptr<>
+call_native_continuation(context& ctx, ptr<call_stack> stack, ptr<> value) {
+  auto cont = assume<native_continuation>(stack->local(operand{0}));
+  return cont->target(ctx, value);
 }
 
 static ptr<>
 call_native_frame_target(context& ctx, ptr<call_stack> stack,
                          ptr<> scheme_result) {
-  if (native_continuation_type cont = find_current_native_continuation(stack))
-    return cont(ctx, scheme_result);
-  else {
-    auto proc_and_args = stack->current_frame_span();
-    auto proc = assume<native_procedure>(proc_and_args[0]);
-    return proc->target(ctx, proc, proc_and_args.subspan<1>());
+  switch (stack->current_frame_type()) {
+  case call_stack::frame_type::native:
+    return call_native_procedure(ctx, stack);
+
+  case call_stack::frame_type::native_continuation:
+    return call_native_continuation(ctx, stack, scheme_result);
+
+  default:
+    assert(!"Bad frame type");
+    std::abort();
   }
 }
 
@@ -698,7 +715,8 @@ resume_native_call(execution_state& state, ptr<> scheme_result) {
   discard_later_native_continuations(state.stack->extra(),
                                      native_continuations_size(state));
 
-  if (find_current_native_continuation(state.stack))
+  if (state.stack->current_frame_type()
+      == call_stack::frame_type::native_continuation)
     call_native_procedure(state, scheme_result);
   else
     // Return to a non-continuable native procedure. We'll abandon run()
@@ -973,14 +991,13 @@ push_scheme_arguments_for_call_from_native(context& ctx,
 static void
 make_scheme_frame_for_call_from_native(execution_state& state,
                                        ptr<procedure> callable,
-                                       auto const& arguments,
-                                       instruction_pointer previous_ip) {
+                                       auto const& arguments) {
   throw_if_wrong_number_of_args(callable->prototype(), arguments.size());
 
   state.stack->push_frame(call_stack::frame_type::scheme,
                           state.stack->size(),
                           callable->prototype().info.locals_size,
-                          previous_ip,
+                          nullptr,
                           {});
 
   push_scheme_arguments_for_call_from_native(state.ctx, callable, state.stack,
@@ -1069,14 +1086,6 @@ call_native_in_current_frame(execution_state& state, ptr<native_procedure> proc,
   return result;
 }
 
-static ptr<>
-call_native_from_native(execution_state& state, ptr<native_procedure> proc,
-                        std::vector<ptr<>> const& arguments) {
-  native_frame_guard guard
-    = setup_native_frame_for_call_from_native(state, proc);
-  return call_native_in_current_frame(state, proc, arguments);
-}
-
 static void
 add_parameter_value(context& ctx, ptr<call_stack> stack, ptr<parameter_tag> tag,
                     ptr<> value);
@@ -1100,30 +1109,6 @@ call_native_with_continuation_barrier(execution_state& state,
   return call_native_in_current_frame(state, proc, arguments);
 }
 
-static instruction_pointer
-continuations_size_to_ip(std::size_t size) {
-  return reinterpret_cast<instruction_pointer>(size);
-}
-
-static instruction_pointer
-get_native_ip(ptr<call_stack> stack) {
-  if (!stack->empty() && current_frame_is_native(stack))
-    if (auto e = stack->extra())
-      return continuations_size_to_ip(e->native_continuations.size());
-  return continuations_size_to_ip(std::numeric_limits<std::size_t>::max());
-}
-
-static void
-setup_scheme_frame_for_potential_call_from_native(
-  execution_state& state,
-  ptr<procedure> callable,
-  std::vector<ptr<>> const& arguments
-) {
-  assert(is_callable(callable));
-  make_scheme_frame_for_call_from_native(state, callable, arguments,
-                                         get_native_ip(state.stack));
-}
-
 static ptr<>
 call_scheme_with_continuation_barrier(execution_state& state,
                                       ptr<procedure> callable,
@@ -1131,8 +1116,7 @@ call_scheme_with_continuation_barrier(execution_state& state,
                                       parameter_assignments const& params,
                                       bool allow_jump_out,
                                       bool allow_jump_in) {
-  make_scheme_frame_for_call_from_native(state, callable, arguments,
-                                         get_native_ip(state.stack));
+  make_scheme_frame_for_call_from_native(state, callable, arguments);
   if (state.stack->parent())
     erect_barrier(state.ctx, state.stack, allow_jump_out, allow_jump_in);
 
@@ -1169,11 +1153,13 @@ namespace {
   };
 }
 
-static void
-mark_current_frame_noncontinuable(ptr<call_stack> stack) {
-  if (!stack->empty())
-    if (ptr<stack_frame_extra_data> e = stack->extra())
-      e->native_continuations.emplace_back();
+[[nodiscard]]
+static native_frame_guard
+push_dummy_frame(context& ctx, ptr<call_stack> stack) {
+  stack->push_frame(call_stack::frame_type::dummy, stack->size(), 1, nullptr,
+                    {});
+  stack->callable() = nullptr;
+  return {ctx, stack};
 }
 
 ptr<>
@@ -1188,7 +1174,7 @@ call_parameterized_with_continuation_barrier(
   expect_callable(callable);
 
   current_execution_setter ces{ctx};
-  mark_current_frame_noncontinuable(ctx.current_execution->stack);
+  auto guard = push_dummy_frame(ctx, ctx.current_execution->stack);
 
   if (auto native_proc = match<native_procedure>(callable))
     return call_native_with_continuation_barrier(
@@ -1209,38 +1195,47 @@ call_with_continuation_barrier(context& ctx, ptr<> callable,
                                                       arguments);
 }
 
-static ptr<>
-call_native_continuable(execution_state& state, ptr<native_procedure> proc,
-                        std::vector<ptr<>> const& arguments,
-                        native_continuation_type const& cont) {
-  ptr<> result = call_native_from_native(state, proc, arguments);
-  return cont(state.ctx, result);
+static void
+make_native_frame_for_call_from_native(execution_state& state,
+                                       ptr<native_procedure> proc,
+                                       std::vector<ptr<>> const& arguments) {
+  state.stack->push_frame(
+    call_stack::frame_type::native,
+    state.stack->size(),
+    arguments.size() + 1,
+    nullptr,
+    {}
+  );
+  state.stack->local(operand{0}) = proc;
 }
 
-static ptr<>
-call_scheme_continuable(execution_state& state, ptr<procedure> callable,
-                        std::vector<ptr<>> const& arguments,
-                        native_continuation_type cont) {
-  auto extra = create_or_get_extra_data(state.ctx, state.stack);
-  extra->native_continuations.emplace_back(std::move(cont));
-  setup_scheme_frame_for_potential_call_from_native(state, callable, arguments);
-  return state.ctx.constants->tail_call_tag;
+static void
+make_native_continuation_frame(ptr<call_stack> stack,
+                               ptr<native_continuation> cont) {
+  stack->replace_frame(call_stack::frame_type::native_continuation, 1);
+  stack->local(operand{0}) = cont;
 }
 
 ptr<tail_call_tag_type>
 call_continuable(context& ctx, ptr<> callable,
                  std::vector<ptr<>> const& arguments,
-                 native_continuation_type cont) {
+                 native_continuation::target_type cont) {
   expect_callable(callable);
   current_execution_setter ces{ctx};
 
-  if (auto native_proc = match<native_procedure>(callable))
-    call_native_continuable(*ctx.current_execution, native_proc, arguments,
-                            cont);
-  else
-    call_scheme_continuable(*ctx.current_execution, assume<procedure>(callable),
-                            arguments, std::move(cont));
+  auto stack = ctx.current_execution->stack;
+  make_native_continuation_frame(
+    stack,
+    make<native_continuation>(ctx, std::move(cont), stack->callable())
+  );
 
+  if (auto scheme_proc = match<procedure>(callable))
+    make_scheme_frame_for_call_from_native(*ctx.current_execution, scheme_proc,
+                                           arguments);
+  else
+    make_native_frame_for_call_from_native(*ctx.current_execution,
+                                           assume<native_procedure>(callable),
+                                           arguments);
   return ctx.constants->tail_call_tag;
 }
 
@@ -1379,7 +1374,7 @@ common_frame_index(stack_segments const& segments, std::size_t common_prefix) {
   if (common_prefix == 0)
     return std::nullopt;
   else
-    return segments.stack->parent(segments.segments[common_prefix].begin);
+    return segments.segments[common_prefix - 1].end - 1;
 }
 
 static ptr<tail_call_tag_type>
@@ -1471,9 +1466,26 @@ unwind_stack(execution_state& state,
 }
 
 static void
+rewind_common_part(execution_state& state, stack_segments const& new_segments,
+                   std::size_t common_prefix) {
+  // It's necessary to replace the common part as well, because some frames in
+  // it might have been replaced by tail calls.
+
+  state.stack->clear();
+
+  if (common_prefix >= 1)
+    state.stack->append_frames(
+      new_segments.stack->frames(new_segments.segments[0].begin,
+                                 new_segments.segments[common_prefix - 1].end)
+    );
+}
+
+static void
 rewind_stack(execution_state& state, stack_segments const& new_segments,
              std::size_t common_prefix) {
   assert(!new_segments.segments.empty());
+
+  rewind_common_part(state, new_segments, common_prefix);
 
   for (std::size_t i = common_prefix; i < new_segments.segments.size(); ++i) {
     state.stack->append_frames(
