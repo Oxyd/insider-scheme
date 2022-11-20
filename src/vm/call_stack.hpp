@@ -24,8 +24,6 @@ class context;
 class free_store;
 class parameter_tag;
 
-using native_continuation_type = std::function<ptr<>(context&, ptr<>)>;
-
 struct parameter_assignment {
   ptr<parameter_tag> tag;
   ptr<>              value;
@@ -38,7 +36,6 @@ public:
   static constexpr char const* scheme_name = "insider::stack_frame_extra_data";
 
   parameter_assignments                 parameters;
-  std::vector<native_continuation_type> native_continuations;
   bool                                  allow_jump_out = true;
   bool                                  allow_jump_in  = true;
   ptr<>                                 before_thunk;

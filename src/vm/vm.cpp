@@ -201,12 +201,6 @@ throw_if_wrong_number_of_args(procedure_prototype const& proc,
     check_argument_count_for_procedure_without_tail(proc, num_args);
 }
 
-static void
-clear_native_continuations(ptr<call_stack> stack) {
-  if (auto e = stack->extra())
-    e->native_continuations.clear();
-}
-
 static opcode
 read_opcode(execution_state& state) {
   return insider::read_opcode(state.ip);
@@ -504,7 +498,6 @@ make_tail_call_frame(ptr<call_stack> stack, ptr<> proc,
                      std::size_t args_base, std::size_t num_args) {
   stack->replace_frame(callable_to_frame_type(proc), locals_size, args_base,
                        num_args);
-  clear_native_continuations(stack);
 }
 
 static void
@@ -566,13 +559,6 @@ make_native_tail_call_frame(ptr<call_stack> stack,
                             ptr<native_procedure> proc,
                             std::size_t args_base, std::size_t num_args) {
   make_tail_call_frame(stack, proc, num_args + 1, args_base, num_args);
-}
-
-static void
-discard_later_native_continuations(ptr<stack_frame_extra_data> e,
-                                   std::size_t continuations_size) {
-  if (e)
-    e->native_continuations.resize(continuations_size);
 }
 
 static ptr<>
@@ -706,16 +692,8 @@ call(opcode opcode, execution_state& state) {
                      datum_to_string(state.ctx, callee));
 }
 
-static std::size_t
-native_continuations_size(execution_state const& state) {
-  return reinterpret_cast<std::size_t>(state.ip);
-}
-
 static void
 resume_native_call(execution_state& state, ptr<> scheme_result) {
-  discard_later_native_continuations(state.stack->extra(),
-                                     native_continuations_size(state));
-
   if (state.stack->current_frame_type()
       == call_stack::frame_type::native_continuation)
     call_native_procedure(state, scheme_result);
@@ -1237,7 +1215,6 @@ make_native_tail_call_frame_for_call_from_native(
   auto const& arguments
 ) {
   stack->replace_frame(call_stack::frame_type::native, arguments.size() + 1);
-  clear_native_continuations(stack);
   stack->local(operand{0}) = callable;
   auto arg = arguments.begin();
   for (std::size_t i = 0; i < arguments.size(); ++i)
@@ -1257,7 +1234,6 @@ make_scheme_tail_call_frame_for_call_from_native(
                        callable->prototype().info.locals_size);
   push_scheme_arguments_for_call_from_native(ctx, callable, stack, arguments);
   push_closure(callable, stack);
-  clear_native_continuations(stack);
 }
 
 static void
