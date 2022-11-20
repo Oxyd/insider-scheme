@@ -164,6 +164,9 @@ public:
   callable(frame_index frame) { return local(frame, 0); }
 
   frame_type
+  type(frame_index frame) { return frames_[frame].type; }
+
+  frame_type
   current_frame_type() const { return current_frame().type; }
 
   ptr<stack_frame_extra_data>
@@ -378,6 +381,9 @@ public:
 
   ptr<>&
   callable() const { return stack_->callable(*idx_); }
+
+  call_stack::frame_type
+  type() const { return stack_->type(*idx_); }
 
   ptr<stack_frame_extra_data>
   extra() const { return stack_->extra(*idx_); }

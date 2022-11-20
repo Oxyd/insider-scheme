@@ -102,7 +102,8 @@ static void
 append_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
                            frame_reference frame,
                            std::optional<instruction_pointer> call_ip) {
-  append_callable_to_stacktrace(trace, frame, frame.callable(), call_ip);
+  if (frame.type() != call_stack::frame_type::dummy)
+    append_callable_to_stacktrace(trace, frame, frame.callable(), call_ip);
 }
 
 static std::vector<stacktrace_record>
