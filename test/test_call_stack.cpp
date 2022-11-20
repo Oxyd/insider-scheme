@@ -144,66 +144,6 @@ TEST_F(call_stack_fixture, iterate_call_stacks) {
   }
 }
 
-TEST_F(call_stack_fixture, capture_tail_part_of_stack_and_append_to_empty_stack) {
-  make_4_frames();
-  call_stack::frame_index start = *cs->parent(*cs->parent());
-  EXPECT_EQ(cs->callable(start), two);
-
-  call_stack::frame_span tail = cs->frames(start, cs->frames_end());
-
-  auto new_cs = make<call_stack>(ctx);
-  new_cs->append_frames(tail);
-
-  auto it = new_cs->frames_range().begin();
-  EXPECT_EQ(new_cs->callable(*it++), four);
-  EXPECT_EQ(new_cs->callable(*it++), three);
-  EXPECT_EQ(new_cs->callable(*it++), two);
-  EXPECT_EQ(it, new_cs->frames_range().end());
-}
-
-TEST_F(call_stack_fixture,
-       capture_tail_part_of_stack_and_append_to_nonempty_stack) {
-  make_4_frames();
-  call_stack::frame_index start = *cs->parent(*cs->parent());
-  EXPECT_EQ(cs->callable(start), two);
-
-  call_stack::frame_span tail = cs->frames(start, cs->frames_end());
-
-  auto new_cs = make<call_stack>(ctx);
-  new_cs->push_frame(call_stack::frame_type::scheme, new_cs->size(), 4, nullptr,
-                     0);
-  new_cs->local(0) = ten;
-  new_cs->push_frame(call_stack::frame_type::scheme, new_cs->size(), 8, nullptr,
-                     0);
-  new_cs->local(0) = twenty;
-
-  new_cs->append_frames(tail);
-
-  auto it = new_cs->frames_range().begin();
-  EXPECT_EQ(new_cs->callable(*it++), four);
-  EXPECT_EQ(new_cs->callable(*it++), three);
-  EXPECT_EQ(new_cs->callable(*it++), two);
-  EXPECT_EQ(new_cs->callable(*it++), twenty);
-  EXPECT_EQ(new_cs->callable(*it++), ten);
-  EXPECT_EQ(it, new_cs->frames_range().end());
-}
-
-TEST_F(call_stack_fixture,
-       capture_middle_part_of_stack_and_append_to_empty_stack) {
-  make_4_frames();
-  call_stack::frame_index start = *cs->parent(*cs->parent());
-  call_stack::frame_index end = *cs->current_frame_index();
-  call_stack::frame_span middle = cs->frames(start, end);
-
-  auto new_cs = make<call_stack>(ctx);
-  new_cs->append_frames(middle);
-
-  auto it = new_cs->frames_range().begin();
-  EXPECT_EQ(new_cs->callable(*it++), three);
-  EXPECT_EQ(new_cs->callable(*it++), two);
-  EXPECT_EQ(it, new_cs->frames_range().end());
-}
-
 TEST_F(call_stack_fixture, overlapping_frames_can_access_shared_registers) {
   cs->push_frame(call_stack::frame_type::scheme, 0, 4, nullptr, 0);
   current_frame(cs.get()).local(2) = integer_to_ptr(10);

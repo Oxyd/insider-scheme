@@ -1091,17 +1091,12 @@ add_parameter_value(context& ctx, ptr<call_stack> stack, ptr<parameter_tag> tag,
                     ptr<> value);
 
 static ptr<>
-call_native_with_continuation_barrier(execution_state& state,
-                                      ptr<native_procedure> proc,
-                                      std::vector<ptr<>> const& arguments,
-                                      parameter_assignments const& params,
-                                      bool allow_jump_out,
-                                      bool allow_jump_in) {
+call_native(execution_state& state,
+            ptr<native_procedure> proc,
+            std::vector<ptr<>> const& arguments,
+            parameter_assignments const& params) {
   native_frame_guard guard
     = setup_native_frame_for_call_from_native(state, proc);
-
-  if (state.stack->parent() != -1)
-    erect_barrier(state.ctx, state.stack, allow_jump_out, allow_jump_in);
 
   for (auto const& p : params)
     add_parameter_value(state.ctx, state.stack, p.tag, p.value);
@@ -1110,15 +1105,11 @@ call_native_with_continuation_barrier(execution_state& state,
 }
 
 static ptr<>
-call_scheme_with_continuation_barrier(execution_state& state,
-                                      ptr<procedure> callable,
-                                      std::vector<ptr<>> const& arguments,
-                                      parameter_assignments const& params,
-                                      bool allow_jump_out,
-                                      bool allow_jump_in) {
+call_scheme(execution_state& state,
+            ptr<procedure> callable,
+            std::vector<ptr<>> const& arguments,
+            parameter_assignments const& params) {
   make_scheme_frame_for_call_from_native(state, callable, arguments);
-  if (state.stack->parent())
-    erect_barrier(state.ctx, state.stack, allow_jump_out, allow_jump_in);
 
   for (auto const& p : params)
     add_parameter_value(state.ctx, state.stack, p.tag, p.value);
@@ -1174,17 +1165,19 @@ call_parameterized_with_continuation_barrier(
   expect_callable(callable);
 
   current_execution_setter ces{ctx};
-  auto guard = push_dummy_frame(ctx, ctx.current_execution->stack);
+  auto stack = ctx.current_execution->stack;
+  auto guard = push_dummy_frame(ctx, stack);
+
+  if (!allow_jump_out || !allow_jump_in)
+    erect_barrier(ctx, stack, allow_jump_out, allow_jump_in);
 
   if (auto native_proc = match<native_procedure>(callable))
-    return call_native_with_continuation_barrier(
-      *ctx.current_execution, native_proc, arguments, params,
-      allow_jump_out, allow_jump_in
+    return call_native(
+      *ctx.current_execution, native_proc, arguments, params
     );
   else
-    return call_scheme_with_continuation_barrier(
-      *ctx.current_execution, assume<procedure>(callable), arguments, params,
-      allow_jump_out, allow_jump_in
+    return call_scheme(
+      *ctx.current_execution, assume<procedure>(callable), arguments, params
     );
 }
 
@@ -1304,79 +1297,6 @@ tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
   return tail_call_range(ctx, callable, arguments);
 }
 
-// A stack segment is a contiguous sequence of stack frames whose last frame has
-// non-empty extra field, or is at the top of the stack. No other frames in a
-// segment may have a non-empty extra field. This way, the entire call stack can
-// be decomposed into a sequence of segments.
-//
-// The motivation here is that the extra field can be compared using simple
-// pointer comparison to determine the identity of two frames when we are trying
-// to merge two different call stacks. Also, the extra field stores things like
-// before and after thunks, and the semantics of the language require that
-// continuation jumps don't run before and after thunks that don't need to be
-// run -- i.e. those in the common segment of two call stacks.
-
-namespace {
-  struct stack_segment {
-    ptr<stack_frame_extra_data> extra;
-    call_stack::frame_index     begin;
-    call_stack::frame_index     end; // Index *past* the last frame of this
-                                     // segment
-  };
-
-  struct stack_segments {
-    ptr<call_stack>            stack;
-    std::vector<stack_segment> segments;
-  };
-} // anonymous namespace
-
-static stack_segments
-decompose_into_segments(ptr<call_stack> stack) {
-  std::vector<stack_segment> result;
-
-  stack_segment current_segment;
-  current_segment.end = stack->frames_end();
-
-  call_stack::frame_index previous = stack->frames_end();
-  for (call_stack::frame_index frame : stack->frames_range()) {
-    if (stack->extra(frame)) {
-      current_segment.begin = previous;
-      if (current_segment.begin != current_segment.end)
-        result.push_back(current_segment);
-
-      current_segment.extra = stack->extra(frame);
-      current_segment.end = previous;
-    }
-
-    previous = frame;
-  }
-
-  current_segment.begin = 0;
-  result.push_back(current_segment);
-
-  std::reverse(result.begin(), result.end());
-  return {stack, result};
-}
-
-static std::size_t
-common_prefix_length(std::vector<stack_segment> const& x,
-                     std::vector<stack_segment> const& y) {
-  std::size_t result = 0;
-  while (result < x.size() && result < y.size()
-         && x[result].extra && y[result].extra
-         && x[result].extra == y[result].extra)
-    ++result;
-  return result;
-}
-
-static std::optional<call_stack::frame_index>
-common_frame_index(stack_segments const& segments, std::size_t common_prefix) {
-  if (common_prefix == 0)
-    return std::nullopt;
-  else
-    return segments.segments[common_prefix - 1].end - 1;
-}
-
 static ptr<tail_call_tag_type>
 capture_stack(context& ctx, ptr<> receiver) {
   auto copy = make<call_stack>(ctx, *ctx.current_execution->stack);
@@ -1466,50 +1386,42 @@ unwind_stack(execution_state& state,
 }
 
 static void
-rewind_common_part(execution_state& state, stack_segments const& new_segments,
-                   std::size_t common_prefix) {
-  // It's necessary to replace the common part as well, because some frames in
-  // it might have been replaced by tail calls.
-
-  state.stack->clear();
-
-  if (common_prefix >= 1)
-    state.stack->append_frames(
-      new_segments.stack->frames(new_segments.segments[0].begin,
-                                 new_segments.segments[common_prefix - 1].end)
-    );
-}
-
-static void
-rewind_stack(execution_state& state, stack_segments const& new_segments,
-             std::size_t common_prefix) {
-  assert(!new_segments.segments.empty());
-
-  rewind_common_part(state, new_segments, common_prefix);
-
-  for (std::size_t i = common_prefix; i < new_segments.segments.size(); ++i) {
-    state.stack->append_frames(
-      new_segments.stack->frames(new_segments.segments[i].begin,
-                                 new_segments.segments[i].end)
-    );
+rewind_stack(execution_state& state, ptr<call_stack> cont,
+             std::optional<call_stack::frame_index> common_frame) {
+  call_stack::frame_index begin = common_frame ? *common_frame + 1 : 0;
+  for (std::size_t i = begin; i < cont->frame_count(); ++i) {
+    state.stack->append_frame(cont, i);
     if (ptr<> thunk = get_before_thunk(state.stack))
       call_with_continuation_barrier(state.ctx, thunk, {});
   }
 }
 
+static bool
+frames_same(ptr<call_stack> x, ptr<call_stack> y, call_stack::frame_index i) {
+  return x->callable(i) == y->callable(i)
+         && x->previous_ip(i) == y->previous_ip(i);
+}
+
+static std::optional<call_stack::frame_index>
+common_frame_index(ptr<call_stack> x, ptr<call_stack> y) {
+  std::optional<call_stack::frame_index> result;
+  std::size_t max_index = std::min(x->frame_count(), y->frame_count());
+
+  for (call_stack::frame_index i = 0; i < max_index; ++i)
+    if (frames_same(x, y, i))
+      result = i;
+
+  return result;
+}
+
 static ptr<>
 replace_stack(context& ctx, ptr<call_stack> cont, ptr<> value) {
-  stack_segments current_segments
-    = decompose_into_segments(ctx.current_execution->stack);
-  stack_segments new_segments = decompose_into_segments(cont);
-  std::size_t prefix
-    = common_prefix_length(current_segments.segments, new_segments.segments);
   std::optional<call_stack::frame_index> common_frame_idx
-    = common_frame_index(current_segments, prefix);
+    = common_frame_index(ctx.current_execution->stack, cont);
   throw_if_jump_not_allowed(ctx, cont, common_frame_idx);
 
   unwind_stack(*ctx.current_execution, common_frame_idx);
-  rewind_stack(*ctx.current_execution, new_segments, prefix);
+  rewind_stack(*ctx.current_execution, cont, common_frame_idx);
 
   return value;
 }

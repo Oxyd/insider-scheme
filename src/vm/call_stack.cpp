@@ -57,28 +57,22 @@ call_stack::frames(frame_index begin, frame_index end) const -> frame_span {
 }
 
 void
-call_stack::append_frames(frame_span frames) {
-  if (frames.frames.empty())
-    return;
+call_stack::append_frame(ptr<call_stack> from, frame_index idx) {
+  ensure_frames_capacity(frames_size_ + 1);
+  ensure_data_capacity(data_size_ + from->frame_size(idx));
 
-  std::size_t frames_begin = frames.frames.front().base;
-  std::size_t frames_end
-    = frames.frames.back().base + frames.frames.back().size;
-  std::size_t frames_size = frames_end - frames_begin;
-  ensure_frames_capacity(frames_size + frames.frames.size());
-  ensure_data_capacity(data_size_ + frames_size);
-
-  std::copy(frames.stack->data_.get() + frames_begin,
-            frames.stack->data_.get() + frames_end,
+  frame new_frame = from->frames_[idx];
+  std::copy(from->data_.get() + new_frame.base,
+            from->data_.get() + new_frame.base + new_frame.size,
             data_.get() + data_size_);
 
-  int base_diff = to_signed<int>(data_size_) - frames.frames.front().base;
-  for (frame f : frames.frames) {
-    f.base += base_diff;
-    frames_[frames_size_++] = f;
-  }
+  int base_diff = to_signed<int>(data_size_) - new_frame.base;
 
-  update_current_frame();
+  new_frame.base += base_diff;
+  frames_[frames_size_++] = new_frame;
+
+  current_base_ = new_frame.base;
+  data_size_ = current_base_ + new_frame.size;
 }
 
 void

@@ -268,6 +268,9 @@ public:
   std::size_t
   size() const { return data_size_; }
 
+  std::size_t
+  frame_count() const { return frames_size_; }
+
   void
   clear() { frames_size_ = 0; data_size_ = 0; }
 
@@ -284,7 +287,7 @@ public:
   frames_end() const { return frames_size_; }
 
   void
-  append_frames(frame_span);
+  append_frame(ptr<call_stack> from, frame_index idx);
 
   void
   visit_members(member_visitor const&);
