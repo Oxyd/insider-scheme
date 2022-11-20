@@ -51,17 +51,14 @@
 (define (cdddar x) (cdr (cdr (cdr (car x)))))
 (define (cddddr x) (cdr (cdr (cdr (cdr x)))))
 
-(define (assoc obj alist . compare*)
-  (let ((compare (if (null? compare*)
-                     equal?
-                     (car compare*))))
-    (let loop ((elem alist))
-      (cond ((null? elem)
-             #f)
-            ((compare obj (caar elem))
-             (car elem))
-            (else
-             (loop (cdr elem)))))))
+(define (assoc obj alist (compare equal?))
+  (let loop ((elem alist))
+    (cond ((null? elem)
+           #f)
+          ((compare obj (caar elem))
+           (car elem))
+          (else
+           (loop (cdr elem))))))
 
 (define (assq obj alist)
   (assoc obj alist eq?))
@@ -69,17 +66,14 @@
 (define (assv obj alist)
   (assoc obj alist eqv?))
 
-(define (member obj list . compare*)
-  (let ((compare (if (null? compare*)
-                     equal?
-                     (car compare*))))
-    (let loop ((elem list))
-      (cond ((null? elem)
-             #f)
-            ((compare (car elem) obj)
-             elem)
-            (else
-             (loop (cdr elem)))))))
+(define (member obj list (compare equal?))
+  (let loop ((elem list))
+    (cond ((null? elem)
+           #f)
+          ((compare (car elem) obj)
+           elem)
+          (else
+           (loop (cdr elem))))))
 
 (define (memq obj list)
   (member obj list eq?))
@@ -211,11 +205,10 @@
                              (cdr fast*)
                              fast*))))))))
 
-(define (make-list k . fill*)
-  (let ((fill (if (pair? fill*) (car fill*) #void)))
-    (do ((k k (- k 1))
-         (result '() (cons fill result)))
-        ((= k 0) result))))
+(define (make-list k (fill #void))
+  (do ((k k (- k 1))
+       (result '() (cons fill result)))
+      ((= k 0) result)))
 
 (define (list-tail l k)
   (if (= k 0)

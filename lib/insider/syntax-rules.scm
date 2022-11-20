@@ -90,8 +90,8 @@
 
 (meta
   (define member
-    (lambda (x list . rest)
-      (let ((pred (if (null? rest) equal? (car rest))))
+    (lambda (x list (pred #:optional))
+      (let ((pred (if (eq? pred #default-value) equal? pred)))
         (define loop
           (lambda (lst)
             (if (null? lst)
@@ -128,8 +128,8 @@
 
 (meta
   (define assoc
-    (lambda (x alist . rest)
-      (let ((pred (if (null? rest) equal? (car rest))))
+    (lambda (x alist (pred #:optional))
+      (let ((pred (if (eq? pred #default-value) equal? pred)))
         (define loop
           (lambda (lst)
             (if (null? lst)

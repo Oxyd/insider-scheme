@@ -33,27 +33,21 @@
 (define <get-tag> (list 'get-tag))
 (define <get-converter> (list 'get-converter))
 
-(define (make-parameter-from-tag tag . args)
-  (let ((converter (if (null? args)
-                       (lambda (x) x)
-                       (car args))))
-    (lambda args
-      (cond ((null? args)
-             (find-parameter-value tag))
-            ((eq? (car args) <get-tag>)
-             tag)
-            ((eq? (car args) <get-converter>)
-             converter)
-            (else
-             (let ((value (car args)))
-               (set-parameter-value! tag (converter value))))))))
+(define (make-parameter-from-tag tag (converter (lambda (x) x)))
+  (lambda args
+    (cond ((null? args)
+           (find-parameter-value tag))
+          ((eq? (car args) <get-tag>)
+           tag)
+          ((eq? (car args) <get-converter>)
+           converter)
+          (else
+           (let ((value (car args)))
+             (set-parameter-value! tag (converter value)))))))
 
-(define (make-parameter init . args)
-  (let ((converter (if (null? args)
-                       (lambda (x) x)
-                       (car args))))
-    (let ((tag (create-parameter-tag (converter init))))
-      (make-parameter-from-tag tag converter))))
+(define (make-parameter init (converter (lambda (x) x)))
+  (let ((tag (create-parameter-tag (converter init))))
+    (make-parameter-from-tag tag converter)))
 
 (define-syntax do-call-parameterized
   (syntax-rules ()
