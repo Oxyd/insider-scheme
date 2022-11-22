@@ -1694,8 +1694,8 @@ process_top_level_define(parsing_context& pc, ptr<syntax> stx) {
   auto [name, expr] = parse_name_and_expr(pc, stx, "define");
   auto var = lookup_variable(pc, name);
   if (!var) {
-    auto index = pc.ctx.add_top_level(pc.ctx.constants->void_,
-                                      identifier_name(name));
+    auto index = pc.ctx.add_top_level_mutable(pc.ctx.constants->void_,
+                                              identifier_name(name));
     var = make<top_level_variable>(pc.ctx, identifier_name(name), index);
     define(pc.ctx.store, name, var);
   }

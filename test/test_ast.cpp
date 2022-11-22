@@ -137,6 +137,37 @@ ignore_lets_and_sequences(expression e) {
   }
 }
 
+template <typename T>
+static void
+for_each(expression e, auto&& f) {
+  if (auto x = match<T>(e))
+    f(x);
+
+  visit(
+    [&] (auto expr) {
+      expr->visit_subexpressions([&] (auto subexpr) {
+        for_each<T>(subexpr, f);
+      });
+    },
+    e
+  );
+}
+
+static expression
+find_top_level_definition_for(expression root, std::string const& name) {
+  expression result;
+
+  for_each<top_level_set_expression>(
+    root,
+    [&] (ptr<top_level_set_expression> set) {
+      if (set->target()->name() == name)
+        result = set->expression();
+    }
+  );
+
+  return result;
+}
+
 struct ast : scheme_fixture {
   expression
   make_nested_call() {
@@ -417,22 +448,6 @@ TEST_F(ast, local_lambda_definitions_are_recognised_as_constants) {
   EXPECT_TRUE(is<lambda_expression>(var->constant_initialiser()));
 }
 
-template <typename T>
-static void
-for_each(expression e, auto&& f) {
-  if (auto x = match<T>(e))
-    f(x);
-
-  visit(
-    [&] (auto expr) {
-      expr->visit_subexpressions([&] (auto subexpr) {
-        for_each<T>(subexpr, f);
-      });
-    },
-    e
-  );
-}
-
 TEST_F(ast, constants_are_folded_into_expressions) {
   expression e = analyse(R"(
     (let ((const 2))
@@ -550,6 +565,61 @@ TEST_F(ast, top_level_constants_are_propagated_across_modules) {
   );
 }
 
+TEST_F(ast, mutated_top_level_scheme_variable_is_not_constant_propagated) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export var mutate-var!)
+
+      (define var 0)
+
+      (define mutate-var!
+        (lambda ()
+          (set! var (+ var 1))))
+    )"
+  );
+
+  expression e = analyse_module(
+    R"(
+      (import (insider internal) (foo))
+      (define bar
+        (lambda ()
+          (* var 2)))
+    )",
+    {&analyse_variables, &evaluate_constants}
+  );
+  auto bar = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  auto app
+    = expect<application_expression>(ignore_lets_and_sequences(bar->body()));
+  ASSERT_EQ(app->arguments().size(), 2);
+  auto ref = app->arguments()[0];
+  EXPECT_TRUE(is<top_level_reference_expression>(ref));
+}
+
+TEST_F(ast, mutable_top_level_native_variable_is_not_constant_propagated) {
+  operand var = define_top_level_mutable(ctx, "var", ctx.internal_module(),
+                                         true, integer_to_ptr(0));
+  ctx.set_top_level(var, integer_to_ptr(1));
+
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+      (define bar
+        (lambda ()
+          (* var 2)))
+    )",
+    {&analyse_variables, &evaluate_constants}
+  );
+  auto bar = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  auto app
+    = expect<application_expression>(ignore_lets_and_sequences(bar->body()));
+  ASSERT_EQ(app->arguments().size(), 2);
+  auto ref = app->arguments()[0];
+  EXPECT_TRUE(is<top_level_reference_expression>(ref));
+}
+
 static std::string
 target_name(ptr<top_level_reference_expression> ref) {
   return ref->variable()->name();
@@ -643,21 +713,6 @@ TEST_F(ast, procedures_are_inlined_across_modules) {
     {&analyse_variables, &inline_procedures}
   );
   assert_procedure_not_called(e, "foo");
-}
-
-static expression
-find_top_level_definition_for(expression root, std::string const& name) {
-  expression result;
-
-  for_each<top_level_set_expression>(
-    root,
-    [&] (ptr<top_level_set_expression> set) {
-      if (set->target()->name() == name)
-        result = set->expression();
-    }
-  );
-
-  return result;
 }
 
 TEST_F(ast, recursive_procedures_are_not_inlined) {

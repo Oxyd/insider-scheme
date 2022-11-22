@@ -338,10 +338,12 @@ perform_imports(context& ctx, tracked_ptr<module_> const& to,
   }
 }
 
-operand
+static operand
 define_top_level(context& ctx, std::string const& name, ptr<module_> m,
-                 bool export_, ptr<> object) {
-  auto index = ctx.add_top_level(object, name);
+                 bool export_, ptr<> object, bool mutable_) {
+  auto index = mutable_
+               ? ctx.add_top_level_mutable(object, name)
+               : ctx.add_top_level(object, name);
   auto name_sym = ctx.intern(name);
   auto var = make<top_level_variable>(ctx, name, index);
   m->scope()->add(ctx.store,
@@ -351,7 +353,22 @@ define_top_level(context& ctx, std::string const& name, ptr<module_> m,
   if (export_)
     m->export_(name_sym);
 
+  if (mutable_)
+    var->flags().is_set = true;
+
   return index;
+}
+
+operand
+define_top_level(context& ctx, std::string const& name, ptr<module_> m,
+                 bool export_, ptr<> object) {
+  return define_top_level(ctx, name, m, export_, object, false);
+}
+
+operand
+define_top_level_mutable(context& ctx, std::string const& name, ptr<module_> m,
+                         bool export_, ptr<> object) {
+  return define_top_level(ctx, name, m, export_, object, true);
 }
 
 static ptr<>

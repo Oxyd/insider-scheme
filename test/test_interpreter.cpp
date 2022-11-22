@@ -986,3 +986,15 @@ TEST_F(interpreter, calling_native_directly_from_native_does_not_pollute_stack) 
   ASSERT_THROW(call_with_continuation_barrier(ctx, f, {}), std::runtime_error);
   EXPECT_TRUE(ctx.current_execution->stack->empty());
 }
+
+TEST_F(interpreter, mutating_immutable_top_level_throws) {
+  auto var = define_top_level(ctx, "var", ctx.internal_module(), true,
+                              integer_to_ptr(0));
+  EXPECT_THROW(ctx.set_top_level(var, integer_to_ptr(1)), std::runtime_error);
+}
+
+TEST_F(interpreter, mutating_mutable_top_level_doesnt_throw) {
+  auto var = define_top_level_mutable(ctx, "var", ctx.internal_module(), true,
+                                      integer_to_ptr(0));
+  EXPECT_NO_THROW(ctx.set_top_level(var, integer_to_ptr(1)));
+}

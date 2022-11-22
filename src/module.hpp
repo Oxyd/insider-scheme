@@ -113,6 +113,10 @@ operand
 define_top_level(context&, std::string const& name, ptr<module_>, bool export_,
                  ptr<> object);
 
+operand
+define_top_level_mutable(context&, std::string const& name, ptr<module_>,
+                         bool export_, ptr<> object);
+
 // Recursively activate all dependencies of the given module, execute the
 // module's body and return the result of the last expression in its body.
 //

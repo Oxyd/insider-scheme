@@ -92,7 +92,7 @@ public:
   intern_type_name(word_type type_index);
 
   ptr<>
-  get_top_level(operand i) const { return top_level_objects_[i]; }
+  get_top_level(operand i) const { return top_level_objects_[i].value; }
 
   ptr<>
   get_top_level_checked(operand) const;
@@ -102,6 +102,9 @@ public:
 
   operand
   add_top_level(ptr<>, std::string name);
+
+  operand
+  add_top_level_mutable(ptr<>, std::string name);
 
   std::string
   get_top_level_name(operand) const;
@@ -140,11 +143,16 @@ private:
     visit_roots(member_visitor const&) override;
   };
 
+  struct top_level_binding {
+    ptr<>       value;
+    std::string name;
+    bool        mutable_;
+  };
+
   root_provider                                 root_provider_{*this};
   std::unordered_map<std::string, ptr<symbol>>  interned_symbols_;
   std::unordered_map<std::string, ptr<keyword>> interned_keywords_;
-  std::vector<ptr<>>                            top_level_objects_;
-  std::vector<std::string>                      top_level_binding_names_;
+  std::vector<top_level_binding>                top_level_objects_;
   insider::module_resolver                      module_resolver_{*this};
   std::vector<ptr<symbol>>                      type_name_symbols_;
 

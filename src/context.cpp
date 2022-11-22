@@ -111,27 +111,37 @@ context::get_top_level_checked(operand i) const {
   if (static_cast<std::size_t>(i) >= top_level_objects_.size())
     throw std::runtime_error{fmt::format("Nonexistent top-level object {}", i)};
 
-  return top_level_objects_[i];
+  return top_level_objects_[i].value;
 }
 
 void
 context::set_top_level(operand i, ptr<> value) {
   assert(i >= 0);
   assert(static_cast<std::size_t>(i) < top_level_objects_.size());
-  top_level_objects_[i] = value;
+  if (!top_level_objects_[i].mutable_)
+    throw std::runtime_error{
+      fmt::format("Attempting tu mutate immutable top-level {}",
+                  top_level_objects_[i].name)
+    };
+  top_level_objects_[i].value = value;
 }
 
 operand
 context::add_top_level(ptr<> x, std::string name) {
-  top_level_objects_.push_back(x);
-  top_level_binding_names_.emplace_back(std::move(name));
+  top_level_objects_.emplace_back(top_level_binding{x, std::move(name), false});
+  return static_cast<operand>(top_level_objects_.size() - 1);
+}
+
+operand
+context::add_top_level_mutable(ptr<> x, std::string name) {
+  top_level_objects_.emplace_back(top_level_binding{x, std::move(name), true});
   return static_cast<operand>(top_level_objects_.size() - 1);
 }
 
 std::string
 context::get_top_level_name(operand i) const {
-  if (static_cast<std::size_t>(i) < top_level_binding_names_.size())
-    return top_level_binding_names_[i];
+  if (static_cast<std::size_t>(i) < top_level_objects_.size())
+    return top_level_objects_[i].name;
   else
     throw make_error("Invalid global operand {}", i);
 }
@@ -204,8 +214,8 @@ context::root_provider::visit_roots(member_visitor const& f) {
   for (ptr<symbol>& name : ctx_.type_name_symbols_)
     f(name);
 
-  for (ptr<>& x : ctx_.top_level_objects_)
-    f(x);
+  for (top_level_binding& x : ctx_.top_level_objects_)
+    f(x.value);
 
   f(ctx_.features_);
 }
