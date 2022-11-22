@@ -550,7 +550,6 @@ TEST_F(ast, top_level_constants_are_propagated_across_modules) {
   );
 }
 
-
 static std::string
 target_name(ptr<top_level_reference_expression> ref) {
   return ref->variable()->name();
@@ -1147,6 +1146,14 @@ TEST_F(ast, constant_variables_are_used_in_evaluation_of_constant_calls) {
   e = ignore_lets_and_sequences(e);
   ASSERT_TRUE(is<literal_expression>(e));
   EXPECT_EQ(expect<integer>(expect<literal_expression>(e)->value()).value(), 7);
+}
+
+TEST_F(ast, comparison_of_top_level_values_with_eq_can_be_constant_evaluated) {
+  expression e = analyse("(eq? car cdr)",
+                         {&analyse_variables, &evaluate_constants});
+  e = ignore_lets_and_sequences(e);
+  ASSERT_TRUE(is<literal_expression>(e));
+  EXPECT_EQ(expect<literal_expression>(e)->value(), ctx.constants->f);
 }
 
 TEST_F(ast, let_variables_bound_to_constant_expressions_are_constants) {
@@ -2514,4 +2521,34 @@ TEST_F(ast,
       EXPECT_TRUE(is<literal_expression>(app->arguments()[1]));
     }
   );
+}
+
+TEST_F(ast, test_for_default_value_can_be_constant_evaluated) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda (x y (z #:optional))
+          (eq? z #default-value)))
+
+      (define bar
+        (lambda ()
+          (foo 1 2)))
+
+      (define baz
+        (lambda ()
+          (foo 1 2 3)))
+    )"
+  );
+
+  auto bar = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  auto bar_body = ignore_lets_and_sequences(bar->body());
+  ASSERT_TRUE(is<literal_expression>(bar_body));
+  EXPECT_EQ(expect<literal_expression>(bar_body)->value(), ctx.constants->t);
+
+  auto baz = expect<lambda_expression>(find_top_level_definition_for(e, "baz"));
+  auto baz_body = ignore_lets_and_sequences(baz->body());
+  ASSERT_TRUE(is<literal_expression>(baz_body));
+  EXPECT_EQ(expect<literal_expression>(baz_body)->value(), ctx.constants->f);
 }

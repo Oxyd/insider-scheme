@@ -148,13 +148,18 @@ constant_value_for_expression(context&,
 }
 
 static ptr<>
-constant_value_for_expression(context&,
+constant_value_for_expression(context& ctx,
                               static_environment const& env,
                               ptr<top_level_reference_expression> ref) {
-  auto info = env.find_variable(ref->variable());
+  auto var = ref->variable();
+  auto info = env.find_variable(var);
   if (info.init_expr)
     if (auto lit = match<literal_expression>(info.init_expr))
       return lit->value();
+
+  if (!var->flags().is_set)
+    return ctx.get_top_level(var->index);
+
   return {};
 }
 
