@@ -69,16 +69,16 @@ public:
   template <typename Ret, typename... Args>
   auto
   operator ->* (Ret (T::* fun)(Args...)) const {
-    return [fun, this] (Args... args) {
-      return (value()->*fun)(args...);
+    return [fun, this] (auto&&... args) {
+      return (value()->*fun)(std::forward<decltype(args)>(args)...);
     };
   }
 
   template <typename Ret, typename... Args>
   auto
   operator ->* (Ret (T::* fun)(Args...) const) const {
-    return [fun, this] (Args... args) {
-      return (value()->*fun)(args...);
+    return [fun, this] (auto&&... args) {
+      return (value()->*fun)(std::forward<decltype(args)>(args)...);
     };
   }
 
