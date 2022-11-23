@@ -1,7 +1,6 @@
 #include "vm/vm.hpp"
 
 #include "compiler/compiler.hpp"
-#include "compiler/source_code_provider.hpp"
 #include "io/read.hpp"
 #include "io/write.hpp"
 #include "memory/free_store.hpp"

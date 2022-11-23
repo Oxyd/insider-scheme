@@ -1,10 +1,8 @@
 #ifndef INSIDER_COMPILER_SOURCE_CODE_PROVIDER_HPP
 #define INSIDER_COMPILER_SOURCE_CODE_PROVIDER_HPP
 
-#include "compiler/expression.hpp"
 #include "compiler/source_file_origin.hpp"
 #include "io/port.hpp"
-#include "ptr.hpp"
 
 #include <filesystem>
 #include <optional>
