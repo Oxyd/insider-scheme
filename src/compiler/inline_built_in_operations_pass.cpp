@@ -77,6 +77,7 @@ built_in_operations_visitor::operations[]{
   {"string-ref", opcode::string_ref, 2, true},
   {"string-set!", opcode::string_set, 3, false},
   {"string-set!/byte-index", opcode::string_set_byte_index, 3, false},
+  {"string-length", opcode::string_length, 1, true},
   {"string-byte-length", opcode::string_byte_length, 1, true},
   {"next-code-point-byte-index", opcode::next_code_point_byte_index, 2, true},
   {"previous-code-point-byte-index", opcode::previous_code_point_byte_index, 2, true},

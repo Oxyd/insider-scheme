@@ -825,6 +825,16 @@ template <auto Proc, typename Type>
     }
   };
 
+  template <auto Proc, typename Ret, typename Cls>
+  struct procedure_instruction_helper<Proc, Ret (Cls::*)() const> {
+    static void
+    f(execution_state& state) {
+      auto obj = expect<Cls>(state.stack->local(read_operand(state)));
+      operand dest = read_operand(state);
+      state.stack->local(dest) = to_scheme(state.ctx, (obj->*Proc)());
+    }
+  };
+
   template <auto Proc, typename Ret, typename Cls, typename Arg1>
   struct procedure_instruction_helper<Proc, Ret (Cls::*)(Arg1) const> {
     static void
@@ -946,6 +956,9 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::string_set:   procedure_instruction<&string::set>(state); break;
   case opcode::string_set_byte_index:
     procedure_instruction<&string::set_byte_index>(state);
+    break;
+  case opcode::string_length:
+    procedure_instruction<&string::length>(state);
     break;
   case opcode::string_byte_length:
     procedure_instruction<string_byte_length>(state);
