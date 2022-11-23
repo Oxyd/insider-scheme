@@ -1004,6 +1004,63 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::free_identifier_eq:
     procedure_instruction<free_identifier_eq>(state);
     break;
+  case opcode::is_integer:
+    procedure_instruction<is_integer>(state);
+    break;
+  case opcode::is_exact_integer:
+    procedure_instruction<is_exact_integer>(state);
+    break;
+  case opcode::is_zero:
+    procedure_instruction<is_zero>(state);
+    break;
+  case opcode::is_positive:
+    procedure_instruction<is_positive>(state);
+    break;
+  case opcode::is_negative:
+    procedure_instruction<is_negative>(state);
+    break;
+  case opcode::is_number:
+    procedure_instruction<is_number>(state);
+    break;
+  case opcode::is_real:
+    procedure_instruction<is_real>(state);
+    break;
+  case opcode::is_rational:
+    procedure_instruction<is_rational>(state);
+    break;
+  case opcode::is_finite:
+    procedure_instruction<is_finite>(state);
+    break;
+  case opcode::is_infinite:
+    procedure_instruction<is_infinite>(state);
+    break;
+  case opcode::is_nan:
+    procedure_instruction<is_nan>(state);
+    break;
+  case opcode::is_inexact:
+    procedure_instruction<is_inexact>(state);
+    break;
+  case opcode::is_exact:
+    procedure_instruction<is_exact>(state);
+    break;
+  case opcode::inexact:
+    procedure_instruction<inexact>(state);
+    break;
+  case opcode::exact:
+    procedure_instruction<exact>(state);
+    break;
+  case opcode::fraction_numerator:
+    procedure_instruction<&fraction::numerator>(state);
+    break;
+  case opcode::fraction_denominator:
+    procedure_instruction<&fraction::denominator>(state);
+    break;
+  case opcode::real_part:
+    procedure_instruction<real_part>(state);
+    break;
+  case opcode::imag_part:
+    procedure_instruction<imag_part>(state);
+    break;
 
   default:
     assert(false); // Invalid opcode

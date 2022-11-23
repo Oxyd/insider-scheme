@@ -2886,7 +2886,7 @@ read_integer(context& ctx, std::string const& digits, unsigned base) {
   return result;
 }
 
-static ptr<>
+ptr<>
 real_part(ptr<> x) {
   if (auto z = match<complex>(x))
     return z->real();
@@ -2894,7 +2894,7 @@ real_part(ptr<> x) {
     return x;
 }
 
-static ptr<>
+ptr<>
 imag_part(ptr<> x) {
   if (auto z = match<complex>(x))
     return z->imaginary();

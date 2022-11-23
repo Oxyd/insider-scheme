@@ -92,7 +92,24 @@ built_in_operations_visitor::operations[]{
   {"eqv?", opcode::eqv, 2, true},
   {"equal?", opcode::equal, 2, true},
   {"syntax-expression", opcode::syntax_expression, 1, true},
-  {"free-identifier=?", opcode::free_identifier_eq, 2, true}
+  {"free-identifier=?", opcode::free_identifier_eq, 2, true},
+  {"integer?", opcode::is_integer, 1, true},
+  {"exact-integer?", opcode::is_exact_integer, 1, true},
+  {"zero?", opcode::is_zero, 1, true},
+  {"positive?", opcode::is_positive, 1, true},
+  {"negative?", opcode::is_negative, 1, true},
+  {"number?", opcode::is_number, 1, true},
+  {"real?", opcode::is_real, 1, true},
+  {"rational?", opcode::is_rational, 1, true},
+  {"finite?", opcode::is_finite, 1, true},
+  {"infinite?", opcode::is_infinite, 1, true},
+  {"nan?", opcode::is_nan, 1, true},
+  {"inexact?", opcode::is_inexact, 1, true},
+  {"exact?", opcode::is_exact, 1, true},
+  {"fraction-numerator", opcode::fraction_numerator, 1, true},
+  {"fraction-denominator", opcode::fraction_denominator, 1, true},
+  {"real-part", opcode::real_part, 1, true},
+  {"imag-part", opcode::imag_part, 1, true}
 };
 
 built_in_operations_visitor::built_in_operations_visitor(context& ctx)

@@ -80,6 +80,25 @@ enum class opcode : std::uint16_t {
   equal,
   syntax_expression,
   free_identifier_eq,
+  is_integer,
+  is_exact_integer,
+  is_zero,
+  is_positive,
+  is_negative,
+  is_number,
+  is_real,
+  is_rational,
+  is_finite,
+  is_infinite,
+  is_nan,
+  is_inexact,
+  is_exact,
+  inexact,
+  exact,
+  fraction_numerator,
+  fraction_denominator,
+  real_part,
+  imag_part,
 };
 
 // Metainformation about an opcode. Used for decoding instructions.
@@ -186,7 +205,26 @@ instructions{
   std::tuple{"eqv?", opcode::eqv, std::size_t{3}},
   std::tuple{"equal?", opcode::equal, std::size_t{3}},
   std::tuple{"syntax-expression", opcode::syntax_expression, std::size_t{2}},
-  std::tuple{"free-identifier=?", opcode::free_identifier_eq, std::size_t{3}}
+  std::tuple{"free-identifier=?", opcode::free_identifier_eq, std::size_t{3}},
+  std::tuple{"integer?", opcode::is_integer, std::size_t{2}},
+  std::tuple{"exact-integer?", opcode::is_exact_integer, std::size_t{2}},
+  std::tuple{"zero?", opcode::is_zero, std::size_t{2}},
+  std::tuple{"positive?", opcode::is_positive, std::size_t{2}},
+  std::tuple{"negative?", opcode::is_negative, std::size_t{2}},
+  std::tuple{"number?", opcode::is_number, std::size_t{2}},
+  std::tuple{"real?", opcode::is_real, std::size_t{2}},
+  std::tuple{"rational?", opcode::is_rational, std::size_t{2}},
+  std::tuple{"finite?", opcode::is_finite, std::size_t{2}},
+  std::tuple{"infinite?", opcode::is_infinite, std::size_t{2}},
+  std::tuple{"nan?", opcode::is_nan, std::size_t{2}},
+  std::tuple{"inexact?", opcode::is_inexact, std::size_t{2}},
+  std::tuple{"exact?", opcode::is_exact, std::size_t{2}},
+  std::tuple{"inexact", opcode::inexact, std::size_t{2}},
+  std::tuple{"exact", opcode::exact, std::size_t{2}},
+  std::tuple{"fraction-numerator", opcode::fraction_numerator, std::size_t{2}},
+  std::tuple{"fraction-denominator", opcode::fraction_denominator, std::size_t{2}},
+  std::tuple{"real-part", opcode::real_part, std::size_t{2}},
+  std::tuple{"imag-part", opcode::imag_part, std::size_t{2}}
 };
 
 inline auto const // std::array<instruction_info, N>

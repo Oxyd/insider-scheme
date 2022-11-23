@@ -573,6 +573,12 @@ floor(context&, ptr<>);
 ptr<>
 read_integer(context& ctx, std::string const& digits, unsigned base = 10);
 
+ptr<>
+real_part(ptr<> x);
+
+ptr<>
+imag_part(ptr<> x);
+
 } // namespace insider
 
 #endif
