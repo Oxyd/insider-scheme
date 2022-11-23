@@ -837,6 +837,30 @@ template <auto Proc, typename Type>
         = to_scheme(state.ctx, (obj->*Proc)(argument1));
     }
   };
+
+  template <auto Proc, typename Cls, typename Arg1>
+  struct procedure_instruction_helper<Proc, void (Cls::*)(Arg1)> {
+    static void
+    f(execution_state& state) {
+      auto obj = expect<Cls>(state.stack->local(read_operand(state)));
+      auto argument1
+        = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
+      (obj->*Proc)(argument1);
+    }
+  };
+
+  template <auto Proc, typename Cls, typename Arg1, typename Arg2>
+  struct procedure_instruction_helper<Proc, void (Cls::*)(Arg1, Arg2)> {
+    static void
+    f(execution_state& state) {
+      auto obj = expect<Cls>(state.stack->local(read_operand(state)));
+      auto argument1
+        = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
+      auto argument2
+        = from_scheme<Arg2>(state.ctx, state.stack->local(read_operand(state)));
+      (obj->*Proc)(argument1, argument2);
+    }
+  };
 }
 
 template <auto Proc>
@@ -918,6 +942,26 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::equal:        procedure_instruction<equal>(state);        break;
   case opcode::vector_set:   procedure_instruction<vector_set>(state);   break;
   case opcode::vector_ref:   procedure_instruction<&vector::ref>(state); break;
+  case opcode::string_ref:   procedure_instruction<&string::ref>(state); break;
+  case opcode::string_set:   procedure_instruction<&string::set>(state); break;
+  case opcode::string_set_byte_index:
+    procedure_instruction<&string::set_byte_index>(state);
+    break;
+  case opcode::string_byte_length:
+    procedure_instruction<string_byte_length>(state);
+    break;
+  case opcode::next_code_point_byte_index:
+    procedure_instruction<next_code_point_byte_index>(state);
+    break;
+  case opcode::previous_code_point_byte_index:
+    procedure_instruction<previous_code_point_byte_index>(state);
+    break;
+  case opcode::string_append_char:
+    procedure_instruction<&string::append_char>(state);
+    break;
+  case opcode::string_null:
+    procedure_instruction<is_string_null>(state);
+    break;
   case opcode::type:         type(state);                                break;
 
   default:

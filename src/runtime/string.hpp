@@ -74,6 +74,22 @@ string_to_utf8_byte_indexes(context&, ptr<string>, std::size_t start,
 ptr<string>
 string_reverse(context&, ptr<string>, std::size_t begin, std::size_t end);
 
+integer
+next_code_point_byte_index(ptr<string> s, std::size_t index);
+
+integer
+previous_code_point_byte_index(ptr<string> s, std::size_t index);
+
+inline std::size_t
+string_byte_length(ptr<string> s) {
+  return s->value().size();
+}
+
+inline bool
+is_string_null(ptr<string> s) {
+  return s->value().empty();
+}
+
 } // namespace insider
 
 #endif

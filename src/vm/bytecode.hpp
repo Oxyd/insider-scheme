@@ -61,6 +61,14 @@ enum class opcode : std::uint16_t {
   cdr,              // cdr <x> <destination>
   vector_set,       // vector-set! <vector> <index> <value>
   vector_ref,       // vector-ref <vector> <index> <destination>
+  string_ref,
+  string_set,
+  string_set_byte_index,
+  string_byte_length,
+  next_code_point_byte_index,
+  previous_code_point_byte_index,
+  string_append_char,
+  string_null,
   type,             // type <value> <destination>
   eq,               // eq <x> <y> <destination>
   eqv,              // eqv <x> <y> <destination>
@@ -153,6 +161,14 @@ instructions{
   std::tuple{"cdr", opcode::cdr, std::size_t{2}},
   std::tuple{"vector-set!", opcode::vector_set, std::size_t{3}},
   std::tuple{"vector-ref", opcode::vector_ref, std::size_t{3}},
+  std::tuple{"string-ref", opcode::string_ref, std::size_t{2}},
+  std::tuple{"string-set!", opcode::string_set, std::size_t{3}},
+  std::tuple{"string-set!/byte-index", opcode::string_set_byte_index, std::size_t{3}},
+  std::tuple{"string-byte-length", opcode::string_byte_length, std::size_t{2}},
+  std::tuple{"next-code-point-byte-index", opcode::next_code_point_byte_index, std::size_t{3}},
+  std::tuple{"previous-code-point-byte-index", opcode::previous_code_point_byte_index, std::size_t{3}},
+  std::tuple{"string-append-char!", opcode::string_append_char, std::size_t{2}},
+  std::tuple{"string-null?", opcode::string_null, std::size_t{2}},
   std::tuple{"type", opcode::type, std::size_t{2}},
   std::tuple{"eq?", opcode::eq, std::size_t{3}},
   std::tuple{"eqv?", opcode::eqv, std::size_t{3}},
