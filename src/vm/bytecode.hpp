@@ -78,6 +78,8 @@ enum class opcode : std::uint16_t {
   eq,
   eqv,
   equal,
+  syntax_expression,
+  free_identifier_eq,
 };
 
 // Metainformation about an opcode. Used for decoding instructions.
@@ -182,7 +184,9 @@ instructions{
   std::tuple{"type", opcode::type, std::size_t{2}},
   std::tuple{"eq?", opcode::eq, std::size_t{3}},
   std::tuple{"eqv?", opcode::eqv, std::size_t{3}},
-  std::tuple{"equal?", opcode::equal, std::size_t{3}}
+  std::tuple{"equal?", opcode::equal, std::size_t{3}},
+  std::tuple{"syntax-expression", opcode::syntax_expression, std::size_t{2}},
+  std::tuple{"free-identifier=?", opcode::free_identifier_eq, std::size_t{3}}
 };
 
 inline auto const // std::array<instruction_info, N>

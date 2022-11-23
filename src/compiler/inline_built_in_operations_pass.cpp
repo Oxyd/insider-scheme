@@ -90,7 +90,9 @@ built_in_operations_visitor::operations[]{
   {"type", opcode::type, 1, true},
   {"eq?", opcode::eq, 2, true},
   {"eqv?", opcode::eqv, 2, true},
-  {"equal?", opcode::equal, 2, true}
+  {"equal?", opcode::equal, 2, true},
+  {"syntax-expression", opcode::syntax_expression, 1, true},
+  {"free-identifier=?", opcode::free_identifier_eq, 2, true}
 };
 
 built_in_operations_visitor::built_in_operations_visitor(context& ctx)

@@ -358,7 +358,7 @@ syntax_to_list_proc(context& ctx, ptr<> stx) {
     return ctx.constants->f;
 }
 
-static bool
+bool
 free_identifier_eq(ptr<syntax> x, ptr<syntax> y) {
   if (!is_identifier(x) || !is_identifier(y))
     throw std::runtime_error{"Expected two identifiers"};

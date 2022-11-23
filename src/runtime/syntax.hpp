@@ -225,6 +225,9 @@ private:
   insider::ptr<> callable_;
 };
 
+bool
+free_identifier_eq(ptr<syntax> x, ptr<syntax> y);
+
 using syntax_error = named_runtime_error<class syntax_error_tag>;
 using unbound_variable_error
   = named_runtime_error<class unbound_variable_error_tag>;
