@@ -74,6 +74,7 @@ built_in_operations_visitor::operations[]{
   {"cdr", opcode::cdr, 1, true},
   {"vector-set!", opcode::vector_set, 3, false},
   {"vector-ref", opcode::vector_ref, 2, true},
+  {"vector-length", opcode::vector_length, 1, true},
   {"string-ref", opcode::string_ref, 2, true},
   {"string-set!", opcode::string_set, 3, false},
   {"string-set!/byte-index", opcode::string_set_byte_index, 3, false},

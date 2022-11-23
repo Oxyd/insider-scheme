@@ -952,6 +952,9 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::equal:        procedure_instruction<equal>(state);        break;
   case opcode::vector_set:   procedure_instruction<vector_set>(state);   break;
   case opcode::vector_ref:   procedure_instruction<&vector::ref>(state); break;
+  case opcode::vector_length:
+    procedure_instruction<&vector::size>(state);
+    break;
   case opcode::string_ref:   procedure_instruction<&string::ref>(state); break;
   case opcode::string_set:   procedure_instruction<&string::set>(state); break;
   case opcode::string_set_byte_index:
