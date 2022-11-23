@@ -30,6 +30,19 @@ namespace detail {
     }
   };
 
+  template <>
+  struct expect_helper<void> {
+    static ptr<>
+    expect(ptr<> x, std::string_view) {
+      return x;
+    }
+
+    static tracked_ptr<>
+    expect(tracked_ptr<> const& x, std::string_view) {
+      return x;
+    }
+  };
+
   template <typename ImmediateT, auto Converter>
   struct immediate_expect_helper {
     static ImmediateT

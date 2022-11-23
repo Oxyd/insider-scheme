@@ -336,6 +336,11 @@ public:
   set(free_store&, std::size_t, ptr<>);
 };
 
+inline void
+vector_set(context& ctx, ptr<vector> v, std::size_t i, ptr<> o) {
+  v->set(ctx.store, i, o);
+}
+
 template <typename It>
 ptr<vector>
 make_vector(context& ctx, It begin, It end) {
@@ -429,6 +434,21 @@ public:
 private:
   ptr<> value_;
 };
+
+inline ptr<box>
+make_box(context& ctx, ptr<> value) {
+  return make<box>(ctx, value);
+}
+
+inline ptr<>
+unbox(ptr<box> b) {
+  return b->get();
+}
+
+inline void
+box_set(context& ctx, ptr<box> b, ptr<> value) {
+  b->set(ctx.store, value);
+}
 
 // Static information about a Scheme procedure.
 class procedure_prototype : public composite_object<procedure_prototype> {

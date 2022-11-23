@@ -426,11 +426,6 @@ make_vector_proc(context& ctx, std::size_t len, ptr<> fill) {
   return make<vector>(ctx, len, fill);
 }
 
-static void
-vector_set(context& ctx, ptr<vector> v, std::size_t i, ptr<> o) {
-  v->set(ctx.store, i, o);
-}
-
 static ptr<error>
 make_error_proc(context& ctx, ptr<string> m, ptr<> i) {
   return make<error>(ctx, m, i);
@@ -439,21 +434,6 @@ make_error_proc(context& ctx, ptr<string> m, ptr<> i) {
 static ptr<>
 uncaught_exception_inner_exception(ptr<uncaught_exception> e) {
   return e->inner_exception;
-}
-
-static ptr<box>
-make_box(context& ctx, ptr<> value) {
-  return make<box>(ctx, value);
-}
-
-static ptr<>
-unbox(ptr<box> b) {
-  return b->get();
-}
-
-static void
-box_set(context& ctx, ptr<box> b, ptr<> value) {
-  b->set(ctx.store, value);
 }
 
 void

@@ -40,6 +40,9 @@ struct ptr_hasheqv {
   operator () (tracked_ptr<> const& p) const { return hasheqv(p.get()); }
 };
 
+inline bool
+eq(ptr<> x, ptr<> y) { return x == y; }
+
 bool
 eqv(context&, ptr<> x, ptr<> y);
 

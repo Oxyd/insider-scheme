@@ -13,7 +13,9 @@
 #include "runtime/parameter_map.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
+#include "util/from_scheme.hpp"
 #include "util/integer_cast.hpp"
+#include "util/to_scheme.hpp"
 #include "vm/call_stack.hpp"
 #include "vm/execution_state.hpp"
 
@@ -23,6 +25,7 @@
 #include <limits>
 #include <optional>
 #include <stdexcept>
+#include <type_traits>
 #include <vector>
 
 namespace insider {
@@ -741,34 +744,105 @@ make_closure(execution_state& state) {
   state.stack->local(dest) = result;
 }
 
-static void
-make_box(execution_state& state) {
-  ptr<> value = state.stack->local(read_operand(state));
-  state.stack->local(read_operand(state))
-    = state.ctx.store.make<box>(value);
+namespace {
+template <auto Proc, typename Type>
+  struct procedure_instruction_helper;
+
+  template <auto Proc, typename Ret, typename Arg1>
+  struct procedure_instruction_helper<Proc, Ret (*)(context&, Arg1)> {
+    static void
+    f(execution_state& state) {
+      auto argument
+        = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
+      operand dest = read_operand(state);
+      state.stack->local(dest) = to_scheme(state.ctx, Proc(state.ctx, argument));
+    }
+  };
+
+  template <auto Proc, typename Ret, typename Arg1>
+  struct procedure_instruction_helper<Proc, Ret (*)(Arg1)> {
+    static void
+    f(execution_state& state) {
+      auto argument
+        = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
+      operand dest = read_operand(state);
+      state.stack->local(dest) = to_scheme<Ret>(state.ctx, Proc(argument));
+    }
+  };
+
+  template <auto Proc, typename Arg1, typename Arg2>
+  struct procedure_instruction_helper<Proc, void (*)(context&, Arg1, Arg2)> {
+    static void
+    f(execution_state& state) {
+      auto argument1
+        = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
+      auto argument2
+        = from_scheme<Arg2>(state.ctx, state.stack->local(read_operand(state)));
+      Proc(state.ctx, argument1, argument2);
+    }
+  };
+
+  template <auto Proc, typename Arg1, typename Arg2, typename Arg3>
+  struct procedure_instruction_helper<Proc,
+                                      void (*)(context&, Arg1, Arg2, Arg3)> {
+    static void
+    f(execution_state& state) {
+      auto argument1
+        = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
+      auto argument2
+        = from_scheme<Arg2>(state.ctx, state.stack->local(read_operand(state)));
+      auto argument3
+        = from_scheme<Arg3>(state.ctx, state.stack->local(read_operand(state)));
+      Proc(state.ctx, argument1, argument2, argument3);
+    }
+  };
+
+  template <auto Proc, typename Ret, typename Arg1, typename Arg2>
+  struct procedure_instruction_helper<Proc, Ret (*)(context&, Arg1, Arg2)> {
+    static void
+    f(execution_state& state) {
+      auto argument1
+        = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
+      auto argument2
+        = from_scheme<Arg2>(state.ctx, state.stack->local(read_operand(state)));
+      operand dest = read_operand(state);
+      state.stack->local(dest)
+        = to_scheme(state.ctx, Proc(state.ctx, argument1, argument2));
+    }
+  };
+
+  template <auto Proc, typename Ret, typename Arg1, typename Arg2>
+  struct procedure_instruction_helper<Proc, Ret (*)(Arg1, Arg2)> {
+    static void
+    f(execution_state& state) {
+      auto argument1
+        = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
+      auto argument2
+        = from_scheme<Arg2>(state.ctx, state.stack->local(read_operand(state)));
+      operand dest = read_operand(state);
+      state.stack->local(dest)
+        = to_scheme(state.ctx, Proc(argument1, argument2));
+    }
+  };
+
+  template <auto Proc, typename Ret, typename Cls, typename Arg1>
+  struct procedure_instruction_helper<Proc, Ret (Cls::*)(Arg1) const> {
+    static void
+    f(execution_state& state) {
+      auto obj = expect<Cls>(state.stack->local(read_operand(state)));
+      auto argument1
+        = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
+      operand dest = read_operand(state);
+      state.stack->local(dest)
+        = to_scheme(state.ctx, (obj.value()->*Proc)(argument1));
+    }
+  };
 }
 
+template <auto Proc>
 static void
-unbox(execution_state& state) {
-  auto box
-    = expect<insider::box>(state.stack->local(read_operand(state)));
-  state.stack->local(read_operand(state)) = box->get();
-}
-
-static void
-box_set(execution_state& state) {
-  auto box
-    = expect<insider::box>(state.stack->local(read_operand(state)));
-  box->set(state.ctx.store,
-           state.stack->local(read_operand(state)));
-}
-
-static void
-cons(execution_state& state) {
-  ptr<> car = state.stack->local(read_operand(state));
-  ptr<> cdr = state.stack->local(read_operand(state));
-  state.stack->local(read_operand(state))
-    = make<pair>(state.ctx, car, cdr);
+procedure_instruction(execution_state& state) {
+  procedure_instruction_helper<Proc, std::decay_t<decltype(Proc)>>::f(state);
 }
 
 static void
@@ -781,45 +855,6 @@ static void
 cdr(execution_state& state) {
   ptr<pair> p = expect<pair>(state.stack->local(read_operand(state)));
   state.stack->local(read_operand(state)) = cdr(p);
-}
-
-static void
-eq(execution_state& state) {
-  ptr<> lhs = state.stack->local(read_operand(state));
-  ptr<> rhs = state.stack->local(read_operand(state));
-  state.stack->local(read_operand(state))
-    = lhs == rhs
-      ? state.ctx.constants->t
-      : state.ctx.constants->f;
-}
-
-static void
-vector_set(execution_state& state) {
-  ptr<vector> v
-    = expect<vector>(state.stack->local(read_operand(state)));
-  integer::value_type i = expect<integer>(
-    state.stack->local(read_operand(state))
-  ).value();
-  ptr<> o = state.stack->local(read_operand(state));
-
-  if (i < 0)
-    throw std::runtime_error{"vector-set!: Negative index"};
-
-  v->set(state.ctx.store, static_cast<std::size_t>(i), o);
-}
-
-static void
-vector_ref(execution_state& state) {
-  ptr<vector> v
-    = expect<vector>(state.stack->local(read_operand(state)));
-  integer::value_type i = expect<integer>(
-    state.stack->local(read_operand(state))
-  ).value();
-
-  if (i < 0)
-    throw std::runtime_error{"vector-ref: Negative index"};
-
-  state.stack->local(read_operand(state)) = v->ref(i);
 }
 
 static void
@@ -858,26 +893,30 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::less_or_equal:
   case opcode::greater_or_equal:       relational(opcode, state);        break;
   case opcode::set:                    set(state);                       break;
+
   case opcode::tail_call:
   case opcode::call:
   case opcode::tail_call_known_scheme:
   case opcode::call_known_scheme:
   case opcode::tail_call_known_native:
-  case opcode::call_known_native:            call(opcode, state);  break;
-  case opcode::ret:                    ret(state);                       break;
-  case opcode::jump:                   jump(state);                      break;
-  case opcode::jump_unless:            jump_unless(state);               break;
-  case opcode::make_closure:           make_closure(state);              break;
-  case opcode::box:                    make_box(state);                  break;
-  case opcode::unbox:                  unbox(state);                     break;
-  case opcode::box_set:                box_set(state);                   break;
-  case opcode::cons:                   cons(state);                      break;
-  case opcode::car:                    car(state);                       break;
-  case opcode::cdr:                    cdr(state);                       break;
-  case opcode::eq:                     eq(state);                        break;
-  case opcode::vector_set:             vector_set(state);                break;
-  case opcode::vector_ref:             vector_ref(state);                break;
-  case opcode::type:                   type(state);                      break;
+  case opcode::call_known_native:
+    call(opcode, state);
+    break;
+
+  case opcode::ret:          ret(state);                                 break;
+  case opcode::jump:         jump(state);                                break;
+  case opcode::jump_unless:  jump_unless(state);                         break;
+  case opcode::make_closure: make_closure(state);                        break;
+  case opcode::box:          procedure_instruction<make_box>(state);     break;
+  case opcode::unbox:        procedure_instruction<unbox>(state);        break;
+  case opcode::box_set:      procedure_instruction<box_set>(state);      break;
+  case opcode::cons:         procedure_instruction<cons>(state);         break;
+  case opcode::car:          car(state);                                 break;
+  case opcode::cdr:          cdr(state);                                 break;
+  case opcode::eq:           procedure_instruction<eq>(state);           break;
+  case opcode::vector_set:   procedure_instruction<vector_set>(state);   break;
+  case opcode::vector_ref:   procedure_instruction<&vector::ref>(state); break;
+  case opcode::type:         type(state);                                break;
 
   default:
     assert(false); // Invalid opcode
