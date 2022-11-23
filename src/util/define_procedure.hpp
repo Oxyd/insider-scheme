@@ -272,7 +272,7 @@ namespace detail {
            ptr<module_> m, Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (context& ctx, ptr<C> c, Args... args) {
-          return (c.value()->*Callable)(ctx, args...);
+          return (c->*Callable)(ctx, args...);
         },
         R (*)(context&, ptr<C>, Args...)
       >::define(ctx, std::move(name), constant_evaluable, m,
@@ -287,7 +287,7 @@ namespace detail {
     define(context& ctx, std::string name, bool constant_evaluable,
            ptr<module_> m, Defaults... defaults) {
       return detail::define_typed_procedure<
-        [] (ptr<C> c, Args... args) { return (c.value()->*Callable)(args...); },
+        [] (ptr<C> c, Args... args) { return (c->*Callable)(args...); },
         R (*)(ptr<C>, Args...)
       >::define(ctx, std::move(name), constant_evaluable, m,
                 std::move(defaults)...);
@@ -302,7 +302,7 @@ namespace detail {
            ptr<module_> m, Defaults... defaults) {
       return detail::define_typed_procedure<
         [] (context& ctx, ptr<C> c, Args... args) {
-          return (c.value()->*Callable)(ctx, args...);
+          return (c->*Callable)(ctx, args...);
         },
         R (*)(context&, ptr<C>, Args...)
       >::define(ctx, std::move(name), constant_evaluable, m,
@@ -318,7 +318,7 @@ namespace detail {
            ptr<module_> m,
            Defaults... defaults) {
       return detail::define_typed_procedure<
-        [] (ptr<C> c, Args... args) { return (c.value()->*Callable)(args...); },
+        [] (ptr<C> c, Args... args) { return (c->*Callable)(args...); },
         R (*)(ptr<C>, Args...)
       >::define(ctx, std::move(name), constant_evaluable, m,
                 std::move(defaults)...);

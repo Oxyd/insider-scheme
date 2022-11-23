@@ -63,6 +63,25 @@ public:
   T&
   operator * () const { return *static_cast<T*>(value_); }
 
+  auto&
+  operator ->* (auto T::* ptr) const { return value()->*ptr; }
+
+  template <typename Ret, typename... Args>
+  auto
+  operator ->* (Ret (T::* fun)(Args...)) const {
+    return [fun, this] (Args... args) {
+      return (value()->*fun)(args...);
+    };
+  }
+
+  template <typename Ret, typename... Args>
+  auto
+  operator ->* (Ret (T::* fun)(Args...) const) const {
+    return [fun, this] (Args... args) {
+      return (value()->*fun)(args...);
+    };
+  }
+
   T*
   value() const { return static_cast<T*>(value_); }
 };

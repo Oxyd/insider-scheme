@@ -834,7 +834,7 @@ template <auto Proc, typename Type>
         = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
       operand dest = read_operand(state);
       state.stack->local(dest)
-        = to_scheme(state.ctx, (obj.value()->*Proc)(argument1));
+        = to_scheme(state.ctx, (obj->*Proc)(argument1));
     }
   };
 }
