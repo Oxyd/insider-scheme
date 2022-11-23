@@ -23,16 +23,16 @@ namespace insider {
 // This enum defines the numeric opcode values.
 enum class opcode : std::uint16_t {
   no_operation,
-  load_constant,    // load-constant <constant number> <destination>
-  load_top_level,   // load-top-level <top-level number> <destination>
-  store_top_level,  // store-top-level <value> <top-level number>
-  load_dynamic_top_level, // load-dynamic-top-level <static num> <destination>
-  load_null,        // load-null <destination>
-  load_void,        // load-void <destination>
-  load_t,           // load-#t <destination>
-  load_f,           // load-#f <destination>
-  load_eof,         // load-eof <destination>
-  load_fixnum,      // load-fixnum <immediate> <destination>
+  load_constant,
+  load_top_level,
+  store_top_level,
+  load_dynamic_top_level,
+  load_null,
+  load_void,
+  load_t,
+  load_f,
+  load_eof,
+  load_fixnum,
   add,
   subtract,
   multiply,
@@ -42,25 +42,25 @@ enum class opcode : std::uint16_t {
   greater,
   less_or_equal,
   greater_or_equal,
-  set,              // set <source> <destination>
-  call,             // call <base> <number of arguments> <result register>
-  tail_call,        // tail-call <base> <number of arguments>
-  call_known_scheme,      // call/known-scheme <base> <number of arguments> <result reg>
-  tail_call_known_scheme, // tail-call/known-scheme <base> <number of arguments>
-  call_known_native,      // call/known-native <base> <number of arguments> <result reg>
-  tail_call_known_native, // tail-call/known-native <base> <number of arguments>
-  ret,              // ret <return value>
-  jump,             // jump <offset>
-  jump_unless,      // jump-unless <register> <offset>
-  make_closure,     // make-closure <base> <num free> <destination>
-  box,              // box <what> <destination> -- make a box containing what -- 20
-  unbox,            // unbox <what> <destination> -- extract contained value from a box
-  box_set,          // box-set <box> <value> -- replace box's contained value with a new one
-  cons,             // cons <a> <b> <destination> -- make a cons pair (a . b)
-  car,              // car <x> <destination>
-  cdr,              // cdr <x> <destination>
-  vector_set,       // vector-set! <vector> <index> <value>
-  vector_ref,       // vector-ref <vector> <index> <destination>
+  set,
+  call,
+  tail_call,
+  call_known_scheme,
+  tail_call_known_scheme,
+  call_known_native,
+  tail_call_known_native,
+  ret,
+  jump,
+  jump_unless,
+  make_closure,
+  box,
+  unbox,
+  box_set,
+  cons,
+  car,
+  cdr,
+  vector_set,
+  vector_ref,
   string_ref,
   string_set,
   string_set_byte_index,
@@ -70,10 +70,10 @@ enum class opcode : std::uint16_t {
   previous_code_point_byte_index,
   string_append_char,
   string_null,
-  type,             // type <value> <destination>
-  eq,               // eq <x> <y> <destination>
-  eqv,              // eqv <x> <y> <destination>
-  equal,            // equal <x> <y> <destination>
+  type,
+  eq,
+  eqv,
+  equal,
 };
 
 // Metainformation about an opcode. Used for decoding instructions.
