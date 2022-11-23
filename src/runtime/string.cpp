@@ -410,15 +410,7 @@ string_to_symbol(context& ctx, ptr<string> s) {
   return ctx.intern(s->value());
 }
 
-integer
-next_code_point_byte_index(ptr<string> s, std::size_t index) {
-  if (index >= s->value().size())
-    throw std::runtime_error{"Can't advance post-end byte index"};
-  else
-    return index + utf8_code_point_byte_length(s->value()[index]);
-}
-
-integer
+std::size_t
 previous_code_point_byte_index(ptr<string> s, std::size_t index) {
   if (index == 0)
     throw std::runtime_error{"Can't go before start of string"};

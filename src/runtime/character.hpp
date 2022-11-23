@@ -84,8 +84,22 @@ to_utf8(std::u32string const&);
 bool
 is_initial_byte(char byte);
 
-std::size_t
-utf8_code_point_byte_length(char first_byte);
+inline std::size_t
+utf8_code_point_byte_length(char first_byte) {
+  if ((first_byte & 0b1000'0000) == 0)
+    return 1;
+  else if ((first_byte & 0b1110'0000) == 0b1100'0000)
+    return 2;
+  else if ((first_byte & 0b1111'0000) == 0b1110'0000)
+    return 3;
+  else if ((first_byte & 0b1111'1000) == 0b1111'0000)
+    return 4;
+  else
+    throw std::runtime_error{
+      fmt::format("Invalid initial byte in UTF-8 encoding: {}",
+                  static_cast<uint32_t>(first_byte))
+    };
+}
 
 struct from_utf8_result {
   char32_t    code_point;
