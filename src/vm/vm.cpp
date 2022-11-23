@@ -914,6 +914,8 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::car:          car(state);                                 break;
   case opcode::cdr:          cdr(state);                                 break;
   case opcode::eq:           procedure_instruction<eq>(state);           break;
+  case opcode::eqv:          procedure_instruction<eqv>(state);          break;
+  case opcode::equal:        procedure_instruction<equal>(state);        break;
   case opcode::vector_set:   procedure_instruction<vector_set>(state);   break;
   case opcode::vector_ref:   procedure_instruction<&vector::ref>(state); break;
   case opcode::type:         type(state);                                break;

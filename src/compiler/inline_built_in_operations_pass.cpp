@@ -75,7 +75,9 @@ built_in_operations_visitor::operations[]{
   {"vector-set!", opcode::vector_set, 3, false},
   {"vector-ref", opcode::vector_ref, 2, true},
   {"type", opcode::type, 1, true},
-  {"eq?", opcode::eq, 2, true}
+  {"eq?", opcode::eq, 2, true},
+  {"eqv?", opcode::eqv, 2, true},
+  {"equal?", opcode::equal, 2, true}
 };
 
 built_in_operations_visitor::built_in_operations_visitor(context& ctx)

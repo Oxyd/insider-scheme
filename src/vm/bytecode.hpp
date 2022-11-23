@@ -62,7 +62,9 @@ enum class opcode : std::uint16_t {
   vector_set,       // vector-set! <vector> <index> <value>
   vector_ref,       // vector-ref <vector> <index> <destination>
   type,             // type <value> <destination>
-  eq                // eq <x> <y> <destination>
+  eq,               // eq <x> <y> <destination>
+  eqv,              // eqv <x> <y> <destination>
+  equal,            // equal <x> <y> <destination>
 };
 
 // Metainformation about an opcode. Used for decoding instructions.
@@ -152,7 +154,9 @@ instructions{
   std::tuple{"vector-set!", opcode::vector_set, std::size_t{3}},
   std::tuple{"vector-ref", opcode::vector_ref, std::size_t{3}},
   std::tuple{"type", opcode::type, std::size_t{2}},
-  std::tuple{"eq?", opcode::eq, std::size_t{3}}
+  std::tuple{"eq?", opcode::eq, std::size_t{3}},
+  std::tuple{"eqv?", opcode::eqv, std::size_t{3}},
+  std::tuple{"equal?", opcode::equal, std::size_t{3}}
 };
 
 inline auto const // std::array<instruction_info, N>
