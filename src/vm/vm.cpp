@@ -162,7 +162,7 @@ namespace {
   };
 }
 
-inline void
+static inline void
 check_argument_count_for_procedure_without_tail(procedure_prototype const& proc,
                                                 std::size_t num_args) {
   unsigned min = proc.info.num_required_args;
@@ -183,7 +183,7 @@ check_argument_count_for_procedure_without_tail(procedure_prototype const& proc,
                      num_args);
 }
 
-inline void
+static inline void
 check_argument_count_for_procedure_with_tail(procedure_prototype const& proc,
                                              std::size_t num_args) {
   if (num_args < proc.info.num_required_args)
@@ -194,7 +194,7 @@ check_argument_count_for_procedure_with_tail(procedure_prototype const& proc,
     );
 }
 
-inline void
+static inline void
 throw_if_wrong_number_of_args(procedure_prototype const& proc,
                               std::size_t num_args) {
   if (proc.info.has_rest)
