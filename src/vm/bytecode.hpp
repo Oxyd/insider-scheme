@@ -191,7 +191,7 @@ instructions{
   std::tuple{"bytevector-u8-set!", opcode::bytevector_u8_set, std::size_t{3}},
   std::tuple{"bytevector-u8-ref", opcode::bytevector_u8_ref, std::size_t{3}},
   std::tuple{"bytevector-length", opcode::bytevector_length, std::size_t{2}},
-  std::tuple{"string-ref", opcode::string_ref, std::size_t{2}},
+  std::tuple{"string-ref", opcode::string_ref, std::size_t{3}},
   std::tuple{"string-set!", opcode::string_set, std::size_t{3}},
   std::tuple{"string-set!/byte-index", opcode::string_set_byte_index, std::size_t{3}},
   std::tuple{"string-length", opcode::string_length, std::size_t{2}},
