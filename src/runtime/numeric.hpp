@@ -422,6 +422,12 @@ subtract_fixnums(integer::value_type x, integer::value_type y) {
 }
 
 ptr<>
+increment(context&, ptr<>);
+
+ptr<>
+decrement(context&, ptr<>);
+
+ptr<>
 multiply(context&, ptr<>, ptr<>);
 ptr<>
 multiply(context&, object_span);

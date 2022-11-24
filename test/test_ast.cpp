@@ -2133,6 +2133,28 @@ TEST_F(ast, special_procedure_is_not_replaced_when_called_with_unusual_arity) {
   EXPECT_TRUE(is<application_expression>(e));
 }
 
+TEST_F(ast, adding_one_uses_increment_instruction) {
+  expression e = analyse(
+    "(lambda (x) (+ 1 x))",
+    {&analyse_variables, &optimise_applications, &inline_built_in_operations}
+  );
+  auto lambda = expect<lambda_expression>(e);
+  auto body = ignore_lets_and_sequences(lambda->body());
+  auto op = expect<built_in_operation_expression>(body);
+  EXPECT_EQ(op->operation(), opcode::increment);
+}
+
+TEST_F(ast, subtracting_one_uses_decrement_instruction) {
+  expression e = analyse(
+    "(lambda (x) (- x 1))",
+    {&analyse_variables, &optimise_applications, &inline_built_in_operations}
+  );
+  auto lambda = expect<lambda_expression>(e);
+  auto body = ignore_lets_and_sequences(lambda->body());
+  auto op = expect<built_in_operation_expression>(body);
+  EXPECT_EQ(op->operation(), opcode::decrement);
+}
+
 TEST_F(ast, variable_bound_to_another_variable_is_inlined) {
   expression e = analyse(
     R"(

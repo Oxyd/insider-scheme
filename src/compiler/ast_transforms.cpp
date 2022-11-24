@@ -27,8 +27,8 @@ pass_list const all_passes{
   remove_unnecessary_definitions,
   make_loop_temporaries,
   box_set_variables,
-  inline_built_in_operations,
   optimise_applications,
+  inline_built_in_operations,
   analyse_free_variables
 };
 

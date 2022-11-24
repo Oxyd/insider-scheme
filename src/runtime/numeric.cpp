@@ -1519,6 +1519,16 @@ subtract(context& ctx, object_span xs) {
 }
 
 ptr<>
+increment(context& ctx, ptr<> x) {
+  return add(ctx, x, integer_to_ptr(1));
+}
+
+ptr<>
+decrement(context& ctx, ptr<> x) {
+  return subtract(ctx, x, integer_to_ptr(1));
+}
+
+ptr<>
 multiply(context& ctx, ptr<> lhs, ptr<> rhs) {
   return arithmetic_two<
     mul_small, mul_big, mul_fraction, mul_float, mul_complex
@@ -2913,6 +2923,8 @@ export_numeric(context& ctx, ptr<module_> result) {
   export_native(ctx, result, "<=", add_native_proc_arg<less_or_equal>);
   export_native(ctx, result, ">", add_native_proc_arg<greater>);
   export_native(ctx, result, ">=", add_native_proc_arg<greater_or_equal>);
+  define_constant_evaluable_procedure<increment>(ctx, "increment", result);
+  define_constant_evaluable_procedure<decrement>(ctx, "decrement", result);
   define_constant_evaluable_procedure<gcd>(ctx, "gcd", result);
   define_constant_evaluable_procedure<arithmetic_shift>(ctx, "arithmetic-shift",
                                                         result);

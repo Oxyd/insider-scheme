@@ -66,6 +66,8 @@ built_in_operations_visitor::operations[]{
   {">", opcode::greater, 2, true},
   {"<=", opcode::less_or_equal, 2, true},
   {">=", opcode::greater_or_equal, 2, true},
+  {"increment", opcode::increment, 1, true},
+  {"decrement", opcode::decrement, 1, true},
   {"box", opcode::box, 1, true},
   {"unbox", opcode::unbox, 1, true},
   {"box-set!", opcode::box_set, 2, false},

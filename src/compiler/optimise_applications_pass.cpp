@@ -103,29 +103,130 @@ visit_scheme_application(context& ctx, ptr<application_expression> app,
   return app;
 }
 
-static expression
-visit_native_application(ptr<application_expression> app) {
-  app->set_kind(application_expression::target_kind::native);
+static bool
+is_literal_one(ptr<literal_expression> lit) {
+  if (auto i = match<integer>(lit->value()))
+    return i->value() == 1;
+  else
+    return false;
+}
+
+static bool
+is_literal_one(auto) { return false; }
+
+static bool
+is_literal_one(expression e) {
+  return visit([] (auto expr) { return is_literal_one(expr); }, e);
+}
+
+static ptr<application_expression>
+addition_substitutor(context& ctx, ptr<application_expression> app) {
+  if (app->arguments().size() == 2) {
+    if (is_literal_one(app->arguments()[0]))
+      return make<application_expression>(
+        ctx,
+        make_internal_reference(ctx, "increment"),
+        app->arguments()[1]
+      );
+    else if (is_literal_one(app->arguments()[1]))
+      return make<application_expression>(
+        ctx,
+        make_internal_reference(ctx, "increment"),
+        app->arguments()[0]
+      );
+  }
+
   return app;
 }
 
-static expression
-visit_application(context& ctx, ptr<application_expression> app) {
-  if (auto lambda = find_scheme_application_target(app))
-    return visit_scheme_application(ctx, app, lambda);
-  else if (is_native_application(ctx, app))
-    return visit_native_application(app);
-  else
-    return app;
+static ptr<application_expression>
+subtraction_substitutor(context& ctx, ptr<application_expression> app) {
+  if (app->arguments().size() == 2) {
+    if (is_literal_one(app->arguments()[1]))
+      return make<application_expression>(
+        ctx,
+        make_internal_reference(ctx, "decrement"),
+        app->arguments()[0]
+      );
+  }
+
+  return app;
 }
 
-static expression
-visit_application(context&, auto e) { return e; }
+using application_substitutor
+  = ptr<application_expression> (*)(context&, ptr<application_expression>);
+
+namespace {
+  struct application_visitor {
+    using native_substitutor_map
+      = std::unordered_map<ptr<top_level_variable>, application_substitutor>;
+
+    context& ctx;
+    native_substitutor_map native_substitutors;
+
+    explicit
+    application_visitor(context&);
+
+    void
+    enter(auto) { }
+
+    ptr<application_expression>
+    substitute(ptr<application_expression> app) {
+      if (auto ref = match<top_level_reference_expression>(app->target()))
+        if (auto substitutor = native_substitutors.find(ref->variable());
+            substitutor != native_substitutors.end())
+          return substitutor->second(ctx, app);
+      return app;
+    }
+
+    expression
+    visit_native_application(ptr<application_expression> app) {
+      app = substitute(app);
+      app->set_kind(application_expression::target_kind::native);
+      return app;
+    }
+
+    expression
+    leave(ptr<application_expression> app) {
+      if (auto lambda = find_scheme_application_target(app))
+        return visit_scheme_application(ctx, app, lambda);
+      else if (is_native_application(ctx, app))
+        return visit_native_application(app);
+      else
+        return app;
+    }
+
+    expression
+    leave(auto e) { return e; }
+  };
+}
+
+namespace {
+  struct substitutor_definition {
+    std::string             name;
+    application_substitutor substitutor;
+  };
+}
+
+static substitutor_definition
+substitutors[]{
+  {"+", addition_substitutor},
+  {"-", subtraction_substitutor}
+};
+
+application_visitor:: application_visitor(context& ctx)
+  : ctx{ctx}
+{
+  for (auto const& def : substitutors) {
+    auto binding = ctx.internal_module()->find(ctx.intern(def.name));
+    native_substitutors.emplace(assume<top_level_variable>(binding->variable),
+                                def.substitutor);
+  }
+}
 
 expression
 optimise_applications(context& ctx, expression e, analysis_context) {
-  return map_ast(ctx, e,
-                 [&] (auto expr) { return visit_application(ctx, expr); });
+  return transform_ast(ctx, e, application_visitor{ctx});
 }
 
 } // namespace insider
