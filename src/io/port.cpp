@@ -499,11 +499,9 @@ peek_char(context& ctx, ptr<textual_input_port> port) {
     return ctx.constants->eof;
 }
 
-static ptr<binary_input_port>
-get_default_binary_input_port(context& ctx) {
-  return expect<binary_input_port>(
-    find_parameter_value(ctx, ctx.constants->current_input_port_tag)
-  );
+static void
+write_char_proc(char32_t c, ptr<textual_output_port> out) {
+  out->write(c);
 }
 
 static ptr<>
@@ -520,13 +518,6 @@ peek_u8(context& ctx, ptr<binary_input_port> port) {
     return integer_to_ptr(*b);
   else
     return ctx.constants->eof;
-}
-
-static ptr<binary_output_port>
-get_default_binary_output_port(context& ctx) {
-  return expect<binary_output_port>(
-    find_parameter_value(ctx, ctx.constants->current_output_port_tag)
-  );
 }
 
 static void
@@ -555,16 +546,12 @@ export_port(context& ctx, ptr<module_> result) {
   define_procedure<&binary_output_port::get_bytevector>(ctx,
                                                         "get-output-bytevector",
                                                         result);
-  define_procedure<read_char>(ctx, "read-char", result,
-                              get_current_textual_input_port);
-  define_procedure<peek_char>(ctx, "peek-char", result,
-                              get_current_textual_input_port);
-  define_procedure<read_u8>(ctx, "read-u8", result,
-                            get_default_binary_input_port);
-  define_procedure<peek_u8>(ctx, "peek-u8", result,
-                            get_default_binary_input_port);
-  define_procedure<write_u8>(ctx, "write-u8", result,
-                             get_default_binary_output_port);
+  define_procedure<read_char>(ctx, "read-char", result);
+  define_procedure<peek_char>(ctx, "peek-char", result);
+  define_procedure<write_char_proc>(ctx, "write-char", result);
+  define_procedure<read_u8>(ctx, "read-u8", result);
+  define_procedure<peek_u8>(ctx, "peek-u8", result);
+  define_procedure<write_u8>(ctx, "write-u8", result);
   define_procedure<flush_port>(ctx, "flush-output-port", result);
   define_procedure<is_port_open>(ctx, "port-open?", result);
   define_procedure<&textual_input_port::char_ready>(ctx, "char-ready?", result);

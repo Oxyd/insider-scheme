@@ -683,11 +683,6 @@ newline(ptr<textual_output_port> out) {
   out->write(U'\n');
 }
 
-static void
-write_char_proc(char32_t c, ptr<textual_output_port> out) {
-  out->write(c);
-}
-
 void
 export_write(context& ctx, ptr<module_> result) {
   auto default_output_port = make<textual_output_port>(
@@ -722,8 +717,6 @@ export_write(context& ctx, ptr<module_> result) {
                             "newline",
                             result,
                             get_current_textual_output_port);
-  define_procedure<write_char_proc>(ctx, "write-char", result,
-                                    get_current_textual_output_port);
   define_procedure<number_to_string>(ctx, "number->string", result,
                                      [] (context&) { return 10u; });
   define_procedure<datum_to_string>(ctx, "datum->string", result);

@@ -15,6 +15,12 @@
                       file-exists? delete-file
                       <eof-object>)
                 (flush-output-port %flush-output-port)
+                (read-char %read-char)
+                (peek-char %peek-char)
+                (write-char %write-char)
+                (read-u8 %read-u8)
+                (peek-u8 %peek-u8)
+                (write-u8 %write-u8)
                 (char-ready? %char-ready?)
                 (u8-ready? %u8-ready?)))
 (export binary-port? call-with-input-file call-with-output-file call-with-port char-ready?
@@ -171,6 +177,24 @@
   (do ((i start (+ i 1)))
       ((= i end))
     (write-u8 (bytevector-u8-ref bv i) port)))
+
+(define (read-char (port (current-input-port)))
+  (%read-char port))
+
+(define (peek-char (port (current-input-port)))
+  (%peek-char port))
+
+(define (write-char c (port (current-output-port)))
+  (%write-char c port))
+
+(define (read-u8 (port (current-input-port)))
+  (%read-u8 port))
+
+(define (peek-u8 (port (current-input-port)))
+  (%peek-u8 port))
+
+(define (write-u8 b (port (current-output-port)))
+  (%write-u8 b port))
 
 (define (char-ready? (port (current-input-port)))
   (%char-ready? port))
