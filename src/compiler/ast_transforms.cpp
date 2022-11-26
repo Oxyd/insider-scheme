@@ -2,9 +2,7 @@
 
 #include "compiler/analyse_free_variables_pass.hpp"
 #include "compiler/analyse_variables_pass.hpp"
-#include "compiler/ast.hpp"
 #include "compiler/box_set_variables_pass.hpp"
-#include "compiler/clone_ast.hpp"
 #include "compiler/evaluate_constants_pass.hpp"
 #include "compiler/find_self_variables_pass.hpp"
 #include "compiler/inline_built_in_operations_pass.hpp"
