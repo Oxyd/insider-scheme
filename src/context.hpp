@@ -6,9 +6,9 @@
 #include "module_resolver.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
-#include "runtime/compare.hpp"
 #include "vm/bytecode.hpp"
 #include "vm/operand.hpp"
+#include "vm/stacktrace.hpp"
 
 #include <map>
 #include <tuple>
@@ -68,7 +68,8 @@ public:
   free_store                       store;
   std::unique_ptr<constants>       constants;
   // Built from actions during stack unwinding.
-  std::string                      error_backtrace;
+  std::string                      action_backtrace;
+  stacktrace                       last_exception_stacktrace;
   std::unique_ptr<execution_state> current_execution;
   ptr<parameter_map>               parameters;
 

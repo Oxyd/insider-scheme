@@ -4,6 +4,8 @@
 #include "vm/call_stack.hpp"
 #include "vm/execution_state.hpp"
 
+#include <fmt/format.h>
+
 #include <limits>
 #include <optional>
 
@@ -90,6 +92,26 @@ stacktrace
 make_stacktrace(context& ctx) {
   assert(ctx.current_execution);
   return make_stacktrace(*ctx.current_execution);
+}
+
+std::string
+format_stacktrace(stacktrace const& trace) {
+  std::string result;
+  bool first = true;
+  for (auto const& [name, kind] : trace) {
+    if (!first)
+      result += '\n';
+
+    result += fmt::format(
+      "in {}{}",
+      kind == stacktrace_record::kind::native ? "native procedure " : "",
+      name
+    );
+
+    first = false;
+  }
+
+  return result;
 }
 
 } // namespace insider

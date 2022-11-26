@@ -3,10 +3,10 @@
 #include "context.hpp"
 #include "io/port.hpp"
 #include "io/read.hpp"
-#include "runtime/action.hpp"
+#include "io/write.hpp"
 #include "runtime/parameter_map.hpp"
-#include "runtime/string.hpp"
 #include "runtime/syntax.hpp"
+#include "vm/stacktrace.hpp"
 #include "vm/vm.hpp"
 
 #include <fmt/format.h>
@@ -101,17 +101,22 @@ parse_options(int argc, char** argv) {
 
 static std::string
 format_error(insider::context& ctx, std::string const& message) {
-  if (!ctx.error_backtrace.empty())
-    return fmt::format("Error: {}\n{}\n", message, ctx.error_backtrace);
-  else
-    return fmt::format("Error: {}\n", message);
+  std::string result = fmt::format("Error: {}", message);
+
+  if (!ctx.last_exception_stacktrace.empty())
+    result += "\n" + insider::format_stacktrace(ctx.last_exception_stacktrace);
+
+  if (!ctx.action_backtrace.empty())
+    result += "\n" + ctx.action_backtrace;
+
+  return result;
 }
 
 static void
 show_error(insider::context& ctx, insider::scheme_exception const& e) {
   std::fflush(stdout);
   fmt::print(
-    stderr, "{}",
+    stderr, "{}\n",
     format_error(ctx, insider::datum_to_display_string(ctx, e.object.get()))
   );
 }
@@ -119,7 +124,7 @@ show_error(insider::context& ctx, insider::scheme_exception const& e) {
 static void
 show_error(insider::context& ctx, std::runtime_error const& e) {
   std::fflush(stdout);
-  fmt::print(stderr, "{}", format_error(ctx, e.what()));
+  fmt::print(stderr, "{}\n", format_error(ctx, e.what()));
 }
 
 static void

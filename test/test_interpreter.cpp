@@ -917,7 +917,7 @@ TEST_F(interpreter, tail_call_from_variadic_procedure) {
 }
 
 TEST_F(interpreter, uncaught_exception_generates_backtrace) {
-  EXPECT_TRUE(ctx.error_backtrace.empty());
+  EXPECT_TRUE(ctx.last_exception_stacktrace.empty());
 
   try {
     eval_module(R"(
@@ -931,7 +931,7 @@ TEST_F(interpreter, uncaught_exception_generates_backtrace) {
       (foo)
     )");
   } catch (...) {
-    EXPECT_FALSE(ctx.error_backtrace.empty());
+    EXPECT_FALSE(ctx.last_exception_stacktrace.empty());
     return;
   }
 

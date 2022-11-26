@@ -24,6 +24,9 @@ make_stacktrace(execution_state& state);
 stacktrace
 make_stacktrace(context&);
 
+std::string
+format_stacktrace(stacktrace const&);
+
 } // namespace insider
 
 #endif

@@ -30,9 +30,9 @@ protected:
   void
   check() {
     if (std::uncaught_exceptions()) {
-      if (!ctx_.error_backtrace.empty())
-        ctx_.error_backtrace += '\n';
-      ctx_.error_backtrace += static_cast<Derived*>(this)->format();
+      if (!ctx_.action_backtrace.empty())
+        ctx_.action_backtrace += '\n';
+      ctx_.action_backtrace += static_cast<Derived*>(this)->format();
     }
   }
 };

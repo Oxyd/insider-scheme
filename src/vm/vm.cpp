@@ -45,42 +45,6 @@ current_frame_is_native(ptr<call_stack> stack) {
   return stack->current_frame_type() != call_stack::frame_type::scheme;
 }
 
-namespace {
-  class execution_action : public action<execution_action> {
-  public:
-    execution_action(execution_state& state)
-      : action{state.ctx}
-      , state_{state}
-    { }
-
-    ~execution_action() { check(); }
-
-    std::string
-    format() const {
-      std::string result;
-      bool first = true;
-
-      for (auto const& [name, kind] : make_stacktrace(state_)) {
-        if (!first)
-          result += '\n';
-
-        result += fmt::format(
-          "in {}{}",
-          kind == stacktrace_record::kind::native ? "native procedure " : "",
-          name
-        );
-
-        first = false;
-      }
-
-      return result;
-    }
-
-  private:
-    execution_state& state_;
-  };
-}
-
 static inline void
 check_argument_count_for_procedure_without_tail(procedure_prototype const& proc,
                                                 std::size_t num_args) {
@@ -1262,7 +1226,6 @@ namespace {
       if (!ctx.current_execution) {
         ctx.current_execution = std::make_unique<execution_state>(ctx);
         created_ = true;
-        action_.emplace(*ctx.current_execution);
       }
     }
 
@@ -1275,9 +1238,8 @@ namespace {
     void operator = (current_execution_setter const&) = delete;
 
   private:
-    context&                        ctx_;
-    bool                            created_ = false;
-    std::optional<execution_action> action_;
+    context& ctx_;
+    bool     created_ = false;
   };
 }
 
@@ -1788,8 +1750,15 @@ builtin_exception_handler(context& ctx, ptr<> e) {
     throw scheme_exception{ctx, e};
 }
 
+static void
+remember_current_stacktrace(context& ctx) {
+  ctx.last_exception_stacktrace = make_stacktrace(ctx);
+}
+
 static ptr<tail_call_tag_type>
 raise_from(context& ctx, ptr<> e, frame_reference frame) {
+  remember_current_stacktrace(ctx);
+
   if (frame_reference handler_frame
       = find_exception_handler_frame(ctx.current_execution->stack, frame))
     return call_noncontinuable_exception_handler(ctx, handler_frame, e);
@@ -1804,6 +1773,8 @@ raise(context& ctx, ptr<> e) {
 
 static ptr<tail_call_tag_type>
 raise_continuable(context& ctx, ptr<> e) {
+  remember_current_stacktrace(ctx);
+
   frame_reference handler_frame = find_exception_handler_frame(
     ctx.current_execution->stack,
     current_frame(ctx.current_execution->stack)
