@@ -9,7 +9,7 @@
 (export disassemble)
 
 (define instruction-column 8)
-(define comment-column 30)
+(define comment-column 45)
 
 (define longest-mnemonic
   (let loop ((i 0)
