@@ -337,6 +337,8 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
     out->write("#t");
   else if (datum == ctx.constants->f)
     out->write("#f");
+  else if (datum == ctx.constants->default_value)
+    out->write("#default-value");
   else if (is_number(datum))
     write_number(ctx, datum, out);
   else if (auto sym = match<symbol>(datum))

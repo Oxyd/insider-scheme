@@ -350,6 +350,11 @@ TEST_F(io, write_bignum) {
             "28147170656646448008236484114643053198784882683455037102776641378964740414176277099771727921396609852836168744626399");
 }
 
+TEST_F(io, write_default_value) {
+  EXPECT_EQ(to_string_simple(ctx, ctx.constants->default_value),
+            "#default-value");
+}
+
 TEST_F(io, read_write_fraction) {
   EXPECT_TRUE(num_equal(read("1/2"), make_fraction(1, 2)));
   EXPECT_TRUE(num_equal(read("2/4"), make_fraction(1, 2)));
