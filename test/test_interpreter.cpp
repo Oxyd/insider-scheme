@@ -5,6 +5,7 @@
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
 #include "vm/execution_state.hpp"
+#include "vm/stacktrace.hpp"
 
 using namespace insider;
 
@@ -938,41 +939,6 @@ TEST_F(interpreter, uncaught_exception_generates_backtrace) {
 }
 
 static void
-check_stacktrace(context& ctx) {
-  auto trace = stacktrace(ctx);
-  ASSERT_EQ(trace.size(), 4);
-
-  EXPECT_EQ(trace[0].name, "check-stacktrace!");
-  EXPECT_EQ(trace[0].kind, stacktrace_record::kind::native);
-
-  EXPECT_EQ(trace[1].name, "one");
-  EXPECT_EQ(trace[1].kind, stacktrace_record::kind::scheme);
-
-  EXPECT_EQ(trace[2].name, "two");
-  EXPECT_EQ(trace[2].kind, stacktrace_record::kind::scheme);
-
-  EXPECT_EQ(trace[3].name, "three");
-  EXPECT_EQ(trace[3].kind, stacktrace_record::kind::scheme);
-}
-
-TEST_F(interpreter, stack_trace_includes_all_procedures) {
-  define_procedure<check_stacktrace>(ctx, "check-stacktrace!",
-                                     ctx.internal_module());
-
-  eval_module(
-    R"(
-      (import (insider internal))
-
-      (define one (lambda () (check-stacktrace!) #void))
-      (define two (lambda () (one) #void))
-      (define three (lambda () (two) #void))
-      (three)
-    )",
-    no_optimisations
-  );
-}
-
-static void
 always_throw() {
   throw std::runtime_error{"C++ exception"};
 }
@@ -997,4 +963,41 @@ TEST_F(interpreter, mutating_mutable_top_level_doesnt_throw) {
   auto var = define_top_level_mutable(ctx, "var", ctx.internal_module(), true,
                                       integer_to_ptr(0));
   EXPECT_NO_THROW(ctx.set_top_level(var, integer_to_ptr(1)));
+}
+
+static void
+check_stacktrace(context& ctx) {
+  auto trace = make_stacktrace(ctx);
+  ASSERT_EQ(trace.size(), 5);
+
+  EXPECT_EQ(trace[0].name, "check-stacktrace!");
+  EXPECT_EQ(trace[0].kind, stacktrace_record::kind::native);
+
+  EXPECT_EQ(trace[1].name, "one");
+  EXPECT_EQ(trace[1].kind, stacktrace_record::kind::scheme);
+
+  EXPECT_EQ(trace[2].name, "two");
+  EXPECT_EQ(trace[2].kind, stacktrace_record::kind::scheme);
+
+  EXPECT_EQ(trace[3].name, "three");
+  EXPECT_EQ(trace[3].kind, stacktrace_record::kind::scheme);
+
+  // The toplevel.
+  EXPECT_EQ(trace[4].kind, stacktrace_record::kind::scheme);
+}
+
+TEST_F(interpreter, stack_trace_can_reconstruct_inlined_procedures) {
+  define_procedure<check_stacktrace>(ctx, "check-stacktrace!",
+                                     ctx.internal_module());
+
+  eval_module(
+    R"(
+      (import (insider internal))
+
+      (define one (lambda () (check-stacktrace!) #void))
+      (define two (lambda () (one) #void))
+      (define three (lambda () (two) #void))
+      (three)
+    )"
+  );
 }

@@ -169,6 +169,8 @@ set(scheme_sources
         src/vm/call_stack.hpp
         src/vm/execution_state.cpp
         src/vm/execution_state.hpp
+        src/vm/stacktrace.cpp
+        src/vm/stacktrace.hpp
         src/vm/vm.cpp
         src/vm/vm.hpp
         )
