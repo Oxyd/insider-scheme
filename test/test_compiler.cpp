@@ -926,3 +926,17 @@ TEST_F(compiler, loop_expressions_are_evaluated_before_assignments) {
 TEST_F(compiler, keywords_are_not_self_quoting) {
   EXPECT_THROW(eval("#:foo"), syntax_error);
 }
+
+TEST_F(compiler, call_to_procedure_optimised_to_nothing_evaluates_to_void) {
+  auto result = eval_module(R"(
+    (import (insider internal))
+
+    (define f
+      (lambda ()
+        (let ((var 0))
+          (set! var 1))))
+
+    (f)
+  )");
+  EXPECT_EQ(result, ctx.constants->void_);
+}

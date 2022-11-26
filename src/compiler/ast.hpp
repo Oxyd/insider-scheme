@@ -27,24 +27,6 @@ class transformer;
 
 using result_stack = std::vector<expression>;
 
-class no_op_expression : public leaf_object<no_op_expression> {
-public:
-  static constexpr char const* scheme_name = "insider::no_op_expression";
-
-  template <typename F>
-  void
-  visit_subexpressions(F&&) const { }
-
-  void
-  update(context&, result_stack&) { }
-
-  std::size_t
-  size_estimate() const { return 0; }
-
-  std::string
-  show(context&, std::size_t indent) const;
-};
-
 class literal_expression : public composite_object<literal_expression> {
 public:
   static constexpr char const* scheme_name = "insider::literal_expression";

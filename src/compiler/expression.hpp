@@ -6,7 +6,6 @@
 namespace insider {
 
 using expression = sum_type<
-  class no_op_expression,
   class literal_expression,
   class local_reference_expression,
   class top_level_reference_expression,

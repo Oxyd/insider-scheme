@@ -81,7 +81,7 @@ remove_unnecessary_definitions(context& ctx, ptr<local_set_expression> set) {
     if (needs_to_be_retained(set->expression()))
       return set->expression();
     else
-      return make<no_op_expression>(ctx);
+      return make<literal_expression>(ctx, ctx.constants->void_);
   } else
     return set;
 }

@@ -2055,7 +2055,7 @@ TEST_F(ast, unnecessary_procedure_definitions_are_removed) {
   auto let = expect<let_expression>(e);
   auto body = expect<sequence_expression>(let->body());
   EXPECT_EQ(body->expressions().size(), 4);
-  EXPECT_TRUE(is<no_op_expression>(body->expressions().front()));
+  EXPECT_TRUE(is<literal_expression>(body->expressions().front()));
   EXPECT_TRUE(is<let_expression>(body->expressions().back()));
 }
 

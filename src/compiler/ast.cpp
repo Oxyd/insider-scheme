@@ -45,11 +45,6 @@ make_indent(std::size_t indent) {
   return std::string(indent, ' ');
 }
 
-std::string
-no_op_expression::show(context&, std::size_t indent) const {
-  return make_indent(indent) + "- no-op";
-}
-
 literal_expression::literal_expression(ptr<> value)
   : value_{value}
 { }
