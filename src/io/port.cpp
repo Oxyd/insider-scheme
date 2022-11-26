@@ -483,7 +483,7 @@ get_current_textual_output_port(context& ctx) {
   );
 }
 
-static ptr<>
+ptr<>
 read_char(context& ctx, ptr<textual_input_port> port) {
   if (auto c = port->read_character())
     return character_to_ptr(*c);
@@ -491,7 +491,7 @@ read_char(context& ctx, ptr<textual_input_port> port) {
     return ctx.constants->eof;
 }
 
-static ptr<>
+ptr<>
 peek_char(context& ctx, ptr<textual_input_port> port) {
   if (auto c = port->peek_character())
     return character_to_ptr(*c);
@@ -499,12 +499,12 @@ peek_char(context& ctx, ptr<textual_input_port> port) {
     return ctx.constants->eof;
 }
 
-static void
-write_char_proc(char32_t c, ptr<textual_output_port> out) {
+void
+write_char(char32_t c, ptr<textual_output_port> out) {
   out->write(c);
 }
 
-static ptr<>
+ptr<>
 read_u8(context& ctx, ptr<binary_input_port> port) {
   if (auto b = port->read_u8())
     return integer_to_ptr(*b);
@@ -512,7 +512,7 @@ read_u8(context& ctx, ptr<binary_input_port> port) {
     return ctx.constants->eof;
 }
 
-static ptr<>
+ptr<>
 peek_u8(context& ctx, ptr<binary_input_port> port) {
   if (auto b = port->peek_u8())
     return integer_to_ptr(*b);
@@ -520,7 +520,7 @@ peek_u8(context& ctx, ptr<binary_input_port> port) {
     return ctx.constants->eof;
 }
 
-static void
+void
 write_u8(std::uint8_t byte, ptr<binary_output_port> port) {
   port->write(byte);
 }
@@ -548,7 +548,7 @@ export_port(context& ctx, ptr<module_> result) {
                                                         result);
   define_procedure<read_char>(ctx, "read-char", result);
   define_procedure<peek_char>(ctx, "peek-char", result);
-  define_procedure<write_char_proc>(ctx, "write-char", result);
+  define_procedure<write_char>(ctx, "write-char", result);
   define_procedure<read_u8>(ctx, "read-u8", result);
   define_procedure<peek_u8>(ctx, "peek-u8", result);
   define_procedure<write_u8>(ctx, "write-u8", result);

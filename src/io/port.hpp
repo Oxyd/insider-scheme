@@ -176,6 +176,15 @@ get_current_textual_input_port(context& ctx);
 ptr<textual_output_port>
 get_current_textual_output_port(context& ctx);
 
+ptr<>
+read_char(context& ctx, ptr<textual_input_port> port);
+
+ptr<>
+peek_char(context& ctx, ptr<textual_input_port> port);
+
+void
+write_char(char32_t c, ptr<textual_output_port> out);
+
 class binary_input_port : public leaf_object<binary_input_port> {
 public:
   static constexpr char const* scheme_name = "insider::binary_input_port";
@@ -319,6 +328,15 @@ public:
 private:
   std::unique_ptr<port_sink> sink_;
 };
+
+ptr<>
+read_u8(context& ctx, ptr<binary_input_port> port);
+
+ptr<>
+peek_u8(context& ctx, ptr<binary_input_port> port);
+
+void
+write_u8(std::uint8_t byte, ptr<binary_output_port> port);
 
 template <typename PortPtr>
 class unique_port_handle {

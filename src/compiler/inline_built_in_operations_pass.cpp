@@ -111,7 +111,13 @@ built_in_operations_visitor::operations[]{
   {"fraction-numerator", opcode::fraction_numerator, 1, true},
   {"fraction-denominator", opcode::fraction_denominator, 1, true},
   {"real-part", opcode::real_part, 1, true},
-  {"imag-part", opcode::imag_part, 1, true}
+  {"imag-part", opcode::imag_part, 1, true},
+  {"read-char", opcode::read_char, 1, true},
+  {"peek-char", opcode::peek_char, 1, true},
+  {"write-char", opcode::write_char, 2, false},
+  {"read-u8", opcode::read_u8, 1, true},
+  {"peek-u8", opcode::peek_u8, 1, true},
+  {"write-u8", opcode::write_u8, 2, false}
 };
 
 built_in_operations_visitor::built_in_operations_visitor(context& ctx)

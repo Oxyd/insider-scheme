@@ -101,6 +101,12 @@ enum class opcode : std::uint16_t {
   fraction_denominator,
   real_part,
   imag_part,
+  read_char,
+  peek_char,
+  write_char,
+  read_u8,
+  peek_u8,
+  write_u8,
 };
 
 // Metainformation about an opcode. Used for decoding instructions.
@@ -228,7 +234,13 @@ instructions{
   std::tuple{"fraction-numerator", opcode::fraction_numerator, std::size_t{2}},
   std::tuple{"fraction-denominator", opcode::fraction_denominator, std::size_t{2}},
   std::tuple{"real-part", opcode::real_part, std::size_t{2}},
-  std::tuple{"imag-part", opcode::imag_part, std::size_t{2}}
+  std::tuple{"imag-part", opcode::imag_part, std::size_t{2}},
+  std::tuple{"read-char", opcode::read_char, std::size_t{2}},
+  std::tuple{"peek-char", opcode::peek_char, std::size_t{2}},
+  std::tuple{"write-char", opcode::write_char, std::size_t{2}},
+  std::tuple{"read-u8", opcode::read_u8, std::size_t{2}},
+  std::tuple{"peek-u8", opcode::peek_u8, std::size_t{2}},
+  std::tuple{"write-u8", opcode::write_u8, std::size_t{2}}
 };
 
 inline auto const // std::array<instruction_info, N>

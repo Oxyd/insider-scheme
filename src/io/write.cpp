@@ -47,7 +47,7 @@ write_string(ptr<string> s, ptr<textual_output_port> out) {
 }
 
 static void
-write_char(char32_t c, ptr<textual_output_port> out) {
+write_escaped_char(char32_t c, ptr<textual_output_port> out) {
   out->write(R"(#\)");
   out->write(c);
 }
@@ -386,7 +386,7 @@ write_atomic(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   if (auto str = match<string>(datum))
     write_string(str, out);
   else if (auto c = match<char32_t>(datum))
-    write_char(*c, out);
+    write_escaped_char(*c, out);
   else
     write_primitive(ctx, datum, out);
 }

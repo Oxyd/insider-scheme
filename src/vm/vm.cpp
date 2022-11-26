@@ -1,6 +1,7 @@
 #include "vm/vm.hpp"
 
 #include "compiler/compiler.hpp"
+#include "io/port.hpp"
 #include "io/read.hpp"
 #include "io/write.hpp"
 #include "memory/free_store.hpp"
@@ -839,6 +840,18 @@ template <auto Proc, typename Type>
     }
   };
 
+  template <auto Proc, typename Arg1, typename Arg2>
+  struct procedure_instruction_helper<Proc, void (*)(Arg1, Arg2)> {
+    static void
+    f(execution_state& state) {
+      auto argument1
+        = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
+      auto argument2
+        = from_scheme<Arg2>(state.ctx, state.stack->local(read_operand(state)));
+      Proc(argument1, argument2);
+    }
+  };
+
   template <auto Proc, typename Ret, typename Arg1, typename Arg2>
   struct procedure_instruction_helper<Proc, Ret (*)(Arg1, Arg2)> {
     static void
@@ -1090,6 +1103,24 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
     break;
   case opcode::imag_part:
     procedure_instruction<imag_part>(state);
+    break;
+  case opcode::read_char:
+    procedure_instruction<read_char>(state);
+    break;
+  case opcode::peek_char:
+    procedure_instruction<peek_char>(state);
+    break;
+  case opcode::write_char:
+    procedure_instruction<write_char>(state);
+    break;
+  case opcode::read_u8:
+    procedure_instruction<read_u8>(state);
+    break;
+  case opcode::peek_u8:
+    procedure_instruction<peek_u8>(state);
+    break;
+  case opcode::write_u8:
+    procedure_instruction<write_u8>(state);
     break;
 
   default:
