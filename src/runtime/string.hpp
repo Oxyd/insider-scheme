@@ -17,10 +17,13 @@ public:
   static constexpr word_type static_type_index = type_indexes::string;
 
   explicit
-  string(std::size_t size) : data_(size, '\0') {}
+  string(std::size_t size)
+    : data_(size, '\0')
+    , codepoint_length_{size}
+  { }
 
   explicit
-  string(std::string value) : data_{std::move(value)} { }
+  string(std::string value);
 
   void
   set(std::size_t i, char32_t c);
@@ -41,13 +44,14 @@ public:
   value() const { return data_; }
 
   std::size_t
-  length() const;
+  length() const { return codepoint_length_; }
 
   std::size_t
   hash() const;
 
 private:
   std::string data_;
+  std::size_t codepoint_length_;
 };
 
 inline bool

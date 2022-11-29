@@ -28,6 +28,23 @@ nth_code_point(std::string const& data, std::size_t n) {
   return byte_index;
 }
 
+std::size_t
+codepoint_length(std::string const& data) {
+  std::size_t result = 0;
+  std::size_t byte_index = 0;
+  while (byte_index < data.size()) {
+    byte_index += utf8_code_point_byte_length(data[byte_index]);
+    ++result;
+  }
+
+  return result;
+}
+
+string::string(std::string value)
+  : data_{std::move(value)}
+  , codepoint_length_{codepoint_length(data_)}
+{ }
+
 void
 string::set(std::size_t i, char32_t c) {
   std::size_t byte_index = nth_code_point(data_, i);
@@ -56,23 +73,13 @@ string::ref(std::size_t i) const {
 void
 string::append_char(char32_t c) {
   to_utf8(c, [&] (char byte) { data_.push_back(byte); });
+  ++codepoint_length_;
 }
 
 void
 string::append(std::string const& more_data) {
   data_.append(more_data);
-}
-
-std::size_t
-string::length() const {
-  std::size_t result = 0;
-  std::size_t byte_index = 0;
-  while (byte_index < data_.size()) {
-    byte_index += utf8_code_point_byte_length(data_[byte_index]);
-    ++result;
-  }
-
-  return result;
+  codepoint_length_ += codepoint_length(more_data);
 }
 
 std::size_t
