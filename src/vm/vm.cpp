@@ -943,6 +943,18 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::string_null:
     procedure_instruction<is_string_null>(state);
     break;
+  case opcode::string_cursor_start:
+    procedure_instruction<string_cursor_start>(state);
+    break;
+  case opcode::string_cursor_end:
+    procedure_instruction<string_cursor_end>(state);
+    break;
+  case opcode::string_cursor_next:
+    procedure_instruction<string_cursor_next>(state);
+    break;
+  case opcode::string_cursor_prev:
+    procedure_instruction<string_cursor_prev>(state);
+    break;
   case opcode::type:         type(state);                                break;
   case opcode::syntax_expression:
     procedure_instruction<&syntax::update_and_get_expression>(state);
