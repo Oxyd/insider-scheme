@@ -437,11 +437,6 @@ make_string(context& ctx, object_span args) {
 }
 
 static ptr<>
-make_string_byte_length(context& ctx, std::size_t length) {
-  return make<string>(ctx, std::string(length, '\0'));
-}
-
-static ptr<>
 string_append(context& ctx, object_span args) {
   std::string result;
   for (ptr<> s : args)
@@ -745,8 +740,6 @@ void
 export_string(context& ctx, ptr<module_> result) {
   define_raw_procedure<construct_string>(ctx, "string", result);
   define_raw_procedure<make_string>(ctx, "make-string", result);
-  define_procedure<make_string_byte_length>(ctx, "make-string/byte-length",
-                                            result);
   define_constant_evaluable_procedure<&string::length>(ctx, "string-length",
                                                        result);
   define_constant_evaluable_procedure<string_cursor_start>(
@@ -771,9 +764,6 @@ export_string(context& ctx, ptr<module_> result) {
   define_procedure<string_append_in_place>(ctx, "string-append!", result);
   define_procedure<symbol_to_string>(ctx, "symbol->string", result);
   define_procedure<string_to_symbol>(ctx, "string->symbol", result);
-  define_constant_evaluable_procedure<string_byte_length>(
-    ctx, "string-byte-length", result
-  );
   define_constant_evaluable_procedure<string_ref>(ctx, "string-ref", result);
   define_procedure<string_set>(ctx, "string-set!", result);
   define_procedure<&string::append_char>(ctx, "string-append-char!", result);

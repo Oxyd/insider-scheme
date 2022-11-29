@@ -937,9 +937,6 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::string_length:
     procedure_instruction<&string::length>(state);
     break;
-  case opcode::string_byte_length:
-    procedure_instruction<string_byte_length>(state);
-    break;
   case opcode::string_append_char:
     procedure_instruction<&string::append_char>(state);
     break;

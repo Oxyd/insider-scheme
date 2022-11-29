@@ -84,7 +84,6 @@ built_in_operations_visitor::operations[]{
   {"string-ref", opcode::string_ref, 2, true},
   {"string-set!", opcode::string_set, 3, false},
   {"string-length", opcode::string_length, 1, true},
-  {"string-byte-length", opcode::string_byte_length, 1, true},
   {"string-append-char!", opcode::string_append_char, 2, false},
   {"string-null?", opcode::string_null, 1, true},
   {"type", opcode::type, 1, true},

@@ -4,7 +4,7 @@
         (insider bytevector) (insider char)
         (only (insider internal)
               string string-ref string-set! string-append string-null?
-              string-length make-string string-byte-length
+              string-length make-string
               string-cursor-start string-cursor-end
               string-cursor-next* string-cursor-prev*
               string-cursor-diff* string-cursor->index
