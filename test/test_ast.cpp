@@ -2167,6 +2167,15 @@ TEST_F(ast, eq_comparison_with_default_value_uses_instruction) {
   EXPECT_EQ(op->operation(), opcode::is_default_value);
 }
 
+TEST_F(ast, negation_uses_built_in_instruction) {
+  auto op = find_built_in_operation(
+    analyse("(lambda (x) (- x))",
+            {&analyse_variables, &optimise_applications,
+             &inline_built_in_operations})
+  );
+  EXPECT_EQ(op->operation(), opcode::negate);
+}
+
 TEST_F(ast, variable_bound_to_another_variable_is_inlined) {
   expression e = analyse(
     R"(

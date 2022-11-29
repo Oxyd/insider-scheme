@@ -155,7 +155,12 @@ subtraction_substitutor(context& ctx, ptr<application_expression> app) {
         make_internal_reference(ctx, "decrement"),
         app->arguments()[0]
       );
-  }
+  } else if (app->arguments().size() == 1)
+    return make<application_expression>(
+      ctx,
+      make_internal_reference(ctx, "negate"),
+      app->arguments()[0]
+    );
 
   return app;
 }

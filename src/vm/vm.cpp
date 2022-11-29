@@ -859,6 +859,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::divide:                 arithmetic(opcode, state);        break;
   case opcode::increment:              increment(state);                 break;
   case opcode::decrement:              decrement(state);                 break;
+  case opcode::negate: procedure_instruction<negate>(state);             break;
   case opcode::arith_equal:
   case opcode::less:
   case opcode::greater:

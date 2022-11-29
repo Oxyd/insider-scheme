@@ -2925,6 +2925,7 @@ export_numeric(context& ctx, ptr<module_> result) {
   export_native(ctx, result, ">=", add_native_proc_arg<greater_or_equal>);
   define_constant_evaluable_procedure<increment>(ctx, "increment", result);
   define_constant_evaluable_procedure<decrement>(ctx, "decrement", result);
+  define_constant_evaluable_procedure<negate>(ctx, "negate", result);
   define_constant_evaluable_procedure<gcd>(ctx, "gcd", result);
   define_constant_evaluable_procedure<arithmetic_shift>(ctx, "arithmetic-shift",
                                                         result);
