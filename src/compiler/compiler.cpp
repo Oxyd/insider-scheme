@@ -680,6 +680,8 @@ compile_static_reference(context& ctx, procedure_context& proc, ptr<> value,
     proc.emit(opcode::load_f, *result.get(proc));
   else if (value == ctx.constants->eof)
     proc.emit(opcode::load_eof, *result.get(proc));
+  else if (value == ctx.constants->default_value)
+    proc.emit(opcode::load_default_value, *result.get(proc));
   else if (auto fx = match<integer>(value))
     compile_fixnum_reference(ctx, proc, fx->value(), result);
   else

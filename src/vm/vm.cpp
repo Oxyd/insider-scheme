@@ -152,6 +152,8 @@ auto load_void = load_special_constant<&context::constants::void_>;
 auto load_t = load_special_constant<&context::constants::t>;
 auto load_f = load_special_constant<&context::constants::f>;
 auto load_eof = load_special_constant<&context::constants::eof>;
+auto load_default_value
+  = load_special_constant<&context::constants::default_value>;
 
 static void
 load_fixnum(execution_state& state) {
@@ -849,6 +851,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::load_t:                 load_t(state);                    break;
   case opcode::load_f:                 load_f(state);                    break;
   case opcode::load_eof:               load_eof(state);                  break;
+  case opcode::load_default_value:     load_default_value(state);        break;
   case opcode::load_fixnum:            load_fixnum(state);               break;
   case opcode::add:
   case opcode::subtract:
