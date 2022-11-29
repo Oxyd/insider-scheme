@@ -74,11 +74,11 @@ string::append(std::string const& more_data) {
 }
 
 std::size_t
-string::hash() const {
+string_hash(ptr<string> s) {
   // djb2
   std::size_t result = 5381;
 
-  for (char c : data_)
+  for (char c : s->value())
     result = ((result << 5) + result) + c;
 
   return result;

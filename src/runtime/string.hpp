@@ -61,13 +61,13 @@ public:
   std::size_t
   length() const { return codepoint_length_; }
 
-  std::size_t
-  hash() const;
-
 private:
   std::string data_;
   std::size_t codepoint_length_;
 };
+
+std::size_t
+string_hash(ptr<string>);
 
 inline bool
 string_equal(ptr<string> x , ptr<string> y) { return x->value() == y->value(); }

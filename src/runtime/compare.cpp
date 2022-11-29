@@ -37,7 +37,7 @@ hasheqv(ptr<> x) {
   else if (auto c = match<char32_t>(x))
     return character_hash(*c);
   else if (auto s = match<string>(x))
-    return s->hash();
+    return string_hash(s);
   else
     return object_hash(x);
 }
