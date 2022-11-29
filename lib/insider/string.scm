@@ -1,16 +1,19 @@
 (library (insider string))
-(import (insider syntax) (insider numeric) (insider basic-procedures) (scheme case-lambda)
-        (insider vector) (insider control) (insider list) (insider error) (insider bytevector)
-        (insider char)
+(import (insider syntax) (insider numeric) (insider basic-procedures)
+        (insider vector) (insider control) (insider list) (insider error)
+        (insider bytevector) (insider char)
         (only (insider internal)
-              string string-ref string-set! string-append string-null? string-length make-string
-              string-byte-length next-code-point-byte-index previous-code-point-byte-index
-              string-ref/byte-index string-set!/byte-index string-copy/byte-indexes
-              string-contains/byte-indexes string-contains-right/byte-indexes
-              string-append-char! string-append! string-reverse*
-              string=?/pair string<?/pair string<=?/pair string>?/pair string>=?/pair
-              string-foldcase string->utf8/byte-indexes utf8->string*
-              symbol->string number->string datum->string string->number string-upcase string-downcase))
+              string string-ref string-set! string-append string-null?
+              string-length make-string string-byte-length
+              next-code-point-byte-index previous-code-point-byte-index
+              string-ref/byte-index string-set!/byte-index
+              string-copy/byte-indexes string-contains/byte-indexes
+              string-contains-right/byte-indexes string-append-char!
+              string-append! string-reverse* string=?/pair string<?/pair
+              string<=?/pair string>?/pair string>=?/pair string-foldcase
+              string->utf8/byte-indexes utf8->string* symbol->string
+              number->string datum->string string->number string-upcase
+              string-downcase))
 (export
  string?
 
@@ -24,11 +27,10 @@
  string-upcase string-downcase string-foldcase
  string->utf8 utf8->string
 
- string-cursor? string-cursor-start string-cursor-end string-cursor-next string-cursor-prev
- string-cursor-forward string-cursor-back
- string-cursor=? string-cursor<? string-cursor<=? string-cursor>? string-cursor>=? string-cursor-diff
- string-cursor->index string-index->cursor
- string-ref/cursor
+ string-cursor? string-cursor-start string-cursor-end string-cursor-next
+ string-cursor-prev string-cursor-forward string-cursor-back string-cursor=?
+ string-cursor<? string-cursor<=? string-cursor>? string-cursor>=?
+ string-cursor-diff string-cursor->index string-index->cursor string-ref/cursor
 
  string-null? string-every string-any
 
@@ -37,18 +39,20 @@
  string->list string->list/cursors list->string reverse-list->string
  string->vector string->vector/cursors string-join
 
- string-copy string-copy/cursors substring substring/cursors string-copy! string-fill!
- string-take string-drop string-take-right string-drop-right
- string-pad string-pad-right
- string-trim string-trim-right string-trim-both
+ string-copy string-copy/cursors substring substring/cursors string-copy!
+ string-fill! string-take string-drop string-take-right string-drop-right
+ string-pad string-pad-right string-trim string-trim-right string-trim-both
 
  string-prefix-length string-suffix-length string-prefix? string-suffix?
 
- string-index string-index-right string-skip string-skip-right string-contains string-contains-right
+ string-index string-index-right string-skip string-skip-right string-contains
+ string-contains-right
 
- string-reverse string-concatenate string-concatenate-reverse string-fold string-fold-right
+ string-reverse string-concatenate string-concatenate-reverse string-fold
+ string-fold-right
  string-for-each-cursor string-for-each string-map
- string-replicate string-count string-replace string-split string-filter string-remove
+ string-replicate string-count string-replace string-split string-filter
+ string-remove
 
  vector->string string->vector)
 
@@ -80,12 +84,14 @@
 
 (define (string-cursor-next s cursor)
   (if (string-cursor? cursor)
-      (byte-index->string-cursor (next-code-point-byte-index s (string-cursor->byte-index cursor)))
+      (byte-index->string-cursor
+       (next-code-point-byte-index s (string-cursor->byte-index cursor)))
       (+ cursor 1)))
 
 (define (string-cursor-prev s cursor)
   (if (string-cursor? cursor)
-      (byte-index->string-cursor (previous-code-point-byte-index s (string-cursor->byte-index cursor)))
+      (byte-index->string-cursor
+       (previous-code-point-byte-index s (string-cursor->byte-index cursor)))
       (- cursor 1)))
 
 (define (string-cursor-forward s cursor nchars)
@@ -132,7 +138,9 @@
 
 (define (string-cursor-diff s start end)
   (if (and (string-cursor? start) (string-cursor? end))
-      (string-byte-index-diff s (string-cursor->byte-index start) (string-cursor->byte-index end))
+      (string-byte-index-diff s
+                              (string-cursor->byte-index start)
+                              (string-cursor->byte-index end))
       (- end start)))
 
 (define (string-cursor->index s cursor)
@@ -248,7 +256,8 @@
 (define (string-join/infix string-list delimiter strict?)
   (if (null? string-list)
       (if strict? (error "string-join: Empty list") "")
-      (string-append (car string-list) (string-join/prefix (cdr string-list) delimiter))))
+      (string-append (car string-list)
+                     (string-join/prefix (cdr string-list) delimiter))))
 
 (define (string-join string-list (delimiter "") (grammar 'infix))
   (case grammar
@@ -288,7 +297,9 @@
     (do ((from-current start (next-code-point-byte-index from from-current))
          (to-current at (next-code-point-byte-index to to-current)))
         ((= from-current end))
-      (string-set!/byte-index to to-current (string-ref/byte-index from from-current)))))
+      (string-set!/byte-index to
+                              to-current
+                              (string-ref/byte-index from from-current)))))
 
 (define (string-copy!/backward to at from start end)
   (let* ((start* (->byte-index from start))
@@ -298,7 +309,9 @@
     (let loop ((from-current end*) (to-current to-end))
       (let ((from-current-1 (previous-code-point-byte-index from from-current))
             (to-current-1 (previous-code-point-byte-index to to-current)))
-        (string-set!/byte-index to to-current-1 (string-ref/byte-index from from-current-1))
+        (string-set!/byte-index to
+                                to-current-1
+                                (string-ref/byte-index from from-current-1))
         (unless (= from-current-1 start*)
           (loop from-current-1 to-current-1))))))
 
@@ -363,13 +376,14 @@
 
 (define (string-trim* s pred start end left? right?)
   (let ((start* (->byte-index s start)) (end* (->byte-index s end)))
-    (string-copy/byte-indexes s
-                              (if left?
-                                  (find-trimmed-string-start-byte-index s pred start* end*)
-                                  start*)
-                              (if right?
-                                  (find-trimmed-string-end-byte-index s pred start* end*)
-                                  end*))))
+    (string-copy/byte-indexes
+     s
+     (if left?
+         (find-trimmed-string-start-byte-index s pred start* end*)
+         start*)
+     (if right?
+         (find-trimmed-string-end-byte-index s pred start* end*)
+         end*))))
 
 (define (make-string-trim-procedure left? right?)
   (lambda (s
@@ -393,7 +407,8 @@
          (current1 start1 (next-code-point-byte-index s1 current1))
          (current2 start2 (next-code-point-byte-index s2 current2)))
         ((or (= current1 end1) (= current2 end2)
-             (not (eq? (string-ref/byte-index s1 current1) (string-ref/byte-index s2 current2))))
+             (not (eq? (string-ref/byte-index s1 current1)
+                       (string-ref/byte-index s2 current2))))
          result))))
 
 (define (string-suffix-length s1 s2
@@ -409,7 +424,8 @@
         ((or (= current1 start1) (= current2 start2)
              (let ((c1 (previous-code-point-byte-index s1 current1))
                    (c2 (previous-code-point-byte-index s2 current2)))
-               (not (eq? (string-ref/byte-index s1 c1) (string-ref/byte-index s2 c2)))))
+               (not (eq? (string-ref/byte-index s1 c1)
+                         (string-ref/byte-index s2 c2)))))
          result))))
 
 (define (string-prefix? s1 s2
@@ -422,7 +438,8 @@
     (let loop ((current1 start1) (current2 start2))
       (or (= current1 end1)
           (and (< current2 end2)
-               (eq? (string-ref/byte-index s1 current1) (string-ref/byte-index s2 current2))
+               (eq? (string-ref/byte-index s1 current1)
+                    (string-ref/byte-index s2 current2))
                (loop (next-code-point-byte-index s1 current1)
                      (next-code-point-byte-index s2 current2)))))))
 
@@ -438,13 +455,15 @@
           (and (> current2 start2)
                (let ((c1 (previous-code-point-byte-index s1 current1))
                      (c2 (previous-code-point-byte-index s2 current2)))
-                 (and (eq? (string-ref/byte-index s1 c1) (string-ref/byte-index s2 c2))
+                 (and (eq? (string-ref/byte-index s1 c1)
+                           (string-ref/byte-index s2 c2))
                       (loop c1 c2))))))))
 
 (define (string-index s pred
                       (start* (string-cursor-start s))
                       (end* (string-cursor-end s)))
-  (let ((start (string-index->cursor s start*)) (end (string-index->cursor s end*)))
+  (let ((start (string-index->cursor s start*))
+        (end (string-index->cursor s end*)))
     (do ((current start (string-cursor-next s current)))
         ((or (= current end) (pred (string-ref/cursor s current)))
          current))))
@@ -452,9 +471,11 @@
 (define (string-index-right s pred
                             (start* (string-cursor-start s))
                             (end* (string-cursor-end s)))
-  (let ((start (string-index->cursor s start*)) (end (string-index->cursor s end*)))
+  (let ((start (string-index->cursor s start*))
+        (end (string-index->cursor s end*)))
     (do ((current end (string-cursor-prev s current)))
-        ((or (= current start) (pred (string-ref/cursor s (string-cursor-prev s current))))
+        ((or (= current start)
+             (pred (string-ref/cursor s (string-cursor-prev s current))))
          current))))
 
 (define (string-skip s pred
@@ -473,11 +494,12 @@
                          (needle-start (string-cursor-start needle))
                          (needle-end (string-cursor-end needle)))
   (let ((result (byte-index->string-cursor
-                 (string-contains/byte-indexes haystack needle
-                                               (->byte-index haystack haystack-start)
-                                               (->byte-index haystack haystack-end)
-                                               (->byte-index needle needle-start)
-                                               (->byte-index needle needle-end)))))
+                 (string-contains/byte-indexes
+                  haystack needle
+                  (->byte-index haystack haystack-start)
+                  (->byte-index haystack haystack-end)
+                  (->byte-index needle needle-start)
+                  (->byte-index needle needle-end)))))
     (and (not (= result (string-index->cursor haystack haystack-end)))
          result)))
 
@@ -487,11 +509,12 @@
                                (needle-start (string-cursor-start needle))
                                (needle-end (string-cursor-end needle)))
   (let ((result (byte-index->string-cursor
-                 (string-contains-right/byte-indexes haystack needle
-                                                     (->byte-index haystack haystack-start)
-                                                     (->byte-index haystack haystack-end)
-                                                     (->byte-index needle needle-start)
-                                                     (->byte-index needle needle-end)))))
+                 (string-contains-right/byte-indexes
+                  haystack needle
+                  (->byte-index haystack haystack-start)
+                  (->byte-index haystack haystack-end)
+                  (->byte-index needle needle-start)
+                  (->byte-index needle needle-end)))))
     (and (not (= result (string-index->cursor haystack haystack-end)))
          result)))
 
@@ -536,7 +559,11 @@
   (if (= start end)
       knil
       (let ((end-1 (previous-code-point-byte-index s end)))
-        (string-fold-right* kons (kons (string-ref/byte-index s end-1) knil) s start end-1))))
+        (string-fold-right* kons
+                            (kons (string-ref/byte-index s end-1) knil)
+                            s
+                            start
+                            end-1))))
 
 (define (string-fold-right kons knil s
                            (start (string-cursor-start s))
@@ -546,22 +573,28 @@
 (define (string-for-each-cursor proc s
                                 (start* (string-cursor-start s))
                                 (end* (string-cursor-end s)))
-  (let ((start (string-index->cursor s start*)) (end (string-index->cursor s end*)))
+  (let ((start (string-index->cursor s start*))
+        (end (string-index->cursor s end*)))
     (do ((current start (string-cursor-next s current)))
         ((= current end))
       (proc current))))
 
 (define (string-for-each-1 proc string)
-  (string-for-each-cursor (lambda (c) (proc (string-ref/cursor string c))) string))
+  (string-for-each-cursor
+   (lambda (c) (proc (string-ref/cursor string c)))
+   string))
 
 (define (string-for-each-multi proc list-of-strings)
   (do ((current-byte-indexes
         (map (lambda (_) 0) list-of-strings)
-        (map (lambda (string current-index) (next-code-point-byte-index string current-index))
+        (map (lambda (string current-index)
+               (next-code-point-byte-index string current-index))
              list-of-strings current-byte-indexes)))
-      ((any (lambda (string current-index) (= (string-byte-length string) current-index))
+      ((any (lambda (string current-index)
+              (= (string-byte-length string) current-index))
             list-of-strings current-byte-indexes))
-    (apply proc (map (lambda (string current-index) (string-ref/byte-index string current-index))
+    (apply proc (map (lambda (string current-index)
+                       (string-ref/byte-index string current-index))
                      list-of-strings current-byte-indexes))))
 
 (define (string-for-each proc string1 . strings-rest)
@@ -584,7 +617,9 @@
       (string)
       (let* ((length (string-cursor-diff s start end))
              (count (- to from))
-             (from-cursor (string-cursor-forward s start (floor-remainder from length)))
+             (from-cursor (string-cursor-forward s
+                                                 start
+                                                 (floor-remainder from length)))
              (from-byte-index (->byte-index s from-cursor))
              (start-byte-index (->byte-index s start))
              (end-byte-index (->byte-index s end)))
@@ -622,16 +657,18 @@
 (define (string-split-infix s delimiter limit start end allow-empty-final?)
   (if (and limit (= limit 0))
       (make-final-split-element s start end allow-empty-final?)
-      (let ((delimiter-byte-index (string-contains/byte-indexes s delimiter
-                                                                start end
-                                                                0 (string-byte-length delimiter))))
+      (let ((delimiter-byte-index (string-contains/byte-indexes
+                                   s delimiter
+                                   start end
+                                   0 (string-byte-length delimiter))))
         (if (= delimiter-byte-index end)
             (make-final-split-element s start end allow-empty-final?)
             (cons (string-copy/byte-indexes s start delimiter-byte-index)
                   (string-split-infix s
                                       delimiter
                                       (decrease-limit limit)
-                                      (+ delimiter-byte-index (string-length delimiter))
+                                      (+ delimiter-byte-index
+                                         (string-length delimiter))
                                       end
                                       allow-empty-final?))))))
 
@@ -649,14 +686,29 @@
              ((string-null? s)
               '())
              (else
-              (string-split-infix s delimiter limit (->byte-index s start) (->byte-index s end) #t))))
+              (string-split-infix s
+                                  delimiter
+                                  limit
+                                  (->byte-index s start)
+                                  (->byte-index s end)
+                                  #t))))
       ((prefix)
-       (let ((result (string-split-infix s delimiter limit (->byte-index s start) (->byte-index s end) #t)))
+       (let ((result (string-split-infix s
+                                         delimiter
+                                         limit
+                                         (->byte-index s start)
+                                         (->byte-index s end)
+                                         #t)))
          (if (and (pair? result) (string-null? (car result)))
              (cdr result)
              result)))
       ((suffix)
-       (string-split-infix s delimiter limit (->byte-index s start) (->byte-index s end) #f))
+       (string-split-infix s
+                           delimiter
+                           limit
+                           (->byte-index s start)
+                           (->byte-index s end)
+                           #f))
       (else
        (error "Invalid grammar" grammar))))))
 
