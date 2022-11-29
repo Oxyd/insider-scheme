@@ -249,6 +249,20 @@ decrement(execution_state& state) {
 }
 
 static void
+negate(execution_state& state) {
+  ptr<> value = state.stack->local(read_operand(state));
+  operand dest = read_operand(state);
+
+  if (auto i = match<integer>(value))
+    if (auto result = multiply_fixnums(i->value(), -1)) {
+      state.stack->local(dest) = result;
+      return;
+    }
+
+  state.stack->local(dest) = negate(state.ctx, value);
+}
+
+static void
 relational(opcode opcode, execution_state& state) {
   ptr<> lhs = state.stack->local(read_operand(state));
   ptr<> rhs = state.stack->local(read_operand(state));
@@ -859,7 +873,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::divide:                 arithmetic(opcode, state);        break;
   case opcode::increment:              increment(state);                 break;
   case opcode::decrement:              decrement(state);                 break;
-  case opcode::negate: procedure_instruction<negate>(state);             break;
+  case opcode::negate:                 negate(state);                    break;
   case opcode::arith_equal:
   case opcode::less:
   case opcode::greater:
