@@ -11,6 +11,27 @@ namespace insider {
 
 class bytevector;
 
+class string_cursor {
+public:
+  using value_type = word_type;
+  value_type value;
+
+  bool
+  operator == (string_cursor const&) const = default;
+};
+
+inline string_cursor
+ptr_to_string_cursor(ptr<> x) {
+  assert(is_string_cursor(x));
+  return {tagged_payload(x) >> string_cursor_payload_offset};
+}
+
+inline ptr<>
+string_cursor_to_ptr(string_cursor c) {
+  return immediate_to_ptr((c.value << string_cursor_payload_offset)
+                          | string_cursor_tag);
+}
+
 class string : public leaf_object<string> {
 public:
   static constexpr char const* scheme_name = "insider::string";
@@ -31,8 +52,8 @@ public:
   void
   set_byte_index(std::size_t byte_index, char32_t c);
 
-  char32_t
-  ref(std::size_t) const;
+  void
+  set_cursor(string_cursor, char32_t);
 
   void
   append_char(char32_t);
@@ -56,6 +77,29 @@ private:
 
 inline bool
 string_equal(ptr<string> x , ptr<string> y) { return x->value() == y->value(); }
+
+inline string_cursor
+string_cursor_start(ptr<string>) { return {0}; }
+
+inline string_cursor
+string_cursor_end(ptr<string> s) { return {s->value().size()}; }
+
+inline string_cursor
+string_cursor_next(ptr<string> s, string_cursor c) {
+  if (c.value >= s->value().size())
+    throw std::runtime_error{"Can't advance cursor past end of string"};
+  else
+    return {c.value + utf8_code_point_byte_length(s->value()[c.value])};
+}
+
+string_cursor
+string_cursor_prev(ptr<string> s, string_cursor c);
+
+char32_t
+string_ref_cursor(ptr<string>, string_cursor);
+
+char32_t
+string_ref_nth(ptr<string>, std::size_t);
 
 ptr<string>
 string_upcase(context&, ptr<string>);

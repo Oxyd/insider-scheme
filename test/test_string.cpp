@@ -20,41 +20,41 @@ TEST_F(string_fixture, string_eqv) {
 
 TEST_F(string_fixture, string_ref) {
   auto s1 = make<string>(ctx, "foo");
-  EXPECT_EQ(s1->ref(0), U'f');
-  EXPECT_EQ(s1->ref(1), U'o');
-  EXPECT_EQ(s1->ref(2), U'o');
+  EXPECT_EQ(string_ref_nth(s1, 0), U'f');
+  EXPECT_EQ(string_ref_nth(s1, 1), U'o');
+  EXPECT_EQ(string_ref_nth(s1, 2), U'o');
 }
 
 TEST_F(string_fixture, string_set_latin) {
   auto s = make<string>(ctx, "   ");
-  EXPECT_EQ(s->ref(0), U' ');
+  EXPECT_EQ(string_ref_nth(s, 0), U' ');
   s->set(0, 'd');
-  EXPECT_EQ(s->ref(0), U'd');
-  EXPECT_EQ(s->ref(1), U' ');
+  EXPECT_EQ(string_ref_nth(s, 0), U'd');
+  EXPECT_EQ(string_ref_nth(s, 1), U' ');
 }
 
 TEST_F(string_fixture, string_set_multibyte_same_length) {
   auto s = make<string>(ctx, "aáa");
-  EXPECT_EQ(s->ref(1), U'á');
+  EXPECT_EQ(string_ref_nth(s, 1), U'á');
   s->set(1, U'ž');
-  EXPECT_EQ(s->ref(1), U'ž');
-  EXPECT_EQ(s->ref(2), U'a');
+  EXPECT_EQ(string_ref_nth(s, 1), U'ž');
+  EXPECT_EQ(string_ref_nth(s, 2), U'a');
 }
 
 TEST_F(string_fixture, string_set_multibyte_shorter) {
   auto s = make<string>(ctx, "aáa");
-  EXPECT_EQ(s->ref(1), U'á');
+  EXPECT_EQ(string_ref_nth(s, 1), U'á');
   s->set(1, U'a');
-  EXPECT_EQ(s->ref(1), U'a');
-  EXPECT_EQ(s->ref(2), U'a');
+  EXPECT_EQ(string_ref_nth(s, 1), U'a');
+  EXPECT_EQ(string_ref_nth(s, 2), U'a');
 }
 
 TEST_F(string_fixture, string_set_multibyte_longer) {
   auto s = make<string>(ctx, "aaa");
-  EXPECT_EQ(s->ref(1), U'a');
+  EXPECT_EQ(string_ref_nth(s, 1), U'a');
   s->set(1, U'á');
-  EXPECT_EQ(s->ref(1), U'á');
-  EXPECT_EQ(s->ref(2), U'a');
+  EXPECT_EQ(string_ref_nth(s, 1), U'á');
+  EXPECT_EQ(string_ref_nth(s, 2), U'a');
 }
 
 TEST_F(string_fixture, string_length) {
@@ -140,4 +140,19 @@ TEST_F(string_fixture, string_reverse) {
   auto s = make<string>(ctx, "brčál");
   auto r = string_reverse(ctx, s, 0, s->value().size());
   EXPECT_EQ(r->value(), "láčrb");
+}
+
+TEST_F(string_fixture, string_cursor_ref) {
+  auto s = make<string>(ctx, "aáa");
+  string_cursor c = string_cursor_start(s);
+  EXPECT_EQ(string_ref_cursor(s, c), U'a');
+
+  c = string_cursor_next(s, c);
+  EXPECT_EQ(string_ref_cursor(s, c), U'á');
+
+  c = string_cursor_next(s, c);
+  EXPECT_EQ(string_ref_cursor(s, c), U'a');
+
+  c = string_cursor_next(s, c);
+  EXPECT_EQ(c, string_cursor_end(s));
 }

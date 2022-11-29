@@ -917,7 +917,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::bytevector_length:
     procedure_instruction<&bytevector::size>(state);
     break;
-  case opcode::string_ref:   procedure_instruction<&string::ref>(state); break;
+  case opcode::string_ref:   procedure_instruction<&string_ref_nth>(state); break;
   case opcode::string_set:   procedure_instruction<&string::set>(state); break;
   case opcode::string_set_byte_index:
     procedure_instruction<&string::set_byte_index>(state);

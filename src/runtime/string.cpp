@@ -53,21 +53,23 @@ string::set(std::size_t i, char32_t c) {
 
 void
 string::set_byte_index(std::size_t byte_index, char32_t c) {
-  std::size_t old_length = utf8_code_point_byte_length(data_[byte_index]);
+  set_cursor({byte_index}, c);
+}
+
+void
+string::set_cursor(string_cursor i, char32_t c) {
+  if (i.value >= data_.size())
+    throw std::runtime_error{"Invalid string cursor"};
+
+  std::size_t old_length = utf8_code_point_byte_length(data_[i.value]);
   std::size_t new_length = utf32_code_point_byte_length(c);
 
   if (new_length < old_length)
-    data_.erase(byte_index, old_length - new_length);
+    data_.erase(i.value, old_length - new_length);
   else if (new_length > old_length)
-    data_.insert(byte_index, new_length - old_length, {});
+    data_.insert(i.value, new_length - old_length, {});
 
-  to_utf8(c, [&] (char byte) mutable { data_[byte_index++] = byte; });
-}
-
-char32_t
-string::ref(std::size_t i) const {
-  std::size_t byte_index = nth_code_point(data_, i);
-  return from_utf8(data_.begin() + byte_index, data_.end()).code_point;
+  to_utf8(c, [&] (char byte) mutable { data_[i.value++] = byte; });
 }
 
 void
@@ -91,6 +93,37 @@ string::hash() const {
     result = ((result << 5) + result) + c;
 
   return result;
+}
+
+string_cursor
+string_cursor_prev(ptr<string> s, string_cursor c) {
+  if (c.value == 0)
+    throw std::runtime_error{"Can't go before start of string"};
+  else {
+    do
+      --c.value;
+    while (!is_initial_byte(s->value()[c.value]));
+    return c;
+  }
+}
+
+char32_t
+string_ref_cursor(ptr<string> s, string_cursor c) {
+  return from_utf8(s->value().begin() + c.value, s->value().end()).code_point;
+}
+
+char32_t
+string_ref_nth(ptr<string> s, std::size_t i) {
+  std::size_t byte_index = nth_code_point(s->value(), i);
+  return from_utf8(s->value().begin() + byte_index, s->value().end()).code_point;
+}
+
+static char32_t
+string_ref(ptr<string> s, ptr<> i) {
+  if (auto c = match<string_cursor>(i))
+    return string_ref_cursor(s, *c);
+  else
+    return string_ref_nth(s, expect<integer>(i).value());
 }
 
 static void
@@ -427,11 +460,6 @@ previous_code_point_byte_index(ptr<string> s, std::size_t index) {
     while (!is_initial_byte(s->value()[index]));
     return index;
   }
-}
-
-static char32_t
-string_ref(ptr<string> s, std::size_t index) {
-  return s->ref(index);
 }
 
 static char32_t

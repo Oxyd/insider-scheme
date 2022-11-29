@@ -16,6 +16,7 @@ namespace insider {
 
 class context;
 class integer;
+class string_cursor;
 
 using word_type = std::uint64_t;
 
@@ -97,10 +98,14 @@ static constexpr word_type no_type = std::numeric_limits<word_type>::max();
 // Pointer tagging:
 // ... xxxx1 -- integer
 // ... xxx00 -- pointer
+// ... xx010 -- string cursor
 // ... xx110 -- character
 
 static constexpr std::size_t character_payload_offset = 3;
+static constexpr std::size_t string_cursor_payload_offset = 3;
+
 static constexpr std::size_t character_tag = 0b110;
+static constexpr std::size_t string_cursor_tag = 0b010;
 
 inline bool
 is_object_ptr(ptr<> o) {
@@ -112,9 +117,20 @@ is_fixnum(ptr<> o) {
   return (reinterpret_cast<word_type>(o.value()) & 0b01) == 0b01;
 }
 
+template <std::size_t Tag>
+inline bool
+is_tagged(ptr<> o) {
+  return (reinterpret_cast<word_type>(o.value()) & 0b111) == Tag;
+}
+
 inline bool
 is_character(ptr<> o) {
-  return (reinterpret_cast<word_type>(o.value()) & 0b111) == character_tag;
+  return is_tagged<character_tag>(o);
+}
+
+inline bool
+is_string_cursor(ptr<> o) {
+  return is_tagged<string_cursor_tag>(o);
 }
 
 inline word_type&
@@ -157,6 +173,7 @@ immediate_to_ptr(word_type w) noexcept {
 
 constexpr char const* integer_type_name = "insider::integer";
 constexpr char const* character_type_name = "insider::character";
+constexpr char const* string_cursor_type_name = "insider::string_cursor";
 
 inline std::string
 object_type_name(ptr<> o) {
@@ -168,6 +185,8 @@ object_type_name(ptr<> o) {
     return integer_type_name;
   else if (is_character(o))
     return character_type_name;
+  else if (is_string_cursor(o))
+    return string_cursor_type_name;
   else
     assert(false);
   return "";
@@ -197,6 +216,12 @@ type_name<char32_t>() {
   return character_type_name;
 }
 
+template <>
+inline std::string
+type_name<string_cursor>() {
+  return string_cursor_type_name;
+}
+
 // Is a given object an instance of the given Scheme type?
 template <has_static_type_index T>
 bool
@@ -222,6 +247,12 @@ template <>
 inline bool
 is<char32_t>(ptr<> x) {
   return is_character(x);
+}
+
+template <>
+inline bool
+is<string_cursor>(ptr<> x) {
+  return is_string_cursor(x);
 }
 
 namespace detail {

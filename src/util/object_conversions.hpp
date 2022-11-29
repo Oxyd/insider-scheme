@@ -6,6 +6,7 @@
 #include "runtime/character.hpp"
 #include "runtime/error.hpp"
 #include "runtime/integer.hpp"
+#include "runtime/string.hpp"
 
 namespace insider {
 
@@ -69,6 +70,11 @@ namespace detail {
   template <>
   struct expect_helper<char32_t>
     : immediate_expect_helper<char32_t, ptr_to_character>
+  { };
+
+  template <>
+  struct expect_helper<string_cursor>
+    : immediate_expect_helper<string_cursor, ptr_to_string_cursor>
   { };
 }
 
@@ -158,6 +164,11 @@ namespace detail {
   struct assume_helper<char32_t>
     : immediate_assume_helper<char32_t, ptr_to_character>
   { };
+
+  template <>
+  struct assume_helper<string_cursor>
+    : immediate_assume_helper<string_cursor, ptr_to_string_cursor>
+  { };
 }
 
 // Assert that an object is of a given type and return the appropriate typed
@@ -211,6 +222,11 @@ namespace detail {
   template <>
   struct match_helper<char32_t>
     : immediate_match_helper<char32_t, ptr_to_character>
+  { };
+
+  template <>
+  struct match_helper<string_cursor>
+    : immediate_match_helper<string_cursor, ptr_to_string_cursor>
   { };
 }
 
