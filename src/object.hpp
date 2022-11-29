@@ -95,9 +95,12 @@ static constexpr word_type invalid_type = 0;
 static constexpr word_type no_type = std::numeric_limits<word_type>::max();
 
 // Pointer tagging:
-// ... xxx1 -- integer
-// ... xx10 -- character
-// ... xx00 -- pointer
+// ... xxxx1 -- integer
+// ... xxx00 -- pointer
+// ... xx110 -- character
+
+static constexpr std::size_t character_payload_offset = 3;
+static constexpr std::size_t character_tag = 0b110;
 
 inline bool
 is_object_ptr(ptr<> o) {
@@ -111,7 +114,7 @@ is_fixnum(ptr<> o) {
 
 inline bool
 is_character(ptr<> o) {
-  return (reinterpret_cast<word_type>(o.value()) & 0b11) == 0b10;
+  return (reinterpret_cast<word_type>(o.value()) & 0b111) == character_tag;
 }
 
 inline word_type&

@@ -12,12 +12,14 @@ namespace insider {
 inline char32_t
 ptr_to_character(ptr<> x) {
   assert(is_character(x));
-  return static_cast<char32_t>(tagged_payload(x) >> 2);
+  return static_cast<char32_t>(tagged_payload(x) >> character_payload_offset);
 }
 
 inline ptr<>
 character_to_ptr(char32_t c) {
-  return immediate_to_ptr((static_cast<word_type>(c) << 2) | 0b10);
+  return immediate_to_ptr((static_cast<word_type>(c)
+                           << character_payload_offset)
+                          | character_tag);
 }
 
 inline std::size_t
