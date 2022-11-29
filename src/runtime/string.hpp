@@ -47,12 +47,6 @@ public:
   string(std::string value);
 
   void
-  set(std::size_t i, char32_t c);
-
-  void
-  set_byte_index(std::size_t byte_index, char32_t c);
-
-  void
   set_cursor(string_cursor, char32_t);
 
   void
@@ -98,8 +92,17 @@ string_cursor_prev(ptr<string> s, string_cursor c);
 char32_t
 string_ref_cursor(ptr<string>, string_cursor);
 
+void
+string_set(ptr<string> s, ptr<> i, char32_t c);
+
+void
+string_set_nth(ptr<string> s, std::size_t i, char32_t c);
+
 char32_t
 string_ref_nth(ptr<string>, std::size_t);
+
+char32_t
+string_ref(ptr<string> s, ptr<> i);
 
 ptr<string>
 string_upcase(context&, ptr<string>);
@@ -117,22 +120,10 @@ ptr<string>
 utf8_to_string(context&, ptr<bytevector>, std::size_t start, std::size_t end);
 
 ptr<bytevector>
-string_to_utf8_byte_indexes(context&, ptr<string>, std::size_t start,
-                            std::size_t end);
+string_to_utf8(context&, ptr<string>, string_cursor start, string_cursor end);
 
 ptr<string>
 string_reverse(context&, ptr<string>, std::size_t begin, std::size_t end);
-
-inline std::size_t
-next_code_point_byte_index(ptr<string> s, std::size_t index) {
-  if (index >= s->value().size())
-    throw std::runtime_error{"Can't advance post-end byte index"};
-  else
-    return index + utf8_code_point_byte_length(s->value()[index]);
-}
-
-std::size_t
-previous_code_point_byte_index(ptr<string> s, std::size_t index);
 
 inline std::size_t
 string_byte_length(ptr<string> s) {

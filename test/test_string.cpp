@@ -28,7 +28,7 @@ TEST_F(string_fixture, string_ref) {
 TEST_F(string_fixture, string_set_latin) {
   auto s = make<string>(ctx, "   ");
   EXPECT_EQ(string_ref_nth(s, 0), U' ');
-  s->set(0, 'd');
+  string_set_nth(s, 0, 'd');
   EXPECT_EQ(string_ref_nth(s, 0), U'd');
   EXPECT_EQ(string_ref_nth(s, 1), U' ');
 }
@@ -36,7 +36,7 @@ TEST_F(string_fixture, string_set_latin) {
 TEST_F(string_fixture, string_set_multibyte_same_length) {
   auto s = make<string>(ctx, "aáa");
   EXPECT_EQ(string_ref_nth(s, 1), U'á');
-  s->set(1, U'ž');
+  string_set_nth(s, 1, U'ž');
   EXPECT_EQ(string_ref_nth(s, 1), U'ž');
   EXPECT_EQ(string_ref_nth(s, 2), U'a');
 }
@@ -44,7 +44,7 @@ TEST_F(string_fixture, string_set_multibyte_same_length) {
 TEST_F(string_fixture, string_set_multibyte_shorter) {
   auto s = make<string>(ctx, "aáa");
   EXPECT_EQ(string_ref_nth(s, 1), U'á');
-  s->set(1, U'a');
+  string_set_nth(s, 1, U'a');
   EXPECT_EQ(string_ref_nth(s, 1), U'a');
   EXPECT_EQ(string_ref_nth(s, 2), U'a');
 }
@@ -52,7 +52,7 @@ TEST_F(string_fixture, string_set_multibyte_shorter) {
 TEST_F(string_fixture, string_set_multibyte_longer) {
   auto s = make<string>(ctx, "aaa");
   EXPECT_EQ(string_ref_nth(s, 1), U'a');
-  s->set(1, U'á');
+  string_set_nth(s, 1, U'á');
   EXPECT_EQ(string_ref_nth(s, 1), U'á');
   EXPECT_EQ(string_ref_nth(s, 2), U'a');
 }
@@ -116,9 +116,11 @@ TEST_F(string_fixture, utf8_to_string) {
 
 TEST_F(string_fixture, string_to_utf8) {
   using namespace std::literals;
-  EXPECT_TRUE(equal(string_to_utf8_byte_indexes(ctx, expect<string>(to_scheme(ctx, "Ὀδυσσεύς"s)), 0, 17),
+  EXPECT_TRUE(equal(string_to_utf8(ctx, expect<string>(to_scheme(ctx, "Ὀδυσσεύς"s)),
+                                   {0}, {17}),
                     read("#u8(#xe1 #xbd #x88 #xce #xb4 #xcf #x85 #xcf #x83 #xcf #x83 #xce #xb5 #xcf #x8d #xcf #x82)")));
-  EXPECT_TRUE(equal(string_to_utf8_byte_indexes(ctx, expect<string>(to_scheme(ctx, "Ὀδυσσεύς"s)), 5, 13),
+  EXPECT_TRUE(equal(string_to_utf8(ctx, expect<string>(to_scheme(ctx, "Ὀδυσσεύς"s)),
+                                   {5}, {13}),
                     read("#u8(#xcf #x85 #xcf #x83 #xcf #x83 #xce #xb5)")));
 }
 

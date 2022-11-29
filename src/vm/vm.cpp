@@ -724,6 +724,21 @@ template <auto Proc, typename Type>
     }
   };
 
+  template <auto Proc, typename Arg1, typename Arg2, typename Arg3>
+  struct procedure_instruction_helper<Proc,
+                                      void (*)(Arg1, Arg2, Arg3)> {
+    static void
+    f(execution_state& state) {
+      auto argument1
+        = from_scheme<Arg1>(state.ctx, state.stack->local(read_operand(state)));
+      auto argument2
+        = from_scheme<Arg2>(state.ctx, state.stack->local(read_operand(state)));
+      auto argument3
+        = from_scheme<Arg3>(state.ctx, state.stack->local(read_operand(state)));
+      Proc(argument1, argument2, argument3);
+    }
+  };
+
   template <auto Proc, typename Ret, typename Arg1, typename Arg2>
   struct procedure_instruction_helper<Proc, Ret (*)(context&, Arg1, Arg2)> {
     static void
@@ -917,22 +932,13 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::bytevector_length:
     procedure_instruction<&bytevector::size>(state);
     break;
-  case opcode::string_ref:   procedure_instruction<&string_ref_nth>(state); break;
-  case opcode::string_set:   procedure_instruction<&string::set>(state); break;
-  case opcode::string_set_byte_index:
-    procedure_instruction<&string::set_byte_index>(state);
-    break;
+  case opcode::string_ref:   procedure_instruction<string_ref>(state); break;
+  case opcode::string_set:   procedure_instruction<string_set>(state); break;
   case opcode::string_length:
     procedure_instruction<&string::length>(state);
     break;
   case opcode::string_byte_length:
     procedure_instruction<string_byte_length>(state);
-    break;
-  case opcode::next_code_point_byte_index:
-    procedure_instruction<next_code_point_byte_index>(state);
-    break;
-  case opcode::previous_code_point_byte_index:
-    procedure_instruction<previous_code_point_byte_index>(state);
     break;
   case opcode::string_append_char:
     procedure_instruction<&string::append_char>(state);

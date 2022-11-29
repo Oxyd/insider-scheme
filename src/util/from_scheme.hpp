@@ -76,6 +76,14 @@ struct from_scheme_converter<char32_t> {
 };
 
 template <>
+struct from_scheme_converter<string_cursor> {
+  static string_cursor
+  convert(context&, ptr<> o) {
+    return expect<string_cursor>(o);
+  }
+};
+
+template <>
 struct from_scheme_converter<char> {
   static char
   convert(context&, ptr<> o) {

@@ -46,17 +46,6 @@ string::string(std::string value)
 { }
 
 void
-string::set(std::size_t i, char32_t c) {
-  std::size_t byte_index = nth_code_point(data_, i);
-  set_byte_index(byte_index, c);
-}
-
-void
-string::set_byte_index(std::size_t byte_index, char32_t c) {
-  set_cursor({byte_index}, c);
-}
-
-void
 string::set_cursor(string_cursor i, char32_t c) {
   if (i.value >= data_.size())
     throw std::runtime_error{"Invalid string cursor"};
@@ -107,6 +96,20 @@ string_cursor_prev(ptr<string> s, string_cursor c) {
   }
 }
 
+void
+string_set_nth(ptr<string> s, std::size_t i, char32_t c) {
+  std::size_t byte_index = nth_code_point(s->value(), i);
+  s->set_cursor({byte_index}, c);
+}
+
+void
+string_set(ptr<string> s, ptr<> i, char32_t c) {
+  if (auto cursor = match<string_cursor>(i))
+    s->set_cursor(*cursor, c);
+  else
+    string_set_nth(s, expect<integer>(i).value(), c);
+}
+
 char32_t
 string_ref_cursor(ptr<string> s, string_cursor c) {
   return from_utf8(s->value().begin() + c.value, s->value().end()).code_point;
@@ -118,7 +121,7 @@ string_ref_nth(ptr<string> s, std::size_t i) {
   return from_utf8(s->value().begin() + byte_index, s->value().end()).code_point;
 }
 
-static char32_t
+char32_t
 string_ref(ptr<string> s, ptr<> i) {
   if (auto c = match<string_cursor>(i))
     return string_ref_cursor(s, *c);
@@ -379,12 +382,18 @@ find_code_point_byte_range(std::string const& data,
 }
 
 ptr<bytevector>
-string_to_utf8_byte_indexes(context& ctx, ptr<string> s,
-                            std::size_t start, std::size_t end) {
+string_to_utf8(context& ctx, ptr<string> s,
+               string_cursor start, string_cursor end) {
   std::string const& data = s->value();
 
-  auto result = make<bytevector>(ctx, end - start);
-  for (std::size_t i = start, j = 0; i < end; ++i, ++j)
+  if (start.value > data.size() || end.value > data.size())
+    throw std::runtime_error{"String cursor out of range"};
+
+  if (start.value > end.value)
+    throw std::runtime_error{"Invalid range"};
+
+  auto result = make<bytevector>(ctx, end.value - start.value);
+  for (std::size_t i = start.value, j = 0; i < end.value; ++i, ++j)
     result->set(j, data[i]);
 
   return result;
@@ -421,7 +430,7 @@ make_string(context& ctx, object_span args) {
   if (args.size() == 2) {
     char32_t fill = expect<char32_t>(args[1]);
     for (std::size_t i = 0; i < static_cast<std::size_t>(length); ++i)
-      result->set(i, fill);
+      string_set_nth(result, i, fill);
   }
 
   return result;
@@ -462,14 +471,6 @@ previous_code_point_byte_index(ptr<string> s, std::size_t index) {
   }
 }
 
-static char32_t
-string_ref_byte_index(ptr<string> s, std::size_t bi) {
-  if (bi >= s->value().size())
-    throw std::runtime_error{"Byte index out of range"};
-  else
-    return from_utf8(s->value().begin() + bi, s->value().end()).code_point;
-}
-
 ptr<string>
 string_reverse(context& ctx, ptr<string> s, std::size_t begin, std::size_t end) {
   std::string const& input = s->value();
@@ -502,10 +503,27 @@ static ptr<string>
 string_copy_byte_indexes(context& ctx, ptr<string> s,
                          std::size_t begin, std::size_t end) {
   std::string const& value = s->value();
+
+  if (begin > value.size() || end > value.size())
+    throw std::runtime_error{"Cursor out of range"};
   if (begin > end)
     throw std::runtime_error{"Invalid index"};
 
   return make<string>(ctx, value.substr(begin, end - begin));
+}
+
+static std::size_t
+to_byte_index(ptr<> x) {
+  if (auto c = match<string_cursor>(x))
+    return c->value;
+  else
+    return expect<integer>(x).value();
+}
+
+static ptr<string>
+string_copy(context& ctx, ptr<string> s, ptr<> begin, ptr<> end) {
+  return string_copy_byte_indexes(ctx, s,
+                                  to_byte_index(begin), to_byte_index(end));
 }
 
 static void
@@ -539,6 +557,17 @@ string_contains_byte_indexes(ptr<string> haystack, ptr<string> needle,
 }
 
 static integer
+string_contains(ptr<string> haystack, ptr<string> needle,
+                ptr<> haystack_start, ptr<> haystack_end,
+                ptr<> needle_start, ptr<> needle_end) {
+  return string_contains_byte_indexes(haystack, needle,
+                                      to_byte_index(haystack_start),
+                                      to_byte_index(haystack_end),
+                                      to_byte_index(needle_start),
+                                      to_byte_index(needle_end));
+}
+
+static integer
 string_contains_right_byte_indexes(ptr<string> haystack, ptr<string> needle,
                                    std::size_t haystack_start,
                                    std::size_t haystack_end,
@@ -566,6 +595,17 @@ string_contains_right_byte_indexes(ptr<string> haystack, ptr<string> needle,
     return static_cast<integer::value_type>(haystack_end);
   else
     return integer{static_cast<integer::value_type>(result)};
+}
+
+static integer
+string_contains_right(ptr<string> haystack, ptr<string> needle,
+                      ptr<> haystack_start, ptr<> haystack_end,
+                      ptr<> needle_start, ptr<> needle_end) {
+  return string_contains_right_byte_indexes(haystack, needle,
+                                            to_byte_index(haystack_start),
+                                            to_byte_index(haystack_end),
+                                            to_byte_index(needle_start),
+                                            to_byte_index(needle_end));
 }
 
 static bool
@@ -608,30 +648,18 @@ export_string(context& ctx, ptr<module_> result) {
   define_constant_evaluable_procedure<string_byte_length>(
     ctx, "string-byte-length", result
   );
-  define_constant_evaluable_procedure<next_code_point_byte_index>(
-    ctx, "next-code-point-byte-index", result
-  );
-  define_constant_evaluable_procedure<previous_code_point_byte_index>(
-    ctx, "previous-code-point-byte-index", result
-  );
   define_constant_evaluable_procedure<string_ref>(ctx, "string-ref", result);
-  define_procedure<&string::set>(ctx, "string-set!", result);
-  define_procedure<&string::set_byte_index>(ctx, "string-set!/byte-index",
-                                            result);
+  define_procedure<string_set>(ctx, "string-set!", result);
   define_procedure<&string::append_char>(ctx, "string-append-char!", result);
-  define_constant_evaluable_procedure<string_ref_byte_index>(
-    ctx, "string-ref/byte-index", result
-  );
   define_constant_evaluable_procedure<is_string_null>(ctx, "string-null?",
                                                       result);
   define_procedure<string_reverse>(ctx, "string-reverse*", result);
-  define_procedure<string_copy_byte_indexes>(ctx, "string-copy/byte-indexes",
-                                             result);
-  define_procedure<string_contains_byte_indexes>(
-    ctx, "string-contains/byte-indexes", result
+  define_procedure<string_copy>(ctx, "string-copy", result);
+  define_procedure<string_contains>(
+    ctx, "string-contains", result
   );
-  define_procedure<string_contains_right_byte_indexes>(
-    ctx, "string-contains-right/byte-indexes", result
+  define_procedure<string_contains_right>(
+    ctx, "string-contains-right", result
   );
   define_constant_evaluable_procedure<string_eq>(ctx, "string=?/pair", result);
   define_constant_evaluable_procedure<string_lt>(ctx, "string<?/pair", result);
@@ -643,8 +671,7 @@ export_string(context& ctx, ptr<module_> result) {
   define_procedure<
     static_cast<ptr<string> (*)(context&, ptr<string>)>(&string_foldcase)
   >(ctx, "string-foldcase", result);
-  define_procedure<string_to_utf8_byte_indexes>(ctx, "string->utf8/byte-indexes",
-                                                result);
+  define_procedure<string_to_utf8>(ctx, "string->utf8", result);
   define_procedure<utf8_to_string>(ctx, "utf8->string*", result);
 }
 
