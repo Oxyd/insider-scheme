@@ -140,7 +140,7 @@ TEST_F(string_fixture, append_char) {
 
 TEST_F(string_fixture, string_reverse) {
   auto s = make<string>(ctx, "brčál");
-  auto r = string_reverse(ctx, s, 0, s->value().size());
+  auto r = string_reverse_byte_indexes(ctx, s, 0, s->value().size());
   EXPECT_EQ(r->value(), "láčrb");
 }
 

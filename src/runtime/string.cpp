@@ -472,7 +472,8 @@ previous_code_point_byte_index(ptr<string> s, std::size_t index) {
 }
 
 ptr<string>
-string_reverse(context& ctx, ptr<string> s, std::size_t begin, std::size_t end) {
+string_reverse_byte_indexes(context& ctx, ptr<string> s,
+                            std::size_t begin, std::size_t end) {
   std::string const& input = s->value();
 
   if (begin > input.size() || end > input.size() || begin > end)
@@ -499,7 +500,21 @@ string_reverse(context& ctx, ptr<string> s, std::size_t begin, std::size_t end) 
   return make<string>(ctx, std::move(output));
 }
 
+static std::size_t
+to_byte_index(ptr<> x) {
+  if (auto c = match<string_cursor>(x))
+    return c->value;
+  else
+    return expect<integer>(x).value();
+}
+
 static ptr<string>
+string_reverse(context& ctx, ptr<string> s, ptr<> begin, ptr<> end) {
+  return string_reverse_byte_indexes(ctx, s,
+                                     to_byte_index(begin), to_byte_index(end));
+}
+
+ptr<string>
 string_copy_byte_indexes(context& ctx, ptr<string> s,
                          std::size_t begin, std::size_t end) {
   std::string const& value = s->value();
@@ -512,14 +527,6 @@ string_copy_byte_indexes(context& ctx, ptr<string> s,
   return make<string>(ctx, value.substr(begin, end - begin));
 }
 
-static std::size_t
-to_byte_index(ptr<> x) {
-  if (auto c = match<string_cursor>(x))
-    return c->value;
-  else
-    return expect<integer>(x).value();
-}
-
 static ptr<string>
 string_copy(context& ctx, ptr<string> s, ptr<> begin, ptr<> end) {
   return string_copy_byte_indexes(ctx, s,
@@ -527,11 +534,82 @@ string_copy(context& ctx, ptr<string> s, ptr<> begin, ptr<> end) {
 }
 
 static void
+string_copy_mutative_forward(ptr<string> to, std::size_t at,
+                             ptr<string> from,
+                             std::size_t start, std::size_t end) {
+  while (start != end) {
+    if (at > to->value().size())
+      throw std::runtime_error{"Invalid at index"};
+    if (start > from->value().size())
+      throw std::runtime_error{"Invalid start/end"};
+
+    char32_t c = string_ref_cursor(from, {start});
+    std::size_t c_len = utf8_code_point_byte_length(from->value()[start]);
+
+    to->set_cursor({at}, c);
+
+    start += c_len;
+    at += c_len;
+  }
+}
+
+static std::size_t
+find_end_of_target_range(ptr<string> to, std::size_t at,
+                         ptr<string> from,
+                         std::size_t start, std::size_t end) {
+  while (start != end) {
+    if (at > to->value().size())
+      throw std::runtime_error{"Invalid at index"};
+    if (start > from->value().size())
+      throw std::runtime_error{"Invalid start/end"};
+
+    std::size_t c_len = utf8_code_point_byte_length(from->value()[start]);
+    start += c_len;
+    at += c_len;
+  }
+
+  return at;
+}
+
+static void
+string_copy_mutative_backward(ptr<string> to, std::size_t at,
+                              ptr<string> from,
+                              std::size_t start, std::size_t end) {
+  at = find_end_of_target_range(to, at, from, start, end);
+
+  while (start != end) {
+    if (end == 0 || end < start)
+      throw std::runtime_error{"Invalid start/end"};
+
+    std::size_t before_at = previous_code_point_byte_index(to, at);
+    std::size_t before_end = previous_code_point_byte_index(from, end);
+
+    to->set_cursor({before_at}, string_ref_cursor(from, {before_end}));
+
+    at = before_at;
+    end = before_end;
+  }
+}
+
+static void
+string_copy_mutative(ptr<string> to, ptr<> at,
+                     ptr<string> from, ptr<> start, ptr<> end) {
+  std::size_t at_idx = to_byte_index(at);
+  std::size_t start_idx = to_byte_index(start);
+  std::size_t end_idx = to_byte_index(end);
+
+  if (to == from && start_idx < at_idx)
+    string_copy_mutative_backward(to, at_idx, from, start_idx, end_idx);
+  else
+    string_copy_mutative_forward(to, at_idx, from, start_idx, end_idx);
+}
+
+static void
 string_append_in_place(ptr<string> s, ptr<string> t) {
   s->append(t->value());
 }
 
-static integer
+static string_cursor
 string_contains_byte_indexes(ptr<string> haystack, ptr<string> needle,
                              std::size_t haystack_start,
                              std::size_t haystack_end,
@@ -551,12 +629,12 @@ string_contains_byte_indexes(ptr<string> haystack, ptr<string> needle,
   auto result = h.find(n.data() + needle_start, haystack_start,
                        needle_end - needle_start);
   if (result == std::string::npos || result > haystack_end)
-    return static_cast<integer::value_type>(haystack_end);
+    return {haystack_end};
   else
-    return integer{static_cast<integer::value_type>(result)};
+    return {result};
 }
 
-static integer
+static string_cursor
 string_contains(ptr<string> haystack, ptr<string> needle,
                 ptr<> haystack_start, ptr<> haystack_end,
                 ptr<> needle_start, ptr<> needle_end) {
@@ -567,7 +645,7 @@ string_contains(ptr<string> haystack, ptr<string> needle,
                                       to_byte_index(needle_end));
 }
 
-static integer
+static string_cursor
 string_contains_right_byte_indexes(ptr<string> haystack, ptr<string> needle,
                                    std::size_t haystack_start,
                                    std::size_t haystack_end,
@@ -587,17 +665,17 @@ string_contains_right_byte_indexes(ptr<string> haystack, ptr<string> needle,
   std::size_t haystack_size = haystack_end - haystack_start;
   std::size_t needle_size = needle_end - needle_start;
   if (needle_size > haystack_size)
-    return static_cast<integer::value_type>(haystack_end);
+    return {haystack_end};
 
   auto result = h.rfind(n.data() + needle_start, haystack_end - needle_size,
                         needle_size);
   if (result == std::string::npos || result < haystack_start)
-    return static_cast<integer::value_type>(haystack_end);
+    return {haystack_end};
   else
-    return integer{static_cast<integer::value_type>(result)};
+    return {result};
 }
 
-static integer
+static string_cursor
 string_contains_right(ptr<string> haystack, ptr<string> needle,
                       ptr<> haystack_start, ptr<> haystack_end,
                       ptr<> needle_start, ptr<> needle_end) {
@@ -606,6 +684,36 @@ string_contains_right(ptr<string> haystack, ptr<string> needle,
                                             to_byte_index(haystack_end),
                                             to_byte_index(needle_start),
                                             to_byte_index(needle_end));
+}
+
+static integer
+string_cursor_diff(ptr<string> s, string_cursor start, string_cursor end) {
+  integer::value_type position = 0;
+
+  while (start != end) {
+    start = string_cursor_next(s, start);
+    ++position;
+  }
+
+  return position;
+}
+
+static integer
+string_cursor_to_index(ptr<string> s, ptr<> x) {
+  if (auto c = match<string_cursor>(x))
+    return string_cursor_diff(s, {0}, *c);
+  else
+    return expect<integer>(x);
+}
+
+static bool
+string_cursor_eq(ptr<> lhs, ptr<> rhs) {
+  return to_byte_index(lhs) == to_byte_index(rhs);
+}
+
+static bool
+string_cursor_lt(ptr<> lhs, ptr<> rhs) {
+  return to_byte_index(lhs) < to_byte_index(rhs);
 }
 
 static bool
@@ -641,6 +749,24 @@ export_string(context& ctx, ptr<module_> result) {
                                             result);
   define_constant_evaluable_procedure<&string::length>(ctx, "string-length",
                                                        result);
+  define_constant_evaluable_procedure<string_cursor_start>(
+    ctx, "string-cursor-start", result
+  );
+  define_constant_evaluable_procedure<string_cursor_end>(
+    ctx, "string-cursor-end", result
+  );
+  define_constant_evaluable_procedure<string_cursor_next>(
+    ctx, "string-cursor-next*", result
+  );
+  define_constant_evaluable_procedure<string_cursor_prev>(
+    ctx, "string-cursor-prev*", result
+  );
+  define_constant_evaluable_procedure<string_cursor_diff>(
+    ctx, "string-cursor-diff*", result
+  );
+  define_constant_evaluable_procedure<string_cursor_to_index>(
+    ctx, "string-cursor->index", result
+  );
   define_raw_procedure<string_append>(ctx, "string-append", result);
   define_procedure<string_append_in_place>(ctx, "string-append!", result);
   define_procedure<symbol_to_string>(ctx, "symbol->string", result);
@@ -654,13 +780,18 @@ export_string(context& ctx, ptr<module_> result) {
   define_constant_evaluable_procedure<is_string_null>(ctx, "string-null?",
                                                       result);
   define_procedure<string_reverse>(ctx, "string-reverse*", result);
-  define_procedure<string_copy>(ctx, "string-copy", result);
+  define_procedure<string_copy>(ctx, "string-copy*", result);
+  define_procedure<string_copy_mutative>(ctx, "string-copy!*", result);
   define_procedure<string_contains>(
-    ctx, "string-contains", result
+    ctx, "string-contains*", result
   );
   define_procedure<string_contains_right>(
-    ctx, "string-contains-right", result
+    ctx, "string-contains-right*", result
   );
+  define_constant_evaluable_procedure<string_cursor_eq>(ctx, "string-cursor=?",
+                                                        result);
+  define_constant_evaluable_procedure<string_cursor_lt>(ctx, "string-cursor<?",
+                                                        result);
   define_constant_evaluable_procedure<string_eq>(ctx, "string=?/pair", result);
   define_constant_evaluable_procedure<string_lt>(ctx, "string<?/pair", result);
   define_constant_evaluable_procedure<string_le>(ctx, "string<=?/pair", result);
@@ -671,7 +802,7 @@ export_string(context& ctx, ptr<module_> result) {
   define_procedure<
     static_cast<ptr<string> (*)(context&, ptr<string>)>(&string_foldcase)
   >(ctx, "string-foldcase", result);
-  define_procedure<string_to_utf8>(ctx, "string->utf8", result);
+  define_procedure<string_to_utf8>(ctx, "string->utf8*", result);
   define_procedure<utf8_to_string>(ctx, "utf8->string*", result);
 }
 

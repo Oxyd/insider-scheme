@@ -63,6 +63,7 @@ public:
     ptr<parameter_tag> interaction_environment_specifier_tag;
     ptr<symbol>        integer_type_symbol;
     ptr<symbol>        character_type_symbol;
+    ptr<symbol>        string_cursor_type_symbol;
   };
 
   free_store                       store;
@@ -207,6 +208,8 @@ type(context& ctx, ptr<> o) {
     return ctx.constants->integer_type_symbol;
   else if (is_character(o))
     return ctx.constants->character_type_symbol;
+  else if (is_string_cursor(o))
+    return ctx.constants->string_cursor_type_symbol;
 
   assert(false);
   return {};

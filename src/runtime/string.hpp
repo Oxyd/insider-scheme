@@ -123,7 +123,8 @@ ptr<bytevector>
 string_to_utf8(context&, ptr<string>, string_cursor start, string_cursor end);
 
 ptr<string>
-string_reverse(context&, ptr<string>, std::size_t begin, std::size_t end);
+string_reverse_byte_indexes(context&, ptr<string>,
+                            std::size_t begin, std::size_t end);
 
 inline std::size_t
 string_byte_length(ptr<string> s) {

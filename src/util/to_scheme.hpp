@@ -62,6 +62,12 @@ struct to_scheme_converter<char32_t> {
 };
 
 template <>
+struct to_scheme_converter<string_cursor> {
+  static ptr<>
+  convert(context&, string_cursor c) { return string_cursor_to_ptr(c); }
+};
+
+template <>
 struct to_scheme_converter<bool> {
   static ptr<>
   convert(context& ctx, bool b) {
