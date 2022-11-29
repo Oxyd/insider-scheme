@@ -69,12 +69,10 @@
   (and (exact-integer? obj) (>= obj 0)))
 
 (define (string-cursor->byte-index c)
-  ;; -(c + 1) = -c - 1 = -1 - c
-  (- -1 c))
+  (- (+ c 1)))
 
 (define (byte-index->string-cursor bi)
-  ;; -b - 1 = -b - 1 = -1 - b
-  (- -1 bi))
+  (- (- bi) 1))
 
 (define (string-cursor-start s)
   (byte-index->string-cursor 0))
