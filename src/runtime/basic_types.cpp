@@ -438,6 +438,8 @@ uncaught_exception_inner_exception(ptr<uncaught_exception> e) {
 
 void
 export_basic_types(context& ctx, ptr<module_> result) {
+  define_constant_evaluable_procedure<is_default_value>(ctx, "default-value?",
+                                                        result);
   define_raw_procedure<list>(ctx, "list", result);
   define_procedure<list_to_vector>(ctx, "list->vector", result);
   define_raw_procedure<vector_to_list>(ctx, "vector->list", result);

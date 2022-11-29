@@ -117,7 +117,8 @@ built_in_operations_visitor::operations[]{
   {"write-char", opcode::write_char, 2, false},
   {"read-u8", opcode::read_u8, 1, true},
   {"peek-u8", opcode::peek_u8, 1, true},
-  {"write-u8", opcode::write_u8, 2, false}
+  {"write-u8", opcode::write_u8, 2, false},
+  {"default-value?", opcode::is_default_value, 1, true},
 };
 
 built_in_operations_visitor::built_in_operations_visitor(context& ctx)

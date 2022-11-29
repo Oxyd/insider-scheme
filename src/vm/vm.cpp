@@ -1007,6 +1007,9 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::write_u8:
     procedure_instruction<write_u8>(state);
     break;
+  case opcode::is_default_value:
+    procedure_instruction<is_default_value>(state);
+    break;
 
   default:
     assert(false); // Invalid opcode

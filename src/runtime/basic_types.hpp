@@ -50,6 +50,9 @@ public:
   static constexpr word_type static_type_index = type_indexes::default_value;
 };
 
+inline bool
+is_default_value(ptr<> x) { return is<default_value_type>(x); }
+
 // Dummy value for identifying parameters.
 class parameter_tag : public leaf_object<parameter_tag> {
 public:

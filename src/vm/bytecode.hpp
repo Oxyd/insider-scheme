@@ -108,6 +108,7 @@ enum class opcode : std::uint16_t {
   read_u8,
   peek_u8,
   write_u8,
+  is_default_value,
 };
 
 // Metainformation about an opcode. Used for decoding instructions.
@@ -242,7 +243,8 @@ instructions{
   std::tuple{"write-char", opcode::write_char, std::size_t{2}},
   std::tuple{"read-u8", opcode::read_u8, std::size_t{2}},
   std::tuple{"peek-u8", opcode::peek_u8, std::size_t{2}},
-  std::tuple{"write-u8", opcode::write_u8, std::size_t{2}}
+  std::tuple{"write-u8", opcode::write_u8, std::size_t{2}},
+  std::tuple{"default-value?", opcode::is_default_value, std::size_t{2}},
 };
 
 inline auto const // std::array<instruction_info, N>

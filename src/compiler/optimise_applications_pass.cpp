@@ -103,21 +103,28 @@ visit_scheme_application(context& ctx, ptr<application_expression> app,
   return app;
 }
 
+template <auto Test>
 static bool
-is_literal_one(ptr<literal_expression> lit) {
-  if (auto i = match<integer>(lit->value()))
+is_literal_visitor(ptr<literal_expression> lit) {
+  return Test(lit->value());
+}
+
+template <auto>
+static bool
+is_literal_visitor(auto) { return false; }
+
+template <auto Test>
+static bool
+is_literal(expression e) {
+  return visit([] (auto expr) { return is_literal_visitor<Test>(expr); }, e);
+}
+
+constexpr auto is_literal_one = is_literal<[] (ptr<> value) {
+  if (auto i = match<integer>(value))
     return i->value() == 1;
   else
     return false;
-}
-
-static bool
-is_literal_one(auto) { return false; }
-
-static bool
-is_literal_one(expression e) {
-  return visit([] (auto expr) { return is_literal_one(expr); }, e);
-}
+}>;
 
 static ptr<application_expression>
 addition_substitutor(context& ctx, ptr<application_expression> app) {
@@ -149,6 +156,28 @@ subtraction_substitutor(context& ctx, ptr<application_expression> app) {
         app->arguments()[0]
       );
   }
+
+  return app;
+}
+
+constexpr auto is_default_value_literal = is_literal<is_default_value>;
+
+static ptr<application_expression>
+eq_substitutor(context& ctx, ptr<application_expression> app) {
+  assert(app->arguments().size() == 2);
+
+  if (is_default_value_literal(app->arguments()[0]))
+    return make<application_expression>(
+      ctx,
+      make_internal_reference(ctx, "default-value?"),
+      app->arguments()[1]
+    );
+  else if (is_default_value_literal(app->arguments()[1]))
+    return make<application_expression>(
+      ctx,
+      make_internal_reference(ctx, "default-value?"),
+      app->arguments()[0]
+    );
 
   return app;
 }
@@ -211,7 +240,8 @@ namespace {
 static substitutor_definition
 substitutors[]{
   {"+", addition_substitutor},
-  {"-", subtraction_substitutor}
+  {"-", subtraction_substitutor},
+  {"eq?", eq_substitutor}
 };
 
 application_visitor:: application_visitor(context& ctx)

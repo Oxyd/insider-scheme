@@ -2133,26 +2133,38 @@ TEST_F(ast, special_procedure_is_not_replaced_when_called_with_unusual_arity) {
   EXPECT_TRUE(is<application_expression>(e));
 }
 
-TEST_F(ast, adding_one_uses_increment_instruction) {
-  expression e = analyse(
-    "(lambda (x) (+ 1 x))",
-    {&analyse_variables, &optimise_applications, &inline_built_in_operations}
-  );
+static ptr<built_in_operation_expression>
+find_built_in_operation(expression e) {
   auto lambda = expect<lambda_expression>(e);
   auto body = ignore_lets_and_sequences(lambda->body());
-  auto op = expect<built_in_operation_expression>(body);
+  return expect<built_in_operation_expression>(body);
+}
+
+TEST_F(ast, adding_one_uses_increment_instruction) {
+  auto op = find_built_in_operation(
+    analyse("(lambda (x) (+ 1 x))",
+            {&analyse_variables, &optimise_applications,
+             &inline_built_in_operations})
+  );
   EXPECT_EQ(op->operation(), opcode::increment);
 }
 
 TEST_F(ast, subtracting_one_uses_decrement_instruction) {
-  expression e = analyse(
-    "(lambda (x) (- x 1))",
-    {&analyse_variables, &optimise_applications, &inline_built_in_operations}
+  auto op = find_built_in_operation(
+    analyse("(lambda (x) (- x 1))",
+            {&analyse_variables, &optimise_applications,
+             &inline_built_in_operations})
   );
-  auto lambda = expect<lambda_expression>(e);
-  auto body = ignore_lets_and_sequences(lambda->body());
-  auto op = expect<built_in_operation_expression>(body);
   EXPECT_EQ(op->operation(), opcode::decrement);
+}
+
+TEST_F(ast, eq_comparison_with_default_value_uses_instruction) {
+  auto op = find_built_in_operation(
+    analyse("(lambda (x) (eq? x #default-value))",
+            {&analyse_variables, &optimise_applications,
+             &inline_built_in_operations})
+  );
+  EXPECT_EQ(op->operation(), opcode::is_default_value);
 }
 
 TEST_F(ast, variable_bound_to_another_variable_is_inlined) {
