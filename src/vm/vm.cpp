@@ -162,6 +162,13 @@ load_fixnum(execution_state& state) {
 }
 
 static void
+load_character(execution_state& state) {
+  immediate_type value = operand_to_immediate(read_operand(state));
+  operand dest = read_operand(state);
+  state.stack->local(dest) = character_to_ptr(static_cast<char32_t>(value));
+}
+
+static void
 arithmetic(opcode opcode, execution_state& state) {
   ptr<> lhs = state.stack->local(read_operand(state));
   ptr<> rhs = state.stack->local(read_operand(state));
@@ -912,6 +919,7 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::load_eof:               load_eof(state);                  break;
   case opcode::load_default_value:     load_default_value(state);        break;
   case opcode::load_fixnum:            load_fixnum(state);               break;
+  case opcode::load_character:         load_character(state);            break;
   case opcode::add:
   case opcode::subtract:
   case opcode::multiply:

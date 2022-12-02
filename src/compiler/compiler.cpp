@@ -651,18 +651,25 @@ compile_expression(context&, procedure_context& proc,
     emit_variable_reference(proc, stx->variable(), result);
 }
 
+template <opcode Op, auto ToScheme>
 static void
-compile_fixnum_reference(context& ctx, procedure_context& proc,
-                         integer::value_type value, result_location& result) {
+compile_immediate_reference(context& ctx, procedure_context& proc,
+                            int64_t value, result_location& result) {
   if (value >= immediate_min && value <= immediate_max)
-    proc.emit(opcode::load_fixnum,
+    proc.emit(Op,
               immediate_to_operand(static_cast<immediate_type>(value)),
               *result.get(proc));
   else
     proc.emit(opcode::load_constant,
-              proc.intern_constant(ctx, integer_to_ptr(value)),
+              proc.intern_constant(ctx, ToScheme(value)),
               *result.get(proc));
 }
+
+static constexpr auto compile_fixnum_reference
+  = compile_immediate_reference<opcode::load_fixnum, integer_to_ptr>;
+
+static constexpr auto compile_character_reference
+  = compile_immediate_reference<opcode::load_character, character_to_ptr>;
 
 static void
 compile_static_reference(context& ctx, procedure_context& proc, ptr<> value,
@@ -684,6 +691,8 @@ compile_static_reference(context& ctx, procedure_context& proc, ptr<> value,
     proc.emit(opcode::load_default_value, *result.get(proc));
   else if (auto fx = match<integer>(value))
     compile_fixnum_reference(ctx, proc, fx->value(), result);
+  else if (auto c = match<char32_t>(value))
+    compile_character_reference(ctx, proc, *c, result);
   else
     proc.emit(opcode::load_constant, proc.intern_constant(ctx, value),
               *result.get(proc));
