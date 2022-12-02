@@ -107,6 +107,8 @@ private:
 class textual_input_port : public leaf_object<textual_input_port> {
 public:
   static constexpr char const* scheme_name = "insider::textual_input_port";
+  static constexpr word_type static_type_index
+    = type_indexes::textual_input_port;
 
   textual_input_port(std::unique_ptr<port_source>, std::string name);
 
@@ -188,6 +190,7 @@ write_char(char32_t c, ptr<textual_output_port> out);
 class binary_input_port : public leaf_object<binary_input_port> {
 public:
   static constexpr char const* scheme_name = "insider::binary_input_port";
+  static constexpr word_type static_type_index = type_indexes::binary_input_port;
 
   explicit
   binary_input_port(std::unique_ptr<port_source>);
@@ -274,6 +277,8 @@ private:
 class textual_output_port : public leaf_object<textual_output_port> {
 public:
   static constexpr char const* scheme_name = "insider::textual_output_port";
+  static constexpr word_type static_type_index
+    = type_indexes::textual_output_port;
 
   explicit
   textual_output_port(std::unique_ptr<port_sink>);
@@ -306,6 +311,8 @@ private:
 class binary_output_port : public leaf_object<binary_output_port> {
 public:
   static constexpr char const* scheme_name = "insider::binary_output_port";
+  static constexpr word_type static_type_index
+    = type_indexes::binary_output_port;
 
   explicit
   binary_output_port(std::unique_ptr<port_sink>);

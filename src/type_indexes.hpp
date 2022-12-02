@@ -32,7 +32,11 @@ enum index {
   symbol,
   keyword,
   syntax,
-  scope
+  scope,
+  textual_input_port,
+  binary_input_port,
+  textual_output_port,
+  binary_output_port,
 };
 
 } // namespace insider::type_indexes
