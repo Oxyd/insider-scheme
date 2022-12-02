@@ -134,10 +134,7 @@
 (define (write-string s (port (current-output-port))
                       (start (string-cursor-start s))
                       (end (string-cursor-end s)))
-  (string-for-each-cursor
-   (lambda (cursor)
-     (write-char (string-ref/cursor s cursor) port))
-   s start end))
+  (display (substring s start end) port))
 
 (define (flush-output-port (port (current-output-port)))
   (%flush-output-port port))
