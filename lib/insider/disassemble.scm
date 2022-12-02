@@ -38,10 +38,10 @@
 (define (format-immediate imm)
   (string-append "$" (number->string (immediate-value imm))))
 
-(define (format-load-fixnum instr)
+(define (format-load-immediate instr)
   (let ((operands (instruction-operands instr)))
     (let ((imm (car operands)) (dest (cadr operands)))
-      (string-append (format-mnemonic 'load-fixnum)
+      (string-append (format-mnemonic (instruction-mnemonic instr))
                      " "
                      (format-immediate imm)
                      ", "
@@ -71,10 +71,10 @@
 
 (define (format-instruction instr)
   (case (instruction-mnemonic instr)
-    ((load-fixnum) (format-load-fixnum instr))
-    ((jump)        (format-jump instr))
-    ((jump-unless) (format-jump-unless instr))
-    (else          (format-general-instruction instr))))
+    ((load-fixnum load-character) (format-load-immediate instr))
+    ((jump)                       (format-jump instr))
+    ((jump-unless)                (format-jump-unless instr))
+    (else                         (format-general-instruction instr))))
 
 (define (related-constant instr)
   (case (instruction-mnemonic instr)
