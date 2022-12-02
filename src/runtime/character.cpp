@@ -123,6 +123,92 @@ integer_to_char(integer i) {
   return static_cast<char32_t>(i.value());
 }
 
+template <auto Compare>
+static ptr<>
+char_compare(context& ctx, object_span args) {
+  if (args.size() < 2)
+    throw std::runtime_error{"Expected at least 2 arguments"};
+
+  char32_t lhs = expect<char32_t>(args[0]);
+  for (std::size_t i = 1; i < args.size(); ++i) {
+    char32_t rhs = expect<char32_t>(args[i]);
+    if (!Compare(lhs, rhs))
+      return ctx.constants->f;
+
+    lhs = rhs;
+  }
+
+  return ctx.constants->t;
+}
+
+static constexpr auto char_eq = char_compare<[] (char32_t lhs, char32_t rhs) {
+  return lhs == rhs;
+}>;
+
+static constexpr auto char_lt = char_compare<[] (char32_t lhs, char32_t rhs) {
+  return lhs < rhs;
+}>;
+
+static constexpr auto char_le = char_compare<[] (char32_t lhs, char32_t rhs) {
+  return lhs <= rhs;
+}>;
+
+static constexpr auto char_gt = char_compare<[] (char32_t lhs, char32_t rhs) {
+  return (lhs > rhs); // Parentheses are a workaround for GCC bug.
+}>;
+
+static constexpr auto char_ge = char_compare<[] (char32_t lhs, char32_t rhs) {
+  return lhs >= rhs;
+}>;
+
+template <auto Compare>
+static ptr<>
+char_compare_ci(context& ctx, object_span args) {
+  if (args.size() < 2)
+    throw std::runtime_error{"Expected at least 2 arguments"};
+
+  char32_t lhs = char_foldcase(expect<char32_t>(args[0]));
+  for (std::size_t i = 1; i < args.size(); ++i) {
+    char32_t rhs = char_foldcase(expect<char32_t>(args[i]));
+    if (!Compare(lhs, rhs))
+      return ctx.constants->f;
+
+    lhs = rhs;
+  }
+
+  return ctx.constants->t;
+}
+
+static constexpr auto char_ci_eq = char_compare_ci<
+  [] (char32_t lhs, char32_t rhs) {
+    return lhs == rhs;
+  }
+>;
+
+static constexpr auto char_ci_lt = char_compare_ci<
+  [] (char32_t lhs, char32_t rhs) {
+    return lhs < rhs;
+  }
+>;
+
+static constexpr auto char_ci_le = char_compare_ci<
+  [] (char32_t lhs, char32_t rhs) {
+    return lhs <= rhs;
+  }
+>;
+
+static constexpr auto char_ci_gt = char_compare_ci<
+  [] (char32_t lhs, char32_t rhs) {
+    return (lhs > rhs); // Parentheses are a workaround for GCC bug.
+  }
+>;
+
+static constexpr auto char_ci_ge = char_compare<
+  [] (char32_t lhs, char32_t rhs) {
+    return lhs >= rhs;
+  }
+>;
+
 void
 export_character(context& ctx, ptr<module_> result) {
   define_constant_evaluable_procedure<is_alphabetic>(ctx, "char-alphabetic?",
@@ -144,6 +230,16 @@ export_character(context& ctx, ptr<module_> result) {
                                                      result);
   define_constant_evaluable_procedure<char_foldcase>(ctx, "char-foldcase",
                                                      result);
+  define_constant_evaluable_raw_procedure<char_eq>(ctx, "char=?", result);
+  define_constant_evaluable_raw_procedure<char_lt>(ctx, "char<?", result);
+  define_constant_evaluable_raw_procedure<char_le>(ctx, "char<=?", result);
+  define_constant_evaluable_raw_procedure<char_gt>(ctx, "char>?", result);
+  define_constant_evaluable_raw_procedure<char_ge>(ctx, "char>=?", result);
+  define_constant_evaluable_raw_procedure<char_ci_eq>(ctx, "char-ci=?", result);
+  define_constant_evaluable_raw_procedure<char_ci_lt>(ctx, "char-ci<?", result);
+  define_constant_evaluable_raw_procedure<char_ci_le>(ctx, "char-ci<=?", result);
+  define_constant_evaluable_raw_procedure<char_ci_gt>(ctx, "char-ci>?", result);
+  define_constant_evaluable_raw_procedure<char_ci_ge>(ctx, "char-ci>=?", result);
 }
 
 } // namespace insider

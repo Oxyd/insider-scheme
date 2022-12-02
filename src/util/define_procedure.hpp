@@ -411,10 +411,17 @@ add_native_proc_arg(context& ctx, ptr<native_procedure>, object_span args) {
 
 template <ptr<> (*F)(context&, object_span)>
 inline operand
-define_raw_procedure(context& ctx, std::string name, ptr<module_> m,
-                     bool constant_evaluable = false) {
+define_raw_procedure(context& ctx, std::string name, ptr<module_> m) {
   return define_raw_procedure<add_native_proc_arg<F>>(ctx, std::move(name), m,
-                                                      constant_evaluable);
+                                                      false);
+}
+
+template <ptr<> (*F)(context&, object_span)>
+inline operand
+define_constant_evaluable_raw_procedure(context& ctx, std::string name,
+                                        ptr<module_> m) {
+  return define_raw_procedure<add_native_proc_arg<F>>(ctx, std::move(name), m,
+                                                      true);
 }
 
 } // namespace insider
