@@ -54,13 +54,13 @@ check_argument_count_for_procedure_without_tail(procedure_prototype const& proc,
   if (num_args < min)
     throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
                      *proc.info.name,
-                     is_variadic ? "at least" : "",
+                     is_variadic ? "at least " : "",
                      min,
                      num_args);
   else if (num_args > max)
     throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
                      *proc.info.name,
-                     is_variadic ? "at most" : "",
+                     is_variadic ? "at most " : "",
                      max,
                      num_args);
 }
