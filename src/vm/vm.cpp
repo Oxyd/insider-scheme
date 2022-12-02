@@ -322,6 +322,37 @@ relational(opcode opcode, execution_state& state) {
   }
 }
 
+template <auto Compare>
+static void
+char_compare(execution_state& state) {
+  auto lhs = expect<char32_t>(state.stack->local(read_operand(state)));
+  auto rhs = expect<char32_t>(state.stack->local(read_operand(state)));
+  operand dest = read_operand(state);
+  bool result = Compare(lhs, rhs);
+  state.stack->local(dest)
+    = result ? state.ctx.constants->t : state.ctx.constants->f;
+}
+
+static constexpr auto char_eq = char_compare<[] (char32_t lhs, char32_t rhs) {
+  return lhs == rhs;
+}>;
+
+static constexpr auto char_lt = char_compare<[] (char32_t lhs, char32_t rhs) {
+  return lhs < rhs;
+}>;
+
+static constexpr auto char_le = char_compare<[] (char32_t lhs, char32_t rhs) {
+  return lhs <= rhs;
+}>;
+
+static constexpr auto char_gt = char_compare<[] (char32_t lhs, char32_t rhs) {
+  return (lhs > rhs);
+}>;
+
+static constexpr auto char_ge = char_compare<[] (char32_t lhs, char32_t rhs) {
+  return lhs >= rhs;
+}>;
+
 static void
 set(execution_state& state) {
   operand src = read_operand(state);
@@ -885,6 +916,11 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::subtract:
   case opcode::multiply:
   case opcode::divide:                 arithmetic(opcode, state);        break;
+  case opcode::char_eq:                char_eq(state);                   break;
+  case opcode::char_lt:                char_lt(state);                   break;
+  case opcode::char_le:                char_le(state);                   break;
+  case opcode::char_gt:                char_gt(state);                   break;
+  case opcode::char_ge:                char_ge(state);                   break;
   case opcode::increment:              increment(state);                 break;
   case opcode::decrement:              decrement(state);                 break;
   case opcode::negate:                 negate(state);                    break;
