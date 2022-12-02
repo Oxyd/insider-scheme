@@ -2,7 +2,8 @@
 (import (insider syntax) (insider control) (insider syntax) (insider error) (insider list)
         (insider string) (insider char) (insider basic-procedures) (insider numeric) (insider bytevector)
         (rename (only (insider internal)
-                      read-char peek-char read-u8 peek-u8 write-u8 write-char
+                      read-char peek-char read-line read-u8 peek-u8 write-u8
+                      write-char
                       flush-output-port char-ready? u8-ready?
                       current-input-port-tag current-output-port-tag current-error-port-tag
                       current-source-file-origin-tag port-open? close-port
@@ -17,6 +18,7 @@
                 (flush-output-port %flush-output-port)
                 (read-char %read-char)
                 (peek-char %peek-char)
+                (read-line %read-line)
                 (write-char %write-char)
                 (read-u8 %read-u8)
                 (peek-u8 %peek-u8)
@@ -97,26 +99,6 @@
 (define (coerce-value x)
   (or x <eof-object>))
 
-(define (read-line (port (current-input-port)))
-  (let ((result (string)))
-    (let loop ()
-      (let ((c (read-char port)))
-        (cond
-         ((eof-object? c)
-          (if (string-null? result)
-              (eof-object)
-              result))
-         ((char=? c #\newline)
-          result)
-         ((char=? c #\return)
-          ;; Consume either \r alone or the sequence \r\n.
-          (when (eq? (peek-char port) #\newline)
-            (read-char port))
-          result)
-         (else
-          (string-append-char! result c)
-          (loop)))))))
-
 (define (read-string k (port (current-input-port)))
   (if (eof-object? (peek-char port))
       (eof-object)
@@ -180,6 +162,9 @@
 
 (define (peek-char (port (current-input-port)))
   (%peek-char port))
+
+(define (read-line (port (current-input-port)))
+  (%read-line port))
 
 (define (write-char c (port (current-output-port)))
   (%write-char c port))

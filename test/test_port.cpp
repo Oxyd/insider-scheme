@@ -86,6 +86,51 @@ TEST_F(port_fixture, read_sequence_of_non_ascii_characters) {
   EXPECT_EQ(p->read_character(), U'ě');
 }
 
+TEST_F(port_fixture, read_complete_line) {
+  auto p = open_input_string("foo\nbar\n");
+  EXPECT_EQ(p->read_line(), "foo");
+}
+
+TEST_F(port_fixture, read_partial_line_terminated_by_eof) {
+  auto p = open_input_string("foo");
+  EXPECT_EQ(p->read_line(), "foo"); 
+}
+
+TEST_F(port_fixture, read_empty_line) {
+  auto p = open_input_string("\n");
+  EXPECT_EQ(p->read_line(), ""); 
+}
+
+TEST_F(port_fixture, read_two_lines) {
+  auto p = open_input_string("foo\nbar\n");
+  EXPECT_EQ(p->read_line(), "foo");
+  EXPECT_EQ(p->read_line(), "bar"); 
+}
+
+TEST_F(port_fixture, read_line_terminated_by_cr) {
+  auto p = open_input_string("foo\rbar");
+  EXPECT_EQ(p->read_line(), "foo");
+  EXPECT_EQ(p->read_line(), "bar"); 
+}
+
+TEST_F(port_fixture, read_line_terminated_by_crlf) {
+  auto p = open_input_string("foo\r\nbar");
+  EXPECT_EQ(p->read_line(), "foo");
+  EXPECT_EQ(p->read_line(), "bar");
+}
+
+TEST_F(port_fixture, read_empty_port) {
+  auto p = open_input_string("");
+  EXPECT_FALSE(p->read_line());
+}
+
+TEST_F(port_fixture, read_empty_port_after_reading_two_lines) {
+  auto p = open_input_string("foo\nbar\n");
+  EXPECT_EQ(p->read_line(), "foo");
+  EXPECT_EQ(p->read_line(), "bar");
+  EXPECT_FALSE(p->read_line());
+}
+
 TEST_F(port_fixture, rewind) {
   auto p = open_input_string("abc");
   p->read_character();

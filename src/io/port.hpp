@@ -124,6 +124,9 @@ public:
   std::optional<char32_t>
   read_character();
 
+  std::optional<std::string>
+  read_line();
+
   void
   rewind();
 

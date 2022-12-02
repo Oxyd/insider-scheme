@@ -150,6 +150,28 @@ textual_input_port::read_character() {
     return flush_read_buffer();
 }
 
+std::optional<std::string>
+textual_input_port::read_line() {
+  if (!source_)
+    return {};
+
+  auto byte = source_->read();
+  if (!byte)
+    return {};
+
+  std::string result;
+  while (byte && byte != '\n' && byte != '\r') {
+    result += static_cast<char>(*byte);
+    byte = source_->read();
+  }
+
+  if (byte == '\r')
+    if (source_->peek() == '\n')
+      source_->read();
+
+  return result;
+}
+
 void
 textual_input_port::rewind() {
   if (source_)
@@ -499,6 +521,14 @@ peek_char(context& ctx, ptr<textual_input_port> port) {
     return ctx.constants->eof;
 }
 
+ptr<>
+read_line(context& ctx, ptr<textual_input_port> port) {
+  if (auto line = port->read_line())
+    return make<string>(ctx, *line);
+  else
+    return ctx.constants->eof;
+}
+
 void
 write_char(char32_t c, ptr<textual_output_port> out) {
   out->write(c);
@@ -548,6 +578,7 @@ export_port(context& ctx, ptr<module_> result) {
                                                         result);
   define_procedure<read_char>(ctx, "read-char", result);
   define_procedure<peek_char>(ctx, "peek-char", result);
+  define_procedure<read_line>(ctx, "read-line", result);
   define_procedure<write_char>(ctx, "write-char", result);
   define_procedure<read_u8>(ctx, "read-u8", result);
   define_procedure<peek_u8>(ctx, "peek-u8", result);
