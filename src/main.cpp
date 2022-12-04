@@ -146,6 +146,7 @@ run_repl(insider::context& ctx) {
   while (true)
     try {
       output_port->write("> ");
+      output_port->flush();
 
       insider::ptr<> expr
         = insider::read_syntax(ctx, input_port.get());

@@ -24,7 +24,7 @@ public:
   read() = 0;
 
   virtual std::optional<std::uint8_t>
-  peek() const = 0;
+  peek() = 0;
 
   virtual void
   rewind() = 0;
@@ -47,7 +47,7 @@ public:
   read() override;
 
   std::optional<std::uint8_t>
-  peek() const override;
+  peek() override;
 
   void
   rewind() override;
@@ -56,8 +56,17 @@ public:
   byte_ready() const override;
 
 private:
-  FILE* f_;
-  bool  should_close_;
+  FILE*                           f_;
+  bool                            should_close_;
+  std::unique_ptr<std::uint8_t[]> buffer_;
+  std::size_t                     buffer_size_ = 0;
+  std::size_t                     buffer_pos_  = 0;
+
+  void
+  fill_buffer();
+
+  bool
+  buffer_empty() const { return buffer_pos_ == buffer_size_; }
 };
 
 class string_port_source final : public port_source {
@@ -69,7 +78,7 @@ public:
   read() override;
 
   std::optional<std::uint8_t>
-  peek() const override;
+  peek() override;
 
   void
   rewind() override;
@@ -91,7 +100,7 @@ public:
   read() override;
 
   std::optional<std::uint8_t>
-  peek() const override;
+  peek() override;
 
   void
   rewind() override;

@@ -24,9 +24,12 @@ port_source::read_if_available() {
     return std::nullopt;
 }
 
+static constexpr std::size_t file_buffer_capacity = 4096;
+
 file_port_source::file_port_source(FILE* f, bool should_close)
   : f_{f}
   , should_close_{should_close}
+  , buffer_{std::make_unique<std::uint8_t[]>(file_buffer_capacity)}
 { }
 
 file_port_source::~file_port_source() {
@@ -36,30 +39,38 @@ file_port_source::~file_port_source() {
 
 std::optional<std::uint8_t>
 file_port_source::read() {
-  int byte = std::getc(f_);
-  if (byte != EOF)
-    return static_cast<std::uint8_t>(byte);
-  else
+  if (buffer_empty())
+    fill_buffer();
+
+  if (buffer_empty())
     return {};
+
+  return buffer_[buffer_pos_++];
 }
 
 std::optional<std::uint8_t>
-file_port_source::peek() const {
-  int byte = std::getc(f_);
-  if (byte == EOF)
+file_port_source::peek() {
+  if (buffer_empty())
+    fill_buffer();
+
+  if (buffer_empty())
     return {};
 
-  std::ungetc(byte, f_);
-  return static_cast<std::uint8_t>(byte);
+  return buffer_[buffer_pos_];
 }
 
 void
 file_port_source::rewind() {
   std::rewind(f_);
+  buffer_pos_ = 0;
+  buffer_size_ = 0;
 }
 
 bool
 file_port_source::byte_ready() const {
+  if (!buffer_empty())
+    return true;
+
 #ifndef WIN32
   pollfd pfd{};
   pfd.fd = fileno(f_);
@@ -70,6 +81,13 @@ file_port_source::byte_ready() const {
   // console and pipes, so they could be special-cased somehow.
   return true;
 #endif
+}
+
+void
+file_port_source::fill_buffer() {
+  assert(buffer_empty());
+  buffer_size_ = std::fread(buffer_.get(), 1, file_buffer_capacity, f_);
+  buffer_pos_ = 0;
 }
 
 string_port_source::string_port_source(std::string data)
@@ -85,7 +103,7 @@ string_port_source::read() {
 }
 
 std::optional<std::uint8_t>
-string_port_source::peek() const {
+string_port_source::peek() {
   if (position_ == data_.length())
     return {};
   else
@@ -110,7 +128,7 @@ bytevector_port_source::read() {
 }
 
 std::optional<std::uint8_t>
-bytevector_port_source::peek() const {
+bytevector_port_source::peek() {
   if (position_ == data_.size())
     return {};
   else
