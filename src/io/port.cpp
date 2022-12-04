@@ -59,6 +59,56 @@ file_port_source::read() {
   return buffer_[buffer_pos_++];
 }
 
+static bool
+is_eol(std::uint8_t byte) {
+  return byte == '\r' || byte == '\n';
+}
+
+static std::tuple<std::size_t, bool>
+advance_until_eol(std::size_t pos, std::uint8_t const* buffer,
+                  std::size_t buffer_size) {
+  while (pos < buffer_size) {
+    std::uint8_t byte = buffer[pos];
+    if (is_eol(byte))
+      return {pos, true};
+    else
+      ++pos;
+  }
+
+  return {pos, false};
+}
+
+static void
+append_bytes(std::vector<std::uint8_t>& bytes,
+             std::uint8_t const* buffer, std::size_t start, std::size_t end) {
+  std::size_t old_size = bytes.size();
+  std::size_t new_size = old_size + end - start;
+  bytes.resize(new_size);
+  std::copy(buffer + start, buffer + end, bytes.begin() + old_size);
+}
+
+std::vector<std::uint8_t>
+file_port_source::read_until_eol() {
+  std::vector<std::uint8_t> result;
+  bool got_eol = false;
+
+  while (!got_eol) {
+    std::size_t start = buffer_pos_;
+    std::tie(buffer_pos_, got_eol)
+      = advance_until_eol(buffer_pos_, buffer_.get(), buffer_size_);
+
+    append_bytes(result, buffer_.get(), start, buffer_pos_);
+
+    if (buffer_empty())
+      fill_buffer();
+
+    if (buffer_empty())
+      break;
+  }
+
+  return result;
+}
+
 std::optional<std::uint8_t>
 file_port_source::peek() {
   if (buffer_empty())
@@ -120,6 +170,18 @@ stdin_source::read() {
     return static_cast<std::uint8_t>(result);
 }
 
+std::vector<std::uint8_t>
+stdin_source::read_until_eol() {
+  std::vector<std::uint8_t> result;
+  auto c = peek();
+  while (c && !is_eol(*c)) {
+    result.push_back(*c);
+    read();
+    c = peek();
+  }
+  return result;
+}
+
 std::optional<std::uint8_t>
 stdin_source::peek() {
   if (auto c = read()) {
@@ -151,6 +213,17 @@ string_port_source::read() {
     return data_[position_++];
 }
 
+static constexpr std::array<std::uint8_t, 2> eol_characters{{'\r', '\n'}};
+
+std::vector<std::uint8_t>
+string_port_source::read_until_eol() {
+  auto end = std::find_first_of(data_.begin() + position_, data_.end(),
+                                eol_characters.begin(), eol_characters.end());
+  std::vector<std::uint8_t> result(data_.begin() + position_, end);
+  position_ = end - data_.begin();
+  return result;
+}
+
 std::optional<std::uint8_t>
 string_port_source::peek() {
   if (position_ == data_.length())
@@ -174,6 +247,15 @@ bytevector_port_source::read() {
     return {};
   else
     return data_[position_++];
+}
+
+std::vector<std::uint8_t>
+bytevector_port_source::read_until_eol() {
+  auto end = std::find_first_of(data_.begin() + position_, data_.end(),
+                                eol_characters.begin(), eol_characters.end());
+  std::vector<std::uint8_t> result(data_.begin() + position_, end);
+  position_ = end - data_.begin();
+  return result;
 }
 
 std::optional<std::uint8_t>
@@ -222,21 +304,18 @@ textual_input_port::read_line() {
   if (!source_)
     return {};
 
-  auto byte = source_->read();
-  if (!byte)
-    return {};
-
-  std::string result;
-  while (byte && byte != '\n' && byte != '\r') {
-    result += static_cast<char>(*byte);
-    byte = source_->read();
-  }
-
-  if (byte == '\r')
+  auto bytes = source_->read_until_eol();
+  auto next = source_->peek();
+  if (next == '\r') {
+    source_->read();
     if (source_->peek() == '\n')
       source_->read();
+  } else if (next == '\n') {
+    source_->read();
+  } else if (bytes.empty())
+    return {};
 
-  return result;
+  return std::string(bytes.begin(), bytes.end());
 }
 
 void

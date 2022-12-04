@@ -23,6 +23,9 @@ public:
   virtual std::optional<std::uint8_t>
   read() = 0;
 
+  virtual std::vector<std::uint8_t>
+  read_until_eol() = 0;
+
   virtual std::optional<std::uint8_t>
   peek() = 0;
 
@@ -45,6 +48,9 @@ public:
 
   std::optional<std::uint8_t>
   read() override;
+
+  std::vector<std::uint8_t>
+  read_until_eol() override;
 
   std::optional<std::uint8_t>
   peek() override;
@@ -76,6 +82,9 @@ public:
   std::optional<std::uint8_t>
   read() override;
 
+  std::vector<std::uint8_t>
+  read_until_eol() override;
+
   std::optional<std::uint8_t>
   peek() override;
 
@@ -93,6 +102,9 @@ public:
 
   std::optional<std::uint8_t>
   read() override;
+
+  std::vector<std::uint8_t>
+  read_until_eol() override;
 
   std::optional<std::uint8_t>
   peek() override;
@@ -115,6 +127,9 @@ public:
 
   std::optional<std::uint8_t>
   read() override;
+
+  std::vector<std::uint8_t>
+  read_until_eol() override;
 
   std::optional<std::uint8_t>
   peek() override;
