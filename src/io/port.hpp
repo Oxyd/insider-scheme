@@ -252,6 +252,9 @@ public:
   write(std::uint8_t) = 0;
 
   virtual void
+  write_bytes(std::string const&) = 0;
+
+  virtual void
   flush() { }
 
   virtual std::string
@@ -272,6 +275,9 @@ public:
   write(std::uint8_t) override;
 
   void
+  write_bytes(std::string const&) override;
+
+  void
   flush() override;
 
 private:
@@ -284,6 +290,9 @@ public:
   void
   write(std::uint8_t) override;
 
+  void
+  write_bytes(std::string const&) override;
+
   std::string
   get_string() const override { return data_; }
 
@@ -295,6 +304,9 @@ class bytevector_port_sink final : public port_sink {
 public:
   void
   write(std::uint8_t) override;
+
+  void
+  write_bytes(std::string const&) override;
 
   std::vector<std::uint8_t>
   get_bytevector() const override { return data_; }

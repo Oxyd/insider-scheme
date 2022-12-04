@@ -389,6 +389,11 @@ file_port_sink::write(std::uint8_t byte) {
 }
 
 void
+file_port_sink::write_bytes(std::string const& bytes) {
+  std::fwrite(bytes.data(), 1, bytes.size(), f_);
+}
+
+void
 file_port_sink::flush() {
   std::fflush(f_);
 }
@@ -399,8 +404,22 @@ string_port_sink::write(std::uint8_t byte) {
 }
 
 void
+string_port_sink::write_bytes(std::string const& bytes) {
+  auto old_size = data_.size();
+  data_.resize(old_size + bytes.size());
+  std::ranges::copy(bytes, data_.begin() + old_size);
+}
+
+void
 bytevector_port_sink::write(std::uint8_t byte) {
   data_.push_back(byte);
+}
+
+void
+bytevector_port_sink::write_bytes(std::string const& bytes) {
+  auto old_size = data_.size();
+  data_.resize(old_size + bytes.size());
+  std::ranges::copy(bytes, data_.begin() + old_size);
 }
 
 textual_output_port::textual_output_port(std::unique_ptr<port_sink> sink)
@@ -422,8 +441,7 @@ textual_output_port::write_utf8(char c) {
 void
 textual_output_port::write(std::string const& s) {
   if (sink_)
-    for (char c : s)
-      sink_->write(c);
+    sink_->write_bytes(s);
 }
 
 void
