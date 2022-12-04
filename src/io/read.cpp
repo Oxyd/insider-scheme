@@ -1605,7 +1605,7 @@ read_syntax_multiple_ci_proc(context& ctx, ptr<textual_input_port> p) {
 void
 export_read(context& ctx, ptr<module_> result) {
   auto default_input_port = make<textual_input_port>(
-    ctx, std::make_unique<file_port_source>(stdin, false), "<stdin>"
+    ctx, std::make_unique<stdin_source>(), "<stdin>"
   );
   ctx.constants->current_input_port_tag
     = create_parameter_tag(ctx, default_input_port);

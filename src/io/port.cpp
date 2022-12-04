@@ -26,15 +26,26 @@ port_source::read_if_available() {
 
 static constexpr std::size_t file_buffer_capacity = 4096;
 
-file_port_source::file_port_source(FILE* f, bool should_close)
-  : f_{f}
-  , should_close_{should_close}
-  , buffer_{std::make_unique<std::uint8_t[]>(file_buffer_capacity)}
-{ }
+static FILE*
+open_file(std::filesystem::path const& path,
+          std::filesystem::path::value_type const* mode) {
+#ifndef WIN32
+  return std::fopen(path.c_str(), mode);
+#else
+  return _wfopen(path.c_str(), mode);
+#endif
+}
+
+std::unique_ptr<file_port_source>
+file_port_source::open(std::filesystem::path const& path, bool binary) {
+  if (FILE* f = open_file(path, binary ? _T("rb") : _T("r")))
+    return std::unique_ptr<file_port_source>(new file_port_source{f});
+  else
+    return {};
+}
 
 file_port_source::~file_port_source() {
-  if (should_close_)
-    std::fclose(f_);
+  std::fclose(f_);
 }
 
 std::optional<std::uint8_t>
@@ -66,14 +77,11 @@ file_port_source::rewind() {
   buffer_size_ = 0;
 }
 
-bool
-file_port_source::byte_ready() const {
-  if (!buffer_empty())
-    return true;
-
+static bool
+file_stream_ready(FILE* f) {
 #ifndef WIN32
   pollfd pfd{};
-  pfd.fd = fileno(f_);
+  pfd.fd = fileno(f);
   pfd.events = POLLIN;
   return poll(&pfd, 1, 0) == 1;
 #else
@@ -83,11 +91,52 @@ file_port_source::byte_ready() const {
 #endif
 }
 
+bool
+file_port_source::byte_ready() const {
+  if (!buffer_empty())
+    return true;
+  else
+    return file_stream_ready(f_);
+}
+
+file_port_source::file_port_source(FILE* f)
+  : f_{f}
+  , buffer_{std::make_unique<std::uint8_t[]>(file_buffer_capacity)}
+{ }
+
 void
 file_port_source::fill_buffer() {
   assert(buffer_empty());
   buffer_size_ = std::fread(buffer_.get(), 1, file_buffer_capacity, f_);
   buffer_pos_ = 0;
+}
+
+std::optional<std::uint8_t>
+stdin_source::read() {
+  int result = getchar();
+  if (result == EOF)
+    return std::nullopt;
+  else
+    return static_cast<std::uint8_t>(result);
+}
+
+std::optional<std::uint8_t>
+stdin_source::peek() {
+  if (auto c = read()) {
+    std::ungetc(*c, stdin);
+    return c;
+  } else
+    return std::nullopt;
+}
+
+void
+stdin_source::rewind() {
+  std::rewind(stdin);
+}
+
+bool
+stdin_source::byte_ready() const {
+  return file_stream_ready(stdin);
 }
 
 string_port_source::string_port_source(std::string data)
@@ -306,24 +355,10 @@ open_output_bytevector(context& ctx) {
   return make<binary_output_port>(ctx, std::make_unique<bytevector_port_sink>());
 }
 
-static FILE*
-open_file(std::filesystem::path const& path,
-          std::filesystem::path::value_type const* mode) {
-#ifndef WIN32
-  return std::fopen(path.c_str(), mode);
-#else
-  return _wfopen(path.c_str(), mode);
-#endif
-}
-
 ptr<textual_input_port>
 open_file_for_text_input(context& ctx, std::filesystem::path const& path) {
-  FILE* f = open_file(path, _T("r"));
-  if (f)
-    return make<textual_input_port>(
-      ctx,
-      std::make_unique<file_port_source>(f), path.string()
-    );
+  if (auto source = file_port_source::open(path, false))
+    return make<textual_input_port>(ctx, std::move(source), path.string());
   else
     return {};
 }
@@ -423,11 +458,8 @@ binary_output_port::get_bytevector(context& ctx) const {
 
 static ptr<textual_input_port>
 open_input_file(context& ctx, std::filesystem::path const& path) {
-  if (std::FILE* f = open_file(path, _T("r")))
-    return make<textual_input_port>(
-      ctx,
-      std::make_unique<file_port_source>(f), path.string()
-    );
+  if (auto source = file_port_source::open(path, false))
+    return make<textual_input_port>(ctx, std::move(source), path.string());
   else
     throw make<file_error>(
       ctx,
@@ -438,8 +470,8 @@ open_input_file(context& ctx, std::filesystem::path const& path) {
 
 static ptr<binary_input_port>
 open_binary_input_file(context& ctx, std::filesystem::path const& path) {
-  if (std::FILE* f = open_file(path, _T("rb")))
-    return make<binary_input_port>(ctx, std::make_unique<file_port_source>(f));
+  if (auto source = file_port_source::open(path, true))
+    return make<binary_input_port>(ctx, std::move(source));
   else
     throw make<file_error>(
       ctx,

@@ -38,8 +38,8 @@ public:
 
 class file_port_source final : public port_source {
 public:
-  explicit
-  file_port_source(FILE*, bool should_close = true);
+  static std::unique_ptr<file_port_source>
+  open(std::filesystem::path const&, bool binary);
 
   ~file_port_source() override;
 
@@ -57,16 +57,33 @@ public:
 
 private:
   FILE*                           f_;
-  bool                            should_close_;
   std::unique_ptr<std::uint8_t[]> buffer_;
   std::size_t                     buffer_size_ = 0;
   std::size_t                     buffer_pos_  = 0;
+
+  explicit
+  file_port_source(FILE*);
 
   void
   fill_buffer();
 
   bool
   buffer_empty() const { return buffer_pos_ == buffer_size_; }
+};
+
+class stdin_source final : public port_source {
+public:
+  std::optional<std::uint8_t>
+  read() override;
+
+  std::optional<std::uint8_t>
+  peek() override;
+
+  void
+  rewind() override;
+
+  bool
+  byte_ready() const override;
 };
 
 class string_port_source final : public port_source {
