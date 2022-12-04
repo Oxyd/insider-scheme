@@ -74,6 +74,9 @@ private:
   fill_buffer();
 
   bool
+  fill_buffer_if_necessary();
+
+  bool
   buffer_empty() const { return buffer_pos_ == buffer_size_; }
 };
 

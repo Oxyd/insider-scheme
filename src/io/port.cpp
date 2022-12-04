@@ -50,13 +50,11 @@ file_port_source::~file_port_source() {
 
 std::optional<std::uint8_t>
 file_port_source::read() {
-  if (buffer_empty())
-    fill_buffer();
-
-  if (buffer_empty())
+  bool have_data = fill_buffer_if_necessary();
+  if (have_data)
+    return buffer_[buffer_pos_++];
+  else
     return {};
-
-  return buffer_[buffer_pos_++];
 }
 
 static bool
@@ -99,10 +97,8 @@ file_port_source::read_until_eol() {
 
     append_bytes(result, buffer_.get(), start, buffer_pos_);
 
-    if (buffer_empty())
-      fill_buffer();
-
-    if (buffer_empty())
+    bool have_data = fill_buffer_if_necessary();
+    if (!have_data)
       break;
   }
 
@@ -111,13 +107,11 @@ file_port_source::read_until_eol() {
 
 std::optional<std::uint8_t>
 file_port_source::peek() {
-  if (buffer_empty())
-    fill_buffer();
-
-  if (buffer_empty())
+  bool have_data = fill_buffer_if_necessary();
+  if (have_data)
+    return buffer_[buffer_pos_];
+  else
     return {};
-
-  return buffer_[buffer_pos_];
 }
 
 void
@@ -159,6 +153,13 @@ file_port_source::fill_buffer() {
   assert(buffer_empty());
   buffer_size_ = std::fread(buffer_.get(), 1, file_buffer_capacity, f_);
   buffer_pos_ = 0;
+}
+
+bool
+file_port_source::fill_buffer_if_necessary() {
+  if (buffer_empty())
+    fill_buffer();
+  return !buffer_empty();
 }
 
 std::optional<std::uint8_t>
