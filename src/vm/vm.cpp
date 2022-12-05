@@ -598,43 +598,48 @@ do_native_call(ptr<native_procedure> proc, execution_state& state,
   call_native_procedure(state);
 }
 
-static bool
-is_known_scheme_call(opcode oc) {
-  return oc == opcode::call_known_scheme
-         || oc == opcode::tail_call_known_scheme;
-}
-
-static bool
-is_known_native_call(opcode oc) {
-  return oc == opcode::call_known_native
-         || oc == opcode::tail_call_known_native;
-}
-
-static bool
-is_tail_call(opcode oc) {
-  return oc == opcode::tail_call
-         || oc == opcode::tail_call_known_scheme
-         || oc == opcode::tail_call_known_native;
-}
-
 static void
-call(opcode opcode, execution_state& state) {
+throw_application_error(context& ctx, ptr<> callee) {
+  throw make_error("Application: Not a procedure: {}",
+                   datum_to_string(ctx, callee));
+}
+
+template <bool Tail>
+static void
+generic_call(execution_state& state) {
   operand base = read_operand(state);
   ptr<> callee = state.stack->local(base);
 
-  if (is_known_scheme_call(opcode)
-      || (!is_known_native_call(opcode) && is<procedure>(callee)))
-    push_scheme_call_frame(assume<procedure>(callee), state, base,
-                           is_tail_call(opcode),
-                           !is_known_scheme_call(opcode));
-  else if (is_known_native_call(opcode)
-           || (!is_known_scheme_call(opcode) && is<native_procedure>(callee)))
-    do_native_call(assume<native_procedure>(callee), state, base,
-                   is_tail_call(opcode));
+  if (auto proc = match<procedure>(callee))
+    push_scheme_call_frame(proc, state, base, Tail, true);
+  else if (auto native = match<native_procedure>(callee))
+    do_native_call(native, state, base, Tail);
   else
-    throw make_error("Application: Not a procedure: {}",
-                     datum_to_string(state.ctx, callee));
+    throw_application_error(state.ctx, callee);
 }
+
+template <bool Tail>
+static void
+scheme_call(execution_state& state) {
+  operand base = read_operand(state);
+  auto callee = assume<procedure>(state.stack->local(base));
+  push_scheme_call_frame(callee, state, base, Tail, false);
+}
+
+template <bool Tail>
+static void
+native_call(execution_state& state) {
+  operand base = read_operand(state);
+  auto callee = assume<native_procedure>(state.stack->local(base));
+  do_native_call(callee, state, base, Tail);
+}
+
+static constexpr auto tail_call_instr = generic_call<true>;
+static constexpr auto call_instr = generic_call<false>;
+static constexpr auto tail_call_known_scheme = scheme_call<true>;
+static constexpr auto call_known_scheme = scheme_call<false>;
+static constexpr auto tail_call_known_native = native_call<true>;
+static constexpr auto call_known_native = native_call<false>;
 
 static void
 resume_native_call(execution_state& state, ptr<> scheme_result) {
@@ -919,14 +924,12 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::greater_or_equal:       greater_or_equal_instr(state);    break;
   case opcode::set:                    set(state);                       break;
 
-  case opcode::tail_call:
-  case opcode::call:
-  case opcode::tail_call_known_scheme:
-  case opcode::call_known_scheme:
-  case opcode::tail_call_known_native:
-  case opcode::call_known_native:
-    call(opcode, state);
-    break;
+  case opcode::tail_call:              tail_call_instr(state);           break;
+  case opcode::call:                   call_instr(state);                break;
+  case opcode::tail_call_known_scheme: tail_call_known_scheme(state);    break;
+  case opcode::call_known_scheme:      call_known_scheme(state);         break;
+  case opcode::tail_call_known_native: tail_call_known_native(state);    break;
+  case opcode::call_known_native:      call_known_native(state);         break;
 
   case opcode::ret:          ret(state);                                 break;
   case opcode::jump:         jump(state);                                break;
