@@ -164,7 +164,9 @@ namespace {
 
     void
     assign_constant_initialiser(auto var, expression e) {
-      if (is<literal_expression>(e) || is<lambda_expression>(e))
+      if (is<literal_expression>(e)
+          || is<lambda_expression>(e)
+          || is<top_level_reference_expression>(e))
         var->set_constant_initialiser(ctx.store, e);
     }
 

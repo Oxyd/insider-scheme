@@ -91,11 +91,14 @@ arity_matches(ptr<application_expression> app, ptr<lambda_expression> lambda) {
 
 static ptr<lambda_expression>
 find_constant_lambda_initialiser(auto var) {
-  if (var->constant_initialiser()
-      && is<lambda_expression>(var->constant_initialiser()))
-    return assume<lambda_expression>(var->constant_initialiser());
-  else
-    return {};
+  if (auto init = var->constant_initialiser()) {
+    if (auto lambda = match<lambda_expression>(init))
+      return lambda;
+    else if (auto ref = match<top_level_reference_expression>(init))
+      return find_constant_lambda_initialiser(ref->variable());
+  }
+
+  return {};
 }
 
 static ptr<lambda_expression>

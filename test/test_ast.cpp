@@ -1753,6 +1753,25 @@ TEST_F(ast, self_referential_lambda_expressions_are_not_inlined) {
   EXPECT_EQ(target->variable()->name(), "f");
 }
 
+TEST_F(ast, top_level_variable_aliasing_another_procedure_is_inlined) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define f (lambda () #t))
+      (define g f)
+      (define foo
+        (lambda ()
+          (g)))
+    )",
+    {&analyse_variables, &inline_procedures}
+  );
+
+  auto foo = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
+  auto body = ignore_lets_and_sequences(foo->body());
+  EXPECT_TRUE(is<literal_expression>(body));
+}
+
 TEST_F(ast, set_eliminable_variables_are_retained_in_lets) {
   expression e = analyse(
     R"(
