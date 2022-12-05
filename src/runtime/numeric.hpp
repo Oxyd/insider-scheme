@@ -434,8 +434,9 @@ multiply(context&, object_span);
 
 inline bool
 small_mul_overflow(integer::value_type x, integer::value_type y) {
-  assert(y != 0);
-  return std::abs(x) > integer::max / std::abs(y);
+  assert(x >= 0);
+  assert(y > 0);
+  return x > integer::max / y;
 }
 
 inline ptr<>
