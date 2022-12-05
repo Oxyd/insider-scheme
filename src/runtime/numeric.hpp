@@ -444,6 +444,14 @@ multiply_fixnums(integer::value_type lhs, integer::value_type rhs) {
   if (rhs == 0)
     return integer_to_ptr(0);
 
+#if defined __GNUC__ || defined __clang__
+  integer::value_type result;
+  bool overflowed = __builtin_smull_overflow(lhs, rhs, &result);
+  if (overflowed || overflow(result))
+    return {};
+  else
+    return integer_to_ptr(result);
+#else
   integer::value_type x = lhs > 0 ? lhs : -lhs;
   integer::value_type y = rhs > 0 ? rhs : -rhs;
   bool result_positive = (lhs > 0) == (rhs > 0);
@@ -454,6 +462,7 @@ multiply_fixnums(integer::value_type lhs, integer::value_type rhs) {
     integer::value_type product = x * y;
     return integer_to_ptr(integer{result_positive ? product : -product});
   }
+#endif
 }
 
 std::tuple<ptr<>, ptr<>>
