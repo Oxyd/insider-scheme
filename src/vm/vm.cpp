@@ -168,62 +168,33 @@ load_character(execution_state& state) {
   state.stack->local(dest) = character_to_ptr(static_cast<char32_t>(value));
 }
 
+template <auto SmallOp, ptr<> (*GeneralOp)(context&, ptr<>, ptr<>)>
 static void
-arithmetic(opcode opcode, execution_state& state) {
+arithmetic(execution_state& state) {
   ptr<> lhs = state.stack->local(read_operand(state));
   ptr<> rhs = state.stack->local(read_operand(state));
   operand dest = read_operand(state);
 
-  if (is<integer>(lhs) && is<integer>(rhs) && opcode != opcode::divide) {
-    switch (opcode) {
-    case opcode::add:
-      if (ptr<> result = add_fixnums(assume<integer>(lhs).value(),
-                                     assume<integer>(rhs).value()))
-        state.stack->local(dest) = result;
-      else
-        state.stack->local(dest) = add(state.ctx, lhs, rhs);
-      break;
-
-    case opcode::subtract:
-      if (ptr<> result = subtract_fixnums(assume<integer>(lhs).value(),
-                                          assume<integer>(rhs).value()))
-        state.stack->local(dest) = result;
-      else
-        state.stack->local(dest) = subtract(state.ctx, lhs, rhs);
-      break;
-
-    case opcode::multiply:
-      if (ptr<> result = multiply_fixnums(assume<integer>(lhs).value(),
-                                          assume<integer>(rhs).value()))
-        state.stack->local(dest) = result;
-      else
-        state.stack->local(dest) = multiply(state.ctx, lhs, rhs);
-      break;
-
-    default:
-      assert(false);
-      break;
+  if (is<integer>(lhs) && is<integer>(rhs))
+    if (ptr<> result = SmallOp(assume<integer>(lhs).value(),
+                               assume<integer>(rhs).value())) {
+      state.stack->local(dest) = result;
+      return;
     }
 
-    return;
-  }
+  state.stack->local(dest) = GeneralOp(state.ctx, lhs, rhs);
+}
 
-  switch (opcode) {
-  case opcode::add:
-    state.stack->local(dest) = add(state.ctx, lhs, rhs);
-    break;
-  case opcode::subtract:
-    state.stack->local(dest) = subtract(state.ctx, lhs, rhs);
-    break;
-  case opcode::multiply:
-    state.stack->local(dest) = multiply(state.ctx, lhs, rhs);
-    break;
-  case opcode::divide:
-    state.stack->local(dest) = divide(state.ctx, lhs, rhs);
-    break;
-  default:
-    assert(!"Cannot get here");
-  }
+static constexpr auto add_instr = arithmetic<add_fixnums, add>;
+static constexpr auto subtract_instr = arithmetic<subtract_fixnums, subtract>;
+static constexpr auto multiply_instr = arithmetic<multiply_fixnums, multiply>;
+
+static void
+divide_instr(execution_state& state) {
+  ptr<> lhs = state.stack->local(read_operand(state));
+  ptr<> rhs = state.stack->local(read_operand(state));
+  operand dest = read_operand(state);
+  state.stack->local(dest) = divide(state.ctx, lhs, rhs);
 }
 
 static void
@@ -946,10 +917,10 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::load_default_value:     load_default_value(state);        break;
   case opcode::load_fixnum:            load_fixnum(state);               break;
   case opcode::load_character:         load_character(state);            break;
-  case opcode::add:
-  case opcode::subtract:
-  case opcode::multiply:
-  case opcode::divide:                 arithmetic(opcode, state);        break;
+  case opcode::add:                    add_instr(state);                 break;
+  case opcode::subtract:               subtract_instr(state);            break;
+  case opcode::multiply:               multiply_instr(state);            break;
+  case opcode::divide:                 divide_instr(state);              break;
   case opcode::truncate_quotient:      truncate_quotient(state);         break;
   case opcode::truncate_remainder:     truncate_remainder(state);        break;
   case opcode::char_eq:                char_eq(state);                   break;
