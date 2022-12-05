@@ -13,8 +13,6 @@
 #include "compiler/inline_procedures_pass.hpp"
 #include "compiler/make_loop_temporaries_pass.hpp"
 #include "compiler/optimise_applications_pass.hpp"
-#include "compiler/parser_expander.hpp"
-#include "compiler/parsing_context.hpp"
 #include "compiler/remove_unnecessary_definitions_pass.hpp"
 #include "compiler/update_variables_pass.hpp"
 
