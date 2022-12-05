@@ -96,6 +96,9 @@ read_operand(execution_state& state) {
 }
 
 static void
+no_operation(execution_state&) { }
+
+static void
 load_constant(execution_state& state) {
   operand const_num = read_operand(state);
   operand dest = read_operand(state);
@@ -890,11 +893,11 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   opcode opcode = read_opcode(state);
 
   switch (opcode) {
-  case opcode::no_operation:                                             break;
+  case opcode::no_operation:           no_operation(state);              break;
   case opcode::load_constant:          load_constant(state);             break;
   case opcode::load_top_level:         load_top_level(state);            break;
-  case opcode::load_dynamic_top_level: load_dynamic_top_level(state);    break;
   case opcode::store_top_level:        store_top_level(state);           break;
+  case opcode::load_dynamic_top_level: load_dynamic_top_level(state);    break;
   case opcode::load_null:              load_null(state);                 break;
   case opcode::load_void:              load_void(state);                 break;
   case opcode::load_t:                 load_t(state);                    break;
@@ -909,11 +912,6 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::divide:                 divide_instr(state);              break;
   case opcode::truncate_quotient:      truncate_quotient(state);         break;
   case opcode::truncate_remainder:     truncate_remainder(state);        break;
-  case opcode::char_eq:                char_eq(state);                   break;
-  case opcode::char_lt:                char_lt(state);                   break;
-  case opcode::char_le:                char_le(state);                   break;
-  case opcode::char_gt:                char_gt(state);                   break;
-  case opcode::char_ge:                char_ge(state);                   break;
   case opcode::increment:              increment(state);                 break;
   case opcode::decrement:              decrement(state);                 break;
   case opcode::negate:                 negate(state);                    break;
@@ -922,15 +920,18 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::greater:                greater_instr(state);             break;
   case opcode::less_or_equal:          less_or_equal_instr(state);       break;
   case opcode::greater_or_equal:       greater_or_equal_instr(state);    break;
+  case opcode::char_eq:                char_eq(state);                   break;
+  case opcode::char_lt:                char_lt(state);                   break;
+  case opcode::char_le:                char_le(state);                   break;
+  case opcode::char_gt:                char_gt(state);                   break;
+  case opcode::char_ge:                char_ge(state);                   break;
   case opcode::set:                    set(state);                       break;
-
-  case opcode::tail_call:              tail_call_instr(state);           break;
   case opcode::call:                   call_instr(state);                break;
-  case opcode::tail_call_known_scheme: tail_call_known_scheme(state);    break;
+  case opcode::tail_call:              tail_call_instr(state);           break;
   case opcode::call_known_scheme:      call_known_scheme(state);         break;
-  case opcode::tail_call_known_native: tail_call_known_native(state);    break;
+  case opcode::tail_call_known_scheme: tail_call_known_scheme(state);    break;
   case opcode::call_known_native:      call_known_native(state);         break;
-
+  case opcode::tail_call_known_native: tail_call_known_native(state);    break;
   case opcode::ret:          ret(state);                                 break;
   case opcode::jump:         jump(state);                                break;
   case opcode::jump_unless:  jump_unless(state);                         break;
@@ -941,11 +942,12 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::cons:         procedure_instruction<cons>(state);         break;
   case opcode::car:          car(state);                                 break;
   case opcode::cdr:          cdr(state);                                 break;
-  case opcode::eq:           procedure_instruction<eq>(state);           break;
-  case opcode::eqv:          procedure_instruction<eqv>(state);          break;
-  case opcode::equal:        procedure_instruction<equal>(state);        break;
-  case opcode::vector_set:   procedure_instruction<vector_set>(state);   break;
-  case opcode::vector_ref:   procedure_instruction<&vector::ref>(state); break;
+  case opcode::vector_set:
+    procedure_instruction<vector_set>(state);
+    break;
+  case opcode::vector_ref:
+    procedure_instruction<&vector::ref>(state);
+    break;
   case opcode::vector_length:
     procedure_instruction<&vector::size>(state);
     break;
@@ -958,8 +960,12 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::bytevector_length:
     procedure_instruction<&bytevector::size>(state);
     break;
-  case opcode::string_ref:   procedure_instruction<string_ref>(state); break;
-  case opcode::string_set:   procedure_instruction<string_set>(state); break;
+  case opcode::string_ref:
+    procedure_instruction<string_ref>(state);
+    break;
+  case opcode::string_set:
+    procedure_instruction<string_set>(state);
+    break;
   case opcode::string_length:
     procedure_instruction<&string::length>(state);
     break;
@@ -981,7 +987,18 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::string_cursor_prev:
     procedure_instruction<string_cursor_prev>(state);
     break;
-  case opcode::type:         type(state);                                break;
+  case opcode::type:
+    type(state);
+    break;
+  case opcode::eq:
+    procedure_instruction<eq>(state);
+    break;
+  case opcode::eqv:
+    procedure_instruction<eqv>(state);
+    break;
+  case opcode::equal:
+    procedure_instruction<equal>(state);
+    break;
   case opcode::syntax_expression:
     procedure_instruction<&syntax::update_and_get_expression>(state);
     break;
