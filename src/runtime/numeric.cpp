@@ -235,9 +235,6 @@ make_fraction(context& ctx, ptr<> num, ptr<> den) {
   return normalize_fraction(ctx, make<fraction>(ctx, num, den));
 }
 
-static ptr<>
-truncate_quotient(context& ctx, ptr<> lhs, ptr<> rhs);
-
 ptr<>
 normalize_fraction(context& ctx, ptr<fraction> q) {
   ptr<> num = q->numerator();
@@ -1542,12 +1539,12 @@ multiply(context& ctx, object_span xs) {
   >(ctx, xs, true, 1);
 }
 
-static ptr<>
+ptr<>
 truncate_quotient(context& ctx, ptr<> lhs, ptr<> rhs) {
   return std::get<0>(quotient_remainder(ctx, lhs, rhs));
 }
 
-static ptr<>
+ptr<>
 truncate_remainder(context& ctx, ptr<> lhs, ptr<> rhs) {
   return std::get<1>(quotient_remainder(ctx, lhs, rhs));
 }

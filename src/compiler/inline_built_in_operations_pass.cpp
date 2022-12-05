@@ -61,6 +61,8 @@ built_in_operations_visitor::operations[]{
   {"-", opcode::subtract, 2, true},
   {"*", opcode::multiply, 2, true},
   {"/", opcode::divide, 2, true},
+  {"truncate-quotient", opcode::truncate_quotient, 2, true},
+  {"truncate-remainder", opcode::truncate_remainder, 2, true},
   {"=", opcode::arith_equal, 2, true},
   {"<", opcode::less, 2, true},
   {">", opcode::greater, 2, true},

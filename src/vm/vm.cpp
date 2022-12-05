@@ -227,6 +227,32 @@ arithmetic(opcode opcode, execution_state& state) {
 }
 
 static void
+truncate_quotient(execution_state& state) {
+  ptr<> lhs = state.stack->local(read_operand(state));
+  ptr<> rhs = state.stack->local(read_operand(state));
+  operand dest = read_operand(state);
+  if (is<integer>(lhs) && is<integer>(rhs))
+    state.stack->local(dest) = integer_to_ptr(
+      assume<integer>(lhs).value() / assume<integer>(rhs).value()
+    );
+  else
+    state.stack->local(dest) = truncate_quotient(state.ctx, lhs, rhs);
+}
+
+static void
+truncate_remainder(execution_state& state) {
+  ptr<> lhs = state.stack->local(read_operand(state));
+  ptr<> rhs = state.stack->local(read_operand(state));
+  operand dest = read_operand(state);
+  if (is<integer>(lhs) && is<integer>(rhs))
+    state.stack->local(dest) = integer_to_ptr(
+      assume<integer>(lhs).value() % assume<integer>(rhs).value()
+    );
+  else
+    state.stack->local(dest) = truncate_quotient(state.ctx, lhs, rhs);
+}
+
+static void
 increment(execution_state& state) {
   ptr<> value = state.stack->local(read_operand(state));
   operand dest = read_operand(state);
@@ -924,6 +950,8 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::subtract:
   case opcode::multiply:
   case opcode::divide:                 arithmetic(opcode, state);        break;
+  case opcode::truncate_quotient:      truncate_quotient(state);         break;
+  case opcode::truncate_remainder:     truncate_remainder(state);        break;
   case opcode::char_eq:                char_eq(state);                   break;
   case opcode::char_lt:                char_lt(state);                   break;
   case opcode::char_le:                char_le(state);                   break;

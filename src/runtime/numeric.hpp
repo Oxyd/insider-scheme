@@ -459,6 +459,12 @@ std::tuple<ptr<>, ptr<>>
 quotient_remainder(context&, ptr<>, ptr<>);
 
 ptr<>
+truncate_quotient(context& ctx, ptr<> lhs, ptr<> rhs);
+
+ptr<>
+truncate_remainder(context& ctx, ptr<> lhs, ptr<> rhs);
+
+ptr<>
 divide(context&, ptr<>, ptr<>);
 ptr<>
 divide(context&, object_span);
