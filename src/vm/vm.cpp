@@ -265,66 +265,47 @@ negate(execution_state& state) {
   state.stack->local(dest) = negate(state.ctx, value);
 }
 
+template <auto SmallOp, ptr<boolean> (*GeneralOp)(context&, ptr<>, ptr<>)>
 static void
-relational(opcode opcode, execution_state& state) {
+relational(execution_state& state) {
   ptr<> lhs = state.stack->local(read_operand(state));
   ptr<> rhs = state.stack->local(read_operand(state));
   operand dest = read_operand(state);
 
-  if (is<integer>(lhs) && is<integer>(rhs)) {
-    integer::value_type x = assume<integer>(lhs).value();
-    integer::value_type y = assume<integer>(rhs).value();
-    ptr<> t = state.ctx.constants->t;
-    ptr<> f = state.ctx.constants->f;
+  ptr<> t = state.ctx.constants->t;
+  ptr<> f = state.ctx.constants->f;
 
-    switch (opcode) {
-    case opcode::arith_equal:
-      state.stack->local(dest) = x == y ? t : f;
-      break;
-
-    case opcode::less:
-      state.stack->local(dest) = x < y ? t : f;
-      break;
-
-    case opcode::greater:
-      state.stack->local(dest) = x > y ? t : f;
-      break;
-
-    case opcode::less_or_equal:
-      state.stack->local(dest) = x <= y ? t : f;
-      break;
-
-    case opcode::greater_or_equal:
-      state.stack->local(dest) = x >= y ? t : f;
-      break;
-
-    default:
-      assert(false);
-    }
-
-    return;
-  }
-
-  switch (opcode) {
-  case opcode::arith_equal:
-    state.stack->local(dest) = arith_equal(state.ctx, lhs, rhs);
-    break;
-  case opcode::less:
-    state.stack->local(dest) = less(state.ctx, lhs, rhs);
-    break;
-  case opcode::greater:
-    state.stack->local(dest) = greater(state.ctx, lhs, rhs);
-    break;
-  case opcode::less_or_equal:
-    state.stack->local(dest) = less_or_equal(state.ctx, lhs, rhs);
-    break;
-  case opcode::greater_or_equal:
-    state.stack->local(dest) = greater_or_equal(state.ctx, lhs, rhs);
-    break;
-  default:
-    assert(!"Cannot get here");
-  }
+  if (is<integer>(lhs) && is<integer>(rhs))
+    state.stack->local(dest) = SmallOp(assume<integer>(lhs).value(),
+                                       assume<integer>(rhs).value()) ? t : f;
+  else
+    state.stack->local(dest) = GeneralOp(state.ctx, lhs, rhs);
 }
+
+static constexpr auto arith_equal_instr = relational<
+  [] (integer::value_type lhs, integer::value_type rhs) { return lhs == rhs; },
+  arith_equal
+>;
+
+static constexpr auto less_instr = relational<
+  [] (integer::value_type lhs, integer::value_type rhs) { return lhs < rhs; },
+  less
+>;
+
+static constexpr auto less_or_equal_instr = relational<
+  [] (integer::value_type lhs, integer::value_type rhs) { return lhs <= rhs; },
+  less_or_equal
+>;
+
+static constexpr auto greater_instr = relational<
+  [] (integer::value_type lhs, integer::value_type rhs) { return (lhs > rhs); },
+  greater
+>;
+
+static constexpr auto greater_or_equal_instr = relational<
+  [] (integer::value_type lhs, integer::value_type rhs) { return lhs >= rhs; },
+  greater_or_equal
+>;
 
 template <auto Compare>
 static void
@@ -931,11 +912,11 @@ do_instruction(execution_state& state, gc_disabler& no_gc) {
   case opcode::increment:              increment(state);                 break;
   case opcode::decrement:              decrement(state);                 break;
   case opcode::negate:                 negate(state);                    break;
-  case opcode::arith_equal:
-  case opcode::less:
-  case opcode::greater:
-  case opcode::less_or_equal:
-  case opcode::greater_or_equal:       relational(opcode, state);        break;
+  case opcode::arith_equal:            arith_equal_instr(state);         break;
+  case opcode::less:                   less_instr(state);                break;
+  case opcode::greater:                greater_instr(state);             break;
+  case opcode::less_or_equal:          less_or_equal_instr(state);       break;
+  case opcode::greater_or_equal:       greater_or_equal_instr(state);    break;
   case opcode::set:                    set(state);                       break;
 
   case opcode::tail_call:
