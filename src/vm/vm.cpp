@@ -349,21 +349,13 @@ set(execution_state& state) {
 }
 
 static std::size_t
-get_closure_size(ptr<procedure> proc) {
-  if (proc)
-    return proc->size();
-  else
-    return 0;
-}
-
-static std::size_t
 actual_args_size(procedure_prototype const& proto) {
   return proto.info.num_leading_args + (proto.info.has_rest ? 1 : 0);
 }
 
 static void
 push_closure(ptr<procedure> proc, ptr<call_stack> stack) {
-  std::size_t closure_size = get_closure_size(proc);
+  std::size_t closure_size = proc->size();
   std::size_t begin = actual_args_size(proc->prototype()) + 1;
 
   for (std::size_t i = 0; i < closure_size; ++i)
