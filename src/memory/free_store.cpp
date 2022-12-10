@@ -314,21 +314,36 @@ trace(std::vector<ptr<>> const& permanent_roots,
 }
 
 static void
-find_arcs_to_younger(ptr<> o, free_store::generations& gens) {
-  object_type(o).visit_members(o, [&] (ptr_wrapper member) {
-    // We only consider arcs into nursery-1 here. This is called as part of the
-    // general GC process, so nursery-2 will be moved to mature soon after. Only
-    // arcs going into nursery-1 matter because that will become nursery-2.
+find_new_arcs_to_nursery(std::vector<ptr<>> const& objects,
+                         nursery_generation& nursery) {
+  std::vector<ptr<>> arcs;
 
-    if (member.value && is_object_ptr(member.value)
-        && object_generation(member.value) == generation::nursery_1)
-      gens.nursery_1.incoming_arcs.emplace(o);
-  });
+  for (ptr<> o : objects) {
+    assert(is_alive(o));
+    bool pushed = false;
+    object_type(o).visit_members(o, [&] (ptr_wrapper member) {
+      if (!pushed && member.value && is_object_ptr(member.value)) {
+        assert(is_alive(member.value));
+
+        // There can be no pointers to nursery 1 because this function is called
+        // after nursery 1 survivors have been promoted.
+        assert(object_generation(member.value) != generation::nursery_1);
+
+        if (object_generation(member.value) == generation::nursery_2) {
+          arcs.push_back(o);
+          pushed = true;
+        }
+      }
+    });
+  }
+
+  for (ptr<> arc : arcs)
+    nursery.incoming_arcs.emplace(arc);
 }
 
 static void
 move_survivors(dense_space& from, dense_space& to, generation to_gen,
-               free_store::generations& gens, std::vector<ptr<>>* moved_objects) {
+               std::vector<ptr<>>* moved_objects) {
   from.for_all([&] (ptr<> o) {
     type_descriptor const& type = object_type(o);
     std::size_t size = object_size(o);
@@ -339,8 +354,6 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen,
       set_forwarding_address(o, target);
       set_object_generation(target, to_gen);
 
-      if (to_gen == generation::mature)
-        find_arcs_to_younger(target, gens);
       if (moved_objects)
         moved_objects->push_back(target);
     } else
@@ -354,10 +367,8 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen,
 // all the dead objects and forwarding addresses to moved objects.
 [[nodiscard]]
 static dense_space
-promote(auto& from, auto& to, free_store::generations& gens,
-        std::vector<ptr<>>* moved_objects) {
-  move_survivors(from.small, to.small, to.generation_number, gens,
-                 moved_objects);
+promote(auto& from, auto& to, std::vector<ptr<>>* moved_objects) {
+  move_survivors(from.small, to.small, to.generation_number, moved_objects);
 
   large_space& large = from.large;
   for (std::size_t i = 0; i < large.object_count(); ++i) {
@@ -368,9 +379,6 @@ promote(auto& from, auto& to, free_store::generations& gens,
       large.move(i, to.large);
       set_object_generation(o, to.generation_number);
       set_object_color(o, color::white);
-
-      if (to.generation_number == generation::mature)
-        find_arcs_to_younger(o, gens);
 
       if (moved_objects)
         moved_objects->push_back(o);
@@ -385,9 +393,9 @@ promote(auto& from, auto& to, free_store::generations& gens,
 // objects and forwrding addresses for moved objects.
 [[nodiscard]]
 static dense_space
-purge_mature(mature_generation& mature, free_store::generations& gens) {
+purge_mature(mature_generation& mature, std::vector<ptr<>>* moved_objects) {
   dense_space temp{mature.small.allocator()};
-  move_survivors(mature.small, temp, generation::mature, gens, nullptr);
+  move_survivors(mature.small, temp, generation::mature, moved_objects);
 
   large_space& large = mature.large;
   for (std::size_t i = 0; i < large.object_count(); ++i) {
@@ -396,8 +404,11 @@ purge_mature(mature_generation& mature, free_store::generations& gens) {
 
     if (object_color(o) == color::white)
       large.stage_for_deallocation(i);
-    else
+    else {
+      if (moved_objects)
+        moved_objects->push_back(o);
       set_object_color(o, color::white);
+    }
   }
 
   std::swap(mature.small, temp);
@@ -499,10 +510,12 @@ free_store::collect_garbage(bool major) {
     return;
   }
 
-  if (verbose_collection)
+  if (verbose_collection) {
+    fmt::print("GC: {} collection\n", major ? "major" : "minor");
     fmt::print("GC: Old: {}\n",
                format_stats(generations_.nursery_1, generations_.nursery_2,
                             generations_.mature));
+  }
 
   trace(permanent_roots_, roots_, generations_.nursery_1, generations_.nursery_2,
         max_generation);
@@ -515,20 +528,15 @@ free_store::collect_garbage(bool major) {
     = std::move(generations_.nursery_2.incoming_arcs);
   generations_.nursery_2.incoming_arcs.clear();
 
+  std::vector<ptr<>> new_mature_objects;
   dense_space old_mature;
   if (max_generation >= generation::mature)
-    old_mature = purge_mature(generations_.mature, generations_);
-
-  std::vector<ptr<>> new_mature_objects;
+    old_mature = purge_mature(generations_.mature, &new_mature_objects);
 
   dense_space old_nursery_2
-    = promote(generations_.nursery_2, generations_.mature, generations_,
-              max_generation < generation::mature
-                ? &new_mature_objects
-                : nullptr);
+    = promote(generations_.nursery_2, generations_.mature, &new_mature_objects);
   dense_space old_nursery_1
-    = promote(generations_.nursery_1, generations_.nursery_2, generations_,
-              nullptr);
+    = promote(generations_.nursery_1, generations_.nursery_2, nullptr);
 
   assert(generations_.nursery_1.small.empty());
 
@@ -543,6 +551,7 @@ free_store::collect_garbage(bool major) {
   // incoming arcs.
 
   assert(generations_.nursery_2.incoming_arcs.empty());
+
   generations_.nursery_2.incoming_arcs
     = std::move(generations_.nursery_1.incoming_arcs);
 
@@ -560,6 +569,8 @@ free_store::collect_garbage(bool major) {
     update_references(old_n2_incoming);
     update_references(new_mature_objects);
   }
+
+  find_new_arcs_to_nursery(new_mature_objects, generations_.nursery_2);
 
   generations_.nursery_1.large.deallocate_staged();
   generations_.nursery_2.large.deallocate_staged();
