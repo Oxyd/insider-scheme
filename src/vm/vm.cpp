@@ -44,7 +44,7 @@ current_frame_is_native(ptr<call_stack> stack) {
   return stack->current_frame_type() != call_stack::frame_type::scheme;
 }
 
-static inline void
+static void
 check_argument_count_for_procedure_without_tail(procedure_prototype const& proc,
                                                 std::size_t num_args) {
   unsigned min = proc.info.num_required_args;
@@ -65,7 +65,7 @@ check_argument_count_for_procedure_without_tail(procedure_prototype const& proc,
                      num_args);
 }
 
-static inline void
+static void
 check_argument_count_for_procedure_with_tail(procedure_prototype const& proc,
                                              std::size_t num_args) {
   if (num_args < proc.info.num_required_args)
@@ -76,7 +76,7 @@ check_argument_count_for_procedure_with_tail(procedure_prototype const& proc,
     );
 }
 
-static inline void
+static void
 throw_if_wrong_number_of_args(procedure_prototype const& proc,
                               std::size_t num_args) {
   if (proc.info.has_rest)
@@ -548,7 +548,7 @@ pop_frame(execution_state& state) {
 static void
 resume_native_call(execution_state& state, ptr<> scheme_result);
 
-static inline void // GCC won't inline this function automatically.
+static void
 pop_frame_and_set_return_value(execution_state& state, ptr<> result) {
   assert(result);
 
