@@ -1021,7 +1021,7 @@ static std::optional<std::size_t> expected_stack_size;
 
 static void
 check_stack_size(context& ctx) {
-  std::size_t current_size = ctx.current_execution->stack->size();
+  std::size_t current_size = ctx.current_execution->stack.size();
   if (expected_stack_size)
     EXPECT_EQ(current_size, *expected_stack_size);
   else

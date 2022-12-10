@@ -157,6 +157,9 @@ public:
   ptr<>&
   callable() { return local(0); }
 
+  ptr<>
+  callable() const { return local(0); }
+
   ptr<>&
   callable(frame_index frame) { return local(frame, 0); }
 
@@ -188,6 +191,12 @@ public:
 
   ptr<>&
   local(operand local) {
+    assert(local < current_frame().size);
+    return data_[current_base_ + local];
+  }
+
+  ptr<>
+  local(operand local) const {
     assert(local < current_frame().size);
     return data_[current_base_ + local];
   }
@@ -367,9 +376,9 @@ class frame_reference {
 public:
   frame_reference() = default;
 
-  frame_reference(ptr<call_stack> stack,
+  frame_reference(call_stack& stack,
                   std::optional<call_stack::frame_index> idx)
-    : stack_{stack}
+    : stack_{&stack}
     , idx_{idx}
   { }
 
@@ -408,7 +417,7 @@ public:
   size() const { return stack_->frame_size(*idx_); }
 
   frame_reference
-  parent() const { return {stack_, stack_->parent(*idx_)}; }
+  parent() const { return {*stack_, stack_->parent(*idx_)}; }
 
   call_stack::frame_index
   index() const { return *idx_; }
@@ -418,17 +427,17 @@ public:
 
   bool
   operator == (frame_reference other) const {
-    return stack_ == other.stack_ && idx_ == other.idx_;
+    return &stack_ == &other.stack_ && idx_ == other.idx_;
   }
 
 private:
-  ptr<call_stack>                        stack_;
+  call_stack*                            stack_;
   std::optional<call_stack::frame_index> idx_;
 };
 
 inline frame_reference
-current_frame(ptr<call_stack> stack) {
-  return {stack, stack->current_frame_index()};
+current_frame(call_stack& stack) {
+  return {stack, stack.current_frame_index()};
 }
 
 inline call_stack::frame_type

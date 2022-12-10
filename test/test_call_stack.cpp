@@ -146,12 +146,12 @@ TEST_F(call_stack_fixture, iterate_call_stacks) {
 
 TEST_F(call_stack_fixture, overlapping_frames_can_access_shared_registers) {
   cs->push_frame(call_stack::frame_type::scheme, 0, 4, nullptr, 0);
-  current_frame(cs.get()).local(2) = integer_to_ptr(10);
-  current_frame(cs.get()).local(3) = integer_to_ptr(20);
+  current_frame(*cs.get()).local(2) = integer_to_ptr(10);
+  current_frame(*cs.get()).local(3) = integer_to_ptr(20);
 
   cs->push_frame(call_stack::frame_type::scheme, 2, 2, nullptr, 0);
-  EXPECT_EQ(expect<integer>(current_frame(cs.get()).local(0)).value(), 10);
-  EXPECT_EQ(expect<integer>(current_frame(cs.get()).local(1)).value(), 20);
+  EXPECT_EQ(expect<integer>(current_frame(*cs.get()).local(0)).value(), 10);
+  EXPECT_EQ(expect<integer>(current_frame(*cs.get()).local(1)).value(), 20);
 }
 
 TEST_F(call_stack_fixture, stack_size_increases_when_larger_frame_is_pushed) {

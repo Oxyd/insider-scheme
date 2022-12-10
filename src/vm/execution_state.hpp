@@ -3,17 +3,17 @@
 
 #include "memory/root_provider.hpp"
 #include "vm/bytecode.hpp"
+#include "vm/call_stack.hpp"
 
 namespace insider {
 
-class call_stack;
 class context;
 
 class execution_state : public root_provider {
 public:
   context&            ctx;
   instruction_pointer ip{};
-  ptr<call_stack>     stack;
+  call_stack          stack;
   ptr<>               result;
 
   execution_state(context& ctx);

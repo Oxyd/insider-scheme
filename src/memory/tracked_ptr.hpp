@@ -1,7 +1,6 @@
 #ifndef INSIDER_MEMORY_TRACKED_PTR_HPP
 #define INSIDER_MEMORY_TRACKED_PTR_HPP
 
-#include "object.hpp"
 #include "ptr.hpp"
 #include "root_provider.hpp"
 

@@ -948,9 +948,9 @@ TEST_F(interpreter, calling_native_directly_from_native_does_not_pollute_stack) 
   ptr<> f = eval("always-throw");
 
   ctx.current_execution = std::make_unique<execution_state>(ctx);
-  ASSERT_TRUE(ctx.current_execution->stack->empty());
+  ASSERT_TRUE(ctx.current_execution->stack.empty());
   ASSERT_THROW(call_with_continuation_barrier(ctx, f, {}), std::runtime_error);
-  EXPECT_TRUE(ctx.current_execution->stack->empty());
+  EXPECT_TRUE(ctx.current_execution->stack.empty());
 }
 
 TEST_F(interpreter, mutating_immutable_top_level_throws) {
