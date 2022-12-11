@@ -94,8 +94,6 @@ public:
   };
 
   using scope = std::vector<binding>;
-  using free_variables_map = std::unordered_map<ptr<local_variable>,
-                                                shared_register>;
 
   class unique_scope {
   public:
