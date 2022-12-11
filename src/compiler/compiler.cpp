@@ -203,7 +203,9 @@ compile_loop_variable_definition(context& ctx, procedure_context& proc,
   shared_register reg = proc.registers.allocate_register();
   result_location res{reg};
   compile_expression(ctx, proc, expr, false, res);
-  scope.emplace_back(variable_bindings::binding{var, std::move(reg)});
+  scope.emplace_back(
+    variable_bindings::binding::register_binding(var, std::move(reg))
+  );
 }
 
 static void
@@ -213,7 +215,9 @@ compile_non_eliminable_variable_definition(context& ctx, procedure_context& proc
                                            expression expr) {
   shared_register value
     = compile_expression_to_register(ctx, proc, expr, false);
-  scope.emplace_back(variable_bindings::binding{var, std::move(value)});
+  scope.emplace_back(
+    variable_bindings::binding::register_binding(var, std::move(value))
+  );
 }
 
 static void
@@ -222,9 +226,9 @@ compile_eliminable_variable_definition(context& ctx, procedure_context& proc,
                                        ptr<local_variable> var,
                                        expression expr) {
   compile_expression_with_unused_result(ctx, proc, expr);
-  scope.emplace_back(
-    variable_bindings::binding{var, proc.registers.allocate_register()}
-  );
+  scope.emplace_back(variable_bindings::binding::register_binding(
+                       var, proc.registers.allocate_register()
+                     ));
 }
 
 static variable_bindings::scope
@@ -309,19 +313,24 @@ push_parameters_and_closure_scope(procedure_context& proc,
   variable_bindings::scope param_and_closure_scope;
 
   param_and_closure_scope.push_back(
-    variable_bindings::binding{stx->self_variable(),
-                               proc.registers.allocate_register()}
+    variable_bindings::binding::register_binding(
+      stx->self_variable(), proc.registers.allocate_register()
+    )
   );
 
   for (auto const& param : stx->parameters())
     param_and_closure_scope.push_back(
-      variable_bindings::binding{param.variable,
-                                 proc.registers.allocate_register()}
+      variable_bindings::binding::register_binding(
+        param.variable,
+        proc.registers.allocate_register()
+      )
     );
 
   for (ptr<local_variable> free : stx->free_variables())
     param_and_closure_scope.push_back(
-      variable_bindings::binding{free, proc.registers.allocate_register()}
+      variable_bindings::binding::register_binding(
+        free, proc.registers.allocate_register()
+      )
     );
 
   return proc.bindings.push_scope(std::move(param_and_closure_scope));
