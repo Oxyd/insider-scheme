@@ -349,21 +349,13 @@ set(execution_state& state) {
 }
 
 static std::size_t
-get_closure_size(ptr<procedure> proc) {
-  if (proc)
-    return proc->size();
-  else
-    return 0;
-}
-
-static std::size_t
 actual_args_size(procedure_prototype const& proto) {
   return proto.info.num_leading_args + (proto.info.has_rest ? 1 : 0);
 }
 
 static void
 push_closure(ptr<procedure> proc, call_stack& stack) {
-  std::size_t closure_size = get_closure_size(proc);
+  std::size_t closure_size = proc->size();
   std::size_t begin = actual_args_size(proc->prototype()) + 1;
 
   for (std::size_t i = 0; i < closure_size; ++i)
@@ -464,15 +456,15 @@ check_and_convert_scheme_call_arguments(execution_state& state,
   convert_tail_args(state.ctx, state.stack, proto, base, num_args);
 }
 
+template <bool IsTail, bool CheckAndConvertArgs>
 static void
-make_scheme_frame(ptr<procedure> proc, execution_state& state,
-                  operand base, bool is_tail, bool check_and_convert_args) {
-  if (check_and_convert_args)
+make_scheme_frame(ptr<procedure> proc, execution_state& state, operand base) {
+  if constexpr (CheckAndConvertArgs)
     check_and_convert_scheme_call_arguments(state, proc->prototype(), base);
   else
     read_operand(state);
 
-  if (!is_tail) {
+  if constexpr (!IsTail) {
     operand result_reg = read_operand(state);
     push_scheme_frame(state, proc, base, result_reg);
   } else
@@ -480,11 +472,11 @@ make_scheme_frame(ptr<procedure> proc, execution_state& state,
                                 actual_args_size(proc->prototype()));
 }
 
+template <bool IsTail, bool CheckAndConvertArgs>
 static void
 push_scheme_call_frame(ptr<procedure> proc, execution_state& state,
-                       operand base, bool is_tail,
-                       bool check_and_convert_args) {
-  make_scheme_frame(proc, state, base, is_tail, check_and_convert_args);
+                       operand base) {
+  make_scheme_frame<IsTail, CheckAndConvertArgs>(proc, state, base);
   push_closure(proc, state.stack);
   state.ip = proc->prototype().code.get();
 }
@@ -614,7 +606,7 @@ generic_call(execution_state& state) {
   ptr<> callee = state.stack.local(base);
 
   if (auto proc = match<procedure>(callee))
-    push_scheme_call_frame(proc, state, base, Tail, true);
+    push_scheme_call_frame<Tail, true>(proc, state, base);
   else if (auto native = match<native_procedure>(callee))
     do_native_call(native, state, base, Tail);
   else
@@ -626,7 +618,7 @@ static void
 scheme_call(execution_state& state) {
   operand base = read_operand(state);
   auto callee = assume<procedure>(state.stack.local(base));
-  push_scheme_call_frame(callee, state, base, Tail, false);
+  push_scheme_call_frame<Tail, false>(callee, state, base);
 }
 
 template <bool Tail>

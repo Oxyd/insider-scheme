@@ -76,29 +76,24 @@ private:
 
 class variable_bindings {
 public:
-  struct binding {
+  class binding {
+  public:
     ptr<local_variable> variable;
     shared_register     destination;
 
-    binding() = default;
+    static binding
+    register_binding(ptr<local_variable> variable, shared_register destination) {
+      return binding{variable, std::move(destination)};
+    }
 
-    binding(ptr<insider::local_variable> variable, shared_register destination)
+  private:
+    binding(ptr<local_variable> variable, shared_register destination)
       : variable{variable}
       , destination{std::move(destination)}
     { }
-
-    explicit
-    binding(ptr<local_variable> variable)
-      : variable{variable}
-    { }
-
-    bool
-    self_binding() const { return !destination; }
   };
 
   using scope = std::vector<binding>;
-  using free_variables_map = std::unordered_map<ptr<local_variable>,
-                                                shared_register>;
 
   class unique_scope {
   public:
