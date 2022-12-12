@@ -96,23 +96,6 @@ read_operand(execution_state& state) {
 }
 
 static void
-no_operation(execution_state&) { }
-
-static void
-load_constant(execution_state& state) {
-  operand const_num = read_operand(state);
-  operand dest = read_operand(state);
-  state.stack.local(dest) = get_constant(state.stack, const_num);
-}
-
-static void
-load_top_level(execution_state& state) {
-  operand global_num = read_operand(state);
-  operand dest = read_operand(state);
-  state.stack.local(dest) = state.ctx.get_top_level(global_num);
-}
-
-static void
 load_dynamic_top_level(execution_state& state) {
   operand id_idx = read_operand(state);
   operand dest = read_operand(state);
@@ -134,220 +117,7 @@ load_dynamic_top_level(execution_state& state) {
     "Identifier {} not bound to variable", id->get_symbol()->value()
   )};
 }
-
-static void
-store_top_level(execution_state& state) {
-  operand reg = read_operand(state);
-  operand global_num = read_operand(state);
-  state.ctx.set_top_level(global_num, state.stack.local(reg));
-}
-
-template <auto Constant>
-static void
-load_special_constant(execution_state& state) {
-  operand dest = read_operand(state);
-  state.stack.local(dest) = (state.ctx.constants.get())->*Constant;
-}
-
-auto load_null = load_special_constant<&context::constants::null>;
-auto load_void = load_special_constant<&context::constants::void_>;
-auto load_t = load_special_constant<&context::constants::t>;
-auto load_f = load_special_constant<&context::constants::f>;
-auto load_eof = load_special_constant<&context::constants::eof>;
-auto load_default_value
-  = load_special_constant<&context::constants::default_value>;
-
-static void
-load_fixnum(execution_state& state) {
-  immediate_type value = operand_to_immediate(read_operand(state));
-  operand dest = read_operand(state);
-  state.stack.local(dest) = integer_to_ptr(value);
-}
-
-static void
-load_character(execution_state& state) {
-  immediate_type value = operand_to_immediate(read_operand(state));
-  operand dest = read_operand(state);
-  state.stack.local(dest) = character_to_ptr(static_cast<char32_t>(value));
-}
-
-template <auto SmallOp, ptr<> (*GeneralOp)(context&, ptr<>, ptr<>)>
-static void
-arithmetic(execution_state& state) {
-  ptr<> lhs = state.stack.local(read_operand(state));
-  ptr<> rhs = state.stack.local(read_operand(state));
-  operand dest = read_operand(state);
-
-  if (is<integer>(lhs) && is<integer>(rhs))
-    if (ptr<> result = SmallOp(assume<integer>(lhs).value(),
-                               assume<integer>(rhs).value())) {
-      state.stack.local(dest) = result;
-      return;
-    }
-
-  state.stack.local(dest) = GeneralOp(state.ctx, lhs, rhs);
-}
-
-static constexpr auto add_instr = arithmetic<add_fixnums, add>;
-static constexpr auto subtract_instr = arithmetic<subtract_fixnums, subtract>;
-static constexpr auto multiply_instr = arithmetic<multiply_fixnums, multiply>;
-
-static void
-divide_instr(execution_state& state) {
-  ptr<> lhs = state.stack.local(read_operand(state));
-  ptr<> rhs = state.stack.local(read_operand(state));
-  operand dest = read_operand(state);
-  state.stack.local(dest) = divide(state.ctx, lhs, rhs);
-}
-
-static void
-truncate_quotient(execution_state& state) {
-  ptr<> lhs = state.stack.local(read_operand(state));
-  ptr<> rhs = state.stack.local(read_operand(state));
-  operand dest = read_operand(state);
-  if (is<integer>(lhs) && is<integer>(rhs))
-    state.stack.local(dest) = integer_to_ptr(
-      assume<integer>(lhs).value() / assume<integer>(rhs).value()
-    );
-  else
-    state.stack.local(dest) = truncate_quotient(state.ctx, lhs, rhs);
-}
-
-static void
-truncate_remainder(execution_state& state) {
-  ptr<> lhs = state.stack.local(read_operand(state));
-  ptr<> rhs = state.stack.local(read_operand(state));
-  operand dest = read_operand(state);
-  if (is<integer>(lhs) && is<integer>(rhs))
-    state.stack.local(dest) = integer_to_ptr(
-      assume<integer>(lhs).value() % assume<integer>(rhs).value()
-    );
-  else
-    state.stack.local(dest) = truncate_quotient(state.ctx, lhs, rhs);
-}
-
-static void
-increment(execution_state& state) {
-  ptr<> value = state.stack.local(read_operand(state));
-  operand dest = read_operand(state);
-
-  if (auto i = match<integer>(value))
-    if (auto result = add_fixnums(i->value(), 1)) {
-      state.stack.local(dest) = result;
-      return;
-    }
-
-  state.stack.local(dest) = add(state.ctx, value, integer_to_ptr(1));
-}
-
-static void
-decrement(execution_state& state) {
-  ptr<> value = state.stack.local(read_operand(state));
-  operand dest = read_operand(state);
-
-  if (auto i = match<integer>(value))
-    if (auto result = subtract_fixnums(i->value(), 1)) {
-      state.stack.local(dest) = result;
-      return;
-    }
-
-  state.stack.local(dest) = subtract(state.ctx, value, integer_to_ptr(1));
-}
-
-static void
-negate(execution_state& state) {
-  ptr<> value = state.stack.local(read_operand(state));
-  operand dest = read_operand(state);
-
-  if (auto i = match<integer>(value))
-    if (auto result = multiply_fixnums(i->value(), -1)) {
-      state.stack.local(dest) = result;
-      return;
-    }
-
-  state.stack.local(dest) = negate(state.ctx, value);
-}
-
-template <auto SmallOp, ptr<boolean> (*GeneralOp)(context&, ptr<>, ptr<>)>
-static void
-relational(execution_state& state) {
-  ptr<> lhs = state.stack.local(read_operand(state));
-  ptr<> rhs = state.stack.local(read_operand(state));
-  operand dest = read_operand(state);
-
-  ptr<> t = state.ctx.constants->t;
-  ptr<> f = state.ctx.constants->f;
-
-  if (is<integer>(lhs) && is<integer>(rhs))
-    state.stack.local(dest) = SmallOp(assume<integer>(lhs).value(),
-                                       assume<integer>(rhs).value()) ? t : f;
-  else
-    state.stack.local(dest) = GeneralOp(state.ctx, lhs, rhs);
-}
-
-static constexpr auto arith_equal_instr = relational<
-  [] (integer::value_type lhs, integer::value_type rhs) { return lhs == rhs; },
-  arith_equal
->;
-
-static constexpr auto less_instr = relational<
-  [] (integer::value_type lhs, integer::value_type rhs) { return lhs < rhs; },
-  less
->;
-
-static constexpr auto less_or_equal_instr = relational<
-  [] (integer::value_type lhs, integer::value_type rhs) { return lhs <= rhs; },
-  less_or_equal
->;
-
-static constexpr auto greater_instr = relational<
-  [] (integer::value_type lhs, integer::value_type rhs) { return (lhs > rhs); },
-  greater
->;
-
-static constexpr auto greater_or_equal_instr = relational<
-  [] (integer::value_type lhs, integer::value_type rhs) { return lhs >= rhs; },
-  greater_or_equal
->;
-
-template <auto Compare>
-static void
-char_compare(execution_state& state) {
-  auto lhs = expect<char32_t>(state.stack.local(read_operand(state)));
-  auto rhs = expect<char32_t>(state.stack.local(read_operand(state)));
-  operand dest = read_operand(state);
-  bool result = Compare(lhs, rhs);
-  state.stack.local(dest)
-    = result ? state.ctx.constants->t : state.ctx.constants->f;
-}
-
-static constexpr auto char_eq = char_compare<[] (char32_t lhs, char32_t rhs) {
-  return lhs == rhs;
-}>;
-
-static constexpr auto char_lt = char_compare<[] (char32_t lhs, char32_t rhs) {
-  return lhs < rhs;
-}>;
-
-static constexpr auto char_le = char_compare<[] (char32_t lhs, char32_t rhs) {
-  return lhs <= rhs;
-}>;
-
-static constexpr auto char_gt = char_compare<[] (char32_t lhs, char32_t rhs) {
-  return (lhs > rhs);
-}>;
-
-static constexpr auto char_ge = char_compare<[] (char32_t lhs, char32_t rhs) {
-  return lhs >= rhs;
-}>;
-
-static void
-set(execution_state& state) {
-  operand src = read_operand(state);
-  operand dst = read_operand(state);
-  state.stack.local(dst) = state.stack.local(src);
-}
-
+ 
 static std::size_t
 actual_args_size(procedure_prototype const& proto) {
   return proto.info.num_leading_args + (proto.info.has_rest ? 1 : 0);
@@ -599,43 +369,6 @@ throw_application_error(context& ctx, ptr<> callee) {
                    datum_to_string(ctx, callee));
 }
 
-template <bool Tail>
-static void
-generic_call(execution_state& state) {
-  operand base = read_operand(state);
-  ptr<> callee = state.stack.local(base);
-
-  if (auto proc = match<procedure>(callee))
-    push_scheme_call_frame<Tail, true>(proc, state, base);
-  else if (auto native = match<native_procedure>(callee))
-    do_native_call(native, state, base, Tail);
-  else
-    throw_application_error(state.ctx, callee);
-}
-
-template <bool Tail>
-static void
-scheme_call(execution_state& state) {
-  operand base = read_operand(state);
-  auto callee = assume<procedure>(state.stack.local(base));
-  push_scheme_call_frame<Tail, false>(callee, state, base);
-}
-
-template <bool Tail>
-static void
-native_call(execution_state& state) {
-  operand base = read_operand(state);
-  auto callee = assume<native_procedure>(state.stack.local(base));
-  do_native_call(callee, state, base, Tail);
-}
-
-static constexpr auto tail_call_instr = generic_call<true>;
-static constexpr auto call_instr = generic_call<false>;
-static constexpr auto tail_call_known_scheme = scheme_call<true>;
-static constexpr auto call_known_scheme = scheme_call<false>;
-static constexpr auto tail_call_known_native = native_call<true>;
-static constexpr auto call_known_native = native_call<false>;
-
 static void
 resume_native_call(execution_state& state, ptr<> scheme_result) {
   if (state.stack.current_frame_type()
@@ -646,44 +379,6 @@ resume_native_call(execution_state& state, ptr<> scheme_result) {
     // immediately; the native procedure will then return back to a previous
     // run() call.
     state.result = scheme_result;
-}
-
-static void
-ret(execution_state& state) {
-  ptr<> result = state.stack.local(read_operand(state));
-  pop_frame_and_set_return_value(state, result);
-}
-
-static void
-jump(execution_state& state) {
-  immediate_type offset = operand_to_immediate(read_operand(state));
-  state.ip += offset;
-}
-
-static void
-jump_unless(execution_state& state) {
-  ptr<> test_value = state.stack.local(read_operand(state));
-  immediate_type offset = operand_to_immediate(read_operand(state));
-  if (test_value == state.ctx.constants->f)
-    state.ip += offset;
-}
-
-static void
-make_closure(execution_state& state) {
-  operand base = read_operand(state);
-  ptr<procedure_prototype> proto
-    = assume<procedure_prototype>(state.stack.local(base));
-
-  auto num_captures = read_operand(state);
-  operand captures_base = base + 1;
-  operand dest = read_operand(state);
-
-  auto result = make<procedure>(state.ctx, proto, num_captures);
-  for (std::size_t i = 0; i < num_captures; ++i)
-    result->set(state.ctx.store, i,
-                state.stack.local(operand(captures_base + i)));
-
-  state.stack.local(dest) = result;
 }
 
 namespace {
@@ -870,223 +565,6 @@ cdr(execution_state& state) {
   state.stack.local(read_operand(state)) = cdr(p);
 }
 
-static void
-type(execution_state& state) {
-  ptr<> o = state.stack.local(read_operand(state));
-  state.stack.local(read_operand(state))
-    = type(state.ctx, o);
-}
-
-static void
-do_instruction(execution_state& state, gc_disabler& no_gc) {
-  assert(!state.stack.empty());
-  assert(is<procedure>(state.stack.callable()));
-
-  opcode opcode = read_opcode(state);
-
-  switch (opcode) {
-  case opcode::no_operation:           no_operation(state);              break;
-  case opcode::load_constant:          load_constant(state);             break;
-  case opcode::load_top_level:         load_top_level(state);            break;
-  case opcode::store_top_level:        store_top_level(state);           break;
-  case opcode::load_dynamic_top_level: load_dynamic_top_level(state);    break;
-  case opcode::load_null:              load_null(state);                 break;
-  case opcode::load_void:              load_void(state);                 break;
-  case opcode::load_t:                 load_t(state);                    break;
-  case opcode::load_f:                 load_f(state);                    break;
-  case opcode::load_eof:               load_eof(state);                  break;
-  case opcode::load_default_value:     load_default_value(state);        break;
-  case opcode::load_fixnum:            load_fixnum(state);               break;
-  case opcode::load_character:         load_character(state);            break;
-  case opcode::add:                    add_instr(state);                 break;
-  case opcode::subtract:               subtract_instr(state);            break;
-  case opcode::multiply:               multiply_instr(state);            break;
-  case opcode::divide:                 divide_instr(state);              break;
-  case opcode::truncate_quotient:      truncate_quotient(state);         break;
-  case opcode::truncate_remainder:     truncate_remainder(state);        break;
-  case opcode::increment:              increment(state);                 break;
-  case opcode::decrement:              decrement(state);                 break;
-  case opcode::negate:                 negate(state);                    break;
-  case opcode::arith_equal:            arith_equal_instr(state);         break;
-  case opcode::less:                   less_instr(state);                break;
-  case opcode::greater:                greater_instr(state);             break;
-  case opcode::less_or_equal:          less_or_equal_instr(state);       break;
-  case opcode::greater_or_equal:       greater_or_equal_instr(state);    break;
-  case opcode::char_eq:                char_eq(state);                   break;
-  case opcode::char_lt:                char_lt(state);                   break;
-  case opcode::char_le:                char_le(state);                   break;
-  case opcode::char_gt:                char_gt(state);                   break;
-  case opcode::char_ge:                char_ge(state);                   break;
-  case opcode::set:                    set(state);                       break;
-  case opcode::call:                   call_instr(state);                break;
-  case opcode::tail_call:              tail_call_instr(state);           break;
-  case opcode::call_known_scheme:      call_known_scheme(state);         break;
-  case opcode::tail_call_known_scheme: tail_call_known_scheme(state);    break;
-  case opcode::call_known_native:      call_known_native(state);         break;
-  case opcode::tail_call_known_native: tail_call_known_native(state);    break;
-  case opcode::ret:          ret(state);                                 break;
-  case opcode::jump:         jump(state);                                break;
-  case opcode::jump_unless:  jump_unless(state);                         break;
-  case opcode::make_closure: make_closure(state);                        break;
-  case opcode::box:          procedure_instruction<make_box>(state);     break;
-  case opcode::unbox:        procedure_instruction<unbox>(state);        break;
-  case opcode::box_set:      procedure_instruction<box_set>(state);      break;
-  case opcode::cons:         procedure_instruction<cons>(state);         break;
-  case opcode::car:          car(state);                                 break;
-  case opcode::cdr:          cdr(state);                                 break;
-  case opcode::vector_set:
-    procedure_instruction<vector_set>(state);
-    break;
-  case opcode::vector_ref:
-    procedure_instruction<&vector::ref>(state);
-    break;
-  case opcode::vector_length:
-    procedure_instruction<&vector::size>(state);
-    break;
-  case opcode::bytevector_u8_set:
-    procedure_instruction<&bytevector::set>(state);
-    break;
-  case opcode::bytevector_u8_ref:
-    procedure_instruction<&bytevector::ref>(state);
-    break;
-  case opcode::bytevector_length:
-    procedure_instruction<&bytevector::size>(state);
-    break;
-  case opcode::string_ref:
-    procedure_instruction<string_ref>(state);
-    break;
-  case opcode::string_set:
-    procedure_instruction<string_set>(state);
-    break;
-  case opcode::string_length:
-    procedure_instruction<&string::length>(state);
-    break;
-  case opcode::string_append_char:
-    procedure_instruction<&string::append_char>(state);
-    break;
-  case opcode::string_null:
-    procedure_instruction<is_string_null>(state);
-    break;
-  case opcode::string_cursor_start:
-    procedure_instruction<string_cursor_start>(state);
-    break;
-  case opcode::string_cursor_end:
-    procedure_instruction<string_cursor_end>(state);
-    break;
-  case opcode::string_cursor_next:
-    procedure_instruction<string_cursor_next>(state);
-    break;
-  case opcode::string_cursor_prev:
-    procedure_instruction<string_cursor_prev>(state);
-    break;
-  case opcode::type:
-    type(state);
-    break;
-  case opcode::eq:
-    procedure_instruction<eq>(state);
-    break;
-  case opcode::eqv:
-    procedure_instruction<eqv>(state);
-    break;
-  case opcode::equal:
-    procedure_instruction<equal>(state);
-    break;
-  case opcode::syntax_expression:
-    procedure_instruction<&syntax::update_and_get_expression>(state);
-    break;
-  case opcode::free_identifier_eq:
-    procedure_instruction<free_identifier_eq>(state);
-    break;
-  case opcode::is_integer:
-    procedure_instruction<is_integer>(state);
-    break;
-  case opcode::is_exact_integer:
-    procedure_instruction<is_exact_integer>(state);
-    break;
-  case opcode::is_zero:
-    procedure_instruction<is_zero>(state);
-    break;
-  case opcode::is_positive:
-    procedure_instruction<is_positive>(state);
-    break;
-  case opcode::is_negative:
-    procedure_instruction<is_negative>(state);
-    break;
-  case opcode::is_number:
-    procedure_instruction<is_number>(state);
-    break;
-  case opcode::is_real:
-    procedure_instruction<is_real>(state);
-    break;
-  case opcode::is_rational:
-    procedure_instruction<is_rational>(state);
-    break;
-  case opcode::is_finite:
-    procedure_instruction<is_finite>(state);
-    break;
-  case opcode::is_infinite:
-    procedure_instruction<is_infinite>(state);
-    break;
-  case opcode::is_nan:
-    procedure_instruction<is_nan>(state);
-    break;
-  case opcode::is_inexact:
-    procedure_instruction<is_inexact>(state);
-    break;
-  case opcode::is_exact:
-    procedure_instruction<is_exact>(state);
-    break;
-  case opcode::inexact:
-    procedure_instruction<inexact>(state);
-    break;
-  case opcode::exact:
-    procedure_instruction<exact>(state);
-    break;
-  case opcode::fraction_numerator:
-    procedure_instruction<&fraction::numerator>(state);
-    break;
-  case opcode::fraction_denominator:
-    procedure_instruction<&fraction::denominator>(state);
-    break;
-  case opcode::real_part:
-    procedure_instruction<real_part>(state);
-    break;
-  case opcode::imag_part:
-    procedure_instruction<imag_part>(state);
-    break;
-  case opcode::read_char:
-    procedure_instruction<read_char>(state);
-    break;
-  case opcode::peek_char:
-    procedure_instruction<peek_char>(state);
-    break;
-  case opcode::write_char:
-    procedure_instruction<write_char>(state);
-    break;
-  case opcode::read_u8:
-    procedure_instruction<read_u8>(state);
-    break;
-  case opcode::peek_u8:
-    procedure_instruction<peek_u8>(state);
-    break;
-  case opcode::write_u8:
-    procedure_instruction<write_u8>(state);
-    break;
-  case opcode::is_default_value:
-    procedure_instruction<is_default_value>(state);
-    break;
-
-  default:
-    assert(false); // Invalid opcode
-  } // end switch
-
-  if (opcode == opcode::ret
-      || opcode == opcode::tail_call
-      || opcode == opcode::tail_call_known_scheme
-      || opcode == opcode::tail_call_known_native)
-    no_gc.force_update();
-}
-
 static ptr<tail_call_tag_type>
 raise(context& ctx, ptr<> e);
 
@@ -1097,7 +575,641 @@ do_instructions(execution_state& state) {
   while (true)
     try {
       while (true) {
-        do_instruction(state, no_gc);
+        assert(!state.stack.empty());
+        assert(is<procedure>(state.stack.callable()));
+
+        opcode opcode = read_opcode(state);
+        switch (opcode) {
+        case opcode::no_operation: break;
+        case opcode::load_constant: {
+          operand const_num = read_operand(state);
+          operand dest = read_operand(state);
+
+          procedure_prototype const& proto
+            = assume<procedure>(state.stack.callable())->prototype();
+          assert(const_num < proto.constants_size);
+          state.stack.local(dest) = proto.constants[const_num];
+          break;
+        }
+        case opcode::load_top_level: {
+          operand global_num = read_operand(state);
+          operand dest = read_operand(state);
+          state.stack.local(dest) = state.ctx.get_top_level(global_num);
+          break;
+        }
+        case opcode::store_top_level: {
+          operand reg = read_operand(state);
+          operand global_num = read_operand(state);
+          state.ctx.set_top_level(global_num, state.stack.local(reg));
+          break;
+        }
+        case opcode::load_dynamic_top_level: {
+          load_dynamic_top_level(state);
+          break;
+        }
+        case opcode::load_null: {
+          operand dest = read_operand(state);
+          state.stack.local(dest) = state.ctx.constants->null;
+          break;
+        }
+        case opcode::load_void: {
+          operand dest = read_operand(state);
+          state.stack.local(dest) = state.ctx.constants->void_;
+          break;
+        }
+        case opcode::load_t: {
+          operand dest = read_operand(state);
+          state.stack.local(dest) = state.ctx.constants->t;
+          break;
+        }
+        case opcode::load_f: {
+          operand dest = read_operand(state);
+          state.stack.local(dest) = state.ctx.constants->f;
+          break;
+        }
+        case opcode::load_eof: {
+          operand dest = read_operand(state);
+          state.stack.local(dest) = state.ctx.constants->eof;
+          break;
+        }
+        case opcode::load_default_value: {
+          operand dest = read_operand(state);
+          state.stack.local(dest) = state.ctx.constants->default_value;
+          break;
+        }
+        case opcode::load_fixnum: {
+          immediate_type value = operand_to_immediate(read_operand(state));
+          operand dest = read_operand(state);
+          state.stack.local(dest) = integer_to_ptr(value);
+          break;
+        }
+        case opcode::load_character: {
+          immediate_type value = operand_to_immediate(read_operand(state));
+          operand dest = read_operand(state);
+          state.stack.local(dest)
+            = character_to_ptr(static_cast<char32_t>(value));
+          break;
+        }
+        case opcode::add: {
+          ptr<> lhs = state.stack.local(read_operand(state));
+          ptr<> rhs = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+
+          if (is<integer>(lhs) && is<integer>(rhs))
+            if (ptr<> result = add_fixnums(assume<integer>(lhs).value(),
+                                           assume<integer>(rhs).value())) {
+              state.stack.local(dest) = result;
+              break;
+            }
+
+          state.stack.local(dest) = add(state.ctx, lhs, rhs);
+          break;
+        }
+        case opcode::subtract: {
+          ptr<> lhs = state.stack.local(read_operand(state));
+          ptr<> rhs = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+
+          if (is<integer>(lhs) && is<integer>(rhs))
+            if (ptr<> result = subtract_fixnums(assume<integer>(lhs).value(),
+                                                assume<integer>(rhs).value())) {
+              state.stack.local(dest) = result;
+              break;
+            }
+
+          state.stack.local(dest) = subtract(state.ctx, lhs, rhs);
+          break;
+        }
+        case opcode::multiply: {
+          ptr<> lhs = state.stack.local(read_operand(state));
+          ptr<> rhs = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+
+          if (is<integer>(lhs) && is<integer>(rhs))
+            if (ptr<> result = multiply_fixnums(assume<integer>(lhs).value(),
+                                                assume<integer>(rhs).value())) {
+              state.stack.local(dest) = result;
+              break;
+            }
+
+          state.stack.local(dest) = multiply(state.ctx, lhs, rhs);
+          break;
+        }
+        case opcode::divide: {
+          ptr<> lhs = state.stack.local(read_operand(state));
+          ptr<> rhs = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+          state.stack.local(dest) = divide(state.ctx, lhs, rhs);
+          break;
+        }
+        case opcode::truncate_quotient: {
+          ptr<> lhs = state.stack.local(read_operand(state));
+          ptr<> rhs = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+          if (is<integer>(lhs) && is<integer>(rhs))
+            state.stack.local(dest) = integer_to_ptr(
+              assume<integer>(lhs).value() / assume<integer>(rhs).value()
+            );
+          else
+            state.stack.local(dest) = truncate_quotient(state.ctx, lhs, rhs);
+          break;
+        }
+        case opcode::truncate_remainder: {
+          ptr<> lhs = state.stack.local(read_operand(state));
+          ptr<> rhs = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+          if (is<integer>(lhs) && is<integer>(rhs))
+            state.stack.local(dest) = integer_to_ptr(
+              assume<integer>(lhs).value() % assume<integer>(rhs).value()
+            );
+          else
+            state.stack.local(dest) = truncate_quotient(state.ctx, lhs, rhs);
+          break;
+        }
+        case opcode::increment: {
+          ptr<> value = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+
+          if (auto i = match<integer>(value))
+            if (auto result = add_fixnums(i->value(), 1)) {
+              state.stack.local(dest) = result;
+              break;
+            }
+
+          state.stack.local(dest) = add(state.ctx, value, integer_to_ptr(1));
+          break;
+        }
+        case opcode::decrement: {
+          ptr<> value = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+
+          if (auto i = match<integer>(value))
+            if (auto result = subtract_fixnums(i->value(), 1)) {
+              state.stack.local(dest) = result;
+              break;
+            }
+
+          state.stack.local(dest)
+            = subtract(state.ctx, value, integer_to_ptr(1));
+          break;
+        }
+        case opcode::negate: {
+          ptr<> value = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+
+          if (auto i = match<integer>(value))
+            if (auto result = multiply_fixnums(i->value(), -1)) {
+              state.stack.local(dest) = result;
+              break;
+            }
+
+          state.stack.local(dest) = negate(state.ctx, value);
+          break;
+        }
+        case opcode::arith_equal: {
+          ptr<> lhs = state.stack.local(read_operand(state));
+          ptr<> rhs = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+
+          ptr<> t = state.ctx.constants->t;
+          ptr<> f = state.ctx.constants->f;
+
+          if (is<integer>(lhs) && is<integer>(rhs))
+            state.stack.local(dest)
+              = assume<integer>(lhs).value() == assume<integer>(rhs).value()
+                ? t : f;
+          else
+            state.stack.local(dest) = arith_equal(state.ctx, lhs, rhs);
+          break;
+        }
+        case opcode::less: {
+          ptr<> lhs = state.stack.local(read_operand(state));
+          ptr<> rhs = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+
+          ptr<> t = state.ctx.constants->t;
+          ptr<> f = state.ctx.constants->f;
+
+          if (is<integer>(lhs) && is<integer>(rhs))
+            state.stack.local(dest)
+              = assume<integer>(lhs).value() < assume<integer>(rhs).value()
+                ? t : f;
+          else
+            state.stack.local(dest) = less(state.ctx, lhs, rhs);
+          break;
+        }
+        case opcode::greater: {
+          ptr<> lhs = state.stack.local(read_operand(state));
+          ptr<> rhs = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+
+          ptr<> t = state.ctx.constants->t;
+          ptr<> f = state.ctx.constants->f;
+
+          if (is<integer>(lhs) && is<integer>(rhs))
+            state.stack.local(dest)
+              = assume<integer>(lhs).value() > assume<integer>(rhs).value()
+                ? t : f;
+          else
+            state.stack.local(dest) = greater(state.ctx, lhs, rhs);
+          break;
+        }
+        case opcode::less_or_equal: {
+          ptr<> lhs = state.stack.local(read_operand(state));
+          ptr<> rhs = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+
+          ptr<> t = state.ctx.constants->t;
+          ptr<> f = state.ctx.constants->f;
+
+          if (is<integer>(lhs) && is<integer>(rhs))
+            state.stack.local(dest)
+              = assume<integer>(lhs).value() <= assume<integer>(rhs).value()
+                ? t : f;
+          else
+            state.stack.local(dest) = less_or_equal(state.ctx, lhs, rhs);
+          break;
+        }
+        case opcode::greater_or_equal: {
+          ptr<> lhs = state.stack.local(read_operand(state));
+          ptr<> rhs = state.stack.local(read_operand(state));
+          operand dest = read_operand(state);
+
+          ptr<> t = state.ctx.constants->t;
+          ptr<> f = state.ctx.constants->f;
+
+          if (is<integer>(lhs) && is<integer>(rhs))
+            state.stack.local(dest)
+              = assume<integer>(lhs).value() >= assume<integer>(rhs).value()
+                ? t : f;
+          else
+            state.stack.local(dest) = greater_or_equal(state.ctx, lhs, rhs);
+          break;
+        }
+        case opcode::char_eq: {
+          auto lhs = expect<char32_t>(state.stack.local(read_operand(state)));
+          auto rhs = expect<char32_t>(state.stack.local(read_operand(state)));
+          operand dest = read_operand(state);
+          bool result = lhs == rhs;
+          state.stack.local(dest)
+            = result ? state.ctx.constants->t : state.ctx.constants->f;
+          break;
+        }
+        case opcode::char_lt: {
+          auto lhs = expect<char32_t>(state.stack.local(read_operand(state)));
+          auto rhs = expect<char32_t>(state.stack.local(read_operand(state)));
+          operand dest = read_operand(state);
+          bool result = lhs < rhs;
+          state.stack.local(dest)
+            = result ? state.ctx.constants->t : state.ctx.constants->f;
+          break;
+        }
+        case opcode::char_le: {
+          auto lhs = expect<char32_t>(state.stack.local(read_operand(state)));
+          auto rhs = expect<char32_t>(state.stack.local(read_operand(state)));
+          operand dest = read_operand(state);
+          bool result = lhs <= rhs;
+          state.stack.local(dest)
+            = result ? state.ctx.constants->t : state.ctx.constants->f;
+          break;
+        }
+        case opcode::char_gt: {
+          auto lhs = expect<char32_t>(state.stack.local(read_operand(state)));
+          auto rhs = expect<char32_t>(state.stack.local(read_operand(state)));
+          operand dest = read_operand(state);
+          bool result = lhs > rhs;
+          state.stack.local(dest)
+            = result ? state.ctx.constants->t : state.ctx.constants->f;
+          break;
+        }
+        case opcode::char_ge: {
+          auto lhs = expect<char32_t>(state.stack.local(read_operand(state)));
+          auto rhs = expect<char32_t>(state.stack.local(read_operand(state)));
+          operand dest = read_operand(state);
+          bool result = lhs >= rhs;
+          state.stack.local(dest)
+            = result ? state.ctx.constants->t : state.ctx.constants->f;
+          break;
+        }
+        case opcode::set: {
+          operand src = read_operand(state);
+          operand dst = read_operand(state);
+          state.stack.local(dst) = state.stack.local(src);
+          break;
+        }
+
+        case opcode::call: {
+          operand base = read_operand(state);
+          ptr<> callee = state.stack.local(base);
+
+          if (auto proc = match<procedure>(callee))
+            push_scheme_call_frame<false, true>(proc, state, base);
+          else if (auto native = match<native_procedure>(callee))
+            do_native_call(native, state, base, false);
+          else
+            throw_application_error(state.ctx, callee);
+          break;
+        }
+
+        case opcode::tail_call: {
+          operand base = read_operand(state);
+          ptr<> callee = state.stack.local(base);
+
+          if (auto proc = match<procedure>(callee))
+            push_scheme_call_frame<true, true>(proc, state, base);
+          else if (auto native = match<native_procedure>(callee))
+            do_native_call(native, state, base, true);
+          else
+            throw_application_error(state.ctx, callee);
+          break;
+        }
+
+        case opcode::call_known_scheme: {
+          operand base = read_operand(state);
+          auto callee = assume<procedure>(state.stack.local(base));
+          read_operand(state);
+          operand result_reg = read_operand(state);
+
+          state.stack.push_frame(
+            call_stack::frame_type::scheme,
+            state.stack.frame_base() + base,
+            callee->prototype().info.locals_size,
+            state.ip,
+            result_reg
+          );
+
+          std::size_t closure_size = callee->size();
+          std::size_t begin = actual_args_size(callee->prototype()) + 1;
+
+          for (std::size_t i = 0; i < closure_size; ++i)
+            state.stack.local(operand(begin + i)) = callee->ref(i);
+
+          state.ip = callee->prototype().code.get();
+          break;
+        }
+
+        case opcode::tail_call_known_scheme: {
+          operand base = read_operand(state);
+          auto callee = assume<procedure>(state.stack.local(base));
+          read_operand(state);
+
+          state.stack.replace_frame(call_stack::frame_type::scheme,
+                                    callee->prototype().info.locals_size,
+                                    base,
+                                    actual_args_size(callee->prototype()));
+
+          std::size_t closure_size = callee->size();
+          std::size_t begin = actual_args_size(callee->prototype()) + 1;
+
+          for (std::size_t i = 0; i < closure_size; ++i)
+            state.stack.local(operand(begin + i)) = callee->ref(i);
+
+          state.ip = callee->prototype().code.get();
+          break;
+        }
+
+        case opcode::call_known_native: {
+          operand base = read_operand(state);
+          auto callee = assume<native_procedure>(state.stack.local(base));
+          do_native_call(callee, state, base, false);
+          break;
+        }
+
+        case opcode::tail_call_known_native: {
+          operand base = read_operand(state);
+          auto callee = assume<native_procedure>(state.stack.local(base));
+          do_native_call(callee, state, base, true);
+          break;
+        }
+
+        case opcode::ret: {
+          ptr<> result = state.stack.local(read_operand(state));
+          assert(result);
+
+          call_stack& stack = state.stack;
+          operand dest_reg = stack.result_register();
+
+          instruction_pointer previous_ip = stack.previous_ip();
+          stack.pop_frame();
+          state.ip = previous_ip;
+
+          if (state.stack.empty())
+            // We are returning from the global procedure, so we return back to
+            // the calling C++ code.
+            state.result = result;
+          else if (current_frame_is_native(state.stack))
+            resume_native_call(state, result);
+          else
+            state.stack.local(dest_reg) = result;
+
+          break;
+        }
+
+        case opcode::jump: {
+          immediate_type offset = operand_to_immediate(read_operand(state));
+          state.ip += offset;
+          break;
+        }
+
+        case opcode::jump_unless: {
+          ptr<> test_value = state.stack.local(read_operand(state));
+          immediate_type offset = operand_to_immediate(read_operand(state));
+          if (test_value == state.ctx.constants->f)
+            state.ip += offset;
+          break;
+        }
+
+        case opcode::make_closure: {
+          operand base = read_operand(state);
+          ptr<procedure_prototype> proto
+            = assume<procedure_prototype>(state.stack.local(base));
+
+          auto num_captures = read_operand(state);
+          operand captures_base = base + 1;
+          operand dest = read_operand(state);
+
+          auto result = make<procedure>(state.ctx, proto, num_captures);
+          for (std::size_t i = 0; i < num_captures; ++i)
+            result->set(state.ctx.store, i,
+                        state.stack.local(operand(captures_base + i)));
+
+          state.stack.local(dest) = result;
+          break;
+        }
+
+        case opcode::type: {
+          ptr<> o = state.stack.local(read_operand(state));
+          state.stack.local(read_operand(state)) = type(state.ctx, o);
+          break;
+        }
+
+        case opcode::box:
+          procedure_instruction<make_box>(state);
+          break;
+        case opcode::unbox:
+          procedure_instruction<unbox>(state);
+          break;
+        case opcode::box_set:
+          procedure_instruction<box_set>(state);
+          break;
+        case opcode::cons:
+          procedure_instruction<cons>(state);
+          break;
+        case opcode::car:
+          car(state);
+          break;
+        case opcode::cdr:
+          cdr(state);
+          break;
+        case opcode::vector_set:
+          procedure_instruction<vector_set>(state);
+          break;
+        case opcode::vector_ref:
+          procedure_instruction<&vector::ref>(state);
+          break;
+        case opcode::vector_length:
+          procedure_instruction<&vector::size>(state);
+          break;
+        case opcode::bytevector_u8_set:
+          procedure_instruction<&bytevector::set>(state);
+          break;
+        case opcode::bytevector_u8_ref:
+          procedure_instruction<&bytevector::ref>(state);
+          break;
+        case opcode::bytevector_length:
+          procedure_instruction<&bytevector::size>(state);
+          break;
+        case opcode::string_ref:
+          procedure_instruction<string_ref>(state);
+          break;
+        case opcode::string_set:
+          procedure_instruction<string_set>(state);
+          break;
+        case opcode::string_length:
+          procedure_instruction<&string::length>(state);
+          break;
+        case opcode::string_append_char:
+          procedure_instruction<&string::append_char>(state);
+          break;
+        case opcode::string_null:
+          procedure_instruction<is_string_null>(state);
+          break;
+        case opcode::string_cursor_start:
+          procedure_instruction<string_cursor_start>(state);
+          break;
+        case opcode::string_cursor_end:
+          procedure_instruction<string_cursor_end>(state);
+          break;
+        case opcode::string_cursor_next:
+          procedure_instruction<string_cursor_next>(state);
+          break;
+        case opcode::string_cursor_prev:
+          procedure_instruction<string_cursor_prev>(state);
+          break;
+        case opcode::eq:
+          procedure_instruction<eq>(state);
+          break;
+        case opcode::eqv:
+          procedure_instruction<eqv>(state);
+          break;
+        case opcode::equal:
+          procedure_instruction<equal>(state);
+          break;
+        case opcode::syntax_expression:
+          procedure_instruction<&syntax::update_and_get_expression>(state);
+          break;
+        case opcode::free_identifier_eq:
+          procedure_instruction<free_identifier_eq>(state);
+          break;
+        case opcode::is_integer:
+          procedure_instruction<is_integer>(state);
+          break;
+        case opcode::is_exact_integer:
+          procedure_instruction<is_exact_integer>(state);
+          break;
+        case opcode::is_zero:
+          procedure_instruction<is_zero>(state);
+          break;
+        case opcode::is_positive:
+          procedure_instruction<is_positive>(state);
+          break;
+        case opcode::is_negative:
+          procedure_instruction<is_negative>(state);
+          break;
+        case opcode::is_number:
+          procedure_instruction<is_number>(state);
+          break;
+        case opcode::is_real:
+          procedure_instruction<is_real>(state);
+          break;
+        case opcode::is_rational:
+          procedure_instruction<is_rational>(state);
+          break;
+        case opcode::is_finite:
+          procedure_instruction<is_finite>(state);
+          break;
+        case opcode::is_infinite:
+          procedure_instruction<is_infinite>(state);
+          break;
+        case opcode::is_nan:
+          procedure_instruction<is_nan>(state);
+          break;
+        case opcode::is_inexact:
+          procedure_instruction<is_inexact>(state);
+          break;
+        case opcode::is_exact:
+          procedure_instruction<is_exact>(state);
+          break;
+        case opcode::inexact:
+          procedure_instruction<inexact>(state);
+          break;
+        case opcode::exact:
+          procedure_instruction<exact>(state);
+          break;
+        case opcode::fraction_numerator:
+          procedure_instruction<&fraction::numerator>(state);
+          break;
+        case opcode::fraction_denominator:
+          procedure_instruction<&fraction::denominator>(state);
+          break;
+        case opcode::real_part:
+          procedure_instruction<real_part>(state);
+          break;
+        case opcode::imag_part:
+          procedure_instruction<imag_part>(state);
+          break;
+        case opcode::read_char:
+          procedure_instruction<read_char>(state);
+          break;
+        case opcode::peek_char:
+          procedure_instruction<peek_char>(state);
+          break;
+        case opcode::write_char:
+          procedure_instruction<write_char>(state);
+          break;
+        case opcode::read_u8:
+          procedure_instruction<read_u8>(state);
+          break;
+        case opcode::peek_u8:
+          procedure_instruction<peek_u8>(state);
+          break;
+        case opcode::write_u8:
+          procedure_instruction<write_u8>(state);
+          break;
+        case opcode::is_default_value:
+          procedure_instruction<is_default_value>(state);
+          break;
+
+        default:
+          assert(false); // Invalid opcode
+        } // end switch
+
+        if (opcode == opcode::ret
+            || opcode == opcode::tail_call
+            || opcode == opcode::tail_call_known_scheme
+            || opcode == opcode::tail_call_known_native)
+          no_gc.force_update();
+
         if (state.result)
           return;
       }
