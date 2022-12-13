@@ -50,20 +50,27 @@ public:
 // The runtime stack used by the VM to store procedure activation records, local
 // variables and temporary values.
 class call_stack : public composite_object<call_stack> {
-  struct frame;
-
 public:
   static constexpr char const* scheme_name = "insider::call_stack";
 
   using frame_index = std::size_t;
 
+  enum class frame_type : std::uint8_t {
+    scheme, native, native_continuation, dummy
+  };
+
+  struct frame {
+    frame_type                  type;
+    operand                     result_register;
+    std::size_t                 base;
+    std::size_t                 size;
+    instruction_pointer         previous_ip;
+    ptr<stack_frame_extra_data> extra;
+  };
+
   struct frame_span {
     call_stack const*      stack;
     std::span<frame const> frames;
-  };
-
-  enum class frame_type {
-    scheme, native, native_continuation, dummy
   };
 
   call_stack();
@@ -84,8 +91,8 @@ public:
 
     ensure_frames_capacity(frames_size_ + 1);
 
-    frames_[frames_size_++] = frame{base, locals_size, previous_ip,
-                                    result_register, extra, type};
+    frames_[frames_size_++] = frame{type, result_register, base, locals_size,
+                                    previous_ip, extra};
 
     current_base_ = base;
     data_size_ = base + locals_size;
@@ -304,15 +311,6 @@ public:
 private:
   static constexpr std::size_t frames_alloc_size = 1024;
   static constexpr std::size_t data_alloc_size = 4096;
-
-  struct frame {
-    std::size_t                 base;
-    std::size_t                 size;
-    instruction_pointer         previous_ip;
-    operand                     result_register;
-    ptr<stack_frame_extra_data> extra;
-    frame_type                  type;
-  };
 
   std::unique_ptr<frame[]> frames_;
   std::size_t              frames_capacity_ = 0;
