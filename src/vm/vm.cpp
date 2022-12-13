@@ -191,13 +191,14 @@ current_procedure_bytecode_base(execution_state const& state) {
 static void
 push_scheme_frame(execution_state& state, ptr<procedure> proc,
                   operand base, operand result_reg) {
-  state.stack.push_frame(
-    call_stack::frame_type::scheme,
-    state.stack.frame_base() + base,
-    proc->prototype().info.locals_size,
-    state.ip,
-    result_reg
-  );
+  state.stack.push_frame({
+    .type = call_stack::frame_type::scheme,
+    .result_register = result_reg,
+    .base = state.stack.frame_base() + base,
+    .size = proc->prototype().info.locals_size,
+    .previous_ip = state.ip,
+    .extra = {}
+  });
 }
 
 static void
@@ -251,15 +252,16 @@ push_scheme_call_frame(ptr<procedure> proc, execution_state& state,
 }
 
 static void
-make_native_non_tail_call_frame(execution_state& state, std::size_t base,
-                                std::size_t num_args, operand dest_reg) {
-  state.stack.push_frame(
-    call_stack::frame_type::native,
-    state.stack.frame_base() + base,
-    num_args + 1,
-    state.ip,
-    dest_reg
-  );
+make_native_non_tail_call_frame(execution_state& state, register_index base,
+                                register_index num_args, operand dest_reg) {
+  state.stack.push_frame({
+    .type = call_stack::frame_type::native,
+    .result_register = dest_reg,
+    .base = state.stack.frame_base() + base,
+    .size = num_args + 1,
+    .previous_ip = state.ip,
+    .extra = {}
+  });
 }
 
 static void
@@ -929,13 +931,14 @@ do_instructions(execution_state& state) {
           read_operand(state);
           operand result_reg = read_operand(state);
 
-          state.stack.push_frame(
-            call_stack::frame_type::scheme,
-            state.stack.frame_base() + base,
-            callee->prototype().info.locals_size,
-            state.ip,
-            result_reg
-          );
+          state.stack.push_frame({
+            .type = call_stack::frame_type::scheme,
+            .result_register = result_reg,
+            .base = state.stack.frame_base() + base,
+            .size = callee->prototype().info.locals_size,
+            .previous_ip = state.ip,
+            .extra = {}
+          });
 
           std::size_t closure_size = callee->size();
           std::size_t begin = actual_args_size(callee->prototype()) + 1;
@@ -1275,11 +1278,14 @@ make_scheme_frame_for_call_from_native(execution_state& state,
                                        auto const& arguments) {
   throw_if_wrong_number_of_args(callable->prototype(), arguments.size());
 
-  state.stack.push_frame(call_stack::frame_type::scheme,
-                          state.stack.size(),
-                          callable->prototype().info.locals_size,
-                          nullptr,
-                          {});
+  state.stack.push_frame({
+    .type = call_stack::frame_type::scheme,
+    .result_register = {},
+    .base = state.stack.size(),
+    .size = callable->prototype().info.locals_size,
+    .previous_ip = nullptr,
+    .extra = {}
+  });
 
   push_scheme_arguments_for_call_from_native(state.ctx, callable, state.stack,
                                              arguments);
@@ -1346,8 +1352,14 @@ namespace {
 [[nodiscard]] static native_frame_guard
 setup_native_frame_for_call_from_native(execution_state& state,
                                         ptr<native_procedure> proc) {
-  state.stack.push_frame(call_stack::frame_type::native, state.stack.size(),
-                          1, state.ip, {});
+  state.stack.push_frame({
+    .type = call_stack::frame_type::native,
+    .result_register = {},
+    .base = state.stack.size(),
+    .size = 1,
+    .previous_ip = state.ip,
+    .extra = {}
+  });
   state.stack.local(0) = proc;
   return {state.stack};
 }
@@ -1421,8 +1433,14 @@ namespace {
 [[nodiscard]]
 static native_frame_guard
 push_dummy_frame(call_stack& stack) {
-  stack.push_frame(call_stack::frame_type::dummy, stack.size(), 1, nullptr,
-                   {});
+  stack.push_frame({
+    .type = call_stack::frame_type::dummy,
+    .result_register = {},
+    .base = stack.size(),
+    .size = 1,
+    .previous_ip = nullptr,
+    .extra = {}
+  });
   stack.callable() = nullptr;
   return {stack};
 }
@@ -1466,13 +1484,14 @@ static void
 make_native_frame_for_call_from_native(execution_state& state,
                                        ptr<native_procedure> proc,
                                        std::vector<ptr<>> const& arguments) {
-  state.stack.push_frame(
-    call_stack::frame_type::native,
-    state.stack.size(),
-    arguments.size() + 1,
-    nullptr,
-    {}
-  );
+  state.stack.push_frame({
+    .type = call_stack::frame_type::native,
+    .result_register = {},
+    .base = state.stack.size(),
+    .size = static_cast<register_index>(arguments.size() + 1),
+    .previous_ip = nullptr,
+    .extra = {}
+  });
   state.stack.local(operand{0}) = proc;
 }
 

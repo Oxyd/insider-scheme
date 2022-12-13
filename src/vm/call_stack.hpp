@@ -47,6 +47,8 @@ public:
   visit_members(member_visitor const& f);
 };
 
+using register_index = std::uint32_t;
+
 // The runtime stack used by the VM to store procedure activation records, local
 // variables and temporary values.
 class call_stack : public composite_object<call_stack> {
@@ -62,8 +64,8 @@ public:
   struct frame {
     frame_type                  type;
     operand                     result_register;
-    std::size_t                 base;
-    std::size_t                 size;
+    register_index              base;
+    register_index              size;
     instruction_pointer         previous_ip;
     ptr<stack_frame_extra_data> extra;
   };
@@ -80,22 +82,19 @@ public:
   call_stack(call_stack&&) = default;
 
   void
-  push_frame(frame_type type, std::size_t base,
-             std::size_t locals_size, instruction_pointer previous_ip,
-             operand result_register, ptr<stack_frame_extra_data> extra = {}) {
-    assert(locals_size > 0);
-    assert(frames_size_ > 0 || base == 0);
-    assert(frames_size_ == 0 || base >= current_frame().base);
+  push_frame(frame const& f) {
+    assert(f.size > 0);
+    assert(frames_size_ > 0 || f.base == 0);
+    assert(frames_size_ == 0 || f.base >= current_frame().base);
     assert(frames_size_ == 0
-           || base <= current_frame().base + current_frame().size);
+           || f.base <= current_frame().base + current_frame().size);
 
     ensure_frames_capacity(frames_size_ + 1);
 
-    frames_[frames_size_++] = frame{type, result_register, base, locals_size,
-                                    previous_ip, extra};
+    frames_[frames_size_++] = f;
 
-    current_base_ = base;
-    data_size_ = base + locals_size;
+    current_base_ = f.base;
+    data_size_ = f.base + f.size;
     ensure_data_capacity(data_size_);
   }
 
@@ -113,7 +112,7 @@ public:
   }
 
   void
-  replace_frame(frame_type new_type, std::size_t new_locals_size) {
+  replace_frame(frame_type new_type, register_index new_locals_size) {
     assert(frames_size_ > 0);
 
     frame& f = current_frame();
@@ -125,19 +124,19 @@ public:
   }
 
   void
-  replace_frame(frame_type new_type, std::size_t new_locals_size,
-                std::size_t args_base, std::size_t args_size) {
+  replace_frame(frame_type new_type, register_index new_locals_size,
+                register_index args_base, register_index args_size) {
     assert(frames_size_ > 0);
 
     frame& f = current_frame();
-    std::size_t current_base = f.base;
+    register_index current_base = f.base;
 
-    std::size_t dest_begin = current_base;
-    std::size_t src_begin  = current_base + args_base;
-    std::size_t src_end    = src_begin + args_size + 1;
+    register_index dest_begin = current_base;
+    register_index src_begin  = current_base + args_base;
+    register_index src_end    = src_begin + args_size + 1;
 
     assert(src_end <= data_size_);
-    [[maybe_unused]] std::size_t dest_end = dest_begin + args_size + 1;
+    [[maybe_unused]] register_index dest_end = dest_begin + args_size + 1;
     assert(dest_end <= data_size_);
 
     std::copy(data_.get() + src_begin, data_.get() + src_end,
@@ -151,7 +150,7 @@ public:
   }
 
   void
-  resize_current_frame(std::size_t new_size);
+  resize_current_frame(register_index new_size);
 
   std::optional<frame_index>
   current_frame_index() const {
@@ -215,7 +214,7 @@ public:
 
   object_span
   current_frame_span() const {
-    std::size_t base = current_frame().base;
+    register_index base = current_frame().base;
     return {&data_[base], &data_[base + current_frame().size]};
   }
 
@@ -260,20 +259,20 @@ public:
     return frames_[frame].result_register;
   }
 
-  std::size_t
+  register_index
   frame_base() const { return current_base_; }
 
-  std::size_t
+  register_index
   frame_base(frame_index frame) const {
     return frames_[frame].base;
   }
 
-  std::size_t
+  register_index
   frame_size() const {
     return current_frame().size;
   }
 
-  std::size_t
+  register_index
   frame_size(frame_index frame) const {
     return frames_[frame].size;
   }
@@ -281,7 +280,7 @@ public:
   bool
   empty() const { return frames_size_ == 0; }
 
-  std::size_t
+  register_index
   size() const { return data_size_; }
 
   std::size_t
@@ -316,9 +315,9 @@ private:
   std::size_t              frames_capacity_ = 0;
   std::size_t              frames_size_ = 0;
   std::unique_ptr<ptr<>[]> data_;
-  std::size_t              data_capacity_ = 0;
-  std::size_t              data_size_     = 0;
-  std::size_t              current_base_  = 0;
+  register_index              data_capacity_ = 0;
+  register_index              data_size_     = 0;
+  register_index              current_base_  = 0;
 
   frame&
   current_frame() {
@@ -355,7 +354,7 @@ private:
   }
 
   void
-  ensure_data_capacity(std::size_t required_size) {
+  ensure_data_capacity(register_index required_size) {
     if (required_size >= data_capacity_) [[unlikely]]
       grow_data(required_size);
   }
@@ -364,9 +363,9 @@ private:
   grow_frames(std::size_t requested_size);
 
   void
-  grow_data(std::size_t requested_size);
+  grow_data(register_index requested_size);
 
-  std::size_t
+  register_index
   real_data_size() const;
 };
 

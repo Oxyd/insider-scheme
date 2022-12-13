@@ -1,9 +1,7 @@
 #include "call_stack.hpp"
 
-#include "context.hpp"
 #include "memory/free_store.hpp"
 #include "runtime/basic_types.hpp"
-#include "runtime/integer.hpp"
 #include "util/integer_cast.hpp"
 
 #include <algorithm>
@@ -45,7 +43,7 @@ call_stack::call_stack(call_stack const& other)
 }
 
 void
-call_stack::resize_current_frame(std::size_t new_size) {
+call_stack::resize_current_frame(register_index new_size) {
   current_frame().size = new_size;
   update_current_frame();
 }
@@ -106,9 +104,9 @@ find_new_capacity(std::size_t old_capacity, std::size_t at_least,
 
 template <typename T>
 static void
-grow(std::unique_ptr<T[]>& container, std::size_t& capacity,
-     std::size_t requested_size, std::size_t alloc_size) {
-  std::size_t new_cap = find_new_capacity(capacity, requested_size, alloc_size);
+grow(std::unique_ptr<T[]>& container, auto& capacity,
+     auto requested_size, auto alloc_size) {
+  auto new_cap = find_new_capacity(capacity, requested_size, alloc_size);
   auto new_data = std::make_unique<T[]>(new_cap);
   std::copy(container.get(), container.get() + capacity, new_data.get());
   container = std::move(new_data);
@@ -121,13 +119,13 @@ call_stack::grow_frames(std::size_t requested_size) {
 }
 
 void
-call_stack::grow_data(std::size_t requested_size) {
+call_stack::grow_data(register_index requested_size) {
   grow<ptr<>>(data_, data_capacity_, requested_size, data_alloc_size);
 }
 
-std::size_t
+register_index
 call_stack::real_data_size() const {
-  std::size_t result = 0;
+  register_index result = 0;
   for (std::size_t i = 0; i < frames_size_; ++i)
     result = std::max(result, frames_[i].base + frames_[i].size);
   return result;
