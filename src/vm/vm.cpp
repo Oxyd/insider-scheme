@@ -5,7 +5,6 @@
 #include "io/read.hpp"
 #include "io/write.hpp"
 #include "memory/free_store.hpp"
-#include "memory/root_provider.hpp"
 #include "ptr.hpp"
 #include "runtime/error.hpp"
 #include "runtime/integer.hpp"
