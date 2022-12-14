@@ -390,10 +390,9 @@ word_type const dynamic_size_object<Derived, T>::type_index
     );
 
 enum class generation : word_type {
-  stack     = 0,
-  nursery_1 = 1,
-  nursery_2 = 2,
-  mature    = 3
+  nursery_1,
+  nursery_2,
+  mature
 };
 
 inline void
