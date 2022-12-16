@@ -355,6 +355,18 @@ TEST_F(io, write_default_value) {
             "#default-value");
 }
 
+TEST_F(io, write_special_characters) {
+  EXPECT_EQ(to_string_simple(ctx, character_to_ptr('\a')), R"(#\alarm)");
+  EXPECT_EQ(to_string_simple(ctx, character_to_ptr('\x08')), R"(#\backspace)");
+  EXPECT_EQ(to_string_simple(ctx, character_to_ptr('\x7F')), R"(#\delete)");
+  EXPECT_EQ(to_string_simple(ctx, character_to_ptr('\x1B')), R"(#\escape)");
+  EXPECT_EQ(to_string_simple(ctx, character_to_ptr('\n')), R"(#\newline)");
+  EXPECT_EQ(to_string_simple(ctx, character_to_ptr('\0')), R"(#\null)");
+  EXPECT_EQ(to_string_simple(ctx, character_to_ptr('\r')), R"(#\return)");
+  EXPECT_EQ(to_string_simple(ctx, character_to_ptr(' ')), R"(#\space)");
+  EXPECT_EQ(to_string_simple(ctx, character_to_ptr('\t')), R"(#\tab)");
+}
+
 TEST_F(io, read_write_fraction) {
   EXPECT_TRUE(num_equal(read("1/2"), make_fraction(1, 2)));
   EXPECT_TRUE(num_equal(read("2/4"), make_fraction(1, 2)));

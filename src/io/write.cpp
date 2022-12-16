@@ -48,8 +48,24 @@ write_string(ptr<string> s, ptr<textual_output_port> out) {
 
 static void
 write_escaped_char(char32_t c, ptr<textual_output_port> out) {
+  static std::unordered_map<char32_t, std::string> const character_names{
+    {'\x07', "alarm"},
+    {'\x08', "backspace"},
+    {'\x7F', "delete"},
+    {'\x1B', "escape"},
+    {'\x0A', "newline"},
+    {'\x00', "null"},
+    {'\x0D', "return"},
+    {' ',    "space"},
+    {'\x09', "tab"}
+  };
+
   out->write(R"(#\)");
-  out->write(c);
+
+  if (auto named = character_names.find(c); named != character_names.end())
+    out->write(named->second);
+  else
+    out->write(c);
 }
 
 static void
