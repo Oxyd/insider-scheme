@@ -121,7 +121,7 @@ context::set_top_level(operand i, ptr<> value) {
   assert(static_cast<std::size_t>(i) < top_level_objects_.size());
   if (!top_level_objects_[i].mutable_)
     throw std::runtime_error{
-      fmt::format("Attempting tu mutate immutable top-level {}",
+      fmt::format("Attempting to mutate immutable top-level {}",
                   top_level_objects_[i].name)
     };
   top_level_objects_[i].value = value;
