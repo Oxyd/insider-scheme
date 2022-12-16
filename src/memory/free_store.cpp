@@ -363,21 +363,15 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen,
   });
 }
 
-// Move live objects from one generation to another. Returns a space containing
-// all the dead objects and forwarding addresses to moved objects.
-[[nodiscard]]
-static dense_space
-promote(auto& from, auto& to, std::vector<ptr<>>* moved_objects) {
-  move_survivors(from.small, to.small, to.generation_number, moved_objects);
-
-  large_space& large = from.large;
+static void
+promote_large(large_space& large, std::vector<ptr<>>* moved_objects,
+              auto&& move = [] (std::size_t, ptr<>) { }) {
   for (std::size_t i = 0; i < large.object_count(); ++i) {
     ptr<> o = reinterpret_cast<object*>(large.get(i) + sizeof(word_type));
     assert(object_color(o) != color::grey);
 
     if (object_color(o) == color::black) {
-      large.move(i, to.large);
-      set_object_generation(o, to.generation_number);
+      move(i, o);
       set_object_color(o, color::white);
 
       if (moved_objects)
@@ -385,6 +379,23 @@ promote(auto& from, auto& to, std::vector<ptr<>>* moved_objects) {
     } else
       large.stage_for_deallocation(i);
   }
+}
+
+static void
+promote_large(large_space& large, std::vector<ptr<>>* moved_objects) {
+  promote_large(large, moved_objects, [] (std::size_t, ptr<>) { });
+}
+
+// Move live objects from one generation to another. Returns a space containing
+// all the dead objects and forwarding addresses to moved objects.
+[[nodiscard]]
+static dense_space
+promote(auto& from, auto& to, std::vector<ptr<>>* moved_objects) {
+  move_survivors(from.small, to.small, to.generation_number, moved_objects);
+  promote_large(from.large, moved_objects, [&] (std::size_t i, ptr<> o) {
+    from.large.move(i, to.large);
+    set_object_generation(o, to.generation_number);
+  });
 
   return std::move(from.small);
 }
@@ -396,20 +407,7 @@ static dense_space
 purge_mature(mature_generation& mature, std::vector<ptr<>>* moved_objects) {
   dense_space temp{mature.small.allocator()};
   move_survivors(mature.small, temp, generation::mature, moved_objects);
-
-  large_space& large = mature.large;
-  for (std::size_t i = 0; i < large.object_count(); ++i) {
-    ptr<> o = reinterpret_cast<object*>(large.get(i) + sizeof(word_type));
-    assert(object_color(o) != color::grey);
-
-    if (object_color(o) == color::white)
-      large.stage_for_deallocation(i);
-    else {
-      if (moved_objects)
-        moved_objects->push_back(o);
-      set_object_color(o, color::white);
-    }
-  }
+  promote_large(mature.large, moved_objects);
 
   std::swap(mature.small, temp);
   return temp;
