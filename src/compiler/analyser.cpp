@@ -17,7 +17,6 @@
 #include "util/define_procedure.hpp"
 #include "util/list_iterator.hpp"
 #include "util/parameterize.hpp"
-#include "util/parameterize.hpp"
 #include "vm/vm.hpp"
 
 #include <fmt/format.h>
