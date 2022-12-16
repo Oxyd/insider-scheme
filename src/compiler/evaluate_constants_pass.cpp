@@ -194,6 +194,13 @@ can_be_ignored(context& ctx, static_environment const& env, expression e) {
   return visit([&] (auto expr) { return can_be_ignored(ctx, env, expr); }, e);
 }
 
+static bool
+can_be_ignored(context& ctx, static_environment const& env,
+               definition_pair_expression const& dp) {
+  return !dp.variable()->flags().is_set
+         && can_be_ignored(ctx, env, dp.expression());
+}
+
 static ptr<>
 constant_value_for_expression(context& ctx,
                               static_environment const& env,
@@ -204,7 +211,7 @@ constant_value_for_expression(context& ctx,
 
   if (std::ranges::all_of(let->definitions(),
                           [&] (auto const& dp) {
-                            return can_be_ignored(ctx, env, dp.expression());
+                            return can_be_ignored(ctx, env, dp);
                           }))
     return constant_value_for_expression(ctx, env, let->body());
   else

@@ -1352,6 +1352,22 @@ TEST_F(ast, lets_with_lets_can_be_evaluated_in_if_conditions) {
   EXPECT_EQ(expect<symbol>(lit->value())->value(), "yes");
 }
 
+TEST_F(ast, let_that_references_set_variable_can_not_be_constant_evaluated) {
+  expression e = analyse(
+    R"(
+      (display (let ((var 0))
+                 var
+                 (set! var 1)
+                 (* 2 var)))
+    )",
+    {&analyse_variables, &inline_procedures, &evaluate_constants}
+  );
+  auto app = expect<application_expression>(e);
+  ASSERT_EQ(app->arguments().size(), 1);
+  auto arg = app->arguments()[0];
+  EXPECT_TRUE(is<let_expression>(arg));
+}
+
 TEST_F(ast, unused_variable_is_not_read) {
   ptr<local_variable> var = parse_and_get_local_variable("v", R"(
     (let ((v 5))
