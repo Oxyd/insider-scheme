@@ -3,13 +3,13 @@
 #include "compiler/analyser.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/compiler.hpp"
+#include "compiler/parsing_context.hpp"
 #include "compiler/syntax_list.hpp"
 #include "context.hpp"
 #include "io/write.hpp"
 #include "memory/tracker.hpp"
 #include "runtime/action.hpp"
 #include "runtime/basic_types.hpp"
-#include "runtime/string.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
 #include "util/list_iterator.hpp"
@@ -165,16 +165,41 @@ lookup_variable_binding(ptr<syntax> id) {
   return {};
 }
 
+static void
+throw_out_of_scope_error(ptr<syntax> id) {
+  throw make_compile_error<out_of_scope_variable_error>(
+    id, "{}: Not in scope", identifier_name(id)
+  );
+}
+
 static variable
 lookup_variable(parsing_context& pc, ptr<syntax> id) {
   if (auto var = lookup_variable_binding(id)) {
     if (is_in_scope(pc, var))
       return var;
     else
-      throw make_compile_error<out_of_scope_variable_error>(
-        id, "{}: Not in scope", identifier_name(id)
-      );
+      throw_out_of_scope_error(id);
   }
+
+  return {};
+}
+
+static variable
+lookup_mutable_variable(parsing_context& pc, ptr<syntax> id) {
+  if (auto binding = lookup(id))
+    if (binding->variable) {
+      auto var = binding->variable;
+
+      if (!is_in_scope(pc, var))
+        throw_out_of_scope_error(id);
+
+      if (binding->imported)
+        throw make_compile_error<immutable_binding_error>(
+          id, "{}: Cannot mutate imported binding", identifier_name(id)
+        );
+
+      return var;
+    }
 
   return {};
 }
@@ -1075,7 +1100,7 @@ static expression
 parse_set(parsing_context& pc, ptr<syntax> stx) {
   auto [name, expr] = parse_name_and_expr(pc, stx, "set!");
 
-  auto var = lookup_variable(pc, name);
+  auto var = lookup_mutable_variable(pc, name);
   if (!var)
     throw make_compile_error<unbound_variable_error>(
       name, "Identifier {} not bound to a variable", identifier_name(name)

@@ -113,6 +113,15 @@ operator == (sum_type<Ts...> s, std::nullptr_t) {
   return s.get() == nullptr;
 }
 
+template <typename... Ts>
+ptr<>
+ptr_value(sum_type<Ts...> s) {
+  return s.get();
+}
+
+inline ptr<>
+ptr_value(ptr<> p) { return p; }
+
 namespace detail {
 
   template <typename... Ts>

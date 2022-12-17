@@ -205,7 +205,7 @@ perform_imports(context& ctx, tracked_ptr<module_> const& m,
                 import_set const& set) {
   for (auto const& [to_name, from_name] : set.names) {
     if (auto b = set.source->find(ctx.intern(from_name)))
-      add_binding(
+      import_binding(
         ctx.store,
         m->scope(),
         make<syntax>(ctx, ctx.intern(to_name), scope_set{m->scope()}),

@@ -2,7 +2,6 @@
 
 #include "compiler/variable.hpp"
 #include "context.hpp"
-#include "runtime/basic_types.hpp"
 #include "runtime/syntax.hpp"
 
 #include <ranges>
@@ -88,29 +87,23 @@ scope_sets_equal(scope_set const& lhs, scope_set const& rhs) {
 
 void
 scope::add(free_store& store, ptr<syntax> identifier, variable var) {
-  assert(is_identifier(identifier));
-
-  if (is_redefinition(identifier, var))
-    throw std::runtime_error{fmt::format("Redefinition of {}",
-                                         identifier_name(identifier))};
-
-  bindings_.emplace_back(binding{identifier, var});
-  store.notify_arc(this, identifier);
+  add(store, identifier, var, false);
 }
 
 void
 scope::add(free_store& store, ptr<syntax> identifier, ptr<transformer> tr) {
-  assert(is_identifier(identifier));
-  assert(tr != nullptr);
+  add(store, identifier, tr, false);
+}
 
-  if (is_redefinition(identifier, tr))
-    throw std::runtime_error{fmt::format("Redefinition of {}",
-                                         identifier_name(identifier))};
+void
+scope::add_imported(free_store& store, ptr<syntax> identifier, variable var) {
+  add(store, identifier, var, true);
+}
 
-  bindings_.emplace_back(binding{identifier, tr});
-
-  store.notify_arc(this, identifier);
-  store.notify_arc(this, tr);
+void
+scope::add_imported(free_store& store, ptr<syntax> identifier,
+                    ptr<transformer> tr) {
+  add(store, identifier, tr, true);
 }
 
 void
@@ -149,6 +142,22 @@ binding_values_equal(scope::binding const& binding, ptr<transformer> tr) {
   return binding.transformer == tr;
 }
 
+void
+scope::add(free_store& store, ptr<syntax> identifier, auto value,
+           bool imported) {
+  assert(is_identifier(identifier));
+  assert(value != nullptr);
+
+  if (is_redefinition(identifier, value))
+    throw std::runtime_error{fmt::format("Redefinition of {}",
+                                         identifier_name(identifier))};
+
+  bindings_.emplace_back(binding{identifier, value, imported});
+
+  store.notify_arc(this, identifier);
+  store.notify_arc(this, ptr_value(value));
+}
+
 bool
 scope::is_redefinition(ptr<syntax> id, auto const& intended_value) const {
   return std::ranges::any_of(
@@ -162,13 +171,13 @@ scope::is_redefinition(ptr<syntax> id, auto const& intended_value) const {
 }
 
 void
-add_binding(free_store& store, ptr<scope> sc, ptr<syntax> identifier,
-            scope::binding const& b) {
+import_binding(free_store& store, ptr<scope> sc, ptr<syntax> identifier,
+               scope::binding const& b) {
   if (b.variable)
-    sc->add(store, identifier, b.variable);
+    sc->add_imported(store, identifier, b.variable);
   else {
     assert(b.transformer);
-    sc->add(store, identifier, b.transformer);
+    sc->add_imported(store, identifier, b.transformer);
   }
 }
 

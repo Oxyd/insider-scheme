@@ -233,6 +233,8 @@ using unbound_variable_error
   = named_runtime_error<class unbound_variable_error_tag>;
 using out_of_scope_variable_error
   = named_runtime_error<class out_of_scope_variable_error_tag>;
+using immutable_binding_error
+  = named_runtime_error<class immutable_binding_error_tag>;
 
 template <typename Error, typename... Args>
 Error

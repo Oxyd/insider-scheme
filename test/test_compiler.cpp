@@ -902,3 +902,23 @@ TEST_F(compiler, call_to_procedure_optimised_to_nothing_evaluates_to_void) {
   )");
   EXPECT_EQ(result, ctx.constants->void_);
 }
+
+TEST_F(compiler, attempting_to_set_imported_binding_is_an_error) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export var)
+      (define var 0)
+    )"
+  );
+
+  EXPECT_THROW(
+    eval_module(R"(
+      (import (insider internal) (foo))
+      (set! var 1)
+    )"),
+    immutable_binding_error
+  );
+}

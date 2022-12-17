@@ -82,15 +82,18 @@ public:
     ptr<syntax>               id;
     insider::variable         variable;
     ptr<insider::transformer> transformer;
+    bool                      imported = false;
 
-    binding(ptr<syntax> id, insider::variable var)
+    binding(ptr<syntax> id, insider::variable var, bool imported = false)
       : id{id}
       , variable{var}
+      , imported{imported}
     { }
 
-    binding(ptr<syntax> id, ptr<insider::transformer> tr)
+    binding(ptr<syntax> id, ptr<insider::transformer> tr, bool imported = false)
       : id{id}
       , transformer{tr}
+      , imported{imported}
     { }
   };
 
@@ -103,6 +106,12 @@ public:
 
   void
   add(free_store& store, ptr<syntax> identifier, ptr<transformer>);
+
+  void
+  add_imported(free_store& store, ptr<syntax> identifier, variable);
+
+  void
+  add_imported(free_store& store, ptr<syntax> identifier, ptr<transformer>);
 
   void
   replace(free_store&, ptr<syntax> identifier, ptr<transformer>);
@@ -127,13 +136,16 @@ private:
   std::string          description_;
   id_type              id_;
 
+  void
+  add(free_store& store, ptr<syntax> identifier, auto value, bool imported);
+
   bool
   is_redefinition(ptr<syntax>, auto const& intended_value) const;
 };
 
 void
-add_binding(free_store& store, ptr<scope>, ptr<syntax> identifier,
-            scope::binding const&);
+import_binding(free_store& store, ptr<scope>, ptr<syntax> identifier,
+               scope::binding const&);
 
 inline bool
 binding_targets_equal(scope::binding const& lhs, scope::binding const& rhs) {
