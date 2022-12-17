@@ -4,6 +4,7 @@
 #include "compiler/clone_ast.hpp"
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
+#include "runtime/compare.hpp"
 #include "vm/vm.hpp"
 
 #include <stdexcept>

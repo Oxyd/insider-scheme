@@ -1,7 +1,6 @@
 #ifndef INSIDER_VM_CALL_STACK_HPP
 #define INSIDER_VM_CALL_STACK_HPP
 
-#include "memory/page_allocator.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
 #include "runtime/basic_types.hpp"

@@ -8,6 +8,7 @@
 #include "compiler/variable.hpp"
 #include "io/read.hpp"
 #include "runtime/basic_types.hpp"
+#include "runtime/compare.hpp"
 #include "util/integer_cast.hpp"
 
 #include <fmt/format.h>

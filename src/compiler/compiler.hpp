@@ -6,7 +6,6 @@
 #include "compiler/source_file_origin.hpp"
 #include "module.hpp"
 #include "ptr.hpp"
-#include "vm/bytecode.hpp"
 
 #include <vector>
 

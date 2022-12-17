@@ -1,10 +1,8 @@
 #ifndef INSIDER_VM_VM_HPP
 #define INSIDER_VM_VM_HPP
 
-#include "memory/root_provider.hpp"
 #include "ptr.hpp"
 #include "runtime/basic_types.hpp"
-#include "runtime/integer.hpp"
 #include "vm/call_stack.hpp"
 
 #include <vector>
