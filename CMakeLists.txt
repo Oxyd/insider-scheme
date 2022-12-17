@@ -225,6 +225,7 @@ set_property(TARGET scheme PROPERTY
 add_executable(tests ${test_sources})
 target_compile_options(tests PRIVATE ${compile_flags})
 target_link_options(tests PRIVATE ${link_flags})
+target_include_directories(tests PRIVATE test)
 target_link_libraries(tests
   PUBLIC scheme
   PRIVATE gtest_main)
