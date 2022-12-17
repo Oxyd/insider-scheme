@@ -922,3 +922,23 @@ TEST_F(compiler, attempting_to_set_imported_binding_is_an_error) {
     immutable_binding_error
   );
 }
+
+TEST_F(compiler, attempting_to_redefine_imported_binding_is_an_error) {
+  add_source_file(
+    "foo.scm",
+    R"(
+      (library (foo))
+      (import (insider internal))
+      (export var)
+      (define var 0)
+    )"
+  );
+
+  EXPECT_THROW(
+    eval_module(R"(
+      (import (insider internal) (foo))
+      (define var 1)
+    )"),
+    immutable_binding_error
+  );
+}

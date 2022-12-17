@@ -1090,7 +1090,7 @@ static expression
 parse_init(parsing_context& pc, ptr<syntax> stx) {
   auto [name, expr] = parse_name_and_expr(pc, stx, "define");
 
-  auto var = lookup_variable(pc, name);
+  auto var = lookup_mutable_variable(pc, name);
   assert(var);
 
   return make_set_expression(pc, name, expr, var, true);

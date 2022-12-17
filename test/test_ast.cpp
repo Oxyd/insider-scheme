@@ -2610,26 +2610,6 @@ TEST_F(ast, application_of_variadic_procedure_is_marked_as_generic) {
   );
 }
 
-TEST_F(ast, application_of_redefined_variable_is_marked_correctly) {
-  expression e = analyse_module(
-    R"(
-      (import (insider internal))
-
-      (define list (lambda x x))
-      (define foo (lambda () (list 1 2 3)))
-    )",
-    {&analyse_variables, &optimise_applications}
-  );
-
-  auto foo = expect<lambda_expression>(find_top_level_definition_for(e, "foo"));
-  for_each<application_expression>(
-    foo,
-    [] (ptr<application_expression> app) {
-      EXPECT_NE(app->kind(), application_expression::target_kind::native);
-    }
-  );
-}
-
 TEST_F(ast,
        application_of_procedure_with_optionals_is_supplemented_with_defaults) {
   expression e = analyse_module(
