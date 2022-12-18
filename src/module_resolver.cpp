@@ -3,7 +3,6 @@
 #include "compiler/analyser.hpp"
 #include "compiler/source_code_provider.hpp"
 #include "io/read.hpp"
-#include "runtime/action.hpp"
 
 #include <ranges>
 
@@ -12,6 +11,9 @@ namespace insider {
 module_resolver::module_resolver(context& ctx)
   : root_provider{ctx.store}
 { }
+
+// Don't require the header to include the definition of source_code_provider.
+module_resolver::~module_resolver() = default;
 
 bool
 module_resolver::knows_module(context& ctx, module_name const& name) {

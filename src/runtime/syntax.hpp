@@ -1,7 +1,6 @@
 #ifndef INSIDER_RUNTIME_SYNTAX_HPP
 #define INSIDER_RUNTIME_SYNTAX_HPP
 
-#include "compiler/expression.hpp"
 #include "compiler/scope.hpp"
 #include "compiler/source_location.hpp"
 #include "object.hpp"

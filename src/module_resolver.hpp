@@ -18,6 +18,8 @@ public:
   explicit
   module_resolver(context&);
 
+  ~module_resolver() override;
+
   ptr<module_>
   internal_module() { return internal_module_; }
 

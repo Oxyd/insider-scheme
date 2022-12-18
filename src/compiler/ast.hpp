@@ -3,8 +3,6 @@
 
 #include "compiler/debug_info.hpp"
 #include "compiler/expression.hpp"
-#include "compiler/module_name.hpp"
-#include "compiler/source_file_origin.hpp"
 #include "compiler/variable.hpp"
 #include "memory/free_store.hpp"
 #include "memory/root_provider.hpp"

@@ -3,7 +3,6 @@
 #include "compiler/ast.hpp"
 #include "compiler/variable.hpp"
 #include "context.hpp"
-#include "util/depth_first_search.hpp"
 
 namespace insider {
 

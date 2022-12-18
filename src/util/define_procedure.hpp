@@ -3,11 +3,8 @@
 
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
-#include "runtime/integer.hpp"
-#include "runtime/string.hpp"
 #include "util/from_scheme.hpp"
 #include "util/to_scheme.hpp"
-#include "vm/vm.hpp"
 
 #include <fmt/format.h>
 

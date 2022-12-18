@@ -3,7 +3,6 @@
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/character.hpp"
-#include "runtime/character.hpp"
 #include "runtime/numeric.hpp"
 #include "runtime/string.hpp"
 #include "util/object_conversions.hpp"

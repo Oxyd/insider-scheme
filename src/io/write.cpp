@@ -12,6 +12,7 @@
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
 #include "util/list_iterator.hpp"
+#include "vm/vm.hpp"
 
 #include <fmt/format.h>
 

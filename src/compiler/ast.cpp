@@ -293,7 +293,6 @@ void
 definition_pair_expression::visit_members(member_visitor const& f) {
   f(variable_);
   expression_.visit_members(f);
-  assert(!is<stack_frame_extra_data>(expression_.get()));
 }
 
 let_expression::let_expression(std::vector<definition_pair_expression> defs,

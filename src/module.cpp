@@ -4,7 +4,6 @@
 #include "compiler/compiler.hpp"
 #include "compiler/module_name.hpp"
 #include "compiler/module_specifier.hpp"
-#include "compiler/source_code_provider.hpp"
 #include "compiler/variable.hpp"
 #include "context.hpp"
 #include "io/read.hpp"
@@ -13,7 +12,6 @@
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
-#include "util/list_iterator.hpp"
 #include "vm/vm.hpp"
 
 #include <ranges>

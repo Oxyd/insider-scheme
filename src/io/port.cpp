@@ -2,6 +2,7 @@
 
 #include "context.hpp"
 #include "util/define_procedure.hpp"
+#include "vm/vm.hpp"
 
 #include <fmt/format.h>
 
