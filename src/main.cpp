@@ -162,8 +162,10 @@ run_repl(insider::context& ctx) {
       output_port->write(
         format_error(ctx, insider::datum_to_display_string(ctx, e.object.get()))
       );
+      output_port->write('\n');
     } catch (std::runtime_error const& e) {
       output_port->write(format_error(ctx, e.what()));
+      output_port->write('\n');
     }
 }
 
