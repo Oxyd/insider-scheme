@@ -460,7 +460,7 @@ move_incoming_arcs(std::unordered_set<ptr<>> const& arcs,
 }
 
 static void
-update_member(ptr<>& member, bool weak) {
+update_member(ptr<>& member, [[maybe_unused]] bool weak) {
   if (member && is_object_ptr(member) && !is_alive(member)) {
     assert(is_alive(forwarding_address(member)) || weak);
     member.reset(forwarding_address(member));
