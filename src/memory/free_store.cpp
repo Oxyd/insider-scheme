@@ -1,4 +1,6 @@
 #include "free_store.hpp"
+#include "memory/member_visitor.hpp"
+#include "memory/root_provider.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -245,6 +247,32 @@ free_store::transfer_to_nursery(page_allocator::page p, std::size_t used) {
   check_nursery_size();
 }
 
+namespace {
+  template <typename F>
+  struct visitor : member_visitor {
+    F& f;
+
+    visitor(F& f) : f{f} { }
+
+    void
+    operator () (ptr_wrapper ptr) const override {
+      f(ptr);
+    }
+  };
+}
+
+template <typename F>
+static void
+visit_members(ptr<> object, F&& f) {
+  object_type(object).visit_members(object, visitor<F>{f});
+}
+
+template <typename F>
+static void
+visit_roots(root_list const& roots, F&& f) {
+  roots.visit_roots(visitor<F>{f});
+}
+
 static void
 trace(std::vector<ptr<>> const& permanent_roots,
       root_list const& root_list,
@@ -254,7 +282,7 @@ trace(std::vector<ptr<>> const& permanent_roots,
 
   std::vector<ptr<>> stack;
   auto trace = [&] (ptr<> object) {
-    object_type(object).visit_members(
+    visit_members(
       object,
       [&] (ptr_wrapper member) {
         if (!member.weak
@@ -279,7 +307,7 @@ trace(std::vector<ptr<>> const& permanent_roots,
         trace(o);
       }
 
-  root_list.visit_roots([&] (ptr_wrapper root) {
+  visit_roots(root_list, [&] (ptr_wrapper root) {
     if (!root.weak
         && root.value
         && is_object_ptr(root.value)
@@ -321,7 +349,7 @@ find_new_arcs_to_nursery(std::vector<ptr<>> const& objects,
   for (ptr<> o : objects) {
     assert(is_alive(o));
     bool pushed = false;
-    object_type(o).visit_members(o, [&] (ptr_wrapper member) {
+    visit_members(o, [&] (ptr_wrapper member) {
       if (!pushed && member.value && is_object_ptr(member.value)) {
         assert(is_alive(member.value));
 
@@ -436,7 +464,7 @@ update_member(ptr_wrapper member) {
 
 static void
 update_members(ptr<> o) {
-  object_type(o).visit_members(o, update_member);
+  visit_members(o, update_member);
 }
 
 static void
@@ -456,7 +484,7 @@ update_references(large_space const& space) {
 
 static void
 update_references(root_list const& list) {
-  list.visit_roots(update_member);
+  visit_roots(list, update_member);
 }
 
 static void

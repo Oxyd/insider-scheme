@@ -26,7 +26,14 @@ struct ptr_wrapper {
 inline ptr_wrapper
 weak(ptr<>& x) { return {x, true}; }
 
-using member_visitor = std::function<void(ptr_wrapper)>;
+class member_visitor {
+public:
+  virtual
+  ~member_visitor() = default;
+
+  virtual void
+  operator () (ptr_wrapper) const = 0;
+};
 
 } // namespace insider
 
