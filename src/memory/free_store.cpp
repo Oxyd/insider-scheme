@@ -256,7 +256,7 @@ namespace {
 
     void
     operator () (ptr_wrapper ptr) const override {
-      f(ptr);
+      f(ptr.value, ptr.weak);
     }
   };
 }
@@ -284,16 +284,16 @@ trace(std::vector<ptr<>> const& permanent_roots,
   auto trace = [&] (ptr<> object) {
     visit_members(
       object,
-      [&] (ptr_wrapper member) {
-        if (!member.weak
-            && member.value && is_object_ptr(member.value)
-            && object_color(member.value) == color::white
-            && object_generation(member.value) <= max_generation) {
-          assert(is_alive(member.value));
-          assert(object_type_index(member.value) < types().size);
+      [&] (ptr<>& member, bool weak) {
+        if (!weak
+            && member && is_object_ptr(member)
+            && object_color(member) == color::white
+            && object_generation(member) <= max_generation) {
+          assert(is_alive(member));
+          assert(object_type_index(member) < types().size);
 
-          stack.push_back(member.value);
-          set_object_color(member.value, color::grey);
+          stack.push_back(member);
+          set_object_color(member, color::grey);
         }
       }
     );
@@ -307,15 +307,15 @@ trace(std::vector<ptr<>> const& permanent_roots,
         trace(o);
       }
 
-  visit_roots(root_list, [&] (ptr_wrapper root) {
-    if (!root.weak
-        && root.value
-        && is_object_ptr(root.value)
-        && object_generation(root.value) <= max_generation
-        && object_color(root.value) == color::white) {
-      assert(is_alive(root.value));
-      set_object_color(root.value, color::grey);
-      stack.push_back(root.value);
+  visit_roots(root_list, [&] (ptr<>& root, bool weak) {
+    if (!weak
+        && root
+        && is_object_ptr(root)
+        && object_generation(root) <= max_generation
+        && object_color(root) == color::white) {
+      assert(is_alive(root));
+      set_object_color(root, color::grey);
+      stack.push_back(root);
     }
   });
 
@@ -349,15 +349,15 @@ find_new_arcs_to_nursery(std::vector<ptr<>> const& objects,
   for (ptr<> o : objects) {
     assert(is_alive(o));
     bool pushed = false;
-    visit_members(o, [&] (ptr_wrapper member) {
-      if (!pushed && member.value && is_object_ptr(member.value)) {
-        assert(is_alive(member.value));
+    visit_members(o, [&] (ptr<>& member, bool) {
+      if (!pushed && member && is_object_ptr(member)) {
+        assert(is_alive(member));
 
         // There can be no pointers to nursery 1 because this function is called
         // after nursery 1 survivors have been promoted.
-        assert(object_generation(member.value) != generation::nursery_1);
+        assert(object_generation(member) != generation::nursery_1);
 
-        if (object_generation(member.value) == generation::nursery_2) {
+        if (object_generation(member) == generation::nursery_2) {
           arcs.push_back(o);
           pushed = true;
         }
@@ -455,10 +455,10 @@ move_incoming_arcs(std::unordered_set<ptr<>> const& arcs,
 }
 
 static void
-update_member(ptr_wrapper member) {
-  if (member.value && is_object_ptr(member.value) && !is_alive(member.value)) {
-    assert(is_alive(forwarding_address(member.value)) || member.weak);
-    member.value.reset(forwarding_address(member.value));
+update_member(ptr<>& member, bool weak) {
+  if (member && is_object_ptr(member) && !is_alive(member)) {
+    assert(is_alive(forwarding_address(member)) || weak);
+    member.reset(forwarding_address(member));
   }
 }
 
