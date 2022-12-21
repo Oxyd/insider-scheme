@@ -255,8 +255,13 @@ namespace {
     visitor(F& f) : f{f} { }
 
     void
-    operator () (ptr_wrapper ptr) const override {
-      f(ptr.value, ptr.weak);
+    operator () (ptr<>& ptr) const override {
+      f(ptr, false);
+    }
+
+    void
+    weak(ptr<>& ptr) const override {
+      f(ptr, true);
     }
   };
 }

@@ -136,7 +136,7 @@ public:
 private:
   void
   visit_roots(member_visitor const& f) override {
-    f(weak(this->value_));
+    f.weak(this->value_);
   }
 };
 

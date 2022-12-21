@@ -204,10 +204,10 @@ context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.parameters);
 
   for (auto& [name, symbol] : ctx_.interned_symbols_)
-    f(weak(symbol));
+    f.weak(symbol);
 
   for (auto& [name, keyword] : ctx_.interned_keywords_)
-    f(weak(keyword));
+    f.weak(keyword);
 
   for (ptr<symbol>& name : ctx_.type_name_symbols_)
     f(name);

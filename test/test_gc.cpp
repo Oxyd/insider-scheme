@@ -190,7 +190,7 @@ struct ddd : composite_object<ddd> {
 
   void
   visit_members(member_visitor const& f) {
-    f(weak(child));
+    f.weak(child);
   }
 
   ptr<aaa> child;
