@@ -1,35 +1,12 @@
 #ifndef INSIDER_MEMORY_ROOT_PROVIDER_HPP
 #define INSIDER_MEMORY_ROOT_PROVIDER_HPP
 
-#include "ptr.hpp"
-
-#include <functional>
+#include "memory/member_visitor.hpp"
 
 namespace insider {
 
 class free_store;
 class root_list;
-
-// Helper type to allow visit_members overrides to call either f(member) or
-// f(weak(member)).
-struct ptr_wrapper {
-  ptr<>& value;
-  bool   weak = false;
-
-  ptr_wrapper(ptr<>& value)
-    : value{value}
-  { }
-
-  ptr_wrapper(ptr<>& value, bool weak)
-    : value{value}
-    , weak{weak}
-  { }
-};
-
-inline ptr_wrapper
-weak(ptr<>& x) { return {x, true}; }
-
-using member_visitor = std::function<void(ptr_wrapper)>;
 
 // Base class for anything that contains GC roots.
 class root_provider {

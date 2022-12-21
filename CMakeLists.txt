@@ -116,6 +116,7 @@ set(scheme_sources
         src/io/write.hpp
         src/memory/free_store.cpp
         src/memory/free_store.hpp
+        src/memory/member_visitor.hpp
         src/memory/root_list.cpp
         src/memory/root_list.hpp
         src/memory/root_provider.cpp
