@@ -1,6 +1,5 @@
 #include "free_store.hpp"
 #include "memory/member_visitor.hpp"
-#include "memory/root_provider.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -237,11 +236,6 @@ free_store::~free_store() {
 }
 
 void
-free_store::make_permanent_arc(ptr<> from) {
-  permanent_roots_.push_back(from);
-}
-
-void
 free_store::transfer_to_nursery(page_allocator::page p, std::size_t used) {
   generations_.nursery_1.small.take(std::move(p), used);
   check_nursery_size();
@@ -279,8 +273,7 @@ visit_roots(root_list const& roots, F&& f) {
 }
 
 static void
-trace(std::vector<ptr<>> const& permanent_roots,
-      root_list const& root_list,
+trace(root_list const& root_list,
       nursery_generation const& nursery_1, nursery_generation const& nursery_2,
       generation max_generation) {
   assert(max_generation >= generation::nursery_2);
@@ -303,14 +296,6 @@ trace(std::vector<ptr<>> const& permanent_roots,
       }
     );
   };
-
-  if (max_generation < generation::mature)
-    for (ptr<> o : permanent_roots)
-      if (object_color(o) == color::white
-          && object_generation(o) == generation::mature) {
-        set_object_color(o, color::grey);
-        trace(o);
-      }
 
   visit_roots(root_list, [&] (ptr<>& root, bool weak) {
     if (!weak
@@ -548,8 +533,7 @@ free_store::collect_garbage(bool major) {
                             generations_.mature));
   }
 
-  trace(permanent_roots_, roots_, generations_.nursery_1, generations_.nursery_2,
-        max_generation);
+  trace(roots_, generations_.nursery_1, generations_.nursery_2, max_generation);
 
   std::unordered_set<ptr<>> old_n1_incoming
     = std::move(generations_.nursery_1.incoming_arcs);
@@ -611,8 +595,6 @@ free_store::collect_garbage(bool major) {
   verify(generations_.nursery_2);
   verify(generations_.mature);
 
-  update_permanent_roots();
-  update_references(permanent_roots_);
   update_references(roots_);
   reset_colors(max_generation);
 
@@ -665,28 +647,12 @@ free_store::allocate_object(std::size_t size, word_type type) {
 }
 
 void
-free_store::update_permanent_roots() {
-  for (auto r = permanent_roots_.begin(); r != permanent_roots_.end();) {
-    if (!is_alive(*r))
-      *r = forwarding_address(*r);
-
-    if (!*r)
-      r = permanent_roots_.erase(r);
-    else
-      ++r;
-  }
-}
-
-void
 free_store::reset_colors(generation max_generation) {
   if (max_generation < generation::mature) {
     for (nursery_generation* g : {&generations_.nursery_1,
                                   &generations_.nursery_2})
       for (ptr<> o : g->incoming_arcs)
         set_object_color(o, color::white);
-
-    for (ptr<> o : permanent_roots_)
-      set_object_color(o, color::white);
   }
 
 #ifndef NDEBUG
@@ -695,9 +661,6 @@ free_store::reset_colors(generation max_generation) {
                                   &generations_.nursery_2})
       for (ptr<> o : g->incoming_arcs)
         assert(object_color(o) == color::white);
-
-    for (ptr<> o : permanent_roots_)
-      assert(object_color(o) == color::white);
   }
 #endif
 }

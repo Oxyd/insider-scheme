@@ -323,7 +323,6 @@ private:
   std::size_t collection_number_ = 0;
 
   insider::root_list roots_;
-  std::vector<ptr<>> permanent_roots_;
 
   unsigned disable_level_ = 0;
   std::optional<generation> requested_collection_level_;
@@ -335,9 +334,6 @@ private:
   // constructed in the storage.
   std::byte*
   allocate_object(std::size_t size, word_type type);
-
-  void
-  update_permanent_roots();
 
   void
   reset_colors(generation max_generation);
