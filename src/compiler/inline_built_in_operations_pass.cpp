@@ -95,8 +95,8 @@ built_in_operations_visitor::operations[]{
   {"string-null?", opcode::string_null, 1, true},
   {"string-cursor-start", opcode::string_cursor_start, 1, true},
   {"string-cursor-end", opcode::string_cursor_end, 1, true},
-  {"string-cursor-next", opcode::string_cursor_next, 1, true},
-  {"string-cursor-prev", opcode::string_cursor_prev, 1, true},
+  {"string-cursor-next*", opcode::string_cursor_next, 1, true},
+  {"string-cursor-prev*", opcode::string_cursor_prev, 1, true},
   {"type", opcode::type, 1, true},
   {"eq?", opcode::eq, 2, true},
   {"eqv?", opcode::eqv, 2, true},
@@ -134,6 +134,7 @@ built_in_operations_visitor::built_in_operations_visitor(context& ctx)
 {
   for (operation const& op : operations) {
     auto binding = ctx.internal_module()->find(ctx.intern(op.name));
+    assert(binding);
     operations_map.emplace(assume<top_level_variable>(binding->variable),
                            op);
   }
