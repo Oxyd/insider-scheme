@@ -117,7 +117,7 @@ load_dynamic_top_level(execution_state& state) {
   )};
 }
  
-static std::size_t
+static register_index
 actual_args_size(procedure_prototype const& proto) {
   return proto.info.num_leading_args + (proto.info.has_rest ? 1 : 0);
 }
@@ -133,7 +133,7 @@ push_closure(ptr<procedure> proc, call_stack& stack) {
 
 static void
 convert_tail_args_to_list(context& ctx, call_stack& stack,
-                          std::size_t tail_base, std::size_t num_rest) {
+                          register_index tail_base, std::size_t num_rest) {
   // Here's an interesting situation: Imagine that a Scheme procedure is calling
   // a variadic procedure with no arguments for the tail parameter. Furthermore,
   // the mandatory arguments are given as the very end of the caller's stack
@@ -159,8 +159,8 @@ tail_args_length(procedure_prototype const& proto, std::size_t num_args) {
 
 static void
 convert_tail_args(context& ctx, call_stack& stack,
-                  procedure_prototype const& proto, std::size_t base,
-                  std::size_t num_args) {
+                  procedure_prototype const& proto, register_index base,
+                  register_index num_args) {
   if (proto.info.has_rest)
     convert_tail_args_to_list(ctx, stack,
                               base + proto.info.num_leading_args + 1,
@@ -169,10 +169,10 @@ convert_tail_args(context& ctx, call_stack& stack,
 
 static void
 fill_in_default_values(context& ctx, call_stack& stack,
-                       procedure_prototype const& proto, std::size_t base,
-                       std::size_t num_args) {
-  std::size_t begin = base + num_args + 1;
-  std::size_t end = base + proto.info.num_leading_args + 1;
+                       procedure_prototype const& proto, register_index base,
+                       register_index num_args) {
+  register_index begin = base + num_args + 1;
+  register_index end = base + proto.info.num_leading_args + 1;
 
   if (begin < end) {
     if (stack.frame_size() <= end)
@@ -203,15 +203,15 @@ push_scheme_frame(execution_state& state, ptr<procedure> proc,
 
 static void
 make_tail_call_frame(call_stack& stack, ptr<> proc,
-                     std::size_t locals_size,
-                     std::size_t args_base, std::size_t num_args) {
+                     register_index locals_size,
+                     register_index args_base, register_index num_args) {
   stack.replace_frame(callable_to_frame_type(proc), locals_size, args_base,
                        num_args);
 }
 
 static void
 make_scheme_tail_call_frame(call_stack& stack, ptr<procedure> proc,
-                            std::size_t args_base, std::size_t num_args) {
+                           register_index args_base, register_index num_args) {
   make_tail_call_frame(stack, proc, proc->prototype().info.locals_size,
                        args_base, num_args);
 }
@@ -267,7 +267,7 @@ make_native_non_tail_call_frame(execution_state& state, register_index base,
 static void
 make_native_tail_call_frame(call_stack& stack,
                             ptr<native_procedure> proc,
-                            std::size_t args_base, std::size_t num_args) {
+                            register_index args_base, register_index num_args) {
   make_tail_call_frame(stack, proc, num_args + 1, args_base, num_args);
 }
 
@@ -1261,7 +1261,7 @@ push_scheme_arguments_for_call_from_native(context& ctx,
 
   stack.local(operand{0}) = callable;
   auto arg_it = args.begin();
-  std::size_t arg = 0;
+  register_index arg = 0;
   while (arg < proto.info.num_leading_args && arg_it != args.end())
     stack.local(operand(arg++) + 1) = *arg_it++;
 
@@ -1531,7 +1531,8 @@ make_native_tail_call_frame_for_call_from_native(
   ptr<native_procedure> callable,
   auto const& arguments
 ) {
-  stack.replace_frame(call_stack::frame_type::native, arguments.size() + 1);
+  stack.replace_frame(call_stack::frame_type::native,
+                      to_smaller<register_index>(arguments.size() + 1));
   stack.local(operand{0}) = callable;
   auto arg = arguments.begin();
   for (std::size_t i = 0; i < arguments.size(); ++i)

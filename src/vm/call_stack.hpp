@@ -308,15 +308,15 @@ public:
 
 private:
   static constexpr std::size_t frames_alloc_size = 1024;
-  static constexpr std::size_t data_alloc_size = 4096;
+  static constexpr register_index data_alloc_size = 4096;
 
   std::unique_ptr<frame[]> frames_;
   std::size_t              frames_capacity_ = 0;
   std::size_t              frames_size_ = 0;
   std::unique_ptr<ptr<>[]> data_;
-  register_index              data_capacity_ = 0;
-  register_index              data_size_     = 0;
-  register_index              current_base_  = 0;
+  register_index           data_capacity_ = 0;
+  register_index           data_size_     = 0;
+  register_index           current_base_  = 0;
 
   frame&
   current_frame() {

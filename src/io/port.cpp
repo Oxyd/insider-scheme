@@ -123,7 +123,7 @@ file_port_source::rewind() {
 }
 
 static bool
-file_stream_ready(FILE* f) {
+file_stream_ready([[maybe_unused]] FILE* f) {
 #ifndef WIN32
   pollfd pfd{};
   pfd.fd = fileno(f);

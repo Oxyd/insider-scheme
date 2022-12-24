@@ -384,8 +384,8 @@ compile_expression(context& ctx, procedure_context& parent,
   auto us = push_parameters_and_closure_scope(proc, stx);
   compile_lambda_body(ctx, proc, stx);
 
-  unsigned required_args = required_parameter_count(stx);
-  unsigned leading_args = leading_parameter_count(stx);
+  unsigned required_args = to_smaller<unsigned>(required_parameter_count(stx));
+  unsigned leading_args = to_smaller<unsigned>(leading_parameter_count(stx));
 
   auto p = make_procedure_prototype(
     ctx, proc,
@@ -661,10 +661,10 @@ compile_expression(context&, procedure_context& proc,
     emit_variable_reference(proc, stx->variable(), result);
 }
 
-template <opcode Op, auto ToScheme>
+template <opcode Op, typename T, auto ToScheme>
 static void
 compile_immediate_reference(context& ctx, procedure_context& proc,
-                            int64_t value, result_location& result) {
+                            T value, result_location& result) {
   if (value >= immediate_min && value <= immediate_max)
     proc.emit(Op,
               immediate_to_operand(static_cast<immediate_type>(value)),
@@ -676,10 +676,14 @@ compile_immediate_reference(context& ctx, procedure_context& proc,
 }
 
 static constexpr auto compile_fixnum_reference
-  = compile_immediate_reference<opcode::load_fixnum, integer_to_ptr>;
+  = compile_immediate_reference<opcode::load_fixnum, 
+                                integer::value_type, 
+                                integer_to_ptr>;
 
 static constexpr auto compile_character_reference
-  = compile_immediate_reference<opcode::load_character, character_to_ptr>;
+  = compile_immediate_reference<opcode::load_character, 
+                                char32_t, 
+                                character_to_ptr>;
 
 static void
 compile_static_reference(context& ctx, procedure_context& proc, ptr<> value,

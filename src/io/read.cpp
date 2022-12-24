@@ -1026,7 +1026,7 @@ read_verbatim_keyword(context& ctx, reader_stream& stream,
 static token
 read_keyword(context& ctx, reader_stream& stream, source_location const& loc) {
   consume(stream, ':');
-  if (stream.peek() == '|')
+  if (stream.peek() == U'|')
     return read_verbatim_keyword(ctx, stream, loc);
   else
     return {keyword_literal{read_identifier_contents(stream)}, loc};

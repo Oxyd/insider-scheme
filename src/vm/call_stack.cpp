@@ -90,13 +90,13 @@ call_stack::visit_members(member_visitor const& f) {
   std::fill(data_.get() + data_size_, data_.get() + data_capacity_, ptr<>{});
 }
 
-static std::size_t
-find_new_capacity(std::size_t old_capacity, std::size_t at_least,
-                  std::size_t alloc_size) {
+static auto
+find_new_capacity(auto old_capacity, auto at_least,
+                  auto alloc_size) {
   // Normally we expect to grow the capacity by just a single alloc_size, so
   // this loop will only do a single iteration.
 
-  std::size_t result = old_capacity;
+  auto result = old_capacity;
   while (result < at_least)
     result += alloc_size;
   return result;
