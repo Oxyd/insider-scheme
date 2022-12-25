@@ -10,6 +10,7 @@
 #include "runtime/basic_types.hpp"
 #include "runtime/compare.hpp"
 #include "util/integer_cast.hpp"
+#include "vm/operand.hpp"
 
 #include <fmt/format.h>
 
@@ -665,7 +666,10 @@ template <opcode Op, typename T, auto ToScheme>
 static void
 compile_immediate_reference(context& ctx, procedure_context& proc,
                             T value, result_location& result) {
-  if (value >= immediate_min && value <= immediate_max)
+  static_assert(sizeof(T) > sizeof(immediate_type));
+
+  if (static_cast<immediate_type>(value) >= immediate_min
+      && value <= immediate_max)
     proc.emit(Op,
               immediate_to_operand(static_cast<immediate_type>(value)),
               *result.get(proc));
