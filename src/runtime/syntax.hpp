@@ -221,7 +221,7 @@ public:
   visit_members(member_visitor const&);
 
 private:
-  insider::ptr<> callable_;
+  ptr<> const callable_;
 };
 
 bool

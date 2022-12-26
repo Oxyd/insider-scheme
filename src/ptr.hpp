@@ -15,6 +15,17 @@ class object;
 template <typename = void>
 class ptr;
 
+namespace detail {
+  // The free store needs to be able to update pointers when it moves objects.
+  // This update makes a pointer point to the same object representing the same
+  // value, except at a new location. Since this isn't morally a modification of
+  // the pointer, we allow the free store to mutate this value even for const
+  // ptr<>'s.
+
+  void
+  update_ptr(ptr<> const& p, ptr<> new_value);
+}
+
 template <>
 class ptr<> {
 public:
@@ -40,7 +51,9 @@ public:
   operator <=> (ptr const&, ptr const&) = default;
 
 protected:
-  object* value_ = nullptr;
+  friend void detail::update_ptr(ptr<> const&, ptr<>);
+
+  mutable object* value_ = nullptr;
 };
 
 inline bool

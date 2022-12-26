@@ -13,10 +13,10 @@ public:
   ~member_visitor() = default;
 
   virtual void
-  operator () (ptr<>&) const = 0;
+  operator () (ptr<> const&) const = 0;
 
   virtual void
-  weak(ptr<>&) const = 0;
+  weak(ptr<> const&) const = 0;
 };
 
 } // namespace insider

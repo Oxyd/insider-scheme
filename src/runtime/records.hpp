@@ -51,7 +51,7 @@ public:
   visit_members(member_visitor const& f);
 
 private:
-  ptr<record_type> type_;
+  ptr<record_type> const type_;
 };
 
 ptr<record_instance>

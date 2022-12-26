@@ -519,8 +519,8 @@ public:
   visit_members(member_visitor const&);
 
 private:
-  ptr<procedure_prototype> prototype_;
-  procedure_prototype      cached_prototype_;
+  ptr<procedure_prototype> const prototype_;
+  procedure_prototype            cached_prototype_;
 };
 
 ptr<procedure>
@@ -591,7 +591,7 @@ public:
   // will be that Scheme procedure.
 
   target_type target;
-  ptr<>       proc;
+  ptr<> const proc;
 
   native_continuation(target_type t, ptr<> proc)
     : target{std::move(t)}
@@ -621,7 +621,7 @@ class uncaught_exception : public composite_object<uncaught_exception> {
 public:
   static constexpr char const* scheme_name = "insider::uncaught_exception";
 
-  ptr<> inner_exception;
+  ptr<> const inner_exception;
 
   explicit
   uncaught_exception(ptr<> e)
@@ -652,8 +652,8 @@ public:
   visit_members(member_visitor const&);
 
 private:
-  ptr<string> message_;
-  ptr<>       irritants_;
+  ptr<string> const message_;
+  ptr<> const       irritants_;
 };
 
 class file_error : public leaf_object<file_error> {

@@ -249,12 +249,12 @@ namespace {
     visitor(F& f) : f{f} { }
 
     void
-    operator () (ptr<>& ptr) const override {
+    operator () (ptr<> const& ptr) const override {
       f(ptr, false);
     }
 
     void
-    weak(ptr<>& ptr) const override {
+    weak(ptr<> const& ptr) const override {
       f(ptr, true);
     }
   };
@@ -282,7 +282,7 @@ trace(root_list const& root_list,
   auto trace = [&] (ptr<> object) {
     visit_members(
       object,
-      [&] (ptr<>& member, bool weak) {
+      [&] (ptr<> const& member, bool weak) {
         if (!weak
             && member && is_object_ptr(member)
             && object_color(member) == color::white
@@ -297,7 +297,7 @@ trace(root_list const& root_list,
     );
   };
 
-  visit_roots(root_list, [&] (ptr<>& root, bool weak) {
+  visit_roots(root_list, [&] (ptr<> const& root, bool weak) {
     if (!weak
         && root
         && is_object_ptr(root)
@@ -339,7 +339,7 @@ find_new_arcs_to_nursery(std::vector<ptr<>> const& objects,
   for (ptr<> o : objects) {
     assert(is_alive(o));
     bool pushed = false;
-    visit_members(o, [&] (ptr<>& member, bool) {
+    visit_members(o, [&] (ptr<> const& member, bool) {
       if (!pushed && member && is_object_ptr(member)) {
         assert(is_alive(member));
 
@@ -444,11 +444,16 @@ move_incoming_arcs(std::unordered_set<ptr<>> const& arcs,
     }
 }
 
+void
+detail::update_ptr(ptr<> const& p, ptr<> new_value) {
+  p.value_ = new_value.value();
+}
+
 static void
-update_member(ptr<>& member, [[maybe_unused]] bool weak) {
+update_member(ptr<> const& member, [[maybe_unused]] bool weak) {
   if (member && is_object_ptr(member) && !is_alive(member)) {
     assert(is_alive(forwarding_address(member)) || weak);
-    member.reset(forwarding_address(member));
+    detail::update_ptr(member, forwarding_address(member));
   }
 }
 

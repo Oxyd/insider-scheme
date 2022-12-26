@@ -160,18 +160,6 @@ public:
   denominator() const { return denominator_; }
 
   void
-  set_numerator(free_store& store, ptr<> n) {
-    numerator_ = n;
-    store.notify_arc(this, n);
-  }
-
-  void
-  set_denominator(free_store& store, ptr<> d) {
-    denominator_ = d;
-    store.notify_arc(this, d);
-  }
-
-  void
   visit_members(member_visitor const& f) {
     f(numerator_);
     f(denominator_);
@@ -181,8 +169,8 @@ public:
   hash() const;
 
 private:
-  ptr<> numerator_;
-  ptr<> denominator_;
+  ptr<> const numerator_;
+  ptr<> const denominator_;
 };
 
 ptr<>
@@ -230,18 +218,6 @@ public:
   imaginary() const { return imaginary_; }
 
   void
-  set_real(free_store& fs, ptr<> r) {
-    real_ = r;
-    fs.notify_arc(this, r);
-  }
-
-  void
-  set_imaginary(free_store& fs, ptr<> i) {
-    imaginary_ = i;
-    fs.notify_arc(this, i);
-  }
-
-  void
   visit_members(member_visitor const& f) {
     f(real_);
     f(imaginary_);
@@ -251,8 +227,8 @@ public:
   hash() const;
 
 private:
-  ptr<> real_;
-  ptr<> imaginary_;
+  ptr<> const real_;
+  ptr<> const imaginary_;
 };
 
 namespace detail {
