@@ -5,7 +5,6 @@
 #include "compiler/expression.hpp"
 #include "compiler/variable.hpp"
 #include "memory/free_store.hpp"
-#include "memory/root_provider.hpp"
 #include "object.hpp"
 #include "util/depth_first_search.hpp"
 #include "vm/bytecode.hpp"
