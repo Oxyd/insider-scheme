@@ -118,20 +118,20 @@ vector::vector(std::size_t size, ptr<> fill)
   : dynamic_size_object{size}
 {
   for (std::size_t i = 0; i < size_; ++i)
-    storage_element(i) = fill;
+    storage_element(i).assign_without_notify(fill);
 }
 
 vector::vector(vector&& other) noexcept
   : dynamic_size_object{other.size_}
 {
   for (std::size_t i = 0; i < size_; ++i)
-    storage_element(i) = other.storage_element(i);
+    storage_element(i).assign_without_notify(other.storage_element(i));
 }
 
 void
 vector::visit_members(member_visitor const& f) {
   for (std::size_t i = 0; i < size_; ++i)
-    f(storage_element(i));
+    storage_element(i).visit_members(f);
 }
 
 ptr<>
@@ -151,8 +151,7 @@ vector::set(free_store& store, std::size_t i, ptr<> value) {
       "Vector access out of bounds: index = {}, size = {}", i, size_
     )};
 
-  storage_element(i) = value;
-  store.notify_arc(this, value);
+  storage_element(i).assign(store, this, value);
 }
 
 static ptr<vector>
@@ -257,7 +256,7 @@ bytevector_data(ptr<bytevector> bv) {
 }
 
 box::box(ptr<> value)
-  : value_{value}
+  : value_{member_ptr<>::initialise(value)}
 { }
 
 procedure_prototype::procedure_prototype(

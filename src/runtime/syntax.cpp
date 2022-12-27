@@ -29,24 +29,24 @@ lookup(ptr<syntax> id) {
 }
 
 syntax::syntax(ptr<> expr)
-  : expression_{expr}
+  : expression_{member_ptr<>::initialise(expr)}
 { }
 
 syntax::syntax(ptr<> expr, source_location loc)
-  : expression_{expr}
+  : expression_{member_ptr<>::initialise(expr)}
   , location_{std::move(loc)}
 {
   assert(expr);
 }
 
 syntax::syntax(ptr<> expr, scope_set envs)
-  : expression_{expr}
+  : expression_{member_ptr<>::initialise(expr)}
   , scopes_{std::move(envs)}
 { }
 
 syntax::syntax(ptr<> expr, source_location loc, scope_set scopes,
                std::vector<update_record> update_records)
-  : expression_{expr}
+  : expression_{member_ptr<>::initialise(expr)}
   , location_{std::move(loc)}
   , scopes_{std::move(scopes)}
   , update_records_{std::move(update_records)}
@@ -54,7 +54,7 @@ syntax::syntax(ptr<> expr, source_location loc, scope_set scopes,
 
 void
 syntax::visit_members(member_visitor const& f) {
-  f(expression_);
+  expression_.visit_members(f);
   scopes_.visit_members(f);
   for (update_record& ur : update_records_)
     f(ur.scope);
@@ -145,13 +145,21 @@ syntax::update_children(context& ctx) {
   assert(dirty());
 
   if (auto stx = match<syntax>(expression_))
-    expression_ = apply_update_records_to_syntax(ctx, stx, update_records_);
+    expression_.assign(
+      ctx.store, this, 
+      apply_update_records_to_syntax(ctx, stx, update_records_)
+    );
   else if (auto p = match<pair>(expression_))
-    expression_ = apply_update_records_to_list(ctx, p, update_records_);
+    expression_.assign(
+      ctx.store, this, 
+      apply_update_records_to_list(ctx, p, update_records_)
+    );
   else if (auto v = match<vector>(expression_))
-    expression_ = apply_update_records_to_vector(ctx, v, update_records_);
-
-  ctx.store.notify_arc(this, expression_);
+    expression_.assign(
+      ctx.store, this, 
+      apply_update_records_to_vector(ctx, v, update_records_)
+    );
+  
   update_records_.clear();
 }
 

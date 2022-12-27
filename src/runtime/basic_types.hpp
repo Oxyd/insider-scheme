@@ -4,6 +4,7 @@
 #include "compiler/debug_info.hpp"
 #include "context.hpp"
 #include "memory/free_store.hpp"
+#include "memory/member_ptr.hpp"
 #include "object.hpp"
 #include "type_indexes.hpp"
 #include "util/object_span.hpp"
@@ -117,8 +118,8 @@ public:
   static constexpr word_type static_type_index = type_indexes::pair;
 
   pair(ptr<> car, ptr<> cdr)
-    : car_{car}
-    , cdr_{cdr}
+    : car_{member_ptr<>::initialise(car)}
+    , cdr_{member_ptr<>::initialise(cdr)}
   { }
 
   ptr<>
@@ -127,9 +128,13 @@ public:
   cdr() const { return cdr_; }
 
   void
-  set_car(free_store& store, ptr<> p) { car_ = p; store.notify_arc(this, p); }
+  set_car(free_store& store, ptr<> p) { 
+    car_.assign(store, this, p);
+  }
   void
-  set_cdr(free_store& store, ptr<> p) { cdr_ = p; store.notify_arc(this, p); }
+  set_cdr(free_store& store, ptr<> p) { 
+    cdr_.assign(store, this, p);
+  }
 
   // vector-like interface for uniform handling of pairs and vectors.
 
@@ -148,22 +153,23 @@ public:
     assert(i == 0 || i == 1);
 
     if (i == 0)
-      car_ = p;
+      car_.assign(store, this, p);
     else
-      cdr_ = p;
-
-    store.notify_arc(this, p);
+      cdr_.assign(store, this, p);
   }
 
   static std::size_t
   size() { return 2; }
 
   void
-  visit_members(member_visitor const& f) { f(car_); f(cdr_); }
+  visit_members(member_visitor const& f) { 
+    car_.visit_members(f);
+    cdr_.visit_members(f);
+  }
 
 private:
-  ptr<> car_;
-  ptr<> cdr_;
+  member_ptr<> car_;
+  member_ptr<> cdr_;
 };
 
 inline ptr<pair>
@@ -315,7 +321,7 @@ map(context& ctx, ptr<> list, F&& f) {
 // An array of a fixed, dynamic size. Elements are allocated as a part of this
 // object, which requires cooperation from the allocator. From the C++ point of
 // view, there is an array of ptr<> allocated right after the vector object.
-class vector : public dynamic_size_object<vector, ptr<>> {
+class vector : public dynamic_size_object<vector, member_ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::vector";
   static constexpr word_type static_type_index = type_indexes::vector;
@@ -425,15 +431,16 @@ public:
 
   void
   set(free_store& store, ptr<> value) {
-    value_ = value;
-    store.notify_arc(this, value);
+    value_.assign(store, this, value);
   }
 
   void
-  visit_members(member_visitor const& f) { f(value_); }
+  visit_members(member_visitor const& f) {
+    value_.visit_members(f);
+  }
 
 private:
-  ptr<> value_;
+  member_ptr<> value_;
 };
 
 inline ptr<box>

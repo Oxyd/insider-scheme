@@ -3,6 +3,7 @@
 
 #include "compiler/scope.hpp"
 #include "compiler/source_location.hpp"
+#include "memory/member_ptr.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
 #include "runtime/compare.hpp"
@@ -105,7 +106,7 @@ public:
   update_records() const { return update_records_; }
 
 private:
-  ptr<>                      expression_;
+  member_ptr<>               expression_;
   source_location            location_;
   scope_set                  scopes_;
   std::vector<update_record> update_records_;

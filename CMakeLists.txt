@@ -54,10 +54,10 @@ set(scheme_sources
         src/compiler/analyser.cpp
         src/compiler/analyser.hpp
         src/compiler/analysis_context.hpp
-        src/compiler/ast.cpp
-        src/compiler/ast.hpp
         src/compiler/ast_transforms.cpp
         src/compiler/ast_transforms.hpp
+        src/compiler/ast.cpp
+        src/compiler/ast.hpp
         src/compiler/box_set_variables_pass.cpp
         src/compiler/box_set_variables_pass.hpp
         src/compiler/cfg.cpp
@@ -116,16 +116,17 @@ set(scheme_sources
         src/io/write.hpp
         src/memory/free_store.cpp
         src/memory/free_store.hpp
+        src/memory/member_ptr.hpp
         src/memory/member_visitor.hpp
         src/memory/root_list.cpp
         src/memory/root_list.hpp
         src/memory/root_provider.cpp
         src/memory/root_provider.hpp
         src/memory/tracker.hpp
-        src/module.cpp
-        src/module.hpp
         src/module_resolver.cpp
         src/module_resolver.hpp
+        src/module.cpp
+        src/module.hpp
         src/object.cpp
         src/object.hpp
         src/runtime/basic_types.cpp

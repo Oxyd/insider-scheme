@@ -1,6 +1,7 @@
 #ifndef INSIDER_PARAMETER_MAP_HPP
 #define INSIDER_PARAMETER_MAP_HPP
 
+#include "memory/member_ptr.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
 
@@ -27,7 +28,7 @@ public:
   visit_members(member_visitor const&);
 
 private:
-  std::vector<std::tuple<ptr<parameter_tag>, ptr<>>> values_;
+  std::vector<std::tuple<member_ptr<parameter_tag>, member_ptr<>>> values_;
 };
 
 } // namespace insider
