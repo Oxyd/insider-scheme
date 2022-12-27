@@ -15,6 +15,9 @@ public:
   virtual void
   operator () (ptr<> const&) const = 0;
 
+  void
+  operator () (ptr<>&&) const = delete;
+
   virtual void
   weak(ptr<> const&) const = 0;
 };
