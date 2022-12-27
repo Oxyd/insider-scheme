@@ -51,7 +51,7 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  ptr<> value_;
+  ptr<> const value_;
 };
 
 class local_reference_expression
@@ -84,7 +84,7 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  ptr<local_variable> variable_;
+  ptr<local_variable> const variable_;
 };
 
 class top_level_reference_expression
@@ -117,7 +117,7 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  ptr<top_level_variable> variable_;
+  ptr<top_level_variable> const variable_;
 };
 
 class unknown_reference_expression
@@ -150,7 +150,7 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  ptr<syntax> name_;
+  ptr<syntax> const name_;
 };
 
 class application_expression : public composite_object<application_expression> {
@@ -269,11 +269,11 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  opcode                  operation_;
-  std::vector<expression> operands_;
-  bool                    has_result_;
-  ptr<native_procedure>   proc_;
-  std::size_t             size_estimate_ = 0;
+  opcode                      operation_;
+  std::vector<expression>     operands_;
+  bool                        has_result_;
+  ptr<native_procedure> const proc_;
+  std::size_t                 size_estimate_ = 0;
 
   void
   update_size_estimate();
@@ -343,8 +343,8 @@ public:
   operator == (definition_pair_expression const&) const = default;
 
 private:
-  ptr<local_variable> variable_;
-  insider::expression expression_;
+  ptr<local_variable> const variable_;
+  insider::expression       expression_;
 };
 
 class let_expression : public composite_object<let_expression> {
@@ -419,9 +419,9 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  ptr<local_variable> target_;
-  insider::expression expression_;
-  std::size_t         size_estimate_ = 0;
+  ptr<local_variable> const target_;
+  insider::expression       expression_;
+  std::size_t               size_estimate_ = 0;
 
   void
   update_size_estimate();
@@ -465,10 +465,10 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  ptr<top_level_variable> variable_;
-  insider::expression     expression_;
-  bool                    is_init_;
-  std::size_t             size_estimate_ = 0;
+  ptr<top_level_variable> const variable_;
+  insider::expression           expression_;
+  bool                          is_init_;
+  std::size_t                   size_estimate_ = 0;
 
   void
   update_size_estimate();
@@ -479,8 +479,8 @@ public:
   static constexpr char const* scheme_name = "insider::lambda_expression";
 
   struct parameter {
-    ptr<local_variable> variable;
-    bool                optional;
+    ptr<local_variable> const variable;
+    bool                      optional;
 
     void
     visit_members(member_visitor const& f) const;
@@ -562,13 +562,13 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  std::vector<parameter>           parameters_;
+  std::vector<parameter> const     parameters_;
   bool                             has_rest_;
   expression                       body_;
   std::string                      name_;
   std::vector<ptr<local_variable>> free_variables_;
-  ptr<local_variable>              self_variable_;
-  std::size_t                      size_estimate_ = 0;
+  ptr<local_variable> const        self_variable_;
+  std::size_t                      size_estimate_       = 0;
   std::size_t                      num_self_references_ = 0;
 };
 
@@ -666,9 +666,9 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  expression                       body_;
-  ptr<loop_id>                     id_;
-  std::vector<ptr<local_variable>> vars_;
+  expression                             body_;
+  ptr<loop_id> const                     id_;
+  std::vector<ptr<local_variable>> const vars_;
 };
 
 // Performs two things: First it assigns new values to the loop variables, then
@@ -708,7 +708,7 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  ptr<loop_id>                            id_;
+  ptr<loop_id> const                      id_;
   std::vector<definition_pair_expression> vars_;
   std::size_t                             size_estimate_ = 0;
 
