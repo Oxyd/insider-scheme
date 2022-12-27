@@ -43,7 +43,7 @@ public:
   std::optional<integer::value_type>    next_exception_handler_frame;
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 };
 
 using register_index = std::uint32_t;
@@ -304,7 +304,7 @@ public:
   append_frame(ptr<call_stack> from, frame_index idx);
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 
 private:
   static constexpr std::size_t frames_alloc_size = 1024;

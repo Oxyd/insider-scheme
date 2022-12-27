@@ -71,7 +71,7 @@ module_::export_(ptr<symbol> name) {
 }
 
 void
-module_::visit_members(member_visitor const& f) {
+module_::visit_members(member_visitor const& f) const {
   f(env_);
   f(proc_);
 }

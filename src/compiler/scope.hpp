@@ -54,7 +54,7 @@ public:
   size() const { return scopes_.size(); }
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 
 private:
   std::vector<ptr<scope>> scopes_;
@@ -129,7 +129,7 @@ public:
   id() const { return id_; }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
 private:
   std::vector<binding> bindings_;

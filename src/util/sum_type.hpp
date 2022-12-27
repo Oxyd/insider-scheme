@@ -63,7 +63,7 @@ public:
   operator == (sum_type<Ts...> const&) const = default;
 
   void
-  visit_members(member_visitor const& f) {
+  visit_members(member_visitor const& f) const {
     f(value_);
   }
 

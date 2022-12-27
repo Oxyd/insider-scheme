@@ -53,10 +53,10 @@ syntax::syntax(ptr<> expr, source_location loc, scope_set scopes,
 { }
 
 void
-syntax::visit_members(member_visitor const& f) {
+syntax::visit_members(member_visitor const& f) const {
   expression_.visit_members(f);
   scopes_.visit_members(f);
-  for (update_record& ur : update_records_)
+  for (update_record const& ur : update_records_)
     f(ur.scope);
 }
 
@@ -327,7 +327,7 @@ syntax_to_list(context& ctx, ptr<> stx) {
 }
 
 void
-transformer::visit_members(member_visitor const& f) {
+transformer::visit_members(member_visitor const& f) const {
   f(callable_);
 }
 

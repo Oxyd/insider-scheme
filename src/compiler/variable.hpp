@@ -60,7 +60,7 @@ public:
   constant_initialiser() const { return constant_initialiser_; }
 
   void
-  visit_members(member_visitor const& f) {
+  visit_members(member_visitor const& f) const {
     constant_initialiser_.visit_members(f);
   }
 

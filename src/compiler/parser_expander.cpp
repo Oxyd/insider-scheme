@@ -698,7 +698,7 @@ namespace {
     ptr<syntax> expression;
 
     void
-    visit_members(member_visitor const& f) {
+    visit_members(member_visitor const& f) const {
       f(id);
       f(expression);
     }

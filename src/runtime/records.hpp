@@ -48,7 +48,7 @@ public:
   ref(std::size_t field);
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
 private:
   ptr<record_type> const type_;

@@ -76,7 +76,7 @@ public:
   name() const { return name_; }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
 private:
   ptr<insider::scope>             env_;

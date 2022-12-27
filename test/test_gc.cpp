@@ -75,7 +75,7 @@ struct ccc : composite_object<ccc> {
   }
 
   void
-  visit_members(member_visitor const& f) {
+  visit_members(member_visitor const& f) const {
     f(ref);
   }
 };
@@ -101,7 +101,7 @@ struct bbb : composite_object<bbb> {
   }
 
   void
-  visit_members(member_visitor const& f) {
+  visit_members(member_visitor const& f) const {
     f(child_);
   }
 
@@ -189,7 +189,7 @@ struct ddd : composite_object<ddd> {
   ddd(ddd&& other) : child{other.child} { }
 
   void
-  visit_members(member_visitor const& f) {
+  visit_members(member_visitor const& f) const {
     f.weak(child);
   }
 
@@ -399,7 +399,7 @@ struct container {
   ptr<> x;
 
   void
-  visit_members(member_visitor const& f) {
+  visit_members(member_visitor const& f) const {
     f(x);
   }
 };

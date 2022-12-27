@@ -24,7 +24,7 @@ record_instance::record_instance(record_instance&& other) noexcept
 }
 
 void
-record_instance::visit_members(member_visitor const& f) {
+record_instance::visit_members(member_visitor const& f) const {
   f(type_);
   for (std::size_t i = 0; i < size(); ++i)
     f(storage_element(i));

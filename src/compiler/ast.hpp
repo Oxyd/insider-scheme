@@ -39,7 +39,7 @@ public:
   visit_subexpressions(F&&) const { }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   void
   update(context&, result_stack&);
@@ -72,7 +72,7 @@ public:
   visit_subexpressions(F&&) const { }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   void
   update(context&, result_stack&);
@@ -105,7 +105,7 @@ public:
   visit_subexpressions(F&&) const { }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   void
   update(context&, result_stack&);
@@ -138,7 +138,7 @@ public:
   visit_subexpressions(F&&) const { }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   void
   update(context&, result_stack&);
@@ -204,7 +204,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   void
   update(context&, result_stack&);
@@ -257,7 +257,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 
   void
   update(context&, result_stack&);
@@ -306,7 +306,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   void
   update(context&, result_stack&);
@@ -337,7 +337,7 @@ public:
   expression() const { return expression_; }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   bool
   operator == (definition_pair_expression const&) const = default;
@@ -368,7 +368,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   void
   update(context&, result_stack&);
@@ -407,7 +407,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   void
   update(context&, result_stack&);
@@ -453,7 +453,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   void
   update(context&, result_stack&);
@@ -483,7 +483,7 @@ public:
     bool                optional;
 
     void
-    visit_members(member_visitor const& f);
+    visit_members(member_visitor const& f) const;
   };
 
   // Duplicate a lambda expression with new self variable and without free
@@ -548,7 +548,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   void
   update(context&, result_stack&);
@@ -605,7 +605,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
   void
   update(context&, result_stack&);
@@ -654,7 +654,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 
   void
   update(context&, result_stack&);
@@ -696,7 +696,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 
   void
   update(context&, result_stack&);

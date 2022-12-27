@@ -10,8 +10,8 @@
 namespace insider {
 
 void
-stack_frame_extra_data::visit_members(member_visitor const &f) {
-  for (auto& p : parameters) {
+stack_frame_extra_data::visit_members(member_visitor const& f) const {
+  for (auto const& p : parameters) {
     f(p.tag);
     f(p.value);
   }
@@ -74,7 +74,7 @@ call_stack::append_frame(ptr<call_stack> from, frame_index idx) {
 }
 
 void
-call_stack::visit_members(member_visitor const& f) {
+call_stack::visit_members(member_visitor const& f) const {
   for (std::size_t i = 0; i < frames_size_; ++i)
     f(frames_[i].extra);
 

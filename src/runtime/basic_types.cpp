@@ -129,7 +129,7 @@ vector::vector(vector&& other) noexcept
 }
 
 void
-vector::visit_members(member_visitor const& f) {
+vector::visit_members(member_visitor const& f) const {
   for (std::size_t i = 0; i < size_; ++i)
     storage_element(i).visit_members(f);
 }
@@ -231,7 +231,7 @@ bytevector::bytevector(bytevector&& other) noexcept
 }
 
 void
-bytevector::visit_members(member_visitor const&) { }
+bytevector::visit_members(member_visitor const&) const { }
 
 ptr<bytevector>
 make_bytevector_from_std_vector(context& ctx, std::vector<std::uint8_t> data) {
@@ -276,7 +276,7 @@ procedure_prototype::procedure_prototype(
 }
 
 void
-procedure_prototype::visit_members(member_visitor const& f) {
+procedure_prototype::visit_members(member_visitor const& f) const {
   for (ptr<>& k : std::views::counted(constants.get(), constants_size))
     f(k);
 }
@@ -321,7 +321,7 @@ procedure::set(free_store& store, std::size_t i, ptr<> value) {
 }
 
 void
-procedure::visit_members(member_visitor const& f) {
+procedure::visit_members(member_visitor const& f) const {
   f(prototype_);
   cached_prototype_.visit_members(f);
   for (std::size_t i = 0; i < size_; ++i)
@@ -361,12 +361,12 @@ expect_callable(ptr<> x) {
 }
 
 void
-uncaught_exception::visit_members(member_visitor const& f) {
+uncaught_exception::visit_members(member_visitor const& f) const {
   f(inner_exception);
 }
 
 void
-error::visit_members(member_visitor const& f) {
+error::visit_members(member_visitor const& f) const {
   f(message_);
   f(irritants_);
 }
@@ -394,7 +394,7 @@ values_tuple::ref(std::size_t i) const {
 }
 
 void
-values_tuple::visit_members(member_visitor const& f) {
+values_tuple::visit_members(member_visitor const& f) const {
   for (std::size_t i = 0; i < size_; ++i)
     f(storage_element(i));
 }

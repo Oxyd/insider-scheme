@@ -50,7 +50,7 @@ literal_expression::literal_expression(ptr<> value)
 { }
 
 void
-literal_expression::visit_members(member_visitor const& f) {
+literal_expression::visit_members(member_visitor const& f) const {
   f(value_);
 }
 
@@ -70,7 +70,7 @@ local_reference_expression::local_reference_expression(
 { }
 
 void
-local_reference_expression::visit_members(member_visitor const& f) {
+local_reference_expression::visit_members(member_visitor const& f) const {
   f(variable_);
 }
 
@@ -91,7 +91,7 @@ top_level_reference_expression::top_level_reference_expression(
 { }
 
 void
-top_level_reference_expression::visit_members(member_visitor const& f) {
+top_level_reference_expression::visit_members(member_visitor const& f) const {
   f(variable_);
 }
 
@@ -110,7 +110,7 @@ unknown_reference_expression::unknown_reference_expression(ptr<syntax> name)
 { }
 
 void
-unknown_reference_expression::visit_members(member_visitor const& f) {
+unknown_reference_expression::visit_members(member_visitor const& f) const {
   f(name_);
 }
 
@@ -130,7 +130,7 @@ application_expression::application_expression(expression t,
 { }
 
 void
-application_expression::visit_members(member_visitor const& f) {
+application_expression::visit_members(member_visitor const& f) const {
   target_.visit_members(f);
   for (auto& arg : arguments_)
     arg.visit_members(f);
@@ -217,8 +217,8 @@ built_in_operation_expression::built_in_operation_expression(
 }
 
 void
-built_in_operation_expression::visit_members(member_visitor const& f) {
-  for (expression& operand : operands_)
+built_in_operation_expression::visit_members(member_visitor const& f) const {
+  for (expression const& operand : operands_)
     operand.visit_members(f);
   f(proc_);
 }
@@ -256,7 +256,7 @@ sequence_expression::sequence_expression(std::vector<expression> exprs)
 }
 
 void
-sequence_expression::visit_members(member_visitor const& f) {
+sequence_expression::visit_members(member_visitor const& f) const {
   for (auto& e : expressions_)
     e.visit_members(f);
 }
@@ -290,7 +290,7 @@ definition_pair_expression::definition_pair_expression(
 { }
 
 void
-definition_pair_expression::visit_members(member_visitor const& f) {
+definition_pair_expression::visit_members(member_visitor const& f) const {
   f(variable_);
   expression_.visit_members(f);
 }
@@ -304,8 +304,8 @@ let_expression::let_expression(std::vector<definition_pair_expression> defs,
 }
 
 void
-let_expression::visit_members(member_visitor const& f) {
-  for (definition_pair_expression& dp : definitions_)
+let_expression::visit_members(member_visitor const& f) const {
+  for (definition_pair_expression const& dp : definitions_)
     dp.visit_members(f);
   body_.visit_members(f);
 }
@@ -367,7 +367,7 @@ local_set_expression::local_set_expression(ptr<local_variable> target,
 }
 
 void
-local_set_expression::visit_members(member_visitor const& f) {
+local_set_expression::visit_members(member_visitor const& f) const {
   f(target_);
   expression_.visit_members(f);
 }
@@ -403,7 +403,7 @@ top_level_set_expression::top_level_set_expression(ptr<top_level_variable> var,
 }
 
 void
-top_level_set_expression::visit_members(member_visitor const& f) {
+top_level_set_expression::visit_members(member_visitor const& f) const {
   f(variable_);
   expression_.visit_members(f);
 }
@@ -429,7 +429,7 @@ top_level_set_expression::show(context& ctx, std::size_t indent) const {
 }
 
 void
-lambda_expression::parameter::visit_members(member_visitor const& f) {
+lambda_expression::parameter::visit_members(member_visitor const& f) const {
   f(variable);
 }
 
@@ -489,7 +489,7 @@ lambda_expression::add_free_variable(free_store& fs, ptr<local_variable> v) {
 }
 
 void
-lambda_expression::visit_members(member_visitor const& f) {
+lambda_expression::visit_members(member_visitor const& f) const {
   for (auto& p : parameters_)
     p.visit_members(f);
   body_.visit_members(f);
@@ -547,7 +547,7 @@ if_expression::if_expression(expression test, expression consequent,
 }
 
 void
-if_expression::visit_members(member_visitor const& f) {
+if_expression::visit_members(member_visitor const& f) const {
   test_.visit_members(f);
   consequent_.visit_members(f);
   alternative_.visit_members(f);
@@ -598,10 +598,10 @@ loop_body::loop_body(expression body, ptr<loop_id> id,
 { }
 
 void
-loop_body::visit_members(member_visitor const& f) {
+loop_body::visit_members(member_visitor const& f) const {
   body_.visit_members(f);
   f(id_);
-  for (ptr<local_variable>& var : vars_)
+  for (ptr<local_variable> const& var : vars_)
     f(var);
 }
 
@@ -632,9 +632,9 @@ loop_continue::loop_continue(ptr<loop_id> id,
 }
 
 void
-loop_continue::visit_members(member_visitor const& f) {
+loop_continue::visit_members(member_visitor const& f) const {
   f(id_);
-  for (definition_pair_expression& var : vars_)
+  for (definition_pair_expression const& var : vars_)
     var.visit_members(f);
 }
 

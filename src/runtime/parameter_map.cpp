@@ -33,7 +33,7 @@ parameter_map::add_value(free_store& fs, ptr<parameter_tag> tag, ptr<> value) {
 }
 
 void
-parameter_map::visit_members(member_visitor const& f) {
+parameter_map::visit_members(member_visitor const& f) const {
   for (auto& [key, value] : values_) {
     key.visit_members(f);
     value.visit_members(f);

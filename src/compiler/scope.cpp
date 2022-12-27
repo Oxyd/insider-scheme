@@ -52,8 +52,8 @@ scope_set::flip(ptr<scope> env) {
 }
 
 void
-scope_set::visit_members(member_visitor const& f) {
-  for (ptr<scope>& scope : scopes_)
+scope_set::visit_members(member_visitor const& f) const {
+  for (ptr<scope> const& scope : scopes_)
     f(scope);
 }
 
@@ -124,7 +124,7 @@ scope::replace(free_store& store, ptr<syntax> identifier,
 }
 
 void
-scope::visit_members(member_visitor const& f) {
+scope::visit_members(member_visitor const& f) const {
   for (auto& b : bindings_) {
     f(b.id);
     b.variable.visit_members(f);

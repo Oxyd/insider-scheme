@@ -162,7 +162,7 @@ public:
   size() { return 2; }
 
   void
-  visit_members(member_visitor const& f) { 
+  visit_members(member_visitor const& f) const { 
     car_.visit_members(f);
     cdr_.visit_members(f);
   }
@@ -334,7 +334,7 @@ public:
   vector(vector&&) noexcept;
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 
   ptr<>
   ref(std::size_t) const;
@@ -405,7 +405,7 @@ public:
   end() const { return &storage_element(0) + size(); }
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 };
 
 ptr<bytevector>
@@ -435,7 +435,7 @@ public:
   }
 
   void
-  visit_members(member_visitor const& f) {
+  visit_members(member_visitor const& f) const {
     value_.visit_members(f);
   }
 
@@ -487,7 +487,7 @@ public:
                       std::vector<ptr<>> const& constants);
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 };
 
 ptr<procedure_prototype>
@@ -523,7 +523,7 @@ public:
   set(free_store& store, std::size_t, ptr<>);
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 
 private:
   ptr<procedure_prototype> const prototype_;
@@ -606,7 +606,7 @@ public:
   { }
 
   void
-  visit_members(member_visitor const& f) { f(proc); }
+  visit_members(member_visitor const& f) const { f(proc); }
 };
 
 // Wrapper for C++ values that don't contain references to any Scheme objects.
@@ -636,7 +636,7 @@ public:
   { }
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 };
 
 // Scheme error object, as created by error.
@@ -656,7 +656,7 @@ public:
   irritants(context&) const { return irritants_; }
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 
 private:
   ptr<string> const message_;
@@ -705,7 +705,7 @@ public:
   ref(std::size_t i) const;
 
   void
-  visit_members(member_visitor const& f);
+  visit_members(member_visitor const& f) const;
 
 private:
   template <typename... Ts, std::size_t... Is>

@@ -99,7 +99,7 @@ struct sum_holder : composite_object<sum_holder> {
   symbol_or_string value;
 
   void
-  visit_members(member_visitor const& f) {
+  visit_members(member_visitor const& f) const {
     value.visit_members(f);
   }
 };

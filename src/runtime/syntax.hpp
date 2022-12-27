@@ -97,7 +97,7 @@ public:
   flip_scope(free_store&, ptr<scope>) const;
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 
   bool
   dirty() const { return !update_records_.empty(); }
@@ -219,7 +219,7 @@ public:
   callable() const { return callable_; }
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 
 private:
   ptr<> const callable_;

@@ -137,7 +137,7 @@ public:
   set_positive(bool p) { positive_ = p; }
 
   void
-  visit_members(member_visitor const&) { }
+  visit_members(member_visitor const&) const { }
 
   std::size_t
   hash() const;
@@ -160,7 +160,7 @@ public:
   denominator() const { return denominator_; }
 
   void
-  visit_members(member_visitor const& f) {
+  visit_members(member_visitor const& f) const {
     f(numerator_);
     f(denominator_);
   }
@@ -218,7 +218,7 @@ public:
   imaginary() const { return imaginary_; }
 
   void
-  visit_members(member_visitor const& f) {
+  visit_members(member_visitor const& f) const {
     f(real_);
     f(imaginary_);
   }

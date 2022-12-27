@@ -25,7 +25,7 @@ public:
   add_value(free_store&, ptr<parameter_tag>, ptr<>);
 
   void
-  visit_members(member_visitor const&);
+  visit_members(member_visitor const&) const;
 
 private:
   std::vector<std::tuple<member_ptr<parameter_tag>, member_ptr<>>> values_;
