@@ -963,13 +963,13 @@ do_instructions(execution_state& state) {
       operand result_reg = read_operand(state);
 
       state.stack.push_frame({
-          .type = call_stack::frame_type::scheme,
-            .result_register = result_reg,
-            .base = state.stack.frame_base() + base,
-            .size = callee->prototype().info.locals_size,
-            .previous_ip = state.ip,
-            .extra = {}
-        });
+        .type = call_stack::frame_type::scheme,
+        .result_register = result_reg,
+        .base = state.stack.frame_base() + base,
+        .size = callee->prototype().info.locals_size,
+        .previous_ip = state.ip,
+        .extra = {}
+      });
 
       std::size_t closure_size = callee->size();
       std::size_t begin = actual_args_size(callee->prototype()) + 1;
