@@ -327,6 +327,8 @@ TEST_F(io, read_bignum) {
   EXPECT_TRUE(num_equal(read("18446744073709551616"), make_big(ctx, 0ull, 1ull)));
   EXPECT_TRUE(num_equal(read("-18446744073709551616"), make_big_negative(ctx, 0ull, 1ull)));
   EXPECT_TRUE(num_equal(read("4611686018427387903"), make_big(ctx, 4611686018427387903ull)));
+  EXPECT_TRUE(num_equal(read("13835058055282163712"), 
+                        make_big(ctx, 13835058055282163712ull)));
   EXPECT_TRUE(num_equal(read("38616195397574606111029898159411003755739963811995564291018845157317291934032285276296721365296300445450322552142080"),
                         make_big(ctx,
                                  262276201643358464ull,

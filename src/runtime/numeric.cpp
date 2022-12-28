@@ -33,8 +33,16 @@ static constexpr unsigned  limb_width
 static constexpr double_limb_type limb_mask
   = (double_limb_type{1} << limb_width) - 1;
 
+static constexpr limb_type most_significant_limb_bit_mask 
+  = limb_type{1} << (limb_width - 1);
+
 static constexpr std::size_t limbs_in_fixnum
   = sizeof(integer::representation_type) / sizeof(limb_type);
+
+static bool
+most_significant_limb_bit(limb_type l) {
+  return l & most_significant_limb_bit_mask;
+}
 
 std::size_t
 big_integer::extra_elements(std::size_t length) {
@@ -203,9 +211,9 @@ normalize(context& ctx, ptr<big_integer> i) {
         return integer_to_ptr(-static_cast<integer::value_type>(l));
       }
     }
-  }
-  else {
-    if (new_length <= limbs_in_fixnum) {
+  } else {
+    if (new_length <= limbs_in_fixnum 
+        && !most_significant_limb_bit(i->back())) {
       integer::value_type small = 0;
       for (std::size_t k = i->length(); k > 0; --k)
         small = (small << limb_width)
