@@ -579,7 +579,9 @@ do_instructions(execution_state& state) {
 
     opcode opcode = read_opcode(state);
     switch (opcode) {
-    case opcode::no_operation: break;
+    case opcode::no_operation:
+      break;
+
     case opcode::load_constant: {
       operand const_num = read_operand(state);
       operand dest = read_operand(state);
@@ -590,58 +592,69 @@ do_instructions(execution_state& state) {
       state.stack.local(dest) = proto.constants[const_num];
       break;
     }
+
     case opcode::load_top_level: {
       operand global_num = read_operand(state);
       operand dest = read_operand(state);
       state.stack.local(dest) = state.ctx.get_top_level(global_num);
       break;
     }
+
     case opcode::store_top_level: {
       operand reg = read_operand(state);
       operand global_num = read_operand(state);
       state.ctx.set_top_level(global_num, state.stack.local(reg));
       break;
     }
+
     case opcode::load_dynamic_top_level: {
       load_dynamic_top_level(state);
       break;
     }
+
     case opcode::load_null: {
       operand dest = read_operand(state);
       state.stack.local(dest) = state.ctx.constants->null;
       break;
     }
+
     case opcode::load_void: {
       operand dest = read_operand(state);
       state.stack.local(dest) = state.ctx.constants->void_;
       break;
     }
+
     case opcode::load_t: {
       operand dest = read_operand(state);
       state.stack.local(dest) = state.ctx.constants->t;
       break;
     }
+
     case opcode::load_f: {
       operand dest = read_operand(state);
       state.stack.local(dest) = state.ctx.constants->f;
       break;
     }
+
     case opcode::load_eof: {
       operand dest = read_operand(state);
       state.stack.local(dest) = state.ctx.constants->eof;
       break;
     }
+
     case opcode::load_default_value: {
       operand dest = read_operand(state);
       state.stack.local(dest) = state.ctx.constants->default_value;
       break;
     }
+
     case opcode::load_fixnum: {
       immediate_type value = operand_to_immediate(read_operand(state));
       operand dest = read_operand(state);
       state.stack.local(dest) = integer_to_ptr(value);
       break;
     }
+
     case opcode::load_character: {
       immediate_type value = operand_to_immediate(read_operand(state));
       operand dest = read_operand(state);
@@ -649,6 +662,7 @@ do_instructions(execution_state& state) {
         = character_to_ptr(static_cast<char32_t>(value));
       break;
     }
+
     case opcode::add: {
       ptr<> lhs = state.stack.local(read_operand(state));
       ptr<> rhs = state.stack.local(read_operand(state));
@@ -664,6 +678,7 @@ do_instructions(execution_state& state) {
       state.stack.local(dest) = add(state.ctx, lhs, rhs);
       break;
     }
+
     case opcode::subtract: {
       ptr<> lhs = state.stack.local(read_operand(state));
       ptr<> rhs = state.stack.local(read_operand(state));
@@ -679,6 +694,7 @@ do_instructions(execution_state& state) {
       state.stack.local(dest) = subtract(state.ctx, lhs, rhs);
       break;
     }
+
     case opcode::multiply: {
       ptr<> lhs = state.stack.local(read_operand(state));
       ptr<> rhs = state.stack.local(read_operand(state));
@@ -694,6 +710,7 @@ do_instructions(execution_state& state) {
       state.stack.local(dest) = multiply(state.ctx, lhs, rhs);
       break;
     }
+
     case opcode::divide: {
       ptr<> lhs = state.stack.local(read_operand(state));
       ptr<> rhs = state.stack.local(read_operand(state));
@@ -701,6 +718,7 @@ do_instructions(execution_state& state) {
       state.stack.local(dest) = divide(state.ctx, lhs, rhs);
       break;
     }
+
     case opcode::truncate_quotient: {
       ptr<> lhs = state.stack.local(read_operand(state));
       ptr<> rhs = state.stack.local(read_operand(state));
@@ -713,6 +731,7 @@ do_instructions(execution_state& state) {
         state.stack.local(dest) = truncate_quotient(state.ctx, lhs, rhs);
       break;
     }
+
     case opcode::truncate_remainder: {
       ptr<> lhs = state.stack.local(read_operand(state));
       ptr<> rhs = state.stack.local(read_operand(state));
@@ -725,6 +744,7 @@ do_instructions(execution_state& state) {
         state.stack.local(dest) = truncate_quotient(state.ctx, lhs, rhs);
       break;
     }
+
     case opcode::increment: {
       ptr<> value = state.stack.local(read_operand(state));
       operand dest = read_operand(state);
@@ -738,6 +758,7 @@ do_instructions(execution_state& state) {
       state.stack.local(dest) = add(state.ctx, value, integer_to_ptr(1));
       break;
     }
+
     case opcode::decrement: {
       ptr<> value = state.stack.local(read_operand(state));
       operand dest = read_operand(state);
@@ -752,6 +773,7 @@ do_instructions(execution_state& state) {
         = subtract(state.ctx, value, integer_to_ptr(1));
       break;
     }
+
     case opcode::negate: {
       ptr<> value = state.stack.local(read_operand(state));
       operand dest = read_operand(state);
@@ -765,6 +787,7 @@ do_instructions(execution_state& state) {
       state.stack.local(dest) = negate(state.ctx, value);
       break;
     }
+
     case opcode::arith_equal: {
       ptr<> lhs = state.stack.local(read_operand(state));
       ptr<> rhs = state.stack.local(read_operand(state));
@@ -781,6 +804,7 @@ do_instructions(execution_state& state) {
         state.stack.local(dest) = arith_equal(state.ctx, lhs, rhs);
       break;
     }
+
     case opcode::less: {
       ptr<> lhs = state.stack.local(read_operand(state));
       ptr<> rhs = state.stack.local(read_operand(state));
@@ -797,6 +821,7 @@ do_instructions(execution_state& state) {
         state.stack.local(dest) = less(state.ctx, lhs, rhs);
       break;
     }
+
     case opcode::greater: {
       ptr<> lhs = state.stack.local(read_operand(state));
       ptr<> rhs = state.stack.local(read_operand(state));
@@ -813,6 +838,7 @@ do_instructions(execution_state& state) {
         state.stack.local(dest) = greater(state.ctx, lhs, rhs);
       break;
     }
+
     case opcode::less_or_equal: {
       ptr<> lhs = state.stack.local(read_operand(state));
       ptr<> rhs = state.stack.local(read_operand(state));
@@ -829,6 +855,7 @@ do_instructions(execution_state& state) {
         state.stack.local(dest) = less_or_equal(state.ctx, lhs, rhs);
       break;
     }
+
     case opcode::greater_or_equal: {
       ptr<> lhs = state.stack.local(read_operand(state));
       ptr<> rhs = state.stack.local(read_operand(state));
@@ -845,6 +872,7 @@ do_instructions(execution_state& state) {
         state.stack.local(dest) = greater_or_equal(state.ctx, lhs, rhs);
       break;
     }
+
     case opcode::char_eq: {
       auto lhs = expect<char32_t>(state.stack.local(read_operand(state)));
       auto rhs = expect<char32_t>(state.stack.local(read_operand(state)));
@@ -854,6 +882,7 @@ do_instructions(execution_state& state) {
         = result ? state.ctx.constants->t : state.ctx.constants->f;
       break;
     }
+
     case opcode::char_lt: {
       auto lhs = expect<char32_t>(state.stack.local(read_operand(state)));
       auto rhs = expect<char32_t>(state.stack.local(read_operand(state)));
@@ -863,6 +892,7 @@ do_instructions(execution_state& state) {
         = result ? state.ctx.constants->t : state.ctx.constants->f;
       break;
     }
+
     case opcode::char_le: {
       auto lhs = expect<char32_t>(state.stack.local(read_operand(state)));
       auto rhs = expect<char32_t>(state.stack.local(read_operand(state)));
@@ -872,6 +902,7 @@ do_instructions(execution_state& state) {
         = result ? state.ctx.constants->t : state.ctx.constants->f;
       break;
     }
+
     case opcode::char_gt: {
       auto lhs = expect<char32_t>(state.stack.local(read_operand(state)));
       auto rhs = expect<char32_t>(state.stack.local(read_operand(state)));
@@ -881,6 +912,7 @@ do_instructions(execution_state& state) {
         = result ? state.ctx.constants->t : state.ctx.constants->f;
       break;
     }
+
     case opcode::char_ge: {
       auto lhs = expect<char32_t>(state.stack.local(read_operand(state)));
       auto rhs = expect<char32_t>(state.stack.local(read_operand(state)));
@@ -890,6 +922,7 @@ do_instructions(execution_state& state) {
         = result ? state.ctx.constants->t : state.ctx.constants->f;
       break;
     }
+
     case opcode::set: {
       operand src = read_operand(state);
       operand dst = read_operand(state);
@@ -1046,156 +1079,207 @@ do_instructions(execution_state& state) {
     case opcode::box:
       procedure_instruction<make_box>(state);
       break;
+
     case opcode::unbox:
       procedure_instruction<unbox>(state);
       break;
+
     case opcode::box_set:
       procedure_instruction<box_set>(state);
       break;
+
     case opcode::cons:
       procedure_instruction<cons>(state);
       break;
+
     case opcode::car:
       car(state);
       break;
+
     case opcode::cdr:
       cdr(state);
       break;
+
     case opcode::vector_set:
       procedure_instruction<vector_set>(state);
       break;
+
     case opcode::vector_ref:
       procedure_instruction<&vector::ref>(state);
       break;
+
     case opcode::vector_length:
       procedure_instruction<&vector::size>(state);
       break;
+
     case opcode::bytevector_u8_set:
       procedure_instruction<&bytevector::set>(state);
       break;
+
     case opcode::bytevector_u8_ref:
       procedure_instruction<&bytevector::ref>(state);
       break;
+
     case opcode::bytevector_length:
       procedure_instruction<&bytevector::size>(state);
       break;
+
     case opcode::string_ref:
       procedure_instruction<string_ref>(state);
       break;
+
     case opcode::string_set:
       procedure_instruction<string_set>(state);
       break;
+
     case opcode::string_length:
       procedure_instruction<&string::length>(state);
       break;
+
     case opcode::string_append_char:
       procedure_instruction<&string::append_char>(state);
       break;
+
     case opcode::string_null:
       procedure_instruction<is_string_null>(state);
       break;
+
     case opcode::string_cursor_start:
       procedure_instruction<string_cursor_start>(state);
       break;
+
     case opcode::string_cursor_end:
       procedure_instruction<string_cursor_end>(state);
       break;
+
     case opcode::string_cursor_next:
       procedure_instruction<string_cursor_next>(state);
       break;
+
     case opcode::string_cursor_prev:
       procedure_instruction<string_cursor_prev>(state);
       break;
+
     case opcode::eq:
       procedure_instruction<eq>(state);
       break;
+
     case opcode::eqv:
       procedure_instruction<eqv>(state);
       break;
+
     case opcode::equal:
       procedure_instruction<equal>(state);
       break;
+
     case opcode::syntax_expression:
       procedure_instruction<&syntax::update_and_get_expression>(state);
       break;
+
     case opcode::free_identifier_eq:
       procedure_instruction<free_identifier_eq>(state);
       break;
+
     case opcode::is_integer:
       procedure_instruction<is_integer>(state);
       break;
+
     case opcode::is_exact_integer:
       procedure_instruction<is_exact_integer>(state);
       break;
+
     case opcode::is_zero:
       procedure_instruction<is_zero>(state);
       break;
+
     case opcode::is_positive:
       procedure_instruction<is_positive>(state);
       break;
+
     case opcode::is_negative:
       procedure_instruction<is_negative>(state);
       break;
+
     case opcode::is_number:
       procedure_instruction<is_number>(state);
       break;
+
     case opcode::is_real:
       procedure_instruction<is_real>(state);
       break;
+
     case opcode::is_rational:
       procedure_instruction<is_rational>(state);
       break;
+
     case opcode::is_finite:
       procedure_instruction<is_finite>(state);
       break;
+
     case opcode::is_infinite:
       procedure_instruction<is_infinite>(state);
       break;
+
     case opcode::is_nan:
       procedure_instruction<is_nan>(state);
       break;
+
     case opcode::is_inexact:
       procedure_instruction<is_inexact>(state);
       break;
+
     case opcode::is_exact:
       procedure_instruction<is_exact>(state);
       break;
+
     case opcode::inexact:
       procedure_instruction<inexact>(state);
       break;
+
     case opcode::exact:
       procedure_instruction<exact>(state);
       break;
+
     case opcode::fraction_numerator:
       procedure_instruction<&fraction::numerator>(state);
       break;
+
     case opcode::fraction_denominator:
       procedure_instruction<&fraction::denominator>(state);
       break;
+
     case opcode::real_part:
       procedure_instruction<real_part>(state);
       break;
+
     case opcode::imag_part:
       procedure_instruction<imag_part>(state);
       break;
+
     case opcode::read_char:
       procedure_instruction<read_char>(state);
       break;
+
     case opcode::peek_char:
       procedure_instruction<peek_char>(state);
       break;
+
     case opcode::write_char:
       procedure_instruction<write_char>(state);
       break;
+
     case opcode::read_u8:
       procedure_instruction<read_u8>(state);
       break;
+
     case opcode::peek_u8:
       procedure_instruction<peek_u8>(state);
       break;
+
     case opcode::write_u8:
       procedure_instruction<write_u8>(state);
       break;
+
     case opcode::is_default_value:
       procedure_instruction<is_default_value>(state);
       break;
