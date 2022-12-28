@@ -5,6 +5,7 @@
 #include "io/read.hpp"
 #include "io/write.hpp"
 #include "memory/free_store.hpp"
+#include "memory/tracker.hpp"
 #include "ptr.hpp"
 #include "runtime/error.hpp"
 #include "runtime/integer.hpp"
@@ -331,6 +332,7 @@ pop_frame_and_set_return_value(execution_state& state, ptr<> result) {
 
 static void
 call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
+  tracker t{state.ctx, scheme_result};
   ptr<> result;
   do
     result = call_native_frame_target(state.ctx, state.stack, scheme_result);
@@ -571,8 +573,6 @@ raise(context& ctx, ptr<> e);
 
 static void
 do_instructions(execution_state& state) {
-  gc_disabler no_gc{state.ctx.store};
-
   while (!state.result) {
     assert(!state.stack.empty());
     assert(is<procedure>(state.stack.callable()));
@@ -1288,11 +1288,7 @@ do_instructions(execution_state& state) {
       assert(false); // Invalid opcode
     } // end switch
 
-    if (opcode == opcode::ret
-        || opcode == opcode::tail_call
-        || opcode == opcode::tail_call_known_scheme
-        || opcode == opcode::tail_call_known_native)
-      no_gc.force_update();
+    state.ctx.store.update();
   }
 }
 

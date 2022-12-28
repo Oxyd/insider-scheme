@@ -363,14 +363,6 @@ public:
     }
   }
 
-  void
-  force_update() {
-    if (fs_) {
-      fs_->enable_gc();
-      fs_->disable_gc();
-    }
-  }
-
 private:
   free_store* fs_;
 };
