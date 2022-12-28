@@ -5,6 +5,7 @@
 #include "util/integer_cast.hpp"
 
 #include <algorithm>
+#include <iterator>
 #include <ranges>
 
 namespace insider {
@@ -21,23 +22,19 @@ stack_frame_extra_data::visit_members(member_visitor const& f) const {
 }
 
 call_stack::call_stack()
-  : frames_{std::make_unique<frame[]>(frames_alloc_size)}
-  , frames_capacity_{frames_alloc_size}
-  , data_{std::make_unique<ptr<>[]>(data_alloc_size)}
+  : data_{std::make_unique<ptr<>[]>(data_alloc_size)}
   , data_capacity_{data_alloc_size}
-{ }
+{
+  frames_.reserve(frames_alloc_size);
+}
 
 call_stack::call_stack(call_stack const& other)
-  : frames_{std::make_unique<frame[]>(other.frames_size_)}
-  , frames_capacity_{other.frames_size_}
-  , frames_size_{other.frames_size_}
-  , data_{std::make_unique<ptr<>[]>(other.real_data_size())}
+  : data_{std::make_unique<ptr<>[]>(other.real_data_size())}
   , data_capacity_{other.real_data_size()}
   , data_size_{other.data_size_}
   , current_base_{other.current_base_}
 {
-  std::ranges::copy(std::views::counted(other.frames_.get(), frames_size_),
-                    frames_.get());
+  std::ranges::copy(other.frames_, std::back_inserter(frames_));
   std::ranges::copy(std::views::counted(other.data_.get(), data_size_),
                     data_.get());
 }
@@ -56,7 +53,6 @@ call_stack::frames(frame_index begin, frame_index end) const -> frame_span {
 
 void
 call_stack::append_frame(ptr<call_stack> from, frame_index idx) {
-  ensure_frames_capacity(frames_size_ + 1);
   ensure_data_capacity(data_size_ + from->frame_size(idx));
 
   frame new_frame = from->frames_[idx];
@@ -67,7 +63,7 @@ call_stack::append_frame(ptr<call_stack> from, frame_index idx) {
   int base_diff = to_signed<int>(data_size_) - new_frame.base;
 
   new_frame.base += base_diff;
-  frames_[frames_size_++] = new_frame;
+  frames_.push_back(new_frame);
 
   current_base_ = new_frame.base;
   data_size_ = current_base_ + new_frame.size;
@@ -75,8 +71,8 @@ call_stack::append_frame(ptr<call_stack> from, frame_index idx) {
 
 void
 call_stack::visit_members(member_visitor const& f) const {
-  for (std::size_t i = 0; i < frames_size_; ++i)
-    f(frames_[i].extra);
+  for (frame const& frame : frames_)
+    f(frame.extra);
 
   for (std::size_t i = 0; i < data_size_; ++i)
     f(data_[i]);
@@ -114,11 +110,6 @@ grow(std::unique_ptr<T[]>& container, auto& capacity,
 }
 
 void
-call_stack::grow_frames(std::size_t requested_size) {
-  grow<frame>(frames_, frames_capacity_, requested_size, frames_alloc_size);
-}
-
-void
 call_stack::grow_data(register_index requested_size) {
   grow<ptr<>>(data_, data_capacity_, requested_size, data_alloc_size);
 }
@@ -126,8 +117,8 @@ call_stack::grow_data(register_index requested_size) {
 register_index
 call_stack::real_data_size() const {
   register_index result = 0;
-  for (std::size_t i = 0; i < frames_size_; ++i)
-    result = std::max(result, frames_[i].base + frames_[i].size);
+  for (frame const& f : frames_)
+    result = std::max(result, f.base + f.size);
   return result;
 }
 

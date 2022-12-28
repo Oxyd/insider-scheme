@@ -83,14 +83,12 @@ public:
   void
   push_frame(frame const& f) {
     assert(f.size > 0);
-    assert(frames_size_ > 0 || f.base == 0);
-    assert(frames_size_ == 0 || f.base >= current_frame().base);
-    assert(frames_size_ == 0
+    assert(!frames_.empty() || f.base == 0);
+    assert(frames_.empty() || f.base >= current_frame().base);
+    assert(frames_.empty()
            || f.base <= current_frame().base + current_frame().size);
 
-    ensure_frames_capacity(frames_size_ + 1);
-
-    frames_[frames_size_++] = f;
+    frames_.push_back(f);
 
     current_base_ = f.base;
     data_size_ = f.base + f.size;
@@ -99,8 +97,8 @@ public:
 
   void
   pop_frame() {
-    --frames_size_;
-    if (frames_size_ > 0) {
+    frames_.pop_back();
+    if (!frames_.empty()) {
       frame& f = current_frame();
       current_base_ = f.base;
       data_size_ = current_base_ + f.size;
@@ -112,7 +110,7 @@ public:
 
   void
   replace_frame(frame_type new_type, register_index new_locals_size) {
-    assert(frames_size_ > 0);
+    assert(!frames_.empty());
 
     frame& f = current_frame();
     f.size = new_locals_size;
@@ -125,7 +123,7 @@ public:
   void
   replace_frame(frame_type new_type, register_index new_locals_size,
                 register_index args_base, register_index args_size) {
-    assert(frames_size_ > 0);
+    assert(!frames_.empty());
 
     frame& f = current_frame();
     register_index current_base = f.base;
@@ -154,7 +152,7 @@ public:
   std::optional<frame_index>
   current_frame_index() const {
     if (!empty())
-      return frames_size_ - 1;
+      return frames_.size() - 1;
     else
       return std::nullopt;
   }
@@ -219,8 +217,8 @@ public:
 
   std::optional<frame_index>
   parent() const {
-    if (frames_size_ >= 2)
-      return frames_size_ - 2;
+    if (frames_.size() >= 2)
+      return frames_.size() - 2;
     else
       return std::nullopt;
   }
@@ -277,20 +275,20 @@ public:
   }
 
   bool
-  empty() const { return frames_size_ == 0; }
+  empty() const { return frames_.empty(); }
 
   register_index
   size() const { return data_size_; }
 
   std::size_t
-  frame_count() const { return frames_size_; }
+  frame_count() const { return frames_.size(); }
 
   void
-  clear() { frames_size_ = 0; data_size_ = 0; }
+  clear() { frames_.clear(); data_size_ = 0; }
 
   auto
   frames_range() const {
-    return std::views::iota(frame_index{0}, frames_size_)
+    return std::views::iota(frame_index{0}, frames_.size())
            | std::views::reverse;
   }
 
@@ -298,7 +296,7 @@ public:
   frames(frame_index begin, frame_index end) const;
 
   frame_index
-  frames_end() const { return frames_size_; }
+  frames_end() const { return frames_.size(); }
 
   void
   append_frame(ptr<call_stack> from, frame_index idx);
@@ -310,9 +308,7 @@ private:
   static constexpr std::size_t frames_alloc_size = 1024;
   static constexpr register_index data_alloc_size = 4096;
 
-  std::unique_ptr<frame[]> frames_;
-  std::size_t              frames_capacity_ = 0;
-  std::size_t              frames_size_ = 0;
+  std::vector<frame>       frames_;
   std::unique_ptr<ptr<>[]> data_;
   register_index           data_capacity_ = 0;
   register_index           data_size_     = 0;
@@ -320,14 +316,14 @@ private:
 
   frame&
   current_frame() {
-    assert(frames_size_ > 0);
-    return frames_[frames_size_ - 1];
+    assert(!frames_.empty());
+    return frames_.back();
   }
 
   frame const&
   current_frame() const {
-    assert(frames_size_ > 0);
-    return frames_[frames_size_ - 1];
+    assert(!frames_.empty());
+    return frames_.back();
   }
 
   void
@@ -347,19 +343,10 @@ private:
   }
 
   void
-  ensure_frames_capacity(std::size_t required_size) {
-    if (required_size >= frames_capacity_) [[unlikely]]
-      grow_frames(required_size);
-  }
-
-  void
   ensure_data_capacity(register_index required_size) {
     if (required_size >= data_capacity_) [[unlikely]]
       grow_data(required_size);
   }
-
-  void
-  grow_frames(std::size_t requested_size);
 
   void
   grow_data(register_index requested_size);
