@@ -14,14 +14,14 @@ class module_;
 class syntax;
 class tail_call_tag_type;
 
-class execution_state : public root_provider {
+class vm : public root_provider {
 public:
   context&            ctx;
   instruction_pointer ip{};
   call_stack          stack;
   ptr<>               result;
 
-  execution_state(context& ctx);
+  vm(context& ctx);
 
 private:
   void

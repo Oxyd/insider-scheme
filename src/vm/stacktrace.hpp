@@ -7,7 +7,7 @@
 namespace insider {
 
 class context;
-class execution_state;
+class vm;
 
 struct stacktrace_record {
   enum class kind { scheme, native };
@@ -19,7 +19,7 @@ struct stacktrace_record {
 using stacktrace = std::vector<stacktrace_record>;
 
 stacktrace
-make_stacktrace(execution_state& state);
+make_stacktrace(vm& state);
 
 stacktrace
 make_stacktrace(context&);

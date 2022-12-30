@@ -77,7 +77,7 @@ append_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
 }
 
 stacktrace
-make_stacktrace(execution_state& state) {
+make_stacktrace(vm& state) {
   std::vector<stacktrace_record> result;
   std::optional<instruction_pointer> call_ip;
   for (call_stack::frame_index idx : state.stack.frames_range()) {

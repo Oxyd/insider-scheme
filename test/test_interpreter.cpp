@@ -947,7 +947,7 @@ TEST_F(interpreter, calling_native_directly_from_native_does_not_pollute_stack) 
   define_procedure<always_throw>(ctx, "always-throw", ctx.internal_module());
   ptr<> f = eval("always-throw");
 
-  ctx.current_execution = std::make_unique<execution_state>(ctx);
+  ctx.current_execution = std::make_unique<vm>(ctx);
   ASSERT_TRUE(ctx.current_execution->stack.empty());
   ASSERT_THROW(call_with_continuation_barrier(ctx, f, {}), std::runtime_error);
   EXPECT_TRUE(ctx.current_execution->stack.empty());

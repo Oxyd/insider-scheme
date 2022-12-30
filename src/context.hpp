@@ -35,7 +35,7 @@ class textual_output_port;
 class transformer;
 class void_type;
 
-class execution_state;
+class vm;
 
 class source_code_provider;
 
@@ -71,7 +71,7 @@ public:
   // Built from actions during stack unwinding.
   std::string                      action_backtrace;
   stacktrace                       last_exception_stacktrace;
-  std::unique_ptr<execution_state> current_execution;
+  std::unique_ptr<vm> current_execution;
   ptr<parameter_map>               parameters;
 
   context();

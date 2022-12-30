@@ -30,13 +30,13 @@
 
 namespace insider {
 
-execution_state::execution_state(context& ctx)
+vm::vm(context& ctx)
   : root_provider{ctx.store}
   , ctx{ctx}
 { }
 
 void
-execution_state::visit_roots(member_visitor const& f) {
+vm::visit_roots(member_visitor const& f) {
   stack.visit_members(f);
   f(result);
 }
@@ -96,17 +96,17 @@ throw_if_wrong_number_of_args(procedure_prototype const& proc,
 }
 
 static opcode
-read_opcode(execution_state& state) {
+read_opcode(vm& state) {
   return insider::read_opcode(state.ip);
 }
 
 static operand
-read_operand(execution_state& state) {
+read_operand(vm& state) {
   return insider::read_operand(state.ip);
 }
 
 static void
-load_dynamic_top_level(execution_state& state) {
+load_dynamic_top_level(vm& state) {
   operand id_idx = read_operand(state);
   operand dest = read_operand(state);
 
@@ -195,12 +195,12 @@ fill_in_default_values(context& ctx, call_stack& stack,
 }
 
 static instruction_pointer
-current_procedure_bytecode_base(execution_state const& state) {
+current_procedure_bytecode_base(vm const& state) {
   return assume<procedure>(state.stack.callable())->prototype().code.get();
 }
 
 static void
-push_scheme_frame(execution_state& state, ptr<procedure> proc,
+push_scheme_frame(vm& state, ptr<procedure> proc,
                   operand base, operand result_reg) {
   state.stack.push_frame({
     .type = call_stack::frame_type::scheme,
@@ -228,7 +228,7 @@ make_scheme_tail_call_frame(call_stack& stack, ptr<procedure> proc,
 }
 
 static void
-check_and_convert_scheme_call_arguments(execution_state& state,
+check_and_convert_scheme_call_arguments(vm& state,
                                         procedure_prototype const& proto,
                                         operand base) {
   operand num_args = read_operand(state);
@@ -239,7 +239,7 @@ check_and_convert_scheme_call_arguments(execution_state& state,
 
 template <bool IsTail, bool CheckAndConvertArgs>
 static void
-make_scheme_frame(ptr<procedure> proc, execution_state& state, operand base) {
+make_scheme_frame(ptr<procedure> proc, vm& state, operand base) {
   if constexpr (CheckAndConvertArgs)
     check_and_convert_scheme_call_arguments(state, proc->prototype(), base);
   else
@@ -255,7 +255,7 @@ make_scheme_frame(ptr<procedure> proc, execution_state& state, operand base) {
 
 template <bool IsTail, bool CheckAndConvertArgs>
 static void
-push_scheme_call_frame(ptr<procedure> proc, execution_state& state,
+push_scheme_call_frame(ptr<procedure> proc, vm& state,
                        operand base) {
   make_scheme_frame<IsTail, CheckAndConvertArgs>(proc, state, base);
   push_closure(proc, state.stack);
@@ -263,7 +263,7 @@ push_scheme_call_frame(ptr<procedure> proc, execution_state& state,
 }
 
 static void
-make_native_non_tail_call_frame(execution_state& state, register_index base,
+make_native_non_tail_call_frame(vm& state, register_index base,
                                 register_index num_args, operand dest_reg) {
   state.stack.push_frame({
     .type = call_stack::frame_type::native,
@@ -312,7 +312,7 @@ call_native_frame_target(context& ctx, call_stack& stack,
 }
 
 static void
-pop_frame(execution_state& state) {
+pop_frame(vm& state) {
   instruction_pointer previous_ip = state.stack.previous_ip();
 
   state.stack.pop_frame();
@@ -320,10 +320,10 @@ pop_frame(execution_state& state) {
 }
 
 static void
-resume_native_call(execution_state& state, ptr<> scheme_result);
+resume_native_call(vm& state, ptr<> scheme_result);
 
 static void
-pop_frame_and_set_return_value(execution_state& state, ptr<> result) {
+pop_frame_and_set_return_value(vm& state, ptr<> result) {
   assert(result);
 
   call_stack& stack = state.stack;
@@ -341,7 +341,7 @@ pop_frame_and_set_return_value(execution_state& state, ptr<> result) {
 }
 
 static void
-call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
+call_native_procedure(vm& state, ptr<> scheme_result = {}) {
   tracker t{state.ctx, scheme_result};
   ptr<> result;
   do
@@ -359,7 +359,7 @@ call_native_procedure(execution_state& state, ptr<> scheme_result = {}) {
 }
 
 static void
-make_native_frame(ptr<native_procedure> proc, execution_state& state,
+make_native_frame(ptr<native_procedure> proc, vm& state,
                   operand base, bool is_tail) {
   auto num_args = read_operand(state);
   if (!is_tail) {
@@ -370,7 +370,7 @@ make_native_frame(ptr<native_procedure> proc, execution_state& state,
 }
 
 static void
-do_native_call(ptr<native_procedure> proc, execution_state& state,
+do_native_call(ptr<native_procedure> proc, vm& state,
                operand base, bool is_tail) {
   make_native_frame(proc, state, base, is_tail);
   call_native_procedure(state);
@@ -383,7 +383,7 @@ throw_application_error(context& ctx, ptr<> callee) {
 }
 
 static void
-resume_native_call(execution_state& state, ptr<> scheme_result) {
+resume_native_call(vm& state, ptr<> scheme_result) {
   if (state.stack.current_frame_type()
       == call_stack::frame_type::native_continuation)
     call_native_procedure(state, scheme_result);
@@ -401,7 +401,7 @@ template <auto Proc, typename Type>
   template <auto Proc, typename Ret, typename Arg1>
   struct procedure_instruction_helper<Proc, Ret (*)(context&, Arg1)> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto argument
         = from_scheme<Arg1>(state.ctx, state.stack.local(read_operand(state)));
       operand dest = read_operand(state);
@@ -412,7 +412,7 @@ template <auto Proc, typename Type>
   template <auto Proc, typename Ret, typename Arg1>
   struct procedure_instruction_helper<Proc, Ret (*)(Arg1)> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto argument
         = from_scheme<Arg1>(state.ctx, state.stack.local(read_operand(state)));
       operand dest = read_operand(state);
@@ -423,7 +423,7 @@ template <auto Proc, typename Type>
   template <auto Proc, typename Arg1, typename Arg2>
   struct procedure_instruction_helper<Proc, void (*)(context&, Arg1, Arg2)> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto argument1
         = from_scheme<Arg1>(state.ctx, state.stack.local(read_operand(state)));
       auto argument2
@@ -436,7 +436,7 @@ template <auto Proc, typename Type>
   struct procedure_instruction_helper<Proc,
                                       void (*)(context&, Arg1, Arg2, Arg3)> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto argument1
         = from_scheme<Arg1>(state.ctx, state.stack.local(read_operand(state)));
       auto argument2
@@ -451,7 +451,7 @@ template <auto Proc, typename Type>
   struct procedure_instruction_helper<Proc,
                                       void (*)(Arg1, Arg2, Arg3)> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto argument1
         = from_scheme<Arg1>(state.ctx, state.stack.local(read_operand(state)));
       auto argument2
@@ -465,7 +465,7 @@ template <auto Proc, typename Type>
   template <auto Proc, typename Ret, typename Arg1, typename Arg2>
   struct procedure_instruction_helper<Proc, Ret (*)(context&, Arg1, Arg2)> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto argument1
         = from_scheme<Arg1>(state.ctx, state.stack.local(read_operand(state)));
       auto argument2
@@ -479,7 +479,7 @@ template <auto Proc, typename Type>
   template <auto Proc, typename Arg1, typename Arg2>
   struct procedure_instruction_helper<Proc, void (*)(Arg1, Arg2)> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto argument1
         = from_scheme<Arg1>(state.ctx, state.stack.local(read_operand(state)));
       auto argument2
@@ -491,7 +491,7 @@ template <auto Proc, typename Type>
   template <auto Proc, typename Ret, typename Arg1, typename Arg2>
   struct procedure_instruction_helper<Proc, Ret (*)(Arg1, Arg2)> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto argument1
         = from_scheme<Arg1>(state.ctx, state.stack.local(read_operand(state)));
       auto argument2
@@ -505,7 +505,7 @@ template <auto Proc, typename Type>
   template <auto Proc, typename Ret, typename Cls>
   struct procedure_instruction_helper<Proc, Ret (Cls::*)() const> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto obj = expect<Cls>(state.stack.local(read_operand(state)));
       operand dest = read_operand(state);
       state.stack.local(dest) = to_scheme(state.ctx, (obj->*Proc)());
@@ -515,7 +515,7 @@ template <auto Proc, typename Type>
   template <auto Proc, typename Ret, typename Cls, typename Arg1>
   struct procedure_instruction_helper<Proc, Ret (Cls::*)(Arg1) const> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto obj = expect<Cls>(state.stack.local(read_operand(state)));
       auto argument1
         = from_scheme<Arg1>(state.ctx, state.stack.local(read_operand(state)));
@@ -528,7 +528,7 @@ template <auto Proc, typename Type>
   template <auto Proc, typename Cls, typename Arg1>
   struct procedure_instruction_helper<Proc, void (Cls::*)(Arg1)> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto obj = expect<Cls>(state.stack.local(read_operand(state)));
       auto argument1
         = from_scheme<Arg1>(state.ctx, state.stack.local(read_operand(state)));
@@ -539,7 +539,7 @@ template <auto Proc, typename Type>
 template <auto Proc, typename Ret, typename Cls>
   struct procedure_instruction_helper<Proc, Ret (Cls::*)(context&)> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto obj = expect<Cls>(state.stack.local(read_operand(state)));
       operand dest = read_operand(state);
       state.stack.local(dest) = to_scheme(state.ctx, (obj->*Proc)(state.ctx));
@@ -549,7 +549,7 @@ template <auto Proc, typename Ret, typename Cls>
   template <auto Proc, typename Cls, typename Arg1, typename Arg2>
   struct procedure_instruction_helper<Proc, void (Cls::*)(Arg1, Arg2)> {
     static void
-    f(execution_state& state) {
+    f(vm& state) {
       auto obj = expect<Cls>(state.stack.local(read_operand(state)));
       auto argument1
         = from_scheme<Arg1>(state.ctx, state.stack.local(read_operand(state)));
@@ -562,18 +562,18 @@ template <auto Proc, typename Ret, typename Cls>
 
 template <auto Proc>
 static void
-procedure_instruction(execution_state& state) {
+procedure_instruction(vm& state) {
   procedure_instruction_helper<Proc, std::decay_t<decltype(Proc)>>::f(state);
 }
 
 static void
-car(execution_state& state) {
+car(vm& state) {
   ptr<pair> p = expect<pair>(state.stack.local(read_operand(state)));
   state.stack.local(read_operand(state)) = car(p);
 }
 
 static void
-cdr(execution_state& state) {
+cdr(vm& state) {
   ptr<pair> p = expect<pair>(state.stack.local(read_operand(state)));
   state.stack.local(read_operand(state)) = cdr(p);
 }
@@ -582,7 +582,7 @@ static ptr<tail_call_tag_type>
 raise(context& ctx, ptr<> e);
 
 static void
-do_instructions(execution_state& state) {
+do_instructions(vm& state) {
   while (!state.result) {
     assert(!state.stack.empty());
     assert(is<procedure>(state.stack.callable()));
@@ -1303,7 +1303,7 @@ do_instructions(execution_state& state) {
 }
 
 static void
-do_instructions_translate_exceptions(execution_state& state) {
+do_instructions_translate_exceptions(vm& state) {
   while (!state.result)
     try {
       do_instructions(state);
@@ -1321,7 +1321,7 @@ do_instructions_translate_exceptions(execution_state& state) {
 }
 
 static ptr<>
-run(execution_state& state) {
+run(vm& state) {
   assert(!state.result);
 
   do_instructions_translate_exceptions(state);
@@ -1363,7 +1363,7 @@ push_scheme_arguments_for_call_from_native(context& ctx,
 }
 
 static void
-make_scheme_frame_for_call_from_native(execution_state& state,
+make_scheme_frame_for_call_from_native(vm& state,
                                        ptr<procedure> callable,
                                        auto const& arguments) {
   throw_if_wrong_number_of_args(callable->prototype(), arguments.size());
@@ -1440,7 +1440,7 @@ namespace {
 }
 
 [[nodiscard]] static native_frame_guard
-setup_native_frame_for_call_from_native(execution_state& state,
+setup_native_frame_for_call_from_native(vm& state,
                                         ptr<native_procedure> proc) {
   state.stack.push_frame({
     .type = call_stack::frame_type::native,
@@ -1455,7 +1455,7 @@ setup_native_frame_for_call_from_native(execution_state& state,
 }
 
 static ptr<>
-call_native_in_current_frame(execution_state& state, ptr<native_procedure> proc,
+call_native_in_current_frame(vm& state, ptr<native_procedure> proc,
                              std::vector<ptr<>> const& arguments) {
   ptr<> result = proc->target(state.ctx, proc,
                               object_span(arguments.begin(), arguments.end()));
@@ -1467,7 +1467,7 @@ add_parameter_value(context& ctx, call_stack& stack, ptr<parameter_tag> tag,
                     ptr<> value);
 
 static ptr<>
-call_native(execution_state& state,
+call_native(vm& state,
             ptr<native_procedure> proc,
             std::vector<ptr<>> const& arguments,
             parameter_assignments const& params) {
@@ -1481,7 +1481,7 @@ call_native(execution_state& state,
 }
 
 static ptr<>
-call_scheme(execution_state& state,
+call_scheme(vm& state,
             ptr<procedure> callable,
             std::vector<ptr<>> const& arguments,
             parameter_assignments const& params) {
@@ -1501,7 +1501,7 @@ namespace {
       : ctx_{ctx}
     {
       if (!ctx.current_execution) {
-        ctx.current_execution = std::make_unique<execution_state>(ctx);
+        ctx.current_execution = std::make_unique<vm>(ctx);
         created_ = true;
       }
     }
@@ -1571,7 +1571,7 @@ call_with_continuation_barrier(context& ctx, ptr<> callable,
 }
 
 static void
-make_native_frame_for_call_from_native(execution_state& state,
+make_native_frame_for_call_from_native(vm& state,
                                        ptr<native_procedure> proc,
                                        std::vector<ptr<>> const& arguments) {
   state.stack.push_frame({
@@ -1662,7 +1662,7 @@ make_tail_call_frame_for_call_from_native(context& ctx, ptr<> callable,
 }
 
 static void
-install_call_frame(execution_state& state) {
+install_call_frame(vm& state) {
   if (!current_frame_is_native(state.stack))
     state.ip = current_procedure_bytecode_base(state);
 }
@@ -1757,7 +1757,7 @@ get_before_thunk(call_stack& stack) {
 }
 
 static void
-unwind_stack(execution_state& state,
+unwind_stack(vm& state,
              std::optional<call_stack::frame_index> end) {
   while (state.stack.current_frame_index() != end) {
     if (ptr<> thunk = get_after_thunk(state.stack))
@@ -1768,7 +1768,7 @@ unwind_stack(execution_state& state,
 }
 
 static void
-rewind_stack(execution_state& state, ptr<call_stack> cont,
+rewind_stack(vm& state, ptr<call_stack> cont,
              std::optional<call_stack::frame_index> common_frame) {
   call_stack::frame_index begin = common_frame ? *common_frame + 1 : 0;
   for (std::size_t i = begin; i < cont->frame_count(); ++i) {
