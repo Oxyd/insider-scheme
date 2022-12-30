@@ -4,8 +4,8 @@
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
-#include "vm/execution_state.hpp"
 #include "vm/stacktrace.hpp"
+#include "vm/vm.hpp"
 
 using namespace insider;
 

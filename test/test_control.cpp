@@ -6,7 +6,7 @@
 #include "util/from_scheme.hpp"
 #include "util/parameterize.hpp"
 #include "util/to_scheme.hpp"
-#include "vm/execution_state.hpp"
+#include "vm/vm.hpp"
 
 using namespace insider;
 

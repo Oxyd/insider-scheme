@@ -6,7 +6,7 @@
 #include "runtime/parameter_map.hpp"
 #include "runtime/syntax.hpp"
 #include "util/integer_cast.hpp"
-#include "vm/execution_state.hpp"
+#include "vm/vm.hpp"
 
 #include <memory>
 

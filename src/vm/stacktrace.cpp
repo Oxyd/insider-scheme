@@ -2,7 +2,7 @@
 
 #include "vm/bytecode.hpp"
 #include "vm/call_stack.hpp"
-#include "vm/execution_state.hpp"
+#include "vm/vm.hpp"
 
 #include <fmt/format.h>
 

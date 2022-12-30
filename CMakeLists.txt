@@ -169,8 +169,6 @@ set(scheme_sources
         src/vm/bytecode.hpp
         src/vm/call_stack.cpp
         src/vm/call_stack.hpp
-        src/vm/execution_state.cpp
-        src/vm/execution_state.hpp
         src/vm/stacktrace.cpp
         src/vm/stacktrace.hpp
         src/vm/vm.cpp

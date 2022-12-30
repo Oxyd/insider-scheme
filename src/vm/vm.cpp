@@ -17,7 +17,6 @@
 #include "util/integer_cast.hpp"
 #include "util/to_scheme.hpp"
 #include "vm/call_stack.hpp"
-#include "vm/execution_state.hpp"
 #include "vm/stacktrace.hpp"
 
 #include <cassert>
@@ -30,6 +29,17 @@
 #include <vector>
 
 namespace insider {
+
+execution_state::execution_state(context& ctx)
+  : root_provider{ctx.store}
+  , ctx{ctx}
+{ }
+
+void
+execution_state::visit_roots(member_visitor const& f) {
+  stack.visit_members(f);
+  f(result);
+}
 
 static ptr<>
 get_constant(call_stack& stack, operand index) {
