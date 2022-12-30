@@ -1,6 +1,7 @@
 #include "port.hpp"
 
 #include "context.hpp"
+#include "runtime/parameter_map.hpp"
 #include "util/define_procedure.hpp"
 #include "vm/vm.hpp"
 
@@ -641,16 +642,30 @@ delete_file(context& ctx, std::filesystem::path const& p) {
 }
 
 ptr<textual_input_port>
-get_current_textual_input_port(context& ctx) {
+get_current_textual_input_port(vm& state) {
   return expect<textual_input_port>(
-    find_parameter_value(ctx, ctx.constants->current_input_port_tag)
+    find_parameter_value(state, state.ctx.constants->current_input_port_tag)
+  );
+}
+
+ptr<textual_input_port>
+get_global_textual_input_port(context& ctx) {
+  return expect<textual_input_port>(
+    ctx.parameters->find_value(ctx.constants->current_input_port_tag)
   );
 }
 
 ptr<textual_output_port>
-get_current_textual_output_port(context& ctx) {
+get_current_textual_output_port(vm& state) {
   return expect<textual_output_port>(
-    find_parameter_value(ctx, ctx.constants->current_output_port_tag)
+    find_parameter_value(state, state.ctx.constants->current_output_port_tag)
+  );
+}
+
+ptr<textual_output_port>
+get_global_textual_output_port(context& ctx) {
+  return expect<textual_output_port>(
+    ctx.parameters->find_value(ctx.constants->current_output_port_tag)
   );
 }
 

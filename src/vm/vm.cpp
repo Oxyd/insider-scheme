@@ -1,6 +1,7 @@
 #include "vm/vm.hpp"
 
 #include "compiler/compiler.hpp"
+#include "context.hpp"
 #include "io/port.hpp"
 #include "io/read.hpp"
 #include "io/write.hpp"
@@ -578,7 +579,7 @@ cdr(vm& state) {
 }
 
 static ptr<tail_call_tag_type>
-raise(context& ctx, ptr<> e);
+raise(vm&, ptr<> e);
 
 static void
 do_instructions(vm& state) {
@@ -1307,15 +1308,15 @@ do_instructions_translate_exceptions(vm& state) {
     try {
       do_instructions(state);
     } catch (ptr<> e) {
-      raise(state.ctx, e);
+      raise(state, e);
     } catch (tracked_ptr<> const& e) {
-      raise(state.ctx, e.get());
+      raise(state, e.get());
     } catch (scheme_exception& e) {
       throw e;
     } catch (translatable_runtime_error& e) {
-      raise(state.ctx, e.translate(state.ctx));
+      raise(state, e.translate(state.ctx));
     } catch (...) {
-      raise(state.ctx, make<cxx_exception>(state.ctx, std::current_exception()));
+      raise(state, make<cxx_exception>(state.ctx, std::current_exception()));
     }
 }
 
@@ -1644,18 +1645,17 @@ make_scheme_tail_call_frame_for_call_from_native(
 }
 
 static void
-make_tail_call_frame_for_call_from_native(context& ctx, ptr<> callable,
+make_tail_call_frame_for_call_from_native(vm& state, ptr<> callable,
                                           auto const& arguments) {
   if (!is_callable(callable))
     throw std::runtime_error{"Expected a callable"};
 
-  assert(ctx.current_execution);
-  call_stack& stack = ctx.current_execution->stack;
+  call_stack& stack = state.stack;
 
   if (auto native = match<native_procedure>(callable))
     make_native_tail_call_frame_for_call_from_native(stack, native, arguments);
   else
-    make_scheme_tail_call_frame_for_call_from_native(ctx, stack,
+    make_scheme_tail_call_frame_for_call_from_native(state.ctx, stack,
                                                      assume<procedure>(callable),
                                                      arguments);
 }
@@ -1667,21 +1667,21 @@ install_call_frame(vm& state) {
 }
 
 static ptr<tail_call_tag_type>
-tail_call_range(context& ctx, ptr<> callable, auto const& arguments) {
-  make_tail_call_frame_for_call_from_native(ctx, callable, arguments);
-  install_call_frame(*ctx.current_execution);
-  return ctx.constants->tail_call_tag;
+tail_call_range(vm& state, ptr<> callable, auto const& arguments) {
+  make_tail_call_frame_for_call_from_native(state, callable, arguments);
+  install_call_frame(state);
+  return state.ctx.constants->tail_call_tag;
 }
 
 ptr<tail_call_tag_type>
-tail_call(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
-  return tail_call_range(ctx, callable, arguments);
+tail_call(vm& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  return tail_call_range(state, callable, arguments);
 }
 
 static ptr<tail_call_tag_type>
-capture_stack(context& ctx, ptr<> receiver) {
-  auto copy = make<call_stack>(ctx, ctx.current_execution->stack);
-  return tail_call(ctx, receiver, {copy});
+capture_stack(vm& state, ptr<> receiver) {
+  auto copy = make<call_stack>(state.ctx, state.stack);
+  return tail_call(state, receiver, {copy});
 }
 
 static bool
@@ -1731,11 +1731,10 @@ continuation_jump_allowed(call_stack& current_stack,
 }
 
 static void
-throw_if_jump_not_allowed(context& ctx,
+throw_if_jump_not_allowed(vm& state,
                           call_stack& new_stack,
                           std::optional<call_stack::frame_index> common) {
-  if (!continuation_jump_allowed(ctx.current_execution->stack, new_stack,
-                                 common))
+  if (!continuation_jump_allowed(state.stack, new_stack, common))
     throw std::runtime_error{"Continuation jump across barrier not allowed"};
 }
 
@@ -1796,13 +1795,13 @@ common_frame_index(call_stack& x, call_stack& y) {
 }
 
 static ptr<>
-replace_stack(context& ctx, ptr<call_stack> cont, ptr<> value) {
+replace_stack(vm& state, ptr<call_stack> cont, ptr<> value) {
   std::optional<call_stack::frame_index> common_frame_idx
-    = common_frame_index(ctx.current_execution->stack, *cont);
-  throw_if_jump_not_allowed(ctx, *cont, common_frame_idx);
+    = common_frame_index(state.stack, *cont);
+  throw_if_jump_not_allowed(state, *cont, common_frame_idx);
 
-  unwind_stack(*ctx.current_execution, common_frame_idx);
-  rewind_stack(*ctx.current_execution, cont, common_frame_idx);
+  unwind_stack(state, common_frame_idx);
+  rewind_stack(state, cont, common_frame_idx);
 
   return value;
 }
@@ -1868,21 +1867,18 @@ set_parameter_value_in_frame(call_stack& stack, std::size_t frame,
 }
 
 static void
-set_parameter_value(context& ctx, ptr<parameter_tag> tag, ptr<> value) {
-  auto& stack = ctx.current_execution->stack;
+set_parameter_value(vm& state, ptr<parameter_tag> tag, ptr<> value) {
+  auto& stack = state.stack;
   auto frame = find_stack_frame_for_parameter(stack, tag);
   if (frame) 
     set_parameter_value_in_frame(stack, *frame, tag, value);
   else
-    ctx.parameters->set_value(ctx.store, tag, value);
+    state.ctx.parameters->set_value(state.ctx.store, tag, value);
 }
 
 static ptr<>
-find_parameter_value_in_stack(context& ctx, ptr<parameter_tag> tag) {
-  if (!ctx.current_execution)
-    return {};
-
-  auto& stack = ctx.current_execution->stack;
+find_parameter_value_in_stack(vm& state, ptr<parameter_tag> tag) {
+  auto& stack = state.ctx.current_execution->stack;
   auto frame = stack.current_frame_index();
 
   while (frame)
@@ -1895,11 +1891,11 @@ find_parameter_value_in_stack(context& ctx, ptr<parameter_tag> tag) {
 }
 
 ptr<>
-find_parameter_value(context& ctx, ptr<parameter_tag> tag) {
-  if (auto value = find_parameter_value_in_stack(ctx, tag))
+find_parameter_value(vm& state, ptr<parameter_tag> tag) {
+  if (auto value = find_parameter_value_in_stack(state, tag))
     return value;
   else
-    return ctx.parameters->find_value(tag);
+    return state.ctx.parameters->find_value(tag);
 }
 
 static void
@@ -1910,25 +1906,25 @@ add_parameter_value(context& ctx, call_stack& stack, ptr<parameter_tag> tag,
 }
 
 static ptr<tail_call_tag_type>
-call_parameterized(context& ctx, ptr<parameter_tag> tag, ptr<> value,
+call_parameterized(vm& state, ptr<parameter_tag> tag, ptr<> value,
                    ptr<> callable) {
-  add_parameter_value(ctx, ctx.current_execution->stack, tag, value);
-  return call_continuable(ctx, callable, {},
+  add_parameter_value(state.ctx, state.stack, tag, value);
+  return call_continuable(state.ctx, callable, {},
                           [] (vm&, ptr<> result) { return result; });
 }
 
 static ptr<>
-dynamic_wind(context& ctx,
+dynamic_wind(vm& state,
              tracked_ptr<> const& before,
              tracked_ptr<> const& thunk,
              tracked_ptr<> const& after) {
   ptr<stack_frame_extra_data> e
-    = create_or_get_extra_data(ctx, ctx.current_execution->stack);
+    = create_or_get_extra_data(state.ctx, state.stack);
   e->before_thunk = before.get();
   e->after_thunk = after.get();
 
   return call_continuable(
-    ctx, before.get(), {},
+    state.ctx, before.get(), {},
     [=] (vm& state, ptr<>) {
       return call_continuable(
         state.ctx, thunk.get(), {},
@@ -1964,15 +1960,15 @@ find_exception_handler_frame(call_stack& stack, frame_reference frame) {
 }
 
 static ptr<tail_call_tag_type>
-with_exception_handler(context& ctx, ptr<> handler, ptr<> thunk) {
-  call_continuable(ctx, thunk, {},
+with_exception_handler(vm& state, ptr<> handler, ptr<> thunk) {
+  call_continuable(state.ctx, thunk, {},
                    [] (vm&, ptr<> result) { return result; });
 
   ptr<stack_frame_extra_data> extra
-    = create_or_get_extra_data(ctx, ctx.current_execution->stack);
+    = create_or_get_extra_data(state.ctx, state.stack);
   extra->exception_handler = handler;
 
-  return ctx.constants->tail_call_tag;
+  return state.ctx.constants->tail_call_tag;
 }
 
 static ptr<>
@@ -1993,37 +1989,35 @@ setup_exception_handler_frame(context& ctx,
 }
 
 static ptr<tail_call_tag_type>
-call_continuable_exception_handler(context& ctx, frame_reference handler_frame,
+call_continuable_exception_handler(vm& state, frame_reference handler_frame,
                                    ptr<> exception) {
-  call_continuable(ctx, get_frame_exception_handler(handler_frame), {exception},
+  call_continuable(state.ctx, get_frame_exception_handler(handler_frame), {exception},
                    [] (vm&, ptr<> result) { return result; });
-  setup_exception_handler_frame(
-    ctx, current_frame(ctx.current_execution->stack), handler_frame
-  );
-  return ctx.constants->tail_call_tag;
+  setup_exception_handler_frame(state.ctx, current_frame(state.stack),
+                                handler_frame);
+  return state.ctx.constants->tail_call_tag;
 }
 
 static ptr<tail_call_tag_type>
-raise_from(context& ctx, ptr<> e, frame_reference frame);
+raise_from(vm& state, ptr<> e, frame_reference frame);
 
 static ptr<tail_call_tag_type>
-call_noncontinuable_exception_handler(context& ctx,
+call_noncontinuable_exception_handler(vm& state,
                                       frame_reference handler_frame,
                                       ptr<> exception) {
   call_continuable(
-    ctx, get_frame_exception_handler(handler_frame), {exception},
-    [exception = track(ctx, exception),
+    state.ctx, get_frame_exception_handler(handler_frame), {exception},
+    [exception = track(state.ctx, exception),
      handler_frame_idx = handler_frame.index()] (vm& state, ptr<>) {
-      return raise_from(state.ctx,
+      return raise_from(state,
                         make<uncaught_exception>(state.ctx, exception.get()),
                         frame_reference{state.stack,
                                         handler_frame_idx}.parent());
     }
   );
-  setup_exception_handler_frame(ctx,
-                                current_frame(ctx.current_execution->stack),
+  setup_exception_handler_frame(state.ctx, current_frame(state.stack),
                                 handler_frame);
-  return ctx.constants->tail_call_tag;
+  return state.ctx.constants->tail_call_tag;
 }
 
 [[noreturn]] static void
@@ -2040,33 +2034,33 @@ remember_current_stacktrace(context& ctx) {
 }
 
 static ptr<tail_call_tag_type>
-raise_from(context& ctx, ptr<> e, frame_reference frame) {
-  remember_current_stacktrace(ctx);
+raise_from(vm& state, ptr<> e, frame_reference frame) {
+  remember_current_stacktrace(state.ctx);
 
   if (frame_reference handler_frame
-      = find_exception_handler_frame(ctx.current_execution->stack, frame))
-    return call_noncontinuable_exception_handler(ctx, handler_frame, e);
+      = find_exception_handler_frame(state.stack, frame))
+    return call_noncontinuable_exception_handler(state, handler_frame, e);
   else
-    builtin_exception_handler(ctx, e);
+    builtin_exception_handler(state.ctx, e);
 }
 
 static ptr<tail_call_tag_type>
-raise(context& ctx, ptr<> e) {
-  return raise_from(ctx, e, current_frame(ctx.current_execution->stack));
+raise(vm& state, ptr<> e) {
+  return raise_from(state, e, current_frame(state.stack));
 }
 
 static ptr<tail_call_tag_type>
-raise_continuable(context& ctx, ptr<> e) {
-  remember_current_stacktrace(ctx);
+raise_continuable(vm& state, ptr<> e) {
+  remember_current_stacktrace(state.ctx);
 
   frame_reference handler_frame = find_exception_handler_frame(
-    ctx.current_execution->stack,
-    current_frame(ctx.current_execution->stack)
+    state.stack,
+    current_frame(state.stack)
   );
   if (handler_frame)
-    return call_continuable_exception_handler(ctx, handler_frame, e);
+    return call_continuable_exception_handler(state, handler_frame, e);
   else
-    builtin_exception_handler(ctx, e);
+    builtin_exception_handler(state.ctx, e);
 }
 
 namespace {
@@ -2148,12 +2142,12 @@ namespace {
 }
 
 static ptr<>
-apply(context& ctx, object_span args) {
+apply(vm& state, object_span args) {
   if (args.size() < 2)
     throw std::runtime_error{"apply: Expected at least 2 arguments"};
 
   ptr<> f = args[0];
-  return tail_call_range(ctx, f, apply_args_range{ctx, args});
+  return tail_call_range(state, f, apply_args_range{state.ctx, args});
 }
 
 static std::vector<ptr<>>
@@ -2173,7 +2167,7 @@ call_with_values(context& ctx, ptr<> producer, ptr<> consumer) {
   return call_continuable(
     ctx, producer, {},
     [consumer = track(ctx, consumer)] (vm& state, ptr<> producer_result) {
-      return tail_call(state.ctx, consumer.get(),
+      return tail_call(state, consumer.get(),
                        unpack_values(producer_result));
     }
   );
@@ -2188,10 +2182,10 @@ values(context& ctx, object_span args) {
 }
 
 static ptr<tail_call_tag_type>
-eval_proc(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
-  ptr<syntax> stx = datum_to_syntax(ctx, {}, expr);
-  auto f = compile_expression(ctx, stx, m, make_eval_origin());
-  return tail_call(ctx, f, {});
+eval_proc(vm& state, ptr<> expr, tracked_ptr<module_> const& m) {
+  ptr<syntax> stx = datum_to_syntax(state.ctx, {}, expr);
+  auto f = compile_expression(state.ctx, stx, m, make_eval_origin());
+  return tail_call(state, f, {});
 }
 
 ptr<>

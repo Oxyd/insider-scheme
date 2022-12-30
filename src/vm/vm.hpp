@@ -71,7 +71,7 @@ ptr<parameter_tag>
 create_parameter_tag(context& ctx, ptr<> initial_value);
 
 ptr<>
-find_parameter_value(context&, ptr<parameter_tag>);
+find_parameter_value(vm&, ptr<parameter_tag>);
 
 // Pop the current call frame (which must be a native procedure frame), and
 // replace it with a call frame for the given procedure. This is used to
@@ -79,7 +79,7 @@ find_parameter_value(context&, ptr<parameter_tag>);
 //
 // Intended use is: return tail_call(ctx, f, {args...});
 ptr<tail_call_tag_type>
-tail_call(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
+tail_call(vm&, ptr<> callable, std::vector<ptr<>> const& arguments);
 
 // Compile an expression and evaluate it in the given module.
 ptr<>

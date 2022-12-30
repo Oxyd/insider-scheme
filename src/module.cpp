@@ -9,6 +9,7 @@
 #include "io/read.hpp"
 #include "memory/tracked_ptr.hpp"
 #include "runtime/basic_types.hpp"
+#include "runtime/parameter_map.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
@@ -422,9 +423,9 @@ dynamic_import(context& ctx, ptr<native_procedure>, object_span args) {
 
 tracked_ptr<module_>
 interaction_environment(context& ctx) {
-  auto import_datum =
-    find_parameter_value(ctx,
-                         ctx.constants->interaction_environment_specifier_tag);
+  auto import_datum = ctx.parameters->find_value(
+    ctx.constants->interaction_environment_specifier_tag
+  );
   auto import_stx = datum_to_syntax(ctx, {}, import_datum);
   import_specifier import_spec = parse_import_specifier(ctx, import_stx);
   return make_interactive_module(ctx, {import_spec});

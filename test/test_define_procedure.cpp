@@ -25,7 +25,7 @@ add_ints(int x, int y) {
 
 TEST_F(define_procedure_fixture, procedure_with_one_default) {
   define_procedure<add_ints>(ctx, "add", ctx.internal_module(),
-                             [] (context&) { return 0; });
+                             [] (vm&) { return 0; });
   auto result1 = eval("(add 2 3)");
   EXPECT_EQ(expect<integer>(result1).value(), 5);
 
@@ -38,8 +38,8 @@ TEST_F(define_procedure_fixture, procedure_with_one_default) {
 
 TEST_F(define_procedure_fixture, procedure_with_two_defaults) {
   define_procedure<add_ints>(ctx, "add", ctx.internal_module(),
-                             [] (context&) { return 0; },
-                             [] (context&) { return 0; });
+                             [] (vm&) { return 0; },
+                             [] (vm&) { return 0; });
   EXPECT_EQ(expect<integer>(eval("(add)")).value(), 0);
   EXPECT_EQ(expect<integer>(eval("(add 1)")).value(), 1);
   EXPECT_EQ(expect<integer>(eval("(add 1 2)")).value(), 3);
@@ -51,9 +51,9 @@ TEST_F(define_procedure_fixture, procedure_with_parameter_as_the_default) {
   define_top_level(ctx, "n", ctx.internal_module(), true, n.get());
   define_procedure<add_ints>(
     ctx, "add", ctx.internal_module(),
-    [=] (context& ctx) {
+    [=] (vm& state) {
       return static_cast<int>(
-        expect<integer>(find_parameter_value(ctx, n.get())
+        expect<integer>(find_parameter_value(state, n.get())
       ).value());
     }
   );

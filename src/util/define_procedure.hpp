@@ -55,24 +55,24 @@ namespace detail {
       struct call {
         template <typename Closure, typename... Defaults, std::size_t... Is>
         static auto
-        do_call(context& ctx, [[maybe_unused]] object_span args,
+        do_call(vm& state, [[maybe_unused]] object_span args,
                 [[maybe_unused]] Closure const& closure,
                 std::index_sequence<Is...>, Defaults&... defaults) {
           if constexpr (callable_is_pointer_v<Callable>)
-            return Callable(ctx,
-                            from_scheme<CallArgs>(ctx, args[Is])...,
-                            defaults(ctx)...);
+            return Callable(state,
+                            from_scheme<CallArgs>(state.ctx, args[Is])...,
+                            defaults(state)...);
           else
-            return closure(ctx,
-                           from_scheme<CallArgs>(ctx, args[Is])...,
-                           defaults(ctx)...);
+            return closure(state,
+                           from_scheme<CallArgs>(state.ctx, args[Is])...,
+                           defaults(state)...);
         }
 
         template <typename Closure, typename... Defaults>
         static auto
-        do_call(context& ctx, object_span args, Closure const& closure,
+        do_call(vm& state, object_span args, Closure const& closure,
                 Defaults&... defaults) {
-          return do_call(ctx, args, closure,
+          return do_call(state, args, closure,
                          std::index_sequence_for<CallArgs...>{},
                          defaults...);
         }
@@ -85,12 +85,12 @@ namespace detail {
       struct call {
         template <typename Closure, typename... Defaults>
         static auto
-        do_call(context& ctx, object_span args, Closure const& closure,
+        do_call(vm& state, object_span args, Closure const& closure,
                 Defaults&... defaults) {
           return call_with_defaults<
             N - 1, N - 1 == 0, OuterArgs...
           >::template call<CallArgs..., OuterArg>::do_call(
-            ctx, args, closure, defaults...
+            state, args, closure, defaults...
           );
         }
       };
@@ -98,20 +98,20 @@ namespace detail {
 
     template <typename Closure, std::size_t... Is>
     static auto
-    call(context& ctx, [[maybe_unused]] object_span args,
+    call(vm& state, [[maybe_unused]] object_span args,
          [[maybe_unused]] Closure const& closure,
          std::index_sequence<Is...>) {
       assert(args.size() == sizeof...(Is));
       if constexpr (callable_is_pointer_v<Callable>)
-        return Callable(ctx, from_scheme<Args>(ctx, args[Is])...);
+        return Callable(state, from_scheme<Args>(state.ctx, args[Is])...);
       else
-        return closure(ctx, from_scheme<Args>(ctx, args[Is])...);
+        return closure(state, from_scheme<Args>(state.ctx, args[Is])...);
     }
 
     template <typename Closure, std::size_t... Is, typename DefaultFirst,
               typename... DefaultsRest>
     static auto
-    call(context& ctx, object_span args, Closure const& closure,
+    call(vm& state, object_span args, Closure const& closure,
          std::index_sequence<Is...>,
          DefaultFirst& first_default, DefaultsRest&... defaults_rest) {
       constexpr std::size_t num_args_for_this_overload = sizeof...(Is);
@@ -119,10 +119,10 @@ namespace detail {
         return call_with_defaults<
           num_args_for_this_overload, num_args_for_this_overload == 0, Args...
         >::template call<>::do_call(
-          ctx, args, closure, first_default, defaults_rest...
+          state, args, closure, first_default, defaults_rest...
         );
       else
-        return call(ctx, args, closure,
+        return call(state, args, closure,
                     std::make_index_sequence<sizeof...(Is) + 1>{},
                     defaults_rest...);
     }
@@ -130,18 +130,18 @@ namespace detail {
     template <typename Closure, std::size_t... Is, std::size_t... Js,
               typename... Defaults>
     static auto
-    call(context& ctx, object_span args, Closure const& closure,
+    call(vm& state, object_span args, Closure const& closure,
          std::index_sequence<Is...> is,
          std::index_sequence<Js...>, std::tuple<Defaults...>& defaults) {
-      return call(ctx, args, closure, is, std::get<Js>(defaults)...);
+      return call(state, args, closure, is, std::get<Js>(defaults)...);
     }
 
     template <typename Closure, std::size_t... Is, typename... Defaults>
     static auto
-    call(context& ctx, object_span args, Closure const& closure,
+    call(vm& state, object_span args, Closure const& closure,
          std::index_sequence<Is...> is,
          std::tuple<Defaults...>& defaults) {
-      return call(ctx, args, closure, is,
+      return call(state, args, closure, is,
                   std::index_sequence_for<Defaults...>{}, defaults);
     }
 
@@ -155,13 +155,13 @@ namespace detail {
           constexpr std::size_t min_args = sizeof...(Args);
 
           if constexpr (std::is_same_v<R, void>) {
-            call(state.ctx, args, no_closure,
+            call(state, args, no_closure,
                  std::make_index_sequence<min_args>{});
             return state.ctx.constants->void_;
           }
           else
             return to_scheme(state.ctx,
-                             call(state.ctx, args, no_closure,
+                             call(state, args, no_closure,
                                   std::make_index_sequence<min_args>{}));
         },
         constant_evaluable,
@@ -199,14 +199,14 @@ namespace detail {
             = static_cast<complex_data<Closure, Defaults...>*>(f->extra.get());
 
           if constexpr (std::is_same_v<R, void>) {
-            call(state.ctx, args, data->closure,
+            call(state, args, data->closure,
                  std::make_index_sequence<min_args>{}, data->defaults);
             return state.ctx.constants->void_;
           }
           else
             return to_scheme(
               state.ctx,
-              call(state.ctx, args, data->closure,
+              call(state, args, data->closure,
                    std::make_index_sequence<min_args>{}, data->defaults)
             );
         },
@@ -238,7 +238,7 @@ namespace detail {
   };
 
   template <auto Callable, typename R, typename... Args>
-  struct define_typed_procedure<Callable, R (*)(context&, Args...)> {
+  struct define_typed_procedure<Callable, R (*)(vm&, Args...)> {
     template <typename... Defaults>
     static operand
     define(context& ctx, std::string name, bool constant_evaluable,
@@ -251,14 +251,28 @@ namespace detail {
   };
 
   template <auto Callable, typename R, typename... Args>
+  struct define_typed_procedure<Callable, R (*)(context&, Args...)> {
+    template <typename... Defaults>
+    static operand
+    define(context& ctx, std::string name, bool constant_evaluable,
+           ptr<module_> m, Defaults... defaults) {
+      return detail::define_typed_procedure<
+        [] (vm& state, Args... args) { return Callable(state.ctx, args...); },
+        R (*)(vm&, Args...)
+      >::define(ctx, std::move(name), constant_evaluable, m,
+                std::move(defaults)...);
+    }
+  };
+
+  template <auto Callable, typename R, typename... Args>
   struct define_typed_procedure<Callable, R (*)(Args...)> {
     template <typename... Defaults>
     static operand
     define(context& ctx, std::string name, bool constant_evaluable,
            ptr<module_> m, Defaults... defaults) {
       return detail::define_typed_procedure<
-        [] (context&, Args... args) { return Callable(args...); },
-        R (*)(context&, Args...)
+        [] (vm&, Args... args) { return Callable(args...); },
+        R (*)(vm&, Args...)
       >::define(ctx, std::move(name), constant_evaluable, m,
                 std::move(defaults)...);
     }
@@ -329,7 +343,7 @@ namespace detail {
   struct define_typed_closure;
 
   template <typename R, typename... Args>
-  struct define_typed_closure<R(context&, Args...)> {
+  struct define_typed_closure<R(vm&, Args...)> {
     template <typename Closure, typename... Defaults>
     static operand
     define(context& ctx, std::string name, bool constant_evaluable,
@@ -342,14 +356,30 @@ namespace detail {
   };
 
   template <typename R, typename... Args>
+  struct define_typed_closure<R(context&, Args...)> {
+    template <typename Closure, typename... Defaults>
+    static operand
+    define(context& ctx, std::string name, bool constant_evaluable,
+           ptr<module_> m, Closure const& closure, Defaults... defaults) {
+      return define_typed_closure<R(vm&, Args...)>::define(
+        ctx, std::move(name), constant_evaluable, m,
+        [=] (vm& state, Args... args) {
+          return closure(state.ctx, args...);
+        },
+        std::move(defaults)...
+      );
+    }
+  };
+
+  template <typename R, typename... Args>
   struct define_typed_closure<R(Args...)> {
     template <typename Closure, typename... Defaults>
     static operand
     define(context& ctx, std::string name, bool constant_evaluable,
            ptr<module_> m, Closure const& closure, Defaults... defaults) {
-      return define_typed_closure<R(context&, Args...)>::define(
+      return define_typed_closure<R(vm&, Args...)>::define(
         ctx, std::move(name), constant_evaluable, m,
-        [=] (context&, Args... args) {
+        [=] (vm&, Args... args) {
           return closure(args...);
         },
         std::move(defaults)...

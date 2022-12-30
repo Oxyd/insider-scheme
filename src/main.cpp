@@ -139,9 +139,9 @@ run_repl(insider::context& ctx) {
   insider::tracked_ptr<insider::module_> repl_mod
     = insider::interaction_environment(ctx);
   insider::tracked_ptr<insider::textual_input_port> input_port
-    = insider::track(ctx, insider::get_current_textual_input_port(ctx));
+    = insider::track(ctx, insider::get_global_textual_input_port(ctx));
   insider::tracked_ptr<insider::textual_output_port> output_port
-    = insider::track(ctx, insider::get_current_textual_output_port(ctx));
+    = insider::track(ctx, insider::get_global_textual_output_port(ctx));
 
   while (true)
     try {

@@ -1633,7 +1633,7 @@ export_read(context& ctx, ptr<module_> result) {
     get_current_textual_input_port
   );
   define_procedure<string_to_number>(ctx, "string->number", result,
-                                     [] (context&) { return 10; });
+                                     [] (vm&) { return 10; });
   define_procedure<&read_error::scheme_error::message>(
     ctx, "read-error-message", result
   );

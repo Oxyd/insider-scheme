@@ -220,10 +220,16 @@ ptr<textual_input_port>
 open_file_for_text_input(context&, std::filesystem::path const&);
 
 ptr<textual_input_port>
-get_current_textual_input_port(context& ctx);
+get_current_textual_input_port(vm&);
+
+ptr<textual_input_port>
+get_global_textual_input_port(context&);
 
 ptr<textual_output_port>
-get_current_textual_output_port(context& ctx);
+get_current_textual_output_port(vm&);
+
+ptr<textual_output_port>
+get_global_textual_output_port(context&);
 
 ptr<>
 read_char(context& ctx, ptr<textual_input_port> port);

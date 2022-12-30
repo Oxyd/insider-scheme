@@ -737,7 +737,7 @@ export_write(context& ctx, ptr<module_> result) {
                             result,
                             get_current_textual_output_port);
   define_procedure<number_to_string>(ctx, "number->string", result,
-                                     [] (context&) { return 10u; });
+                                     [] (vm&) { return 10u; });
   define_procedure<datum_to_string>(ctx, "datum->string", result);
 }
 

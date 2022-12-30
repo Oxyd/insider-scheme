@@ -504,12 +504,13 @@ TEST_F(interpreter, variadic_argument_is_a_list) {
 }
 
 static ptr<>
-do_recursion(context& ctx, int i, int accum, ptr<> recurse, ptr<> base) {
+do_recursion(vm& state, int i, int accum, ptr<> recurse, ptr<> base) {
+  context& ctx = state.ctx;
   if (i == 0)
-    return tail_call(ctx, base, {to_scheme(ctx, accum)});
+    return tail_call(state, base, {to_scheme(ctx, accum)});
   else
-    return tail_call(ctx, recurse, {to_scheme(ctx, i - 1),
-                                    to_scheme(ctx, accum + i), recurse, base});
+    return tail_call(state, recurse, {to_scheme(ctx, i - 1),
+                                      to_scheme(ctx, accum + i), recurse, base});
 }
 
 TEST_F(interpreter, native_tail_calls) {

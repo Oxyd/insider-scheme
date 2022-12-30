@@ -1,3 +1,4 @@
+#include "runtime/parameter_map.hpp"
 #include "scheme_fixture.hpp"
 
 #include "runtime/error.hpp"
@@ -861,7 +862,7 @@ call_two(context& ctx, ptr<> f, ptr<> g) {
   return call_continuable(
     ctx, f, {},
     [g = track(ctx, g)] (vm& state, ptr<> result) {
-      return tail_call(state.ctx, g.get(), {result});
+      return tail_call(state, g.get(), {result});
     }
   );
 }
@@ -920,7 +921,7 @@ TEST_F(control, call_parameterized_with_continuation_brrier_sets_parameter_in_na
     ctx,
     [] (vm& state, ptr<native_procedure> f, object_span) -> ptr<> {
       auto tag = static_cast<tag_closure*>(f->extra.get())->tag;
-      return find_parameter_value(state.ctx, tag.get());
+      return find_parameter_value(state, tag.get());
     },
     std::make_unique<tag_closure>(tag)
   );
@@ -971,7 +972,7 @@ TEST_F(control, native_parameterization_sets_parameter_in_native_frame) {
     ctx,
     [] (vm& state, ptr<native_procedure> f, object_span) {
       auto tag = static_cast<tag_closure*>(f->extra.get())->tag;
-      return find_parameter_value(state.ctx, tag.get());
+      return find_parameter_value(state, tag.get());
     },
     std::make_unique<tag_closure>(tag)
   );
@@ -1018,7 +1019,7 @@ TEST_F(control,
 
 TEST_F(control, can_get_parameter_value_with_no_scheme_frame) {
   auto tag = create_parameter_tag(ctx, integer_to_ptr(0));
-  ptr<> result = find_parameter_value(ctx, tag);
+  ptr<> result = ctx.parameters->find_value(tag);
   EXPECT_EQ(expect<integer>(result).value(), 0);
 }
 

@@ -448,7 +448,7 @@ export_basic_types(context& ctx, ptr<module_> result) {
   define_raw_procedure<vector_proc>(ctx, "vector", result);
   define_procedure<make_vector_proc>(
     ctx, "make-vector", result,
-    [] (context& ctx) { return ctx.constants->void_; }
+    [] (vm& state) { return state.ctx.constants->void_; }
   );
   define_constant_evaluable_procedure<&vector::ref>(ctx, "vector-ref", result);
 
@@ -469,7 +469,7 @@ export_basic_types(context& ctx, ptr<module_> result) {
   define_constant_evaluable_procedure<make_bytevector>(
     ctx, "make-bytevector",
     result,
-    [] (context&) -> bytevector::element_type {
+    [] (vm&) -> bytevector::element_type {
       return 0;
     }
   );
