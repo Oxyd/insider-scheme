@@ -52,12 +52,12 @@ call_stack::frames(frame_index begin, frame_index end) const -> frame_span {
 }
 
 void
-call_stack::append_frame(ptr<call_stack> from, frame_index idx) {
-  ensure_data_capacity(data_size_ + from->frame_size(idx));
+call_stack::append_frame(call_stack const& from, frame_index idx) {
+  ensure_data_capacity(data_size_ + from.frame_size(idx));
 
-  frame new_frame = from->frames_[idx];
-  std::copy(from->data_.get() + new_frame.base,
-            from->data_.get() + new_frame.base + new_frame.size,
+  frame new_frame = from.frames_[idx];
+  std::copy(from.data_.get() + new_frame.base,
+            from.data_.get() + new_frame.base + new_frame.size,
             data_.get() + data_size_);
 
   int base_diff = to_signed<int>(data_size_) - new_frame.base;

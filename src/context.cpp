@@ -6,7 +6,6 @@
 #include "runtime/parameter_map.hpp"
 #include "runtime/syntax.hpp"
 #include "util/integer_cast.hpp"
-#include "vm/vm.hpp"
 
 #include <memory>
 
@@ -158,6 +157,11 @@ context::internal_module_tracked() {
 scope::id_type
 context::generate_scope_id() {
   return next_scope_id_++;
+}
+
+vm_id_type
+context::generate_vm_id() {
+  return next_vm_id_++;
 }
 
 void

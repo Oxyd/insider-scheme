@@ -1,6 +1,7 @@
 #ifndef INSIDER_VM_VM_HPP
 #define INSIDER_VM_VM_HPP
 
+#include "context.hpp"
 #include "ptr.hpp"
 #include "runtime/basic_types.hpp"
 #include "vm/call_stack.hpp"
@@ -24,7 +25,12 @@ public:
   explicit
   vm(context& ctx);
 
+  vm_id_type
+  id() const { return id_; }
+
 private:
+  vm_id_type id_;
+
   void
   visit_roots(member_visitor const&) override;
 };

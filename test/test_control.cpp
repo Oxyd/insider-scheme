@@ -1,3 +1,4 @@
+#include "module.hpp"
 #include "runtime/parameter_map.hpp"
 #include "scheme_fixture.hpp"
 
@@ -8,6 +9,8 @@
 #include "util/parameterize.hpp"
 #include "util/to_scheme.hpp"
 #include "vm/vm.hpp"
+#include <gtest/gtest.h>
+#include <stdexcept>
 
 using namespace insider;
 
@@ -1100,4 +1103,25 @@ TEST_F(control, apply_lambda_with_optionals) {
   auto p = expect<pair>(result);
   EXPECT_EQ(expect<integer>(car(p)).value(), 1);
   EXPECT_TRUE(is<default_value_type>(cdr(p)));
+}
+
+TEST_F(control, cannot_jump_across_vms) {
+  operand stack_op = define_top_level_mutable(ctx, "stack",
+                                              ctx.internal_module(), true,
+                                              ctx.constants->f);
+  define_closure<void (context&, ptr<>)>(
+    ctx, "set-stack!", ctx.internal_module(),
+    [&] (context& ctx, ptr<> new_value) {
+      ctx.set_top_level(stack_op, new_value);
+    }
+  );
+
+  // Create one VM, run an expression in it and capture the stack from this VM.
+  eval("(capture-stack (lambda (s) (set-stack! s)))");
+
+  // Try to replace another VM's stack with the stack from the previous one.
+  EXPECT_THROW(
+    eval("(replace-stack! stack #f)"),
+    std::runtime_error
+  );
 }

@@ -37,6 +37,8 @@ class void_type;
 
 class source_code_provider;
 
+using vm_id_type = std::uint64_t;
+
 // Evaluation context.
 class context {
 public:
@@ -126,6 +128,9 @@ public:
   scope::id_type
   generate_scope_id();
 
+  vm_id_type
+  generate_vm_id();
+
 private:
   class root_provider : public insider::root_provider {
   public:
@@ -155,8 +160,9 @@ private:
   insider::module_resolver                      module_resolver_{*this};
   std::vector<ptr<symbol>>                      type_name_symbols_;
 
-  ptr<> features_;
+  ptr<>          features_;
   scope::id_type next_scope_id_ = 0;
+  vm_id_type     next_vm_id_    = 0;
 };
 
 // Create an instance of an object using the context's free store.

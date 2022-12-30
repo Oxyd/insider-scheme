@@ -1,6 +1,7 @@
 #ifndef INSIDER_VM_CALL_STACK_HPP
 #define INSIDER_VM_CALL_STACK_HPP
 
+#include "memory/member_visitor.hpp"
 #include "object.hpp"
 #include "ptr.hpp"
 #include "runtime/basic_types.hpp"
@@ -50,10 +51,8 @@ using register_index = std::uint32_t;
 
 // The runtime stack used by the VM to store procedure activation records, local
 // variables and temporary values.
-class call_stack : public composite_object<call_stack> {
+class call_stack {
 public:
-  static constexpr char const* scheme_name = "insider::call_stack";
-
   using frame_index = std::size_t;
 
   enum class frame_type : std::uint8_t {
@@ -299,7 +298,7 @@ public:
   frames_end() const { return frames_.size(); }
 
   void
-  append_frame(ptr<call_stack> from, frame_index idx);
+  append_frame(call_stack const& from, frame_index idx);
 
   void
   visit_members(member_visitor const&) const;
@@ -353,6 +352,24 @@ private:
 
   register_index
   real_data_size() const;
+};
+
+class captured_call_stack : public composite_object<captured_call_stack> {
+public:
+  static constexpr char const* scheme_name = "insider::captured_call_stack";
+
+  call_stack stack;
+  vm_id_type vm_id;
+
+  captured_call_stack(call_stack stack, vm_id_type vm_id)
+    : stack{std::move(stack)}
+    , vm_id{vm_id}
+  { }
+
+  void
+  visit_members(member_visitor const& f) const {
+    stack.visit_members(f);
+  }
 };
 
 class frame_reference {

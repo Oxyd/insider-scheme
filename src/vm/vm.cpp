@@ -34,6 +34,7 @@ namespace insider {
 vm::vm(context& ctx)
   : root_provider{ctx.store}
   , ctx{ctx}
+  , id_{ctx.generate_vm_id()}
 { }
 
 void
@@ -1666,7 +1667,7 @@ tail_call(vm& state, ptr<> callable, std::vector<ptr<>> const& arguments) {
 
 static ptr<tail_call_tag_type>
 capture_stack(vm& state, ptr<> receiver) {
-  auto copy = make<call_stack>(state.ctx, state.stack);
+  auto copy = make<captured_call_stack>(state.ctx, state.stack, state.id());
   return tail_call(state, receiver, {copy});
 }
 
@@ -1718,9 +1719,13 @@ continuation_jump_allowed(call_stack& current_stack,
 
 static void
 throw_if_jump_not_allowed(vm& state,
-                          call_stack& new_stack,
+                          ptr<captured_call_stack> cont,
                           std::optional<call_stack::frame_index> common) {
-  if (!continuation_jump_allowed(state.stack, new_stack, common))
+  if (cont->vm_id != state.id())
+    throw std::runtime_error{"Continuation jump across different executions "
+                             "not allowed"};
+
+  if (!continuation_jump_allowed(state.stack, cont->stack, common))
     throw std::runtime_error{"Continuation jump across barrier not allowed"};
 }
 
@@ -1752,10 +1757,10 @@ unwind_stack(vm& state,
 }
 
 static void
-rewind_stack(vm& state, ptr<call_stack> cont,
+rewind_stack(vm& state, call_stack const& cont,
              std::optional<call_stack::frame_index> common_frame) {
   call_stack::frame_index begin = common_frame ? *common_frame + 1 : 0;
-  for (std::size_t i = begin; i < cont->frame_count(); ++i) {
+  for (std::size_t i = begin; i < cont.frame_count(); ++i) {
     state.stack.append_frame(cont, i);
     if (ptr<> thunk = get_before_thunk(state.stack))
       call_with_continuation_barrier(state, thunk, {});
@@ -1781,13 +1786,13 @@ common_frame_index(call_stack& x, call_stack& y) {
 }
 
 static ptr<>
-replace_stack(vm& state, ptr<call_stack> cont, ptr<> value) {
+replace_stack(vm& state, ptr<captured_call_stack> cont, ptr<> value) {
   std::optional<call_stack::frame_index> common_frame_idx
-    = common_frame_index(state.stack, *cont);
-  throw_if_jump_not_allowed(state, *cont, common_frame_idx);
+    = common_frame_index(state.stack, cont->stack);
+  throw_if_jump_not_allowed(state, cont, common_frame_idx);
 
   unwind_stack(state, common_frame_idx);
-  rewind_stack(state, cont, common_frame_idx);
+  rewind_stack(state, cont->stack, common_frame_idx);
 
   return value;
 }
