@@ -1500,8 +1500,8 @@ add(context& ctx, ptr<> lhs, ptr<> rhs) {
   >(ctx, lhs, rhs);
 }
 
-ptr<>
-add(context& ctx, object_span xs) {
+static ptr<>
+add_proc(context& ctx, object_span xs) {
   return arithmetic<
     static_cast<primitive_arithmetic_type*>(&add)
   >(ctx, xs, true, 0);
@@ -1514,8 +1514,8 @@ subtract(context& ctx, ptr<> lhs, ptr<> rhs) {
   >(ctx, lhs, rhs);
 }
 
-ptr<>
-subtract(context& ctx, object_span xs) {
+static ptr<>
+subtract_proc(context& ctx, object_span xs) {
   return arithmetic<
     static_cast<primitive_arithmetic_type*>(&subtract)
   >(ctx, xs, false, 0);
@@ -1538,8 +1538,8 @@ multiply(context& ctx, ptr<> lhs, ptr<> rhs) {
   >(ctx, lhs, rhs);
 }
 
-ptr<>
-multiply(context& ctx, object_span xs) {
+static ptr<>
+multiply_proc(context& ctx, object_span xs) {
   return arithmetic<
     static_cast<primitive_arithmetic_type*>(&multiply)
   >(ctx, xs, true, 1);
@@ -1638,8 +1638,8 @@ divide(context& ctx, ptr<> lhs, ptr<> rhs) {
   return {};
 }
 
-ptr<>
-divide(context& ctx, object_span xs) {
+static ptr<>
+divide_proc(context& ctx, object_span xs) {
   return arithmetic<
     static_cast<primitive_arithmetic_type*>(&divide)
   >(ctx, xs, false, 1);
@@ -2131,8 +2131,8 @@ numeric_eqv(context& ctx, ptr<> x, ptr<> y) {
     return compare(ctx, x, y) == general_compare_result::equal;
 }
 
-ptr<>
-arith_equal(context& ctx, object_span xs) {
+static ptr<>
+arith_equal_proc(context& ctx, object_span xs) {
   return relational<arith_equal>(ctx, xs, "=");
 }
 
@@ -2144,8 +2144,8 @@ less(context& ctx, ptr<> lhs, ptr<> rhs) {
            ? ctx.constants->t : ctx.constants->f;
 }
 
-ptr<>
-less(context& ctx, object_span xs) {
+static ptr<>
+less_proc(context& ctx, object_span xs) {
   return relational<less>(ctx, xs, "<");
 }
 
@@ -2157,8 +2157,8 @@ greater(context& ctx, ptr<> lhs, ptr<> rhs) {
            ? ctx.constants->t : ctx.constants->f;
 }
 
-ptr<>
-greater(context& ctx, object_span xs) {
+static ptr<>
+greater_proc(context& ctx, object_span xs) {
   return relational<greater>(ctx, xs, ">");
 }
 
@@ -2173,8 +2173,8 @@ less_or_equal(context& ctx, ptr<> lhs, ptr<> rhs) {
          ? ctx.constants->t : ctx.constants->f;
 }
 
-ptr<>
-less_or_equal(context& ctx, object_span xs) {
+static ptr<>
+less_or_equal_proc(context& ctx, object_span xs) {
   return relational<less_or_equal>(ctx, xs, "<=");
 }
 
@@ -2189,8 +2189,8 @@ greater_or_equal(context& ctx, ptr<> lhs, ptr<> rhs) {
          ? ctx.constants->t : ctx.constants->f;
 }
 
-ptr<>
-greater_or_equal(context& ctx, object_span xs) {
+static ptr<>
+greater_or_equal_proc(context& ctx, object_span xs) {
   return relational<greater_or_equal>(ctx, xs, ">=");
 }
 
@@ -2255,18 +2255,6 @@ gcd(context& ctx, ptr<> x, ptr<> y) {
 
   assert(false);
   return {};
-}
-
-static void
-export_native(context& ctx, ptr<module_> m, char const* name,
-              ptr<> (*f)(context&, ptr<native_procedure>, object_span)) {
-  auto index = ctx.add_top_level(ctx.store.make<native_procedure>(f, true, name),
-                                 name);
-
-  auto name_sym = ctx.intern(name);
-  auto id = make<syntax>(ctx, name_sym, scope_set{m->scope()});
-  m->scope()->add(ctx.store, id, make<top_level_variable>(ctx, name, index));
-  m->export_(name_sym);
 }
 
 static ptr<floating_point>
@@ -2917,15 +2905,16 @@ imag_part(ptr<> x) {
 
 void
 export_numeric(context& ctx, ptr<module_> result) {
-  export_native(ctx, result, "+", add_native_proc_arg<add>);
-  export_native(ctx, result, "-", add_native_proc_arg<subtract>);
-  export_native(ctx, result, "*", add_native_proc_arg<multiply>);
-  export_native(ctx, result, "/", add_native_proc_arg<divide>);
-  export_native(ctx, result, "=", add_native_proc_arg<arith_equal>);
-  export_native(ctx, result, "<", add_native_proc_arg<less>);
-  export_native(ctx, result, "<=", add_native_proc_arg<less_or_equal>);
-  export_native(ctx, result, ">", add_native_proc_arg<greater>);
-  export_native(ctx, result, ">=", add_native_proc_arg<greater_or_equal>);
+  define_constant_evaluable_raw_procedure<add_proc>(ctx, "+", result);
+  define_constant_evaluable_raw_procedure<subtract_proc>(ctx, "-", result);
+  define_constant_evaluable_raw_procedure<multiply_proc>(ctx, "*", result);
+  define_constant_evaluable_raw_procedure<divide_proc>(ctx, "/", result);
+  define_constant_evaluable_raw_procedure<arith_equal_proc>(ctx, "=",  result);
+  define_constant_evaluable_raw_procedure<less_proc>(ctx, "<", result);
+  define_constant_evaluable_raw_procedure<less_or_equal_proc>(ctx, "<=", result);
+  define_constant_evaluable_raw_procedure<greater_proc>(ctx, ">", result);
+  define_constant_evaluable_raw_procedure<greater_or_equal_proc>(ctx, ">=",
+                                                                 result);
   define_constant_evaluable_procedure<increment>(ctx, "increment", result);
   define_constant_evaluable_procedure<decrement>(ctx, "decrement", result);
   define_constant_evaluable_procedure<negate>(ctx, "negate", result);

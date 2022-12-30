@@ -24,7 +24,7 @@ parameterize(context& ctx, parameter_assignments const& params,
   };
   auto proc = make<native_procedure>(
     ctx,
-    [] (context&, ptr<native_procedure> np, object_span) -> ptr<> {
+    [] (vm&, ptr<native_procedure> np, object_span) -> ptr<> {
       return static_cast<closure*>(np->extra.get())->f();
     },
     std::make_unique<closure>(f)

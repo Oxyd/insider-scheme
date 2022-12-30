@@ -5,6 +5,7 @@
 #include "runtime/basic_types.hpp"
 #include "util/from_scheme.hpp"
 #include "util/to_scheme.hpp"
+#include "vm/vm.hpp"
 
 #include <fmt/format.h>
 
@@ -149,17 +150,19 @@ namespace detail {
     make_trivial(context& ctx, std::string name, bool constant_evaluable) {
       return insider::make<native_procedure>(
         ctx,
-        [] (context& ctx, ptr<native_procedure> f, object_span args) -> ptr<> {
+        [] (vm& state, ptr<native_procedure> f, object_span args) -> ptr<> {
           check_args_size<0>(f->name, args);
           constexpr std::size_t min_args = sizeof...(Args);
 
           if constexpr (std::is_same_v<R, void>) {
-            call(ctx, args, no_closure, std::make_index_sequence<min_args>{});
-            return ctx.constants->void_;
+            call(state.ctx, args, no_closure,
+                 std::make_index_sequence<min_args>{});
+            return state.ctx.constants->void_;
           }
           else
-            return to_scheme(ctx, call(ctx, args, no_closure,
-                                       std::make_index_sequence<min_args>{}));
+            return to_scheme(state.ctx,
+                             call(state.ctx, args, no_closure,
+                                  std::make_index_sequence<min_args>{}));
         },
         constant_evaluable,
         std::move(name)
@@ -188,7 +191,7 @@ namespace detail {
       );
       return insider::make<native_procedure>(
         ctx,
-        [] (context& ctx, ptr<native_procedure> f, object_span args) -> ptr<> {
+        [] (vm& state, ptr<native_procedure> f, object_span args) -> ptr<> {
           check_args_size<sizeof...(Defaults)>(f->name, args);
           constexpr std::size_t min_args = sizeof...(Args) - sizeof...(Defaults);
 
@@ -196,14 +199,14 @@ namespace detail {
             = static_cast<complex_data<Closure, Defaults...>*>(f->extra.get());
 
           if constexpr (std::is_same_v<R, void>) {
-            call(ctx, args, data->closure,
+            call(state.ctx, args, data->closure,
                  std::make_index_sequence<min_args>{}, data->defaults);
-            return ctx.constants->void_;
+            return state.ctx.constants->void_;
           }
           else
             return to_scheme(
-              ctx,
-              call(ctx, args, data->closure,
+              state.ctx,
+              call(state.ctx, args, data->closure,
                    std::make_index_sequence<min_args>{}, data->defaults)
             );
         },
@@ -390,35 +393,51 @@ define_closure(context& ctx, std::string name, ptr<module_> m,
   );
 }
 
+namespace detail {
+  template <auto (*F) (vm&, ptr<native_procedure>, object_span)>
+  ptr<>
+  regularise_native_proc(vm& state, ptr<native_procedure> proc,
+                         object_span args) {
+    return F(state, proc, args);
+  }
+
+  template <auto (*F) (vm&, object_span)>
+  ptr<>
+  regularise_native_proc(vm& state, ptr<native_procedure>, object_span args) {
+    return F(state, args);
+  }
+
+  template <auto (*F) (context&, ptr<native_procedure>, object_span)>
+  ptr<>
+  regularise_native_proc(vm& state, ptr<native_procedure> proc,
+                         object_span args) {
+    return F(state.ctx, proc, args);
+  }
+
+  template <auto (*F) (context&, object_span)>
+  ptr<>
+  regularise_native_proc(vm& state, ptr<native_procedure>, object_span args) {
+    return F(state.ctx, args);
+  }
+} // namespace detail
+
 // Like define_procedure, but the procedure receives its arguments as an
 // object_span with no conversion to C++ types.
-template <ptr<> (*F)(context&, ptr<native_procedure>, object_span)>
+template <auto F>
 inline operand
-define_raw_procedure(context& ctx, std::string name, ptr<module_> m,
-                     bool constant_evaluable = false) {
-  auto proc = make<native_procedure>(ctx, F, constant_evaluable, name);
+define_raw_procedure(context& ctx, std::string name, ptr<module_> m) {
+  auto proc = make<native_procedure>(ctx, detail::regularise_native_proc<F>,
+                                     false, name);
   return define_top_level(ctx, name, m, true, proc);
 }
 
-template <auto (*F)(context&, object_span)>
-ptr<>
-add_native_proc_arg(context& ctx, ptr<native_procedure>, object_span args) {
-  return F(ctx, args);
-}
-
-template <ptr<> (*F)(context&, object_span)>
-inline operand
-define_raw_procedure(context& ctx, std::string name, ptr<module_> m) {
-  return define_raw_procedure<add_native_proc_arg<F>>(ctx, std::move(name), m,
-                                                      false);
-}
-
-template <ptr<> (*F)(context&, object_span)>
+template <auto F>
 inline operand
 define_constant_evaluable_raw_procedure(context& ctx, std::string name,
                                         ptr<module_> m) {
-  return define_raw_procedure<add_native_proc_arg<F>>(ctx, std::move(name), m,
-                                                      true);
+  auto proc = make<native_procedure>(ctx, detail::regularise_native_proc<F>,
+                                     true, name);
+  return define_top_level(ctx, name, m, true, proc);
 }
 
 } // namespace insider

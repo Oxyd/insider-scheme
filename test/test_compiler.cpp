@@ -469,10 +469,10 @@ TEST_F(compiler, compile_module) {
     ctx, "f", ctx.internal_module(), true,
     make<native_procedure>(
       ctx,
-      [] (context& ctx, ptr<native_procedure> f, object_span args) -> ptr<> {
+      [] (vm& state, ptr<native_procedure> f, object_span args) -> ptr<> {
         *static_cast<sum_closure&>(*f->extra).sum
           += expect<integer>(args[0]).value();
-        return ctx.constants->void_;
+        return state.ctx.constants->void_;
       },
       std::make_unique<sum_closure>(&sum)
     )

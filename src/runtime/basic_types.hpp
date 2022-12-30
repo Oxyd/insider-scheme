@@ -16,6 +16,7 @@
 namespace insider {
 
 class native_procedure;
+class vm;
 
 // The empty list. There should only be exactly one instance of this type per
 // evaluation context.
@@ -550,7 +551,7 @@ public:
     ~extra_data() = default;
   };
 
-  using target_type = ptr<> (*)(context&, ptr<native_procedure>, object_span);
+  using target_type = ptr<> (*)(vm&, ptr<native_procedure>, object_span);
   target_type                 target;
   std::string                 name;
   std::unique_ptr<extra_data> extra;
@@ -590,7 +591,7 @@ public:
   static constexpr word_type static_type_index
     = type_indexes::native_continuation;
 
-  using target_type = std::function<ptr<>(context&, ptr<>)>;
+  using target_type = std::function<ptr<>(vm&, ptr<>)>;
 
   // proc is the procedure this is a continuation of. This is usually a
   // native_procedure, but when an exception is raised during an execution of

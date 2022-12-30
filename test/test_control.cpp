@@ -166,10 +166,12 @@ TEST_F(control, call_parameterized_can_nest) {
 
 static ptr<>
 indirect_call(context& ctx, ptr<> f, ptr<> arg) {
-  return call_continuable(ctx, f, {arg},
-                          [] (context& ctx, ptr<> result) {
-                            return to_scheme(ctx, expect<integer>(result).value() * 2);
-                          });
+  return call_continuable(
+    ctx, f, {arg},
+    [] (vm& state, ptr<> result) {
+      return to_scheme(state.ctx, expect<integer>(result).value() * 2);
+    }
+  );
 }
 
 TEST_F(control, call_continuable_works_like_call) {
@@ -186,9 +188,9 @@ TEST_F(control, call_continuable_allows_jump_up) {
     [&] (context& ctx, ptr<> f, ptr<> arg) {
       return call_continuable(
         ctx, f, {arg},
-        [&] (context& ctx, ptr<> result) {
+        [&] (vm& state, ptr<> result) {
           continuation_called = true;
-          return to_scheme(ctx, expect<integer>(result).value() * 2);
+          return to_scheme(state.ctx, expect<integer>(result).value() * 2);
         }
       );
     }
@@ -208,9 +210,12 @@ TEST_F(control, call_continuable_allows_jump_back_in) {
     ctx, "f", ctx.internal_module(),
     [&] (context& ctx, ptr<> f, ptr<> arg) {
       return call_continuable(ctx, f, {arg},
-                              [&] (context& ctx, ptr<> result) {
+                              [&] (vm& state, ptr<> result) {
                                 ++continuation_counter;
-                                return to_scheme(ctx, expect<integer>(result).value() * 2);
+                                return to_scheme(
+                                  state.ctx,
+                                  expect<integer>(result).value() * 2
+                                );
                               });
     }
   );
@@ -250,11 +255,11 @@ static ptr<>
 f1(context& ctx, ptr<> f, ptr<> g) {
   return call_continuable(
     ctx, f, {to_scheme(ctx, 2)},
-    [g = track(ctx, g)] (context& ctx, ptr<> result) {
+    [g = track(ctx, g)] (vm& state, ptr<> result) {
       return call_continuable(
-        ctx, g.get(), {result},
-        [] (context& ctx, ptr<> result) {
-          return to_scheme(ctx, 2 * from_scheme<int>(ctx, result));
+        state.ctx, g.get(), {result},
+        [] (vm& state, ptr<> result) {
+          return to_scheme(state.ctx, 2 * from_scheme<int>(state.ctx, result));
         }
       );
     }
@@ -271,10 +276,10 @@ static ptr<>
 f2(context& ctx, ptr<> g, ptr<> h) {
   return call_continuable(
     ctx, g, {},
-    [h = track(ctx, h)] (context& ctx, ptr<>) {
+    [h = track(ctx, h)] (vm& state, ptr<>) {
       return call_continuable(
-        ctx, h.get(), {},
-        [] (context&, ptr<> r) { return r; }
+        state.ctx, h.get(), {},
+        [] (vm&, ptr<> r) { return r; }
       );
     }
   );
@@ -855,8 +860,8 @@ static ptr<>
 call_two(context& ctx, ptr<> f, ptr<> g) {
   return call_continuable(
     ctx, f, {},
-    [g = track(ctx, g)] (context& ctx, ptr<> result) {
-      return tail_call(ctx, g.get(), {result});
+    [g = track(ctx, g)] (vm& state, ptr<> result) {
+      return tail_call(state.ctx, g.get(), {result});
     }
   );
 }
@@ -913,9 +918,9 @@ TEST_F(control, call_parameterized_with_continuation_brrier_sets_parameter_in_na
 
   auto get_value = make_tracked<native_procedure>(
     ctx,
-    [] (context& ctx, ptr<native_procedure> f, object_span) -> ptr<> {
+    [] (vm& state, ptr<native_procedure> f, object_span) -> ptr<> {
       auto tag = static_cast<tag_closure*>(f->extra.get())->tag;
-      return find_parameter_value(ctx, tag.get());
+      return find_parameter_value(state.ctx, tag.get());
     },
     std::make_unique<tag_closure>(tag)
   );
@@ -964,9 +969,9 @@ TEST_F(control, native_parameterization_sets_parameter_in_native_frame) {
 
   auto get_value = make_tracked<native_procedure>(
     ctx,
-    [] (context& ctx, ptr<native_procedure> f, object_span) {
+    [] (vm& state, ptr<native_procedure> f, object_span) {
       auto tag = static_cast<tag_closure*>(f->extra.get())->tag;
-      return find_parameter_value(ctx, tag.get());
+      return find_parameter_value(state.ctx, tag.get());
     },
     std::make_unique<tag_closure>(tag)
   );

@@ -283,27 +283,26 @@ make_native_tail_call_frame(call_stack& stack,
 }
 
 static ptr<>
-call_native_procedure(context& ctx, call_stack& stack) {
+call_native_procedure(vm& state, call_stack& stack) {
   auto proc_and_args = stack.current_frame_span();
   auto proc = assume<native_procedure>(proc_and_args[0]);
-  return proc->target(ctx, proc, proc_and_args.subspan<1>());
+  return proc->target(state, proc, proc_and_args.subspan<1>());
 }
 
 static ptr<>
-call_native_continuation(context& ctx, call_stack& stack, ptr<> value) {
+call_native_continuation(vm& state, call_stack& stack, ptr<> value) {
   auto cont = assume<native_continuation>(stack.local(operand{0}));
-  return cont->target(ctx, value);
+  return cont->target(state, value);
 }
 
 static ptr<>
-call_native_frame_target(context& ctx, call_stack& stack,
-                         ptr<> scheme_result) {
+call_native_frame_target(vm& state, call_stack& stack, ptr<> scheme_result) {
   switch (stack.current_frame_type()) {
   case call_stack::frame_type::native:
-    return call_native_procedure(ctx, stack);
+    return call_native_procedure(state, stack);
 
   case call_stack::frame_type::native_continuation:
-    return call_native_continuation(ctx, stack, scheme_result);
+    return call_native_continuation(state, stack, scheme_result);
 
   default:
     assert(!"Bad frame type");
@@ -345,7 +344,7 @@ call_native_procedure(vm& state, ptr<> scheme_result = {}) {
   tracker t{state.ctx, scheme_result};
   ptr<> result;
   do
-    result = call_native_frame_target(state.ctx, state.stack, scheme_result);
+    result = call_native_frame_target(state, state.stack, scheme_result);
   while (result == state.ctx.constants->tail_call_tag
          && current_frame_is_native(state.stack));
 
@@ -1457,7 +1456,7 @@ setup_native_frame_for_call_from_native(vm& state,
 static ptr<>
 call_native_in_current_frame(vm& state, ptr<native_procedure> proc,
                              std::vector<ptr<>> const& arguments) {
-  ptr<> result = proc->target(state.ctx, proc,
+  ptr<> result = proc->target(state, proc,
                               object_span(arguments.begin(), arguments.end()));
   return result;
 }
@@ -1817,7 +1816,7 @@ call_with_continuation_barrier(context& ctx, bool allow_out, bool allow_in,
   // preserve this frame on the stack because it holds information about the
   // barrier.
   return call_continuable(ctx, callable, {},
-                          [] (context&, ptr<> result) { return result; });
+                          [] (vm&, ptr<> result) { return result; });
 }
 
 ptr<parameter_tag>
@@ -1915,7 +1914,7 @@ call_parameterized(context& ctx, ptr<parameter_tag> tag, ptr<> value,
                    ptr<> callable) {
   add_parameter_value(ctx, ctx.current_execution->stack, tag, value);
   return call_continuable(ctx, callable, {},
-                          [] (context&, ptr<> result) { return result; });
+                          [] (vm&, ptr<> result) { return result; });
 }
 
 static ptr<>
@@ -1930,13 +1929,13 @@ dynamic_wind(context& ctx,
 
   return call_continuable(
     ctx, before.get(), {},
-    [=] (context& ctx, ptr<>) {
+    [=] (vm& state, ptr<>) {
       return call_continuable(
-        ctx, thunk.get(), {},
-        [=] (context& ctx, ptr<> result) {
+        state.ctx, thunk.get(), {},
+        [=] (vm& state, ptr<> result) {
           return call_continuable(
-            ctx, after.get(), {},
-            [result = track(ctx, result)] (context&, ptr<>) {
+            state.ctx, after.get(), {},
+            [result = track(state.ctx, result)] (vm&, ptr<>) {
               return result.get();
             }
           );
@@ -1967,7 +1966,7 @@ find_exception_handler_frame(call_stack& stack, frame_reference frame) {
 static ptr<tail_call_tag_type>
 with_exception_handler(context& ctx, ptr<> handler, ptr<> thunk) {
   call_continuable(ctx, thunk, {},
-                   [] (context&, ptr<> result) { return result; });
+                   [] (vm&, ptr<> result) { return result; });
 
   ptr<stack_frame_extra_data> extra
     = create_or_get_extra_data(ctx, ctx.current_execution->stack);
@@ -1997,7 +1996,7 @@ static ptr<tail_call_tag_type>
 call_continuable_exception_handler(context& ctx, frame_reference handler_frame,
                                    ptr<> exception) {
   call_continuable(ctx, get_frame_exception_handler(handler_frame), {exception},
-                   [] (context&, ptr<> result) { return result; });
+                   [] (vm&, ptr<> result) { return result; });
   setup_exception_handler_frame(
     ctx, current_frame(ctx.current_execution->stack), handler_frame
   );
@@ -2014,10 +2013,10 @@ call_noncontinuable_exception_handler(context& ctx,
   call_continuable(
     ctx, get_frame_exception_handler(handler_frame), {exception},
     [exception = track(ctx, exception),
-     handler_frame_idx = handler_frame.index()] (context& ctx, ptr<>) {
-      return raise_from(ctx,
-                        make<uncaught_exception>(ctx, exception.get()),
-                        frame_reference{ctx.current_execution->stack,
+     handler_frame_idx = handler_frame.index()] (vm& state, ptr<>) {
+      return raise_from(state.ctx,
+                        make<uncaught_exception>(state.ctx, exception.get()),
+                        frame_reference{state.stack,
                                         handler_frame_idx}.parent());
     }
   );
@@ -2173,8 +2172,9 @@ static ptr<tail_call_tag_type>
 call_with_values(context& ctx, ptr<> producer, ptr<> consumer) {
   return call_continuable(
     ctx, producer, {},
-    [consumer = track(ctx, consumer)] (context& ctx, ptr<> producer_result) {
-      return tail_call(ctx, consumer.get(), unpack_values(producer_result));
+    [consumer = track(ctx, consumer)] (vm& state, ptr<> producer_result) {
+      return tail_call(state.ctx, consumer.get(),
+                       unpack_values(producer_result));
     }
   );
 }

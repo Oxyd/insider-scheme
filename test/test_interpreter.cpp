@@ -219,7 +219,7 @@ TEST_F(interpreter, exec_loop) {
 }
 
 TEST_F(interpreter, exec_native_call) {
-  auto native = [] (context&, ptr<native_procedure>, object_span args) {
+  auto native = [] (vm&, ptr<native_procedure>, object_span args) {
     return integer_to_ptr(integer{2 * expect<integer>(args[0]).value()
                                   + 3 * expect<integer>(args[1]).value()
                                   + 5 * expect<integer>(args[2]).value()});

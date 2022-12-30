@@ -366,8 +366,6 @@ negate(context&, ptr<>);
 
 ptr<>
 add(context&, ptr<>, ptr<>);
-ptr<>
-add(context&, object_span);
 
 inline bool
 overflow(integer::value_type i) {
@@ -385,8 +383,6 @@ add_fixnums(integer::value_type x, integer::value_type y) {
 
 ptr<>
 subtract(context&, ptr<>, ptr<>);
-ptr<>
-subtract(context&, object_span);
 
 inline ptr<>
 subtract_fixnums(integer::value_type x, integer::value_type y) {
@@ -405,8 +401,6 @@ decrement(context&, ptr<>);
 
 ptr<>
 multiply(context&, ptr<>, ptr<>);
-ptr<>
-multiply(context&, object_span);
 
 inline bool
 small_mul_overflow(integer::value_type x, integer::value_type y) {
@@ -452,8 +446,6 @@ truncate_remainder(context& ctx, ptr<> lhs, ptr<> rhs);
 
 ptr<>
 divide(context&, ptr<>, ptr<>);
-ptr<>
-divide(context&, object_span);
 
 ptr<>
 conjugate(context&, ptr<>);
@@ -475,31 +467,21 @@ bit_length(context&, ptr<>);
 
 ptr<boolean>
 arith_equal(context&, ptr<>, ptr<>);
-ptr<>
-arith_equal(context&, object_span);
 
 bool
 numeric_eqv(context&, ptr<>, ptr<>);
 
 ptr<boolean>
 less(context&, ptr<>, ptr<>);
-ptr<>
-less(context&, object_span);
 
 ptr<boolean>
 greater(context&, ptr<>, ptr<>);
-ptr<>
-greater(context&, object_span);
 
 ptr<boolean>
 less_or_equal(context&, ptr<>, ptr<>);
-ptr<>
-less_or_equal(context&, object_span);
 
 ptr<boolean>
 greater_or_equal(context&, ptr<>, ptr<>);
-ptr<>
-greater_or_equal(context&, object_span);
 
 ptr<>
 gcd(context&, ptr<>, ptr<>);
