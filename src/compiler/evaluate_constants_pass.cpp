@@ -305,7 +305,7 @@ evaluate_constant_application(context& ctx,
                               ptr<> callable,
                               auto const& arguments) {
   try {
-    ptr<> result = call_with_continuation_barrier(
+    ptr<> result = call_root(
       ctx, callable, make_arguments_for_constant_evaluation(ctx, env, arguments)
     );
     return make<literal_expression>(ctx, result);

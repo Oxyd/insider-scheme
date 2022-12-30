@@ -59,7 +59,7 @@ TEST_F(interpreter, exec_arithmetic) {
     5,
     0
   );
-  auto result = call_with_continuation_barrier(ctx, proc, {});
+  auto result = call_root(ctx, proc, {});
   EXPECT_EQ(assume<integer>(result).value(), 18);
 }
 
@@ -89,7 +89,7 @@ TEST_F(interpreter, can_access_arguments_from_callee) {
     },
     4, 0
   );
-  auto result = call_with_continuation_barrier(ctx, f, {});
+  auto result = call_root(ctx, f, {});
   EXPECT_EQ(expect<integer>(result).value(), 3);
 }
 
@@ -136,7 +136,7 @@ TEST_F(interpreter, exec_calls) {
     6,
     0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {});
+  auto result = call_root(ctx, global, {});
 
   auto native_f = [] (int x, int y) { return 2 * x + y; };
   EXPECT_EQ(assume<integer>(result).value(),
@@ -178,7 +178,7 @@ TEST_F(interpreter, exec_tail_calls) {
     },
     3, 0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {});
+  auto result = call_root(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(), 12);
 }
 
@@ -214,7 +214,7 @@ TEST_F(interpreter, exec_loop) {
     7,
     0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {});
+  auto result = call_root(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(), 45);
 }
 
@@ -241,7 +241,7 @@ TEST_F(interpreter, exec_native_call) {
     6,
     0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {});
+  auto result = call_root(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(),
             2 * 10 + 3 * 20 + 5 * 30);
 }
@@ -276,7 +276,7 @@ TEST_F(interpreter, exec_closure_ref) {
     },
     5, 0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {});
+  auto result = call_root(ctx, global, {});
   EXPECT_EQ(assume<integer>(result).value(), 5 + 3);
 }
 
@@ -300,7 +300,7 @@ TEST_F(interpreter, exec_cons) {
     },
     5, 0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {});
+  auto result = call_root(ctx, global, {});
   EXPECT_TRUE(equal(result, read("(1 2 3)")));
 }
 
@@ -314,7 +314,7 @@ TEST_F(interpreter, exec_car_cdr) {
     {},
     2, 1
   );
-  auto result1 = call_with_continuation_barrier(ctx, first, {p.get()});
+  auto result1 = call_root(ctx, first, {p.get()});
   EXPECT_EQ(expect<integer>(result1).value(), 1);
 
   auto second = make_procedure(
@@ -324,7 +324,7 @@ TEST_F(interpreter, exec_car_cdr) {
     {},
     2, 1
   );
-  auto result2 = call_with_continuation_barrier(ctx, second, {p.get()});
+  auto result2 = call_root(ctx, second, {p.get()});
   EXPECT_EQ(expect<integer>(result2).value(), 2);
 }
 
@@ -340,12 +340,12 @@ TEST_F(interpreter, test_eq) {
     )
   );
 
-  auto result1 = call_with_continuation_barrier(
+  auto result1 = call_root(
     ctx, are_eq.get(), {ctx.intern("foo"), ctx.intern("bar")}
   );
   EXPECT_EQ(result1, ctx.constants->f);
 
-  auto result2 = call_with_continuation_barrier(
+  auto result2 = call_root(
     ctx, are_eq.get(), {ctx.intern("foo"), ctx.intern("foo")}
   );
   EXPECT_EQ(result2, ctx.constants->t);
@@ -370,7 +370,7 @@ TEST_F(interpreter, exec_load_dynamic_top_level) {
     },
     2, 0
   );
-  auto result = call_with_continuation_barrier(ctx, f, {});
+  auto result = call_root(ctx, f, {});
   EXPECT_EQ(expect<symbol>(result)->value(), "foo");
 }
 
@@ -384,7 +384,7 @@ TEST_F(interpreter, load_self_in_plain_procedure) {
       1, 0
     )
   );
-  auto result = call_with_continuation_barrier(ctx, f.get(), {});
+  auto result = call_root(ctx, f.get(), {});
   EXPECT_EQ(result, f.get());
 }
 
@@ -418,14 +418,13 @@ TEST_F(interpreter, load_self_in_closure) {
     },
     3, 0
   );
-  auto result = call_with_continuation_barrier(ctx, global, {});
+  auto result = call_root(ctx, global, {});
   EXPECT_EQ(result, ctx.constants->t);
 }
 
 static integer
 apply_and_double(context& ctx, ptr<procedure> f, ptr<> arg) {
-  return 2 * expect<integer>(call_with_continuation_barrier(ctx, f,
-                                                            {arg})).value();
+  return 2 * expect<integer>(call_root(ctx, f, {arg})).value();
 }
 
 TEST_F(interpreter, scheme_to_native_to_scheme) {
@@ -461,7 +460,7 @@ TEST_F(interpreter, scheme_to_native_to_scheme) {
 
 TEST_F(interpreter, call_variadic_scheme_procedure_from_native) {
   ptr<> f = eval("(lambda args args)");
-  ptr<> result = call_with_continuation_barrier(
+  ptr<> result = call_root(
     ctx, f, {to_scheme(ctx, 0), to_scheme(ctx, 1), to_scheme(ctx, 2)}
   );
   EXPECT_TRUE(equal(result, read("(0 1 2)")));
@@ -948,10 +947,10 @@ TEST_F(interpreter, calling_native_directly_from_native_does_not_pollute_stack) 
   define_procedure<always_throw>(ctx, "always-throw", ctx.internal_module());
   ptr<> f = eval("always-throw");
 
-  ctx.current_execution = std::make_unique<vm>(ctx);
-  ASSERT_TRUE(ctx.current_execution->stack.empty());
-  ASSERT_THROW(call_with_continuation_barrier(ctx, f, {}), std::runtime_error);
-  EXPECT_TRUE(ctx.current_execution->stack.empty());
+  vm state{ctx};
+  ASSERT_TRUE(state.stack.empty());
+  ASSERT_THROW(call_with_continuation_barrier(state, f, {}), std::runtime_error);
+  EXPECT_TRUE(state.stack.empty());
 }
 
 TEST_F(interpreter, mutating_immutable_top_level_throws) {
@@ -967,8 +966,8 @@ TEST_F(interpreter, mutating_mutable_top_level_doesnt_throw) {
 }
 
 static void
-check_stacktrace(context& ctx) {
-  auto trace = make_stacktrace(ctx);
+check_stacktrace(vm& state) {
+  auto trace = make_stacktrace(state);
   ASSERT_EQ(trace.size(), 5);
 
   EXPECT_EQ(trace[0].name, "check-stacktrace!");

@@ -1,14 +1,15 @@
 #include "parsing_context.hpp"
 
-#include "context.hpp"
+#include "vm/vm.hpp"
 
 namespace insider {
 
-parsing_context::parsing_context(context& ctx, ptr<insider::module_> m,
+parsing_context::parsing_context(vm& state, ptr<insider::module_> m,
                                  pass_list passes,
                                  source_file_origin const& origin)
-  : root_provider{ctx.store}
-  , ctx{ctx}
+  : root_provider{state.ctx.store}
+  , ctx{state.ctx}
+  , state{state}
   , module_{m}
   , origin{origin}
   , passes{std::move(passes)}

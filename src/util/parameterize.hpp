@@ -6,6 +6,9 @@
 #include "vm/call_stack.hpp"
 #include "vm/vm.hpp"
 
+#include <type_traits>
+#include <utility>
+
 namespace insider {
 
 class context;
@@ -14,8 +17,7 @@ class context;
 // given parameter set to the given value.
 template <typename F>
 ptr<>
-parameterize(context& ctx, parameter_assignments const& params,
-             F&& f) {
+parameterize(vm& state, parameter_assignments const& params, F&& f) {
   struct closure : native_procedure::extra_data {
     F& f;
 
@@ -23,14 +25,29 @@ parameterize(context& ctx, parameter_assignments const& params,
     closure(F& f) : f{f} { }
   };
   auto proc = make<native_procedure>(
-    ctx,
-    [] (vm&, ptr<native_procedure> np, object_span) -> ptr<> {
-      return static_cast<closure*>(np->extra.get())->f();
+    state.ctx,
+    [] (vm& state, ptr<native_procedure> np, object_span) -> ptr<> {
+      if constexpr (std::is_invocable_v<F>)
+        return static_cast<closure*>(np->extra.get())->f();
+      else if constexpr (std::is_invocable_v<F, vm&>)
+        return static_cast<closure*>(np->extra.get())->f(state);
+      else
+        static_assert(sizeof(F) == 0,
+                      "Callable must take either no parameters, or vm& as its "
+                      "only parameter");
     },
     std::make_unique<closure>(f)
   );
-  return call_parameterized_with_continuation_barrier(ctx, params, proc, {},
+  return call_parameterized_with_continuation_barrier(state, params, proc, {},
                                                       true, false);
+}
+
+// Like parameterize, but create a new VM and call the callable in it.
+template <typename F>
+ptr<>
+parameterize_root(context& ctx, parameter_assignments const& params, F&& f) {
+  vm state{ctx};
+  return parameterize(state, params, std::forward<F>(f));
 }
 
 } // namespace insider

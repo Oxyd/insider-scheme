@@ -88,12 +88,6 @@ make_stacktrace(vm& state) {
   return result;
 }
 
-stacktrace
-make_stacktrace(context& ctx) {
-  assert(ctx.current_execution);
-  return make_stacktrace(*ctx.current_execution);
-}
-
 std::string
 format_stacktrace(stacktrace const& trace) {
   std::string result;

@@ -4,6 +4,7 @@
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
+#include "vm/vm.hpp"
 
 using namespace insider;
 
@@ -787,7 +788,7 @@ TEST_F(compiler, quasisyntax) {
 
 TEST_F(compiler, call_from_native) {
   auto f = expect<procedure>(eval("(lambda (x y) (+ (* 2 x) (* 3 y)))"));
-  ptr<> result = call_with_continuation_barrier(
+  ptr<> result = call_root(
     ctx, f, {integer_to_ptr(integer{5}), integer_to_ptr(integer{4})}
   );
   EXPECT_EQ(expect<integer>(result).value(), 2 * 5 + 3 * 4);

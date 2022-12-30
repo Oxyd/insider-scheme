@@ -18,6 +18,7 @@ namespace insider {
 class context;
 class procedure;
 class symbol;
+class vm;
 
 // A module is a map from symbols to top-level variable indices. It also
 // contains a top-level procedure which contains the code to be run when the
@@ -121,6 +122,9 @@ define_top_level_mutable(context&, std::string const& name, ptr<module_>,
 // module's body and return the result of the last expression in its body.
 //
 // Causes garbage collection.
+ptr<>
+execute(vm&, tracked_ptr<module_> const&);
+
 ptr<>
 execute(context&, tracked_ptr<module_> const&);
 

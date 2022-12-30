@@ -12,7 +12,9 @@ struct parser : scheme_fixture {
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     null_source_code_provider provider;
-    parsing_context pc{ctx, m.get(), {}, {&provider, "<unit test expression>"}};
+    vm state{ctx};
+    parsing_context pc{state, m.get(), {},
+                       {&provider, "<unit test expression>"}};
 
     auto stx = expect<syntax>(read_syntax(ctx, expr));
     stx = stx->add_scope(ctx.store, m->scope());

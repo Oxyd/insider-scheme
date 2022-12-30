@@ -39,7 +39,7 @@ struct scheme_fixture : testing::Test {
                                 m,
                                 {&provider, "<unit test expression>"},
                                 std::move(passes));
-    return call_with_continuation_barrier(ctx, f, {});
+    return call_root(ctx, f, {});
   }
 
   insider::ptr<>

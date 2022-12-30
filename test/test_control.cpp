@@ -166,9 +166,9 @@ TEST_F(control, call_parameterized_can_nest) {
 }
 
 static ptr<>
-indirect_call(context& ctx, ptr<> f, ptr<> arg) {
+indirect_call(vm& state, ptr<> f, ptr<> arg) {
   return call_continuable(
-    ctx, f, {arg},
+    state, f, {arg},
     [] (vm& state, ptr<> result) {
       return to_scheme(state.ctx, expect<integer>(result).value() * 2);
     }
@@ -184,11 +184,11 @@ TEST_F(control, call_continuable_works_like_call) {
 
 TEST_F(control, call_continuable_allows_jump_up) {
   bool continuation_called = false;
-  define_closure<ptr<>(context&, ptr<>, ptr<>)>(
+  define_closure<ptr<>(vm&, ptr<>, ptr<>)>(
     ctx, "f", ctx.internal_module(),
-    [&] (context& ctx, ptr<> f, ptr<> arg) {
+    [&] (vm& state, ptr<> f, ptr<> arg) {
       return call_continuable(
-        ctx, f, {arg},
+        state, f, {arg},
         [&] (vm& state, ptr<> result) {
           continuation_called = true;
           return to_scheme(state.ctx, expect<integer>(result).value() * 2);
@@ -207,10 +207,10 @@ TEST_F(control, call_continuable_allows_jump_up) {
 
 TEST_F(control, call_continuable_allows_jump_back_in) {
   unsigned continuation_counter = 0;
-  define_closure<ptr<>(context&, ptr<>, ptr<>)>(
+  define_closure<ptr<>(vm&, ptr<>, ptr<>)>(
     ctx, "f", ctx.internal_module(),
-    [&] (context& ctx, ptr<> f, ptr<> arg) {
-      return call_continuable(ctx, f, {arg},
+    [&] (vm& state, ptr<> f, ptr<> arg) {
+      return call_continuable(state, f, {arg},
                               [&] (vm& state, ptr<> result) {
                                 ++continuation_counter;
                                 return to_scheme(
@@ -253,12 +253,12 @@ TEST_F(control, call_continuable_allows_jump_back_in) {
 }
 
 static ptr<>
-f1(context& ctx, ptr<> f, ptr<> g) {
+f1(vm& state, ptr<> f, ptr<> g) {
   return call_continuable(
-    ctx, f, {to_scheme(ctx, 2)},
-    [g = track(ctx, g)] (vm& state, ptr<> result) {
+    state, f, {to_scheme(state.ctx, 2)},
+    [g = track(state.ctx, g)] (vm& state, ptr<> result) {
       return call_continuable(
-        state.ctx, g.get(), {result},
+        state, g.get(), {result},
         [] (vm& state, ptr<> result) {
           return to_scheme(state.ctx, 2 * from_scheme<int>(state.ctx, result));
         }
@@ -274,12 +274,12 @@ TEST_F(control, call_continuable_can_be_used_twice) {
 }
 
 static ptr<>
-f2(context& ctx, ptr<> g, ptr<> h) {
+f2(vm& state, ptr<> g, ptr<> h) {
   return call_continuable(
-    ctx, g, {},
-    [h = track(ctx, h)] (vm& state, ptr<>) {
+    state, g, {},
+    [h = track(state.ctx, h)] (vm& state, ptr<>) {
       return call_continuable(
-        state.ctx, h.get(), {},
+        state, h.get(), {},
         [] (vm&, ptr<> r) { return r; }
       );
     }
@@ -358,8 +358,8 @@ TEST_F(control, barrier_prevents_jump_in) {
 }
 
 static ptr<>
-f3(context& ctx, ptr<> g) {
-  return call_with_continuation_barrier(ctx, g, {});
+f3(vm& state, ptr<> g) {
+  return call_with_continuation_barrier(state, g, {});
 }
 
 TEST_F(control, call_with_continuation_barrier_erects_a_barrier) {
@@ -858,10 +858,10 @@ TEST_F(control, turn_list_to_multiple_values) {
 }
 
 static ptr<>
-call_two(context& ctx, ptr<> f, ptr<> g) {
+call_two(vm& state, ptr<> f, ptr<> g) {
   return call_continuable(
-    ctx, f, {},
-    [g = track(ctx, g)] (vm& state, ptr<> result) {
+    state, f, {},
+    [g = track(state.ctx, g)] (vm& state, ptr<> result) {
       return tail_call(state, g.get(), {result});
     }
   );
@@ -897,10 +897,10 @@ TEST_F(control, call_parameterized_with_continuation_barrier_sets_parameter_in_s
       (find-parameter-value p))
   )"));
 
-  auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
+  auto result1 = call_root(ctx, get_value.get(), {});
   EXPECT_EQ(expect<integer>(result1).value(), 0);
 
-  auto result2 = call_parameterized_with_continuation_barrier(
+  auto result2 = call_root_parameterized(
     ctx, {{tag.get(), integer_to_ptr(4)}}, get_value.get(), {}
   );
   EXPECT_EQ(expect<integer>(result2).value(), 4);
@@ -926,10 +926,10 @@ TEST_F(control, call_parameterized_with_continuation_brrier_sets_parameter_in_na
     std::make_unique<tag_closure>(tag)
   );
 
-  auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
+  auto result1 = call_root(ctx, get_value.get(), {});
   EXPECT_EQ(expect<integer>(result1).value(), 0);
 
-  auto result2 = call_parameterized_with_continuation_barrier(
+  auto result2 = call_root_parameterized(
     ctx, {{tag.get(), integer_to_ptr(4)}}, get_value.get(), {}
   );
   EXPECT_EQ(expect<integer>(result2).value(), 4);
@@ -944,16 +944,16 @@ TEST_F(control, native_parameterize_sets_parameter_in_scheme_frame) {
       (find-parameter-value p))
   )"));
 
-  parameterize(
+  parameterize_root(
     ctx, {{tag.get(), integer_to_ptr(4)}},
-    [&] {
-      auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
+    [&] (vm& state) {
+      auto result1 = call_with_continuation_barrier(state, get_value.get(), {});
       EXPECT_EQ(expect<integer>(result1).value(), 4);
       return ptr<>{};
     }
   );
 
-  auto result2 = call_with_continuation_barrier(ctx, get_value.get(), {});
+  auto result2 = call_root(ctx, get_value.get(), {});
   EXPECT_EQ(expect<integer>(result2).value(), 0);
 }
 
@@ -977,16 +977,16 @@ TEST_F(control, native_parameterization_sets_parameter_in_native_frame) {
     std::make_unique<tag_closure>(tag)
   );
 
-  parameterize(
+  parameterize_root(
     ctx, {{tag.get(), integer_to_ptr(4)}},
-    [&] {
-      auto result1 = call_with_continuation_barrier(ctx, get_value.get(), {});
+    [&] (vm& state) {
+      auto result1 = call_with_continuation_barrier(state, get_value.get(), {});
       EXPECT_EQ(expect<integer>(result1).value(), 4);
       return ptr<>{};
     }
   );
 
-  auto result2 = call_with_continuation_barrier(ctx, get_value.get(), {});
+  auto result2 = call_root(ctx, get_value.get(), {});
   EXPECT_EQ(expect<integer>(result2).value(), 0);
 }
 
@@ -1000,14 +1000,14 @@ TEST_F(control,
       (find-parameter-value p))
   )");
 
-  define_closure<ptr<>(context&)>(
+  define_closure<ptr<>(vm&)>(
     ctx, "get-value-parameterized", ctx.internal_module(),
-    [&] (context& ctx) {
+    [&] (vm& state) {
       return parameterize(
-        ctx,
+        state,
         {{tag.get(), integer_to_ptr(4)}},
-        [&] {
-          return call_with_continuation_barrier(ctx, get_value, {});
+        [&] (vm& state) {
+          return call_with_continuation_barrier(state, get_value, {});
         }
       );
     }
@@ -1026,8 +1026,8 @@ TEST_F(control, can_get_parameter_value_with_no_scheme_frame) {
 static std::optional<std::size_t> expected_stack_size;
 
 static void
-check_stack_size(context& ctx) {
-  std::size_t current_size = ctx.current_execution->stack.size();
+check_stack_size(vm& state) {
+  std::size_t current_size = state.stack.size();
   if (expected_stack_size)
     EXPECT_EQ(current_size, *expected_stack_size);
   else

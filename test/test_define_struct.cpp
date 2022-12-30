@@ -1,6 +1,7 @@
 #include "scheme_fixture.hpp"
 
 #include "util/define_struct.hpp"
+#include "vm/vm.hpp"
 
 using namespace insider;
 
@@ -29,9 +30,9 @@ s_number(context&, ptr<s> s) {
 TEST_F(define_struct_fixture, defines_predicate) {
   define_struct<s>(ctx, "s", ctx.internal_module());
   auto f = eval("s?");
-  EXPECT_EQ(call_with_continuation_barrier(ctx, f, {make<s>(ctx, 0)}),
+  EXPECT_EQ(call_root(ctx, f, {make<s>(ctx, 0)}),
             ctx.constants->t);
-  EXPECT_EQ(call_with_continuation_barrier(ctx, f, {ctx.intern("s")}),
+  EXPECT_EQ(call_root(ctx, f, {ctx.intern("s")}),
             ctx.constants->f);
 }
 
@@ -42,7 +43,7 @@ TEST_F(define_struct_fixture, accessor_for_member) {
   auto f = eval("s-number");
   EXPECT_EQ(
     expect<integer>(
-      call_with_continuation_barrier(ctx, f, {make<s>(ctx, 12)})
+      call_root(ctx, f, {make<s>(ctx, 12)})
     ).value(),
     12
   );
@@ -55,7 +56,7 @@ TEST_F(define_struct_fixture, accessor_for_getter) {
   auto f = eval("s-number");
   EXPECT_EQ(
     expect<integer>(
-      call_with_continuation_barrier(ctx, f, {make<s>(ctx, 12)})
+      call_root(ctx, f, {make<s>(ctx, 12)})
     ).value(),
     12
   );
@@ -67,7 +68,7 @@ TEST_F(define_struct_fixture, setter_for_member) {
     ;
   auto f = eval("(lambda (x) (s-number-set! x (* (s-number x) 2)) x)");
   auto value = expect<s>(
-    call_with_continuation_barrier(ctx, f, {make<s>(ctx, 6)})
+    call_root(ctx, f, {make<s>(ctx, 6)})
   );
   EXPECT_EQ(value->number, 12);
 }
@@ -78,7 +79,7 @@ TEST_F(define_struct_fixture, setter_for_setter) {
     ;
   auto f = eval("(lambda (x) (s-number-set! x (* (s-number x) 2)) x)");
   auto value = expect<s>(
-    call_with_continuation_barrier(ctx, f, {make<s>(ctx, 6)})
+    call_root(ctx, f, {make<s>(ctx, 6)})
   );
   EXPECT_EQ(value->number, 12);
 }
@@ -89,7 +90,7 @@ TEST_F(define_struct_fixture, non_member_setter) {
   auto f = eval("s-number");
   EXPECT_EQ(
     expect<integer>(
-      call_with_continuation_barrier(ctx, f, {make<s>(ctx, 12)})
+      call_root(ctx, f, {make<s>(ctx, 12)})
     ).value(),
     12
   );

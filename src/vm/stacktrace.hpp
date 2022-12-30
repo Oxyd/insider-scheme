@@ -21,9 +21,6 @@ using stacktrace = std::vector<stacktrace_record>;
 stacktrace
 make_stacktrace(vm& state);
 
-stacktrace
-make_stacktrace(context&);
-
 std::string
 format_stacktrace(stacktrace const&);
 

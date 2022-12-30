@@ -130,7 +130,7 @@ namespace {
 
 static parsing_context
 make_subcontext(parsing_context& pc) {
-  return parsing_context{pc.ctx, pc.module_, pc.passes, pc.origin};
+  return parsing_context{pc.state, pc.module_, pc.passes, pc.origin};
 }
 
 static environment_extender
@@ -263,43 +263,42 @@ maybe_remove_use_site_scopes(parsing_context& pc, ptr<syntax> name) {
 }
 
 static ptr<syntax>
-call_transformer_with_continuation_barrier(context& ctx, ptr<> callable,
+call_transformer_with_continuation_barrier(vm& state, ptr<> callable,
                                            ptr<syntax> stx) {
-  ptr<> result
-    = call_with_continuation_barrier(ctx, callable, {stx});
+  ptr<> result = call_with_continuation_barrier(state, callable, {stx});
   if (auto s = match<syntax>(result))
     return s;
   else
     throw std::runtime_error{fmt::format(
       "Syntax transformer didn't return a syntax: {}",
-      datum_to_string(ctx, result)
+      datum_to_string(state.ctx, result)
     )};
 }
 
 static ptr<syntax>
-call_transformer(context& ctx, ptr<transformer> t, ptr<syntax> stx,
+call_transformer(vm& state, ptr<transformer> t, ptr<syntax> stx,
                  std::vector<ptr<scope>>* use_site_scopes) {
   auto introduced_env = make<scope>(
-    ctx, ctx,
+    state.ctx, state.ctx,
     fmt::format("introduced environment for syntax expansion at {}",
                 format_location(stx->location()))
   );
-  stx = stx->add_scope(ctx.store, introduced_env);
+  stx = stx->add_scope(state.ctx.store, introduced_env);
 
   auto use_site_scope = make<scope>(
-    ctx, ctx,
+    state.ctx, state.ctx,
     fmt::format("use-site scope for syntax expansion at {}",
                 format_location(stx->location()))
   );
-  stx = stx->add_scope(ctx.store, use_site_scope);
+  stx = stx->add_scope(state.ctx.store, use_site_scope);
 
   if (use_site_scopes)
     use_site_scopes->push_back(use_site_scope);
 
-  tracker track{ctx, introduced_env};
+  tracker track{state.ctx, introduced_env};
   ptr<syntax> result
-    = call_transformer_with_continuation_barrier(ctx, t->callable(), stx);
-  return result->flip_scope(ctx.store, introduced_env);
+    = call_transformer_with_continuation_barrier(state, t->callable(), stx);
+  return result->flip_scope(state.ctx.store, introduced_env);
 }
 
 // If the head of the given list is bound to a transformer, run the transformer
@@ -307,8 +306,8 @@ call_transformer(context& ctx, ptr<transformer> t, ptr<syntax> stx,
 //
 // Causes a garbage collection.
 static ptr<syntax>
-expand(context& ctx, ptr<syntax> stx,
-       std::vector<ptr<scope>>* use_site_scopes) {
+expand(vm& state, ptr<syntax> stx, std::vector<ptr<scope>>* use_site_scopes) {
+  context& ctx = state.ctx;
   parser_action a(ctx, stx, "Expanding macro use");
   tracker track{ctx, stx};
 
@@ -320,7 +319,7 @@ expand(context& ctx, ptr<syntax> stx,
       ptr<syntax> head = expect<syntax>(car(lst));
       if (is_identifier(head)) {
         if (ptr<transformer> t = lookup_transformer(head)) {
-          stx = call_transformer(ctx, t, stx, use_site_scopes);
+          stx = call_transformer(state, t, stx, use_site_scopes);
           expanded = true;
         }
       }
@@ -333,10 +332,10 @@ expand(context& ctx, ptr<syntax> stx,
 static ptr<syntax>
 expand(parsing_context& pc, ptr<syntax> stx) {
   if (pc.record_use_site_scopes()) {
-    ptr<syntax> result = expand(pc.ctx, stx, &pc.use_site_scopes.back());
+    ptr<syntax> result = expand(pc.state, stx, &pc.use_site_scopes.back());
     return result;
   } else
-    return expand(pc.ctx, stx, nullptr);
+    return expand(pc.state, stx, nullptr);
 }
 
 template <auto Analyse>
@@ -345,7 +344,7 @@ eval_at_expand_time(parsing_context& pc, ptr<syntax> datum) {
   auto meta_pc = make_subcontext(pc);
   auto proc = compile_syntax(meta_pc.ctx, Analyse(meta_pc, datum),
                              track(meta_pc.ctx, meta_pc.module_));
-  return call_with_continuation_barrier(meta_pc.ctx, proc, {});
+  return call_with_continuation_barrier(meta_pc.state, proc, {});
 }
 
 // Causes a garbage collection.
@@ -1815,8 +1814,8 @@ expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
 }
 
 static ptr<syntax>
-expand_proc(context& ctx, ptr<syntax> stx) {
-  return expand(ctx, stx, nullptr);
+expand_proc(vm& state, ptr<syntax> stx) {
+  return expand(state, stx, nullptr);
 }
 
 void

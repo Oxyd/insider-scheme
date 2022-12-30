@@ -38,12 +38,12 @@ private:
 // from Scheme.
 //
 // Inteded use is:
-// return call_continuable(ctx, f, {args...},
+// return call_continuable(state, f, {args...},
 //                         [=] (ptr<> result) { do something with result })
 //
 // Causes garbage collection.
 ptr<tail_call_tag_type>
-call_continuable(context&, ptr<> callable, std::vector<ptr<>> const& arguments,
+call_continuable(vm&, ptr<> callable, std::vector<ptr<>> const& arguments,
                  native_continuation::target_type cont);
 
 // Add a call frame to the current execution state and run the procedure until
@@ -51,14 +51,14 @@ call_continuable(context&, ptr<> callable, std::vector<ptr<>> const& arguments,
 // exist. A full continuation barrier is installed around the call frame unless
 // it's the root frame.
 ptr<>
-call_with_continuation_barrier(context& ctx, ptr<> callable,
+call_with_continuation_barrier(vm& state, ptr<> callable,
                                std::vector<ptr<>> const& arguments);
 
 // Like call_with_continuation_barrier but also sets a parameter in the created
 // call frame.
 ptr<>
 call_parameterized_with_continuation_barrier(
-  context& ctx,
+  vm& state,
   parameter_assignments const& params,
   ptr<> callable,
   std::vector<ptr<>> const& arguments,
@@ -66,6 +66,16 @@ call_parameterized_with_continuation_barrier(
   bool allow_jump_in = false
 );
 
+// Create a new VM and call given procedure in it. Because it's executed in a
+// new VM, it's effectivelly wrapped in a continuation barrier.
+ptr<>
+call_root(context&, ptr<> callable, std::vector<ptr<>> const& arguments);
+
+// Create a new VM, set the given parameters and call a new root procedure in
+// it.
+ptr<>
+call_root_parameterized(context&, parameter_assignments const& params,
+                        ptr<> callable, std::vector<ptr<>> const& arguments);
 
 // Make a new parameter tag and set its top-level value in the context.
 ptr<parameter_tag>

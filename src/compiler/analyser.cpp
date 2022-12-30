@@ -86,13 +86,13 @@ analysis_context_for_module(ptr<module_> m) {
 expression
 analyse(context& ctx, ptr<syntax> stx, tracked_ptr<module_> const& m,
         pass_list passes, source_file_origin const& origin) {
-  return parameterize(
+  return parameterize_root(
     ctx,
     {{ctx.constants->current_source_file_origin_tag,
       make<opaque_value<source_file_origin>>(ctx, origin)},
      {ctx.constants->current_expand_module_tag, m.get()}},
-    [&] {
-      parsing_context pc{ctx, m.get(), std::move(passes), origin};
+    [&] (vm& state) {
+      parsing_context pc{state, m.get(), std::move(passes), origin};
       stx = stx->add_scope(ctx.store, m->scope());
       return analyse_top_level_expressions(pc, m,
                                            analysis_context_for_module(m.get()),
@@ -521,7 +521,7 @@ expression
 analyse_module(context& ctx, tracked_ptr<module_> const& m,
                module_specifier const& pm, pass_list passes, bool main_module) {
   return
-    parameterize(
+    parameterize_root(
       ctx,
       {{ctx.constants->current_source_file_origin_tag,
         make<opaque_value<source_file_origin>>(ctx, pm.origin)},
@@ -529,8 +529,8 @@ analyse_module(context& ctx, tracked_ptr<module_> const& m,
         main_module ? ctx.constants->t : ctx.constants->f},
        {ctx.constants->current_expand_module_tag,
         m.get()}},
-      [&] {
-        parsing_context pc{ctx, m.get(), std::move(passes), pm.origin};
+      [&] (vm& state) {
+        parsing_context pc{state, m.get(), std::move(passes), pm.origin};
         return analyse_top_level_expressions(pc, m,
                                              analysis_context::closed,
                                              pm.body).get();

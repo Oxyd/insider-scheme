@@ -371,16 +371,21 @@ define_top_level_mutable(context& ctx, std::string const& name, ptr<module_> m,
 }
 
 static ptr<>
-run_module(context& ctx, ptr<module_> m) {
-  return call_with_continuation_barrier(ctx, m->top_level_procedure(), {});
+run_module(vm& state, ptr<module_> m) {
+  return call_with_continuation_barrier(state, m->top_level_procedure(), {});
+}
+
+ptr<>
+execute(vm& state, tracked_ptr<module_> const& mod) {
+  ptr<> result = run_module(state, mod.get());
+  mod->mark_active();
+  return result;
 }
 
 ptr<>
 execute(context& ctx, tracked_ptr<module_> const& mod) {
-  ptr<> result = run_module(ctx, mod.get());
-  mod->mark_active();
-
-  return result;
+  vm state{ctx};
+  return execute(state, mod);
 }
 
 static imports_list
