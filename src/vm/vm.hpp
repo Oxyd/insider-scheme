@@ -21,6 +21,7 @@ public:
   call_stack          stack;
   ptr<>               result;
 
+  explicit
   vm(context& ctx);
 
 private:
