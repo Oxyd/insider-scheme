@@ -144,7 +144,7 @@ top_level_value(context& ctx, operand op) {
 }
 
 static void
-set_verbose_colleection(context& ctx, ptr<boolean> value) {
+set_verbose_collection(context& ctx, ptr<boolean> value) {
   ctx.store.verbose_collection = value->value();
 }
 
@@ -232,8 +232,8 @@ make_internal_module(context& ctx) {
   define_procedure<top_level_name>(ctx, "top-level-name", result);
   define_procedure<top_level_value>(ctx, "top-level-value", result);
 
-  define_procedure<set_verbose_colleection>(ctx, "set-verbose-collection!",
-                                            result);
+  define_procedure<set_verbose_collection>(ctx, "set-verbose-collection!",
+                                           result);
 
   define_procedure<trap>(ctx, "trap!", result);
 
