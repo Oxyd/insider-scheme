@@ -55,19 +55,19 @@ public:
 //   - type is most significant: This is so it can be accessed by a simple
 //     bit shift
 
-static constexpr word_type color_shift = 33;
-static constexpr word_type generation_shift = 35;
-static constexpr word_type type_shift = 37;
-static constexpr word_type hash_shift = 1;
-static constexpr word_type hash_width = 32;
+constexpr word_type color_shift = 33;
+constexpr word_type generation_shift = 35;
+constexpr word_type type_shift = 37;
+constexpr word_type hash_shift = 1;
+constexpr word_type hash_width = 32;
 
-static constexpr word_type alive_bit = word_type{1};
-static constexpr word_type color_bits = (word_type{1} << color_shift)
+constexpr word_type alive_bit = word_type{1};
+constexpr word_type color_bits = (word_type{1} << color_shift)
                                       | (word_type{1} << (color_shift + 1));
-static constexpr word_type generation_bits
+constexpr word_type generation_bits
   = (word_type{1} << generation_shift)
     | (word_type{1} << (generation_shift + 1));
-static constexpr word_type hash_bits
+constexpr word_type hash_bits
   = ((word_type{1} << hash_width) - 1) << hash_shift;
 
 inline word_type
@@ -92,8 +92,8 @@ types() {
 word_type
 new_type(type_descriptor, std::optional<word_type> index);
 
-static constexpr word_type invalid_type = 0;
-static constexpr word_type no_type = std::numeric_limits<word_type>::max();
+constexpr word_type invalid_type = 0;
+constexpr word_type no_type = std::numeric_limits<word_type>::max();
 
 // Pointer tagging:
 // ... xxxx1 -- integer
@@ -101,11 +101,11 @@ static constexpr word_type no_type = std::numeric_limits<word_type>::max();
 // ... xx010 -- string cursor
 // ... xx110 -- character
 
-static constexpr std::size_t character_payload_offset = 3;
-static constexpr std::size_t string_cursor_payload_offset = 3;
+constexpr std::size_t character_payload_offset = 3;
+constexpr std::size_t string_cursor_payload_offset = 3;
 
-static constexpr std::size_t character_tag = 0b110;
-static constexpr std::size_t string_cursor_tag = 0b010;
+constexpr std::size_t character_tag = 0b110;
+constexpr std::size_t string_cursor_tag = 0b010;
 
 inline bool
 is_object_ptr(ptr<> o) {
