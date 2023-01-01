@@ -6,6 +6,7 @@
 #include "compiler/variable.hpp"
 #include "memory/free_store.hpp"
 #include "object.hpp"
+#include "runtime/basic_types.hpp"
 #include "util/depth_first_search.hpp"
 #include "vm/bytecode.hpp"
 
@@ -481,6 +482,7 @@ public:
   struct parameter {
     ptr<local_variable> const variable;
     bool                      optional;
+    ptr<keyword> const        name;
 
     void
     visit_members(member_visitor const& f) const;
