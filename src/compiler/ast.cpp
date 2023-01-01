@@ -431,7 +431,6 @@ top_level_set_expression::show(context& ctx, std::size_t indent) const {
 void
 lambda_expression::parameter::visit_members(member_visitor const& f) const {
   f(variable);
-  f(name);
 }
 
 lambda_expression::lambda_expression(ptr<lambda_expression> source,
@@ -458,12 +457,14 @@ lambda_expression::lambda_expression(ptr<lambda_expression> source,
 lambda_expression::lambda_expression(
   context& ctx,
   std::vector<parameter> parameters,
+  std::vector<ptr<keyword>> parameter_names,
   bool has_rest,
   expression body,
   std::string name,
   std::vector<ptr<local_variable>> free_variables
 )
   : parameters_{std::move(parameters)}
+  , parameter_names_{std::move(parameter_names)}
   , has_rest_{has_rest}
   , body_{body}
   , name_{std::move(name)}
@@ -491,10 +492,12 @@ lambda_expression::add_free_variable(free_store& fs, ptr<local_variable> v) {
 
 void
 lambda_expression::visit_members(member_visitor const& f) const {
-  for (auto& p : parameters_)
+  for (auto const& p : parameters_)
     p.visit_members(f);
+  for (auto const& kw : parameter_names_)
+    f(kw);
   body_.visit_members(f);
-  for (auto& fv : free_variables_)
+  for (auto const& fv : free_variables_)
     f(fv);
   f(self_variable_);
 }

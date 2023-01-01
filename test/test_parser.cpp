@@ -108,7 +108,8 @@ TEST_F(parser, parse_lambda_with_keyword_arg) {
     parse("(lambda (#:a x) #t)")
   );
   ASSERT_EQ(l->parameters().size(), 1);
-  EXPECT_EQ(l->parameters()[0].name->value(), "a");
+  ASSERT_EQ(l->parameter_names().size(), 1);
+  EXPECT_EQ(l->parameter_names()[0]->value(), "a");
 }
 
 TEST_F(parser, parse_lambda_with_multiple_keyword_args) {
@@ -116,8 +117,9 @@ TEST_F(parser, parse_lambda_with_multiple_keyword_args) {
     parse("(lambda (#:a x #:b y) #t)")
   );
   ASSERT_EQ(l->parameters().size(), 2);
-  EXPECT_EQ(l->parameters()[0].name->value(), "a");
-  EXPECT_EQ(l->parameters()[1].name->value(), "b");
+  ASSERT_EQ(l->parameter_names().size(), 2);
+  EXPECT_EQ(l->parameter_names()[0]->value(), "a");
+  EXPECT_EQ(l->parameter_names()[1]->value(), "b");
 }
 
 TEST_F(parser, parse_lambda_with_positional_and_keyword_args) {
@@ -125,10 +127,11 @@ TEST_F(parser, parse_lambda_with_positional_and_keyword_args) {
     parse("(lambda (a b #:one c #:two d) #t)")
   );
   ASSERT_EQ(l->parameters().size(), 4);
-  EXPECT_FALSE(l->parameters()[0].name);
-  EXPECT_FALSE(l->parameters()[1].name);
-  EXPECT_EQ(l->parameters()[2].name->value(), "one");
-  EXPECT_EQ(l->parameters()[3].name->value(), "two");
+  ASSERT_EQ(l->parameter_names().size(), 4);
+  EXPECT_FALSE(l->parameter_names()[0]);
+  EXPECT_FALSE(l->parameter_names()[1]);
+  EXPECT_EQ(l->parameter_names()[2]->value(), "one");
+  EXPECT_EQ(l->parameter_names()[3]->value(), "two");
 }
 
 TEST_F(parser, parse_lambda_with_optional_keyword_args) {
@@ -136,9 +139,10 @@ TEST_F(parser, parse_lambda_with_optional_keyword_args) {
     parse("(lambda (#:one a #:two (b #:optional)) #t)")
   );
   ASSERT_EQ(l->parameters().size(), 2);
-  EXPECT_EQ(l->parameters()[0].name->value(), "one");
+  ASSERT_EQ(l->parameter_names().size(), 2);
+  EXPECT_EQ(l->parameter_names()[0]->value(), "one");
   EXPECT_FALSE(l->parameters()[0].optional);
-  EXPECT_EQ(l->parameters()[1].name->value(), "two");
+  EXPECT_EQ(l->parameter_names()[1]->value(), "two");
   EXPECT_TRUE(l->parameters()[1].optional);
 }
 

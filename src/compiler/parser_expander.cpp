@@ -848,7 +848,7 @@ define_lambda_parameter(parsing_context& pc, ptr<syntax> name,
   auto name_with_scope = name->add_scope(pc.ctx.store, subscope);
   auto var = make<local_variable>(pc.ctx, identifier_name(name_with_scope));
   define(pc.ctx.store, name_with_scope, var);
-  return {.variable = var, .optional = optional, .name = {}};
+  return {.variable = var, .optional = optional};
 }
 
 static lambda_expression::parameter
@@ -890,26 +890,19 @@ parse_positional_lambda_parameter(parsing_context& pc, ptr<syntax> param,
                                            subscope);
 }
 
-static lambda_expression::parameter
-parse_keyword_lambda_parameter(parsing_context& pc,
-                               ptr<keyword> kw,
-                               ptr<syntax> param,
-                               ptr<scope> subscope) {
-  auto p = parse_positional_lambda_parameter(pc, param, subscope);
-  return {p.variable, p.optional, kw};
-}
-
-static std::tuple<lambda_expression::parameter, ptr<>>
+static std::tuple<lambda_expression::parameter, ptr<keyword>, ptr<>>
 parse_lambda_parameter(parsing_context& pc, ptr<pair> params,
                        ptr<scope> subscope) {
   auto param = expect<syntax>(car(params));
   if (param->contains<keyword>()) {
     auto kw = assume<keyword>(param->get_expression_without_update());
     param = expect<syntax>(cadr(params));
-    return {parse_keyword_lambda_parameter(pc, kw, param, subscope),
+    return {parse_positional_lambda_parameter(pc, param, subscope),
+            kw,
             cddr(params)};
   } else
     return {parse_positional_lambda_parameter(pc, param, subscope),
+            {},
             cdr(params)};
 }
 
@@ -918,18 +911,21 @@ parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
                         source_location const& loc) {
   ptr<> param_names = param_stx;
   std::vector<lambda_expression::parameter> parameters;
-  bool has_rest = false;
+  std::vector<ptr<keyword>> parameter_names;
+
   auto subscope = make<scope>(
     pc.ctx, pc.ctx,
     fmt::format("lambda body at {}", format_location(loc))
   );
 
+  bool has_rest = false;
   bool has_optional = false;
   bool has_keyword = false;
   while (!semisyntax_is<null_type>(param_names)) {
     if (auto param = semisyntax_match<pair>(pc.ctx, param_names)) {
-      auto [p, rest] = parse_lambda_parameter(pc, param, subscope);
+      auto [p, kw, rest] = parse_lambda_parameter(pc, param, subscope);
       parameters.push_back(p);
+      parameter_names.push_back(kw);
 
       if (has_optional && !p.optional)
         throw make_compile_error<syntax_error>(
@@ -937,14 +933,14 @@ parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
           "Required parameter after optional"
         );
 
-      if (has_keyword && !p.name)
+      if (has_keyword && !kw)
         throw make_compile_error<syntax_error>(
           expect<syntax>(car(param)),
           "Positional parameter after keyword"
         );
 
       has_optional = has_optional || p.optional;
-      has_keyword = has_keyword || p.name;
+      has_keyword = has_keyword || kw;
       param_names = rest;
     } else if (semisyntax_is<symbol>(param_names)) {
       auto p = parse_required_lambda_parameter(pc, assume<syntax>(param_names),
@@ -959,23 +955,23 @@ parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
       );
   }
 
-  return std::tuple{subscope, parameters, has_rest};
+  return std::tuple{subscope, parameters, parameter_names, has_rest};
 }
 
 static void
 throw_if_duplicate_keyword_parameter(
-  std::vector<lambda_expression::parameter> const& params,
+  std::vector<ptr<keyword>> const& names,
   ptr<syntax> stx
 ) {
   // Quadratic algorithm to prevent allocation. Parameter counts will be at most
   // a few hundred in extreme cases, so it'll be fine.
 
-  for (auto p = params.begin(); p != params.end(); ++p)
-    if (p->name)
-      if (std::find_if(std::next(p), params.end(),
-                       [&] (auto const& param) {
-                         return param.name == p->name;
-                       }) != params.end())
+  for (auto kw = names.begin(); kw != names.end(); ++kw)
+    if (*kw)
+      if (std::find_if(std::next(kw), names.end(),
+                       [&] (auto const& name) {
+                         return name == *kw;
+                       }) != names.end())
         throw make_compile_error<syntax_error>(stx,
                                                "Duplicate keyword parameter");
 }
@@ -988,16 +984,16 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   if (!datum || cdr(assume<pair>(datum)) == pc.ctx.constants->null)
     throw make_compile_error<syntax_error>(stx, "Invalid lambda syntax");
 
-  auto [subscope, parameters, has_rest]
+  auto [subscope, parameters, parameter_names, has_rest]
     = parse_lambda_parameters(pc, expect<syntax>(cadr(assume<pair>(datum))),
                               loc);
 
-  throw_if_duplicate_keyword_parameter(parameters, stx);
+  throw_if_duplicate_keyword_parameter(parameter_names, stx);
 
   ptr<> body_stx = cddr(assume<pair>(datum));
   ptr<> body_with_scope = add_scope_to_list(pc.ctx, body_stx, subscope);
 
-  tracker t{pc.ctx, subscope, parameters};
+  tracker t{pc.ctx, subscope, parameters, parameter_names};
   auto subenv = extend_environment(pc, subscope);
   auto body = parse_body(pc, body_with_scope, loc);
 
@@ -1005,6 +1001,7 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
     pc.ctx,
     pc.ctx,
     std::move(parameters),
+    std::move(parameter_names),
     has_rest,
     body,
     fmt::format("<lambda at {}>", format_location(loc)),

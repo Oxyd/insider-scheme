@@ -482,7 +482,6 @@ public:
   struct parameter {
     ptr<local_variable> const variable;
     bool                      optional;
-    ptr<keyword> const        name;
 
     void
     visit_members(member_visitor const& f) const;
@@ -499,6 +498,7 @@ public:
 
   lambda_expression(context&,
                     std::vector<parameter> parameters,
+                    std::vector<ptr<keyword>> parameter_names,
                     bool has_rest,
                     expression body,
                     std::string name,
@@ -506,6 +506,9 @@ public:
 
   std::vector<parameter> const&
   parameters() const { return parameters_; }
+
+  std::vector<ptr<keyword>> const&
+  parameter_names() const { return parameter_names_; }
 
   bool
   has_rest() const { return has_rest_; }
@@ -565,6 +568,7 @@ public:
 
 private:
   std::vector<parameter> const     parameters_;
+  std::vector<ptr<keyword>> const  parameter_names_;
   bool                             has_rest_;
   expression                       body_;
   std::string                      name_;
