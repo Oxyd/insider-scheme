@@ -1303,6 +1303,9 @@ do_instructions(vm& state) {
   }
 }
 
+static ptr<>
+replace_stack(vm& state, ptr<captured_call_stack> cont, ptr<> value);
+
 static void
 do_instructions_translate_exceptions(vm& state) {
   while (!state.result)
@@ -1316,6 +1319,10 @@ do_instructions_translate_exceptions(vm& state) {
       throw e;
     } catch (translatable_runtime_error& e) {
       raise(state, e.translate(state.ctx));
+    } catch (continuation_jump const& jump) {
+      auto value = replace_stack(state, jump.continuation.get(),
+                                 jump.value.get());
+      pop_frame_and_set_return_value(state, value);
     } catch (...) {
       raise(state, make<cxx_exception>(state.ctx, std::current_exception()));
     }
@@ -1540,7 +1547,7 @@ ptr<>
 call_with_continuation_barrier(vm& state, ptr<> callable,
                                std::vector<ptr<>> const& arguments) {
   return call_parameterized_with_continuation_barrier(state, {}, callable,
-                                                      arguments);
+                                                      arguments, true);
 }
 
 ptr<>
@@ -1785,16 +1792,58 @@ common_frame_index(call_stack& x, call_stack& y) {
   return result;
 }
 
-static ptr<>
-replace_stack(vm& state, ptr<captured_call_stack> cont, ptr<> value) {
-  std::optional<call_stack::frame_index> common_frame_idx
-    = common_frame_index(state.stack, cont->stack);
-  throw_if_jump_not_allowed(state, cont, common_frame_idx);
+static std::optional<call_stack::frame_index>
+noncontinuable_frame_index(call_stack const& stack) {
+  // Current frame doesn't count, because replace_stack will simply return out
+  // of it when its done manipulating the stack.
 
+  auto frame = stack.parent();
+  while (frame) {
+    auto type = stack.type(*frame);
+    if (type != call_stack::frame_type::scheme
+        && type != call_stack::frame_type::native_continuation)
+      return frame;
+
+    frame = stack.parent(*frame);
+  }
+
+  return std::nullopt;
+}
+
+[[noreturn]]
+static void
+unwind_stack_noncontinuable(vm& state, call_stack::frame_index idx,
+                            ptr<captured_call_stack> cont, ptr<> value) {
+  // Unwind the part that can be unwound and then throw an exception to raise
+  // the noncontinuable frame.
+
+  unwind_stack(state, idx);
+  throw continuation_jump{track(state.ctx, cont), track(state.ctx, value)};
+}
+
+static ptr<>
+replace_stack_continuable(
+  vm& state,
+  std::optional<call_stack::frame_index> common_frame_idx,
+  ptr<captured_call_stack> cont,
+  ptr<> value
+) {
   unwind_stack(state, common_frame_idx);
   rewind_stack(state, cont->stack, common_frame_idx);
 
   return value;
+}
+
+static ptr<>
+replace_stack(vm& state, ptr<captured_call_stack> cont, ptr<> value) {
+  auto common_frame_idx = common_frame_index(state.stack, cont->stack);
+  throw_if_jump_not_allowed(state, cont, common_frame_idx);
+
+  auto noncont_frame_idx = noncontinuable_frame_index(state.stack);
+  if (noncont_frame_idx && noncont_frame_idx > common_frame_idx)
+    unwind_stack_noncontinuable(state, *noncont_frame_idx, cont, value);
+  else
+    return replace_stack_continuable(state, common_frame_idx, cont, value);
 }
 
 static ptr<>

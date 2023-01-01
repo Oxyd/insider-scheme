@@ -365,14 +365,26 @@ f3(vm& state, ptr<> g) {
   return call_with_continuation_barrier(state, g, {});
 }
 
-TEST_F(control, call_with_continuation_barrier_erects_a_barrier) {
+TEST_F(control, call_with_continuation_barrier_allows_jump_out) {
+  define_procedure<f3>(ctx, "f", ctx.internal_module());
+
+  ptr<> result = eval(R"(
+    (+ 1 (capture-stack
+           (lambda (exit)
+             (f (lambda () (replace-stack! exit 1))))))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 2);
+}
+
+TEST_F(control, call_with_continuation_barrier_prevents_jump_in) {
   define_procedure<f3>(ctx, "f", ctx.internal_module());
 
   EXPECT_THROW(
     eval(R"(
-      (capture-stack
-        (lambda (exit)
-          (f (lambda () (replace-stack! exit 0)))))
+      (let ((stack #f))
+        (f (lambda ()
+             (capture-stack (lambda (s) (set! stack s)))))
+        (replace-stack! stack 1))
     )"),
     std::runtime_error
   );

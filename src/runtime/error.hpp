@@ -11,6 +11,7 @@
 
 namespace insider {
 
+class captured_call_stack;
 class context;
 class module_;
 class string;
@@ -67,6 +68,14 @@ public:
 
   virtual ptr<>
   translate(context&) const = 0;
+};
+
+// Not an error, but rather a way to emulate continuation jumps out of
+// non-cooperative native procedures.
+class continuation_jump {
+public:
+  tracked_ptr<captured_call_stack> continuation;
+  tracked_ptr<>                    value;
 };
 
 } // namespace insider
