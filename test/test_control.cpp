@@ -317,24 +317,11 @@ TEST_F(control, continuation_jump_goes_to_the_correct_call_continuable_call) {
   EXPECT_EQ(expect<integer>(result_v[1]).value(), 2);
 }
 
-TEST_F(control, barrier_prevents_jump_out) {
-  EXPECT_THROW(
-    eval(R"(
-      (capture-stack
-        (lambda (out)
-          (call-with-continuation-barrier #f #t
-            (lambda ()
-              (replace-stack! out #f)))))
-    )"),
-    std::runtime_error
-  );
-}
-
 TEST_F(control, barrier_does_not_prevent_jumps_within_it) {
   auto result = eval(R"(
     (capture-stack
       (lambda (outer)
-        (call-with-continuation-barrier #f #t
+        (call-with-continuation-barrier
           (lambda ()
             (capture-stack
               (lambda (inner)
@@ -348,7 +335,7 @@ TEST_F(control, barrier_prevents_jump_in) {
   EXPECT_THROW(
     eval(R"(
       (let ((inner #f))
-        (call-with-continuation-barrier #t #f
+        (call-with-continuation-barrier
           (lambda ()
             (capture-stack
               (lambda (k)
@@ -1097,7 +1084,7 @@ TEST_F(control, can_access_arguments_after_continuation_jump) {
     (define g
       (lambda (x y)
         ;; Force a frame with extra data
-        (call-with-continuation-barrier #f #f
+        (call-with-continuation-barrier
           (lambda ()
             (f x y)))))
 

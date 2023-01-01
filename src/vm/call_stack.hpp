@@ -36,8 +36,7 @@ public:
   static constexpr char const* scheme_name = "insider::stack_frame_extra_data";
 
   parameter_assignments              parameters;
-  bool                               allow_jump_out = true;
-  bool                               allow_jump_in  = true;
+  bool                               allow_jump_in = true;
   ptr<>                              before_thunk;
   ptr<>                              after_thunk;
   ptr<>                              exception_handler;

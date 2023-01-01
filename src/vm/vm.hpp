@@ -67,9 +67,7 @@ call_parameterized_with_continuation_barrier(
   vm& state,
   parameter_assignments const& params,
   ptr<> callable,
-  std::vector<ptr<>> const& arguments,
-  bool allow_jump_out = false,
-  bool allow_jump_in = false
+  std::vector<ptr<>> const& arguments
 );
 
 // Create a new VM and call given procedure in it. Because it's executed in a

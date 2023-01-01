@@ -1412,11 +1412,9 @@ create_or_get_extra_data(context& ctx, call_stack& stack) {
 }
 
 static void
-erect_barrier(context& ctx, call_stack& stack,
-              bool allow_out, bool allow_in) {
+erect_barrier(context& ctx, call_stack& stack) {
   ptr<stack_frame_extra_data> extra = create_or_get_extra_data(ctx, stack);
-  extra->allow_jump_out = allow_out;
-  extra->allow_jump_in = allow_in;
+  extra->allow_jump_in = false;
 }
 
 namespace {
@@ -1521,17 +1519,14 @@ call_parameterized_with_continuation_barrier(
   vm& state,
   parameter_assignments const& params,
   ptr<> callable,
-  std::vector<ptr<>> const& arguments,
-  bool allow_jump_out,
-  bool allow_jump_in
+  std::vector<ptr<>> const& arguments
 ) {
   expect_callable(callable);
 
   auto& stack = state.stack;
   auto guard = push_dummy_frame(stack);
 
-  if (!allow_jump_out || !allow_jump_in)
-    erect_barrier(state.ctx, stack, allow_jump_out, allow_jump_in);
+  erect_barrier(state.ctx, stack);
 
   if (auto native_proc = match<native_procedure>(callable))
     return call_native(
@@ -1547,22 +1542,27 @@ ptr<>
 call_with_continuation_barrier(vm& state, ptr<> callable,
                                std::vector<ptr<>> const& arguments) {
   return call_parameterized_with_continuation_barrier(state, {}, callable,
-                                                      arguments, true);
+                                                      arguments);
 }
 
 ptr<>
-call_root(context& ctx, ptr<> callable,
-               std::vector<ptr<>> const& arguments) {
-  vm state{ctx};
-  return call_with_continuation_barrier(state, callable, arguments);
+call_root(context& ctx, ptr<> callable, std::vector<ptr<>> const& arguments) {
+  return call_root_parameterized(ctx, {}, callable, arguments);
 }
 
 ptr<>
 call_root_parameterized(context& ctx, parameter_assignments const& params,
                         ptr<> callable, std::vector<ptr<>> const& arguments) {
   vm state{ctx};
-  return call_parameterized_with_continuation_barrier(state, params, callable,
-                                                      arguments);
+
+  if (auto native_proc = match<native_procedure>(callable))
+    return call_native(
+      state, native_proc, arguments, params
+    );
+  else
+    return call_scheme(
+      state, assume<procedure>(callable), arguments, params
+    );
 }
 
 static void
@@ -1693,20 +1693,8 @@ all_frames(call_stack& stack,
 }
 
 static bool
-allows_jump_out(frame_reference f) {
-  return !f.extra() || f.extra()->allow_jump_out;
-}
-
-static bool
 allows_jump_in(frame_reference f) {
   return !f.extra() || f.extra()->allow_jump_in;
-}
-
-static bool
-jump_out_allowed(call_stack& stack,
-                 std::optional<call_stack::frame_index> common) {
-  return all_frames(stack, stack.current_frame_index(), common,
-                    allows_jump_out);
 }
 
 static bool
@@ -1714,14 +1702,6 @@ jump_in_allowed(call_stack& stack,
                 std::optional<call_stack::frame_index> common) {
   return all_frames(stack, stack.current_frame_index(), common,
                     allows_jump_in);
-}
-
-static bool
-continuation_jump_allowed(call_stack& current_stack,
-                          call_stack& new_stack,
-                          std::optional<call_stack::frame_index> common) {
-  return jump_out_allowed(current_stack, common)
-         && jump_in_allowed(new_stack, common);
 }
 
 static void
@@ -1732,7 +1712,7 @@ throw_if_jump_not_allowed(vm& state,
     throw std::runtime_error{"Continuation jump across different executions "
                              "not allowed"};
 
-  if (!continuation_jump_allowed(state.stack, cont->stack, common))
+  if (!jump_in_allowed(cont->stack, common))
     throw std::runtime_error{"Continuation jump across barrier not allowed"};
 }
 
@@ -1847,9 +1827,8 @@ replace_stack(vm& state, ptr<captured_call_stack> cont, ptr<> value) {
 }
 
 static ptr<>
-call_with_continuation_barrier(vm& state, bool allow_out, bool allow_in,
-                               ptr<> callable) {
-  erect_barrier(state.ctx, state.stack, allow_out, allow_in);
+call_with_continuation_barrier(vm& state, ptr<> callable) {
+  erect_barrier(state.ctx, state.stack);
 
   // Non-tail call even though there is nothing to do after this. This is to
   // preserve this frame on the stack because it holds information about the
@@ -2251,9 +2230,7 @@ export_vm(context& ctx, ptr<module_> result) {
   define_procedure<find_parameter_value>(ctx, "find-parameter-value", result);
   define_procedure<set_parameter_value>(ctx, "set-parameter-value!", result);
   define_procedure<
-    static_cast<ptr<> (*)(vm&, bool, bool, ptr<>)>(
-      call_with_continuation_barrier
-    )
+    static_cast<ptr<> (*)(vm&, ptr<>)>(call_with_continuation_barrier)
   >(ctx, "call-with-continuation-barrier", result);
   define_procedure<call_parameterized>(ctx, "call-parameterized", result);
   define_procedure<dynamic_wind>(ctx, "dynamic-wind", result);

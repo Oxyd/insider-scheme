@@ -38,8 +38,7 @@ parameterize(vm& state, parameter_assignments const& params, F&& f) {
     },
     std::make_unique<closure>(f)
   );
-  return call_parameterized_with_continuation_barrier(state, params, proc, {},
-                                                      true, false);
+  return call_parameterized_with_continuation_barrier(state, params, proc, {});
 }
 
 // Like parameterize, but create a new VM and call the callable in it.
