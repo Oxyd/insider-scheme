@@ -431,6 +431,7 @@ top_level_set_expression::show(context& ctx, std::size_t indent) const {
 void
 lambda_expression::parameter::visit_members(member_visitor const& f) const {
   f(variable);
+  f(name);
 }
 
 lambda_expression::lambda_expression(ptr<lambda_expression> source,
