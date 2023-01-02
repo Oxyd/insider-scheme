@@ -549,11 +549,6 @@ body_expressions_to_stack(parsing_context& pc, ptr<> body_exprs,
   return stack;
 }
 
-static tracked_expression
-parse_tracked(parsing_context& pc, ptr<syntax> s) {
-  return {pc.ctx.store, parse(pc, s)};
-}
-
 // Process the beginning of a body by adding new transformer and variable
 // definitions to the environment and expanding the heads of each form in the
 // list. Also checks that the list is followed by at least one expression and
@@ -599,11 +594,6 @@ parse_expression_list(parsing_context& pc,
     result.push_back(parse(pc, e));
 
   return result;
-}
-
-static expression
-untrack(tracked_expression e) {
-  return e.get();
 }
 
 static auto
@@ -1041,28 +1031,25 @@ parse_if(parsing_context& pc, ptr<syntax> stx) {
 
 static ptr<application_expression>
 parse_application(parsing_context& pc, ptr<syntax> stx) {
-  auto datum = track(pc.ctx, syntax_to_list(pc.ctx, stx));
+  auto datum = syntax_to_list(pc.ctx, stx);
   if (!datum)
     throw make_compile_error<syntax_error>(stx, "Invalid function call syntax");
 
-  tracked_expression target_expr
-    = parse_tracked(pc, expect<syntax>(car(assume<pair>(datum.get()))));
+  expression target_expr
+    = parse(pc, expect<syntax>(car(assume<pair>(datum))));
 
-  std::vector<tracked_expression> arguments;
-  auto arg_expr = track(pc.ctx, cdr(assume<pair>(datum.get())));
-  while (arg_expr.get() != pc.ctx.constants->null) {
+  std::vector<expression> arguments;
+  auto arg_expr = cdr(assume<pair>(datum));
+  tracker t{pc.ctx, datum, target_expr, arguments, arg_expr};
+
+  while (arg_expr != pc.ctx.constants->null) {
     arguments.emplace_back(
-      pc.ctx.store,
-      parse(pc, expect<syntax>(car(assume<pair>(arg_expr.get()))))
+      parse(pc, expect<syntax>(car(assume<pair>(arg_expr))))
     );
-    arg_expr = track(pc.ctx, cdr(assume<pair>(arg_expr.get())));
+    arg_expr = cdr(assume<pair>(arg_expr));
   }
 
-  return make<application_expression>(
-    pc.ctx,
-    target_expr.get(),
-    arguments | std::views::transform(untrack)
-  );
+  return make<application_expression>(pc.ctx, target_expr, arguments);
 }
 
 static expression
