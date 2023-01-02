@@ -164,6 +164,9 @@ public:
 
   application_expression(expression t, std::vector<expression> args);
 
+  application_expression(expression t, std::vector<expression> args,
+                         std::vector<ptr<keyword>> arg_names);
+
   template <typename... Ts>
   application_expression(expression t, Ts&&... ts)
     : target_{t}
@@ -171,7 +174,11 @@ public:
     arguments_.reserve(sizeof...(Ts));
     (arguments_.push_back(ts), ...);
 
+    argument_names_.resize(sizeof...(Ts));
+
     update_size_estimate();
+
+    assert(arguments_.size() == argument_names_.size());
   }
 
   expression
@@ -179,6 +186,9 @@ public:
 
   std::vector<expression> const&
   arguments() const { return arguments_; }
+
+  std::vector<ptr<keyword>> const&
+  argument_names() const { return argument_names_; }
 
   std::optional<insider::debug_info>&
   debug_info() { return debug_info_; }
@@ -212,6 +222,7 @@ public:
 private:
   expression                         target_;
   std::vector<expression>            arguments_;
+  std::vector<ptr<keyword>>          argument_names_;
   std::size_t                        size_estimate_ = 0;
   std::optional<insider::debug_info> debug_info_;
   target_kind                        kind_ = target_kind::generic;

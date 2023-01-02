@@ -153,3 +153,52 @@ TEST_F(parser, positional_param_after_keyword_throws) {
 TEST_F(parser, duplicate_keyword_args_throws) {
   EXPECT_THROW(parse("(lambda (#:one a #:one b) #t)"), syntax_error);
 }
+
+TEST_F(parser, parse_nonkeyword_application) {
+  auto a = expect<application_expression>(
+    parse("(list 1 2 3)")
+  );
+  EXPECT_EQ(a->arguments().size(), 3);
+  EXPECT_EQ(a->argument_names().size(), 3);
+  for (ptr<keyword> name : a->argument_names())
+    EXPECT_EQ(name, nullptr);
+}
+
+TEST_F(parser, parse_single_keyword_application) {
+  auto a = expect<application_expression>(
+    parse("(list #:a 1)")
+  );
+  EXPECT_EQ(a->arguments().size(), 1);
+  ASSERT_EQ(a->argument_names().size(), 1);
+  EXPECT_EQ(a->argument_names()[0]->value(), "a");
+}
+
+TEST_F(parser, parse_multiple_keyword_arguments) {
+  auto a = expect<application_expression>(
+    parse("(list #:a 1 #:b 2 #:c 3)")
+  );
+  EXPECT_EQ(a->arguments().size(), 3);
+  ASSERT_EQ(a->argument_names().size(), 3);
+  EXPECT_EQ(a->argument_names()[0]->value(), "a");
+  EXPECT_EQ(a->argument_names()[1]->value(), "b");
+  EXPECT_EQ(a->argument_names()[2]->value(), "c");
+}
+
+TEST_F(parser, parse_keyword_arguments_after_positional_arguments) {
+  auto a = expect<application_expression>(
+    parse("(list 1 2 #:c 3)")
+  );
+  EXPECT_EQ(a->arguments().size(), 3);
+  ASSERT_EQ(a->argument_names().size(), 3);
+  EXPECT_EQ(a->argument_names()[0], nullptr);
+  EXPECT_EQ(a->argument_names()[1], nullptr);
+  EXPECT_EQ(a->argument_names()[2]->value(), "c");
+}
+
+TEST_F(parser, keyword_without_argument_is_an_error) {
+  EXPECT_THROW(parse("(list #:a)"), syntax_error);
+}
+
+TEST_F(parser, keyword_argument_followed_by_keyword_is_an_error) {
+  EXPECT_THROW(parse("(list #:a #:b)"), syntax_error);
+}

@@ -1029,6 +1029,37 @@ parse_if(parsing_context& pc, ptr<syntax> stx) {
   return make<if_expression>(pc.ctx, test_expr, then_expr, else_expr);
 }
 
+static std::tuple<expression, ptr<keyword>, ptr<>>
+parse_keyword_argument(parsing_context& pc, ptr<pair> args_expr) {
+  auto name_stx = assume<syntax>(car(args_expr));
+  auto name = syntax_assume_without_update<keyword>(name_stx);
+
+  if (cdr(args_expr) == pc.ctx.constants->null)
+    throw make_compile_error<syntax_error>(name_stx,
+                                           "Keyword not followed by expression");
+
+  auto arg_expr = expect<syntax>(cadr(args_expr));
+
+  tracker t{pc.ctx, name, args_expr};
+  return {parse(pc, arg_expr), name, cddr(args_expr)};
+}
+
+static std::tuple<expression, ptr<keyword>, ptr<>>
+parse_positional_argument(parsing_context& pc, ptr<pair> args_expr) {
+  tracker t{pc.ctx, args_expr};
+  auto arg_expr = expect<syntax>(car(args_expr));
+  return {parse(pc, arg_expr), {}, cdr(args_expr)};
+}
+
+static std::tuple<expression, ptr<keyword>, ptr<>>
+parse_argument(parsing_context& pc, ptr<pair> args_expr) {
+  auto expr = expect<syntax>(car(args_expr));
+  if (expr->contains<keyword>())
+    return parse_keyword_argument(pc, args_expr);
+  else
+    return parse_positional_argument(pc, args_expr);
+}
+
 static ptr<application_expression>
 parse_application(parsing_context& pc, ptr<syntax> stx) {
   auto datum = syntax_to_list(pc.ctx, stx);
@@ -1039,17 +1070,19 @@ parse_application(parsing_context& pc, ptr<syntax> stx) {
     = parse(pc, expect<syntax>(car(assume<pair>(datum))));
 
   std::vector<expression> arguments;
-  auto arg_expr = cdr(assume<pair>(datum));
-  tracker t{pc.ctx, datum, target_expr, arguments, arg_expr};
+  std::vector<ptr<keyword>> argument_names;
+  auto args_expr = cdr(assume<pair>(datum));
+  tracker t{pc.ctx, datum, target_expr, arguments, argument_names, args_expr};
 
-  while (arg_expr != pc.ctx.constants->null) {
-    arguments.emplace_back(
-      parse(pc, expect<syntax>(car(assume<pair>(arg_expr))))
-    );
-    arg_expr = cdr(assume<pair>(arg_expr));
+  while (args_expr != pc.ctx.constants->null) {
+    auto [arg, name, rest] = parse_argument(pc, assume<pair>(args_expr));
+    arguments.push_back(arg);
+    argument_names.push_back(name);
+    args_expr = rest;
   }
 
-  return make<application_expression>(pc.ctx, target_expr, arguments);
+  return make<application_expression>(pc.ctx, target_expr, arguments,
+                                      argument_names);
 }
 
 static expression

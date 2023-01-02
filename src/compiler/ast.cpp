@@ -127,13 +127,29 @@ application_expression::application_expression(expression t,
                                                std::vector<expression> args)
   : target_{t}
   , arguments_{std::move(args)}
-{ }
+{
+  argument_names_.resize(arguments_.size());
+}
+
+application_expression::application_expression(
+  expression t,
+  std::vector<expression> args,
+  std::vector<ptr<keyword>> arg_names
+)
+  : target_{t}
+  , arguments_{std::move(args)}
+  , argument_names_{std::move(arg_names)}
+{
+  assert(arguments_.size() == argument_names_.size());
+}
 
 void
 application_expression::visit_members(member_visitor const& f) const {
   target_.visit_members(f);
-  for (auto& arg : arguments_)
+  for (auto const& arg : arguments_)
     arg.visit_members(f);
+  for (auto const& kw : argument_names_)
+    f(kw);
 }
 
 static void
