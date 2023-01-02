@@ -202,3 +202,7 @@ TEST_F(parser, keyword_without_argument_is_an_error) {
 TEST_F(parser, keyword_argument_followed_by_keyword_is_an_error) {
   EXPECT_THROW(parse("(list #:a #:b)"), syntax_error);
 }
+
+TEST_F(parser, keyword_argument_followed_by_nonkeyword_is_an_error) {
+  EXPECT_THROW(parse("(list #:a 1 2)"), syntax_error);
+}
