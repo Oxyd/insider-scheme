@@ -1744,11 +1744,12 @@ unwind_stack(vm& state,
 }
 
 static void
-rewind_stack(vm& state, call_stack const& cont,
+rewind_stack(vm& state,
+             tracked_ptr<captured_call_stack> const& cont,
              std::optional<call_stack::frame_index> common_frame) {
   call_stack::frame_index begin = common_frame ? *common_frame + 1 : 0;
-  for (std::size_t i = begin; i < cont.frame_count(); ++i) {
-    state.stack.append_frame(cont, i);
+  for (std::size_t i = begin; i < cont->stack.frame_count(); ++i) {
+    state.stack.append_frame(cont->stack, i);
     if (ptr<> thunk = get_before_thunk(state.stack))
       call_with_continuation_barrier(state, thunk, {});
   }
@@ -1810,7 +1811,7 @@ replace_stack_continuable(
   tracked_ptr<> const& value
 ) {
   unwind_stack(state, common_frame_idx);
-  rewind_stack(state, cont->stack, common_frame_idx);
+  rewind_stack(state, cont, common_frame_idx);
 
   return value;
 }
