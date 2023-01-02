@@ -1303,8 +1303,9 @@ do_instructions(vm& state) {
   }
 }
 
-static ptr<>
-replace_stack(vm& state, ptr<captured_call_stack> cont, ptr<> value);
+static tracked_ptr<>
+replace_stack(vm& state, tracked_ptr<captured_call_stack> const& cont,
+              tracked_ptr<> const& value);
 
 static void
 do_instructions_translate_exceptions(vm& state) {
@@ -1320,9 +1321,8 @@ do_instructions_translate_exceptions(vm& state) {
     } catch (translatable_runtime_error& e) {
       raise(state, e.translate(state.ctx));
     } catch (continuation_jump const& jump) {
-      auto value = replace_stack(state, jump.continuation.get(),
-                                 jump.value.get());
-      pop_frame_and_set_return_value(state, value);
+      auto value = replace_stack(state, jump.continuation, jump.value);
+      pop_frame_and_set_return_value(state, value.get());
     } catch (...) {
       raise(state, make<cxx_exception>(state.ctx, std::current_exception()));
     }
@@ -1706,7 +1706,7 @@ jump_in_allowed(call_stack& stack,
 
 static void
 throw_if_jump_not_allowed(vm& state,
-                          ptr<captured_call_stack> cont,
+                          tracked_ptr<captured_call_stack> const& cont,
                           std::optional<call_stack::frame_index> common) {
   if (cont->vm_id != state.id())
     throw std::runtime_error{"Continuation jump across different executions "
@@ -1793,20 +1793,21 @@ noncontinuable_frame_index(call_stack const& stack) {
 [[noreturn]]
 static void
 unwind_stack_noncontinuable(vm& state, call_stack::frame_index idx,
-                            ptr<captured_call_stack> cont, ptr<> value) {
+                            tracked_ptr<captured_call_stack> const& cont,
+                            tracked_ptr<> const& value) {
   // Unwind the part that can be unwound and then throw an exception to raise
   // the noncontinuable frame.
 
   unwind_stack(state, idx);
-  throw continuation_jump{track(state.ctx, cont), track(state.ctx, value)};
+  throw continuation_jump{cont, value};
 }
 
-static ptr<>
+static tracked_ptr<>
 replace_stack_continuable(
   vm& state,
   std::optional<call_stack::frame_index> common_frame_idx,
-  ptr<captured_call_stack> cont,
-  ptr<> value
+  tracked_ptr<captured_call_stack> const& cont,
+  tracked_ptr<> const& value
 ) {
   unwind_stack(state, common_frame_idx);
   rewind_stack(state, cont->stack, common_frame_idx);
@@ -1814,8 +1815,9 @@ replace_stack_continuable(
   return value;
 }
 
-static ptr<>
-replace_stack(vm& state, ptr<captured_call_stack> cont, ptr<> value) {
+static tracked_ptr<>
+replace_stack(vm& state, tracked_ptr<captured_call_stack> const& cont,
+              tracked_ptr<> const& value) {
   auto common_frame_idx = common_frame_index(state.stack, cont->stack);
   throw_if_jump_not_allowed(state, cont, common_frame_idx);
 
