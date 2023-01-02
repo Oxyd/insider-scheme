@@ -997,10 +997,10 @@ TEST_F(control,
   auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
   define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
-  auto get_value = eval(R"(
+  auto get_value = track(ctx, eval(R"(
     (lambda ()
       (find-parameter-value p))
-  )");
+  )"));
 
   define_closure<ptr<>(vm&)>(
     ctx, "get-value-parameterized", ctx.internal_module(),
@@ -1009,7 +1009,7 @@ TEST_F(control,
         state,
         {{tag.get(), integer_to_ptr(4)}},
         [&] (vm& state) {
-          return call_with_continuation_barrier(state, get_value, {});
+          return call_with_continuation_barrier(state, get_value.get(), {});
         }
       );
     }
