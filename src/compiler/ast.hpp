@@ -164,13 +164,6 @@ public:
 
   application_expression(expression t, std::vector<expression> args);
 
-  application_expression(expression t, std::ranges::range auto args)
-    : target_{t}
-    , arguments_(args.begin(), args.end())
-  {
-    update_size_estimate();
-  }
-
   template <typename... Ts>
   application_expression(expression t, Ts&&... ts)
     : target_{t}
