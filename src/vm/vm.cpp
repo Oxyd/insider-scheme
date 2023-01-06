@@ -239,27 +239,21 @@ check_and_convert_scheme_call_arguments(vm& state,
   convert_tail_args(state.ctx, state.stack, proto, base, num_args);
 }
 
-template <bool IsTail, bool CheckAndConvertArgs>
 static void
-make_scheme_frame(ptr<procedure> proc, vm& state, operand base) {
-  if constexpr (CheckAndConvertArgs)
-    check_and_convert_scheme_call_arguments(state, proc->prototype(), base);
-  else
-    read_operand(state);
-
-  if constexpr (!IsTail) {
-    operand result_reg = read_operand(state);
-    push_scheme_frame(state, proc, base, result_reg);
-  } else
-    make_scheme_tail_call_frame(state.stack, proc, base,
-                                actual_args_size(proc->prototype()));
+push_scheme_call_frame(vm& state, ptr<procedure> proc, register_index base) {
+  check_and_convert_scheme_call_arguments(state, proc->prototype(), base);
+  operand result_reg = read_operand(state);
+  push_scheme_frame(state, proc, base, result_reg);
+  push_closure(proc, state.stack);
+  state.ip = proc->prototype().code.get();
 }
 
-template <bool IsTail, bool CheckAndConvertArgs>
 static void
-push_scheme_call_frame(ptr<procedure> proc, vm& state,
-                       operand base) {
-  make_scheme_frame<IsTail, CheckAndConvertArgs>(proc, state, base);
+push_scheme_tail_call_frame(vm& state, ptr<procedure> proc,
+                            register_index base) {
+  check_and_convert_scheme_call_arguments(state, proc->prototype(), base);
+  make_scheme_tail_call_frame(state.stack, proc, base,
+                              actual_args_size(proc->prototype()));
   push_closure(proc, state.stack);
   state.ip = proc->prototype().code.get();
 }
@@ -946,7 +940,7 @@ do_instructions(vm& state) {
       ptr<> callee = state.stack.local(base);
 
       if (auto proc = match<procedure>(callee))
-        push_scheme_call_frame<false, true>(proc, state, base);
+        push_scheme_call_frame(state, proc, base);
       else if (auto native = match<native_procedure>(callee))
         do_native_call(native, state, base, false);
       else
@@ -959,7 +953,7 @@ do_instructions(vm& state) {
       ptr<> callee = state.stack.local(base);
 
       if (auto proc = match<procedure>(callee))
-        push_scheme_call_frame<true, true>(proc, state, base);
+        push_scheme_tail_call_frame(state, proc, base);
       else if (auto native = match<native_procedure>(callee))
         do_native_call(native, state, base, true);
       else
