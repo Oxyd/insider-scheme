@@ -136,9 +136,9 @@ fill_unsupplied_optional_parameters_with_defaults(
 }
 
 static ptr<application_expression>
-reorder_keyword_arguments(context& ctx,
-                          ptr<application_expression> app,
-                          ptr<lambda_expression> target) {
+reorder_and_supplement_arguments(context& ctx,
+                                 ptr<application_expression> app,
+                                 ptr<lambda_expression> target) {
   std::vector<expression> new_args;
   new_args.resize(leading_parameter_count(target));
   if (!fill_keyword_parameter_slots(new_args, app, target))
@@ -157,43 +157,14 @@ has_unsupplied_optionals(ptr<application_expression> app,
   return app->arguments().size() < leading_parameter_count(lambda);
 }
 
-static std::vector<expression>
-supplement_arguments_with_defaults(context& ctx,
-                                   ptr<application_expression> app,
-                                   ptr<lambda_expression> lambda) {
-  auto args = app->arguments();
-  std::size_t given_length = args.size();
-  std::size_t total_length = leading_parameter_count(lambda);
-  assert(given_length < total_length);
-
-  args.reserve(total_length);
-  for (std::size_t i = given_length; i < total_length; ++i)
-    args.emplace_back(
-      make<literal_expression>(ctx, ctx.constants->default_value)
-    );
-
-  return args;
-}
-
-static ptr<application_expression>
-supplement_application_with_default_values(context& ctx,
-                                           ptr<application_expression> app,
-                                           ptr<lambda_expression> lambda) {
-  auto new_args = supplement_arguments_with_defaults(ctx, app, lambda);
-  return make<application_expression>(ctx, app->target(), std::move(new_args));
-}
-
 static expression
 visit_scheme_application(context& ctx, ptr<application_expression> app,
                          ptr<lambda_expression> lambda) {
   if (!scheme_application_is_valid(app, lambda))
     return app;
 
-  if (has_keyword_arguments(app))
-    app = reorder_keyword_arguments(ctx, app, lambda);
-
-  if (has_unsupplied_optionals(app, lambda))
-    app = supplement_application_with_default_values(ctx, app, lambda);
+  if (has_keyword_arguments(app) || has_unsupplied_optionals(app, lambda))
+    app = reorder_and_supplement_arguments(ctx, app, lambda);
 
   app->set_kind(application_expression::target_kind::scheme);
   return app;
