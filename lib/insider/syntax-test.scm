@@ -206,7 +206,14 @@
       (test-equal '(1 2 (3)) (f 1 2 3))
       (test-equal '(1 2 ()) (f 1 2))
       (test-equal '(1 #f ()) (f 1))
-      (test-equal '(#f #f ()) (f)))))
+      (test-equal '(#f #f ()) (f)))
+
+    (let ((f (lambda (#:one a #:two b) (list a b))))
+      (test-equal '(1 2) (f #:two 2 #:one 1))
+      (test-equal '(1 2) (f #:one 1 #:two 2))
+      (test-equal '(1 2) (f #:two 2 1))
+      (test-equal '(1 2) (f 1 2))
+      (test-equal '(1 2) (f 1 #:two 2)))))
 
 (when-main-module
  (test-syntax))

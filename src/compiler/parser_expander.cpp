@@ -886,14 +886,14 @@ parse_lambda_parameter(parsing_context& pc, ptr<pair> params,
   auto param = expect<syntax>(car(params));
   if (param->contains<keyword>()) {
     auto kw = assume<keyword>(param->get_expression_without_update());
-    param = expect<syntax>(cadr(params));
+    param = syntax_cadr(pc.ctx, params);
     return {parse_positional_lambda_parameter(pc, param, subscope),
             kw,
-            cddr(params)};
+            syntax_cdr(pc.ctx, syntax_cdr(pc.ctx, params))};
   } else
     return {parse_positional_lambda_parameter(pc, param, subscope),
             {},
-            cdr(params)};
+            syntax_cdr(pc.ctx, params)};
 }
 
 static auto
