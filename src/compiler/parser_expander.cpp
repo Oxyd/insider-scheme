@@ -1074,19 +1074,11 @@ parse_application(parsing_context& pc, ptr<syntax> stx) {
   auto args_expr = cdr(assume<pair>(datum));
   tracker t{pc.ctx, datum, target_expr, arguments, argument_names, args_expr};
 
-  bool have_named = false;
   while (args_expr != pc.ctx.constants->null) {
     auto [arg, name, rest] = parse_argument(pc, assume<pair>(args_expr));
     arguments.push_back(arg);
     argument_names.push_back(name);
     args_expr = rest;
-
-    if (!name && have_named)
-      throw make_compile_error<syntax_error>(
-        stx, "Non-keyword argument after a keyword one"
-      );
-
-    have_named = have_named || name != nullptr;
   }
 
   return make<application_expression>(pc.ctx, target_expr, arguments,
