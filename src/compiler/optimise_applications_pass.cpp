@@ -93,7 +93,8 @@ supplement_application_with_default_values(context& ctx,
 static expression
 visit_scheme_application(context& ctx, ptr<application_expression> app,
                          ptr<lambda_expression> lambda) {
-  if (!scheme_application_is_valid(app, lambda))
+  if (!scheme_application_is_valid(app, lambda)
+      || has_keyword_arguments(app))
     return app;
 
   if (has_unsupplied_optionals(app, lambda))

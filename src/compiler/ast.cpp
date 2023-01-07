@@ -220,6 +220,12 @@ application_expression::show(context& ctx, std::size_t indent) const {
                      i, i, t, i, args);
 }
 
+bool
+has_keyword_arguments(ptr<application_expression> app) {
+  return std::ranges::any_of(app->argument_names(),
+                             [] (ptr<keyword> kw) { return kw != nullptr; });
+}
+
 built_in_operation_expression::built_in_operation_expression(
   opcode op, std::vector<expression> operands, bool has_result,
   ptr<native_procedure> proc

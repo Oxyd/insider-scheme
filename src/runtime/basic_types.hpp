@@ -10,6 +10,7 @@
 #include "util/object_span.hpp"
 #include "vm/bytecode.hpp"
 
+#include <memory>
 #include <ranges>
 #include <utility>
 
@@ -474,6 +475,7 @@ public:
     unsigned                        num_required_args;
     unsigned                        num_leading_args;
     bool                            has_rest;
+    std::shared_ptr<ptr<keyword>[]> parameter_names;
     std::shared_ptr<std::string>    name;
     std::shared_ptr<debug_info_map> debug_info;
   };

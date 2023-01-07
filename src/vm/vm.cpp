@@ -8,6 +8,7 @@
 #include "memory/free_store.hpp"
 #include "memory/tracker.hpp"
 #include "ptr.hpp"
+#include "runtime/basic_types.hpp"
 #include "runtime/error.hpp"
 #include "runtime/integer.hpp"
 #include "runtime/numeric.hpp"
@@ -17,11 +18,13 @@
 #include "util/from_scheme.hpp"
 #include "util/integer_cast.hpp"
 #include "util/to_scheme.hpp"
+#include "vm/bytecode.hpp"
 #include "vm/call_stack.hpp"
 #include "vm/stacktrace.hpp"
 
 #include <cassert>
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -196,6 +199,130 @@ fill_in_default_values(context& ctx, call_stack& stack,
   }
 }
 
+static std::vector<ptr<>>
+copy_arguments(call_stack& stack, register_index base, std::size_t num_args) {
+  std::vector<ptr<>> result;
+  result.reserve(num_args);
+  for (std::size_t i = 0; i < num_args; ++i)
+    result.push_back(stack.local(base + i + 1));
+  return result;
+}
+
+static void
+clear_arguments(call_stack& stack, operand base, std::size_t num_args) {
+  for (std::size_t i = 0; i < num_args; ++i)
+    stack.local(base + i + 1) = nullptr;
+}
+
+static register_index
+find_named_arg_position(ptr<keyword> name, procedure_prototype const& proto) {
+  for (register_index i = 0; i < proto.info.num_leading_args; ++i)
+    if (proto.info.parameter_names[i] == name)
+      return i;
+
+  throw make_error("{}: Procedure does not accept keyword argument #:{}",
+                   *proto.info.name, name->value());
+}
+
+static void
+push_named_args(call_stack& stack, register_index base, ptr<vector> arg_names,
+                procedure_prototype const& proto,
+                std::vector<ptr<>> const& args) {
+  for (std::size_t i = 0; i < arg_names->size(); ++i)
+    if (arg_names->ref(i)) {
+      auto name = assume<keyword>(arg_names->ref(i));
+      register_index pos = find_named_arg_position(name, proto);
+
+      ptr<>& slot = stack.local(base + pos + 1);
+      if (slot == nullptr)
+        slot = args[i];
+      else
+        throw make_error("{}: Duplicate keyword argument #:{}",
+                         *proto.info.name, name->value());
+    }
+}
+
+static register_index
+find_unfilled_arg_position(call_stack const& stack, register_index base,
+                           register_index start_from, std::size_t num_args) {
+  for (register_index i = start_from; i < base + num_args + 1; ++i)
+    if (stack.local(i) == nullptr)
+      return i;
+
+  // This should have been caught before we even get here.
+  assert(false);
+  throw std::logic_error{"No slot for unnamed argument"};
+}
+
+static void
+push_unnamed_args(call_stack& stack, register_index base, ptr<vector> arg_names,
+                  std::vector<ptr<>> const& args) {
+  register_index next_arg = base + 1;
+  for (std::size_t i = 0; i < arg_names->size(); ++i)
+    if (!arg_names->ref(i)) {
+      register_index index = find_unfilled_arg_position(stack, base, next_arg,
+                                                        args.size());
+      stack.local(index) = args[i];
+      next_arg = index + 1;
+    }
+}
+
+static void
+check_required_args_are_provided(call_stack& stack, register_index base,
+                                 ptr<vector> arg_names,
+                                 procedure_prototype const& proto) {
+  for (unsigned i = 0; i < proto.info.num_required_args; ++i)
+    if (!stack.local(base + i + 1)) {
+      if (arg_names->ref(i))
+        throw make_error("{}: No value for required argument #:{}",
+                         *proto.info.name,
+                         assume<keyword>(arg_names->ref(i))->value());
+      else
+        throw make_error("{}: No value for required positional argument #{}",
+                         *proto.info.name, i + 1);
+    }
+}
+
+static void
+resize_frame_for_parameters(call_stack& stack, register_index base,
+                            procedure_prototype const& proto) {
+    register_index end = base + proto.info.num_leading_args + 1;
+  if (stack.frame_size() <= end)
+    stack.resize_current_frame(end + 1);
+}
+
+static void
+fill_in_default_values_for_keyword_call(context& ctx,
+                                        call_stack& stack, register_index base,
+                                        procedure_prototype const& proto) {
+  for (unsigned i = proto.info.num_required_args;
+       i < proto.info.num_leading_args;
+       ++i) {
+    ptr<>& slot = stack.local(base + i + 1);
+    if (!slot)
+      slot = ctx.constants->default_value;
+  }
+}
+
+static void
+reorder_keyword_arguments(context& ctx,
+                          call_stack& stack,
+                          procedure_prototype const& proto,
+                          register_index base,
+                          ptr<vector> arg_names) {
+  auto args = copy_arguments(stack, base, arg_names->size());
+  resize_frame_for_parameters(stack, base, proto);
+  clear_arguments(
+    stack, base,
+    std::max(arg_names->size(),
+             static_cast<std::size_t>(proto.info.num_leading_args))
+  );
+  push_named_args(stack, base, arg_names, proto, args);
+  push_unnamed_args(stack, base, arg_names, args);
+  check_required_args_are_provided(stack, base, arg_names, proto);
+  fill_in_default_values_for_keyword_call(ctx, stack, base, proto);
+}
+
 static instruction_pointer
 current_procedure_bytecode_base(vm const& state) {
   return assume<procedure>(state.stack.callable())->prototype().code.get();
@@ -240,18 +367,32 @@ check_and_convert_scheme_call_arguments(vm& state,
 }
 
 static void
+check_and_convert_scheme_keyword_call_arguments(vm& state,
+                                                procedure_prototype const& proto,
+                                                register_index base) {
+  operand arg_names_index = read_operand(state);
+  auto arg_names = assume<vector>(get_constant(state.stack, arg_names_index));
+  auto num_args = arg_names->size();
+  throw_if_wrong_number_of_args(proto, num_args);
+  reorder_keyword_arguments(state.ctx, state.stack, proto, base, arg_names);
+  convert_tail_args(state.ctx, state.stack, proto, base, num_args);
+}
+
+template <auto ArgChecker>
+static void
 push_scheme_call_frame(vm& state, ptr<procedure> proc, register_index base) {
-  check_and_convert_scheme_call_arguments(state, proc->prototype(), base);
+  ArgChecker(state, proc->prototype(), base);
   operand result_reg = read_operand(state);
   push_scheme_frame(state, proc, base, result_reg);
   push_closure(proc, state.stack);
   state.ip = proc->prototype().code.get();
 }
 
+template <auto ArgChecker>
 static void
 push_scheme_tail_call_frame(vm& state, ptr<procedure> proc,
                             register_index base) {
-  check_and_convert_scheme_call_arguments(state, proc->prototype(), base);
+  ArgChecker(state, proc->prototype(), base);
   make_scheme_tail_call_frame(state.stack, proc, base,
                               actual_args_size(proc->prototype()));
   push_closure(proc, state.stack);
@@ -940,9 +1081,27 @@ do_instructions(vm& state) {
       ptr<> callee = state.stack.local(base);
 
       if (auto proc = match<procedure>(callee))
-        push_scheme_call_frame(state, proc, base);
+        push_scheme_call_frame<check_and_convert_scheme_call_arguments>(
+          state, proc, base
+        );
       else if (auto native = match<native_procedure>(callee))
         do_native_call(native, state, base, false);
+      else
+        throw_application_error(state.ctx, callee);
+      break;
+    }
+
+    case opcode::call_keywords: {
+      operand base = read_operand(state);
+      ptr<> callee = state.stack.local(base);
+
+      if (auto proc = match<procedure>(callee))
+        push_scheme_call_frame<check_and_convert_scheme_keyword_call_arguments>(
+          state, proc, base
+        );
+      else if (auto native = match<native_procedure>(callee))
+        throw make_error("Application: Native calls with keyword arguments not "
+                         "supported: {}", native->name);
       else
         throw_application_error(state.ctx, callee);
       break;
@@ -953,9 +1112,27 @@ do_instructions(vm& state) {
       ptr<> callee = state.stack.local(base);
 
       if (auto proc = match<procedure>(callee))
-        push_scheme_tail_call_frame(state, proc, base);
+        push_scheme_tail_call_frame<check_and_convert_scheme_call_arguments>(
+          state, proc, base
+        );
       else if (auto native = match<native_procedure>(callee))
         do_native_call(native, state, base, true);
+      else
+        throw_application_error(state.ctx, callee);
+      break;
+    }
+
+    case opcode::tail_call_keywords: {
+      operand base = read_operand(state);
+      ptr<> callee = state.stack.local(base);
+
+      if (auto proc = match<procedure>(callee))
+        push_scheme_tail_call_frame<check_and_convert_scheme_keyword_call_arguments>(
+          state, proc, base
+        );
+      else if (auto native = match<native_procedure>(callee))
+        throw make_error("Application: Native calls with keyword arguments not "
+                         "supported: {}", native->name);
       else
         throw_application_error(state.ctx, callee);
       break;

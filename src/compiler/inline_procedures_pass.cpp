@@ -322,7 +322,8 @@ namespace {
       return !is_self_recursive_call(lambda)
              && !is_self_referential(lambda)
              && arity_matches(app, lambda)
-             && is_small_enough_to_inline(lambda);
+             && is_small_enough_to_inline(lambda)
+             && !has_keyword_arguments(app);
     }
 
     expression

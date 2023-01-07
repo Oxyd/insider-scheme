@@ -6,6 +6,8 @@
 #include "util/define_procedure.hpp"
 #include "vm/stacktrace.hpp"
 #include "vm/vm.hpp"
+#include <gtest/gtest.h>
+#include <stdexcept>
 
 using namespace insider;
 
@@ -21,6 +23,7 @@ make_procedure(context& ctx, mutable_bytecode const& bc,
       .num_required_args = leading_args,
       .num_leading_args = leading_args,
       .has_rest = has_rest,
+      .parameter_names = std::make_shared<ptr<keyword>[]>(leading_args),
       .name = std::make_shared<std::string>("<test procedure>"),
       .debug_info = std::make_shared<debug_info_map>()
     },
@@ -256,6 +259,7 @@ TEST_F(interpreter, exec_closure_ref) {
       .num_required_args = 1,
       .num_leading_args = 1,
       .has_rest = false,
+      .parameter_names = std::make_shared<ptr<keyword>[]>(1),
       .name = std::make_shared<std::string>("add"),
       .debug_info = std::make_shared<debug_info_map>()
     },
@@ -397,6 +401,7 @@ TEST_F(interpreter, load_self_in_closure) {
       .num_required_args = 0,
       .num_leading_args = 0,
       .has_rest = false,
+      .parameter_names = std::make_shared<ptr<keyword>[]>(0),
       .name = std::make_shared<std::string>("f"),
       .debug_info = std::make_shared<debug_info_map>()
     },
@@ -571,6 +576,119 @@ TEST_F(interpreter, calling_lambda_with_not_enough_args_throws) {
           (f 0))
       )"
     ),
+    std::runtime_error
+  );
+}
+
+TEST_F(interpreter, call_keyword_args_in_original_order) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda (#:one a #:two b) (list a b))))
+      (f #:one 1 #:two 2))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2)")));
+}
+
+TEST_F(interpreter, call_keyword_args_in_non_original_order) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda (#:one a #:two b #:three c) (list a b c))))
+      (f #:three 3 #:one 1 #:two 2))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2 3)")));
+}
+
+TEST_F(interpreter, call_keyword_args_by_position) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda (#:one a #:two b) (list a b))))
+      (f 1 2))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2)")));
+}
+
+TEST_F(interpreter, mix_by_position_and_named_arguments) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda (#:one a #:two b #:three c) (list a b c))))
+      (f 3 #:two 2 #:one 1))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2 3)")));
+}
+
+TEST_F(interpreter, keyword_args_followed_by_tail) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda (#:one a #:two b . rest) (cons a (cons b rest)))))
+      (f #:two 2 #:one 1 3 4))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2 3 4)")));
+}
+
+TEST_F(interpreter, keyword_and_positional_args_followed_by_tail) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda (a b #:three c #:four d . rest)
+               (cons a (cons b (cons c (cons d rest)))))))
+      (f 1 #:three 3 2 5 6 #:four 4 7 8))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2 3 4 5 6 7 8)")));
+}
+
+TEST_F(interpreter, supply_optional_keyword_arg) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda (#:one a #:two (b #:optional)) (list a b))))
+      (f #:two 2 #:one 1))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2)")));
+}
+
+TEST_F(interpreter, dont_supply_optional_keyword_arg) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda (#:one a #:two (b #:optional)) (list a b))))
+      (f #:one 1))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 #default-value)")));
+}
+
+TEST_F(interpreter, optional_unnamed_and_named_args) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda (a
+                      (b #:optional)
+                      #:three (c #:optional)
+                      #:four (d #:optional))
+               (list a b c d))))
+      (f #:three 3 1))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 #default-value 3 #default-value)")));
+}
+
+TEST_F(interpreter, keyword_optional_and_tail) {
+  ptr<> result1 = eval(R"(
+    (let ((f (lambda (a (b #:optional) #:three (c #:optional) . rest)
+               (cons a (cons b (cons c rest))))))
+      (f #:three 3 1))
+  )");
+  EXPECT_TRUE(equal(result1, read("(1 #default-value 3)")));
+
+  ptr<> result2 = eval(R"(
+    (let ((f (lambda (a (b #:optional) #:three (c #:optional) . rest)
+               (cons a (cons b (cons c rest))))))
+      (f #:three 3 1 2 4 5))
+  )");
+  EXPECT_TRUE(equal(result2, read("(1 2 3 4 5)")));
+}
+
+TEST_F(interpreter, required_keyword_not_supplied_throws) {
+  EXPECT_THROW(
+    eval(R"(
+      (let ((f (lambda (#:one a #:two b) (list a b))))
+        (f #:two 2))
+    )"),
+    std::runtime_error
+  );
+}
+
+TEST_F(interpreter, required_positional_arg_not_supplied_throws) {
+  EXPECT_THROW(
+    eval(R"(
+      (let ((f (lambda (a #:two b) (list a b))))
+        (f #:two 2))
+    )"),
     std::runtime_error
   );
 }

@@ -65,6 +65,7 @@ struct call_stack_fixture : scheme_fixture {
           .num_required_args = 0,
           .num_leading_args = 0,
           .has_rest = false,
+          .parameter_names = std::make_shared<ptr<keyword>[]>(0),
           .name = std::make_shared<std::string>("<dummy>"),
           .debug_info = std::make_shared<debug_info_map>()
         },

@@ -231,6 +231,9 @@ private:
   update_size_estimate();
 };
 
+bool
+has_keyword_arguments(ptr<application_expression>);
+
 class built_in_operation_expression
   : public composite_object<built_in_operation_expression>
 {

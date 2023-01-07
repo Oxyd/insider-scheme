@@ -10,6 +10,7 @@
 #include "runtime/basic_types.hpp"
 #include "runtime/compare.hpp"
 #include "util/integer_cast.hpp"
+#include "vm/call_stack.hpp"
 #include "vm/operand.hpp"
 
 #include <fmt/format.h>
@@ -377,6 +378,13 @@ emit_reference_to_empty_closure(context& ctx, procedure_context& parent,
   compile_static_reference(ctx, parent, cls, result);
 }
 
+static std::shared_ptr<ptr<keyword>[]>
+make_prototype_parameter_names(std::vector<ptr<keyword>> const& names) {
+  auto result = std::make_shared<ptr<keyword>[]>(names.size());
+  std::ranges::copy(names, result.get());
+  return result;
+}
+
 static void
 compile_expression(context& ctx, procedure_context& parent,
                    ptr<lambda_expression> stx, bool, result_location& result) {
@@ -395,6 +403,7 @@ compile_expression(context& ctx, procedure_context& parent,
       .num_required_args = required_args,
       .num_leading_args = leading_args,
       .has_rest = stx->has_rest(),
+      .parameter_names = make_prototype_parameter_names(stx->parameter_names()),
       .name = std::make_shared<std::string>(stx->name()),
       .debug_info = {}
     },
@@ -577,16 +586,54 @@ compile_application_arguments(context& ctx, procedure_context& proc,
 
 static opcode
 application_opcode(ptr<application_expression> stx, bool tail) {
-  switch (stx->kind()) {
-  case application_expression::target_kind::generic:
-    return tail ? opcode::tail_call : opcode::call;
-  case application_expression::target_kind::scheme:
-    return tail ? opcode::tail_call_known_scheme : opcode::call_known_scheme;
-  case application_expression::target_kind::native:
-    return tail ? opcode::tail_call_known_native : opcode::call_known_native;
-  }
+  if (has_keyword_arguments(stx))
+    return tail ? opcode::tail_call_keywords : opcode::call_keywords;
+  else
+    switch (stx->kind()) {
+    case application_expression::target_kind::generic:
+      return tail ? opcode::tail_call : opcode::call;
+    case application_expression::target_kind::scheme:
+      return tail ? opcode::tail_call_known_scheme : opcode::call_known_scheme;
+    case application_expression::target_kind::native:
+      return tail ? opcode::tail_call_known_native : opcode::call_known_native;
+    }
+
   assert(false);
   return {};
+}
+
+static void
+emit_plain_call(procedure_context& proc, ptr<application_expression> stx,
+                operand call_base, bool tail, result_location& result) {
+  if (!tail)
+    proc.emit({application_opcode(stx, tail),
+               call_base,
+               static_cast<operand>(stx->arguments().size()),
+               *result.get(proc)});
+  else
+    proc.emit({application_opcode(stx, tail),
+               call_base,
+               static_cast<operand>(stx->arguments().size())});
+}
+
+static ptr<vector>
+make_arg_names(context& ctx, ptr<application_expression> app) {
+  auto result = make<vector>(ctx, app->argument_names().size(), nullptr);
+  for (std::size_t i = 0; i < app->argument_names().size(); ++i)
+    result->set(ctx.store, i, app->argument_names()[i]);
+  return result;
+}
+
+static void
+emit_keyword_call(context& ctx, procedure_context& proc,
+                  ptr<application_expression> stx, operand call_base, bool tail,
+                  result_location& result) {
+  auto names = make_arg_names(ctx, stx);
+  operand names_idx = proc.intern_constant(ctx, names);
+  if (!tail)
+    proc.emit({opcode::call_keywords, call_base, names_idx, *result.get(proc)});
+  else
+    proc.emit({opcode::tail_call_keywords, call_base, names_idx});
 }
 
 static void
@@ -600,18 +647,11 @@ compile_expression(context& ctx, procedure_context& proc,
 
   auto arg_registers = compile_application_arguments(ctx, proc, stx);
 
-  instruction i;
-  if (!tail)
-    i = {application_opcode(stx, tail),
-         call_base,
-         static_cast<operand>(stx->arguments().size()),
-         *result.get(proc)};
+  if (has_keyword_arguments(stx))
+    emit_keyword_call(ctx, proc, stx, call_base, tail, result);
   else
-    i = {application_opcode(stx, tail),
-         call_base,
-         static_cast<operand>(stx->arguments().size())};
+    emit_plain_call(proc, stx, call_base, tail, result);
 
-  proc.emit(i);
   if (stx->debug_info())
     proc.current_block().debug_info[proc.current_block().body.size() - 1]
       = *stx->debug_info();
@@ -836,6 +876,7 @@ compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
         .num_required_args = 0,
         .num_leading_args = 0,
         .has_rest = false,
+        .parameter_names = std::make_shared<ptr<keyword>[]>(0),
         .name = std::make_shared<std::string>("<expression>"),
         .debug_info = {}
       },
@@ -892,6 +933,7 @@ compile_module_body(context& ctx, tracked_ptr<module_> const& m,
                      .num_required_args = 0,
                      .num_leading_args = 0,
                      .has_rest = false,
+                     .parameter_names = std::make_shared<ptr<keyword>[]>(0),
                      .name = std::make_shared<std::string>(
                        fmt::format("<module {} top-level>",
                                    pm.name
