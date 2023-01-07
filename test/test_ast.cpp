@@ -2663,3 +2663,76 @@ TEST_F(ast, test_for_default_value_can_be_constant_evaluated) {
   ASSERT_TRUE(is<literal_expression>(baz_body));
   EXPECT_EQ(expect<literal_expression>(baz_body)->value(), ctx.constants->f);
 }
+
+TEST_F(ast, application_with_keywords_turns_into_regular_application) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo (lambda (#:one a #:two b) (cons a b)))
+      (define bar (lambda () (foo #:two 2 #:one 1)))
+    )",
+    {&analyse_variables, &optimise_applications}
+  );
+  auto bar = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  for_each<application_expression>(
+    bar,
+    [] (ptr<application_expression> app) {
+      EXPECT_EQ(app->kind(), application_expression::target_kind::scheme);
+      ASSERT_EQ(app->arguments().size(), 2);
+      EXPECT_FALSE(has_keyword_arguments(app));
+      EXPECT_EQ(
+        expect<integer>(
+          expect<literal_expression>(app->arguments()[0])->value()
+        ).value(),
+        1
+      );
+      EXPECT_EQ(
+        expect<integer>(
+          expect<literal_expression>(app->arguments()[1])->value()
+        ).value(),
+        2
+      );
+    }
+  );
+}
+
+TEST_F(ast,
+       application_with_positionals_and_keywords_turns_into_regular_application) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo (lambda (a #:two b #:three c) (list a b c)))
+      (define bar (lambda () (foo #:two 2 #:three 3 1)))
+    )",
+    {&analyse_variables, &optimise_applications}
+  );
+  auto bar = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  for_each<application_expression>(
+    bar,
+    [] (ptr<application_expression> app) {
+      EXPECT_EQ(app->kind(), application_expression::target_kind::scheme);
+      ASSERT_EQ(app->arguments().size(), 3);
+      EXPECT_FALSE(has_keyword_arguments(app));
+      EXPECT_EQ(
+        expect<integer>(
+          expect<literal_expression>(app->arguments()[0])->value()
+        ).value(),
+        1
+      );
+      EXPECT_EQ(
+        expect<integer>(
+          expect<literal_expression>(app->arguments()[1])->value()
+        ).value(),
+        2
+      );
+      EXPECT_EQ(
+        expect<integer>(
+          expect<literal_expression>(app->arguments()[2])->value()
+        ).value(),
+        3
+      );
+    }
+  );
+}
