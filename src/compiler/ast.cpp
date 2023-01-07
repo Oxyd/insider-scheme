@@ -226,6 +226,99 @@ has_keyword_arguments(ptr<application_expression> app) {
                              [] (ptr<keyword> kw) { return kw != nullptr; });
 }
 
+static std::optional<std::size_t>
+argument_index(ptr<lambda_expression> lambda, ptr<keyword> name) {
+  for (std::size_t i = 0; i < lambda->parameter_names().size(); ++i)
+    if (lambda->parameter_names()[i] == name)
+      return i;
+  return std::nullopt;
+}
+
+static bool
+fill_keyword_parameter_slots(std::vector<expression>& new_args,
+                             ptr<application_expression> app,
+                             ptr<lambda_expression> target) {
+  for (std::size_t i = 0; i < app->argument_names().size(); ++i) {
+    ptr<keyword> name = app->argument_names()[i];
+    if (name) {
+      if (auto index = argument_index(target, name)) {
+        if (new_args[*index] != nullptr)
+          return false;
+        else
+          new_args[*index] = app->arguments()[i];
+      } else
+        return false;
+    }
+  }
+
+  return true;
+}
+
+static std::optional<std::size_t>
+find_free_index(std::vector<expression> const& args, std::size_t start) {
+  for (std::size_t i = start; i < args.size(); ++i)
+    if (!args[i])
+      return i;
+  return std::nullopt;
+}
+
+static bool
+fill_positional_parameter_slots(std::vector<expression>& new_args,
+                                ptr<application_expression> app) {
+  std::size_t first_possible_index = 0;
+  for (std::size_t i = 0; i < app->argument_names().size(); ++i) {
+    ptr<keyword> name = app->argument_names()[i];
+    if (!name) {
+      if (auto index = find_free_index(new_args, first_possible_index)) {
+        new_args[*index] = app->arguments()[i];
+        first_possible_index = *index + 1;
+      } else
+        return false;
+    }
+  }
+
+  return true;
+}
+
+static bool
+has_unfilled_required_parameter(std::vector<expression> const& new_args,
+                                ptr<lambda_expression> target) {
+  for (std::size_t i = 0; i < required_parameter_count(target); ++i)
+    if (!new_args[i])
+      return true;
+  return false;
+}
+
+static void
+fill_unsupplied_optional_parameters_with_defaults(
+  context& ctx,
+  std::vector<expression>& new_args,
+  ptr<lambda_expression> target
+) {
+  for (std::size_t i = required_parameter_count(target);
+       i < leading_parameter_count(target);
+       ++i)
+    if (!new_args[i])
+      new_args[i] = make<literal_expression>(ctx, ctx.constants->default_value);
+}
+
+ptr<application_expression>
+reorder_supplement_and_validate_application(context& ctx,
+                                            ptr<application_expression> app,
+                                            ptr<lambda_expression> target) {
+  std::vector<expression> new_args;
+  new_args.resize(std::max(app->arguments().size(),
+                           leading_parameter_count(target)));
+  if (!fill_keyword_parameter_slots(new_args, app, target))
+    return {};
+  if (!fill_positional_parameter_slots(new_args, app))
+    return {};
+  if (has_unfilled_required_parameter(new_args, target))
+    return {};
+  fill_unsupplied_optional_parameters_with_defaults(ctx, new_args, target);
+  return make<application_expression>(ctx, app->target(), std::move(new_args));
+}
+
 built_in_operation_expression::built_in_operation_expression(
   opcode op, std::vector<expression> operands, bool has_result,
   ptr<native_procedure> proc

@@ -234,6 +234,11 @@ private:
 bool
 has_keyword_arguments(ptr<application_expression>);
 
+ptr<application_expression>
+reorder_supplement_and_validate_application(context& ctx,
+                                            ptr<application_expression> app,
+                                            ptr<lambda_expression> target);
+
 class built_in_operation_expression
   : public composite_object<built_in_operation_expression>
 {

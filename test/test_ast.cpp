@@ -2756,3 +2756,38 @@ TEST_F(ast, invalid_call_remains_generic) {
     }
   );
 }
+
+TEST_F(ast, call_with_keywords_is_inlined) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo
+        (lambda (#:one a #:two b)
+          (list a b)))
+
+      (define bar
+        (lambda ()
+          (foo #:two 2 #:one 1)))
+    )",
+    {&analyse_variables, &inline_procedures, &analyse_free_variables}
+  );
+  auto bar_def
+    = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  auto let = expect<let_expression>(ignore_sequences(bar_def->body()));
+  ASSERT_EQ(let->definitions().size(), 2);
+  EXPECT_EQ(let->definitions()[0].variable()->name(), "a");
+  EXPECT_EQ(let->definitions()[1].variable()->name(), "b");
+  EXPECT_EQ(
+    expect<integer>(
+      expect<literal_expression>(let->definitions()[0].expression())->value()
+    ).value(),
+    1
+  );
+  EXPECT_EQ(
+    expect<integer>(
+      expect<literal_expression>(let->definitions()[1].expression())->value()
+    ).value(),
+    2
+  );
+}

@@ -74,10 +74,14 @@ inline_variadic_application(context& ctx, ptr<application_expression> app,
 static expression
 inline_application(context& ctx, ptr<application_expression> app,
                    ptr<lambda_expression> target) {
-  if (target->has_rest())
-    return inline_variadic_application(ctx, app, target);
-  else
-    return inline_nonvariadic_application(ctx, app, target);
+  auto fixed_app = reorder_supplement_and_validate_application(ctx, app, target);
+  if (fixed_app) {
+    if (target->has_rest())
+      return inline_variadic_application(ctx, fixed_app, target);
+    else
+      return inline_nonvariadic_application(ctx, fixed_app, target);
+  } else
+    return app;
 }
 
 static bool
@@ -322,8 +326,7 @@ namespace {
       return !is_self_recursive_call(lambda)
              && !is_self_referential(lambda)
              && arity_matches(app, lambda)
-             && is_small_enough_to_inline(lambda)
-             && !has_keyword_arguments(app);
+             && is_small_enough_to_inline(lambda);
     }
 
     expression
