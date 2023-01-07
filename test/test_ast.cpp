@@ -2736,3 +2736,23 @@ TEST_F(ast,
     }
   );
 }
+
+TEST_F(ast, invalid_call_remains_generic) {
+  expression e = analyse_module(
+    R"(
+      (import (insider internal))
+
+      (define foo (lambda (#:one a #:two b) (list a b)))
+      (define bar (lambda () (foo #:one 1 #:one 2)))
+    )",
+    {&analyse_variables, &optimise_applications}
+  );
+  auto bar = expect<lambda_expression>(find_top_level_definition_for(e, "bar"));
+  for_each<application_expression>(
+    bar,
+    [] (ptr<application_expression> app) {
+      EXPECT_EQ(app->kind(), application_expression::target_kind::generic);
+      EXPECT_EQ(app->arguments().size(), 2);
+    }
+  );
+}

@@ -163,8 +163,12 @@ visit_scheme_application(context& ctx, ptr<application_expression> app,
   if (!scheme_application_is_valid(app, lambda))
     return app;
 
-  if (has_keyword_arguments(app) || has_unsupplied_optionals(app, lambda))
-    app = reorder_and_supplement_arguments(ctx, app, lambda);
+  if (has_keyword_arguments(app) || has_unsupplied_optionals(app, lambda)) {
+    if (auto supplemented = reorder_and_supplement_arguments(ctx, app, lambda))
+      app = supplemented;
+    else
+      return app;
+  }
 
   app->set_kind(application_expression::target_kind::scheme);
   return app;
