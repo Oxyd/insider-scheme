@@ -910,7 +910,6 @@ parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
 
   bool has_rest = false;
   bool has_optional = false;
-  bool has_keyword = false;
   while (!semisyntax_is<null_type>(param_names)) {
     if (auto param = semisyntax_match<pair>(pc.ctx, param_names)) {
       auto [p, kw, rest] = parse_lambda_parameter(pc, param, subscope);
@@ -923,14 +922,7 @@ parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
           "Required parameter after optional"
         );
 
-      if (has_keyword && !kw)
-        throw make_compile_error<syntax_error>(
-          expect<syntax>(car(param)),
-          "Positional parameter after keyword"
-        );
-
       has_optional = has_optional || p.optional;
-      has_keyword = has_keyword || kw;
       param_names = rest;
     } else if (semisyntax_is<symbol>(param_names)) {
       auto p = parse_required_lambda_parameter(pc, assume<syntax>(param_names),

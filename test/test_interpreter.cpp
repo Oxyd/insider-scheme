@@ -673,6 +673,20 @@ TEST_F(interpreter, keyword_optional_and_tail) {
   EXPECT_TRUE(equal(result2, read("(1 2 3 4 5)")));
 }
 
+TEST_F(interpreter, keyword_arg_followed_by_unnamed) {
+  ptr<> result1 = eval(R"(
+    (let ((f (lambda (#:one a b) (list a b))))
+      (f #:one 1 2))
+  )");
+  EXPECT_TRUE(equal(result1, read("(1 2)")));
+
+  ptr<> result2 = eval(R"(
+    (let ((f (lambda (#:one a b) (list a b))))
+      (f 2 #:one 1))
+  )");
+  EXPECT_TRUE(equal(result2, read("(1 2)")));
+}
+
 TEST_F(interpreter, required_keyword_not_supplied_throws) {
   EXPECT_THROW(
     eval(R"(

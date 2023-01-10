@@ -146,8 +146,14 @@ TEST_F(parser, parse_lambda_with_optional_keyword_args) {
   EXPECT_TRUE(l->parameters()[1].optional);
 }
 
-TEST_F(parser, positional_param_after_keyword_throws) {
-  EXPECT_THROW(parse("(lambda (#:one a b) #t)"), syntax_error);
+TEST_F(parser, parse_positional_param_after_keyword) {
+  auto l = expect<lambda_expression>(
+    parse("(lambda (#:one a b) #t)")
+  );
+  ASSERT_EQ(l->parameters().size(), 2);
+  ASSERT_EQ(l->parameter_names().size(), 2);
+  EXPECT_EQ(l->parameter_names()[0]->value(), "one");
+  EXPECT_FALSE(l->parameter_names()[1]);
 }
 
 TEST_F(parser, duplicate_keyword_args_throws) {
