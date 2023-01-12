@@ -7,6 +7,7 @@
 #include "compiler/syntax_list.hpp"
 #include "context.hpp"
 #include "io/write.hpp"
+#include "memory/member_visitor.hpp"
 #include "memory/tracker.hpp"
 #include "runtime/action.hpp"
 #include "runtime/basic_types.hpp"
@@ -880,19 +881,32 @@ parse_positional_lambda_parameter(parsing_context& pc, ptr<syntax> param,
                                            subscope);
 }
 
-static std::tuple<lambda_expression::parameter, ptr<keyword>, ptr<>>
+namespace {
+  struct parsed_parameter {
+    lambda_expression::parameter param;
+    ptr<keyword>                 name;
+
+    void
+    visit_members(member_visitor const& f) const {
+      param.visit_members(f);
+      f(name);
+    }
+  };
+}
+
+static std::tuple<parsed_parameter, ptr<>>
 parse_lambda_parameter(parsing_context& pc, ptr<pair> params,
                        ptr<scope> subscope) {
   auto param = expect<syntax>(car(params));
   if (param->contains<keyword>()) {
     auto kw = assume<keyword>(param->get_expression_without_update());
     param = syntax_cadr(pc.ctx, params);
-    return {parse_positional_lambda_parameter(pc, param, subscope),
-            kw,
+    return {{parse_positional_lambda_parameter(pc, param, subscope),
+             kw},
             syntax_cdr(pc.ctx, syntax_cdr(pc.ctx, params))};
   } else
-    return {parse_positional_lambda_parameter(pc, param, subscope),
-            {},
+    return {{parse_positional_lambda_parameter(pc, param, subscope),
+             {}},
             syntax_cdr(pc.ctx, params)};
 }
 
@@ -900,8 +914,7 @@ static auto
 parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
                         source_location const& loc) {
   ptr<> param_names = param_stx;
-  std::vector<lambda_expression::parameter> parameters;
-  std::vector<ptr<keyword>> parameter_names;
+  std::vector<parsed_parameter> parameters;
 
   auto subscope = make<scope>(
     pc.ctx, pc.ctx,
@@ -912,22 +925,21 @@ parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
   bool has_optional = false;
   while (!semisyntax_is<null_type>(param_names)) {
     if (auto param = semisyntax_match<pair>(pc.ctx, param_names)) {
-      auto [p, kw, rest] = parse_lambda_parameter(pc, param, subscope);
+      auto [p, rest] = parse_lambda_parameter(pc, param, subscope);
       parameters.push_back(p);
-      parameter_names.push_back(kw);
 
-      if (has_optional && !p.optional)
+      if (has_optional && !p.param.optional)
         throw make_compile_error<syntax_error>(
           expect<syntax>(car(param)),
           "Required parameter after optional"
         );
 
-      has_optional = has_optional || p.optional;
+      has_optional = has_optional || p.param.optional;
       param_names = rest;
     } else if (semisyntax_is<symbol>(param_names)) {
       auto p = parse_required_lambda_parameter(pc, assume<syntax>(param_names),
                                                subscope);
-      parameters.push_back(p);
+      parameters.push_back({p, {}});
       has_rest = true;
       break;
     } else
@@ -937,25 +949,43 @@ parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
       );
   }
 
-  return std::tuple{subscope, parameters, parameter_names, has_rest};
+  return std::tuple{subscope, parameters, has_rest};
 }
 
 static void
 throw_if_duplicate_keyword_parameter(
-  std::vector<ptr<keyword>> const& names,
+  std::vector<parsed_parameter> const& params,
   ptr<syntax> stx
 ) {
   // Quadratic algorithm to prevent allocation. Parameter counts will be at most
   // a few hundred in extreme cases, so it'll be fine.
 
-  for (auto kw = names.begin(); kw != names.end(); ++kw)
-    if (*kw)
-      if (std::find_if(std::next(kw), names.end(),
-                       [&] (auto const& name) {
-                         return name == *kw;
-                       }) != names.end())
+  for (auto p = params.begin(); p != params.end(); ++p)
+    if (p->name)
+      if (std::find_if(std::next(p), params.end(),
+                       [&] (auto const& param) {
+                         return param.name == p->name;
+                       }) != params.end())
         throw make_compile_error<syntax_error>(stx,
                                                "Duplicate keyword parameter");
+}
+
+static std::vector<lambda_expression::parameter>
+make_parameters(std::vector<parsed_parameter> const& params) {
+  std::vector<lambda_expression::parameter> result;
+  result.reserve(params.size());
+  for (auto const& p : params)
+    result.push_back(p.param);
+  return result;
+}
+
+static std::vector<ptr<keyword>>
+make_parameter_names(std::vector<parsed_parameter> const& params) {
+  std::vector<ptr<keyword>> result;
+  result.reserve(params.size());
+  for (auto const& p : params)
+    result.push_back(p.name);
+  return result;
 }
 
 static ptr<lambda_expression>
@@ -966,24 +996,24 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   if (!datum || cdr(assume<pair>(datum)) == pc.ctx.constants->null)
     throw make_compile_error<syntax_error>(stx, "Invalid lambda syntax");
 
-  auto [subscope, parameters, parameter_names, has_rest]
+  auto [subscope, parameters, has_rest]
     = parse_lambda_parameters(pc, expect<syntax>(cadr(assume<pair>(datum))),
                               loc);
 
-  throw_if_duplicate_keyword_parameter(parameter_names, stx);
+  throw_if_duplicate_keyword_parameter(parameters, stx);
 
   ptr<> body_stx = cddr(assume<pair>(datum));
   ptr<> body_with_scope = add_scope_to_list(pc.ctx, body_stx, subscope);
 
-  tracker t{pc.ctx, subscope, parameters, parameter_names};
+  tracker t{pc.ctx, subscope, parameters};
   auto subenv = extend_environment(pc, subscope);
   auto body = parse_body(pc, body_with_scope, loc);
 
   return make<lambda_expression>(
     pc.ctx,
     pc.ctx,
-    std::move(parameters),
-    std::move(parameter_names),
+    make_parameters(parameters),
+    make_parameter_names(parameters),
     has_rest,
     body,
     fmt::format("<lambda at {}>", format_location(loc)),
