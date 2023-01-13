@@ -55,7 +55,7 @@ TEST_F(parser, parse_lambda_with_positional_and_tail_args) {
 }
 
 TEST_F(parser, parse_lambda_with_optional_param) {
-  auto l = expect<lambda_expression>(parse("(lambda (a (b #:optional)) #t)"));
+  auto l = expect<lambda_expression>(parse("(lambda (a (b #f)) #t)"));
   ASSERT_EQ(l->parameters().size(), 2);
   EXPECT_EQ(l->parameters()[0].variable->name(), "a");
   EXPECT_EQ(l->parameters()[1].variable->name(), "b");
@@ -65,17 +65,16 @@ TEST_F(parser, parse_lambda_with_optional_param) {
 
 TEST_F(parser, invalid_optional_param_syntax_throws) {
   EXPECT_THROW(parse("(lambda (req (opt)) #t)"), syntax_error);
-  EXPECT_THROW(parse("(lambda (req (opt #:optional #f)) #t)"), syntax_error);
-  EXPECT_THROW(parse("(lambda (req (opt #:maybe)) #t)"), syntax_error);
+  EXPECT_THROW(parse("(lambda (req (opt #t #f)) #t)"), syntax_error);
 }
 
 TEST_F(parser, required_param_after_optional_throws) {
-  EXPECT_THROW(parse("(lambda ((opt #:optional) req) #t)"), syntax_error);
+  EXPECT_THROW(parse("(lambda ((opt #f) req) #t)"), syntax_error);
 }
 
 TEST_F(parser, parse_lambda_with_multiple_optional_params) {
   auto l = expect<lambda_expression>(
-    parse("(lambda ((a #:optional) (b #:optional)) #t)")
+    parse("(lambda ((a #f) (b #f)) #t)")
   );
   ASSERT_EQ(l->parameters().size(), 2);
   EXPECT_TRUE(l->parameters()[0].optional);
@@ -84,7 +83,7 @@ TEST_F(parser, parse_lambda_with_multiple_optional_params) {
 
 TEST_F(parser, parse_lambda_with_optional_and_tail_params) {
   auto l = expect<lambda_expression>(
-    parse("(lambda ((a #:optional) . tail) #t)")
+    parse("(lambda ((a #f) . tail) #t)")
   );
   ASSERT_EQ(l->parameters().size(), 2);
   EXPECT_TRUE(l->parameters()[0].optional);
@@ -94,7 +93,7 @@ TEST_F(parser, parse_lambda_with_optional_and_tail_params) {
 
 TEST_F(parser, parse_lambda_with_required_optional_and_tail_params) {
   auto l = expect<lambda_expression>(
-    parse("(lambda (a (b #:optional) . tail) #t)")
+    parse("(lambda (a (b #f) . tail) #t)")
   );
   ASSERT_EQ(l->parameters().size(), 3);
   EXPECT_FALSE(l->parameters()[0].optional);
@@ -136,7 +135,7 @@ TEST_F(parser, parse_lambda_with_positional_and_keyword_args) {
 
 TEST_F(parser, parse_lambda_with_optional_keyword_args) {
   auto l = expect<lambda_expression>(
-    parse("(lambda (#:one a #:two (b #:optional)) #t)")
+    parse("(lambda (#:one a #:two (b #f)) #t)")
   );
   ASSERT_EQ(l->parameters().size(), 2);
   ASSERT_EQ(l->parameter_names().size(), 2);

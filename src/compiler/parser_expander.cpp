@@ -4,6 +4,7 @@
 #include "compiler/ast.hpp"
 #include "compiler/compiler.hpp"
 #include "compiler/parsing_context.hpp"
+#include "compiler/source_location.hpp"
 #include "compiler/syntax_list.hpp"
 #include "context.hpp"
 #include "io/write.hpp"
@@ -45,6 +46,27 @@ untrack_vector(std::vector<tracked_ptr<T>> const& v) {
 }
 
 namespace {
+  class environment_checkpoint {
+  public:
+    explicit
+    environment_checkpoint(parsing_context& pc)
+      : pc_{pc}
+      , original_size_{pc.environment.size()}
+    { }
+
+    ~environment_checkpoint() {
+      assert(pc_.environment.size() >= original_size_);
+      pc_.environment.resize(original_size_);
+    }
+
+    environment_checkpoint(environment_checkpoint const&) = delete;
+    void operator = (environment_checkpoint const&) = delete;
+
+  private:
+    parsing_context& pc_;
+    std::size_t      original_size_;
+  };
+
   class environment_extender {
   public:
     explicit
@@ -142,6 +164,14 @@ extend_environment(parsing_context& pc, ptr<scope> s) {
       ext.push_back(b.variable);
 
   return environment_extender{pc, std::move(ext)};
+}
+
+static void
+append_to_environment(parsing_context& pc, ptr<scope> s) {
+  auto& env = pc.environment.emplace_back();
+  for (scope::binding const& b : *s)
+    if (b.variable)
+      env.push_back(b.variable);
 }
 
 static bool
@@ -432,6 +462,22 @@ add_scope_to_list(context& ctx, ptr<> x, ptr<scope> s) {
     return map(ctx, x, [&] (ptr<> elem) {
       return expect<syntax>(elem)->add_scope(ctx.store, s);
     });
+}
+
+static ptr<>
+add_list_of_scopes_to_list(context& ctx, ptr<> x,
+                           std::vector<ptr<scope>> const& scopes) {
+  for (ptr<scope> s : scopes)
+    x = add_scope_to_list(ctx, x, s);
+  return x;
+}
+
+static ptr<syntax>
+add_list_of_scopes(context& ctx, ptr<syntax> stx,
+                   std::vector<ptr<scope>> const& scopes) {
+  for (ptr<scope> s : scopes)
+    stx = stx->add_scope(ctx.store, s);
+  return stx;
 }
 
 static std::tuple<ptr<syntax>, ptr<syntax>>
@@ -848,14 +894,7 @@ parse_required_lambda_parameter(parsing_context& pc, ptr<syntax> name,
   return define_lambda_parameter(pc, name, subscope, false);
 }
 
-static void
-expect_keyword(context& ctx, ptr<syntax> stx, std::string const& kw) {
-  if (!syntax_is<keyword>(stx)
-      || syntax_assume<keyword>(ctx, stx)->value() != kw)
-    throw make_compile_error<syntax_error>(stx, "Expected #:{}", kw);
-}
-
-static lambda_expression::parameter
+static std::tuple<lambda_expression::parameter, ptr<syntax>, ptr<syntax>>
 parse_optional_lambda_parameter(parsing_context& pc, ptr<syntax> param,
                                 ptr<scope> subscope) {
   ptr<> lst = syntax_to_list(pc.ctx, param);
@@ -864,32 +903,39 @@ parse_optional_lambda_parameter(parsing_context& pc, ptr<syntax> param,
                                            "Invalid optional parameter syntax");
 
   auto name = expect<syntax>(car(assume<pair>(lst)));
-  auto optional_kw = expect<syntax>(cadr(assume<pair>(lst)));
-  expect_keyword(pc.ctx, optional_kw, "optional");
+  auto default_expr = expect<syntax>(cadr(assume<pair>(lst)));
 
-  return define_lambda_parameter(pc, name, subscope, true);
+  return {define_lambda_parameter(pc, name, subscope, true), default_expr, name};
 }
 
-static lambda_expression::parameter
+static std::tuple<lambda_expression::parameter, ptr<syntax>, ptr<syntax>>
 parse_positional_lambda_parameter(parsing_context& pc, ptr<syntax> param,
                                   ptr<scope> subscope) {
   if (syntax_is<pair>(param))
     return parse_optional_lambda_parameter(pc, param, subscope);
-  else
-    return parse_required_lambda_parameter(pc,
-                                           expect_id(pc.ctx, param),
-                                           subscope);
+  else {
+    auto id = expect_id(pc.ctx, param);
+    return {parse_required_lambda_parameter(pc,
+                                            id,
+                                            subscope),
+            {},
+            id};
+  }
 }
 
 namespace {
   struct parsed_parameter {
     lambda_expression::parameter param;
     ptr<keyword>                 name;
+    ptr<syntax>                  default_expr;
+    ptr<syntax>                  id;
 
     void
     visit_members(member_visitor const& f) const {
       param.visit_members(f);
       f(name);
+      f(default_expr);
+      f(id);
     }
   };
 }
@@ -897,17 +943,20 @@ namespace {
 static std::tuple<parsed_parameter, ptr<>>
 parse_lambda_parameter(parsing_context& pc, ptr<pair> params,
                        ptr<scope> subscope) {
-  auto param = expect<syntax>(car(params));
-  if (param->contains<keyword>()) {
-    auto kw = assume<keyword>(param->get_expression_without_update());
-    param = syntax_cadr(pc.ctx, params);
-    return {{parse_positional_lambda_parameter(pc, param, subscope),
-             kw},
+  auto param_stx = expect<syntax>(car(params));
+  if (param_stx->contains<keyword>()) {
+    auto kw = assume<keyword>(param_stx->get_expression_without_update());
+    param_stx = syntax_cadr(pc.ctx, params);
+    auto [param, default_expr, id]
+      = parse_positional_lambda_parameter(pc, param_stx, subscope);
+    return {{param, kw, default_expr, id},
             syntax_cdr(pc.ctx, syntax_cdr(pc.ctx, params))};
-  } else
-    return {{parse_positional_lambda_parameter(pc, param, subscope),
-             {}},
+  } else {
+    auto [param, default_expr, id]
+      = parse_positional_lambda_parameter(pc, param_stx, subscope);
+    return {{param, {}, default_expr, id},
             syntax_cdr(pc.ctx, params)};
+  }
 }
 
 static auto
@@ -937,9 +986,9 @@ parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
       has_optional = has_optional || p.param.optional;
       param_names = rest;
     } else if (semisyntax_is<symbol>(param_names)) {
-      auto p = parse_required_lambda_parameter(pc, assume<syntax>(param_names),
-                                               subscope);
-      parameters.push_back({p, {}});
+      auto id = assume<syntax>(param_names);
+      auto p = parse_required_lambda_parameter(pc, id, subscope);
+      parameters.push_back({p, {}, {}, id});
       has_rest = true;
       break;
     } else
@@ -988,6 +1037,102 @@ make_parameter_names(std::vector<parsed_parameter> const& params) {
   return result;
 }
 
+namespace {
+  struct lambda_default_expressions {
+    std::vector<definition_pair_expression> dps;
+    std::vector<ptr<scope>>                 scopes;
+
+    void
+    visit_members(member_visitor const& f) const {
+      for (definition_pair_expression const& dp : dps)
+        dp.visit_members(f);
+      for (ptr<scope> const& s : scopes)
+        f(s);
+    }
+  };
+}
+
+static ptr<if_expression>
+make_default_init_expression(context& ctx, ptr<local_variable> var,
+                             expression default_expr) {
+  return make<if_expression>(
+    ctx,
+    make_application(
+      ctx, "eq?",
+      make<local_reference_expression>(ctx, var),
+      make<literal_expression>(ctx, ctx.constants->default_value)
+    ),
+    default_expr,
+    make<local_reference_expression>(ctx, var)
+  );
+}
+
+static lambda_default_expressions
+make_lambda_default_expressions(parsing_context& pc,
+                                ptr<scope> params_scope,
+                                std::vector<parsed_parameter> const& params,
+                                source_location const& loc) {
+  lambda_default_expressions result;
+  result.scopes.push_back(params_scope);
+  tracker t{pc.ctx, result};
+
+  for (parsed_parameter const& param : params)
+    if (param.default_expr) {
+      auto subscope = make<scope>(
+        pc.ctx, pc.ctx,
+        fmt::format("default parameter {} for lambda at {}",
+                    identifier_name(param.id),
+                    format_location(loc))
+      );
+      result.scopes.push_back(subscope);
+
+      ptr<syntax> id = add_list_of_scopes(pc.ctx, param.id, result.scopes);
+      auto var = make<local_variable>(pc.ctx, identifier_name(id));
+      define(pc.ctx.store, id, var);
+      tracker u{pc.ctx, var};
+
+      ptr<syntax> default_stx
+        = add_list_of_scopes(pc.ctx, param.default_expr, result.scopes);
+      expression default_expr = parse(pc, default_stx);
+
+      expression init_expr = make_default_init_expression(pc.ctx,
+                                                          param.param.variable,
+                                                          default_expr);
+
+      result.dps.emplace_back(var, init_expr);
+
+      append_to_environment(pc, subscope);
+    }
+
+  return result;
+}
+
+static expression
+make_defaults_let(context& ctx,
+                  std::vector<definition_pair_expression> const& dps,
+                  expression body) {
+  for (definition_pair_expression const& dp : dps | std::views::reverse)
+    body = make<let_expression>(ctx, std::vector{dp}, body);
+  return body;
+}
+
+static expression
+parse_lambda_body(parsing_context& pc, ptr<> body_stx, ptr<scope> params_scope,
+                  std::vector<parsed_parameter> const& params,
+                  source_location const& loc) {
+  environment_checkpoint cp{pc};
+  append_to_environment(pc, params_scope);
+
+  lambda_default_expressions defaults
+    = make_lambda_default_expressions(pc, params_scope, params, loc);
+  tracker t{pc.ctx, defaults};
+
+  ptr<> body_with_scope = add_list_of_scopes_to_list(pc.ctx, body_stx,
+                                                     defaults.scopes);
+  expression body = parse_body(pc, body_with_scope, loc);
+  return make_defaults_let(pc.ctx, defaults.dps, body);
+}
+
 static ptr<lambda_expression>
 parse_lambda(parsing_context& pc, ptr<syntax> stx) {
   source_location loc = stx->location();
@@ -1000,14 +1145,12 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
     = parse_lambda_parameters(pc, expect<syntax>(cadr(assume<pair>(datum))),
                               loc);
 
+  tracker t{pc.ctx, parameters};
+
   throw_if_duplicate_keyword_parameter(parameters, stx);
 
   ptr<> body_stx = cddr(assume<pair>(datum));
-  ptr<> body_with_scope = add_scope_to_list(pc.ctx, body_stx, subscope);
-
-  tracker t{pc.ctx, subscope, parameters};
-  auto subenv = extend_environment(pc, subscope);
-  auto body = parse_body(pc, body_with_scope, loc);
+  expression body = parse_lambda_body(pc, body_stx, subscope, parameters, loc);
 
   return make<lambda_expression>(
     pc.ctx,

@@ -90,16 +90,15 @@
 
 (meta
   (define member
-    (lambda (x list (pred #:optional))
-      (let ((pred (if (eq? pred #default-value) equal? pred)))
-        (define loop
-          (lambda (lst)
-            (if (null? lst)
-                #f
-                (if (pred x (car lst))
-                    lst
-                    (loop (cdr lst))))))
-        (loop list)))))
+    (lambda (x list (pred equal?))
+      (define loop
+        (lambda (lst)
+          (if (null? lst)
+              #f
+              (if (pred x (car lst))
+                  lst
+                  (loop (cdr lst))))))
+      (loop list))))
 
 (meta
   (define memq
@@ -128,16 +127,15 @@
 
 (meta
   (define assoc
-    (lambda (x alist (pred #:optional))
-      (let ((pred (if (eq? pred #default-value) equal? pred)))
-        (define loop
-          (lambda (lst)
-            (if (null? lst)
-                #f
-                (if (pred x (caar lst))
-                    (car lst)
-                    (loop (cdr lst))))))
-        (loop alist)))))
+    (lambda (x alist (pred equal?))
+      (define loop
+        (lambda (lst)
+          (if (null? lst)
+              #f
+              (if (pred x (caar lst))
+                  (car lst)
+                  (loop (cdr lst))))))
+      (loop alist))))
 
 (meta
   (define assq

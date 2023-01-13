@@ -1095,7 +1095,7 @@ TEST_F(control, can_access_arguments_after_continuation_jump) {
 
 TEST_F(control, apply_lambda_with_optionals) {
   ptr<> result = eval(R"(
-    (let ((f (lambda (a (b #:optional))
+    (let ((f (lambda (a (b #default-value))
                (cons a b))))
       (apply f '(1)))
   )");

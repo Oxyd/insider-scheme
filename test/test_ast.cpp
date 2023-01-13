@@ -930,7 +930,7 @@ TEST_F(ast, call_with_optional_params_is_inlined) {
       (import (insider internal))
 
       (define foo
-        (lambda (a (b #:optional))
+        (lambda (a (b #f))
           0))
 
       (define bar
@@ -952,7 +952,7 @@ TEST_F(ast, correct_value_is_supplied_to_optional_parameter) {
       (import (insider internal))
 
       (define foo
-        (lambda (a (b #:optional) . tail)
+        (lambda (a (b #f) . tail)
           b))
 
       (define bar
@@ -976,7 +976,7 @@ TEST_F(ast, call_with_optional_and_tail_params_is_inlined) {
       (import (insider internal))
 
       (define foo
-        (lambda (a (b #:optional) . rest)
+        (lambda (a (b #f) . rest)
           0))
 
       (define bar
@@ -2616,7 +2616,7 @@ TEST_F(ast,
     R"(
       (import (insider internal))
 
-      (define foo (lambda (a (b #:optional)) (cons a b)))
+      (define foo (lambda (a (b #f)) (cons a b)))
       (define bar (lambda () (foo 1)))
     )",
     {&analyse_variables, &optimise_applications}
@@ -2640,7 +2640,7 @@ TEST_F(ast, test_for_default_value_can_be_constant_evaluated) {
       (import (insider internal))
 
       (define foo
-        (lambda (x y (z #:optional))
+        (lambda (x y (z #default-value))
           (eq? z #default-value)))
 
       (define bar

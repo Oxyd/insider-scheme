@@ -511,7 +511,7 @@ TEST_F(interpreter, variadic_argument_is_a_list) {
 TEST_F(interpreter, call_lambda_with_optional_param_supplied) {
   ptr<> result = eval(
     R"(
-      (let ((f (lambda (a (b #:optional)) (+ a b))))
+      (let ((f (lambda (a (b #f)) (+ a b))))
         (f 1 2))
     )"
   );
@@ -521,7 +521,7 @@ TEST_F(interpreter, call_lambda_with_optional_param_supplied) {
 TEST_F(interpreter, call_lambda_with_optional_param_not_supplied) {
   ptr<> result = eval(
     R"(
-      (let ((f (lambda (a (b #:optional)) (cons a b))))
+      (let ((f (lambda (a (b #default-value)) (cons a b))))
         (f 0))
     )"
   );
@@ -533,7 +533,7 @@ TEST_F(interpreter, call_lambda_with_optional_param_not_supplied) {
 TEST_F(interpreter, call_lambda_with_optionals_and_tail) {
   ptr<> result1 = eval(
     R"(
-      (let ((f (lambda (a (b #:optional) . rest)
+      (let ((f (lambda (a (b #f) . rest)
                  (list a b rest))))
         (f 1 2 3 4))
     )"
@@ -542,7 +542,7 @@ TEST_F(interpreter, call_lambda_with_optionals_and_tail) {
 
   ptr<> result2 = eval(
     R"(
-      (let ((f (lambda (a (b #:optional) . rest)
+      (let ((f (lambda (a (b #f) . rest)
                  (list a b rest))))
         (f 1 2 3))
     )"
@@ -551,7 +551,7 @@ TEST_F(interpreter, call_lambda_with_optionals_and_tail) {
 
   ptr<> result3 = eval(
     R"(
-      (let ((f (lambda (a (b #:optional) . rest)
+      (let ((f (lambda (a (b #f) . rest)
                  (list a b rest))))
         (f 1 2))
     )"
@@ -560,19 +560,37 @@ TEST_F(interpreter, call_lambda_with_optionals_and_tail) {
   
   ptr<> result4 = eval(
     R"(
-      (let ((f (lambda (a (b #:optional) . rest)
+      (let ((f (lambda (a (b #f) . rest)
                  (list a b rest))))
         (f 1))
     )"
   );
-  EXPECT_TRUE(equal(result4, read("(1 #default-value ())")));
+  EXPECT_TRUE(equal(result4, read("(1 #f ())")));
+}
+
+TEST_F(interpreter,
+       call_lambda_with_optional_default_expr_depending_on_required_arg) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda (a (b (+ a 1))) (list a b))))
+      (f 1))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2)")));
+}
+
+TEST_F(interpreter,
+       call_lambda_with_optional_default_expr_depending_on_optional_arg) {
+  ptr<> result = eval(R"(
+    (let ((f (lambda ((a 1) (b (+ a 1))) (list a b))))
+      (f))
+  )");
+  EXPECT_TRUE(equal(result, read("(1 2)")));
 }
 
 TEST_F(interpreter, calling_lambda_with_not_enough_args_throws) {
   EXPECT_THROW(
     eval(
       R"(
-        (let ((f (lambda (a b (c #:optional)) #t)))
+        (let ((f (lambda (a b (c #f)) #t)))
           (f 0))
       )"
     ),
@@ -631,7 +649,7 @@ TEST_F(interpreter, keyword_and_positional_args_followed_by_tail) {
 
 TEST_F(interpreter, supply_optional_keyword_arg) {
   ptr<> result = eval(R"(
-    (let ((f (lambda (#:one a #:two (b #:optional)) (list a b))))
+    (let ((f (lambda (#:one a #:two (b #f)) (list a b))))
       (f #:two 2 #:one 1))
   )");
   EXPECT_TRUE(equal(result, read("(1 2)")));
@@ -639,34 +657,31 @@ TEST_F(interpreter, supply_optional_keyword_arg) {
 
 TEST_F(interpreter, dont_supply_optional_keyword_arg) {
   ptr<> result = eval(R"(
-    (let ((f (lambda (#:one a #:two (b #:optional)) (list a b))))
+    (let ((f (lambda (#:one a #:two (b #f)) (list a b))))
       (f #:one 1))
   )");
-  EXPECT_TRUE(equal(result, read("(1 #default-value)")));
+  EXPECT_TRUE(equal(result, read("(1 #f)")));
 }
 
 TEST_F(interpreter, optional_unnamed_and_named_args) {
   ptr<> result = eval(R"(
-    (let ((f (lambda (a
-                      (b #:optional)
-                      #:three (c #:optional)
-                      #:four (d #:optional))
+    (let ((f (lambda (a (b #f) #:three (c #f) #:four (d #f))
                (list a b c d))))
       (f #:three 3 1))
   )");
-  EXPECT_TRUE(equal(result, read("(1 #default-value 3 #default-value)")));
+  EXPECT_TRUE(equal(result, read("(1 #f 3 #f)")));
 }
 
 TEST_F(interpreter, keyword_optional_and_tail) {
   ptr<> result1 = eval(R"(
-    (let ((f (lambda (a (b #:optional) #:three (c #:optional) . rest)
+    (let ((f (lambda (a (b #f) #:three (c #f) . rest)
                (cons a (cons b (cons c rest))))))
       (f #:three 3 1))
   )");
-  EXPECT_TRUE(equal(result1, read("(1 #default-value 3)")));
+  EXPECT_TRUE(equal(result1, read("(1 #f 3)")));
 
   ptr<> result2 = eval(R"(
-    (let ((f (lambda (a (b #:optional) #:three (c #:optional) . rest)
+    (let ((f (lambda (a (b #f) #:three (c #f) . rest)
                (cons a (cons b (cons c rest))))))
       (f #:three 3 1 2 4 5))
   )");
