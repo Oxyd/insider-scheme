@@ -1,6 +1,7 @@
 #include "compiler/inline_built_in_operations_pass.hpp"
 
 #include "compiler/ast.hpp"
+#include "compiler/parsing_context.hpp"
 #include "compiler/variable.hpp"
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
@@ -141,8 +142,8 @@ built_in_operations_visitor::built_in_operations_visitor(context& ctx)
 }
 
 expression
-inline_built_in_operations(context& ctx, expression e, analysis_context) {
-  return transform_ast(ctx, e, built_in_operations_visitor{ctx});
+inline_built_in_operations(parsing_context& pc, expression e) {
+  return transform_ast(pc.ctx, e, built_in_operations_visitor{pc.ctx});
 }
 
 } // namespace insider

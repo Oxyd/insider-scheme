@@ -1,6 +1,7 @@
 #include "compiler/remove_unnecessary_definitions_pass.hpp"
 
 #include "compiler/ast.hpp"
+#include "compiler/parsing_context.hpp"
 #include "compiler/variable.hpp"
 #include "context.hpp"
 
@@ -89,10 +90,10 @@ static expression
 remove_unnecessary_definitions(context&, auto e) { return e; }
 
 expression
-remove_unnecessary_definitions(context& ctx, expression e, analysis_context) {
-  return map_ast(ctx, e,
+remove_unnecessary_definitions(parsing_context& pc, expression e) {
+  return map_ast(pc.ctx, e,
                  [&] (auto expr) {
-                   return remove_unnecessary_definitions(ctx, expr);
+                   return remove_unnecessary_definitions(pc.ctx, expr);
                  });
 }
 

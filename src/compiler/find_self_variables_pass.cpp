@@ -1,6 +1,7 @@
 #include "compiler/find_self_variables_pass.hpp"
 
 #include "compiler/ast.hpp"
+#include "compiler/parsing_context.hpp"
 #include "compiler/variable.hpp"
 #include "context.hpp"
 
@@ -100,9 +101,9 @@ static expression
 find_self_variables(context&, auto e) { return e; }
 
 expression
-find_self_variables(context& ctx, expression expr, analysis_context) {
-  return map_ast(ctx, expr,
-                 [&] (auto e) { return find_self_variables(ctx, e); });
+find_self_variables(parsing_context& pc, expression expr) {
+  return map_ast(pc.ctx, expr,
+                 [&] (auto e) { return find_self_variables(pc.ctx, e); });
 }
 
 } // namespace insider

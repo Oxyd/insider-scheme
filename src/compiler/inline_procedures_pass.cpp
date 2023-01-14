@@ -2,6 +2,7 @@
 
 #include "compiler/ast.hpp"
 #include "compiler/clone_ast.hpp"
+#include "compiler/parsing_context.hpp"
 #include "context.hpp"
 
 #include <fmt/format.h>
@@ -537,11 +538,11 @@ inline_top_level(context& ctx, ptr<sequence_expression> top_level) {
 }
 
 expression
-inline_procedures(context& ctx, expression e, analysis_context) {
+inline_procedures(parsing_context& pc, expression e) {
   if (auto top_level = match<sequence_expression>(e))
-    return inline_top_level(ctx, top_level);
+    return inline_top_level(pc.ctx, top_level);
   else
-    return transform_ast(ctx, e, inline_visitor{ctx});
+    return transform_ast(pc.ctx, e, inline_visitor{pc.ctx});
 }
 
 } // namespace insider

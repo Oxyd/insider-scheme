@@ -53,7 +53,6 @@ set(scheme_sources
         src/compiler/analyse_variables_pass.hpp
         src/compiler/analyser.cpp
         src/compiler/analyser.hpp
-        src/compiler/analysis_context.hpp
         src/compiler/ast_transforms.cpp
         src/compiler/ast_transforms.hpp
         src/compiler/ast.cpp

@@ -2,6 +2,7 @@
 
 #include "compiler/ast.hpp"
 #include "compiler/clone_ast.hpp"
+#include "compiler/parsing_context.hpp"
 #include "compiler/variable.hpp"
 #include "context.hpp"
 
@@ -173,11 +174,11 @@ box_set_variables(context&, auto e) {
 }
 
 expression
-box_set_variables(context& ctx, expression s, analysis_context) {
+box_set_variables(parsing_context& pc, expression s) {
   return map_ast(
-    ctx, s,
+    pc.ctx, s,
     [&] (expression expr) {
-      return visit([&] (auto e) { return box_set_variables(ctx, e); },
+      return visit([&] (auto e) { return box_set_variables(pc.ctx, e); },
                    expr);
     }
   );

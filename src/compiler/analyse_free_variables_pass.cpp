@@ -1,6 +1,7 @@
 #include "compiler/analyse_free_variables_pass.hpp"
 
 #include "compiler/ast.hpp"
+#include "compiler/parsing_context.hpp"
 #include "compiler/variable.hpp"
 #include "context.hpp"
 
@@ -93,9 +94,9 @@ namespace {
 }
 
 expression
-analyse_free_variables(context& ctx, expression e, analysis_context) {
-  free_variable_visitor v{ctx};
-  transform_ast(ctx, e, v);
+analyse_free_variables(parsing_context& pc, expression e) {
+  free_variable_visitor v{pc.ctx};
+  transform_ast(pc.ctx, e, v);
 
   // Top-level can't have any free variables
   assert(v.free_vars_stack.back().empty());

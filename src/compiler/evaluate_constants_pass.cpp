@@ -2,6 +2,7 @@
 
 #include "compiler/ast.hpp"
 #include "compiler/clone_ast.hpp"
+#include "compiler/parsing_context.hpp"
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/compare.hpp"
@@ -561,8 +562,8 @@ namespace {
 }
 
 expression
-evaluate_constants(context& ctx, expression e, analysis_context) {
-  evaluate_constants_visitor v{ctx};
+evaluate_constants(parsing_context& pc, expression e) {
+  evaluate_constants_visitor v{pc.ctx};
   depth_first_search(evaluate_constants_visitor::node{e}, v);
   assert(v.env.empty());
   assert(v.results.size() == 1);

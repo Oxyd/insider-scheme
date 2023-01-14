@@ -22,7 +22,7 @@ void
 mark_read_variables(auto) { }
 
 expression
-update_variables(context&, expression e, analysis_context) {
+update_variables(parsing_context&, expression e) {
   traverse_postorder(e, [] (auto expr) { clear_read_flag(expr); });
   traverse_postorder(e, [] (auto expr) { mark_read_variables(expr); });
   return e;

@@ -152,8 +152,10 @@ namespace {
 }
 
 static parsing_context
-make_subcontext(parsing_context& pc) {
-  return parsing_context{pc.state, pc.module_, pc.passes, pc.origin};
+make_meta_context(parsing_context& pc) {
+  parsing_context meta{pc.state, pc.module_, pc.passes, pc.origin};
+  meta.is_meta = true;
+  return meta;
 }
 
 static environment_extender
@@ -372,7 +374,7 @@ expand(parsing_context& pc, ptr<syntax> stx) {
 template <auto Analyse>
 static ptr<>
 eval_at_expand_time(parsing_context& pc, ptr<syntax> datum) {
-  auto meta_pc = make_subcontext(pc);
+  auto meta_pc = make_meta_context(pc);
   auto proc = compile_syntax(meta_pc.ctx, Analyse(meta_pc, datum),
                              track(meta_pc.ctx, meta_pc.module_));
   return call_with_continuation_barrier(meta_pc.state, proc, {});

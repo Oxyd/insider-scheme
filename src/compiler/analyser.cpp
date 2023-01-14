@@ -1,6 +1,5 @@
 #include "analyser.hpp"
 
-#include "compiler/analysis_context.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/ast_transforms.hpp"
 #include "compiler/module_specifier.hpp"
@@ -30,13 +29,13 @@
 namespace insider {
 
 static expression
-analyse_internal(parsing_context& pc, analysis_context ac, ptr<syntax> stx) {
+analyse_internal(parsing_context& pc, ptr<syntax> stx) {
   expression result = parse(pc, stx);
-  return apply_passes(pc.ctx, result, ac, pc.passes);
+  return apply_passes(pc, result);
 }
 
 static expression
-analyse_expression_list(parsing_context& pc, analysis_context ac,
+analyse_expression_list(parsing_context& pc,
                         std::vector<ptr<syntax>> const& exprs) {
   std::vector<expression> result_exprs;
   tracker t{pc.ctx, result_exprs};
@@ -46,41 +45,30 @@ analyse_expression_list(parsing_context& pc, analysis_context ac,
     result_exprs.emplace_back(parse(pc, datum));
 
   auto seq = make<sequence_expression>(pc.ctx, std::move(result_exprs));
-  return apply_passes(pc.ctx, seq, ac, pc.passes);
+  return apply_passes(pc, seq);
 }
 
 static expression
 analyse_top_level_expressions(parsing_context& pc,
                               tracked_ptr<module_> const& m,
-                              analysis_context ac,
                               std::vector<ptr<syntax>> const& exprs) {
   std::vector<ptr<syntax>> body = expand_top_level(pc, m, exprs);
   tracker t{pc.ctx, body};
 
   if (body.size() == 1)
-    return analyse_internal(pc, ac, body.front());
+    return analyse_internal(pc, body.front());
   else
-    return analyse_expression_list(pc, ac, body);
+    return analyse_expression_list(pc, body);
 }
 
 expression
 analyse_transformer(parsing_context& pc, ptr<syntax> stx) {
-  return analyse_internal(pc, analysis_context::open, stx);
+  return analyse_internal(pc, stx);
 }
 
 expression
 analyse_meta(parsing_context& pc, ptr<syntax> stx) {
-  return analyse_top_level_expressions(pc, track(pc.ctx, pc.module_),
-                                       analysis_context::open,
-                                       {stx});
-}
-
-static analysis_context
-analysis_context_for_module(ptr<module_> m) {
-  if (m->get_type() == module_::type::interactive)
-    return analysis_context::open;
-  else
-    return analysis_context::closed;
+  return analyse_top_level_expressions(pc, track(pc.ctx, pc.module_), {stx});
 }
 
 expression
@@ -94,9 +82,7 @@ analyse(context& ctx, ptr<syntax> stx, tracked_ptr<module_> const& m,
     [&] (vm& state) {
       parsing_context pc{state, m.get(), std::move(passes), origin};
       stx = stx->add_scope(ctx.store, m->scope());
-      return analyse_top_level_expressions(pc, m,
-                                           analysis_context_for_module(m.get()),
-                                           {stx}).get();
+      return analyse_top_level_expressions(pc, m, {stx}).get();
     }
   );
 }
@@ -531,9 +517,7 @@ analyse_module(context& ctx, tracked_ptr<module_> const& m,
         m.get()}},
       [&] (vm& state) {
         parsing_context pc{state, m.get(), std::move(passes), pm.origin};
-        return analyse_top_level_expressions(pc, m,
-                                             analysis_context::closed,
-                                             pm.body).get();
+        return analyse_top_level_expressions(pc, m, pm.body).get();
       }
     );
 }

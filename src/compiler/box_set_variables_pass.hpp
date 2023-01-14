@@ -1,15 +1,14 @@
 #ifndef INSIDER_COMPILER_BOX_SET_VARIABLES_PASS_HPP
 #define INSIDER_COMPILER_BOX_SET_VARIABLES_PASS_HPP
 
-#include "compiler/analysis_context.hpp"
 #include "compiler/expression.hpp"
 
 namespace insider {
 
-class context;
+class parsing_context;
 
 expression
-box_set_variables(context&, expression, analysis_context);
+box_set_variables(parsing_context&, expression);
 
 } // namespace insider
 

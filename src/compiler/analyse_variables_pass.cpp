@@ -1,8 +1,8 @@
 #include "compiler/analyse_variables_pass.hpp"
 
-#include "compiler/analysis_context.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/expression.hpp"
+#include "compiler/parsing_context.hpp"
 #include "context.hpp"
 #include "util/depth_first_search.hpp"
 
@@ -10,14 +10,13 @@ namespace insider {
 
 namespace {
   struct variable_analysis_visitor {
-    context&                           ctx;
-    analysis_context                   ac;
+    parsing_context&                   pc;
     std::vector<variable>              entered_sets;
     std::vector<std::vector<variable>> current_variables{{}};
 
-    variable_analysis_visitor(context& ctx, analysis_context ac)
-      : ctx{ctx}
-      , ac{ac}
+    explicit
+    variable_analysis_visitor(parsing_context& pc)
+      : pc{pc}
     { }
 
     ~variable_analysis_visitor() {
@@ -128,7 +127,7 @@ namespace {
       flags.is_set = true;
 
       if (!flags.is_set_eliminable)
-        set->target()->set_constant_initialiser(ctx.store, {});
+        set->target()->set_constant_initialiser(pc.ctx.store, {});
     }
 
     void
@@ -138,7 +137,7 @@ namespace {
         flags.is_set_eliminable = !flags.is_read && !flags.is_set
                                   && is_current(set->target());
         flags.is_set = true;
-        set->target()->set_constant_initialiser(ctx.store, {});
+        set->target()->set_constant_initialiser(pc.ctx.store, {});
       }
     }
 
@@ -167,7 +166,7 @@ namespace {
       if (is<literal_expression>(e)
           || is<lambda_expression>(e)
           || is<top_level_reference_expression>(e))
-        var->set_constant_initialiser(ctx.store, e);
+        var->set_constant_initialiser(pc.ctx.store, e);
     }
 
     void
@@ -195,15 +194,15 @@ namespace {
     void
     visit_variables(auto e) {
       update_variable_flags(e);
-      if (ac == analysis_context::closed)
+      if (pc.module_->get_type() != module_::type::interactive && !pc.is_meta)
         find_constant_values(e);
     }
   };
 }
 
 expression
-analyse_variables(context& ctx, expression expr, analysis_context ac) {
-  depth_first_search(expr, variable_analysis_visitor{ctx, ac});
+analyse_variables(parsing_context& pc, expression expr) {
+  depth_first_search(expr, variable_analysis_visitor{pc});
   return expr;
 }
 

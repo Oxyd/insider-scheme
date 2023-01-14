@@ -1,7 +1,6 @@
 #ifndef INSIDER_COMPILER_PARSING_CONTEXT_HPP
 #define INSIDER_COMPILER_PARSING_CONTEXT_HPP
 
-#include "compiler/ast_transforms.hpp"
 #include "compiler/variable.hpp"
 #include "memory/root_provider.hpp"
 
@@ -15,7 +14,11 @@ class scope;
 class vm;
 struct source_file_origin;
 
+class parsing_context;
+
 using use_site_scopes_list = std::vector<ptr<scope>>;
+using pass = expression (*)(parsing_context&, expression);
+using pass_list = std::vector<pass>;
 
 class parsing_context : public root_provider {
 public:
@@ -26,6 +29,7 @@ public:
   std::vector<std::vector<variable>> environment;
   std::vector<use_site_scopes_list>  use_site_scopes;
   pass_list                          passes;
+  bool                               is_meta = false;
 
   parsing_context(vm& state, ptr<insider::module_>, pass_list passes,
                   source_file_origin const&);

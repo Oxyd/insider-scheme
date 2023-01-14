@@ -1,6 +1,7 @@
 #include "compiler/make_loop_temporaries_pass.hpp"
 
 #include "compiler/ast.hpp"
+#include "compiler/parsing_context.hpp"
 #include "context.hpp"
 
 namespace insider {
@@ -98,9 +99,9 @@ static expression
 make_loop_temporaries(context&, auto e) { return e; }
 
 expression
-make_loop_temporaries(context& ctx, expression e, analysis_context) {
-  return map_ast(ctx, e,
-                 [&] (auto expr) { return make_loop_temporaries(ctx, expr); });
+make_loop_temporaries(parsing_context& pc, expression e) {
+  return map_ast(pc.ctx, e,
+                 [&] (auto expr) { return make_loop_temporaries(pc.ctx, expr); });
 }
 
 } // namespace insider

@@ -2,6 +2,7 @@
 
 #include "compiler/ast.hpp"
 #include "compiler/expression.hpp"
+#include "compiler/parsing_context.hpp"
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
 
@@ -240,8 +241,8 @@ application_visitor:: application_visitor(context& ctx)
 }
 
 expression
-optimise_applications(context& ctx, expression e, analysis_context) {
-  return transform_ast(ctx, e, application_visitor{ctx});
+optimise_applications(parsing_context& pc, expression e) {
+  return transform_ast(pc.ctx, e, application_visitor{pc.ctx});
 }
 
 } // namespace insider
