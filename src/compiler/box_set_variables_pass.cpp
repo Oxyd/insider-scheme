@@ -143,7 +143,9 @@ static definition_pair_expression
 box_loop_variable(context& ctx, definition_pair_expression const& var) {
   return definition_pair_expression{
     var.variable(),
-    make<application_expression>(ctx, make_internal_reference(ctx, "box"),
+    make<application_expression>(ctx,
+                                 ptr<syntax>{},
+                                 make_internal_reference(ctx, "box"),
                                  var.expression())
   };
 }

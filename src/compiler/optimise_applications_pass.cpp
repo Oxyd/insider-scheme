@@ -113,12 +113,14 @@ addition_substitutor(context& ctx, ptr<application_expression> app) {
     if (is_literal_one(app->arguments()[0]))
       return make<application_expression>(
         ctx,
+        app->origin(),
         make_internal_reference(ctx, "increment"),
         app->arguments()[1]
       );
     else if (is_literal_one(app->arguments()[1]))
       return make<application_expression>(
         ctx,
+        app->origin(),
         make_internal_reference(ctx, "increment"),
         app->arguments()[0]
       );
@@ -133,12 +135,14 @@ subtraction_substitutor(context& ctx, ptr<application_expression> app) {
     if (is_literal_one(app->arguments()[1]))
       return make<application_expression>(
         ctx,
+        app->origin(),
         make_internal_reference(ctx, "decrement"),
         app->arguments()[0]
       );
   } else if (app->arguments().size() == 1)
     return make<application_expression>(
       ctx,
+      app->origin(),
       make_internal_reference(ctx, "negate"),
       app->arguments()[0]
     );
@@ -155,12 +159,14 @@ eq_substitutor(context& ctx, ptr<application_expression> app) {
   if (is_default_value_literal(app->arguments()[0]))
     return make<application_expression>(
       ctx,
+      app->origin(),
       make_internal_reference(ctx, "default-value?"),
       app->arguments()[1]
     );
   else if (is_default_value_literal(app->arguments()[1]))
     return make<application_expression>(
       ctx,
+      app->origin(),
       make_internal_reference(ctx, "default-value?"),
       app->arguments()[0]
     );

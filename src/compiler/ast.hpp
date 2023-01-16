@@ -162,14 +162,17 @@ public:
     generic, scheme, native
   };
 
-  application_expression(expression t, std::vector<expression> args);
+  application_expression(ptr<syntax> origin, expression t,
+                         std::vector<expression> args);
 
-  application_expression(expression t, std::vector<expression> args,
+  application_expression(ptr<syntax> origin, expression t,
+                         std::vector<expression> args,
                          std::vector<ptr<keyword>> arg_names);
 
   template <typename... Ts>
-  application_expression(expression t, Ts&&... ts)
+  application_expression(ptr<syntax> origin, expression t, Ts&&... ts)
     : target_{t}
+    , origin_{origin}
   {
     arguments_.reserve(sizeof...(Ts));
     (arguments_.push_back(ts), ...);
@@ -199,6 +202,9 @@ public:
   void
   set_kind(target_kind k) { kind_ = k; }
 
+  ptr<syntax>
+  origin() const { return origin_; }
+
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
@@ -226,6 +232,7 @@ private:
   std::size_t                        size_estimate_ = 0;
   std::optional<insider::debug_info> debug_info_;
   target_kind                        kind_ = target_kind::generic;
+  ptr<syntax> const                  origin_;
 
   void
   update_size_estimate();
@@ -246,7 +253,8 @@ public:
   static constexpr char const* scheme_name
     = "insider::built_in_operation_expression";
 
-  built_in_operation_expression(opcode, std::vector<expression>,
+  built_in_operation_expression(opcode,
+                                std::vector<expression>,
                                 bool has_result,
                                 ptr<native_procedure> proc);
 
@@ -742,6 +750,7 @@ static expression
 make_application(context& ctx, std::string const& name, Args&&... args) {
   return make<application_expression>(
     ctx,
+    ptr<syntax>{},
     make_internal_reference(ctx, name),
     std::forward<Args>(args)...
   );

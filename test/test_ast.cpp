@@ -172,9 +172,11 @@ struct ast : scheme_fixture {
   make_nested_call() {
     return make<application_expression>(
       ctx,
+      ptr<syntax>{},
       make<local_reference_expression>(ctx, make<local_variable>(ctx, "foo")),
       make<application_expression>(
         ctx,
+        ptr<syntax>{},
         make<local_reference_expression>(ctx, make<local_variable>(ctx, "bar")),
         make<literal_expression>(ctx, ctx.intern("baz"))
       )
@@ -295,6 +297,7 @@ struct wrap_local_reference_in_identity {
   operator () (ptr<local_reference_expression> ref) {
     return make<application_expression>(
       ctx,
+      ptr<syntax>{},
       make<local_reference_expression>(ctx,
                                        make<local_variable>(ctx, "identity")),
       ref

@@ -123,15 +123,18 @@ unknown_reference_expression::show(context& ctx, std::size_t indent) const {
                      make_indent(indent), datum_to_string(ctx, name_));
 }
 
-application_expression::application_expression(expression t,
+application_expression::application_expression(ptr<syntax> origin,
+                                               expression t,
                                                std::vector<expression> args)
   : target_{t}
   , arguments_{std::move(args)}
+  , origin_{origin}
 {
   argument_names_.resize(arguments_.size());
 }
 
 application_expression::application_expression(
+  ptr<syntax> origin,
   expression t,
   std::vector<expression> args,
   std::vector<ptr<keyword>> arg_names
@@ -139,6 +142,7 @@ application_expression::application_expression(
   : target_{t}
   , arguments_{std::move(args)}
   , argument_names_{std::move(arg_names)}
+  , origin_{origin}
 {
   assert(arguments_.size() == argument_names_.size());
 }
@@ -150,6 +154,7 @@ application_expression::visit_members(member_visitor const& f) const {
     arg.visit_members(f);
   for (auto const& kw : argument_names_)
     f(kw);
+  f(origin_);
 }
 
 static void
@@ -316,7 +321,8 @@ reorder_supplement_and_validate_application(context& ctx,
   if (has_unfilled_required_parameter(new_args, target))
     return {};
   fill_unsupplied_optional_parameters_with_defaults(ctx, new_args, target);
-  return make<application_expression>(ctx, app->target(), std::move(new_args));
+  return make<application_expression>(ctx, app->origin(), app->target(),
+                                      std::move(new_args));
 }
 
 built_in_operation_expression::built_in_operation_expression(

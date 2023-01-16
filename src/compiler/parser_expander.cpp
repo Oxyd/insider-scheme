@@ -1239,7 +1239,8 @@ parse_application(parsing_context& pc, ptr<syntax> stx) {
   std::vector<expression> arguments;
   std::vector<ptr<keyword>> argument_names;
   auto args_expr = cdr(assume<pair>(datum));
-  tracker t{pc.ctx, datum, target_expr, arguments, argument_names, args_expr};
+  tracker t{pc.ctx, stx, datum, target_expr, arguments, argument_names,
+            args_expr};
 
   while (args_expr != pc.ctx.constants->null) {
     auto [arg, name, rest] = parse_argument(pc, assume<pair>(args_expr));
@@ -1248,7 +1249,7 @@ parse_application(parsing_context& pc, ptr<syntax> stx) {
     args_expr = rest;
   }
 
-  return make<application_expression>(pc.ctx, target_expr, arguments,
+  return make<application_expression>(pc.ctx, stx, target_expr, arguments,
                                       argument_names);
 }
 
