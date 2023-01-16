@@ -154,7 +154,7 @@ public:
   fraction(ptr<> numerator, ptr<> denominator);
 
   ptr<>
-  numerator() const { return numerator_; };
+  numerator() const { return numerator_; }
 
   ptr<>
   denominator() const { return denominator_; }

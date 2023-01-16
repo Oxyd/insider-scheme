@@ -303,7 +303,7 @@ struct wrap_local_reference_in_identity {
                                        make<local_variable>(ctx, "identity")),
       ref
     );
-  };
+  }
 
   expression
   operator () (auto other) { return other; }
