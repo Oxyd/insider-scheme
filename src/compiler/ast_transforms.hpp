@@ -1,6 +1,7 @@
 #ifndef INSIDER_COMPILER_AST_TRANSFORMS_HPP
 #define INSIDER_COMPILER_AST_TRANSFORMS_HPP
 
+#include "compiler/compilation_config.hpp"
 #include "compiler/expression.hpp"
 #include "compiler/parsing_context.hpp"
 

@@ -1,6 +1,7 @@
 #include "module.hpp"
 
 #include "compiler/analyser.hpp"
+#include "compiler/compilation_config.hpp"
 #include "compiler/compiler.hpp"
 #include "compiler/module_name.hpp"
 #include "compiler/module_specifier.hpp"
@@ -16,6 +17,7 @@
 #include "vm/vm.hpp"
 
 #include <ranges>
+#include <utility>
 
 namespace insider {
 
@@ -112,12 +114,14 @@ check_all_names_exist(std::vector<std::string> const& names,
 }
 
 static import_set
-parse_import_set(context& ctx, import_specifier const& spec);
+parse_import_set(context& ctx, import_specifier const& spec,
+                 compilation_config const&);
 
 static import_set
-parse_module_name_import_set(context& ctx, module_name const* mn) {
+parse_module_name_import_set(context& ctx, module_name const* mn,
+                             compilation_config const& config) {
   import_set result{ctx};
-  result.source = ctx.module_resolver().find_module(ctx, *mn);
+  result.source = ctx.module_resolver().find_module(ctx, *mn, config);
 
   for (std::string const& name : result.source->exports())
     result.names.emplace_back(name, name);
@@ -126,8 +130,9 @@ parse_module_name_import_set(context& ctx, module_name const* mn) {
 }
 
 static import_set
-parse_only_import_specifier(context& ctx, import_specifier::only const* o) {
-  import_set result = parse_import_set(ctx, *o->from);
+parse_only_import_specifier(context& ctx, import_specifier::only const* o,
+                            compilation_config const& config) {
+  import_set result = parse_import_set(ctx, *o->from, config);
   check_all_names_exist(o->identifiers, result);
   result.names.erase(
     std::remove_if(result.names.begin(), result.names.end(),
@@ -141,9 +146,10 @@ parse_only_import_specifier(context& ctx, import_specifier::only const* o) {
   return result;
 }
 
-import_set
-parse_except_import_specifier(context& ctx, import_specifier::except const* e) {
-  import_set result = parse_import_set(ctx, *e->from);
+static import_set
+parse_except_import_specifier(context& ctx, import_specifier::except const* e,
+                              compilation_config const& config) {
+  import_set result = parse_import_set(ctx, *e->from, config);
   check_all_names_exist(e->identifiers, result);
   result.names.erase(
     std::remove_if(result.names.begin(), result.names.end(),
@@ -157,17 +163,19 @@ parse_except_import_specifier(context& ctx, import_specifier::except const* e) {
   return result;
 }
 
-import_set
-parse_prefix_import_specifier(context& ctx, import_specifier::prefix const* p) {
-  import_set result = parse_import_set(ctx, *p->from);
+static import_set
+parse_prefix_import_specifier(context& ctx, import_specifier::prefix const* p,
+                              compilation_config const& config) {
+  import_set result = parse_import_set(ctx, *p->from, config);
   for (auto& [target, source] : result.names)
     target = p->prefix_ + target;
   return result;
 }
 
-import_set
-parse_rename_import_specifier(context& ctx, import_specifier::rename const* r) {
-  import_set result = parse_import_set(ctx, *r->from);
+static import_set
+parse_rename_import_specifier(context& ctx, import_specifier::rename const* r,
+                              compilation_config const& config) {
+  import_set result = parse_import_set(ctx, *r->from, config);
 
   for (auto& [target, source] : result.names) {
     for (auto const& [rename_from, rename_to] : r->renames) {
@@ -181,18 +189,19 @@ parse_rename_import_specifier(context& ctx, import_specifier::rename const* r) {
   return result;
 }
 
-import_set
-parse_import_set(context& ctx, import_specifier const& spec) {
+static import_set
+parse_import_set(context& ctx, import_specifier const& spec,
+                 compilation_config const& config) {
   if (auto const* mn = std::get_if<module_name>(&spec.value))
-    return parse_module_name_import_set(ctx, mn);
+    return parse_module_name_import_set(ctx, mn, config);
   else if (auto const* o = std::get_if<import_specifier::only>(&spec.value))
-    return parse_only_import_specifier(ctx, o);
+    return parse_only_import_specifier(ctx, o, config);
   else if (auto const* e = std::get_if<import_specifier::except>(&spec.value))
-    return parse_except_import_specifier(ctx, e);
+    return parse_except_import_specifier(ctx, e, config);
   else if (auto const* p = std::get_if<import_specifier::prefix>(&spec.value))
-    return parse_prefix_import_specifier(ctx, p);
+    return parse_prefix_import_specifier(ctx, p, config);
   else if (auto const* r = std::get_if<import_specifier::rename>(&spec.value))
-    return parse_rename_import_specifier(ctx, r);
+    return parse_rename_import_specifier(ctx, r, config);
   else {
     assert(!"Can't happen");
     return import_set{ctx};
@@ -257,12 +266,13 @@ exports_list_to_exported_names(std::vector<import_set> const& import_sets,
 }
 
 static std::vector<import_set>
-imports_list_to_import_sets(context& ctx, imports_list const& imports) {
+imports_list_to_import_sets(context& ctx, imports_list const& imports,
+                            compilation_config const& config) {
   std::vector<import_set> result;
   result.reserve(imports.size());
 
   for (import_specifier const& spec : imports)
-    result.push_back(parse_import_set(ctx, spec));
+    result.push_back(parse_import_set(ctx, spec, config));
 
   return result;
 }
@@ -275,14 +285,15 @@ perform_imports(context& ctx, tracked_ptr<module_> const& to,
 }
 
 tracked_ptr<module_>
-instantiate(context& ctx, module_specifier const& pm) {
+instantiate(context& ctx, module_specifier const& pm,
+            compilation_config const& config) {
   auto result = make_tracked<module_>(ctx, ctx, pm.name);
 
   std::vector<import_set> import_sets
-    = imports_list_to_import_sets(ctx, pm.imports);
+    = imports_list_to_import_sets(ctx, pm.imports, config);
 
   perform_imports(ctx, result, import_sets);
-  compile_module_body(ctx, result, pm);
+  compile_module_body(ctx, result, pm, config);
 
   auto exported_names = exports_list_to_exported_names(import_sets, pm.exports);
   check_all_defined(ctx, result.get(), exported_names);
@@ -330,9 +341,10 @@ import_all_top_level(context& ctx,
 
 void
 perform_imports(context& ctx, tracked_ptr<module_> const& to,
-                imports_list const& imports) {
+                imports_list const& imports,
+                compilation_config const& config) {
   for (import_specifier const& spec : imports) {
-    import_set set = parse_import_set(ctx, spec); // GC
+    import_set set = parse_import_set(ctx, spec, config); // GC
     perform_imports(ctx, to, set);
   }
 }
@@ -401,14 +413,16 @@ parse_imports(context& ctx, object_span imports) {
 static ptr<>
 environment(context& ctx, ptr<native_procedure>, object_span args) {
   auto result = make_tracked<module_>(ctx, ctx, module_::type::immutable);
-  perform_imports(ctx, result, parse_imports(ctx, args));
+  perform_imports(ctx, result, parse_imports(ctx, args),
+                  compilation_config::optimisations_config());
   return result.get();
 }
 
 tracked_ptr<module_>
 make_interactive_module(context& ctx, imports_list const& imports) {
   auto result = make_tracked<module_>(ctx, ctx, module_::type::interactive);
-  perform_imports(ctx, result, imports);
+  perform_imports(ctx, result, imports,
+                  compilation_config::optimisations_config());
   return result;
 }
 
@@ -422,7 +436,8 @@ dynamic_import(context& ctx, ptr<native_procedure>, object_span args) {
   require_arg_count(args, 2);
   auto m = expect<module_>(args[0]);
   auto imports = parse_imports(ctx, args.subspan(1));
-  perform_imports(ctx, track(ctx, m), imports);
+  perform_imports(ctx, track(ctx, m), imports,
+                  compilation_config::optimisations_config());
   return ctx.constants->void_;
 }
 

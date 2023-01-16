@@ -1,3 +1,4 @@
+#include "compiler/compilation_config.hpp"
 #include "runtime/syntax.hpp"
 #include "scheme_fixture.hpp"
 
@@ -15,7 +16,7 @@ struct parser : scheme_fixture {
 
     null_source_code_provider provider;
     vm state{ctx};
-    parsing_context pc{state, m.get(), {},
+    parsing_context pc{state, m.get(), compilation_config::debug_config(),
                        {&provider, "<unit test expression>"}};
 
     auto stx = expect<syntax>(read_syntax(ctx, expr));

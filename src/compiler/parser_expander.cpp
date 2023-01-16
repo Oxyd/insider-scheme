@@ -153,7 +153,7 @@ namespace {
 
 static parsing_context
 make_meta_context(parsing_context& pc) {
-  parsing_context meta{pc.state, pc.module_, pc.passes, pc.origin};
+  parsing_context meta{pc.state, pc.module_, pc.config, pc.origin};
   meta.is_meta = true;
   return meta;
 }

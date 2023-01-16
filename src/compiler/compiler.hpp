@@ -1,7 +1,7 @@
 #ifndef INSIDER_COMPILER_COMPILER_HPP
 #define INSIDER_COMPILER_COMPILER_HPP
 
-#include "compiler/ast_transforms.hpp"
+#include "compiler/compilation_config.hpp"
 #include "compiler/expression.hpp"
 #include "compiler/source_file_origin.hpp"
 #include "module.hpp"
@@ -22,7 +22,7 @@ class syntax;
 // definition.
 ptr<procedure>
 compile_expression(context&, ptr<syntax> datum, tracked_ptr<module_> const&,
-                   source_file_origin const&, pass_list = all_passes);
+                   source_file_origin const&, compilation_config const& config);
 
 ptr<procedure>
 compile_syntax(context&, expression, tracked_ptr<module_> const&);
@@ -32,17 +32,17 @@ compile_syntax(context&, expression, tracked_ptr<module_> const&);
 tracked_ptr<module_>
 compile_module(context&, std::vector<ptr<syntax>> const& data,
                source_file_origin const&,
-               pass_list passes = all_passes,
+               compilation_config const& config,
                bool main_module = false);
 
 tracked_ptr<module_>
 compile_module(context&, std::filesystem::path const&,
-               pass_list passes = all_passes, bool main_module = false);
+               compilation_config const& config, bool main_module = false);
 
 // Translate a module's body.
 void
 compile_module_body(context&, tracked_ptr<module_> const&,
-                    module_specifier const&, pass_list passes = all_passes,
+                    module_specifier const&, compilation_config const& config,
                     bool main_module = false);
 
 } // namespace insider

@@ -1,3 +1,4 @@
+#include "compiler/compilation_config.hpp"
 #include "compiler/compiler.hpp"
 #include "compiler/source_code_provider.hpp"
 #include "context.hpp"
@@ -129,8 +130,12 @@ show_error(insider::context& ctx, std::runtime_error const& e) {
 
 static void
 run_program(insider::context& ctx, std::string const& program_path) {
-  auto mod = insider::compile_module(ctx, program_path, insider::all_passes,
-                                     true);
+  auto mod = insider::compile_module(
+    ctx,
+    program_path,
+    insider::compilation_config::optimisations_config(),
+    true
+  );
   insider::execute(ctx, mod);
 }
 

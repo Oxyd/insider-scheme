@@ -1,5 +1,6 @@
 #include "vm/vm.hpp"
 
+#include "compiler/compilation_config.hpp"
 #include "compiler/compiler.hpp"
 #include "context.hpp"
 #include "io/port.hpp"
@@ -2378,13 +2379,15 @@ values(context& ctx, object_span args) {
 static ptr<tail_call_tag_type>
 eval_proc(vm& state, ptr<> expr, tracked_ptr<module_> const& m) {
   ptr<syntax> stx = datum_to_syntax(state.ctx, {}, expr);
-  auto f = compile_expression(state.ctx, stx, m, make_eval_origin());
+  auto f = compile_expression(state.ctx, stx, m, make_eval_origin(),
+                              compilation_config::optimisations_config());
   return tail_call(state, f, {});
 }
 
 ptr<>
 eval(context& ctx, tracked_ptr<module_> const& mod, ptr<syntax> expr) {
-  auto f = compile_expression(ctx, expr, mod, make_eval_origin());
+  auto f = compile_expression(ctx, expr, mod, make_eval_origin(),
+                              compilation_config::optimisations_config());
   return call_root(ctx, f, {});
 }
 

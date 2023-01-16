@@ -1,6 +1,7 @@
 #include "module_resolver.hpp"
 
 #include "compiler/analyser.hpp"
+#include "compiler/compilation_config.hpp"
 #include "compiler/source_code_provider.hpp"
 #include "io/read.hpp"
 
@@ -28,7 +29,8 @@ module_resolver::knows_module(context& ctx, module_name const& name) {
 }
 
 ptr<module_>
-module_resolver::find_module(context& ctx, module_name const& name) {
+module_resolver::find_module(context& ctx, module_name const& name,
+                             compilation_config const& config) {
   using namespace std::literals;
 
   if (name == std::vector{"insider"s, "internal"s})
@@ -40,7 +42,7 @@ module_resolver::find_module(context& ctx, module_name const& name) {
 
     return mod_it->second;
   } else
-    return load_module(ctx, name);
+    return load_module(ctx, name, config);
 }
 
 void
@@ -110,11 +112,13 @@ module_resolver::find_module_in_providers(context& ctx,
 }
 
 ptr<module_>
-module_resolver::load_module(context& ctx, module_name const& name) {
+module_resolver::load_module(context& ctx, module_name const& name,
+                             compilation_config const& config) {
   modules_.emplace(name, nullptr);
   tracked_ptr<module_> m = instantiate(
     ctx,
-    find_module_in_providers(ctx, name)
+    find_module_in_providers(ctx, name),
+    config
   );
   modules_.find(name)->second = m.get();
   return m.get();

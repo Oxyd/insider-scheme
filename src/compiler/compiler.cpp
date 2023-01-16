@@ -3,6 +3,7 @@
 #include "compiler/analyser.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/cfg.hpp"
+#include "compiler/compilation_config.hpp"
 #include "compiler/registers.hpp"
 #include "compiler/source_code_provider.hpp"
 #include "compiler/variable.hpp"
@@ -846,9 +847,9 @@ ptr<procedure>
 compile_expression(context& ctx, ptr<syntax> datum,
                    tracked_ptr<module_> const& mod,
                    source_file_origin const& origin,
-                   pass_list passes) {
+                   compilation_config const& config) {
   return compile_syntax(ctx,
-                        analyse(ctx, datum, mod, std::move(passes), origin),
+                        analyse(ctx, datum, mod, config, origin),
                         mod);
 }
 
@@ -887,25 +888,26 @@ compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
 
 tracked_ptr<module_>
 compile_module(context& ctx, std::vector<ptr<syntax>> const& data,
-               source_file_origin const& origin, pass_list passes,
+               source_file_origin const& origin,
+               compilation_config const& config,
                bool main_module) {
   module_specifier pm = read_module(ctx, data, origin);
   auto result = make_tracked<module_>(ctx, ctx, pm.name);
-  perform_imports(ctx, result, pm.imports);
-  compile_module_body(ctx, result, pm, std::move(passes), main_module);
+  perform_imports(ctx, result, pm.imports, config);
+  compile_module_body(ctx, result, pm, config, main_module);
   return result;
 }
 
 tracked_ptr<module_>
 compile_module(context& ctx, std::filesystem::path const& path,
-               pass_list passes, bool main_module) {
+               compilation_config const& config, bool main_module) {
   filesystem_source_code_provider provider{"."};
   if (auto file = provider.find_file(ctx, path))
     return compile_module(ctx,
                           insider::read_syntax_multiple(ctx,
                                                         file->port.get().get()),
                           file->origin,
-                          std::move(passes),
+                          config,
                           main_module);
   else
     throw std::runtime_error{fmt::format("Can't open input file {}",
@@ -914,9 +916,10 @@ compile_module(context& ctx, std::filesystem::path const& path,
 
 void
 compile_module_body(context& ctx, tracked_ptr<module_> const& m,
-                    module_specifier const& pm, pass_list passes,
+                    module_specifier const& pm,
+                    compilation_config const& config,
                     bool main_module) {
-  auto body_expr = analyse_module(ctx, m, pm, std::move(passes), main_module);
+  auto body_expr = analyse_module(ctx, m, pm, config, main_module);
 
   procedure_context proc{nullptr, m};
   shared_register self = reserve_register_for_self_variable(proc);

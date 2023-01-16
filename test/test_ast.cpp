@@ -1,3 +1,4 @@
+#include "compiler/compilation_config.hpp"
 #include "scheme_fixture.hpp"
 
 #include "compiler/analyse_free_variables_pass.hpp"
@@ -186,7 +187,8 @@ struct ast : scheme_fixture {
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     insider::null_source_code_provider provider;
-    return insider::analyse(ctx, expr_stx, m, std::move(passes),
+    return insider::analyse(ctx, expr_stx, m,
+                            compilation_config{std::move(passes)},
                             {&provider, "<unit test expression>"});
   }
 
@@ -205,8 +207,9 @@ struct ast : scheme_fixture {
     module_specifier pm = read_module(ctx, read_syntax_multiple(ctx, expr),
                                       {&provider, "<unit test main module>"});
     auto mod = make_tracked<module_>(ctx, ctx, pm.name);
-    perform_imports(ctx, mod, pm.imports);
-    return insider::analyse_module(ctx, mod, pm, std::move(passes), true);
+    compilation_config config{std::move(passes)};
+    perform_imports(ctx, mod, pm.imports, config);
+    return insider::analyse_module(ctx, mod, pm, config, true);
   }
 
   variable
@@ -415,7 +418,7 @@ TEST_F(ast, repl_definitions_are_not_constants) {
   expression e
     = insider::analyse(ctx,
                        assume<syntax>(read_syntax(ctx, "(define foo 12)")),
-                       m, {&analyse_variables},
+                       m, compilation_config{{&analyse_variables}},
                        {&provider, "<unit test main module>"});
   ptr<top_level_variable> v
     = expect<top_level_variable>(find_variable("foo", e));

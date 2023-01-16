@@ -12,13 +12,12 @@ class context;
 class module_;
 class scope;
 class vm;
+struct compilation_config;
 struct source_file_origin;
 
 class parsing_context;
 
 using use_site_scopes_list = std::vector<ptr<scope>>;
-using pass = expression (*)(parsing_context&, expression);
-using pass_list = std::vector<pass>;
 
 class parsing_context : public root_provider {
 public:
@@ -28,10 +27,11 @@ public:
   source_file_origin const&          origin;
   std::vector<std::vector<variable>> environment;
   std::vector<use_site_scopes_list>  use_site_scopes;
-  pass_list                          passes;
+  compilation_config const&          config;
   bool                               is_meta = false;
 
-  parsing_context(vm& state, ptr<insider::module_>, pass_list passes,
+  parsing_context(vm& state, ptr<insider::module_>,
+                  compilation_config const& config,
                   source_file_origin const&);
 
   bool

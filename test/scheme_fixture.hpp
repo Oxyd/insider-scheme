@@ -1,6 +1,8 @@
 #ifndef INSIDER_TEST_SCHEME_FIXTURE_HPP
 #define INSIDER_TEST_SCHEME_FIXTURE_HPP
 
+#include "compiler/ast_transforms.hpp"
+#include "compiler/compilation_config.hpp"
 #include "compiler/compiler.hpp"
 #include "compiler/source_code_provider.hpp"
 #include "context.hpp"
@@ -11,6 +13,8 @@
 #include "vm/vm.hpp"
 
 #include <gtest/gtest.h>
+
+#include <utility>
 
 struct scheme_fixture : testing::Test {
   insider::context ctx;
@@ -38,7 +42,7 @@ struct scheme_fixture : testing::Test {
                                 insider::assume<insider::syntax>(expr_stx),
                                 m,
                                 {&provider, "<unit test expression>"},
-                                std::move(passes));
+                                insider::compilation_config{std::move(passes)});
     return call_root(ctx, f, {});
   }
 
@@ -58,7 +62,7 @@ struct scheme_fixture : testing::Test {
     insider::tracked_ptr<insider::module_> m = compile_module(
       ctx, read_syntax_multiple(ctx, expr),
       {&provider, "<unit test main module>"},
-      std::move(passes)
+      insider::compilation_config{std::move(passes)}
     );
     return execute(ctx, m);
   }

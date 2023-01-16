@@ -6,6 +6,7 @@
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/compare.hpp"
+#include "util/depth_first_search.hpp"
 #include "vm/vm.hpp"
 
 #include <stdexcept>

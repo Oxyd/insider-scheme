@@ -1,6 +1,7 @@
 #ifndef INSIDER_MODULE_HPP
 #define INSIDER_MODULE_HPP
 
+#include "compiler/compilation_config.hpp"
 #include "compiler/module_name.hpp"
 #include "compiler/module_specifier.hpp"
 #include "compiler/scope.hpp"
@@ -92,7 +93,7 @@ private:
 // Turn a module specifier into a module. First instantiate all uninstantiated
 // dependencies of the module, then compile its body.
 tracked_ptr<module_>
-instantiate(context&, module_specifier const&);
+instantiate(context&, module_specifier const&, compilation_config const&);
 
 // Import all exports from one module to another.
 void
@@ -108,7 +109,8 @@ import_all_top_level(context&,
                      tracked_ptr<module_> const& from);
 
 void
-perform_imports(context&, tracked_ptr<module_> const& to, imports_list const&);
+perform_imports(context&, tracked_ptr<module_> const& to, imports_list const&,
+                compilation_config const&);
 
 operand
 define_top_level(context&, std::string const& name, ptr<module_>, bool export_,

@@ -1,6 +1,7 @@
 #ifndef INSIDER_MODULE_RESOLVER_HPP
 #define INSIDER_MODULE_RESOLVER_HPP
 
+#include "compiler/compilation_config.hpp"
 #include "compiler/module_name.hpp"
 #include "compiler/module_specifier.hpp"
 #include "memory/root_provider.hpp"
@@ -30,7 +31,7 @@ public:
   knows_module(context&, module_name const&);
 
   ptr<module_>
-  find_module(context&, module_name const&);
+  find_module(context&, module_name const&, compilation_config const&);
 
   void
   prepend_source_code_provider(std::unique_ptr<source_code_provider>);
@@ -54,7 +55,7 @@ private:
   find_module_in_providers(context& ctx, module_name const& name);
 
   ptr<module_>
-  load_module(context&, module_name const&);
+  load_module(context&, module_name const&, compilation_config const&);
 };
 
 } // insider

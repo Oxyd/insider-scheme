@@ -43,7 +43,7 @@ expression
 apply_passes(parsing_context& pc, expression e) {
   tracker t{pc.ctx, e};
 
-  for (pass p : pc.passes) {
+  for (pass p : pc.config.passes) {
     e = p(pc, e);
     pc.ctx.store.update();
   }
