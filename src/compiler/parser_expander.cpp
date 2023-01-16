@@ -1249,8 +1249,8 @@ parse_application(parsing_context& pc, ptr<syntax> stx) {
     args_expr = rest;
   }
 
-  return make<application_expression>(pc.ctx, stx, target_expr, arguments,
-                                      argument_names);
+  return make<application_expression>(pc.ctx, stx->location(), target_expr,
+                                      arguments, argument_names);
 }
 
 static expression

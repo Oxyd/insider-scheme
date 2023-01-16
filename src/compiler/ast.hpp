@@ -3,6 +3,7 @@
 
 #include "compiler/debug_info.hpp"
 #include "compiler/expression.hpp"
+#include "compiler/source_location.hpp"
 #include "compiler/variable.hpp"
 #include "memory/free_store.hpp"
 #include "object.hpp"
@@ -162,17 +163,17 @@ public:
     generic, scheme, native
   };
 
-  application_expression(ptr<syntax> origin, expression t,
+  application_expression(source_location loc, expression t,
                          std::vector<expression> args);
 
-  application_expression(ptr<syntax> origin, expression t,
+  application_expression(source_location loc, expression t,
                          std::vector<expression> args,
                          std::vector<ptr<keyword>> arg_names);
 
   template <typename... Ts>
-  application_expression(ptr<syntax> origin, expression t, Ts&&... ts)
+  application_expression(source_location loc, expression t, Ts&&... ts)
     : target_{t}
-    , origin_{origin}
+    , origin_loc_{std::move(loc)}
   {
     arguments_.reserve(sizeof...(Ts));
     (arguments_.push_back(ts), ...);
@@ -202,8 +203,8 @@ public:
   void
   set_kind(target_kind k) { kind_ = k; }
 
-  ptr<syntax>
-  origin() const { return origin_; }
+  source_location
+  origin_location() const { return origin_loc_; }
 
   template <typename F>
   void
@@ -232,7 +233,7 @@ private:
   std::size_t                        size_estimate_ = 0;
   std::optional<insider::debug_info> debug_info_;
   target_kind                        kind_ = target_kind::generic;
-  ptr<syntax> const                  origin_;
+  source_location                    origin_loc_;
 
   void
   update_size_estimate();
@@ -750,7 +751,7 @@ static expression
 make_application(context& ctx, std::string const& name, Args&&... args) {
   return make<application_expression>(
     ctx,
-    ptr<syntax>{},
+    source_location::unknown,
     make_internal_reference(ctx, name),
     std::forward<Args>(args)...
   );

@@ -3,6 +3,7 @@
 #include "compiler/ast.hpp"
 #include "compiler/clone_ast.hpp"
 #include "compiler/parsing_context.hpp"
+#include "compiler/source_location.hpp"
 #include "compiler/variable.hpp"
 #include "context.hpp"
 
@@ -144,7 +145,7 @@ box_loop_variable(context& ctx, definition_pair_expression const& var) {
   return definition_pair_expression{
     var.variable(),
     make<application_expression>(ctx,
-                                 ptr<syntax>{},
+                                 source_location::unknown,
                                  make_internal_reference(ctx, "box"),
                                  var.expression())
   };

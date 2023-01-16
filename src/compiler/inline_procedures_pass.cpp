@@ -48,7 +48,7 @@ make_tail_args_expression(context& ctx, ptr<application_expression> app,
 
   return make<application_expression>(
     ctx,
-    app->origin(),
+    app->origin_location(),
     make_internal_reference(ctx, "list"),
     std::move(tail_args)
   );
