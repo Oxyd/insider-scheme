@@ -95,6 +95,25 @@ arity_matches(ptr<application_expression> app, ptr<lambda_expression> lambda) {
     return app->arguments().size() >= required_parameter_count(lambda);
 }
 
+static void
+emit_invalid_arity_diagnostic(parsing_context& pc,
+                              ptr<application_expression> app,
+                              ptr<lambda_expression> lambda) {
+  std::string message = fmt::format("Wrong number of arguments in call to {}: ",
+                                    lambda->name());
+  if (app->arguments().size() < required_parameter_count(lambda))
+    message += fmt::format("Expected at least {}",
+                           required_parameter_count(lambda));
+  else
+    // app->arguments.size() > leading_parameter_count(lambda)
+    message += fmt::format("Expected at most {}",
+                           leading_parameter_count(lambda));
+
+  message += fmt::format(", got {}. Call will raise an exception at run-time",
+                         app->arguments().size());
+  pc.config.diagnostics.show(app->origin_location(), message);
+}
+
 static ptr<lambda_expression>
 find_constant_lambda_initialiser(auto var) {
   if (auto init = var->constant_initialiser()) {
@@ -297,11 +316,11 @@ replace_self_calls_with_loops(context& ctx, ptr<lambda_expression> lambda) {
 
 namespace {
   struct inline_visitor {
-    context& ctx;
+    parsing_context& pc;
     std::vector<ptr<lambda_expression>> entered_lambdas;
 
-    inline_visitor(context& ctx)
-      : ctx{ctx}
+    inline_visitor(parsing_context& pc)
+      : pc{pc}
     { }
 
     void
@@ -340,17 +359,21 @@ namespace {
         app->target()
       );
 
-      if (lambda && can_inline(app, lambda))
-        return inline_application(ctx, app, lambda);
-      else
-        return app;
+      if (lambda) {
+        if (can_inline(app, lambda))
+          return inline_application(pc.ctx, app, lambda);
+        else if (!arity_matches(app, lambda))
+          emit_invalid_arity_diagnostic(pc, app, lambda);
+      }
+
+      return app;
     }
 
     expression
     leave(ptr<lambda_expression> lambda) {
       assert(entered_lambdas.back() == lambda);
       entered_lambdas.pop_back();
-      replace_self_calls_with_loops(ctx, lambda);
+      replace_self_calls_with_loops(pc.ctx, lambda);
       return lambda;
     }
 
@@ -505,45 +528,47 @@ build_top_level_procedure_map(ptr<sequence_expression> top_level) {
 }
 
 static expression
-inline_top_level_expression(context& ctx, expression e,
+inline_top_level_expression(parsing_context& pc, expression e,
                             top_level_procedure_map const& map) {
   if (auto set = match<top_level_set_expression>(e))
     if (auto mapped = map.find(set->target()); mapped != map.end())
-      return make<top_level_set_expression>(ctx, set->target(), mapped->second,
+      return make<top_level_set_expression>(pc.ctx,
+                                            set->target(),
+                                            mapped->second,
                                             set->is_initialisation());
-  return transform_ast(ctx, e, inline_visitor{ctx});
+  return transform_ast(pc.ctx, e, inline_visitor{pc});
 }
 
 static expression
-inline_top_level(context& ctx,
+inline_top_level(parsing_context& pc,
                  ptr<sequence_expression> top_level,
                  top_level_procedure_map const& map) {
   std::vector<expression> exprs;
   for (expression e : top_level->expressions())
-    exprs.push_back(inline_top_level_expression(ctx, e, map));
-  return make<sequence_expression>(ctx, std::move(exprs));
+    exprs.push_back(inline_top_level_expression(pc, e, map));
+  return make<sequence_expression>(pc.ctx, std::move(exprs));
 }
 
 expression
-inline_top_level(context& ctx, ptr<sequence_expression> top_level) {
+inline_top_level(parsing_context& pc, ptr<sequence_expression> top_level) {
   auto inlining_order
     = sort_top_level_procedure_graph(build_top_level_procedure_graph(top_level),
                                      top_level);
   auto procedure_map = build_top_level_procedure_map(top_level);
 
   for (auto var : inlining_order)
-    procedure_map[var] = transform_ast(ctx, procedure_map[var],
-                                       inline_visitor{ctx});
+    procedure_map[var] = transform_ast(pc.ctx, procedure_map[var],
+                                       inline_visitor{pc});
 
-  return inline_top_level(ctx, top_level, procedure_map);
+  return inline_top_level(pc, top_level, procedure_map);
 }
 
 expression
 inline_procedures(parsing_context& pc, expression e) {
   if (auto top_level = match<sequence_expression>(e))
-    return inline_top_level(pc.ctx, top_level);
+    return inline_top_level(pc, top_level);
   else
-    return transform_ast(pc.ctx, e, inline_visitor{pc.ctx});
+    return transform_ast(pc.ctx, e, inline_visitor{pc});
 }
 
 } // namespace insider

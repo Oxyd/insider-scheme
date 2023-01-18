@@ -17,7 +17,9 @@
 #include "compiler/optimise_applications_pass.hpp"
 #include "compiler/remove_unnecessary_definitions_pass.hpp"
 #include "compiler/update_variables_pass.hpp"
+
 #include <memory>
+#include <vector>
 
 using namespace insider;
 
@@ -170,6 +172,15 @@ find_top_level_definition_for(expression root, std::string const& name) {
 }
 
 struct ast : scheme_fixture {
+  struct : diagnostic_sink {
+    std::vector<source_location> locations;
+
+    void
+    output(source_location const& loc, std::string const&) override {
+      locations.emplace_back(loc);
+    }
+  } diagnostics;
+
   expression
   make_nested_call() {
     return make<application_expression>(
@@ -191,10 +202,7 @@ struct ast : scheme_fixture {
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     insider::null_source_code_provider provider;
-    insider::compilation_config config{
-      std::move(passes),
-      insider::null_diagnostic_sink::instance
-    };
+    insider::compilation_config config{std::move(passes), diagnostics};
     return insider::analyse(ctx, expr_stx, m, config,
                             {&provider, "<unit test expression>"});
   }
@@ -214,8 +222,7 @@ struct ast : scheme_fixture {
     module_specifier pm = read_module(ctx, read_syntax_multiple(ctx, expr),
                                       {&provider, "<unit test main module>"});
     auto mod = make_tracked<module_>(ctx, ctx, pm.name);
-    compilation_config config{std::move(passes),
-                              null_diagnostic_sink::instance};
+    compilation_config config{std::move(passes), diagnostics};
     perform_imports(ctx, mod, pm.imports, config);
     return insider::analyse_module(ctx, mod, pm, config, true);
   }
@@ -2804,4 +2811,18 @@ TEST_F(ast, call_with_keywords_is_inlined) {
     ).value(),
     2
   );
+}
+
+TEST_F(ast, invalid_arity_in_call_emits_diagnostic) {
+  analyse_module(
+    R"(                            ; 1
+      (import (insider internal))  ; 2
+                                   ; 3
+      (define f (lambda (a b) #f)) ; 4
+      (define g (lambda () (f 1))) ; 5
+    )"
+  );
+
+  ASSERT_EQ(diagnostics.locations.size(), 1);
+  EXPECT_EQ(diagnostics.locations.front().line, 5);
 }
