@@ -301,12 +301,27 @@ fill_positional_parameter_slots(std::vector<expression>& new_args,
 }
 
 static bool
-has_unfilled_required_parameter(std::vector<expression> const& new_args,
-                                ptr<lambda_expression> target) {
+check_required_parameters_are_provided(std::vector<expression> const& new_args,
+                                       diagnostic_sink& diagnostics,
+                                       ptr<lambda_expression> target,
+                                       source_location const& location) {
   for (std::size_t i = 0; i < required_parameter_count(target); ++i)
-    if (!new_args[i])
-      return true;
-  return false;
+    if (!new_args[i]) {
+      std::string name;
+      if (auto n = target->parameter_names()[i])
+        name = fmt::format("#:{}", n->value());
+      else
+        name = fmt::format("#{}", i + 1);
+
+      diagnostics.show(location,
+                       fmt::format("{}: Required parameter {} not provided. "
+                                   WILL_RAISE_EXCEPTION,
+                                   target->name(),
+                                   name));
+      return false;
+    }
+
+  return true;
 }
 
 static void
@@ -334,7 +349,8 @@ reorder_supplement_and_validate_application(context& ctx,
     return {};
   if (!fill_positional_parameter_slots(new_args, app))
     return {};
-  if (has_unfilled_required_parameter(new_args, target))
+  if (!check_required_parameters_are_provided(new_args, diagnostics, target,
+                                              app->origin_location()))
     return {};
   fill_unsupplied_optional_parameters_with_defaults(ctx, new_args, target);
   return make<application_expression>(ctx, app->origin_location(), app->target(),

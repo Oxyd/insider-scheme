@@ -2868,3 +2868,17 @@ TEST_F(ast, unknown_keyword_argument_emits_diagnostic) {
   ASSERT_EQ(diagnostics.locations.size(), 1);
   EXPECT_EQ(diagnostics.locations.front().line, 5);
 }
+
+TEST_F(ast, missing_required_positional_argument_emits_diagnostic) {
+    analyse_module(
+    R"(                                      ; 1
+      (import (insider internal))            ; 2
+                                             ; 3
+      (define f (lambda (a #:two (b 0)) #f)) ; 4
+      (define g (lambda () (f #:two 2)))     ; 5
+    )"
+  );
+
+  ASSERT_EQ(diagnostics.locations.size(), 1);
+  EXPECT_EQ(diagnostics.locations.front().line, 5);
+}
