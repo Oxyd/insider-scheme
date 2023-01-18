@@ -271,14 +271,13 @@ push_unnamed_args(call_stack& stack, register_index base, ptr<vector> arg_names,
 
 static void
 check_required_args_are_provided(call_stack& stack, register_index base,
-                                 ptr<vector> arg_names,
                                  procedure_prototype const& proto) {
   for (unsigned i = 0; i < proto.info.num_required_args; ++i)
     if (!stack.local(base + i + 1)) {
-      if (arg_names->ref(i))
+      if (proto.info.parameter_names[i])
         throw make_error("{}: No value for required argument #:{}",
                          *proto.info.name,
-                         assume<keyword>(arg_names->ref(i))->value());
+                         proto.info.parameter_names[i]->value());
       else
         throw make_error("{}: No value for required positional argument #{}",
                          *proto.info.name, i + 1);
@@ -321,7 +320,7 @@ reorder_keyword_arguments(context& ctx,
   );
   push_named_args(stack, base, arg_names, proto, args);
   push_unnamed_args(stack, base, arg_names, args);
-  check_required_args_are_provided(stack, base, arg_names, proto);
+  check_required_args_are_provided(stack, base, proto);
   fill_in_default_values_for_keyword_call(ctx, stack, base, proto);
 }
 
