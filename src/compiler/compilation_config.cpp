@@ -22,26 +22,17 @@ stdout_diagnostic_sink::output(source_location const& loc,
   fmt::print(stdout, "Warning: {}: {}\n", format_location(loc), message);
 }
 
-delegate_diagnostic_sink::delegate_diagnostic_sink(diagnostic_sink& other)
-  : target_{other}
-{ }
+null_diagnostic_sink
+null_diagnostic_sink::instance;
 
-void
-delegate_diagnostic_sink::output(source_location const& loc,
-                                 std::string const& msg) {
-  target_.show(loc, msg);
+compilation_config
+compilation_config::optimisations_config(diagnostic_sink& diagnostics) {
+  return compilation_config{all_passes, diagnostics};
 }
 
 compilation_config
-compilation_config::optimisations_config(
-  std::unique_ptr<diagnostic_sink> diagnostics
-) {
-  return compilation_config{all_passes, std::move(diagnostics)};
-}
-
-compilation_config
-compilation_config::debug_config(std::unique_ptr<diagnostic_sink> diagnostics) {
-  return compilation_config{no_optimisations, std::move(diagnostics)};
+compilation_config::debug_config(diagnostic_sink& diagnostics) {
+  return compilation_config{no_optimisations, diagnostics};
 }
 
 } // namespace insider

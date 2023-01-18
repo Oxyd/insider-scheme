@@ -527,9 +527,7 @@ analyse_module(context& ctx, tracked_ptr<module_> const& m,
 static expression
 analyse_proc(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
   ptr<syntax> stx = datum_to_syntax(ctx, {}, expr);
-  auto config = compilation_config::optimisations_config(
-    std::make_unique<null_diagnostic_sink>()
-  );
+  auto config = compilation_config::optimisations_config();
   return analyse(ctx, stx, m, config, make_eval_origin());
 }
 
@@ -546,9 +544,7 @@ static expression
 analyse_module_proc(context& ctx, std::vector<ptr<>> const& data) {
   auto ms = read_module(ctx, data_to_syntaxes(ctx, data), make_eval_origin());
   auto dummy_mod = make_tracked<module_>(ctx, ctx, ms.name);
-  auto config = compilation_config::optimisations_config(
-    std::make_unique<null_diagnostic_sink>()
-  );
+  auto config = compilation_config::optimisations_config();
   perform_imports(ctx, dummy_mod, ms.imports, config);
   return analyse_module(ctx, dummy_mod, ms, config);
 }

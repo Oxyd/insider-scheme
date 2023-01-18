@@ -193,7 +193,7 @@ struct ast : scheme_fixture {
     insider::null_source_code_provider provider;
     insider::compilation_config config{
       std::move(passes),
-      std::make_unique<insider::null_diagnostic_sink>()
+      insider::null_diagnostic_sink::instance
     };
     return insider::analyse(ctx, expr_stx, m, config,
                             {&provider, "<unit test expression>"});
@@ -215,7 +215,7 @@ struct ast : scheme_fixture {
                                       {&provider, "<unit test main module>"});
     auto mod = make_tracked<module_>(ctx, ctx, pm.name);
     compilation_config config{std::move(passes),
-                              std::make_unique<null_diagnostic_sink>()};
+                              null_diagnostic_sink::instance};
     perform_imports(ctx, mod, pm.imports, config);
     return insider::analyse_module(ctx, mod, pm, config, true);
   }
@@ -425,7 +425,7 @@ TEST_F(ast, repl_definitions_are_not_constants) {
       );
   null_source_code_provider provider;
   compilation_config config{{&analyse_variables},
-                            std::make_unique<null_diagnostic_sink>()};
+                            null_diagnostic_sink::instance};
   expression e
     = insider::analyse(ctx,
                        assume<syntax>(read_syntax(ctx, "(define foo 12)")),

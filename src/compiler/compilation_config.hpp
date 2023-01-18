@@ -31,6 +31,10 @@ private:
 };
 
 class null_diagnostic_sink final : public diagnostic_sink {
+public:
+  static null_diagnostic_sink instance;
+
+private:
   void
   output(source_location const&, std::string const&) override { }
 };
@@ -40,33 +44,23 @@ class stdout_diagnostic_sink final : public diagnostic_sink {
   output(source_location const&, std::string const&) override;
 };
 
-class delegate_diagnostic_sink final : public diagnostic_sink {
-public:
-  explicit
-  delegate_diagnostic_sink(diagnostic_sink& other);
-
-private:
-  diagnostic_sink& target_;
-
-  void
-  output(source_location const& loc, std::string const& msg) override;
-};
-
 struct compilation_config {
-  pass_list                        passes;
-  std::unique_ptr<diagnostic_sink> diagnostics;
+  pass_list        passes;
+  diagnostic_sink& diagnostics;
 
-  compilation_config(pass_list passes,
-                     std::unique_ptr<diagnostic_sink> diagnostics)
+  explicit
+  compilation_config(pass_list passes, diagnostic_sink& diagnostics)
     : passes{std::move(passes)}
-    , diagnostics{std::move(diagnostics)}
+    , diagnostics{diagnostics}
   { }
 
   static compilation_config
-  optimisations_config(std::unique_ptr<diagnostic_sink>);
+  optimisations_config(
+    diagnostic_sink& diagnostics = null_diagnostic_sink::instance
+  );
 
   static compilation_config
-  debug_config(std::unique_ptr<diagnostic_sink>);
+  debug_config(diagnostic_sink& diagnostics = null_diagnostic_sink::instance);
 };
 
 } // namespace insider

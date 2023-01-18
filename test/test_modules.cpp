@@ -612,9 +612,7 @@ struct export_all_imported_fixture : modules {
   void
   check_exported_names(auto const&... names) {
     using namespace std::literals;
-    auto config = compilation_config::debug_config(
-      std::make_unique<null_diagnostic_sink>()
-    );
+    auto config = compilation_config::debug_config();
     auto m = ctx.module_resolver().find_module(ctx, module_name{"bar"s}, config);
     EXPECT_EQ(m->exports(), (std::unordered_set{std::string{names}...}));
   }

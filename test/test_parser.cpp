@@ -17,9 +17,7 @@ struct parser : scheme_fixture {
 
     null_source_code_provider provider;
     vm state{ctx};
-    auto config = compilation_config::debug_config(
-      std::make_unique<null_diagnostic_sink>()
-    );
+    auto config = compilation_config::debug_config();
     parsing_context pc{state, m.get(), config,
                        {&provider, "<unit test expression>"}};
 

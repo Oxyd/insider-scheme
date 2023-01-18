@@ -814,9 +814,7 @@ struct repl_fixture : interpreter {
         import_modules(module_name{"insider", "internal"})
       );
 
-  compilation_config config = compilation_config::optimisations_config(
-    std::make_unique<null_diagnostic_sink>()
-  );
+  compilation_config config = compilation_config::optimisations_config();
 };
 
 TEST_F(repl_fixture, eval_simple_expression_in_interactive_module) {
@@ -967,9 +965,7 @@ TEST_F(interpreter, repl_define_using_macro) {
         ctx,
         import_modules(module_name{"foo"})
       );
-  auto config = compilation_config::optimisations_config(
-    std::make_unique<null_diagnostic_sink>()
-  );
+  auto config = compilation_config::optimisations_config();
 
   insider::eval(ctx, m, "(def x)", config);
   ptr<> result = insider::eval(ctx, m, "x", config);

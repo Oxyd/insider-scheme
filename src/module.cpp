@@ -413,9 +413,7 @@ parse_imports(context& ctx, object_span imports) {
 static ptr<>
 environment(context& ctx, ptr<native_procedure>, object_span args) {
   auto result = make_tracked<module_>(ctx, ctx, module_::type::immutable);
-  auto config = compilation_config::optimisations_config(
-    std::make_unique<null_diagnostic_sink>()
-  );
+  auto config = compilation_config::optimisations_config();
   perform_imports(ctx, result, parse_imports(ctx, args), config);
   return result.get();
 }
@@ -423,9 +421,7 @@ environment(context& ctx, ptr<native_procedure>, object_span args) {
 tracked_ptr<module_>
 make_interactive_module(context& ctx, imports_list const& imports) {
   auto result = make_tracked<module_>(ctx, ctx, module_::type::interactive);
-  auto config = compilation_config::optimisations_config(
-    std::make_unique<null_diagnostic_sink>()
-  );
+  auto config = compilation_config::optimisations_config();
   perform_imports(ctx, result, imports, config);
   return result;
 }
@@ -440,9 +436,7 @@ dynamic_import(context& ctx, ptr<native_procedure>, object_span args) {
   require_arg_count(args, 2);
   auto m = expect<module_>(args[0]);
   auto imports = parse_imports(ctx, args.subspan(1));
-  auto config = compilation_config::optimisations_config(
-    std::make_unique<null_diagnostic_sink>()
-  );
+  auto config = compilation_config::optimisations_config();
   perform_imports(ctx, track(ctx, m), imports, config);
   return ctx.constants->void_;
 }

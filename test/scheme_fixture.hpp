@@ -41,7 +41,7 @@ struct scheme_fixture : testing::Test {
     insider::null_source_code_provider provider;
     insider::compilation_config config{
       std::move(passes),
-      std::make_unique<insider::null_diagnostic_sink>()
+      insider::null_diagnostic_sink::instance
     };
     auto f = compile_expression(ctx,
                                 insider::assume<insider::syntax>(expr_stx),
@@ -66,7 +66,7 @@ struct scheme_fixture : testing::Test {
     insider::null_source_code_provider provider;
     insider::compilation_config config{
       std::move(passes),
-      std::make_unique<insider::null_diagnostic_sink>()
+      insider::null_diagnostic_sink::instance
     };
     insider::tracked_ptr<insider::module_> m = compile_module(
       ctx, read_syntax_multiple(ctx, expr),

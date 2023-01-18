@@ -2380,9 +2380,7 @@ values(context& ctx, object_span args) {
 static ptr<tail_call_tag_type>
 eval_proc(vm& state, ptr<> expr, tracked_ptr<module_> const& m) {
   ptr<syntax> stx = datum_to_syntax(state.ctx, {}, expr);
-  auto config = compilation_config::optimisations_config(
-    std::make_unique<null_diagnostic_sink>()
-  );
+  auto config = compilation_config::optimisations_config();
   auto f = compile_expression(state.ctx, stx, m, make_eval_origin(), config);
   return tail_call(state, f, {});
 }

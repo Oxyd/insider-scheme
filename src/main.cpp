@@ -186,9 +186,8 @@ run(int argc, char** argv, insider::context& ctx) {
     insider::read(ctx, opts.interaction_environment_specifier)
   );
 
-  auto config = insider::compilation_config::optimisations_config(
-    std::make_unique<insider::stdout_diagnostic_sink>()
-  );
+  insider::stdout_diagnostic_sink diag_sink;
+  auto config = insider::compilation_config::optimisations_config(diag_sink);
 
   if (opts.program_path.empty())
     run_repl(ctx, config);
