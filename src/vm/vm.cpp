@@ -288,7 +288,7 @@ check_required_args_are_provided(call_stack& stack, register_index base,
 static void
 resize_frame_for_parameters(call_stack& stack, register_index base,
                             procedure_prototype const& proto) {
-    register_index end = base + proto.info.num_leading_args + 1;
+  register_index end = base + proto.info.num_leading_args + 1;
   if (stack.frame_size() <= end)
     stack.resize_current_frame(end + 1);
 }
