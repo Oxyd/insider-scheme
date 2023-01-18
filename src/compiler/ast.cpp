@@ -7,6 +7,7 @@
 #include "module.hpp"
 #include "util/define_struct.hpp"
 #include "util/sum_type.hpp"
+#include <stdexcept>
 
 namespace insider {
 
@@ -274,30 +275,28 @@ fill_keyword_parameter_slots(std::vector<expression>& new_args,
   return true;
 }
 
-static std::optional<std::size_t>
+static std::size_t
 find_free_index(std::vector<expression> const& args, std::size_t start) {
   for (std::size_t i = start; i < args.size(); ++i)
     if (!args[i])
       return i;
-  return std::nullopt;
+
+  assert(false);
+  throw std::logic_error{"No slot for unnamed argument"};
 }
 
-static bool
+static void
 fill_positional_parameter_slots(std::vector<expression>& new_args,
                                 ptr<application_expression> app) {
   std::size_t first_possible_index = 0;
   for (std::size_t i = 0; i < app->argument_names().size(); ++i) {
     ptr<keyword> name = app->argument_names()[i];
     if (!name) {
-      if (auto index = find_free_index(new_args, first_possible_index)) {
-        new_args[*index] = app->arguments()[i];
-        first_possible_index = *index + 1;
-      } else
-        return false;
+      std::size_t index = find_free_index(new_args, first_possible_index);
+      new_args[index] = app->arguments()[i];
+      first_possible_index = index + 1;
     }
   }
-
-  return true;
 }
 
 static bool
@@ -347,8 +346,7 @@ reorder_supplement_and_validate_application(context& ctx,
                            leading_parameter_count(target)));
   if (!fill_keyword_parameter_slots(new_args, diagnostics, app, target))
     return {};
-  if (!fill_positional_parameter_slots(new_args, app))
-    return {};
+  fill_positional_parameter_slots(new_args, app);
   if (!check_required_parameters_are_provided(new_args, diagnostics, target,
                                               app->origin_location()))
     return {};
