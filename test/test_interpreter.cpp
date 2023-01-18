@@ -1,3 +1,4 @@
+#include "compiler/compilation_config.hpp"
 #include "scheme_fixture.hpp"
 
 #include "compiler/variable.hpp"
@@ -7,6 +8,7 @@
 #include "vm/stacktrace.hpp"
 #include "vm/vm.hpp"
 #include <gtest/gtest.h>
+#include <memory>
 #include <stdexcept>
 
 using namespace insider;
@@ -811,49 +813,53 @@ struct repl_fixture : interpreter {
         ctx,
         import_modules(module_name{"insider", "internal"})
       );
+
+  compilation_config config = compilation_config::optimisations_config(
+    std::make_unique<null_diagnostic_sink>()
+  );
 };
 
 TEST_F(repl_fixture, eval_simple_expression_in_interactive_module) {
-  ptr<> result = insider::eval(ctx, m, "(* 7 3)");
+  ptr<> result = insider::eval(ctx, m, "(* 7 3)", config);
   EXPECT_EQ(expect<integer>(result).value(), 21);
 }
 
 TEST_F(repl_fixture, define_top_level_in_interactive_module) {
-  insider::eval(ctx, m, "(define x 7)");
-  insider::eval(ctx, m, "(define y 3)");
-  ptr<> result = insider::eval(ctx, m, "(* x y)");
+  insider::eval(ctx, m, "(define x 7)", config);
+  insider::eval(ctx, m, "(define y 3)", config);
+  ptr<> result = insider::eval(ctx, m, "(* x y)", config);
   EXPECT_EQ(expect<integer>(result).value(), 21);
 }
 
 TEST_F(repl_fixture, reference_variable_before_definition) {
-  insider::eval(ctx, m, "(define f (lambda () (* a 2)))");
-  EXPECT_THROW(insider::eval(ctx, m, "(f)"), unbound_variable_error);
-  insider::eval(ctx, m, "(define a 4)");
-  ptr<> result = insider::eval(ctx, m, "(f)");
+  insider::eval(ctx, m, "(define f (lambda () (* a 2)))", config);
+  EXPECT_THROW(insider::eval(ctx, m, "(f)", config), unbound_variable_error);
+  insider::eval(ctx, m, "(define a 4)", config);
+  ptr<> result = insider::eval(ctx, m, "(f)", config);
   EXPECT_EQ(expect<integer>(result).value(), 8);
 }
 
 TEST_F(repl_fixture, reference_to_top_level_variable_doesnt_bind_to_local) {
-  insider::eval(ctx, m, "(define f (lambda () (* a 2)))");
-  EXPECT_THROW(insider::eval(ctx, m, "(let ((a 4)) (f))"),
+  insider::eval(ctx, m, "(define f (lambda () (* a 2)))", config);
+  EXPECT_THROW(insider::eval(ctx, m, "(let ((a 4)) (f))", config),
                unbound_variable_error);
 }
 
 TEST_F(repl_fixture, reference_procedure_before_definition) {
-  insider::eval(ctx, m, "(define f (lambda () (a 2)))");
-  insider::eval(ctx, m, "(define a (lambda (x) (* 2 x)))");
-  ptr<> result = insider::eval(ctx, m, "(f)");
+  insider::eval(ctx, m, "(define f (lambda () (a 2)))", config);
+  insider::eval(ctx, m, "(define a (lambda (x) (* 2 x)))", config);
+  ptr<> result = insider::eval(ctx, m, "(f)", config);
   EXPECT_EQ(expect<integer>(result).value(), 4);
 }
 
 TEST_F(repl_fixture, define_syntax_in_repl) {
-  insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'4))");
-  ptr<> result = insider::eval(ctx, m, "(a)");
+  insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'4))", config);
+  ptr<> result = insider::eval(ctx, m, "(a)", config);
   EXPECT_EQ(expect<integer>(result).value(), 4);
 }
 
 TEST_F(repl_fixture, reference_to_unknown_variable_doesnt_bind_to_syntax) {
-  insider::eval(ctx, m, "(define f (lambda () (a 2)))");
+  insider::eval(ctx, m, "(define f (lambda () (a 2)))", config);
   insider::eval(
     ctx, m,
     R"(
@@ -861,32 +867,33 @@ TEST_F(repl_fixture, reference_to_unknown_variable_doesnt_bind_to_syntax) {
         (lambda (stx)
           (let ((name (cadr (syntax->list stx))))
             #`(* 2 #,name))))
-    )"
+    )",
+    config
   );
-  EXPECT_THROW(insider::eval(ctx, m, "(f)"), unbound_variable_error);
+  EXPECT_THROW(insider::eval(ctx, m, "(f)", config), unbound_variable_error);
 }
 
 TEST_F(repl_fixture, redefine_variable_in_repl) {
-  insider::eval(ctx, m, "(define x 1)");
-  insider::eval(ctx, m, "(define x 2)");
-  ptr<> result = insider::eval(ctx, m, "x");
+  insider::eval(ctx, m, "(define x 1)", config);
+  insider::eval(ctx, m, "(define x 2)", config);
+  ptr<> result = insider::eval(ctx, m, "x", config);
   EXPECT_EQ(expect<integer>(result).value(), 2);
 }
 
 TEST_F(repl_fixture, redefine_syntax_in_repl) {
-  insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'4))");
-  insider::eval(ctx, m, "(define f (lambda () (a)))");
-  ptr<> result1 = insider::eval(ctx, m, "(f)");
+  insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'4))", config);
+  insider::eval(ctx, m, "(define f (lambda () (a)))", config);
+  ptr<> result1 = insider::eval(ctx, m, "(f)", config);
   EXPECT_EQ(expect<integer>(result1).value(), 4);
 
   // f still uses the definition that was visible when it was defined.
-  insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'8))");
-  ptr<> result2 = insider::eval(ctx, m, "(f)");
+  insider::eval(ctx, m, "(define-syntax a (lambda (stx) #'8))", config);
+  ptr<> result2 = insider::eval(ctx, m, "(f)", config);
   EXPECT_EQ(expect<integer>(result2).value(), 4);
 
   // The new definition of f will use the new definition of a.
-  insider::eval(ctx, m, "(define f (lambda () (a)))");
-  ptr<> result3 = insider::eval(ctx, m, "(f)");
+  insider::eval(ctx, m, "(define f (lambda () (a)))", config);
+  ptr<> result3 = insider::eval(ctx, m, "(f)", config);
   EXPECT_EQ(expect<integer>(result3).value(), 8);
 }
 
@@ -901,7 +908,9 @@ TEST_F(repl_fixture, eval_sets_current_module_parameter) {
                            (find-parameter-value
                             current-expand-module-tag)))))
           (s))
-      )");
+      )",
+      config
+    );
   EXPECT_EQ(result, m.get());
 }
 
@@ -922,7 +931,7 @@ TEST_F(interpreter, scheme_eval_sets_current_module_parameter) {
 TEST_F(repl_fixture, dynamic_import_performs_imports) {
   define_top_level(ctx, "m", m.get(), true, m.get());
   // Not yet imported
-  EXPECT_THROW(insider::eval(ctx, m, "var"), unbound_variable_error);
+  EXPECT_THROW(insider::eval(ctx, m, "var", config), unbound_variable_error);
 
   add_source_file(
     "foo.scm",
@@ -934,8 +943,8 @@ TEST_F(repl_fixture, dynamic_import_performs_imports) {
     )"
   );
 
-  insider::eval(ctx, m, "(dynamic-import m '(foo))");
-  ptr<> result = insider::eval(ctx, m, "var");
+  insider::eval(ctx, m, "(dynamic-import m '(foo))", config);
+  ptr<> result = insider::eval(ctx, m, "var", config);
   EXPECT_EQ(expect<integer>(result).value(), 13);
 }
 
@@ -958,8 +967,12 @@ TEST_F(interpreter, repl_define_using_macro) {
         ctx,
         import_modules(module_name{"foo"})
       );
-  insider::eval(ctx, m, "(def x)");
-  ptr<> result = insider::eval(ctx, m, "x");
+  auto config = compilation_config::optimisations_config(
+    std::make_unique<null_diagnostic_sink>()
+  );
+
+  insider::eval(ctx, m, "(def x)", config);
+  ptr<> result = insider::eval(ctx, m, "x", config);
   EXPECT_EQ(expect<integer>(result).value(), 0);
 }
 
@@ -1090,15 +1103,15 @@ static char const* introduce_macro_def = R"(
 )";
 
 TEST_F(repl_fixture, reference_and_set_variable_introduced_by_macro) {
-  insider::eval(ctx, m, introduce_macro_def);
-  ptr<> result = insider::eval(ctx, m, "(introduce x (set! x 1) x)");
+  insider::eval(ctx, m, introduce_macro_def, config);
+  ptr<> result = insider::eval(ctx, m, "(introduce x (set! x 1) x)", config);
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
 
 TEST_F(repl_fixture, set_variable_introduced_by_macro_in_meta) {
-  insider::eval(ctx, m, introduce_macro_def);
+  insider::eval(ctx, m, introduce_macro_def, config);
   ptr<> result
-    = insider::eval(ctx, m, "(meta (introduce x (set! x 1) x))");
+    = insider::eval(ctx, m, "(meta (introduce x (set! x 1) x))", config);
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
 

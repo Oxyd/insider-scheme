@@ -17,6 +17,7 @@
 #include "compiler/optimise_applications_pass.hpp"
 #include "compiler/remove_unnecessary_definitions_pass.hpp"
 #include "compiler/update_variables_pass.hpp"
+#include <memory>
 
 using namespace insider;
 
@@ -190,8 +191,11 @@ struct ast : scheme_fixture {
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     insider::null_source_code_provider provider;
-    return insider::analyse(ctx, expr_stx, m,
-                            compilation_config{std::move(passes)},
+    insider::compilation_config config{
+      std::move(passes),
+      std::make_unique<insider::null_diagnostic_sink>()
+    };
+    return insider::analyse(ctx, expr_stx, m, config,
                             {&provider, "<unit test expression>"});
   }
 
@@ -210,7 +214,8 @@ struct ast : scheme_fixture {
     module_specifier pm = read_module(ctx, read_syntax_multiple(ctx, expr),
                                       {&provider, "<unit test main module>"});
     auto mod = make_tracked<module_>(ctx, ctx, pm.name);
-    compilation_config config{std::move(passes)};
+    compilation_config config{std::move(passes),
+                              std::make_unique<null_diagnostic_sink>()};
     perform_imports(ctx, mod, pm.imports, config);
     return insider::analyse_module(ctx, mod, pm, config, true);
   }
@@ -419,10 +424,12 @@ TEST_F(ast, repl_definitions_are_not_constants) {
         import_modules(module_name{"insider", "internal"})
       );
   null_source_code_provider provider;
+  compilation_config config{{&analyse_variables},
+                            std::make_unique<null_diagnostic_sink>()};
   expression e
     = insider::analyse(ctx,
                        assume<syntax>(read_syntax(ctx, "(define foo 12)")),
-                       m, compilation_config{{&analyse_variables}},
+                       m, config,
                        {&provider, "<unit test main module>"});
   ptr<top_level_variable> v
     = expect<top_level_variable>(find_variable("foo", e));

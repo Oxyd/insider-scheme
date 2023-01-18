@@ -1,6 +1,7 @@
 #ifndef INSIDER_COMPILER_SOURCE_LOCATION_HPP
 #define INSIDER_COMPILER_SOURCE_LOCATION_HPP
 
+#include <functional>
 #include <string>
 
 namespace insider {
@@ -22,5 +23,19 @@ std::string
 format_location(source_location const&);
 
 } // namespace insider
+
+namespace std {
+
+template <>
+struct hash<insider::source_location> {
+  std::size_t
+  operator () (insider::source_location const& loc) const {
+    return hash<string>{}(loc.file_name)
+           ^ hash<unsigned>{}(loc.line)
+           ^ hash<unsigned>{}(loc.column);
+  }
+};
+
+} // namespace std
 
 #endif

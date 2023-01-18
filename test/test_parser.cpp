@@ -5,6 +5,7 @@
 #include "compiler/ast.hpp"
 #include "compiler/parser_expander.hpp"
 #include <gtest/gtest.h>
+#include <memory>
 
 using namespace insider;
 
@@ -16,7 +17,10 @@ struct parser : scheme_fixture {
 
     null_source_code_provider provider;
     vm state{ctx};
-    parsing_context pc{state, m.get(), compilation_config::debug_config(),
+    auto config = compilation_config::debug_config(
+      std::make_unique<null_diagnostic_sink>()
+    );
+    parsing_context pc{state, m.get(), config,
                        {&provider, "<unit test expression>"}};
 
     auto stx = expect<syntax>(read_syntax(ctx, expr));

@@ -13,6 +13,7 @@
 #include <fmt/format.h>
 
 #include <cstdio>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -129,18 +130,14 @@ show_error(insider::context& ctx, std::runtime_error const& e) {
 }
 
 static void
-run_program(insider::context& ctx, std::string const& program_path) {
-  auto mod = insider::compile_module(
-    ctx,
-    program_path,
-    insider::compilation_config::optimisations_config(),
-    true
-  );
+run_program(insider::context& ctx, std::string const& program_path,
+            insider::compilation_config const& config) {
+  auto mod = insider::compile_module(ctx, program_path, config, true);
   insider::execute(ctx, mod);
 }
 
 static void
-run_repl(insider::context& ctx) {
+run_repl(insider::context& ctx, insider::compilation_config const& config) {
   insider::tracked_ptr<insider::module_> repl_mod
     = insider::interaction_environment(ctx);
   insider::tracked_ptr<insider::textual_input_port> input_port
@@ -156,7 +153,7 @@ run_repl(insider::context& ctx) {
       insider::ptr<> expr
         = insider::read_syntax(ctx, input_port.get());
       if (auto stx = insider::match<insider::syntax>(expr)) {
-        insider::ptr<> result = insider::eval(ctx, repl_mod, stx);
+        insider::ptr<> result = insider::eval(ctx, repl_mod, stx, config);
         if (result != ctx.constants->void_) {
           insider::write(ctx, result, output_port.get());
           output_port->write("\n");
@@ -189,10 +186,14 @@ run(int argc, char** argv, insider::context& ctx) {
     insider::read(ctx, opts.interaction_environment_specifier)
   );
 
+  auto config = insider::compilation_config::optimisations_config(
+    std::make_unique<insider::stdout_diagnostic_sink>()
+  );
+
   if (opts.program_path.empty())
-    run_repl(ctx);
+    run_repl(ctx, config);
   else
-    run_program(ctx, opts.program_path);
+    run_program(ctx, opts.program_path, config);
 
   return 0;
 }

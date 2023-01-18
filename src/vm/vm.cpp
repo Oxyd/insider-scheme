@@ -28,6 +28,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
@@ -2379,22 +2380,25 @@ values(context& ctx, object_span args) {
 static ptr<tail_call_tag_type>
 eval_proc(vm& state, ptr<> expr, tracked_ptr<module_> const& m) {
   ptr<syntax> stx = datum_to_syntax(state.ctx, {}, expr);
-  auto f = compile_expression(state.ctx, stx, m, make_eval_origin(),
-                              compilation_config::optimisations_config());
+  auto config = compilation_config::optimisations_config(
+    std::make_unique<null_diagnostic_sink>()
+  );
+  auto f = compile_expression(state.ctx, stx, m, make_eval_origin(), config);
   return tail_call(state, f, {});
 }
 
 ptr<>
-eval(context& ctx, tracked_ptr<module_> const& mod, ptr<syntax> expr) {
-  auto f = compile_expression(ctx, expr, mod, make_eval_origin(),
-                              compilation_config::optimisations_config());
+eval(context& ctx, tracked_ptr<module_> const& mod, ptr<syntax> expr,
+     compilation_config const& config) {
+  auto f = compile_expression(ctx, expr, mod, make_eval_origin(), config);
   return call_root(ctx, f, {});
 }
 
 ptr<>
-eval(context& ctx, tracked_ptr<module_> const& mod, std::string const& expr) {
+eval(context& ctx, tracked_ptr<module_> const& mod, std::string const& expr,
+     compilation_config const& config) {
   if (auto stx = match<syntax>(read_syntax(ctx, expr)))
-    return eval(ctx, mod, stx);
+    return eval(ctx, mod, stx, config);
   else
     throw std::runtime_error{"Unexpected EOF"};
 }

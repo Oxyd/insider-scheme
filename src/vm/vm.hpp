@@ -1,6 +1,7 @@
 #ifndef INSIDER_VM_VM_HPP
 #define INSIDER_VM_VM_HPP
 
+#include "compiler/compilation_config.hpp"
 #include "context.hpp"
 #include "ptr.hpp"
 #include "runtime/basic_types.hpp"
@@ -98,11 +99,13 @@ tail_call(vm&, ptr<> callable, std::vector<ptr<>> const& arguments);
 
 // Compile an expression and evaluate it in the given module.
 ptr<>
-eval(context& ctx, tracked_ptr<module_> const&, ptr<syntax>);
+eval(context& ctx, tracked_ptr<module_> const&, ptr<syntax>,
+     compilation_config const&);
 
 // Parse a string as an expression and evaluate it in the given module.
 ptr<>
-eval(context& ctx, tracked_ptr<module_> const&, std::string const& expr);
+eval(context& ctx, tracked_ptr<module_> const&, std::string const& expr,
+     compilation_config const&);
 
 } // namespace insider
 

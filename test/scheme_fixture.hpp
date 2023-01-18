@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <utility>
 
 struct scheme_fixture : testing::Test {
@@ -38,11 +39,15 @@ struct scheme_fixture : testing::Test {
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     insider::null_source_code_provider provider;
+    insider::compilation_config config{
+      std::move(passes),
+      std::make_unique<insider::null_diagnostic_sink>()
+    };
     auto f = compile_expression(ctx,
                                 insider::assume<insider::syntax>(expr_stx),
                                 m,
                                 {&provider, "<unit test expression>"},
-                                insider::compilation_config{std::move(passes)});
+                                config);
     return call_root(ctx, f, {});
   }
 
@@ -59,10 +64,14 @@ struct scheme_fixture : testing::Test {
   eval_module(std::string const& expr,
               insider::pass_list passes = insider::all_passes) {
     insider::null_source_code_provider provider;
+    insider::compilation_config config{
+      std::move(passes),
+      std::make_unique<insider::null_diagnostic_sink>()
+    };
     insider::tracked_ptr<insider::module_> m = compile_module(
       ctx, read_syntax_multiple(ctx, expr),
       {&provider, "<unit test main module>"},
-      insider::compilation_config{std::move(passes)}
+      config
     );
     return execute(ctx, m);
   }
