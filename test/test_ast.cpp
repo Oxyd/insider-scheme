@@ -2826,3 +2826,45 @@ TEST_F(ast, invalid_arity_in_call_emits_diagnostic) {
   ASSERT_EQ(diagnostics.locations.size(), 1);
   EXPECT_EQ(diagnostics.locations.front().line, 5);
 }
+
+TEST_F(ast, missing_required_keyword_argument_emits_diagnostic) {
+  analyse_module(
+    R"(                                        ; 1
+      (import (insider internal))              ; 2
+                                               ; 3
+      (define f (lambda (#:one a #:two b) #f)) ; 4
+      (define g (lambda () (f #:one 1)))       ; 5
+    )"
+  );
+
+  ASSERT_EQ(diagnostics.locations.size(), 1);
+  EXPECT_EQ(diagnostics.locations.front().line, 5);
+}
+
+TEST_F(ast, duplicate_keyword_argument_emits_diagnostic) {
+  analyse_module(
+    R"(                                          ; 1
+      (import (insider internal))                ; 2
+                                                 ; 3
+      (define f (lambda (#:one a #:two b) #f))   ; 4
+      (define g (lambda () (f #:one 1 #:one 2))) ; 5
+    )"
+  );
+
+  ASSERT_EQ(diagnostics.locations.size(), 1);
+  EXPECT_EQ(diagnostics.locations.front().line, 5);
+}
+
+TEST_F(ast, unknown_keyword_argument_emits_diagnostic) {
+  analyse_module(
+    R"(                                            ; 1
+      (import (insider internal))                  ; 2
+                                                   ; 3
+      (define f (lambda (#:one a #:two b) #f))     ; 4
+      (define g (lambda () (f #:one 1 #:three 2))) ; 5
+    )"
+  );
+
+  ASSERT_EQ(diagnostics.locations.size(), 1);
+  EXPECT_EQ(diagnostics.locations.front().line, 5);
+}

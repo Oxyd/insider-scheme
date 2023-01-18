@@ -67,14 +67,16 @@ has_unsupplied_optionals(ptr<application_expression> app,
 }
 
 static expression
-visit_scheme_application(context& ctx, ptr<application_expression> app,
+visit_scheme_application(parsing_context& pc, ptr<application_expression> app,
                          ptr<lambda_expression> lambda) {
   if (!scheme_application_is_valid(app, lambda))
     return app;
 
   if (has_keyword_arguments(app) || has_unsupplied_optionals(app, lambda)) {
     if (auto supplemented
-          = reorder_supplement_and_validate_application(ctx, app, lambda))
+          = reorder_supplement_and_validate_application(pc.ctx,
+                                                        pc.config.diagnostics,
+                                                        app, lambda))
       app = supplemented;
     else
       return app;
@@ -182,11 +184,11 @@ namespace {
     using native_substitutor_map
       = std::unordered_map<ptr<top_level_variable>, application_substitutor>;
 
-    context& ctx;
+    parsing_context& pc;
     native_substitutor_map native_substitutors;
 
     explicit
-    application_visitor(context&);
+    application_visitor(parsing_context&);
 
     void
     enter(auto) { }
@@ -196,7 +198,7 @@ namespace {
       if (auto ref = match<top_level_reference_expression>(app->target()))
         if (auto substitutor = native_substitutors.find(ref->variable());
             substitutor != native_substitutors.end())
-          return substitutor->second(ctx, app);
+          return substitutor->second(pc.ctx, app);
       return app;
     }
 
@@ -210,8 +212,8 @@ namespace {
     expression
     leave(ptr<application_expression> app) {
       if (auto lambda = find_scheme_application_target(app))
-        return visit_scheme_application(ctx, app, lambda);
-      else if (is_native_application(ctx, app))
+        return visit_scheme_application(pc, app, lambda);
+      else if (is_native_application(pc.ctx, app))
         return visit_native_application(app);
       else
         return app;
@@ -236,11 +238,11 @@ substitutors[]{
   {"eq?", eq_substitutor}
 };
 
-application_visitor:: application_visitor(context& ctx)
-  : ctx{ctx}
+application_visitor:: application_visitor(parsing_context& pc)
+  : pc{pc}
 {
   for (auto const& def : substitutors) {
-    auto binding = ctx.internal_module()->find(ctx.intern(def.name));
+    auto binding = pc.ctx.internal_module()->find(pc.ctx.intern(def.name));
     native_substitutors.emplace(assume<top_level_variable>(binding->variable),
                                 def.substitutor);
   }
@@ -248,7 +250,7 @@ application_visitor:: application_visitor(context& ctx)
 
 expression
 optimise_applications(parsing_context& pc, expression e) {
-  return transform_ast(pc.ctx, e, application_visitor{pc.ctx});
+  return transform_ast(pc.ctx, e, application_visitor{pc});
 }
 
 } // namespace insider

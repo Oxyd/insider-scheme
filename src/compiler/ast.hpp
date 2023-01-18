@@ -1,6 +1,7 @@
 #ifndef INSIDER_COMPILER_AST_HPP
 #define INSIDER_COMPILER_AST_HPP
 
+#include "compiler/compilation_config.hpp"
 #include "compiler/debug_info.hpp"
 #include "compiler/expression.hpp"
 #include "compiler/source_location.hpp"
@@ -20,6 +21,7 @@
 
 namespace insider {
 
+class diagnostic_sink;
 class native_procedure;
 class syntax;
 class transformer;
@@ -244,6 +246,7 @@ has_keyword_arguments(ptr<application_expression>);
 
 ptr<application_expression>
 reorder_supplement_and_validate_application(context& ctx,
+                                            diagnostic_sink& diagnostics,
                                             ptr<application_expression> app,
                                             ptr<lambda_expression> target);
 

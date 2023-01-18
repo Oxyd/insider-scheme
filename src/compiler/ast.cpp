@@ -1,5 +1,6 @@
 #include "compiler/ast.hpp"
 
+#include "compiler/compilation_config.hpp"
 #include "compiler/source_location.hpp"
 #include "context.hpp"
 #include "io/write.hpp"
@@ -239,20 +240,34 @@ argument_index(ptr<lambda_expression> lambda, ptr<keyword> name) {
   return std::nullopt;
 }
 
+#define WILL_RAISE_EXCEPTION "Call will raise an exception at run-time."
+
 static bool
 fill_keyword_parameter_slots(std::vector<expression>& new_args,
+                             diagnostic_sink& diagnostics,
                              ptr<application_expression> app,
                              ptr<lambda_expression> target) {
   for (std::size_t i = 0; i < app->argument_names().size(); ++i) {
     ptr<keyword> name = app->argument_names()[i];
     if (name) {
       if (auto index = argument_index(target, name)) {
-        if (new_args[*index] != nullptr)
+        if (new_args[*index] != nullptr) {
+          diagnostics.show(app->origin_location(),
+                           fmt::format("Duplicate keyword argument #:{}. "
+                                       WILL_RAISE_EXCEPTION,
+                                       name->value()));
           return false;
+        }
         else
           new_args[*index] = app->arguments()[i];
-      } else
+      } else {
+        diagnostics.show(app->origin_location(),
+                         fmt::format("{} does not have keyword parameter #:{}. "
+                                     WILL_RAISE_EXCEPTION,
+                                     target->name(),
+                                     name->value()));
         return false;
+      }
     }
   }
 
@@ -309,12 +324,13 @@ fill_unsupplied_optional_parameters_with_defaults(
 
 ptr<application_expression>
 reorder_supplement_and_validate_application(context& ctx,
+                                            diagnostic_sink& diagnostics,
                                             ptr<application_expression> app,
                                             ptr<lambda_expression> target) {
   std::vector<expression> new_args;
   new_args.resize(std::max(app->arguments().size(),
                            leading_parameter_count(target)));
-  if (!fill_keyword_parameter_slots(new_args, app, target))
+  if (!fill_keyword_parameter_slots(new_args, diagnostics, app, target))
     return {};
   if (!fill_positional_parameter_slots(new_args, app))
     return {};

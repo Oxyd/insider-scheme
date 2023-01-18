@@ -74,14 +74,17 @@ inline_variadic_application(context& ctx, ptr<application_expression> app,
 }
 
 static expression
-inline_application(context& ctx, ptr<application_expression> app,
+inline_application(parsing_context& pc,
+                   ptr<application_expression> app,
                    ptr<lambda_expression> target) {
-  auto fixed_app = reorder_supplement_and_validate_application(ctx, app, target);
+  auto fixed_app = reorder_supplement_and_validate_application(
+    pc.ctx, pc.config.diagnostics, app, target
+  );
   if (fixed_app) {
     if (target->has_rest())
-      return inline_variadic_application(ctx, fixed_app, target);
+      return inline_variadic_application(pc.ctx, fixed_app, target);
     else
-      return inline_nonvariadic_application(ctx, fixed_app, target);
+      return inline_nonvariadic_application(pc.ctx, fixed_app, target);
   } else
     return app;
 }
@@ -361,7 +364,7 @@ namespace {
 
       if (lambda) {
         if (can_inline(app, lambda))
-          return inline_application(pc.ctx, app, lambda);
+          return inline_application(pc, app, lambda);
         else if (!arity_matches(app, lambda))
           emit_invalid_arity_diagnostic(pc, app, lambda);
       }
