@@ -178,7 +178,7 @@ tail_args_length(procedure_prototype const& proto, std::size_t num_args) {
 static void
 convert_tail_args(context& ctx, call_stack& stack,
                   procedure_prototype const& proto, register_index base,
-                  register_index num_args) {
+                  std::size_t num_args) {
   if (proto.info.has_rest)
     convert_tail_args_to_list(ctx, stack,
                               base + proto.info.num_leading_args + 1,
@@ -206,14 +206,14 @@ copy_arguments(call_stack& stack, register_index base, std::size_t num_args) {
   std::vector<ptr<>> result;
   result.reserve(num_args);
   for (std::size_t i = 0; i < num_args; ++i)
-    result.push_back(stack.local(base + i + 1));
+    result.push_back(stack.local(to_smaller<register_index>(base + i + 1)));
   return result;
 }
 
 static void
-clear_arguments(call_stack& stack, operand base, std::size_t num_args) {
+clear_arguments(call_stack& stack, register_index base, std::size_t num_args) {
   for (std::size_t i = 0; i < num_args; ++i)
-    stack.local(base + i + 1) = nullptr;
+    stack.local(to_smaller<register_index>(base + i + 1)) = nullptr;
 }
 
 static register_index
@@ -331,7 +331,7 @@ current_procedure_bytecode_base(vm const& state) {
 
 static void
 push_scheme_frame(vm& state, ptr<procedure> proc,
-                  operand base, operand result_reg) {
+                  register_index base, operand result_reg) {
   state.stack.push_frame({
     .type = call_stack::frame_type::scheme,
     .result_register = result_reg,
@@ -360,7 +360,7 @@ make_scheme_tail_call_frame(call_stack& stack, ptr<procedure> proc,
 static void
 check_and_convert_scheme_call_arguments(vm& state,
                                         procedure_prototype const& proto,
-                                        operand base) {
+                                        register_index base) {
   operand num_args = read_operand(state);
   throw_if_wrong_number_of_args(proto, num_args);
   fill_in_default_values(state.ctx, state.stack, proto, base, num_args);

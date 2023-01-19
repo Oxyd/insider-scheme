@@ -191,19 +191,19 @@ public:
   }
 
   ptr<>&
-  local(operand local) {
+  local(register_index local) {
     assert(local < current_frame().size);
     return data_[current_base_ + local];
   }
 
   ptr<>
-  local(operand local) const {
+  local(register_index local) const {
     assert(local < current_frame().size);
     return data_[current_base_ + local];
   }
 
   ptr<>&
-  local(frame_index frame, operand local) {
+  local(frame_index frame, register_index local) {
     return data_[frames_[frame].base + local];
   }
 

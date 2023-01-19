@@ -908,14 +908,14 @@ export_ast(context& ctx, ptr<module_> result) {
 
   define_struct<application_expression>(ctx, "application-expression", result)
     .field<&application_expression::target>("target")
-    .field<&application_expression_arguments>("arguments")
+    .field<application_expression_arguments>("arguments")
     ;
 
   define_struct<sequence_expression>(ctx, "sequence-expression", result)
-    .field<&sequence_expression_expressions>("expressions");
+    .field<sequence_expression_expressions>("expressions");
 
   define_struct<let_expression>(ctx, "let-expression", result)
-    .field<&let_expression_definitions>("definitions")
+    .field<let_expression_definitions>("definitions")
     .field<&let_expression::body>("body")
     ;
 
@@ -931,11 +931,11 @@ export_ast(context& ctx, ptr<module_> result) {
     ;
 
   define_struct<lambda_expression>(ctx, "lambda-expression", result)
-    .field<&lambda_expression_parameters>("parameters")
+    .field<lambda_expression_parameters>("parameters")
     .field<&lambda_expression::has_rest>("has-rest?")
     .field<&lambda_expression::body>("body")
     .field<&lambda_expression::name>("name")
-    .field<&lambda_expression_free_variables>("free-variables")
+    .field<lambda_expression_free_variables>("free-variables")
     ;
 
   define_struct<if_expression>(ctx, "if-expression", result)

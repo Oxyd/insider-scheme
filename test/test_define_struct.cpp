@@ -86,7 +86,7 @@ TEST_F(define_struct_fixture, setter_for_setter) {
 
 TEST_F(define_struct_fixture, non_member_setter) {
   define_struct<s>(ctx, "s", ctx.internal_module())
-    .field<&s_number>("number");
+    .field<s_number>("number");
   auto f = eval("s-number");
   EXPECT_EQ(
     expect<integer>(
