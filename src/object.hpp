@@ -8,9 +8,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <new>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 
 namespace insider {
 
@@ -21,8 +23,10 @@ class string_cursor;
 
 using word_type = std::uint64_t;
 
+constexpr std::size_t object_alignment = sizeof(word_type);
+
 // Base for any garbage-collectable Scheme object.
-class alignas(sizeof(word_type)) object {
+class alignas(object_alignment) object {
 public:
   static constexpr bool is_dynamic_size = false;
 };
@@ -74,6 +78,25 @@ constexpr std::size_t string_cursor_payload_offset = 3;
 
 constexpr std::size_t character_tag = 0b110;
 constexpr std::size_t string_cursor_tag = 0b010;
+
+struct alignas(object_alignment) abstract_object_storage {
+  word_type header;
+};
+
+template <typename T>
+struct alignas(object_alignment) object_storage : abstract_object_storage {
+  std::aligned_storage<sizeof(T), alignof(T)> payload_storage;
+
+  T*
+  object() {
+    return std::launder(reinterpret_cast<T*>(&payload_storage));
+  }
+
+  T const*
+  object() const {
+    return std::launder(reinterpret_cast<T const*>(&payload_storage));
+  }
+};
 
 // Non-tracked pointer to a Scheme object, including to immediate values such as
 // fixnums. ptr<> is a pointer to any object, ptr<T> is a pointer to an object
@@ -134,7 +157,9 @@ public:
   as_word() const { return value_; }
 
   word_type&
-  header() const { return *reinterpret_cast<word_type*>(value_); }
+  header() const {
+    return storage()->header;
+  }
 
   object*
   value() const {
@@ -144,10 +169,18 @@ public:
       return nullptr;
   }
 
+  abstract_object_storage*
+  storage() const {
+    if (value_)
+      return reinterpret_cast<abstract_object_storage*>(value_);
+    else
+      return nullptr;
+  }
+
   friend auto
   operator <=> (ptr const&, ptr const&) = default;
 
-private:
+protected:
   friend void detail::update_ptr(ptr<> const&, ptr<>);
 
   mutable word_type value_ = 0;
@@ -196,7 +229,15 @@ public:
   }
 
   T*
-  value() const { return static_cast<T*>(ptr<>::value()); }
+  value() const { return storage()->object(); }
+
+  object_storage<T>*
+  storage() const {
+    if (value_)
+      return reinterpret_cast<object_storage<T>*>(value_);
+    else
+      return nullptr;
+  }
 };
 
 template <typename>
