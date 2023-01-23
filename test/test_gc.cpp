@@ -61,7 +61,7 @@ struct ccc : composite_object<ccc> {
   bool* alive;
   ptr<> ref;
 
-  ccc(bool* alive, object* ref)
+  ccc(bool* alive, ptr<> ref)
     : alive{alive}
     , ref{ref}
   {

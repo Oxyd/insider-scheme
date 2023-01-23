@@ -85,7 +85,7 @@ struct alignas(object_alignment) abstract_object_storage {
 
 template <typename T>
 struct alignas(object_alignment) object_storage : abstract_object_storage {
-  std::aligned_storage<sizeof(T), alignof(T)> payload_storage;
+  std::aligned_storage_t<sizeof(T), alignof(T)> payload_storage;
 
   T*
   object() {
@@ -294,13 +294,14 @@ concept has_static_type_index = requires {
 
 struct type_descriptor {
   char const* name = "invalid";
-  void (*destroy)(ptr<>) = nullptr;
-  ptr<> (*move)(ptr<>, std::byte*) = nullptr;
-  void (*visit_members)(ptr<>, member_visitor const&) = nullptr;
+  void (*destroy)(abstract_object_storage*) = nullptr;
+  ptr<> (*move)(abstract_object_storage*, abstract_object_storage*) = nullptr;
+  void (*visit_members)(abstract_object_storage*,
+                        member_visitor const&) = nullptr;
 
   bool constant_size = true;
   std::size_t size = 0;
-  std::size_t (*get_size)(ptr<>) = nullptr;
+  std::size_t (*get_size)(abstract_object_storage*) = nullptr;
 };
 
 struct type_vector {
@@ -334,6 +335,9 @@ object_type(word_type header) { return types().types[type_index(header)]; }
 
 inline type_descriptor const&
 object_type(ptr<> o) { return object_type(header_word(o)); }
+
+inline type_descriptor const&
+object_type(abstract_object_storage* o) { return object_type(o->header); }
 
 inline word_type
 object_hash(ptr<> o) { return (header_word(o) & hash_bits) >> hash_shift; }
@@ -374,7 +378,7 @@ object_type_name(ptr<> o) {
 inline std::size_t
 object_size(ptr<> o) {
   type_descriptor const& t = object_type(o);
-  return t.constant_size ? t.size : t.get_size(o);
+  return t.constant_size ? t.size : t.get_size(o.storage());
 }
 
 template <typename T>
@@ -442,27 +446,38 @@ namespace detail {
 
   template <typename T>
   void
-  destroy(ptr<> o) { static_cast<T*>(o.value())->~T(); }
+  destroy(abstract_object_storage* o) {
+    auto storage = static_cast<object_storage<T>*>(o);
+    storage->object()->~T();
+    std::uninitialized_fill_n(
+      reinterpret_cast<std::byte*>(&storage->payload_storage),
+      sizeof(T),
+      std::byte{0xAA}
+    );
+  }
 
   template <typename T>
   ptr<>
-  move(ptr<> o, std::byte* storage) {
-    return new (storage) T(std::move(*static_cast<T*>(o.value())));
+  move(abstract_object_storage* from, abstract_object_storage* to) {
+    auto from_storage = static_cast<object_storage<T>*>(from);
+    auto to_storage = static_cast<object_storage<T>*>(to);
+    return new (&to_storage->payload_storage) T(
+      std::move(*from_storage->object())
+    );
   }
 
   template <typename T>
   void
-  visit_members(ptr<> o, member_visitor const& f) {
-    static_cast<T*>(o.value())->visit_members(f);
+  visit_members(abstract_object_storage* o, member_visitor const& f) {
+    static_cast<object_storage<T>*>(o)->object()->visit_members(f);
   }
 
   template <typename T, typename U>
   std::size_t
-  size(ptr<> o) {
+  size(abstract_object_storage* o) {
+    auto storage = static_cast<object_storage<T>*>(o);
     return sizeof(T)
-           + detail::round_to_words(
-               static_cast<T*>(o.value())->size_ * sizeof(U)
-             );
+           + detail::round_to_words(storage->object()->size_ * sizeof(U));
   }
 }
 
@@ -488,7 +503,7 @@ word_type const leaf_object<Derived>::type_index = new_type(
     Derived::scheme_name,
     detail::destroy<Derived>,
     detail::move<Derived>,
-    [] (ptr<>, member_visitor const&) { },
+    [] (abstract_object_storage*, member_visitor const&) { },
     true,
     detail::round_to_words(sizeof(Derived)),
     nullptr
@@ -534,7 +549,7 @@ struct alignas(T) alignas(object) dynamic_size_object : object {
 protected:
   template <typename, typename>
   friend std::size_t
-  detail::size(ptr<>);
+  detail::size(abstract_object_storage*);
 
   T&
   storage_element(std::size_t i) {

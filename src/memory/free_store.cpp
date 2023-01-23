@@ -48,9 +48,9 @@ bool
 is_alive(ptr<> o) { return o != nullptr && is_alive(header_word(o)); }
 
 static void
-set_object_generation(ptr<> o, generation gen) {
-  header_word(o) = (header_word(o) & ~generation_bits)
-                   | (static_cast<word_type>(gen) << generation_shift);
+set_object_generation(abstract_object_storage* o, generation gen) {
+  o->header = (o->header & ~generation_bits)
+              | (static_cast<word_type>(gen) << generation_shift);
 }
 
 static ptr<>
@@ -136,7 +136,7 @@ dense_space::take(page_allocator::page p, std::size_t used) {
   page& new_page = pages_.back();
   new_page.used = used;
   new_page.for_all([] (ptr<> o) {
-    set_object_generation(o, generation::nursery_1);
+    set_object_generation(o.storage(), generation::nursery_1);
   });
 
   total_used_ += used;
@@ -166,13 +166,6 @@ large_space::move(std::size_t i, large_space& to) {
   allocations_[i].reset();
 }
 
-static void
-destroy(ptr<> o, type_descriptor const& type, std::size_t size) {
-  type.destroy(o);
-  std::uninitialized_fill_n(reinterpret_cast<std::byte*>(o.value()), size,
-                            std::byte{0xAA});
-}
-
 void
 large_space::stage_for_deallocation(std::size_t i) {
   assert(allocations_[i]);
@@ -185,7 +178,7 @@ large_space::stage_for_deallocation(std::size_t i) {
   std::size_t size = object_size(o);
 
   bytes_used_ -= size + sizeof(word_type);
-  destroy(o, type, size);
+  type.destroy(o.storage());
   set_forwarding_address(o, nullptr);
 
   to_deallocate_.push_back(i);
@@ -215,7 +208,8 @@ move_object(ptr<> o, dense_space& to) {
   std::byte* storage = to.allocate(size);
 
   init_object_header(storage, object_type_index(o), object_hash(o));
-  return t.move(o, storage + sizeof(word_type));
+  return t.move(o.storage(),
+                reinterpret_cast<abstract_object_storage*>(storage));
 }
 
 free_store::free_store()
@@ -224,7 +218,7 @@ free_store::free_store()
 
 static void
 destroy_all_objects(auto& space) {
-  space.for_all([] (ptr<> o) { object_type(o).destroy(o); });
+  space.for_all([] (ptr<> o) { object_type(o).destroy(o.storage()); });
 }
 
 free_store::~free_store() {
@@ -263,8 +257,8 @@ namespace {
 
 template <typename F>
 static void
-visit_members(ptr<> object, F&& f) {
-  object_type(object).visit_members(object, visitor<F>{f});
+visit_members(abstract_object_storage* o, F&& f) {
+  object_type(o->header).visit_members(o, visitor<F>{f});
 }
 
 template <typename F>
@@ -282,7 +276,7 @@ trace(root_list const& root_list,
   std::vector<ptr<>> stack;
   auto trace = [&] (ptr<> object) {
     visit_members(
-      object,
+      object.storage(),
       [&] (ptr<> const& member, bool weak) {
         if (!weak
             && member && is_object_ptr(member)
@@ -340,7 +334,7 @@ find_new_arcs_to_nursery(std::vector<ptr<>> const& objects,
   for (ptr<> o : objects) {
     assert(is_alive(o));
     bool pushed = false;
-    visit_members(o, [&] (ptr<> const& member, bool) {
+    visit_members(o.storage(), [&] (ptr<> const& member, bool) {
       if (!pushed && member && is_object_ptr(member)) {
         assert(is_alive(member));
 
@@ -365,20 +359,19 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen,
                std::vector<ptr<>>* moved_objects) {
   from.for_all([&] (ptr<> o) {
     type_descriptor const& type = object_type(o);
-    std::size_t size = object_size(o);
 
     assert(object_color(o) != color::grey);
     if (object_color(o) == color::black) {
       ptr<> target = move_object(o, to);
       set_forwarding_address(o, target);
-      set_object_generation(target, to_gen);
+      set_object_generation(target.storage(), to_gen);
 
       if (moved_objects)
         moved_objects->push_back(target);
     } else
       set_forwarding_address(o, nullptr);
 
-    destroy(o, type, size);
+    type.destroy(o.storage());
   });
 }
 
@@ -413,7 +406,7 @@ promote(auto& from, auto& to, std::vector<ptr<>>* moved_objects) {
   move_survivors(from.small, to.small, to.generation_number, moved_objects);
   promote_large(from.large, moved_objects, [&] (std::size_t i, ptr<> o) {
     from.large.move(i, to.large);
-    set_object_generation(o, to.generation_number);
+    set_object_generation(o.storage(), to.generation_number);
   });
 
   return std::move(from.small);
@@ -460,7 +453,7 @@ update_member(ptr<> const& member, [[maybe_unused]] bool weak) {
 
 static void
 update_members(ptr<> o) {
-  visit_members(o, update_member);
+  visit_members(o.storage(), update_member);
 }
 
 static void
