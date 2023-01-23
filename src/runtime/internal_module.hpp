@@ -1,7 +1,7 @@
 #ifndef INSIDER_RUNTIME_INTERNAL_MODULE_HPP
 #define INSIDER_RUNTIME_INTERNAL_MODULE_HPP
 
-#include "ptr.hpp"
+#include "object.hpp"
 
 namespace insider {
 

@@ -2,7 +2,7 @@
 #define INSIDER_RUNTIME_COMPARE_HPP
 
 #include "memory/tracked_ptr.hpp"
-#include "ptr.hpp"
+#include "object.hpp"
 
 #include <cstdint>
 #include <unordered_map>

@@ -3,7 +3,6 @@
 
 #include "memory/member_visitor.hpp"
 #include "object.hpp"
-#include "ptr.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/integer.hpp"
 #include "util/integer_cast.hpp"

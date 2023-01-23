@@ -1,8 +1,8 @@
 #ifndef INSIDER_UTIL_OBJECT_SPAN_HPP
 #define INSIDER_UTIL_OBJECT_SPAN_HPP
 
+#include "object.hpp"
 #include "object_conversions.hpp"
-#include "ptr.hpp"
 
 #include <fmt/format.h>
 

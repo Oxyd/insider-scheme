@@ -3,7 +3,6 @@
 
 #include "memory/tracked_ptr.hpp"
 #include "object.hpp"
-#include "ptr.hpp"
 #include "util/named_runtime_error.hpp"
 
 #include <exception>

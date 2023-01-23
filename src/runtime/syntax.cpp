@@ -1,6 +1,5 @@
 #include "syntax.hpp"
 
-#include "ptr.hpp"
 #include "runtime/basic_types.hpp"
 #include "util/define_procedure.hpp"
 #include "util/object_conversions.hpp"

@@ -5,7 +5,6 @@
 #include "compiler/source_location.hpp"
 #include "memory/member_ptr.hpp"
 #include "object.hpp"
-#include "ptr.hpp"
 #include "runtime/compare.hpp"
 #include "runtime/error.hpp"
 #include "runtime/symbol.hpp"

@@ -4,7 +4,6 @@
 #include "memory/page_allocator.hpp"
 #include "memory/root_list.hpp"
 #include "object.hpp"
-#include "ptr.hpp"
 
 #include <cassert>
 #include <cstddef>

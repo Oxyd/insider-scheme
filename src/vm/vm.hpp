@@ -3,7 +3,6 @@
 
 #include "compiler/compilation_config.hpp"
 #include "context.hpp"
-#include "ptr.hpp"
 #include "runtime/basic_types.hpp"
 #include "vm/call_stack.hpp"
 

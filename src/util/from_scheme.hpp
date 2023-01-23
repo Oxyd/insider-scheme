@@ -2,7 +2,6 @@
 #define INSIDER_UTIL_FROM_SCHEME_HPP
 
 #include "context.hpp"
-#include "ptr.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/string.hpp"
 

@@ -1,7 +1,6 @@
 #ifndef INSIDER_UTIL_PARAMETERIZE_HPP
 #define INSIDER_UTIL_PARAMETERIZE_HPP
 
-#include "ptr.hpp"
 #include "runtime/basic_types.hpp"
 #include "vm/call_stack.hpp"
 #include "vm/vm.hpp"

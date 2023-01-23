@@ -3,7 +3,6 @@
 
 #include "memory/member_ptr.hpp"
 #include "object.hpp"
-#include "ptr.hpp"
 
 namespace insider {
 

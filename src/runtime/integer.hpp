@@ -2,7 +2,6 @@
 #define INSIDER_RUNTIME_INTEGER_HPP
 
 #include "object.hpp"
-#include "ptr.hpp"
 
 #include <bit>
 #include <cstdint>

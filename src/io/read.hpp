@@ -1,8 +1,8 @@
 #ifndef INSIDER_IO_READ_HPP
 #define INSIDER_IO_READ_HPP
 
+#include "object.hpp"
 #include "runtime/error.hpp"
-#include "ptr.hpp"
 
 #include <stdexcept>
 #include <string>

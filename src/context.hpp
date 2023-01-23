@@ -5,7 +5,6 @@
 #include "memory/free_store.hpp"
 #include "module_resolver.hpp"
 #include "object.hpp"
-#include "ptr.hpp"
 #include "vm/bytecode.hpp"
 #include "vm/operand.hpp"
 #include "vm/stacktrace.hpp"

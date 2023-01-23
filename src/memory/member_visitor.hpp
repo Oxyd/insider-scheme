@@ -1,7 +1,7 @@
 #ifndef INSIDER_MEMORY_MEMBER_VISITOR_HPP
 #define INSIDER_MEMORY_MEMBER_VISITOR_HPP
 
-#include "ptr.hpp"
+#include "object.hpp"
 
 #include <functional>
 

@@ -2,7 +2,7 @@
 #define INSIDER_MEMORY_MEMBER_PTR_HPP
 
 #include "memory/free_store.hpp"
-#include "ptr.hpp"
+#include "object.hpp"
 
 namespace insider {
 

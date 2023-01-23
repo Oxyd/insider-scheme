@@ -3,7 +3,6 @@
 
 #include "compiler/expression.hpp"
 #include "object.hpp"
-#include "ptr.hpp"
 #include "util/sum_type.hpp"
 #include "vm/operand.hpp"
 

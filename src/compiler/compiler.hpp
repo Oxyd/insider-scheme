@@ -5,7 +5,7 @@
 #include "compiler/expression.hpp"
 #include "compiler/source_file_origin.hpp"
 #include "module.hpp"
-#include "ptr.hpp"
+#include "object.hpp"
 
 #include <vector>
 

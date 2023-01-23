@@ -3,7 +3,6 @@
 
 #include "compiler/variable.hpp"
 #include "object.hpp"
-#include "ptr.hpp"
 #include "type_indexes.hpp"
 
 #include <cstdint>

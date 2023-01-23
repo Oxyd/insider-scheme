@@ -1,7 +1,7 @@
 #ifndef INSIDER_IO_WRITE_HPP
 #define INSIDER_IO_WRITE_HPP
 
-#include "ptr.hpp"
+#include "object.hpp"
 
 #include <stdexcept>
 #include <string>

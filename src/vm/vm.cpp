@@ -8,7 +8,6 @@
 #include "io/write.hpp"
 #include "memory/free_store.hpp"
 #include "memory/tracker.hpp"
-#include "ptr.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/error.hpp"
 #include "runtime/integer.hpp"

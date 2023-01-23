@@ -2,7 +2,6 @@
 #define INSIDER_UTIL_LIST_ITERATOR_HPP
 
 #include "object_conversions.hpp"
-#include "ptr.hpp"
 
 #include <stdexcept>
 
