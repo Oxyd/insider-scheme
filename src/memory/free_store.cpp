@@ -1,5 +1,6 @@
 #include "free_store.hpp"
 #include "memory/member_visitor.hpp"
+#include "object.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -55,12 +56,12 @@ set_object_generation(ptr<> o, generation gen) {
 static ptr<>
 forwarding_address(ptr<> o) {
   assert(!is_alive(o));
-  return reinterpret_cast<object*>(header_word(o));
+  return ptr<>{header_word(o)};
 }
 
 static void
 set_forwarding_address(ptr<> from, ptr<> target) {
-  header_word(from) = reinterpret_cast<word_type>(target.value());
+  from.header() = target.as_word();
   assert((header_word(from) & alive_bit) == 0);
 }
 
@@ -446,7 +447,7 @@ move_incoming_arcs(std::unordered_set<ptr<>> const& arcs,
 
 void
 detail::update_ptr(ptr<> const& p, ptr<> new_value) {
-  p.value_ = new_value.value();
+  p.value_ = new_value.value_;
 }
 
 static void

@@ -136,9 +136,7 @@ is_string_cursor(ptr<> o) {
 inline word_type&
 header_word(ptr<> o) {
   assert(is_object_ptr(o));
-  return *reinterpret_cast<word_type*>(
-    reinterpret_cast<std::byte*>(o.value()) - sizeof(word_type)
-  );
+  return o.header();
 }
 
 inline word_type
@@ -162,13 +160,13 @@ object_hash(ptr<> o) { return (header_word(o) & hash_bits) >> hash_shift; }
 inline word_type
 tagged_payload(ptr<> o) {
   assert(!is_object_ptr(o));
-  return reinterpret_cast<word_type>(o.value());
+  return o.as_word();
 }
 
 inline ptr<>
 immediate_to_ptr(word_type w) noexcept {
   assert(w & 0b11);
-  return ptr<>{reinterpret_cast<object*>(w)};
+  return ptr<>{w};
 }
 
 constexpr char const* integer_type_name = "insider::integer";

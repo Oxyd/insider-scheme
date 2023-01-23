@@ -3,11 +3,13 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 
 namespace insider {
 
 class object;
+using word_type = std::uint64_t;
 
 // Non-tracked pointer to a Scheme object, including to immediate values such as
 // fixnums. ptr<> is a pointer to any object, ptr<T> is a pointer to an object
@@ -26,34 +28,65 @@ namespace detail {
   update_ptr(ptr<> const& p, ptr<> new_value);
 }
 
+inline word_type
+object_header_address(object* o) {
+  return reinterpret_cast<word_type>(
+    reinterpret_cast<std::byte*>(o) - sizeof(word_type)
+  );
+}
+
+inline object*
+object_address(word_type w) {
+  return reinterpret_cast<object*>(w + sizeof(word_type));
+}
+
 template <>
 class ptr<> {
 public:
   ptr() = default;
 
-  ptr(object* value) : value_{value} { }
+  explicit
+  ptr(word_type value)
+    : value_{value}
+  { }
+
+  ptr(object* value) {
+    if (value)
+      value_ = object_header_address(value);
+  }
 
   ptr(std::nullptr_t) { }
 
   explicit
-  operator bool () const { return value_ != nullptr; }
+  operator bool () const { return value_ != 0; }
 
   void
-  reset() { value_ = nullptr; }
+  reset() { value_ = 0; }
 
   void
   reset(ptr<> new_value) { value_ = new_value.value_; }
 
+  word_type
+  as_word() const { return value_; }
+
+  word_type&
+  header() const { return *reinterpret_cast<word_type*>(value_); }
+
   object*
-  value() const { return value_; }
+  value() const {
+    if (value_)
+      return object_address(value_);
+    else
+      return nullptr;
+  }
 
   friend auto
   operator <=> (ptr const&, ptr const&) = default;
 
-protected:
+private:
   friend void detail::update_ptr(ptr<> const&, ptr<>);
 
-  mutable object* value_ = nullptr;
+  mutable word_type value_ = 0;
 };
 
 inline bool
@@ -66,15 +99,18 @@ class ptr : public ptr<> {
 public:
   ptr() = default;
 
+  explicit
+  ptr(word_type w) : ptr<>{w} { }
+
   ptr(T* value) : ptr<>(value) { }
 
   ptr(std::nullptr_t) { }
 
   T*
-  operator -> () const { return static_cast<T*>(value_); }
+  operator -> () const { return value(); }
 
   T&
-  operator * () const { return *static_cast<T*>(value_); }
+  operator * () const { return *value(); }
 
   auto&
   operator ->* (auto T::* ptr) const { return value()->*ptr; }
@@ -96,7 +132,7 @@ public:
   }
 
   T*
-  value() const { return static_cast<T*>(value_); }
+  value() const { return static_cast<T*>(ptr<>::value()); }
 };
 
 template <typename>
@@ -107,7 +143,7 @@ template <typename T>
 ptr<T>
 ptr_cast(ptr<> value) {
   assert(!value || is<T>(value));
-  return ptr<T>{static_cast<T*>(value.value())};
+  return ptr<T>{value.as_word()};
 }
 
 template <>
