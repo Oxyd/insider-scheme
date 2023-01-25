@@ -302,6 +302,7 @@ struct type_descriptor {
   bool constant_size = true;
   std::size_t size = 0;
   std::size_t (*get_size)(abstract_object_storage*) = nullptr;
+  std::size_t (*storage_size)(abstract_object_storage*) = nullptr;
 };
 
 struct type_vector {
@@ -340,7 +341,12 @@ inline type_descriptor const&
 object_type(abstract_object_storage* o) { return object_type(o->header); }
 
 inline word_type
-object_hash(ptr<> o) { return (header_word(o) & hash_bits) >> hash_shift; }
+object_hash(word_type header) {
+  return (header & hash_bits) >> hash_shift;
+}
+
+inline word_type
+object_hash(ptr<> o) { return object_hash(header_word(o)); }
 
 inline word_type
 tagged_payload(ptr<> o) {
@@ -373,6 +379,11 @@ object_type_name(ptr<> o) {
   else
     assert(false);
   return "";
+}
+
+inline std::size_t
+storage_size(abstract_object_storage* storage) {
+  return object_type(storage->header).storage_size(storage);
 }
 
 inline std::size_t
@@ -479,6 +490,21 @@ namespace detail {
     return sizeof(T)
            + detail::round_to_words(storage->object()->size_ * sizeof(U));
   }
+
+  template <typename T>
+  std::size_t
+  storage_size(abstract_object_storage* o) {
+    auto storage = static_cast<object_storage<T>*>(o);
+    return sizeof(*storage);
+  }
+
+  template <typename T, typename U>
+  std::size_t
+  dynamic_storage_size(abstract_object_storage* o) {
+    auto storage = static_cast<object_storage<T>*>(o);
+    return sizeof(*storage)
+           + detail::round_to_words(storage->object()->size_ * sizeof(U));
+  }
 }
 
 // Object with no Scheme subobjects.
@@ -506,7 +532,8 @@ word_type const leaf_object<Derived>::type_index = new_type(
     [] (abstract_object_storage*, member_visitor const&) { },
     true,
     detail::round_to_words(sizeof(Derived)),
-    nullptr
+    nullptr,
+    detail::storage_size<Derived>
   },
   detail::get_type_index<Derived>()
 );
@@ -526,7 +553,8 @@ word_type const composite_object<Derived>::type_index = new_type(
     detail::visit_members<Derived>,
     true,
     detail::round_to_words(sizeof(Derived)),
-    nullptr
+    nullptr,
+    detail::storage_size<Derived>
   },
   detail::get_type_index<Derived>()
 );
@@ -550,6 +578,10 @@ protected:
   template <typename, typename>
   friend std::size_t
   detail::size(abstract_object_storage*);
+
+  template <typename, typename>
+  friend std::size_t
+  detail::dynamic_storage_size(abstract_object_storage*);
 
   T&
   storage_element(std::size_t i) {
@@ -578,7 +610,8 @@ word_type const dynamic_size_object<Derived, T>::type_index
         detail::visit_members<Derived>,
         false,
         0,
-        detail::size<Derived, T>
+        detail::size<Derived, T>,
+        detail::dynamic_storage_size<Derived, T>
       },
       detail::get_type_index<Derived>()
     );
@@ -589,26 +622,28 @@ enum class generation : word_type {
   mature
 };
 
+inline word_type
+make_object_header(word_type type, word_type hash,
+                   generation gen = generation::nursery_1) {
+  return word_type((type << type_shift)
+                   | alive_bit
+                   | (static_cast<word_type>(gen) << generation_shift)
+                   | (hash << hash_shift));
+}
+
 inline void
 init_object_header(std::byte* storage, word_type type, word_type hash,
                    generation gen = generation::nursery_1) {
-  new (storage) word_type((type << type_shift)
-                          | alive_bit
-                          | (static_cast<word_type>(gen) << generation_shift)
-                          | (hash << hash_shift));
-}
-
-namespace detail {
-  inline generation
-  get_generation(word_type header) {
-    return static_cast<generation>(
-      (header & generation_bits) >> generation_shift
-    );
-  }
+  new (storage) word_type(make_object_header(type, hash, gen));
 }
 
 inline generation
-object_generation(ptr<> o) { return detail::get_generation(header_word(o)); }
+object_generation(word_type header) {
+  return static_cast<generation>((header & generation_bits) >> generation_shift);
+}
+
+inline generation
+object_generation(ptr<> o) { return object_generation(header_word(o)); }
 
 class hash_generator {
 public:

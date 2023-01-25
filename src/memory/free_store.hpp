@@ -41,13 +41,11 @@ public:
     for_all(F const& f) {
       std::size_t i = 0;
       while (i < used) {
-        std::byte* object_storage = storage.get() + i;
-        ptr<> o{reinterpret_cast<object*>(object_storage + sizeof(word_type))};
-        std::size_t size = object_size(o);
-
-        f(o);
-
-        i += size + sizeof(word_type);
+        auto* object_storage
+          = reinterpret_cast<abstract_object_storage*>(storage.get() + i);
+        std::size_t size = storage_size(object_storage);
+        f(object_storage);
+        i += size;
       }
     }
 
@@ -56,13 +54,11 @@ public:
     for_all(F const& f) const {
       std::size_t i = 0;
       while (i < used) {
-        std::byte* object_storage = storage.get() + i;
-        ptr<> o{reinterpret_cast<object*>(object_storage + sizeof(word_type))};
-        std::size_t size = object_size(o);
-
-        f(o);
-
-        i += size + sizeof(word_type);
+        auto* object_storage
+          = reinterpret_cast<abstract_object_storage*>(storage.get() + i);
+        std::size_t size = storage_size(object_storage);
+        f(object_storage);
+        i += size;
       }
     }
   };
@@ -154,7 +150,7 @@ public:
   void
   for_all(F const& f) {
     for (auto const& storage : allocations_) {
-      ptr<> o{reinterpret_cast<object*>(storage.get() + sizeof(word_type))};
+      auto* o = reinterpret_cast<abstract_object_storage*>(storage.get());
       f(o);
     }
   }

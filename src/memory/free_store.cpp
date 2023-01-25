@@ -35,6 +35,11 @@ object_color(word_type header) {
 static color
 object_color(ptr<> o) { return object_color(header_word(o)); }
 
+static color
+object_color(abstract_object_storage* o) {
+  return object_color(o->header);
+}
+
 static void
 set_object_color(ptr<> o, color c) {
   header_word(o) = (header_word(o) & ~color_bits)
@@ -60,9 +65,9 @@ forwarding_address(ptr<> o) {
 }
 
 static void
-set_forwarding_address(ptr<> from, ptr<> target) {
-  from.header() = target.as_word();
-  assert((header_word(from) & alive_bit) == 0);
+set_forwarding_address(abstract_object_storage* from, ptr<> target) {
+  from->header = target.as_word();
+  assert((from->header & alive_bit) == 0);
 }
 
 dense_space::dense_space(page_allocator& pa)
@@ -135,8 +140,8 @@ dense_space::take(page_allocator::page p, std::size_t used) {
 
   page& new_page = pages_.back();
   new_page.used = used;
-  new_page.for_all([] (ptr<> o) {
-    set_object_generation(o.storage(), generation::nursery_1);
+  new_page.for_all([] (abstract_object_storage* o) {
+    set_object_generation(o, generation::nursery_1);
   });
 
   total_used_ += used;
@@ -171,14 +176,14 @@ large_space::stage_for_deallocation(std::size_t i) {
   assert(allocations_[i]);
 
   std::byte* storage = allocations_[i].get();
-  ptr<> o = reinterpret_cast<object*>(storage + sizeof(word_type));
-  assert(is_alive(o));
+  auto* o = reinterpret_cast<abstract_object_storage*>(storage);
+  assert(is_alive(o->header));
 
   type_descriptor const& type = object_type(o);
-  std::size_t size = object_size(o);
+  std::size_t size = storage_size(o);
 
   bytes_used_ -= size + sizeof(word_type);
-  type.destroy(o.storage());
+  type.destroy(o);
   set_forwarding_address(o, nullptr);
 
   to_deallocate_.push_back(i);
@@ -202,14 +207,14 @@ large_space::compact() {
 }
 
 static ptr<>
-move_object(ptr<> o, dense_space& to) {
+move_object(abstract_object_storage* o, dense_space& to) {
   type_descriptor const& t = object_type(o);
-  std::size_t size = sizeof(word_type) + object_size(o);
-  std::byte* storage = to.allocate(size);
+  std::size_t size = storage_size(o);
+  auto* storage = reinterpret_cast<abstract_object_storage*>(to.allocate(size));
 
-  init_object_header(storage, object_type_index(o), object_hash(o));
-  return t.move(o.storage(),
-                reinterpret_cast<abstract_object_storage*>(storage));
+  storage->header = make_object_header(type_index(o->header),
+                                       object_hash(o->header));
+  return t.move(o, storage);
 }
 
 free_store::free_store()
@@ -218,7 +223,9 @@ free_store::free_store()
 
 static void
 destroy_all_objects(auto& space) {
-  space.for_all([] (ptr<> o) { object_type(o).destroy(o.storage()); });
+  space.for_all([] (abstract_object_storage* o) {
+    object_type(o->header).destroy(o);
+  });
 }
 
 free_store::~free_store() {
@@ -357,7 +364,7 @@ find_new_arcs_to_nursery(std::vector<ptr<>> const& objects,
 static void
 move_survivors(dense_space& from, dense_space& to, generation to_gen,
                std::vector<ptr<>>* moved_objects) {
-  from.for_all([&] (ptr<> o) {
+  from.for_all([&] (abstract_object_storage* o) {
     type_descriptor const& type = object_type(o);
 
     assert(object_color(o) != color::grey);
@@ -371,7 +378,7 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen,
     } else
       set_forwarding_address(o, nullptr);
 
-    type.destroy(o.storage());
+    type.destroy(o);
   });
 }
 
@@ -452,8 +459,8 @@ update_member(ptr<> const& member, [[maybe_unused]] bool weak) {
 }
 
 static void
-update_members(ptr<> o) {
-  visit_members(o.storage(), update_member);
+update_members(abstract_object_storage* o) {
+  visit_members(o, update_member);
 }
 
 static void
@@ -465,8 +472,8 @@ static void
 update_references(large_space const& space) {
   for (std::size_t i = 0; i < space.object_count(); ++i)
     if (std::byte* storage = space.get(i)) {
-      ptr<> o = reinterpret_cast<object*>(storage + sizeof(word_type));
-      if (is_alive(o))
+      auto* o = reinterpret_cast<abstract_object_storage*>(storage);
+      if (is_alive(o->header))
         update_members(o);
     }
 }
@@ -479,7 +486,7 @@ update_references(root_list const& list) {
 static void
 update_references(auto const& incoming) {
   for (ptr<> x : incoming)
-    update_members(x);
+    update_members(x.storage());
 }
 
 static std::string
@@ -503,8 +510,8 @@ format_stats(nursery_generation const& nursery_1,
 static void
 verify([[maybe_unused]] auto const& g) {
 #ifndef NDEBUG
-  g.small.for_all([&] (ptr<> o) {
-    assert(!is_object_ptr(o) || object_generation(o) == g.generation_number);
+  g.small.for_all([&] (abstract_object_storage* o) {
+    assert(object_generation(o->header) == g.generation_number);
   });
 
   for (std::size_t i = 0; i < g.large.object_count(); ++i)
