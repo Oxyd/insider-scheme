@@ -26,7 +26,7 @@ using word_type = std::uint64_t;
 constexpr std::size_t object_alignment = sizeof(word_type);
 
 // Base for any garbage-collectable Scheme object.
-class alignas(object_alignment) object {
+class object {
 public:
   static constexpr bool is_dynamic_size = false;
 };
@@ -574,7 +574,7 @@ word_type const composite_object<Derived>::type_index = new_type(
 
 // Object whose size is determined at instantiation time.
 template <typename Derived, typename T>
-struct alignas(T) alignas(object) dynamic_size_object : object {
+struct alignas(T) dynamic_size_object : object {
   using element_type = T;
   static constexpr bool is_dynamic_size = true;
   static word_type const type_index;

@@ -246,11 +246,8 @@ public:
   template <typename T, typename... Args>
   ptr<T>
   make(Args&&... args) {
-    static_assert(sizeof(T) % sizeof(word_type) == 0);
-
     auto* storage = allocate_storage<T>(detail::allocation_size<T>(args...));
     new (&storage->payload_storage) T(std::forward<Args>(args)...);
-
     return ptr_cast<T>(ptr<>{storage});
   }
 
