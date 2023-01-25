@@ -746,7 +746,7 @@ TEST_F(control, scheme_can_handle_exceptions_raised_by_instructions) {
           (lambda ()
             (vector-ref #() 5)))))
   )");
-  EXPECT_EQ(result.value(), ctx.constants->t.value());
+  EXPECT_EQ(result, ctx.constants->t);
 }
 
 TEST_F(control, apply_with_single_argument) {

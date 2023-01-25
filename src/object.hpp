@@ -127,6 +127,10 @@ object_address(word_type w) {
   return reinterpret_cast<object*>(w + sizeof(word_type));
 }
 
+template <typename T>
+concept concrete_object = std::derived_from<T, object>
+                          && !std::same_as<T, object>;
+
 template <>
 class ptr<> {
 public:
@@ -142,7 +146,7 @@ public:
     : value_{reinterpret_cast<word_type>(storage)}
   { }
 
-  ptr(object* value) {
+  ptr(concrete_object auto* value) {
     if (value)
       value_ = object_header_address(value);
   }
@@ -166,14 +170,6 @@ public:
     return storage()->header;
   }
 
-  object*
-  value() const {
-    if (value_)
-      return object_address(value_);
-    else
-      return nullptr;
-  }
-
   abstract_object_storage*
   storage() const {
     if (value_)
@@ -193,7 +189,7 @@ protected:
 
 inline bool
 operator == (ptr<> p, std::nullptr_t) {
-  return p.value() == nullptr;
+  return p.as_word() == 0;
 }
 
 template <typename T>
@@ -262,18 +258,18 @@ ptr_cast<void>(ptr<> value) { return value; }
 
 inline bool
 is_object_ptr(ptr<> o) {
-  return (reinterpret_cast<word_type>(o.value()) & 0b11) == 0b00;
+  return (o.as_word() & 0b11) == 0b00;
 }
 
 inline bool
 is_fixnum(ptr<> o) {
-  return (reinterpret_cast<word_type>(o.value()) & 0b01) == 0b01;
+  return (o.as_word() & 0b01) == 0b01;
 }
 
 template <std::size_t Tag>
 inline bool
 is_tagged(ptr<> o) {
-  return (reinterpret_cast<word_type>(o.value()) & 0b111) == Tag;
+  return (o.as_word() & 0b111) == Tag;
 }
 
 inline bool
@@ -679,7 +675,7 @@ namespace std {
   struct hash<insider::ptr<T>> {
     auto
     operator () (insider::ptr<T> value) const {
-      return std::hash<insider::object*>{}(value.value());
+      return std::hash<insider::word_type>{}(value.as_word());
     }
   };
 } // namespace std
