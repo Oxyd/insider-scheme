@@ -193,7 +193,7 @@ struct nursery_generation {
   generation  generation_number;
   dense_space small;
   large_space large;
-  std::unordered_set<ptr<>> incoming_arcs;
+  std::unordered_set<abstract_object_storage*> incoming_arcs;
 
   nursery_generation(page_allocator& allocator, generation generation_number)
     : generation_number{generation_number}
@@ -260,11 +260,11 @@ public:
         && object_generation(from) > object_generation(to)) {
       switch (object_generation(to)) {
       case generation::nursery_1:
-        generations_.nursery_1.incoming_arcs.emplace(from);
+        generations_.nursery_1.incoming_arcs.emplace(from.storage());
         break;
 
       case generation::nursery_2:
-        generations_.nursery_2.incoming_arcs.emplace(from);
+        generations_.nursery_2.incoming_arcs.emplace(from.storage());
         break;
 
       default:
