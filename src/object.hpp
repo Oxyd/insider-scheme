@@ -331,6 +331,9 @@ inline word_type
 type_index(word_type header) { return header >> type_shift; }
 
 inline word_type
+type_index(abstract_object_storage* o) { return type_index(o->header); }
+
+inline word_type
 object_type_index(ptr<> o) { return type_index(header_word(o)); }
 
 inline std::string
@@ -348,6 +351,11 @@ object_type(abstract_object_storage* o) { return object_type(o->header); }
 inline word_type
 object_hash(word_type header) {
   return (header & hash_bits) >> hash_shift;
+}
+
+inline word_type
+object_hash(abstract_object_storage* o) {
+  return object_hash(o->header);
 }
 
 inline word_type
@@ -645,6 +653,11 @@ init_object_header(std::byte* storage, word_type type, word_type hash,
 inline generation
 object_generation(word_type header) {
   return static_cast<generation>((header & generation_bits) >> generation_shift);
+}
+
+inline generation
+object_generation(abstract_object_storage* o) {
+  return object_generation(o->header);
 }
 
 inline generation
