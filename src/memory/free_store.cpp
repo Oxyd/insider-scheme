@@ -11,7 +11,6 @@
 
 namespace insider {
 
-static constexpr std::size_t large_threshold = 256;
 static constexpr std::size_t min_nursery_pages = 4096;
 static constexpr std::size_t min_nursery_size
   = 2 * min_nursery_pages * page_size;
@@ -633,23 +632,6 @@ free_store::collect_garbage(bool major) {
   }
 
   allocator_.reset_stats();
-}
-
-std::byte*
-free_store::allocate_object(std::size_t size, word_type type) {
-  std::size_t total_size = size + sizeof(word_type);
-
-  std::byte* storage = nullptr;
-  if (total_size >= large_threshold)
-    storage = generations_.nursery_1.large.allocate(total_size);
-  else
-    storage = generations_.nursery_1.small.allocate(total_size);
-
-  check_nursery_size();
-
-  init_object_header(storage, type, next_hash_(), generation::nursery_1);
-  std::byte* object_storage = storage + sizeof(word_type);
-  return object_storage;
 }
 
 void

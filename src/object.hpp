@@ -137,6 +137,11 @@ public:
     : value_{value}
   { }
 
+  explicit
+  ptr(abstract_object_storage* storage)
+    : value_{reinterpret_cast<word_type>(storage)}
+  { }
+
   ptr(object* value) {
     if (value)
       value_ = object_header_address(value);

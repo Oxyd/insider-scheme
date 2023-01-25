@@ -218,11 +218,11 @@ namespace detail {
   allocation_size([[maybe_unused]] Args&&... args) {
     if constexpr (T::is_dynamic_size) {
       std::size_t elements = T::extra_elements(args...);
-      return detail::round_to_words(sizeof(T) +
+      return detail::round_to_words(sizeof(object_storage<T>) +
                                     elements * sizeof(typename T::element_type));
     } else {
-      static_assert(sizeof(T) % sizeof(word_type) == 0);
-      return sizeof(T);
+      static_assert(sizeof(object_storage<T>) % sizeof(word_type) == 0);
+      return sizeof(object_storage<T>);
     }
   }
 }
@@ -248,11 +248,10 @@ public:
   make(Args&&... args) {
     static_assert(sizeof(T) % sizeof(word_type) == 0);
 
-    std::byte* storage = allocate_object(detail::allocation_size<T>(args...),
-                                         T::type_index);
-    ptr<> result = new (storage) T(std::forward<Args>(args)...);
+    auto* storage = allocate_storage<T>(detail::allocation_size<T>(args...));
+    new (&storage->payload_storage) T(std::forward<Args>(args)...);
 
-    return ptr_cast<T>(result);
+    return ptr_cast<T>(ptr<>{storage});
   }
 
   void
@@ -308,6 +307,8 @@ public:
   allocator() { return allocator_; }
 
 private:
+  static constexpr std::size_t large_threshold = 256;
+
   page_allocator allocator_;
   generations    generations_{{allocator_, generation::nursery_1},
                               {allocator_, generation::nursery_2},
@@ -324,11 +325,24 @@ private:
 
   hash_generator next_hash_;
 
-  // Allocate storage of the given payload size for an object of the given
-  // type. size does not include the size of the header. The object is not
-  // constructed in the storage.
-  std::byte*
-  allocate_object(std::size_t size, word_type type);
+  // Allocate storage for the given payload type and initialise its header.
+  template <typename T>
+  object_storage<T>*
+  allocate_storage(std::size_t size) {
+    std::byte* buffer = nullptr;
+    if (size >= large_threshold)
+      buffer = generations_.nursery_1.large.allocate(size);
+    else
+      buffer = generations_.nursery_1.small.allocate(size);
+
+    check_nursery_size();
+
+    auto* storage = new (buffer) object_storage<T>;
+    storage->header = make_object_header(T::type_index, next_hash_(),
+                                         generation::nursery_1);
+
+    return storage;
+  }
 
   void
   reset_colors(generation max_generation);
