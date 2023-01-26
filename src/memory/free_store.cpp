@@ -32,11 +32,11 @@ object_color(word_type header) {
 }
 
 static color
-object_color(ptr<> o) { return object_color(header_word(o)); }
+object_color(ptr<> o) { return object_color(o.header().flags); }
 
 static color
 object_color(abstract_object_storage* o) {
-  return object_color(o->header);
+  return object_color(o->header.flags);
 }
 
 static void
@@ -46,13 +46,13 @@ set_object_color(word_type& header, color c) {
 
 static void
 set_object_color(abstract_object_storage* o, color c) {
-  set_object_color(o->header, c);
+  set_object_color(o->header.flags, c);
 }
 
 static void
 set_object_color(ptr<> o, color c) {
-  header_word(o) = (header_word(o) & ~color_bits)
-                   | (static_cast<word_type>(c) << color_shift);
+  o.header().flags = (o.header().flags & ~color_bits)
+                     | (static_cast<word_type>(c) << color_shift);
 }
 
 static bool
@@ -60,16 +60,16 @@ is_alive(word_type header) { return (header & alive_bit) != 0u; }
 
 static bool
 is_alive(abstract_object_storage* o) {
-  return o != nullptr && is_alive(o->header);
+  return o != nullptr && is_alive(o->header.flags);
 }
 
 bool
-is_alive(ptr<> o) { return o != nullptr && is_alive(header_word(o)); }
+is_alive(ptr<> o) { return o != nullptr && is_alive(o.header().flags); }
 
 static void
 set_object_generation(abstract_object_storage* o, generation gen) {
-  o->header = (o->header & ~generation_bits)
-              | (static_cast<word_type>(gen) << generation_shift);
+  o->header.flags = (o->header.flags & ~generation_bits)
+                    | (static_cast<word_type>(gen) << generation_shift);
 }
 
 static abstract_object_storage*
@@ -79,19 +79,19 @@ forwarding_address(word_type header) {
 
 static abstract_object_storage*
 forwarding_address(abstract_object_storage* o) {
-  return forwarding_address(o->header);
+  return forwarding_address(o->header.flags);
 }
 
 static ptr<>
 forwarding_address(ptr<> o) {
   assert(!is_alive(o));
-  return ptr<>{header_word(o)};
+  return ptr<>{o.header().flags};
 }
 
 static void
 set_forwarding_address(abstract_object_storage* from, ptr<> target) {
-  from->header = target.as_word();
-  assert((from->header & alive_bit) == 0);
+  from->header.flags = target.as_word();
+  assert((from->header.flags & alive_bit) == 0);
 }
 
 dense_space::dense_space(page_allocator& pa)

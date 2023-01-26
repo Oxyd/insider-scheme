@@ -79,8 +79,12 @@ constexpr std::size_t string_cursor_payload_offset = 3;
 constexpr std::size_t character_tag = 0b110;
 constexpr std::size_t string_cursor_tag = 0b010;
 
+struct object_header {
+  word_type flags;
+};
+
 struct alignas(object_alignment) abstract_object_storage {
-  word_type header;
+  object_header header;
 };
 
 template <typename T>
@@ -127,6 +131,11 @@ object_address(word_type w) {
   return reinterpret_cast<object*>(w + sizeof(word_type));
 }
 
+inline bool
+is_object_address(word_type a) {
+  return (a & 0b11) == 0b00;
+}
+
 template <typename T>
 concept concrete_object = std::derived_from<T, object>
                           && !std::same_as<T, object>;
@@ -165,13 +174,14 @@ public:
   word_type
   as_word() const { return value_; }
 
-  word_type&
+  object_header&
   header() const {
     return storage()->header;
   }
 
   abstract_object_storage*
   storage() const {
+    assert(value_ == 0 || is_object_address(value_));
     if (value_)
       return reinterpret_cast<abstract_object_storage*>(value_);
     else
@@ -234,6 +244,7 @@ public:
 
   object_storage<T>*
   storage() const {
+    assert(value_ == 0 || is_object_address(value_));
     if (value_)
       return reinterpret_cast<object_storage<T>*>(value_);
     else
@@ -258,7 +269,7 @@ ptr_cast<void>(ptr<> value) { return value; }
 
 inline bool
 is_object_ptr(ptr<> o) {
-  return (o.as_word() & 0b11) == 0b00;
+  return is_object_address(o.as_word());
 }
 
 inline bool
@@ -280,12 +291,6 @@ is_character(ptr<> o) {
 inline bool
 is_string_cursor(ptr<> o) {
   return is_tagged<string_cursor_tag>(o);
-}
-
-inline word_type&
-header_word(ptr<> o) {
-  assert(is_object_ptr(o));
-  return o.header();
 }
 
 template <typename T>
@@ -327,10 +332,10 @@ inline word_type
 type_index(word_type header) { return header >> type_shift; }
 
 inline word_type
-type_index(abstract_object_storage* o) { return type_index(o->header); }
+type_index(abstract_object_storage* o) { return type_index(o->header.flags); }
 
 inline word_type
-object_type_index(ptr<> o) { return type_index(header_word(o)); }
+object_type_index(ptr<> o) { return type_index(o.header().flags); }
 
 inline std::string
 type_name(word_type index) { return types().types[index].name; }
@@ -339,10 +344,10 @@ inline type_descriptor const&
 object_type(word_type header) { return types().types[type_index(header)]; }
 
 inline type_descriptor const&
-object_type(ptr<> o) { return object_type(header_word(o)); }
+object_type(ptr<> o) { return object_type(o.header().flags); }
 
 inline type_descriptor const&
-object_type(abstract_object_storage* o) { return object_type(o->header); }
+object_type(abstract_object_storage* o) { return object_type(o->header.flags); }
 
 inline word_type
 object_hash(word_type header) {
@@ -351,11 +356,11 @@ object_hash(word_type header) {
 
 inline word_type
 object_hash(abstract_object_storage* o) {
-  return object_hash(o->header);
+  return object_hash(o->header.flags);
 }
 
 inline word_type
-object_hash(ptr<> o) { return object_hash(header_word(o)); }
+object_hash(ptr<> o) { return object_hash(o.header().flags); }
 
 inline word_type
 tagged_payload(ptr<> o) {
@@ -392,7 +397,7 @@ object_type_name(ptr<> o) {
 
 inline std::size_t
 storage_size(abstract_object_storage* storage) {
-  return object_type(storage->header).storage_size(storage);
+  return object_type(storage->header.flags).storage_size(storage);
 }
 
 inline std::size_t
@@ -631,19 +636,21 @@ enum class generation : word_type {
   mature
 };
 
-inline word_type
+inline object_header
 make_object_header(word_type type, word_type hash,
                    generation gen = generation::nursery_1) {
-  return word_type((type << type_shift)
-                   | alive_bit
-                   | (static_cast<word_type>(gen) << generation_shift)
-                   | (hash << hash_shift));
+  return object_header{
+    word_type((type << type_shift)
+              | alive_bit
+              | (static_cast<word_type>(gen) << generation_shift)
+              | (hash << hash_shift))
+  };
 }
 
 inline void
 init_object_header(std::byte* storage, word_type type, word_type hash,
                    generation gen = generation::nursery_1) {
-  new (storage) word_type(make_object_header(type, hash, gen));
+  new (storage) object_header(make_object_header(type, hash, gen));
 }
 
 inline generation
@@ -653,11 +660,11 @@ object_generation(word_type header) {
 
 inline generation
 object_generation(abstract_object_storage* o) {
-  return object_generation(o->header);
+  return object_generation(o->header.flags);
 }
 
 inline generation
-object_generation(ptr<> o) { return object_generation(header_word(o)); }
+object_generation(ptr<> o) { return object_generation(o.header().flags); }
 
 class hash_generator {
 public:
