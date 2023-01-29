@@ -2,10 +2,11 @@
 #include "memory/member_visitor.hpp"
 #include "object.hpp"
 
+#include <fmt/format.h>
+
 #include <algorithm>
 #include <cassert>
 
-#include <fmt/format.h>
 
 #undef small
 
