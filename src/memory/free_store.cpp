@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <cassert>
 
-
 #undef small
 
 namespace insider {
@@ -33,11 +32,11 @@ object_color(word_type header) {
 }
 
 static color
-object_color(ptr<> o) { return object_color(o.header().flags); }
+object_color(ptr<> o) { return object_color(o.header()->flags); }
 
 static color
-object_color(abstract_object_storage* o) {
-  return object_color(o->header.flags);
+object_color(object_header* h) {
+  return object_color(h->flags);
 }
 
 static void
@@ -46,53 +45,53 @@ set_object_color(word_type& header, color c) {
 }
 
 static void
-set_object_color(abstract_object_storage* o, color c) {
-  set_object_color(o->header.flags, c);
+set_object_color(object_header* h, color c) {
+  set_object_color(h->flags, c);
 }
 
 static void
 set_object_color(ptr<> o, color c) {
-  o.header().flags = (o.header().flags & ~color_bits)
-                     | (static_cast<word_type>(c) << color_shift);
+  o.header()->flags = (o.header()->flags & ~color_bits)
+                      | (static_cast<word_type>(c) << color_shift);
 }
 
 static bool
 is_alive(word_type header) { return (header & alive_bit) != 0u; }
 
 static bool
-is_alive(abstract_object_storage* o) {
-  return o != nullptr && is_alive(o->header.flags);
+is_alive(object_header* h) {
+  return h != nullptr && is_alive(h->flags);
 }
 
 bool
-is_alive(ptr<> o) { return o != nullptr && is_alive(o.header().flags); }
+is_alive(ptr<> o) { return o != nullptr && is_alive(o.header()->flags); }
 
 static void
-set_object_generation(abstract_object_storage* o, generation gen) {
-  o->header.flags = (o->header.flags & ~generation_bits)
-                    | (static_cast<word_type>(gen) << generation_shift);
+set_object_generation(object_header* h, generation gen) {
+  h->flags = (h->flags & ~generation_bits)
+             | (static_cast<word_type>(gen) << generation_shift);
 }
 
-static abstract_object_storage*
+static object_header*
 forwarding_address(word_type header) {
-  return reinterpret_cast<abstract_object_storage*>(header);
+  return reinterpret_cast<object_header*>(header);
 }
 
-static abstract_object_storage*
-forwarding_address(abstract_object_storage* o) {
-  return forwarding_address(o->header.flags);
+static object_header*
+forwarding_address(object_header* h) {
+  return forwarding_address(h->flags);
 }
 
 static ptr<>
 forwarding_address(ptr<> o) {
   assert(!is_alive(o));
-  return ptr<>{o.header().flags};
+  return ptr<>{o.header()->flags};
 }
 
 static void
-set_forwarding_address(abstract_object_storage* from, ptr<> target) {
-  from->header.flags = target.as_word();
-  assert((from->header.flags & alive_bit) == 0);
+set_forwarding_address(object_header* from, ptr<> target) {
+  from->flags = target.as_word();
+  assert((from->flags & alive_bit) == 0);
 }
 
 dense_space::dense_space(page_allocator& pa)
@@ -165,8 +164,8 @@ dense_space::take(page_allocator::page p, std::size_t used) {
 
   page& new_page = pages_.back();
   new_page.used = used;
-  new_page.for_all([] (abstract_object_storage* o) {
-    set_object_generation(o, generation::nursery_1);
+  new_page.for_all([] (object_header* h) {
+    set_object_generation(h, generation::nursery_1);
   });
 
   total_used_ += used;
@@ -186,7 +185,7 @@ void
 large_space::move(std::size_t i, large_space& to) {
   assert(allocations_[i]);
 
-  auto* o = reinterpret_cast<abstract_object_storage*>(allocations_[i].get());
+  auto* o = reinterpret_cast<object_header*>(allocations_[i].get());
   std::size_t size = storage_size(o);
 
   to.allocations_.emplace_back(std::move(allocations_[i]));
@@ -200,7 +199,7 @@ void
 large_space::stage_for_deallocation(std::size_t i) {
   assert(allocations_[i]);
 
-  auto* o = reinterpret_cast<abstract_object_storage*>(allocations_[i].get());
+  auto* o = reinterpret_cast<object_header*>(allocations_[i].get());
   assert(is_alive(o));
 
   type_descriptor const& type = object_type(o);
@@ -231,13 +230,13 @@ large_space::compact() {
 }
 
 static ptr<>
-move_object(abstract_object_storage* o, dense_space& to) {
+move_object(object_header* o, dense_space& to) {
   type_descriptor const& t = object_type(o);
   std::size_t size = storage_size(o);
-  auto* storage = reinterpret_cast<abstract_object_storage*>(to.allocate(size));
+  auto* header = reinterpret_cast<object_header*>(to.allocate(size));
 
-  storage->header = make_object_header(type_index(o), object_hash(o));
-  return t.move(o, storage);
+  *header = make_object_header(type_index(o), object_hash(o));
+  return t.move(o, header);
 }
 
 free_store::free_store()
@@ -246,7 +245,7 @@ free_store::free_store()
 
 static void
 destroy_all_objects(auto& space) {
-  space.for_all([] (abstract_object_storage* o) {
+  space.for_all([] (object_header* o) {
     object_type(o).destroy(o);
   });
 }
@@ -287,7 +286,7 @@ namespace {
 
 template <typename F>
 static void
-visit_members(abstract_object_storage* o, F&& f) {
+visit_members(object_header* o, F&& f) {
   object_type(o).visit_members(o, visitor<F>{f});
 }
 
@@ -304,7 +303,7 @@ trace(root_list const& root_list,
   assert(max_generation >= generation::nursery_2);
 
   std::vector<ptr<>> stack;
-  auto trace = [&] (abstract_object_storage* object) {
+  auto trace = [&] (object_header* object) {
     visit_members(
       object,
       [&] (ptr<> const& member, bool weak) {
@@ -335,7 +334,7 @@ trace(root_list const& root_list,
   });
 
   for (nursery_generation const* g : {&nursery_1, &nursery_2})
-    for (abstract_object_storage* o : g->incoming_arcs)
+    for (object_header* o : g->incoming_arcs)
       if (object_generation(o) > max_generation
           && object_color(o) == color::white) {
         assert(object_generation(o) > g->generation_number);
@@ -348,18 +347,18 @@ trace(root_list const& root_list,
 
     assert(object_color(top) != color::white);
     if (object_color(top) == color::grey) {
-      trace(top.storage());
+      trace(top.header());
       set_object_color(top, color::black);
     }
   }
 }
 
 static void
-find_new_arcs_to_nursery(std::vector<abstract_object_storage*> const& objects,
+find_new_arcs_to_nursery(std::vector<object_header*> const& objects,
                          nursery_generation& nursery) {
-  std::vector<abstract_object_storage*> arcs;
+  std::vector<object_header*> arcs;
 
-  for (abstract_object_storage* o : objects) {
+  for (object_header* o : objects) {
     assert(is_alive(o));
     bool pushed = false;
     visit_members(o, [&] (ptr<> const& member, bool) {
@@ -378,24 +377,24 @@ find_new_arcs_to_nursery(std::vector<abstract_object_storage*> const& objects,
     });
   }
 
-  for (abstract_object_storage* arc : arcs)
+  for (object_header* arc : arcs)
     nursery.incoming_arcs.emplace(arc);
 }
 
 static void
 move_survivors(dense_space& from, dense_space& to, generation to_gen,
-               std::vector<abstract_object_storage*>* moved_objects) {
-  from.for_all([&] (abstract_object_storage* o) {
+               std::vector<object_header*>* moved_objects) {
+  from.for_all([&] (object_header* o) {
     type_descriptor const& type = object_type(o);
 
     assert(object_color(o) != color::grey);
     if (object_color(o) == color::black) {
       ptr<> target = move_object(o, to);
       set_forwarding_address(o, target);
-      set_object_generation(target.storage(), to_gen);
+      set_object_generation(target.header(), to_gen);
 
       if (moved_objects)
-        moved_objects->push_back(target.storage());
+        moved_objects->push_back(target.header());
     } else
       set_forwarding_address(o, nullptr);
 
@@ -405,10 +404,10 @@ move_survivors(dense_space& from, dense_space& to, generation to_gen,
 
 static void
 promote_large(large_space& large,
-              std::vector<abstract_object_storage*>* moved_objects,
-              auto&& move = [] (std::size_t, abstract_object_storage*) { }) {
+              std::vector<object_header*>* moved_objects,
+              auto&& move = [] (std::size_t, object_header*) { }) {
   for (std::size_t i = 0; i < large.object_count(); ++i) {
-    auto* o = reinterpret_cast<abstract_object_storage*>(large.get(i));
+    auto* o = reinterpret_cast<object_header*>(large.get(i));
     assert(object_color(o) != color::grey);
 
     if (object_color(o) == color::black) {
@@ -424,9 +423,9 @@ promote_large(large_space& large,
 
 static void
 promote_large(large_space& large,
-              std::vector<abstract_object_storage*>* moved_objects) {
+              std::vector<object_header*>* moved_objects) {
   promote_large(large, moved_objects,
-                [] (std::size_t, abstract_object_storage*) { });
+                [] (std::size_t, object_header*) { });
 }
 
 // Move live objects from one generation to another. Returns a space containing
@@ -434,10 +433,10 @@ promote_large(large_space& large,
 [[nodiscard]]
 static dense_space
 promote(auto& from, auto& to,
-        std::vector<abstract_object_storage*>* moved_objects) {
+        std::vector<object_header*>* moved_objects) {
   move_survivors(from.small, to.small, to.generation_number, moved_objects);
   promote_large(from.large, moved_objects,
-                [&] (std::size_t i, abstract_object_storage* o) {
+                [&] (std::size_t i, object_header* o) {
                   from.large.move(i, to.large);
                   set_object_generation(o, to.generation_number);
                 });
@@ -450,7 +449,7 @@ promote(auto& from, auto& to,
 [[nodiscard]]
 static dense_space
 purge_mature(mature_generation& mature,
-             std::vector<abstract_object_storage*>* moved_objects) {
+             std::vector<object_header*>* moved_objects) {
   dense_space temp{mature.small.allocator()};
   move_survivors(mature.small, temp, generation::mature, moved_objects);
   promote_large(mature.large, moved_objects);
@@ -460,9 +459,9 @@ purge_mature(mature_generation& mature,
 }
 
 static void
-move_incoming_arcs(std::unordered_set<abstract_object_storage*> const& arcs,
+move_incoming_arcs(std::unordered_set<object_header*> const& arcs,
                    nursery_generation& to) {
-  for (abstract_object_storage* o : arcs)
+  for (object_header* o : arcs)
     if (is_alive(o)) {
       assert(object_generation(o) > to.generation_number);
       to.incoming_arcs.emplace(o);
@@ -487,7 +486,7 @@ update_member(ptr<> const& member, [[maybe_unused]] bool weak) {
 }
 
 static void
-update_members(abstract_object_storage* o) {
+update_members(object_header* o) {
   visit_members(o, update_member);
 }
 
@@ -500,7 +499,7 @@ static void
 update_references(large_space const& space) {
   for (std::size_t i = 0; i < space.object_count(); ++i)
     if (std::byte* storage = space.get(i)) {
-      auto* o = reinterpret_cast<abstract_object_storage*>(storage);
+      auto* o = reinterpret_cast<object_header*>(storage);
       if (is_alive(o))
         update_members(o);
     }
@@ -513,7 +512,7 @@ update_references(root_list const& list) {
 
 static void
 update_references(auto const& incoming) {
-  for (abstract_object_storage* x : incoming)
+  for (object_header* x : incoming)
     update_members(x);
 }
 
@@ -538,14 +537,14 @@ format_stats(nursery_generation const& nursery_1,
 static void
 verify([[maybe_unused]] auto const& g) {
 #ifndef NDEBUG
-  g.small.for_all([&] (abstract_object_storage* o) {
+  g.small.for_all([&] (object_header* o) {
     assert(object_generation(o) == g.generation_number);
   });
 
   for (std::size_t i = 0; i < g.large.object_count(); ++i)
     assert(
       object_generation(
-        reinterpret_cast<abstract_object_storage*>(g.large.get(i))
+        reinterpret_cast<object_header*>(g.large.get(i))
       ) == g.generation_number
     );
 #endif
@@ -569,15 +568,15 @@ free_store::collect_garbage(bool major) {
 
   trace(roots_, generations_.nursery_1, generations_.nursery_2, max_generation);
 
-  std::unordered_set<abstract_object_storage*> old_n1_incoming
+  std::unordered_set<object_header*> old_n1_incoming
     = std::move(generations_.nursery_1.incoming_arcs);
   generations_.nursery_1.incoming_arcs.clear();
 
-  std::unordered_set<abstract_object_storage*> old_n2_incoming
+  std::unordered_set<object_header*> old_n2_incoming
     = std::move(generations_.nursery_2.incoming_arcs);
   generations_.nursery_2.incoming_arcs.clear();
 
-  std::vector<abstract_object_storage*> new_mature_objects;
+  std::vector<object_header*> new_mature_objects;
   dense_space old_mature;
   if (max_generation >= generation::mature)
     old_mature = purge_mature(generations_.mature, &new_mature_objects);
@@ -668,7 +667,7 @@ free_store::reset_colors(generation max_generation) {
   if (max_generation < generation::mature) {
     for (nursery_generation* g : {&generations_.nursery_1,
                                   &generations_.nursery_2})
-      for (abstract_object_storage* o : g->incoming_arcs)
+      for (object_header* o : g->incoming_arcs)
         set_object_color(o, color::white);
   }
 
@@ -676,7 +675,7 @@ free_store::reset_colors(generation max_generation) {
   if (max_generation == generation::mature) {
     for (nursery_generation* g : {&generations_.nursery_1,
                                   &generations_.nursery_2})
-      for (abstract_object_storage* o : g->incoming_arcs)
+      for (object_header* o : g->incoming_arcs)
         assert(object_color(o) == color::white);
   }
 #endif

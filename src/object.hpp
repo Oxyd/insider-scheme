@@ -79,16 +79,17 @@ constexpr std::size_t string_cursor_payload_offset = 3;
 constexpr std::size_t character_tag = 0b110;
 constexpr std::size_t string_cursor_tag = 0b010;
 
+// object_storage<T> is standard-layout, and header is its first member. This
+// means that an object_storage* and object_header* are
+// pointer-interconvertible, and we can reinterpret_cast from one to the other.
+
 struct object_header {
   word_type flags;
 };
 
-struct alignas(object_alignment) abstract_object_storage {
-  object_header header;
-};
-
 template <typename T>
-struct alignas(object_alignment) object_storage : abstract_object_storage {
+struct alignas(object_alignment) object_storage {
+  object_header header;
   std::aligned_storage_t<sizeof(T), alignof(T)> payload_storage;
 
   T*
@@ -151,8 +152,8 @@ public:
   { }
 
   explicit
-  ptr(abstract_object_storage* storage)
-    : value_{reinterpret_cast<word_type>(storage)}
+  ptr(object_header* header)
+    : value_{reinterpret_cast<word_type>(header)}
   { }
 
   ptr(concrete_object auto* value) {
@@ -174,18 +175,10 @@ public:
   word_type
   as_word() const { return value_; }
 
-  object_header&
+  object_header*
   header() const {
-    return storage()->header;
-  }
-
-  abstract_object_storage*
-  storage() const {
-    assert(value_ == 0 || is_object_address(value_));
-    if (value_)
-      return reinterpret_cast<abstract_object_storage*>(value_);
-    else
-      return nullptr;
+    assert(value_ != 0);
+    return reinterpret_cast<object_header*>(value_);
   }
 
   friend auto
@@ -209,6 +202,11 @@ public:
 
   explicit
   ptr(word_type w) : ptr<>{w} { }
+
+  explicit
+  ptr(object_storage<T>* storage)
+    : ptr<>{reinterpret_cast<word_type>(storage)}
+  { }
 
   ptr(T* value) : ptr<>(value) { }
 
@@ -300,15 +298,14 @@ concept has_static_type_index = requires {
 
 struct type_descriptor {
   char const* name = "invalid";
-  void (*destroy)(abstract_object_storage*) = nullptr;
-  ptr<> (*move)(abstract_object_storage*, abstract_object_storage*) = nullptr;
-  void (*visit_members)(abstract_object_storage*,
-                        member_visitor const&) = nullptr;
+  void (*destroy)(object_header*) = nullptr;
+  ptr<> (*move)(object_header*, object_header*) = nullptr;
+  void (*visit_members)(object_header*, member_visitor const&) = nullptr;
 
   bool constant_size = true;
   std::size_t size = 0;
-  std::size_t (*get_size)(abstract_object_storage*) = nullptr;
-  std::size_t (*storage_size)(abstract_object_storage*) = nullptr;
+  std::size_t (*get_size)(object_header*) = nullptr;
+  std::size_t (*storage_size)(object_header*) = nullptr;
 };
 
 struct type_vector {
@@ -332,10 +329,10 @@ inline word_type
 type_index(word_type header) { return header >> type_shift; }
 
 inline word_type
-type_index(abstract_object_storage* o) { return type_index(o->header.flags); }
+type_index(object_header* h) { return type_index(h->flags); }
 
 inline word_type
-object_type_index(ptr<> o) { return type_index(o.header().flags); }
+object_type_index(ptr<> o) { return type_index(o.header()->flags); }
 
 inline std::string
 type_name(word_type index) { return types().types[index].name; }
@@ -344,10 +341,10 @@ inline type_descriptor const&
 object_type(word_type header) { return types().types[type_index(header)]; }
 
 inline type_descriptor const&
-object_type(ptr<> o) { return object_type(o.header().flags); }
+object_type(ptr<> o) { return object_type(o.header()->flags); }
 
 inline type_descriptor const&
-object_type(abstract_object_storage* o) { return object_type(o->header.flags); }
+object_type(object_header* h) { return object_type(h->flags); }
 
 inline word_type
 object_hash(word_type header) {
@@ -355,12 +352,12 @@ object_hash(word_type header) {
 }
 
 inline word_type
-object_hash(abstract_object_storage* o) {
-  return object_hash(o->header.flags);
+object_hash(object_header* h) {
+  return object_hash(h->flags);
 }
 
 inline word_type
-object_hash(ptr<> o) { return object_hash(o.header().flags); }
+object_hash(ptr<> o) { return object_hash(o.header()->flags); }
 
 inline word_type
 tagged_payload(ptr<> o) {
@@ -396,14 +393,14 @@ object_type_name(ptr<> o) {
 }
 
 inline std::size_t
-storage_size(abstract_object_storage* storage) {
-  return object_type(storage->header.flags).storage_size(storage);
+storage_size(object_header* header) {
+  return object_type(header->flags).storage_size(header);
 }
 
 inline std::size_t
 object_size(ptr<> o) {
   type_descriptor const& t = object_type(o);
-  return t.constant_size ? t.size : t.get_size(o.storage());
+  return t.constant_size ? t.size : t.get_size(o.header());
 }
 
 template <typename T>
@@ -471,8 +468,8 @@ namespace detail {
 
   template <typename T>
   void
-  destroy(abstract_object_storage* o) {
-    auto storage = static_cast<object_storage<T>*>(o);
+  destroy(object_header* h) {
+    auto storage = reinterpret_cast<object_storage<T>*>(h);
     storage->object()->~T();
     std::uninitialized_fill_n(
       reinterpret_cast<std::byte*>(&storage->payload_storage),
@@ -483,9 +480,9 @@ namespace detail {
 
   template <typename T>
   ptr<>
-  move(abstract_object_storage* from, abstract_object_storage* to) {
-    auto from_storage = static_cast<object_storage<T>*>(from);
-    auto to_storage = static_cast<object_storage<T>*>(to);
+  move(object_header* from, object_header* to) {
+    auto from_storage = reinterpret_cast<object_storage<T>*>(from);
+    auto to_storage = reinterpret_cast<object_storage<T>*>(to);
     return new (&to_storage->payload_storage) T(
       std::move(*from_storage->object())
     );
@@ -493,29 +490,29 @@ namespace detail {
 
   template <typename T>
   void
-  visit_members(abstract_object_storage* o, member_visitor const& f) {
-    static_cast<object_storage<T>*>(o)->object()->visit_members(f);
+  visit_members(object_header* o, member_visitor const& f) {
+    reinterpret_cast<object_storage<T>*>(o)->object()->visit_members(f);
   }
 
   template <typename T, typename U>
   std::size_t
-  size(abstract_object_storage* o) {
-    auto storage = static_cast<object_storage<T>*>(o);
+  size(object_header* o) {
+    auto storage = reinterpret_cast<object_storage<T>*>(o);
     return sizeof(T)
            + detail::round_to_words(storage->object()->size_ * sizeof(U));
   }
 
   template <typename T>
   std::size_t
-  storage_size(abstract_object_storage* o) {
-    auto storage = static_cast<object_storage<T>*>(o);
+  storage_size(object_header* o) {
+    auto storage = reinterpret_cast<object_storage<T>*>(o);
     return sizeof(*storage);
   }
 
   template <typename T, typename U>
   std::size_t
-  dynamic_storage_size(abstract_object_storage* o) {
-    auto storage = static_cast<object_storage<T>*>(o);
+  dynamic_storage_size(object_header* o) {
+    auto storage = reinterpret_cast<object_storage<T>*>(o);
     return sizeof(*storage)
            + detail::round_to_words(storage->object()->size_ * sizeof(U));
   }
@@ -543,7 +540,7 @@ word_type const leaf_object<Derived>::type_index = new_type(
     Derived::scheme_name,
     detail::destroy<Derived>,
     detail::move<Derived>,
-    [] (abstract_object_storage*, member_visitor const&) { },
+    [] (object_header*, member_visitor const&) { },
     true,
     detail::round_to_words(sizeof(Derived)),
     nullptr,
@@ -591,11 +588,11 @@ struct alignas(T) dynamic_size_object : object {
 protected:
   template <typename, typename>
   friend std::size_t
-  detail::size(abstract_object_storage*);
+  detail::size(object_header*);
 
   template <typename, typename>
   friend std::size_t
-  detail::dynamic_storage_size(abstract_object_storage*);
+  detail::dynamic_storage_size(object_header*);
 
   T&
   storage_element(std::size_t i) {
@@ -659,12 +656,12 @@ object_generation(word_type header) {
 }
 
 inline generation
-object_generation(abstract_object_storage* o) {
-  return object_generation(o->header.flags);
+object_generation(object_header* h) {
+  return object_generation(h->flags);
 }
 
 inline generation
-object_generation(ptr<> o) { return object_generation(o.header().flags); }
+object_generation(ptr<> o) { return object_generation(o.header()->flags); }
 
 class hash_generator {
 public:

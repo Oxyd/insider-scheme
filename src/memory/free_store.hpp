@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <unordered_set>
 #include <vector>
 
@@ -42,7 +43,7 @@ public:
       std::size_t i = 0;
       while (i < used) {
         auto* object_storage
-          = reinterpret_cast<abstract_object_storage*>(storage.get() + i);
+          = reinterpret_cast<object_header*>(storage.get() + i);
         std::size_t size = storage_size(object_storage);
         f(object_storage);
         i += size;
@@ -55,7 +56,7 @@ public:
       std::size_t i = 0;
       while (i < used) {
         auto* object_storage
-          = reinterpret_cast<abstract_object_storage*>(storage.get() + i);
+          = reinterpret_cast<object_header*>(storage.get() + i);
         std::size_t size = storage_size(object_storage);
         f(object_storage);
         i += size;
@@ -150,7 +151,7 @@ public:
   void
   for_all(F const& f) {
     for (auto const& storage : allocations_) {
-      auto* o = reinterpret_cast<abstract_object_storage*>(storage.get());
+      auto* o = reinterpret_cast<object_header*>(storage.get());
       f(o);
     }
   }
@@ -193,7 +194,7 @@ struct nursery_generation {
   generation  generation_number;
   dense_space small;
   large_space large;
-  std::unordered_set<abstract_object_storage*> incoming_arcs;
+  std::unordered_set<object_header*> incoming_arcs;
 
   nursery_generation(page_allocator& allocator, generation generation_number)
     : generation_number{generation_number}
@@ -246,9 +247,10 @@ public:
   template <typename T, typename... Args>
   ptr<T>
   make(Args&&... args) {
+    static_assert(std::is_standard_layout_v<object_storage<T>>);
     auto* storage = allocate_storage<T>(detail::allocation_size<T>(args...));
     new (&storage->payload_storage) T(std::forward<Args>(args)...);
-    return ptr_cast<T>(ptr<>{storage});
+    return ptr<T>{storage};
   }
 
   void
@@ -257,11 +259,11 @@ public:
         && object_generation(from) > object_generation(to)) {
       switch (object_generation(to)) {
       case generation::nursery_1:
-        generations_.nursery_1.incoming_arcs.emplace(from.storage());
+        generations_.nursery_1.incoming_arcs.emplace(from.header());
         break;
 
       case generation::nursery_2:
-        generations_.nursery_2.incoming_arcs.emplace(from.storage());
+        generations_.nursery_2.incoming_arcs.emplace(from.header());
         break;
 
       default:
