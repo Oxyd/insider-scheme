@@ -23,14 +23,6 @@ class string_cursor;
 
 using word_type = std::uint64_t;
 
-constexpr std::size_t object_alignment = sizeof(word_type);
-
-// Base for any garbage-collectable Scheme object.
-class object {
-public:
-  static constexpr bool is_dynamic_size = false;
-};
-
 // Live object header word:
 //
 // Bits:   63     37           35       33          1       0
@@ -87,6 +79,8 @@ struct object_header {
   word_type flags;
 };
 
+constexpr std::size_t object_alignment = sizeof(word_type);
+
 template <typename T>
 struct alignas(object_alignment) object_storage {
   object_header header;
@@ -137,10 +131,6 @@ is_object_address(word_type a) {
   return (a & 0b11) == 0b00;
 }
 
-template <typename T>
-concept concrete_object = std::derived_from<T, object>
-                          && !std::same_as<T, object>;
-
 template <>
 class ptr<> {
 public:
@@ -156,7 +146,7 @@ public:
     : value_{reinterpret_cast<word_type>(header)}
   { }
 
-  ptr(concrete_object auto* value) {
+  ptr(auto* value) {
     if (value)
       value_ = object_header_address(value);
   }
@@ -520,7 +510,8 @@ namespace detail {
 
 // Object with no Scheme subobjects.
 template <typename Derived>
-struct leaf_object : object {
+struct leaf_object {
+  static constexpr bool is_dynamic_size = false;
   static word_type const type_index;
 };
 
@@ -551,7 +542,8 @@ word_type const leaf_object<Derived>::type_index = new_type(
 
 // Object with a constant number of Scheme subobjects.
 template <typename Derived>
-struct composite_object : object {
+struct composite_object {
+  static constexpr bool is_dynamic_size = false;
   static word_type const type_index;
 };
 
@@ -572,7 +564,7 @@ word_type const composite_object<Derived>::type_index = new_type(
 
 // Object whose size is determined at instantiation time.
 template <typename Derived, typename T>
-struct alignas(T) dynamic_size_object : object {
+struct alignas(T) dynamic_size_object {
   using element_type = T;
   static constexpr bool is_dynamic_size = true;
   static word_type const type_index;
