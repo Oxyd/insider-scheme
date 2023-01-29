@@ -103,6 +103,10 @@ struct alignas(object_alignment) object_storage {
   }
 };
 
+template <typename T>
+constexpr std::size_t payload_offset
+  = offsetof(object_storage<T>, payload_storage);
+
 // Non-tracked pointer to a Scheme object, including to immediate values such as
 // fixnums. ptr<> is a pointer to any object, ptr<T> is a pointer to an object
 // of type T.
@@ -120,16 +124,12 @@ namespace detail {
   update_ptr(ptr<> const& p, ptr<> new_value);
 }
 
+template <typename T>
 inline word_type
-object_header_address(object* o) {
+object_header_address(T* o) {
   return reinterpret_cast<word_type>(
-    reinterpret_cast<std::byte*>(o) - sizeof(word_type)
+    reinterpret_cast<std::byte*>(o) - payload_offset<T>
   );
-}
-
-inline object*
-object_address(word_type w) {
-  return reinterpret_cast<object*>(w + sizeof(word_type));
 }
 
 inline bool
