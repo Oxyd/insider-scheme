@@ -259,12 +259,6 @@ free_store::~free_store() {
   destroy_all_objects(generations_.mature.large);
 }
 
-void
-free_store::transfer_to_nursery(page_allocator::page p, std::size_t used) {
-  generations_.nursery_1.small.take(std::move(p), used);
-  check_nursery_size();
-}
-
 namespace {
   template <typename F>
   struct visitor : member_visitor {

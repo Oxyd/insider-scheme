@@ -273,12 +273,6 @@ public:
     }
   }
 
-  void
-  make_permanent_arc(ptr<> from);
-
-  void
-  transfer_to_nursery(page_allocator::page, std::size_t used);
-
   insider::root_list&
   root_list() { return roots_; }
 
