@@ -119,9 +119,9 @@ namespace detail {
 }
 
 template <typename T>
-inline word_type
+inline object_header*
 object_header_address(T* o) {
-  return reinterpret_cast<word_type>(
+  return reinterpret_cast<object_header*>(
     reinterpret_cast<std::byte*>(o) - payload_offset<T>
   );
 }
@@ -138,12 +138,14 @@ public:
 
   explicit
   ptr(word_type value)
-    : value_{value}
-  { }
+    : value_{reinterpret_cast<object_header*>(value)}
+  {
+    assert(!is_object_address(value));
+  }
 
   explicit
   ptr(object_header* header)
-    : value_{reinterpret_cast<word_type>(header)}
+    : value_{header}
   { }
 
   ptr(auto* value) {
@@ -157,19 +159,16 @@ public:
   operator bool () const { return value_ != 0; }
 
   void
-  reset() { value_ = 0; }
+  reset() { value_ = nullptr; }
 
   void
   reset(ptr<> new_value) { value_ = new_value.value_; }
 
   word_type
-  as_word() const { return value_; }
+  as_word() const { return reinterpret_cast<word_type>(value_); }
 
   object_header*
-  header() const {
-    assert(value_ != 0);
-    return reinterpret_cast<object_header*>(value_);
-  }
+  header() const { return value_; }
 
   friend auto
   operator <=> (ptr const&, ptr const&) = default;
@@ -177,7 +176,7 @@ public:
 protected:
   friend void detail::update_ptr(ptr<> const&, ptr<>);
 
-  mutable word_type value_ = 0;
+  mutable object_header* value_ = nullptr;
 };
 
 inline bool
@@ -191,11 +190,14 @@ public:
   ptr() = default;
 
   explicit
+  ptr(object_header* header) : ptr<>{header} { }
+
+  explicit
   ptr(word_type w) : ptr<>{w} { }
 
   explicit
   ptr(object_storage<T>* storage)
-    : ptr<>{reinterpret_cast<word_type>(storage)}
+    : ptr<>{reinterpret_cast<object_header*>(storage)}
   { }
 
   ptr(T* value) : ptr<>(value) { }
@@ -232,11 +234,7 @@ public:
 
   object_storage<T>*
   storage() const {
-    assert(value_ == 0 || is_object_address(value_));
-    if (value_)
-      return reinterpret_cast<object_storage<T>*>(value_);
-    else
-      return nullptr;
+    return reinterpret_cast<object_storage<T>*>(value_);
   }
 };
 
@@ -248,7 +246,7 @@ template <typename T>
 ptr<T>
 ptr_cast(ptr<> value) {
   assert(!value || is<T>(value));
-  return ptr<T>{value.as_word()};
+  return ptr<T>{value.header()};
 }
 
 template <>

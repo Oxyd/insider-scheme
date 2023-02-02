@@ -85,7 +85,7 @@ forwarding_address(object_header* h) {
 static ptr<>
 forwarding_address(ptr<> o) {
   assert(!is_alive(o));
-  return ptr<>{o.header()->flags};
+  return ptr<>{reinterpret_cast<object_header*>(o.header()->flags)};
 }
 
 static void
