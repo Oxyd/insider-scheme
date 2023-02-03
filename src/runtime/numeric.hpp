@@ -238,7 +238,7 @@ namespace detail {
     constexpr limb_type max_limb_value = std::numeric_limits<limb_type>::max();
 
     if (i == 0)
-      return 0;
+      return 1;
 
     if constexpr (sizeof(limb_type) >= sizeof(integer::value_type))
       return 1;

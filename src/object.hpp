@@ -459,11 +459,6 @@ namespace detail {
   destroy(object_header* h) {
     auto storage = reinterpret_cast<object_storage<T>*>(h);
     storage->object()->~T();
-    std::uninitialized_fill_n(
-      reinterpret_cast<std::byte*>(&storage->payload_storage),
-      sizeof(T),
-      std::byte{0xAA}
-    );
   }
 
   template <typename T>
