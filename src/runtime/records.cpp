@@ -13,7 +13,10 @@ record_instance::extra_elements(ptr<record_type> type) {
 record_instance::record_instance(ptr<record_type> type)
   : dynamic_size_object{type->num_fields()}
   , type_{type}
-{ }
+{
+  for (std::size_t i = 0; i < size(); ++i)
+    storage_element(i) = nullptr;
+}
 
 record_instance::record_instance(record_instance&& other) noexcept
   : dynamic_size_object{other}
