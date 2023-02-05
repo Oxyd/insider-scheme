@@ -115,7 +115,7 @@ ptr<module_>
 module_resolver::load_module(context& ctx, module_name const& name,
                              compilation_config const& config) {
   modules_.emplace(name, nullptr);
-  tracked_ptr<module_> m = instantiate(
+  root_ptr<module_> m = instantiate(
     ctx,
     find_module_in_providers(ctx, name),
     config

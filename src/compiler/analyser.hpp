@@ -31,7 +31,7 @@ class textual_input_port;
 // modified by updating the scope sets of it and all the syntaxes it recursively
 // contains.
 expression
-analyse(context&, ptr<syntax> stx, tracked_ptr<module_> const&,
+analyse(context&, ptr<syntax> stx, root_ptr<module_> const&,
         compilation_config const&, source_file_origin const&);
 
 module_name
@@ -51,7 +51,7 @@ read_library_name(context&, ptr<textual_input_port>);
 
 // Analyse a module's body in the given module.
 expression
-analyse_module(context&, tracked_ptr<module_> const&, module_specifier const&,
+analyse_module(context&, root_ptr<module_> const&, module_specifier const&,
                compilation_config const&, bool main_module = false);
 
 expression

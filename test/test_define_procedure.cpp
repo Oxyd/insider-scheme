@@ -1,3 +1,4 @@
+#include "context.hpp"
 #include "scheme_fixture.hpp"
 
 #include "util/define_procedure.hpp"
@@ -47,7 +48,7 @@ TEST_F(define_procedure_fixture, procedure_with_two_defaults) {
 }
 
 TEST_F(define_procedure_fixture, procedure_with_parameter_as_the_default) {
-  auto n = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
+  auto n = register_root(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
   define_top_level(ctx, "n", ctx.internal_module(), true, n.get());
   define_procedure<add_ints>(
     ctx, "add", ctx.internal_module(),

@@ -50,7 +50,7 @@ public:
     , irritant_{ctx.store}
   { }
 
-  simple_action(context& ctx, tracked_ptr<> const& irritant,
+  simple_action(context& ctx, root_ptr<> const& irritant,
                 std::string_view format, Args... args)
     : base{ctx}
     , format_{format}
@@ -63,7 +63,7 @@ public:
     : base{ctx}
     , format_{format}
     , args_{std::move(args)...}
-    , irritant_{track(ctx, irritant)}
+    , irritant_{ctx.store, irritant}
   { }
 
   ~simple_action() { this->check(); }
@@ -76,7 +76,7 @@ public:
 private:
   std::string_view    format_;
   std::tuple<Args...> args_;
-  tracked_ptr<>       irritant_;
+  root_ptr<>       irritant_;
 
   template <std::size_t... Is>
   std::string

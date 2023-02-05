@@ -3,7 +3,7 @@
 
 #include "compiler/expression.hpp"
 #include "compiler/parsing_context.hpp"
-#include "memory/tracked_ptr.hpp"
+#include "memory/root_ptr.hpp"
 
 #include <memory>
 
@@ -21,7 +21,7 @@ expression
 parse(parsing_context& pc, ptr<syntax> s);
 
 std::vector<ptr<syntax>>
-expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
+expand_top_level(parsing_context& pc, root_ptr<module_> const& m,
                  std::vector<ptr<syntax>> const& exprs);
 
 } // namespace insider

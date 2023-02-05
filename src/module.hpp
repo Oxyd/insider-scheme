@@ -2,11 +2,10 @@
 #define INSIDER_MODULE_HPP
 
 #include "compiler/compilation_config.hpp"
-#include "compiler/module_name.hpp"
 #include "compiler/module_specifier.hpp"
 #include "compiler/scope.hpp"
 #include "memory/free_store.hpp"
-#include "memory/tracked_ptr.hpp"
+#include "memory/root_ptr.hpp"
 #include "object.hpp"
 
 #include <filesystem>
@@ -91,24 +90,24 @@ private:
 
 // Turn a module specifier into a module. First instantiate all uninstantiated
 // dependencies of the module, then compile its body.
-tracked_ptr<module_>
+root_ptr<module_>
 instantiate(context&, module_specifier const&, compilation_config const&);
 
 // Import all exports from one module to another.
 void
 import_all_exported(context&,
-                    tracked_ptr<module_> const& to,
-                    tracked_ptr<module_> const& from);
+                    root_ptr<module_> const& to,
+                    root_ptr<module_> const& from);
 
 // Import all top-level bindings (whether exported or not) from one module to
 // another.
 void
 import_all_top_level(context&,
-                     tracked_ptr<module_> const& to,
-                     tracked_ptr<module_> const& from);
+                     root_ptr<module_> const& to,
+                     root_ptr<module_> const& from);
 
 void
-perform_imports(context&, tracked_ptr<module_> const& to, imports_list const&,
+perform_imports(context&, root_ptr<module_> const& to, imports_list const&,
                 compilation_config const&);
 
 operand
@@ -124,15 +123,15 @@ define_top_level_mutable(context&, std::string const& name, ptr<module_>,
 //
 // Causes garbage collection.
 ptr<>
-execute(vm&, tracked_ptr<module_> const&);
+execute(vm&, root_ptr<module_> const&);
 
 ptr<>
-execute(context&, tracked_ptr<module_> const&);
+execute(context&, root_ptr<module_> const&);
 
-tracked_ptr<module_>
+root_ptr<module_>
 make_interactive_module(context&, imports_list const&);
 
-tracked_ptr<module_>
+root_ptr<module_>
 interaction_environment(context&);
 
 } // namespace insider

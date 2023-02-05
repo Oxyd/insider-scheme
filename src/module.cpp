@@ -8,7 +8,7 @@
 #include "compiler/variable.hpp"
 #include "context.hpp"
 #include "io/read.hpp"
-#include "memory/tracked_ptr.hpp"
+#include "memory/root_ptr.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/parameter_map.hpp"
 #include "runtime/symbol.hpp"
@@ -86,7 +86,7 @@ namespace {
       std::string source;
     };
 
-    tracked_ptr<module_>       source;
+    root_ptr<module_>       source;
     std::vector<imported_name> names;
 
     explicit
@@ -94,7 +94,7 @@ namespace {
       : source{ctx.store}
     { }
 
-    import_set(tracked_ptr<module_> source, std::vector<imported_name> names)
+    import_set(root_ptr<module_> source, std::vector<imported_name> names)
       : source{std::move(source)}
       , names{std::move(names)}
     { }
@@ -209,7 +209,7 @@ parse_import_set(context& ctx, import_specifier const& spec,
 }
 
 static void
-perform_imports(context& ctx, tracked_ptr<module_> const& m,
+perform_imports(context& ctx, root_ptr<module_> const& m,
                 import_set const& set) {
   for (auto const& [to_name, from_name] : set.names) {
     if (auto b = set.source->find(ctx.intern(from_name)))
@@ -278,16 +278,16 @@ imports_list_to_import_sets(context& ctx, imports_list const& imports,
 }
 
 static void
-perform_imports(context& ctx, tracked_ptr<module_> const& to,
+perform_imports(context& ctx, root_ptr<module_> const& to,
                 std::vector<import_set> const& import_sets) {
   for (import_set const& set : import_sets)
     perform_imports(ctx, to, set);
 }
 
-tracked_ptr<module_>
+root_ptr<module_>
 instantiate(context& ctx, module_specifier const& pm,
             compilation_config const& config) {
-  auto result = make_tracked<module_>(ctx, ctx, pm.name);
+  auto result = make_root<module_>(ctx, ctx, pm.name);
 
   std::vector<import_set> import_sets
     = imports_list_to_import_sets(ctx, pm.imports, config);
@@ -305,8 +305,8 @@ instantiate(context& ctx, module_specifier const& pm,
 
 void
 import_all_exported(context& ctx,
-                    tracked_ptr<module_> const& to,
-                    tracked_ptr<module_> const& from) {
+                    root_ptr<module_> const& to,
+                    root_ptr<module_> const& from) {
   import_set is{from, {}};
 
   for (std::string const& name : from->exports())
@@ -329,8 +329,8 @@ top_level_names(ptr<module_> m) {
 
 void
 import_all_top_level(context& ctx,
-                     tracked_ptr<module_> const& to,
-                     tracked_ptr<module_> const& from) {
+                     root_ptr<module_> const& to,
+                     root_ptr<module_> const& from) {
   import_set is{from, {}};
 
   for (std::string const& name : top_level_names(from.get()))
@@ -340,7 +340,7 @@ import_all_top_level(context& ctx,
 }
 
 void
-perform_imports(context& ctx, tracked_ptr<module_> const& to,
+perform_imports(context& ctx, root_ptr<module_> const& to,
                 imports_list const& imports,
                 compilation_config const& config) {
   for (import_specifier const& spec : imports) {
@@ -388,14 +388,14 @@ run_module(vm& state, ptr<module_> m) {
 }
 
 ptr<>
-execute(vm& state, tracked_ptr<module_> const& mod) {
+execute(vm& state, root_ptr<module_> const& mod) {
   ptr<> result = run_module(state, mod.get());
   mod->mark_active();
   return result;
 }
 
 ptr<>
-execute(context& ctx, tracked_ptr<module_> const& mod) {
+execute(context& ctx, root_ptr<module_> const& mod) {
   vm state{ctx};
   return execute(state, mod);
 }
@@ -412,15 +412,15 @@ parse_imports(context& ctx, object_span imports) {
 
 static ptr<>
 environment(context& ctx, ptr<native_procedure>, object_span args) {
-  auto result = make_tracked<module_>(ctx, ctx, module_::type::immutable);
+  auto result = make_root<module_>(ctx, ctx, module_::type::immutable);
   auto config = compilation_config::optimisations_config();
   perform_imports(ctx, result, parse_imports(ctx, args), config);
   return result.get();
 }
 
-tracked_ptr<module_>
+root_ptr<module_>
 make_interactive_module(context& ctx, imports_list const& imports) {
-  auto result = make_tracked<module_>(ctx, ctx, module_::type::interactive);
+  auto result = make_root<module_>(ctx, ctx, module_::type::interactive);
   auto config = compilation_config::optimisations_config();
   perform_imports(ctx, result, imports, config);
   return result;
@@ -437,11 +437,11 @@ dynamic_import(context& ctx, ptr<native_procedure>, object_span args) {
   auto m = expect<module_>(args[0]);
   auto imports = parse_imports(ctx, args.subspan(1));
   auto config = compilation_config::optimisations_config();
-  perform_imports(ctx, track(ctx, m), imports, config);
+  perform_imports(ctx, register_root(ctx, m), imports, config);
   return ctx.constants->void_;
 }
 
-tracked_ptr<module_>
+root_ptr<module_>
 interaction_environment(context& ctx) {
   auto import_datum = ctx.parameters->find_value(
     ctx.constants->interaction_environment_specifier_tag

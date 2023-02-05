@@ -259,7 +259,7 @@ static ptr<>
 f1(vm& state, ptr<> f, ptr<> g) {
   return call_continuable(
     state, f, {to_scheme(state.ctx, 2)},
-    [g = track(state.ctx, g)] (vm& state, ptr<> result) {
+    [g = register_root(state.ctx, g)] (vm& state, ptr<> result) {
       return call_continuable(
         state, g.get(), {result},
         [] (vm& state, ptr<> result) {
@@ -280,7 +280,7 @@ static ptr<>
 f2(vm& state, ptr<> g, ptr<> h) {
   return call_continuable(
     state, g, {},
-    [h = track(state.ctx, h)] (vm& state, ptr<>) {
+    [h = register_root(state.ctx, h)] (vm& state, ptr<>) {
       return call_continuable(
         state, h.get(), {},
         [] (vm&, ptr<> r) { return r; }
@@ -863,7 +863,7 @@ static ptr<>
 call_two(vm& state, ptr<> f, ptr<> g) {
   return call_continuable(
     state, f, {},
-    [g = track(state.ctx, g)] (vm& state, ptr<> result) {
+    [g = register_root(state.ctx, g)] (vm& state, ptr<> result) {
       return tail_call(state, g.get(), {result});
     }
   );
@@ -891,10 +891,10 @@ TEST_F(control, continuation_jump_to_native_tail_call) {
 }
 
 TEST_F(control, call_parameterized_with_continuation_barrier_sets_parameter_in_scheme_frame) {
-  auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
+  auto tag = register_root(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
   define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
-  tracked_ptr<> get_value = track(ctx, eval(R"(
+  root_ptr<> get_value = register_root(ctx, eval(R"(
     (lambda ()
       (find-parameter-value p))
   )"));
@@ -909,17 +909,17 @@ TEST_F(control, call_parameterized_with_continuation_barrier_sets_parameter_in_s
 }
 
 TEST_F(control, call_parameterized_with_continuation_brrier_sets_parameter_in_native_frame) {
-  auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
+  auto tag = register_root(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
   define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
   struct tag_closure : native_procedure::extra_data {
-    tracked_ptr<parameter_tag> tag;
+    root_ptr<parameter_tag> tag;
 
     explicit
-    tag_closure(tracked_ptr<parameter_tag> t) : tag{std::move(t)} { }
+    tag_closure(root_ptr<parameter_tag> t) : tag{std::move(t)} { }
   };
 
-  auto get_value = make_tracked<native_procedure>(
+  auto get_value = make_root<native_procedure>(
     ctx,
     [] (vm& state, ptr<native_procedure> f, object_span) -> ptr<> {
       auto tag = static_cast<tag_closure*>(f->extra.get())->tag;
@@ -938,10 +938,10 @@ TEST_F(control, call_parameterized_with_continuation_brrier_sets_parameter_in_na
 }
 
 TEST_F(control, native_parameterize_sets_parameter_in_scheme_frame) {
-  auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
+  auto tag = register_root(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
   define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
-  tracked_ptr<> get_value = track(ctx, eval(R"(
+  root_ptr<> get_value = register_root(ctx, eval(R"(
     (lambda ()
       (find-parameter-value p))
   )"));
@@ -960,17 +960,17 @@ TEST_F(control, native_parameterize_sets_parameter_in_scheme_frame) {
 }
 
 TEST_F(control, native_parameterization_sets_parameter_in_native_frame) {
-  auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
+  auto tag = register_root(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
   define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
   struct tag_closure : native_procedure::extra_data {
-    tracked_ptr<parameter_tag> tag;
+    root_ptr<parameter_tag> tag;
 
     explicit
-    tag_closure(tracked_ptr<parameter_tag> t) : tag{std::move(t)} { }
+    tag_closure(root_ptr<parameter_tag> t) : tag{std::move(t)} { }
   };
 
-  auto get_value = make_tracked<native_procedure>(
+  auto get_value = make_root<native_procedure>(
     ctx,
     [] (vm& state, ptr<native_procedure> f, object_span) {
       auto tag = static_cast<tag_closure*>(f->extra.get())->tag;
@@ -994,10 +994,10 @@ TEST_F(control, native_parameterization_sets_parameter_in_native_frame) {
 
 TEST_F(control,
        native_parameterization_sets_parameter_value_when_called_from_scheme) {
-  auto tag = track(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
+  auto tag = register_root(ctx, create_parameter_tag(ctx, integer_to_ptr(0)));
   define_top_level(ctx, "p", ctx.internal_module(), true, tag.get());
 
-  auto get_value = track(ctx, eval(R"(
+  auto get_value = register_root(ctx, eval(R"(
     (lambda ()
       (find-parameter-value p))
   )"));

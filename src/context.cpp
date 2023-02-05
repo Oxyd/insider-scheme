@@ -150,9 +150,9 @@ context::add_feature(std::string const& f) {
     features_ = cons(*this, f_sym, features_);
 }
 
-tracked_ptr<module_>
+root_ptr<module_>
 context::internal_module_tracked() {
-  return track(*this, internal_module());
+  return {store, internal_module()};
 }
 
 scope::id_type

@@ -31,9 +31,9 @@ namespace {
 
 TEST_F(gc, collect_direct_garbage) {
   bool one{}, two{}, three{};
-  tracked_ptr<aaa> a = make_tracked<aaa>(ctx, &one);
-  tracked_ptr<aaa> b = make_tracked<aaa>(ctx, &two);
-  tracked_ptr<aaa> c = make_tracked<aaa>(ctx, &three);
+  root_ptr<aaa> a = make_root<aaa>(ctx, &one);
+  root_ptr<aaa> b = make_root<aaa>(ctx, &two);
+  root_ptr<aaa> c = make_root<aaa>(ctx, &three);
 
   ctx.store.collect_garbage(true);
 
@@ -122,7 +122,7 @@ private:
 
 TEST_F(gc, collect_indirect_garbage) {
   bool one{}, two{}, three{}, four{};
-  tracked_ptr<bbb> root = make_tracked<bbb>(ctx, &one);
+  root_ptr<bbb> root = make_root<bbb>(ctx, &one);
   root->set_child(ctx.store, make<bbb>(ctx, &two));
   root->child()->set_child(ctx.store, make<bbb>(ctx, &three));
   root->child()->child()->set_child(ctx.store, make<bbb>(ctx, &four));
@@ -150,7 +150,7 @@ TEST_F(gc, collect_indirect_garbage) {
 
 TEST_F(gc, collect_circles) {
   bool one{}, two{};
-  tracked_ptr<bbb> a = make_tracked<bbb>(ctx, &one);
+  root_ptr<bbb> a = make_root<bbb>(ctx, &one);
   a->set_child(ctx.store, make<bbb>(ctx, &two));
   a->child()->set_child(ctx.store, a.get());
 
@@ -166,8 +166,8 @@ TEST_F(gc, collect_circles) {
 
 TEST_F(gc, weak_box) {
   bool one{};
-  tracked_ptr<aaa> a = make_tracked<aaa>(ctx, &one);
-  tracked_ptr<weak_box> w = make_tracked<weak_box>(ctx, a.get());
+  root_ptr<aaa> a = make_root<aaa>(ctx, &one);
+  root_ptr<weak_box> w = make_root<weak_box>(ctx, a.get());
 
   ctx.store.collect_garbage(true);
   EXPECT_TRUE(one);
@@ -298,8 +298,8 @@ TEST_F(gc, distinct_objects_have_distinct_hashes) {
 }
 
 TEST_F(gc, objects_retain_hash_values_through_gc) {
-  auto a = make_tracked<symbol>(ctx, "a");
-  auto b = make_tracked<symbol>(ctx, "b");
+  auto a = make_root<symbol>(ctx, "a");
+  auto b = make_root<symbol>(ctx, "b");
 
   word_type old_a_hash = object_hash(a.get());
   word_type old_b_hash = object_hash(b.get());

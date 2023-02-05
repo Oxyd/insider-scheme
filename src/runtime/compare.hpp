@@ -1,7 +1,7 @@
 #ifndef INSIDER_RUNTIME_COMPARE_HPP
 #define INSIDER_RUNTIME_COMPARE_HPP
 
-#include "memory/tracked_ptr.hpp"
+#include "memory/root_ptr.hpp"
 #include "object.hpp"
 
 #include <cstdint>
@@ -29,7 +29,7 @@ struct ptr_hash {
   operator () (ptr<> p) const { return hash(p); }
 
   std::size_t
-  operator () (tracked_ptr<> const& p) const { return hash(p.get()); }
+  operator () (root_ptr<> const& p) const { return hash(p.get()); }
 };
 
 struct ptr_hasheqv {
@@ -37,7 +37,7 @@ struct ptr_hasheqv {
   operator () (ptr<> p) const { return hasheqv(p); }
 
   std::size_t
-  operator () (tracked_ptr<> const& p) const { return hasheqv(p.get()); }
+  operator () (root_ptr<> const& p) const { return hasheqv(p.get()); }
 };
 
 inline bool
@@ -60,7 +60,7 @@ public:
   }
 
   bool
-  operator () (tracked_ptr<> const& x, tracked_ptr<> const& y) const {
+  operator () (root_ptr<> const& x, root_ptr<> const& y) const {
     return eqv(ctx_, x.get(), y.get());
   }
 

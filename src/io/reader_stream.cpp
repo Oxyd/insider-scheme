@@ -28,7 +28,7 @@ reader_stream::checkpoint::checkpoint(reader_stream& stream)
   , position_{stream.rollback_pos_}
 { }
 
-reader_stream::reader_stream(tracked_ptr<textual_input_port> p)
+reader_stream::reader_stream(root_ptr<textual_input_port> p)
   : port_{std::move(p)}
   , loc_{port_->name(), 1, 1}
 { }

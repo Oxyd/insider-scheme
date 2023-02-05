@@ -37,7 +37,7 @@ syntax_to_string(context& ctx, ptr<syntax> stx) {
 
 template <typename T>
 static std::vector<ptr<T>>
-untrack_vector(std::vector<tracked_ptr<T>> const& v) {
+untrack_vector(std::vector<root_ptr<T>> const& v) {
   std::vector<ptr<T>> result;
   result.reserve(v.size());
   for (auto const& value : v)
@@ -123,7 +123,7 @@ namespace {
 
   class parser_action : public action<parser_action> {
   public:
-    parser_action(context& ctx, tracked_ptr<syntax> stx, std::string_view msg)
+    parser_action(context& ctx, root_ptr<syntax> stx, std::string_view msg)
       : action{ctx}
       , msg_{msg}
       , stx_{std::move(stx)}
@@ -132,7 +132,7 @@ namespace {
     parser_action(context& ctx, ptr<syntax> stx, std::string_view msg)
       : action{ctx}
       , msg_{msg}
-      , stx_{track(ctx, stx)}
+      , stx_{ctx.store, stx}
     { }
 
     ~parser_action() { this->check(); }
@@ -147,7 +147,7 @@ namespace {
 
   private:
     std::string_view    msg_;
-    tracked_ptr<syntax> stx_;
+    root_ptr<syntax> stx_;
   };
 }
 
@@ -376,7 +376,7 @@ static ptr<>
 eval_at_expand_time(parsing_context& pc, ptr<syntax> datum) {
   auto meta_pc = make_meta_context(pc);
   auto proc = compile_syntax(meta_pc.ctx, Analyse(meta_pc, datum),
-                             track(meta_pc.ctx, meta_pc.module_));
+                             register_root(meta_pc.ctx, meta_pc.module_));
   return call_with_continuation_barrier(meta_pc.state, proc, {});
 }
 
@@ -840,8 +840,7 @@ parse_let_syntax(parsing_context& pc, ptr<syntax> stx) {
   tracker t{pc.ctx, definitions, body, subscope};
 
   for (definition_pair const& dp : definitions) {
-    tracked_ptr<syntax> id
-      = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope));
+    root_ptr<syntax> id{pc.ctx.store, dp.id->add_scope(pc.ctx.store, subscope)};
 
     auto transformer = make_transformer(pc, dp.expression); // GC
     define(pc.ctx.store, id.get(), transformer);
@@ -867,8 +866,7 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
   tracker t{pc.ctx, definitions, body, subscope};
 
   for (definition_pair const& dp : definitions) {
-    tracked_ptr<syntax> id
-      = track(pc.ctx, dp.id->add_scope(pc.ctx.store, subscope));
+    root_ptr<syntax> id{pc.ctx.store, dp.id->add_scope(pc.ctx.store, subscope)};
     ptr<syntax> expression
       = dp.expression->add_scope(pc.ctx.store, subscope);
     auto transformer = make_transformer(pc, expression);
@@ -1398,11 +1396,11 @@ namespace {
   };
 
   struct literal {
-    tracked_ptr<syntax> value;
+    root_ptr<syntax> value;
   };
 
   struct unquote {
-    tracked_ptr<syntax> datum;
+    root_ptr<syntax> datum;
     bool splicing;
   };
 
@@ -1415,9 +1413,9 @@ namespace {
     >;
 
     value_type          value;
-    tracked_ptr<syntax> stx;
+    root_ptr<syntax> stx;
 
-    qq_template(value_type value, tracked_ptr<syntax> const& stx)
+    qq_template(value_type value, root_ptr<syntax> const& stx)
       : value(std::move(value))
       , stx{stx}
     { }
@@ -1530,7 +1528,7 @@ syntax_traits::unwrap(context&, ptr<syntax> stx) {
 
 template <typename Traits>
 static std::unique_ptr<qq_template>
-parse_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
+parse_qq_template(parsing_context& pc, root_ptr<syntax> const& stx,
                   unsigned quote_level);
 
 template <typename Traits>
@@ -1562,7 +1560,7 @@ is_improper_qq_template(parsing_context& pc, ptr<>& elem) {
 
 template <typename Traits>
 static std::unique_ptr<qq_template>
-parse_list_qq_template_body(parsing_context& pc, tracked_ptr<syntax> const& stx,
+parse_list_qq_template_body(parsing_context& pc, root_ptr<syntax> const& stx,
                             unsigned nested_level) {
   bool all_literal = true;
   list_pattern result;
@@ -1574,7 +1572,7 @@ parse_list_qq_template_body(parsing_context& pc, tracked_ptr<syntax> const& stx,
 
     result.elems.push_back(
       parse_qq_template<Traits>(pc,
-                                track(pc.ctx, syntax_car(pc.ctx, elem)),
+                                register_root(pc.ctx, syntax_car(pc.ctx, elem)),
                                 nested_level)
     );
     elem = syntax_cdr(pc.ctx, elem);
@@ -1586,10 +1584,10 @@ parse_list_qq_template_body(parsing_context& pc, tracked_ptr<syntax> const& stx,
   if (auto pair = semisyntax_match<insider::pair>(pc.ctx, elem)) {
     result.last = cons_pattern{
       parse_qq_template<Traits>(pc,
-                                track(pc.ctx, expect<syntax>(car(pair))),
+                                register_root(pc.ctx, expect<syntax>(car(pair))),
                                 nested_level),
       parse_qq_template<Traits>(pc,
-                                track(pc.ctx, expect<syntax>(cdr(pair))),
+                                register_root(pc.ctx, expect<syntax>(cdr(pair))),
                                 nested_level)
     };
     all_literal = all_literal
@@ -1605,12 +1603,12 @@ parse_list_qq_template_body(parsing_context& pc, tracked_ptr<syntax> const& stx,
 
 template <typename Traits>
 static std::unique_ptr<qq_template>
-parse_list_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
+parse_list_qq_template(parsing_context& pc, root_ptr<syntax> const& stx,
                        unsigned quote_level, ptr<pair> p) {
   auto [nested_level, splicing]
     = find_nested_level<Traits>(pc, quote_level, p);
   if (nested_level == 0) {
-    auto unquote_stx = track(pc.ctx, syntax_cadr(pc.ctx, stx.get()));
+    auto unquote_stx = register_root(pc.ctx, syntax_cadr(pc.ctx, stx.get()));
     return std::make_unique<qq_template>(unquote{unquote_stx, splicing},
                                          unquote_stx);
   } else
@@ -1619,7 +1617,7 @@ parse_list_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
 
 template <typename Traits>
 static std::unique_ptr<qq_template>
-parse_vector_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
+parse_vector_qq_template(parsing_context& pc, root_ptr<syntax> const& stx,
                          unsigned quote_level, ptr <vector> v) {
   std::vector<std::unique_ptr<qq_template>> templates;
   templates.reserve(v->size());
@@ -1628,7 +1626,7 @@ parse_vector_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
   for (std::size_t i = 0; i < v->size(); ++i) {
     templates.push_back(
       parse_qq_template<Traits>(pc,
-                                track(pc.ctx, expect<syntax>(v->ref(i))),
+                                register_root(pc.ctx, expect<syntax>(v->ref(i))),
                                 quote_level)
     );
     if (!std::holds_alternative<literal>(templates.back()->value))
@@ -1644,7 +1642,7 @@ parse_vector_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
 
 template <typename Traits>
 static std::unique_ptr<qq_template>
-parse_qq_template(parsing_context& pc, tracked_ptr<syntax> const& stx,
+parse_qq_template(parsing_context& pc, root_ptr<syntax> const& stx,
                   unsigned quote_level) {
   if (auto p = syntax_match<pair>(pc.ctx, stx.get()))
     return parse_list_qq_template<Traits>(pc, stx, quote_level, p);
@@ -1853,9 +1851,11 @@ static expression
 parse_quasiquote(parsing_context& pc, ptr<syntax> stx) {
   return process_qq_template<quote_traits>(
     pc,
-    parse_qq_template<quote_traits>(pc,
-                                    track(pc.ctx, syntax_cadr(pc.ctx, stx)),
-                                    1)
+    parse_qq_template<quote_traits>(
+      pc,
+      register_root(pc.ctx, syntax_cadr(pc.ctx, stx)),
+      1
+    )
   );
 }
 
@@ -1863,9 +1863,11 @@ static expression
 parse_quasisyntax(parsing_context& pc, ptr<syntax> stx) {
   return process_qq_template<syntax_traits>(
     pc,
-    parse_qq_template<syntax_traits>(pc,
-                                     track(pc.ctx, syntax_cadr(pc.ctx, stx)),
-                                     1)
+    parse_qq_template<syntax_traits>(
+      pc,
+      register_root(pc.ctx, syntax_cadr(pc.ctx, stx)),
+      1
+    )
   );
 }
 
@@ -1969,7 +1971,7 @@ static ptr<syntax>
 process_top_level_form(parsing_context& pc,
                        std::vector<ptr<syntax>>& stack,
                        ptr<syntax> stx) {
-  if (auto lst = track(pc.ctx, syntax_to_list(pc.ctx, stx))) {
+  if (auto lst = register_root(pc.ctx, syntax_to_list(pc.ctx, stx))) {
     if (lst.get() == pc.ctx.constants->null)
       throw make_compile_error<syntax_error>(stx, "Empty application");
 
@@ -2039,7 +2041,7 @@ add_module_scope_to_body(context& ctx, std::vector<ptr<syntax>> const& body,
 //
 // Causes a garbage collection.
 std::vector<ptr<syntax>>
-expand_top_level(parsing_context& pc, tracked_ptr<module_> const& m,
+expand_top_level(parsing_context& pc, root_ptr<module_> const& m,
                  std::vector<ptr<syntax>> const& exprs) {
   auto body = add_module_scope_to_body(pc.ctx, exprs, m->scope());
 

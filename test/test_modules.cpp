@@ -14,7 +14,7 @@ using namespace insider;
 
 struct modules : scheme_fixture {
   void
-  compare_top_level_bindings(tracked_ptr<module_> const& m,
+  compare_top_level_bindings(root_ptr<module_> const& m,
                              std::set<std::string> const& names) {
     auto deref = [] (auto p) { return *p; };
     auto actual_names = *m->scope()
@@ -683,6 +683,6 @@ TEST_F(modules, interaction_environment_imports_default_specifier) {
     ctx.constants->interaction_environment_specifier_tag,
     read("(foo)")
   );
-  tracked_ptr<module_> m = interaction_environment(ctx);
+  root_ptr<module_> m = interaction_environment(ctx);
   compare_top_level_bindings(m, {"witness"});
 }

@@ -23,7 +23,7 @@ from_scheme(context& ctx, ptr<> o) {
 
 template <typename T>
 auto
-from_scheme(context& ctx, tracked_ptr<> const& x) {
+from_scheme(context& ctx, root_ptr<> const& x) {
   return from_scheme<T>(ctx, x.get());
 }
 
@@ -34,9 +34,9 @@ struct from_scheme_converter<ptr<>> {
 };
 
 template <>
-struct from_scheme_converter<tracked_ptr<>> {
-  static tracked_ptr<>
-  convert(context& ctx, ptr<> o) { return track(ctx, o); }
+struct from_scheme_converter<root_ptr<>> {
+  static root_ptr<>
+  convert(context& ctx, ptr<> o) { return {ctx.store, o}; }
 };
 
 template <typename T>
@@ -46,9 +46,9 @@ struct from_scheme_converter<ptr<T>> {
 };
 
 template <typename T>
-struct from_scheme_converter<tracked_ptr<T>> {
-  static tracked_ptr<T>
-  convert(context& ctx, ptr<> o) { return track(ctx, expect<T>(o)); }
+struct from_scheme_converter<root_ptr<T>> {
+  static root_ptr<T>
+  convert(context& ctx, ptr<> o) { return {ctx.store, expect<T>(o)}; }
 };
 
 template <>

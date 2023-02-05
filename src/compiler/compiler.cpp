@@ -35,12 +35,12 @@ namespace {
     register_allocator                            registers;
     variable_bindings                             bindings;
     insider::cfg                                  cfg;
-    tracked_ptr<insider::module_>                 module_;
+    root_ptr<insider::module_>                 module_;
     std::unordered_map<ptr<loop_id>, std::size_t> loop_headers;
     std::vector<ptr<>>                            constants;
 
     procedure_context(procedure_context* parent,
-                      tracked_ptr<insider::module_> m)
+                      root_ptr<insider::module_> m)
       : parent{parent}
       , module_{std::move(m)}
     {
@@ -845,7 +845,7 @@ compile_expression(context& ctx, procedure_context& proc,
 
 ptr<procedure>
 compile_expression(context& ctx, ptr<syntax> datum,
-                   tracked_ptr<module_> const& mod,
+                   root_ptr<module_> const& mod,
                    source_file_origin const& origin,
                    compilation_config const& config) {
   return compile_syntax(ctx,
@@ -861,7 +861,7 @@ reserve_register_for_self_variable(procedure_context& proc) {
 }
 
 ptr<procedure>
-compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
+compile_syntax(context& ctx, expression e, root_ptr<module_> const& mod) {
   procedure_context proc{nullptr, mod};
   shared_register self = reserve_register_for_self_variable(proc);
   shared_register result = compile_expression_to_register(ctx, proc, e, true);
@@ -886,19 +886,19 @@ compile_syntax(context& ctx, expression e, tracked_ptr<module_> const& mod) {
   );
 }
 
-tracked_ptr<module_>
+root_ptr<module_>
 compile_module(context& ctx, std::vector<ptr<syntax>> const& data,
                source_file_origin const& origin,
                compilation_config const& config,
                bool main_module) {
   module_specifier pm = read_module(ctx, data, origin);
-  auto result = make_tracked<module_>(ctx, ctx, pm.name);
+  auto result = make_root<module_>(ctx, ctx, pm.name);
   perform_imports(ctx, result, pm.imports, config);
   compile_module_body(ctx, result, pm, config, main_module);
   return result;
 }
 
-tracked_ptr<module_>
+root_ptr<module_>
 compile_module(context& ctx, std::filesystem::path const& path,
                compilation_config const& config, bool main_module) {
   filesystem_source_code_provider provider{"."};
@@ -915,7 +915,7 @@ compile_module(context& ctx, std::filesystem::path const& path,
 }
 
 void
-compile_module_body(context& ctx, tracked_ptr<module_> const& m,
+compile_module_body(context& ctx, root_ptr<module_> const& m,
                     module_specifier const& pm,
                     compilation_config const& config,
                     bool main_module) {

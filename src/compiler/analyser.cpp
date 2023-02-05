@@ -8,9 +8,8 @@
 #include "compiler/source_code_provider.hpp"
 #include "compiler/syntax_list.hpp"
 #include "io/read.hpp"
-#include "memory/tracked_ptr.hpp"
+#include "memory/root_ptr.hpp"
 #include "memory/tracker.hpp"
-#include "runtime/integer.hpp"
 #include "runtime/string.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
@@ -51,7 +50,7 @@ analyse_expression_list(parsing_context& pc,
 
 static expression
 analyse_top_level_expressions(parsing_context& pc,
-                              tracked_ptr<module_> const& m,
+                              root_ptr<module_> const& m,
                               std::vector<ptr<syntax>> const& exprs) {
   std::vector<ptr<syntax>> body = expand_top_level(pc, m, exprs);
   tracker t{pc.ctx, body};
@@ -69,11 +68,11 @@ analyse_transformer(parsing_context& pc, ptr<syntax> stx) {
 
 expression
 analyse_meta(parsing_context& pc, ptr<syntax> stx) {
-  return analyse_top_level_expressions(pc, track(pc.ctx, pc.module_), {stx});
+  return analyse_top_level_expressions(pc, {pc.ctx.store, pc.module_}, {stx});
 }
 
 expression
-analyse(context& ctx, ptr<syntax> stx, tracked_ptr<module_> const& m,
+analyse(context& ctx, ptr<syntax> stx, root_ptr<module_> const& m,
         compilation_config const& config, source_file_origin const& origin) {
   return parameterize_root(
     ctx,
@@ -505,7 +504,7 @@ read_library_name(context& ctx, ptr<textual_input_port> in) {
 }
 
 expression
-analyse_module(context& ctx, tracked_ptr<module_> const& m,
+analyse_module(context& ctx, root_ptr<module_> const& m,
                module_specifier const& pm, compilation_config const& config,
                bool main_module) {
   return
@@ -525,7 +524,7 @@ analyse_module(context& ctx, tracked_ptr<module_> const& m,
 }
 
 static expression
-analyse_proc(context& ctx, ptr<> expr, tracked_ptr<module_> const& m) {
+analyse_proc(context& ctx, ptr<> expr, root_ptr<module_> const& m) {
   ptr<syntax> stx = datum_to_syntax(ctx, {}, expr);
   auto config = compilation_config::optimisations_config();
   return analyse(ctx, stx, m, config, make_eval_origin());
@@ -543,7 +542,7 @@ data_to_syntaxes(context& ctx, std::vector<ptr<>> const& data) {
 static expression
 analyse_module_proc(context& ctx, std::vector<ptr<>> const& data) {
   auto ms = read_module(ctx, data_to_syntaxes(ctx, data), make_eval_origin());
-  auto dummy_mod = make_tracked<module_>(ctx, ctx, ms.name);
+  auto dummy_mod = make_root<module_>(ctx, ctx, ms.name);
   auto config = compilation_config::optimisations_config();
   perform_imports(ctx, dummy_mod, ms.imports, config);
   return analyse_module(ctx, dummy_mod, ms, config);

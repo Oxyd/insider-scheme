@@ -1474,9 +1474,9 @@ do_instructions(vm& state) {
   }
 }
 
-static tracked_ptr<>
-replace_stack(vm& state, tracked_ptr<captured_call_stack> const& cont,
-              tracked_ptr<> const& value);
+static root_ptr<>
+replace_stack(vm& state, root_ptr<captured_call_stack> const& cont,
+              root_ptr<> const& value);
 
 static void
 do_instructions_translate_exceptions(vm& state) {
@@ -1485,7 +1485,7 @@ do_instructions_translate_exceptions(vm& state) {
       do_instructions(state);
     } catch (ptr<> e) {
       raise(state, e);
-    } catch (tracked_ptr<> const& e) {
+    } catch (root_ptr<> const& e) {
       raise(state, e.get());
     } catch (scheme_exception& e) {
       throw e;
@@ -1877,7 +1877,7 @@ jump_in_allowed(call_stack& stack,
 
 static void
 throw_if_jump_not_allowed(vm& state,
-                          tracked_ptr<captured_call_stack> const& cont,
+                          root_ptr<captured_call_stack> const& cont,
                           std::optional<call_stack::frame_index> common) {
   if (cont->vm_id != state.id())
     throw std::runtime_error{"Continuation jump across different executions "
@@ -1916,7 +1916,7 @@ unwind_stack(vm& state,
 
 static void
 rewind_stack(vm& state,
-             tracked_ptr<captured_call_stack> const& cont,
+             root_ptr<captured_call_stack> const& cont,
              std::optional<call_stack::frame_index> common_frame) {
   call_stack::frame_index begin = common_frame ? *common_frame + 1 : 0;
   for (std::size_t i = begin; i < cont->stack.frame_count(); ++i) {
@@ -1965,8 +1965,8 @@ noncontinuable_frame_index(call_stack const& stack) {
 [[noreturn]]
 static void
 unwind_stack_noncontinuable(vm& state, call_stack::frame_index idx,
-                            tracked_ptr<captured_call_stack> const& cont,
-                            tracked_ptr<> const& value) {
+                            root_ptr<captured_call_stack> const& cont,
+                            root_ptr<> const& value) {
   // Unwind the part that can be unwound and then throw an exception to raise
   // the noncontinuable frame.
 
@@ -1974,12 +1974,12 @@ unwind_stack_noncontinuable(vm& state, call_stack::frame_index idx,
   throw continuation_jump{cont, value};
 }
 
-static tracked_ptr<>
+static root_ptr<>
 replace_stack_continuable(
   vm& state,
   std::optional<call_stack::frame_index> common_frame_idx,
-  tracked_ptr<captured_call_stack> const& cont,
-  tracked_ptr<> const& value
+  root_ptr<captured_call_stack> const& cont,
+  root_ptr<> const& value
 ) {
   unwind_stack(state, common_frame_idx);
   rewind_stack(state, cont, common_frame_idx);
@@ -1987,9 +1987,9 @@ replace_stack_continuable(
   return value;
 }
 
-static tracked_ptr<>
-replace_stack(vm& state, tracked_ptr<captured_call_stack> const& cont,
-              tracked_ptr<> const& value) {
+static root_ptr<>
+replace_stack(vm& state, root_ptr<captured_call_stack> const& cont,
+              root_ptr<> const& value) {
   auto common_frame_idx = common_frame_index(state.stack, cont->stack);
   throw_if_jump_not_allowed(state, cont, common_frame_idx);
 
@@ -2108,9 +2108,9 @@ call_parameterized(vm& state, ptr<parameter_tag> tag, ptr<> value,
 
 static ptr<>
 dynamic_wind(vm& state,
-             tracked_ptr<> const& before,
-             tracked_ptr<> const& thunk,
-             tracked_ptr<> const& after) {
+             root_ptr<> const& before,
+             root_ptr<> const& thunk,
+             root_ptr<> const& after) {
   ptr<stack_frame_extra_data> e
     = create_or_get_extra_data(state.ctx, state.stack);
   e->before_thunk = before.get();
@@ -2124,7 +2124,7 @@ dynamic_wind(vm& state,
         [=] (vm& state, ptr<> result) {
           return call_continuable(
             state, after.get(), {},
-            [result = track(state.ctx, result)] (vm&, ptr<>) {
+            [result = register_root(state.ctx, result)] (vm&, ptr<>) {
               return result.get();
             }
           );
@@ -2201,7 +2201,7 @@ call_noncontinuable_exception_handler(vm& state,
                                       ptr<> exception) {
   call_continuable(
     state, get_frame_exception_handler(handler_frame), {exception},
-    [exception = track(state.ctx, exception),
+    [exception = register_root(state.ctx, exception),
      handler_frame_idx = handler_frame.index()] (vm& state, ptr<>) {
       return raise_from(state,
                         make<uncaught_exception>(state.ctx, exception.get()),
@@ -2360,7 +2360,8 @@ static ptr<tail_call_tag_type>
 call_with_values(vm& state, ptr<> producer, ptr<> consumer) {
   return call_continuable(
     state, producer, {},
-    [consumer = track(state.ctx, consumer)] (vm& state, ptr<> producer_result) {
+    [consumer = register_root(state.ctx, consumer)] (vm& state,
+                                                     ptr<> producer_result) {
       return tail_call(state, consumer.get(),
                        unpack_values(producer_result));
     }
@@ -2376,7 +2377,7 @@ values(context& ctx, object_span args) {
 }
 
 static ptr<tail_call_tag_type>
-eval_proc(vm& state, ptr<> expr, tracked_ptr<module_> const& m) {
+eval_proc(vm& state, ptr<> expr, root_ptr<module_> const& m) {
   ptr<syntax> stx = datum_to_syntax(state.ctx, {}, expr);
   auto config = compilation_config::optimisations_config();
   auto f = compile_expression(state.ctx, stx, m, make_eval_origin(), config);
@@ -2384,14 +2385,14 @@ eval_proc(vm& state, ptr<> expr, tracked_ptr<module_> const& m) {
 }
 
 ptr<>
-eval(context& ctx, tracked_ptr<module_> const& mod, ptr<syntax> expr,
+eval(context& ctx, root_ptr<module_> const& mod, ptr<syntax> expr,
      compilation_config const& config) {
   auto f = compile_expression(ctx, expr, mod, make_eval_origin(), config);
   return call_root(ctx, f, {});
 }
 
 ptr<>
-eval(context& ctx, tracked_ptr<module_> const& mod, std::string const& expr,
+eval(context& ctx, root_ptr<module_> const& mod, std::string const& expr,
      compilation_config const& config) {
   if (auto stx = match<syntax>(read_syntax(ctx, expr)))
     return eval(ctx, mod, stx, config);

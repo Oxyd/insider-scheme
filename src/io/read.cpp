@@ -1476,7 +1476,7 @@ read(context& ctx, token first_token, reader_stream& stream,
 
 static ptr<>
 read_optional(context& ctx, ptr<textual_input_port> stream) {
-  reader_stream s{track(ctx, stream)};
+  reader_stream s{register_root(ctx, stream)};
   datum_labels labels;
   return read(ctx, read_token(ctx, s), s, false, labels);
 }
@@ -1513,7 +1513,7 @@ read_syntax(context& ctx, reader_stream& s) {
 
 ptr<>
 read_syntax(context& ctx, ptr<textual_input_port> stream) {
-  reader_stream s{track(ctx, stream)};
+  reader_stream s{register_root(ctx, stream)};
   return read_syntax(ctx, s);
 }
 
@@ -1553,13 +1553,13 @@ read_syntax_multiple(context& ctx, reader_stream& stream) {
 
 std::vector<ptr<syntax>>
 read_syntax_multiple(context& ctx, ptr<textual_input_port> p) {
-  reader_stream in{track(ctx, p)};
+  reader_stream in{register_root(ctx, p)};
   return read_syntax_multiple(ctx, in);
 }
 
 std::vector<ptr<syntax>>
 read_syntax_multiple_ci(context& ctx, ptr<textual_input_port> p) {
-  reader_stream in{track(ctx, p)};
+  reader_stream in{register_root(ctx, p)};
   in.fold_case = true;
   return read_syntax_multiple(ctx, in);
 }
@@ -1579,7 +1579,7 @@ string_to_number(context& ctx, std::string const& s, unsigned base) {
 
   try {
     auto port = open_input_string(ctx, s);
-    reader_stream stream{track(ctx, port)};
+    reader_stream stream{register_root(ctx, port)};
 
     if (ptr<> result = read_number(ctx, stream, stream.location(), base)) {
       if (!stream.read())

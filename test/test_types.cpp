@@ -27,9 +27,9 @@ namespace {
 }
 
 TEST_F(types, intern) {
-  tracked_ptr<symbol> a_1 = track(ctx, ctx.intern("a"));
-  tracked_ptr<symbol> b_1 = track(ctx, ctx.intern("b"));
-  tracked_ptr<symbol> a_2 = track(ctx, ctx.intern("a"));
+  root_ptr<symbol> a_1{ctx.store, ctx.intern("a")};
+  root_ptr<symbol> b_1{ctx.store, ctx.intern("b")};
+  root_ptr<symbol> a_2{ctx.store, ctx.intern("a")};
 
   EXPECT_TRUE(a_1);
   EXPECT_TRUE(b_1);
@@ -49,7 +49,7 @@ TEST_F(types, intern) {
 }
 
 TEST_F(types, vector) {
-  tracked_ptr<vector> v1 = make_tracked<vector>(ctx, 3, ctx.constants->void_);
+  root_ptr<vector> v1 = make_root<vector>(ctx, 3, ctx.constants->void_);
   v1->set(ctx.store, 0, integer_to_ptr(integer{1}));
   v1->set(ctx.store, 1, integer_to_ptr(integer{2}));
   v1->set(ctx.store, 2, integer_to_ptr(integer{3}));
@@ -63,7 +63,7 @@ TEST_F(types, vector) {
   EXPECT_THROW(v1->ref(3), std::runtime_error);
   EXPECT_THROW(v1->set(ctx.store, 4, integer_to_ptr(integer{4})), std::runtime_error);
 
-  tracked_ptr<vector> v2 = make_tracked<vector>(ctx, 2, ctx.constants->void_);
+  root_ptr<vector> v2 = make_root<vector>(ctx, 2, ctx.constants->void_);
   bool one{}, two{};
   v2->set(ctx.store, 0, make<aaa>(ctx, &one));
   v2->set(ctx.store, 1, make<aaa>(ctx, &two));

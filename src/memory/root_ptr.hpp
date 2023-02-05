@@ -1,5 +1,5 @@
-#ifndef INSIDER_MEMORY_TRACKED_PTR_HPP
-#define INSIDER_MEMORY_TRACKED_PTR_HPP
+#ifndef INSIDER_MEMORY_ROOT_PTR_HPP
+#define INSIDER_MEMORY_ROOT_PTR_HPP
 
 #include "object.hpp"
 #include "root_provider.hpp"
@@ -10,49 +10,49 @@ namespace insider {
 
 namespace detail {
   template <typename T>
-  class tracked_ptr_base : public root_provider {
+  class root_ptr_base : public root_provider {
   public:
     explicit
-    tracked_ptr_base(free_store& fs)
+    root_ptr_base(free_store& fs)
       : root_provider{fs}
     { }
 
-    tracked_ptr_base(free_store& fs, T* value)
-      : root_provider{fs}
-      , value_{value}
-    { }
-
-    tracked_ptr_base(free_store& fs, ptr<T> value)
+    root_ptr_base(free_store& fs, T* value)
       : root_provider{fs}
       , value_{value}
     { }
 
-    tracked_ptr_base(root_list& list, ptr<T> value)
+    root_ptr_base(free_store& fs, ptr<T> value)
+      : root_provider{fs}
+      , value_{value}
+    { }
+
+    root_ptr_base(root_list& list, ptr<T> value)
       : root_provider{list}
       , value_{value}
     { }
 
-    tracked_ptr_base(tracked_ptr_base const& other)
+    root_ptr_base(root_ptr_base const& other)
       : root_provider{other}
       , value_{other.value_}
     { }
 
-    tracked_ptr_base(tracked_ptr_base&& other) noexcept
+    root_ptr_base(root_ptr_base&& other) noexcept
       : root_provider{std::move(other)}
       , value_{other.value_}
     {
       other.value_ = {};
     }
 
-    tracked_ptr_base&
-    operator = (tracked_ptr_base const&) = default;
+    root_ptr_base&
+    operator = (root_ptr_base const&) = default;
 
-    tracked_ptr_base&
-    operator = (tracked_ptr_base&&)  noexcept = default;
+    root_ptr_base&
+    operator = (root_ptr_base&&)  noexcept = default;
 
     template <typename U>
     requires std::convertible_to<U*, T*>
-    tracked_ptr_base&
+    root_ptr_base&
     operator = (ptr<U> value) { value_ = value; return *this; }
 
     void
@@ -75,17 +75,17 @@ namespace detail {
 // Untyped pointer to a Scheme object, registered with the garbage collector as
 // a GC root.
 template <typename T = void>
-class tracked_ptr : public detail::tracked_ptr_base<T> {
+class root_ptr : public detail::root_ptr_base<T> {
 public:
-  using detail::tracked_ptr_base<T>::tracked_ptr_base;
+  using detail::root_ptr_base<T>::root_ptr_base;
 
   template <typename U>
   requires std::convertible_to<U*, T*>
-  tracked_ptr(tracked_ptr<U> const& other)
-    : detail::tracked_ptr_base<T>{other.list(), other.get()}
+  root_ptr(root_ptr<U> const& other)
+    : detail::root_ptr_base<T>{other.list(), other.get()}
   { }
 
-  using detail::tracked_ptr_base<T>::operator =;
+  using detail::root_ptr_base<T>::operator =;
 
 private:
   void
@@ -96,25 +96,25 @@ private:
 
 template <typename T>
 bool
-operator == (tracked_ptr<T> const& lhs, tracked_ptr<T> const& rhs) {
+operator == (root_ptr<T> const& lhs, root_ptr<T> const& rhs) {
   return lhs.get() == rhs.get();
 }
 
 template <typename T>
 bool
-operator == (tracked_ptr<T> const& lhs, ptr<T> rhs) {
+operator == (root_ptr<T> const& lhs, ptr<T> rhs) {
   return lhs.get() == rhs;
 }
 
 template <typename T>
 auto
-operator <=> (tracked_ptr<T> const& lhs, tracked_ptr<T> const& rhs) {
+operator <=> (root_ptr<T> const& lhs, root_ptr<T> const& rhs) {
   return lhs.get() <=> rhs.get();
 }
 
 template <typename T>
 auto
-operator <=> (tracked_ptr<T> const& lhs, ptr<T> rhs) {
+operator <=> (root_ptr<T> const& lhs, ptr<T> rhs) {
   return lhs.get() <=> rhs;
 }
 

@@ -311,7 +311,7 @@ TEST_F(interpreter, exec_cons) {
 }
 
 TEST_F(interpreter, exec_car_cdr) {
-  auto p = track(ctx, cons(ctx, integer_to_ptr(1), integer_to_ptr(2)));
+  auto p = register_root(ctx, cons(ctx, integer_to_ptr(1), integer_to_ptr(2)));
 
   auto first = make_procedure(
     ctx,
@@ -335,7 +335,7 @@ TEST_F(interpreter, exec_car_cdr) {
 }
 
 TEST_F(interpreter, test_eq) {
-  auto are_eq = track(
+  auto are_eq = register_root(
     ctx,
     make_procedure(
       ctx,
@@ -381,7 +381,7 @@ TEST_F(interpreter, exec_load_dynamic_top_level) {
 }
 
 TEST_F(interpreter, load_self_in_plain_procedure) {
-  auto f = track(
+  auto f = register_root(
     ctx,
     make_procedure(
       ctx,
@@ -808,7 +808,7 @@ TEST_F(interpreter, eval_tail_call_to_native) {
 }
 
 struct repl_fixture : interpreter {
-  tracked_ptr<module_> m
+  root_ptr<module_> m
     = make_interactive_module(
         ctx,
         import_modules(module_name{"insider", "internal"})
@@ -960,7 +960,7 @@ TEST_F(interpreter, repl_define_using_macro) {
     )"
   );
 
-  tracked_ptr<module_> m
+  root_ptr<module_> m
     = make_interactive_module(
         ctx,
         import_modules(module_name{"foo"})

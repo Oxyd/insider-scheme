@@ -193,14 +193,14 @@ list_length(ptr<>);
 inline ptr<>
 car(ptr<pair> x) { return x->car(); }
 
-inline tracked_ptr<>
-car(tracked_ptr<pair> const& x) { return {x.list(), car(x.get())}; }
+inline root_ptr<>
+car(root_ptr<pair> const& x) { return {x.list(), car(x.get())}; }
 
 inline ptr<>
 cdr(ptr<pair> x) { return x->cdr(); }
 
-inline tracked_ptr<>
-cdr(tracked_ptr<pair> const& x) { return {x.list(), cdr(x.get())}; }
+inline root_ptr<>
+cdr(root_ptr<pair> const& x) { return {x.list(), cdr(x.get())}; }
 
 ptr<>
 cadr(ptr<pair>);

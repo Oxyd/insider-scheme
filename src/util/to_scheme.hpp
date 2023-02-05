@@ -31,9 +31,9 @@ struct to_scheme_converter<ptr<>> {
 };
 
 template <>
-struct to_scheme_converter<tracked_ptr<>> {
+struct to_scheme_converter<root_ptr<>> {
   static ptr<>
-  convert(context&, tracked_ptr<> const& p) { return p.get(); }
+  convert(context&, root_ptr<> const& p) { return p.get(); }
 };
 
 template <typename T>
@@ -43,9 +43,9 @@ struct to_scheme_converter<ptr<T>> {
 };
 
 template <typename T>
-struct to_scheme_converter<tracked_ptr<T>> {
+struct to_scheme_converter<root_ptr<T>> {
   static ptr<>
-  convert(context&, tracked_ptr<T> const& p) { return p.get(); }
+  convert(context&, root_ptr<T> const& p) { return p.get(); }
 };
 
 template <>

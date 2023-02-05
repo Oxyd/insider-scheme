@@ -2,7 +2,7 @@
 #define INSIDER_IO_READER_STREAM_HPP
 
 #include "compiler/source_location.hpp"
-#include "memory/tracked_ptr.hpp"
+#include "memory/root_ptr.hpp"
 
 #include <optional>
 
@@ -39,7 +39,7 @@ public:
   bool fold_case = false;
 
   explicit
-  reader_stream(tracked_ptr<textual_input_port>);
+  reader_stream(root_ptr<textual_input_port>);
 
   std::optional<char32_t>
   read();
@@ -54,7 +54,7 @@ public:
   make_checkpoint();
 
 private:
-  tracked_ptr<textual_input_port> port_;
+  root_ptr<textual_input_port> port_;
   source_location                 loc_;
   std::vector<char32_t>           rollback_buffer_;
   std::size_t                     rollback_pos_ = 0;

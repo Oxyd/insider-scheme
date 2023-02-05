@@ -20,8 +20,8 @@ namespace detail {
   };
 
   template <typename T>
-  struct pointer_like<T, tracked_ptr<>> {
-    using type = tracked_ptr<T>;
+  struct pointer_like<T, root_ptr<>> {
+    using type = root_ptr<T>;
   };
 
   template <typename T, typename SimilarTo>

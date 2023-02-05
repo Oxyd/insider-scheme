@@ -35,7 +35,7 @@ struct scheme_fixture : testing::Test {
   insider::ptr<>
   eval(insider::ptr<insider::syntax> expr_stx,
        insider::pass_list passes = insider::all_passes) {
-    auto m = insider::make_tracked<insider::module_>(ctx, ctx);
+    auto m = insider::make_root<insider::module_>(ctx, ctx);
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     insider::null_source_code_provider provider;
@@ -68,7 +68,7 @@ struct scheme_fixture : testing::Test {
       std::move(passes),
       insider::null_diagnostic_sink::instance
     };
-    insider::tracked_ptr<insider::module_> m = compile_module(
+    insider::root_ptr<insider::module_> m = compile_module(
       ctx, read_syntax_multiple(ctx, expr),
       {&provider, "<unit test main module>"},
       config

@@ -1,7 +1,7 @@
 #ifndef INSIDER_RUNTIME_ERROR_HPP
 #define INSIDER_RUNTIME_ERROR_HPP
 
-#include "memory/tracked_ptr.hpp"
+#include "memory/root_ptr.hpp"
 #include "object.hpp"
 #include "util/named_runtime_error.hpp"
 
@@ -34,7 +34,7 @@ make_type_error(ptr<> actual) {
 // C++ exception type wrapping a Scheme exception.
 class scheme_exception : public std::runtime_error {
 public:
-  tracked_ptr<> object;
+  root_ptr<> object;
 
   explicit
   scheme_exception(context&, ptr<> o);
@@ -73,8 +73,8 @@ public:
 // non-cooperative native procedures.
 class continuation_jump {
 public:
-  tracked_ptr<captured_call_stack> continuation;
-  tracked_ptr<>                    value;
+  root_ptr<captured_call_stack> continuation;
+  root_ptr<>                    value;
 };
 
 } // namespace insider

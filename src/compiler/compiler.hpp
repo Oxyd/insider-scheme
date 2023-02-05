@@ -21,27 +21,27 @@ class syntax;
 // modified by adding a top-level binding if the datum is a top-level
 // definition.
 ptr<procedure>
-compile_expression(context&, ptr<syntax> datum, tracked_ptr<module_> const&,
+compile_expression(context&, ptr<syntax> datum, root_ptr<module_> const&,
                    source_file_origin const&, compilation_config const& config);
 
 ptr<procedure>
-compile_syntax(context&, expression, tracked_ptr<module_> const&);
+compile_syntax(context&, expression, root_ptr<module_> const&);
 
 // Interpret a list of expressions and import declarations as a module and
 // create the module.
-tracked_ptr<module_>
+root_ptr<module_>
 compile_module(context&, std::vector<ptr<syntax>> const& data,
                source_file_origin const&,
                compilation_config const& config,
                bool main_module = false);
 
-tracked_ptr<module_>
+root_ptr<module_>
 compile_module(context&, std::filesystem::path const&,
                compilation_config const& config, bool main_module = false);
 
 // Translate a module's body.
 void
-compile_module_body(context&, tracked_ptr<module_> const&,
+compile_module_body(context&, root_ptr<module_> const&,
                     module_specifier const&, compilation_config const& config,
                     bool main_module = false);
 

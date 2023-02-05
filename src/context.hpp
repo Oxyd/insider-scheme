@@ -118,7 +118,7 @@ public:
   ptr<module_>
   internal_module() { return module_resolver_.internal_module(); }
 
-  tracked_ptr<module_>
+  root_ptr<module_>
   internal_module_tracked();
 
   ptr<>
@@ -172,17 +172,21 @@ make(context& ctx, Args&&... args) {
 }
 
 template <typename T, typename... Args>
-tracked_ptr<T>
-make_tracked(context& ctx, Args&&... args) {
-  return tracked_ptr<T>{ctx.store, make<T>(ctx, std::forward<Args>(args)...)};
+root_ptr<T>
+make_root(context& ctx, Args&&... args) {
+  return root_ptr<T>{ctx.store, make<T>(ctx, std::forward<Args>(args)...)};
 }
 
-inline tracked_ptr<>
-track(context& ctx, ptr<> o) { return {ctx.store, o}; }
+inline root_ptr<>
+register_root(context& ctx, ptr<> o) {
+  return {ctx.store, o};
+}
 
 template <typename T>
-tracked_ptr<T>
-track(context& ctx, ptr<T> o) { return {ctx.store, o}; }
+root_ptr<T>
+register_root(context& ctx, ptr<T> o) {
+  return {ctx.store, o};
+}
 
 inline ptr<symbol>
 context::intern_type_name(word_type type_index) {

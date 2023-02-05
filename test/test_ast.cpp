@@ -198,7 +198,7 @@ struct ast : scheme_fixture {
 
   expression
   analyse(ptr<syntax> expr_stx, pass_list passes = all_passes) {
-    auto m = make_tracked<module_>(ctx, ctx);
+    auto m = make_root<module_>(ctx, ctx);
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     insider::null_source_code_provider provider;
@@ -221,7 +221,7 @@ struct ast : scheme_fixture {
     null_source_code_provider provider;
     module_specifier pm = read_module(ctx, read_syntax_multiple(ctx, expr),
                                       {&provider, "<unit test main module>"});
-    auto mod = make_tracked<module_>(ctx, ctx, pm.name);
+    auto mod = make_root<module_>(ctx, ctx, pm.name);
     compilation_config config{std::move(passes), diagnostics};
     perform_imports(ctx, mod, pm.imports, config);
     return insider::analyse_module(ctx, mod, pm, config, true);
@@ -425,7 +425,7 @@ TEST_F(ast, meta_definitions_are_not_constants) {
 }
 
 TEST_F(ast, repl_definitions_are_not_constants) {
-  tracked_ptr<module_> m
+  root_ptr<module_> m
     = make_interactive_module(
         ctx,
         import_modules(module_name{"insider", "internal"})

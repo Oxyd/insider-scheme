@@ -12,7 +12,7 @@ using namespace insider;
 struct parser : scheme_fixture {
   expression
   parse(std::string const& expr) {
-    auto m = make_tracked<module_>(ctx, ctx);
+    auto m = make_root<module_>(ctx, ctx);
     import_all_exported(ctx, m, ctx.internal_module_tracked());
 
     null_source_code_provider provider;

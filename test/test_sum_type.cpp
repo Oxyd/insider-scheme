@@ -105,7 +105,7 @@ struct sum_holder : composite_object<sum_holder> {
 };
 
 TEST_F(sum_type_fixture, can_be_member) {
-  auto holder = make_tracked<sum_holder>(ctx);
+  auto holder = make_root<sum_holder>(ctx);
   holder->value = make<string>(ctx, "foo");
   ctx.store.collect_garbage(true);
 

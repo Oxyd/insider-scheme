@@ -1,7 +1,7 @@
 #ifndef INSIDER_UTIL_OBJECT_CONVERSIONS_HPP
 #define INSIDER_UTIL_OBJECT_CONVERSIONS_HPP
 
-#include "memory/tracked_ptr.hpp"
+#include "memory/root_ptr.hpp"
 #include "object.hpp"
 #include "runtime/character.hpp"
 #include "runtime/error.hpp"
@@ -25,8 +25,8 @@ namespace detail {
       }
     }
 
-    static tracked_ptr<T>
-    expect(tracked_ptr<> const& x, std::string_view message) {
+    static root_ptr<T>
+    expect(root_ptr<> const& x, std::string_view message) {
       return {x.list(), expect(x.get(), message)};
     }
   };
@@ -38,8 +38,8 @@ namespace detail {
       return x;
     }
 
-    static tracked_ptr<>
-    expect(tracked_ptr<> const& x, std::string_view) {
+    static root_ptr<>
+    expect(root_ptr<> const& x, std::string_view) {
       return x;
     }
   };
@@ -57,7 +57,7 @@ namespace detail {
     }
 
     static ImmediateT
-    expect(tracked_ptr<> const& x, std::string_view message) {
+    expect(root_ptr<> const& x, std::string_view message) {
       return expect(x.get(), message);
     }
   };
@@ -106,7 +106,7 @@ expect(ptr<> x) {
 
 template <typename T>
 auto
-expect(tracked_ptr<> const& x) {
+expect(root_ptr<> const& x) {
   return detail::expect_helper<T>::expect(x, {});
 }
 
@@ -120,7 +120,7 @@ expect(ptr<> x, std::string_view message) {
 
 template <typename T>
 auto
-expect(tracked_ptr<> const& x, std::string_view message) {
+expect(root_ptr<> const& x, std::string_view message) {
   return detail::expect_helper<T>::expect(x, message);
 }
 
@@ -133,8 +133,8 @@ namespace detail {
       return ptr_cast<T>(x);
     }
 
-    static tracked_ptr<T>
-    assume(tracked_ptr<> const& x) {
+    static root_ptr<T>
+    assume(root_ptr<> const& x) {
       assert(!x || is<T>(x));
       return {x.list(), static_cast<T*>(x.get())};
     }
@@ -149,7 +149,7 @@ namespace detail {
     }
 
     static ImmediateT
-    assume(tracked_ptr<> const& x) {
+    assume(root_ptr<> const& x) {
       assert(is<ImmediateT>(x));
       return Converter(x.get());
     }
@@ -182,7 +182,7 @@ assume(ptr<> x) {
 
 template <typename T>
 auto
-assume(tracked_ptr<> const& x) {
+assume(root_ptr<> const& x) {
   return detail::assume_helper<T>::assume(x);
 }
 
@@ -197,8 +197,8 @@ namespace detail {
         return {};
     }
 
-    static tracked_ptr<T>
-    match(tracked_ptr<> const& x) {
+    static root_ptr<T>
+    match(root_ptr<> const& x) {
       return {x.list(), match(x.get())};
     }
   };
@@ -240,7 +240,7 @@ match(ptr<> x) {
 
 template <typename T>
 auto
-match(tracked_ptr<> const& x) {
+match(root_ptr<> const& x) {
   return detail::match_helper<T>::match(x);
 }
 
