@@ -118,28 +118,6 @@ operator <=> (tracked_ptr<T> const& lhs, ptr<T> rhs) {
   return lhs.get() <=> rhs;
 }
 
-// Like tracked_ptr, but does not keep an object alive.
-template <typename T = void>
-class weak_ptr : public detail::tracked_ptr_base<T> {
-public:
-  using detail::tracked_ptr_base<T>::tracked_ptr_base;
-
-  weak_ptr(tracked_ptr<T> const& tp)
-    : detail::tracked_ptr_base<T>{tp}
-  { }
-
-  tracked_ptr<T>
-  lock() const {
-    return {this->list(), this->get()};
-  }
-
-private:
-  void
-  visit_roots(member_visitor const& f) override {
-    f.weak(this->value_);
-  }
-};
-
 } // namespace insider
 
 #endif

@@ -2,6 +2,7 @@
 #include "memory/member_visitor.hpp"
 #include "memory/root_list.hpp"
 #include "object.hpp"
+#include "type_indexes.hpp"
 
 #include <fmt/format.h>
 
@@ -53,6 +54,12 @@ deallocate(object_header* o) {
   delete [] reinterpret_cast<std::byte*>(o);
 }
 
+void
+weak_box::set(free_store& store, ptr<> value) {
+  value_ = value;
+  store.notify_arc(this, value);
+}
+
 free_store::~free_store() {
   for (object_header* o : all_objects_)
     deallocate(o);
@@ -67,12 +74,7 @@ namespace {
 
     void
     operator () (ptr<> const& ptr) const override {
-      f(ptr, false);
-    }
-
-    void
-    weak(ptr<> const& ptr) const override {
-      f(ptr, true);
+      f(ptr);
     }
   };
 }
@@ -114,7 +116,7 @@ static void
 mark(root_list const& roots) {
   object_list work_list;
 
-  auto visit = [&] (ptr<> object, bool) {
+  auto visit = [&] (ptr<> object) {
     if (object && is_object_ptr(object)
         && object_color(object) == color::white) {
       work_list.push_back(object.header());
@@ -130,6 +132,22 @@ mark(root_list const& roots) {
 
     visit_members(current, visit);
     set_object_color(current, color::black);
+  }
+}
+
+static void
+sweep_weak_boxes(std::vector<ptr<weak_box>>& boxes) {
+  for (auto b = boxes.begin(); b != boxes.end(); ) {
+    if (object_color(*b) == color::white) {
+      deallocate(b->header());
+      b = boxes.erase(b);
+    } else {
+      if ((**b).get() && object_color((**b).get()) == color::white)
+        (**b).reset();
+
+      set_object_color(*b, color::white);
+      ++b;
+    }
   }
 }
 
@@ -150,6 +168,7 @@ sweep(object_list& objects) {
 void
 free_store::collect_garbage(bool) {
   mark(roots_);
+  sweep_weak_boxes(weak_boxes_);
   sweep(all_objects_);
 }
 

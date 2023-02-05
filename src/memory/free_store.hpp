@@ -1,9 +1,9 @@
 #ifndef INSIDER_MEMORY_FREE_STORE_HPP
 #define INSIDER_MEMORY_FREE_STORE_HPP
 
-#include "memory/page_allocator.hpp"
 #include "memory/root_list.hpp"
 #include "object.hpp"
+#include "type_indexes.hpp"
 
 #include <cassert>
 #include <cstddef>
@@ -65,6 +65,39 @@ namespace detail {
 
 using object_list = std::vector<object_header*>;
 
+// A container that holds a weak reference to an object. If the referred-to
+// object is only referred by weak boxes, it is reclaimed by the collector and
+// the weak boxes are reset to nullptr.
+class weak_box : public composite_object<weak_box> {
+public:
+  static constexpr char const* scheme_name = "insider::weak_box";
+  static constexpr word_type static_type_index = type_indexes::weak_box;
+
+  explicit
+  weak_box(ptr<> value) : value_{value} { }
+
+  ptr<>
+  get() const { return value_; }
+
+  void
+  set(free_store& store, ptr<> value);
+
+  void
+  reset() {
+    value_ = nullptr;
+  }
+
+  void
+  visit_members(member_visitor const&) const {
+    // Don't visit the only member: This box doesn't contribute a reference to
+    // it, and the store treats weak_boxes specially so it will reset this box
+    // if value_ becomes garbage.
+  }
+
+private:
+  ptr<> value_;
+};
+
 // Garbage-collected storage for Scheme objects.
 class free_store {
 public:
@@ -81,8 +114,13 @@ public:
     static_assert(std::is_standard_layout_v<object_storage<T>>);
     auto* storage = allocate_storage<T>(detail::allocation_size<T>(args...));
     new (&storage->payload_storage) T(std::forward<Args>(args)...);
-    all_objects_.push_back(&storage->header);
-    return ptr<T>{storage};
+
+    ptr<T> result{storage};
+    if constexpr (std::is_same_v<T, weak_box>)
+      weak_boxes_.push_back(result);
+    else
+      all_objects_.push_back(&storage->header);
+    return result;
   }
 
   void
@@ -113,7 +151,8 @@ public:
 private:
   static constexpr std::size_t large_threshold = 256;
 
-  object_list all_objects_;
+  object_list                all_objects_;
+  std::vector<ptr<weak_box>> weak_boxes_;
   insider::root_list roots_;
 
   unsigned disable_level_ = 0;

@@ -17,9 +17,6 @@ public:
 
   void
   operator () (ptr<>&&) const = delete;
-
-  virtual void
-  weak(ptr<> const&) const = 0;
 };
 
 } // namespace insider

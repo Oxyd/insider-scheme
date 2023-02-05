@@ -152,12 +152,12 @@ private:
     bool        mutable_;
   };
 
-  root_provider                                 root_provider_{*this};
-  std::unordered_map<std::string, ptr<symbol>>  interned_symbols_;
-  std::unordered_map<std::string, ptr<keyword>> interned_keywords_;
-  std::vector<top_level_binding>                top_level_objects_;
-  insider::module_resolver                      module_resolver_{*this};
-  std::vector<ptr<symbol>>                      type_name_symbols_;
+  root_provider                                  root_provider_{*this};
+  std::unordered_map<std::string, ptr<weak_box>> interned_symbols_;
+  std::unordered_map<std::string, ptr<weak_box>> interned_keywords_;
+  std::vector<top_level_binding>                 top_level_objects_;
+  insider::module_resolver                       module_resolver_{*this};
+  std::vector<ptr<symbol>>                       type_name_symbols_;
 
   ptr<>          features_;
   scope::id_type next_scope_id_ = 0;
@@ -175,12 +175,6 @@ template <typename T, typename... Args>
 tracked_ptr<T>
 make_tracked(context& ctx, Args&&... args) {
   return tracked_ptr<T>{ctx.store, make<T>(ctx, std::forward<Args>(args)...)};
-}
-
-template <typename T, typename... Args>
-weak_ptr<T>
-make_weak(context& ctx, Args&&... args) {
-  return weak_ptr<T>{ctx.store, make<T>(ctx, std::forward<Args>(args)...)};
 }
 
 inline tracked_ptr<>

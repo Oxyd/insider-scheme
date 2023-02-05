@@ -1,6 +1,7 @@
 #include "context.hpp"
 
 #include "compiler/variable.hpp"
+#include "memory/free_store.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/internal_module.hpp"
 #include "runtime/parameter_map.hpp"
@@ -74,20 +75,20 @@ context::~context() {
 template <typename T>
 static ptr<T>
 intern(context& ctx, std::string const& s,
-       std::unordered_map<std::string, ptr<T>>& map) {
+       std::unordered_map<std::string, ptr<weak_box>>& map) {
   auto interned = map.find(s);
   if (interned != map.end()) {
-    if (ptr<T> sym = interned->second)
-      return sym;
+    if (interned->second->get())
+      return assume<T>(interned->second->get());
     else {
       ptr<T> result = make<T>(ctx, s);
-      interned->second = result;
+      interned->second = make<weak_box>(ctx, result);
       return result;
     }
   }
 
   ptr<T> result = make<T>(ctx, s);
-  map.emplace(s, result);
+  map.emplace(s, make<weak_box>(ctx, result));
 
   return result;
 }
@@ -208,10 +209,10 @@ context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.parameters);
 
   for (auto& [name, symbol] : ctx_.interned_symbols_)
-    f.weak(symbol);
+    f(symbol);
 
   for (auto& [name, keyword] : ctx_.interned_keywords_)
-    f.weak(keyword);
+    f(keyword);
 
   for (ptr<symbol>& name : ctx_.type_name_symbols_)
     f(name);

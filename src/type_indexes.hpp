@@ -17,6 +17,7 @@ enum index {
   vector,
   bytevector,
   box,
+  weak_box,
   procedure_prototype,
   procedure,
   native_procedure,
