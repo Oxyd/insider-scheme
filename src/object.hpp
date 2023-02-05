@@ -23,11 +23,6 @@ class string_cursor;
 
 using word_type = std::uint64_t;
 
-inline word_type
-clamp_hash(word_type h) {
-  return h & ((static_cast<word_type>(1) << 32) - 1);
-}
-
 constexpr std::size_t max_types = 256;
 constexpr std::size_t first_dynamic_type_index = 64;
 
@@ -48,8 +43,7 @@ constexpr std::size_t string_cursor_tag = 0b010;
 // pointer-interconvertible, and we can reinterpret_cast from one to the other.
 
 struct object_header {
-  word_type type       : 28;
-  word_type hash       : 32;
+  word_type type       : 60;
   word_type generation : 2;
   word_type color      : 2;
 };
@@ -307,7 +301,7 @@ object_type(ptr<> o) { return object_type(o.header()); }
 
 inline word_type
 object_hash(object_header* h) {
-  return h->hash;
+  return reinterpret_cast<word_type>(h);
 }
 
 inline word_type
@@ -585,10 +579,9 @@ enum class generation : word_type {
 };
 
 inline object_header
-make_object_header(word_type type, word_type hash) {
+make_object_header(word_type type) {
   return object_header{
     .type = type,
-    .hash = hash,
     .generation = 0,
     .color = 0
   };
@@ -601,15 +594,6 @@ object_generation(object_header* h) {
 
 inline generation
 object_generation(ptr<> o) { return object_generation(o.header()); }
-
-class hash_generator {
-public:
-  word_type
-  operator () () { return clamp_hash(next_hash_++); }
-
-private:
-  word_type next_hash_ = 0;
-};
 
 } // namespace insider
 

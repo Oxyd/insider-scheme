@@ -157,15 +157,13 @@ private:
 
   unsigned disable_level_ = 0;
 
-  hash_generator next_hash_;
-
   // Allocate storage for the given payload type and initialise its header.
   template <typename T>
   object_storage<T>*
   allocate_storage(std::size_t size) {
     auto* buffer = new std::byte[size];
     auto* storage = new (buffer) object_storage<T>;
-    storage->header = make_object_header(T::type_index, next_hash_());
+    storage->header = make_object_header(T::type_index);
 
     return storage;
   }
