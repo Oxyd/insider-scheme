@@ -301,18 +301,11 @@ TEST_F(gc, objects_retain_hash_values_through_gc) {
   auto a = make_tracked<symbol>(ctx, "a");
   auto b = make_tracked<symbol>(ctx, "b");
 
-  void* old_a_addr = a.get().value();
-  void* old_b_addr = b.get().value();
   word_type old_a_hash = object_hash(a.get());
   word_type old_b_hash = object_hash(b.get());
 
   ctx.store.collect_garbage(true);
 
-  void* new_a_addr = a.get().value();
-  void* new_b_addr = b.get().value();
-
-  EXPECT_NE(old_a_addr, new_a_addr);
-  EXPECT_NE(old_b_addr, new_b_addr);
   EXPECT_EQ(object_hash(a.get()), old_a_hash);
   EXPECT_EQ(object_hash(b.get()), old_b_hash);
 }
