@@ -23,37 +23,9 @@ class string_cursor;
 
 using word_type = std::uint64_t;
 
-// Live object header word:
-//
-// Bits:   63     37           35       33          1       0
-// Fields: | type | generation | colour | hash code | alive |
-//
-// Things to note:
-//   - alive bit is the least significant one: This is because a dead object's
-//     header word will contain the forwarding address, whose least significant
-//     bit will be 0.
-//
-//   - type is most significant: This is so it can be accessed by a simple
-//     bit shift
-
-constexpr word_type color_shift = 33;
-constexpr word_type generation_shift = 35;
-constexpr word_type type_shift = 37;
-constexpr word_type hash_shift = 1;
-constexpr word_type hash_width = 32;
-
-constexpr word_type alive_bit = word_type{1};
-constexpr word_type color_bits = (word_type{1} << color_shift)
-                                      | (word_type{1} << (color_shift + 1));
-constexpr word_type generation_bits
-  = (word_type{1} << generation_shift)
-    | (word_type{1} << (generation_shift + 1));
-constexpr word_type hash_bits
-  = ((word_type{1} << hash_width) - 1) << hash_shift;
-
 inline word_type
 clamp_hash(word_type h) {
-  return h & ((static_cast<word_type>(1) << hash_width) - 1);
+  return h & ((static_cast<word_type>(1) << 32) - 1);
 }
 
 constexpr std::size_t max_types = 256;
@@ -76,8 +48,13 @@ constexpr std::size_t string_cursor_tag = 0b010;
 // pointer-interconvertible, and we can reinterpret_cast from one to the other.
 
 struct object_header {
-  word_type flags;
+  word_type type       : 28;
+  word_type hash       : 32;
+  word_type generation : 2;
+  word_type color      : 2;
 };
+
+static_assert(sizeof(object_header) == sizeof(word_type));
 
 constexpr std::size_t object_alignment = sizeof(word_type);
 
@@ -314,38 +291,27 @@ constexpr word_type invalid_type = 0;
 constexpr word_type no_type = std::numeric_limits<word_type>::max();
 
 inline word_type
-type_index(word_type header) { return header >> type_shift; }
+type_index(object_header* h) { return h->type; }
 
 inline word_type
-type_index(object_header* h) { return type_index(h->flags); }
-
-inline word_type
-object_type_index(ptr<> o) { return type_index(o.header()->flags); }
+object_type_index(ptr<> o) { return type_index(o.header()); }
 
 inline std::string
 type_name(word_type index) { return types().types[index].name; }
 
 inline type_descriptor const&
-object_type(word_type header) { return types().types[type_index(header)]; }
+object_type(object_header* h) { return types().types[h->type]; }
 
 inline type_descriptor const&
-object_type(ptr<> o) { return object_type(o.header()->flags); }
-
-inline type_descriptor const&
-object_type(object_header* h) { return object_type(h->flags); }
-
-inline word_type
-object_hash(word_type header) {
-  return (header & hash_bits) >> hash_shift;
-}
+object_type(ptr<> o) { return object_type(o.header()); }
 
 inline word_type
 object_hash(object_header* h) {
-  return object_hash(h->flags);
+  return h->hash;
 }
 
 inline word_type
-object_hash(ptr<> o) { return object_hash(o.header()->flags); }
+object_hash(ptr<> o) { return object_hash(o.header()); }
 
 inline word_type
 tagged_payload(ptr<> o) {
@@ -382,7 +348,7 @@ object_type_name(ptr<> o) {
 
 inline std::size_t
 storage_size(object_header* header) {
-  return object_type(header->flags).storage_size(header);
+  return object_type(header).storage_size(header);
 }
 
 inline std::size_t
@@ -619,34 +585,22 @@ enum class generation : word_type {
 };
 
 inline object_header
-make_object_header(word_type type, word_type hash,
-                   generation gen = generation::nursery_1) {
+make_object_header(word_type type, word_type hash) {
   return object_header{
-    word_type((type << type_shift)
-              | alive_bit
-              | (static_cast<word_type>(gen) << generation_shift)
-              | (hash << hash_shift))
+    .type = type,
+    .hash = hash,
+    .generation = 0,
+    .color = 0
   };
-}
-
-inline void
-init_object_header(std::byte* storage, word_type type, word_type hash,
-                   generation gen = generation::nursery_1) {
-  new (storage) object_header(make_object_header(type, hash, gen));
-}
-
-inline generation
-object_generation(word_type header) {
-  return static_cast<generation>((header & generation_bits) >> generation_shift);
 }
 
 inline generation
 object_generation(object_header* h) {
-  return object_generation(h->flags);
+  return static_cast<generation>(h->generation);
 }
 
 inline generation
-object_generation(ptr<> o) { return object_generation(o.header()->flags); }
+object_generation(ptr<> o) { return object_generation(o.header()); }
 
 class hash_generator {
 public:

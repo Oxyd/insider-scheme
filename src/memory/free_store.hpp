@@ -165,8 +165,7 @@ private:
   allocate_storage(std::size_t size) {
     auto* buffer = new std::byte[size];
     auto* storage = new (buffer) object_storage<T>;
-    storage->header = make_object_header(T::type_index, next_hash_(),
-                                         generation::nursery_1);
+    storage->header = make_object_header(T::type_index, next_hash_());
 
     return storage;
   }

@@ -2,7 +2,6 @@
 #include "memory/member_visitor.hpp"
 #include "memory/root_list.hpp"
 #include "object.hpp"
-#include "type_indexes.hpp"
 
 #include <fmt/format.h>
 
@@ -20,32 +19,21 @@ enum class color : word_type {
 };
 
 static color
-object_color(word_type header) {
-  return static_cast<color>((header & color_bits) >> color_shift);
-}
-
-static color
-object_color(ptr<> o) { return object_color(o.header()->flags); }
-
-static color
 object_color(object_header* h) {
-  return object_color(h->flags);
+  return static_cast<color>(h->color);
 }
 
-static void
-set_object_color(word_type& header, color c) {
-  header = (header & ~color_bits) | (static_cast<word_type>(c) << color_shift);
-}
+static color
+object_color(ptr<> o) { return object_color(o.header()); }
 
 static void
 set_object_color(object_header* h, color c) {
-  set_object_color(h->flags, c);
+  h->color = static_cast<word_type>(c);
 }
 
 static void
 set_object_color(ptr<> o, color c) {
-  o.header()->flags = (o.header()->flags & ~color_bits)
-                      | (static_cast<word_type>(c) << color_shift);
+  set_object_color(o.header(), c);
 }
 
 static void
