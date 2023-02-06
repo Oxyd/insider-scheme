@@ -138,24 +138,12 @@ public:
     collect_garbage();
   }
 
-  void
-  disable_gc() { ++disable_level_; }
-
-  void
-  enable_gc() {
-    --disable_level_;
-    if (disable_level_ == 0)
-      update();
-  }
-
 private:
   static constexpr std::size_t large_threshold = 256;
 
   object_list                all_objects_;
   std::vector<ptr<weak_box>> weak_boxes_;
-  insider::root_list roots_;
-
-  unsigned disable_level_ = 0;
+  insider::root_list         roots_;
 
   // Allocate storage for the given payload type and initialise its header.
   template <typename T>
@@ -167,28 +155,6 @@ private:
 
     return storage;
   }
-};
-
-class gc_disabler {
-public:
-  explicit
-  gc_disabler(free_store& fs) : fs_{&fs} { fs_->disable_gc(); }
-
-  ~gc_disabler() { enable_gc(); }
-
-  gc_disabler(gc_disabler const&) = delete;
-  void operator = (gc_disabler const&) = delete;
-
-  void
-  enable_gc() {
-    if (fs_) {
-      fs_->enable_gc();
-      fs_ = nullptr;
-    }
-  }
-
-private:
-  free_store* fs_;
 };
 
 } // namespace insider
