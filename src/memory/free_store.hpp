@@ -112,7 +112,11 @@ public:
   ptr<T>
   make(Args&&... args) {
     static_assert(std::is_standard_layout_v<object_storage<T>>);
-    auto* storage = allocate_storage<T>(detail::allocation_size<T>(args...));
+
+    std::size_t size = detail::allocation_size<T>(args...);
+    auto* storage = allocate_storage<T>(size);
+    increase_alloc_size(size);
+
     new (&storage->payload_storage) T(std::forward<Args>(args)...);
 
     ptr<T> result{storage};
@@ -135,15 +139,19 @@ public:
   // Check whether a collection should be performed and, if so, do a collection.
   void
   update() {
-    collect_garbage();
+    if (want_collection_)
+      collect_garbage();
   }
 
 private:
-  static constexpr std::size_t large_threshold = 256;
+  static constexpr std::size_t min_alloc_size = 8ull * 1024 * 1024;
 
   object_list                all_objects_;
   std::vector<ptr<weak_box>> weak_boxes_;
   insider::root_list         roots_;
+  std::size_t                current_alloc_size_ = 0;
+  std::size_t                threshold_alloc_size_ = min_alloc_size;
+  bool                       want_collection_ = false;
 
   // Allocate storage for the given payload type and initialise its header.
   template <typename T>
@@ -154,6 +162,13 @@ private:
     storage->header = make_object_header(T::type_index);
 
     return storage;
+  }
+
+  void
+  increase_alloc_size(std::size_t growth) {
+    current_alloc_size_ += growth;
+    if (current_alloc_size_ > threshold_alloc_size_)
+      want_collection_ = true;
   }
 };
 

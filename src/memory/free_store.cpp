@@ -123,10 +123,13 @@ mark(root_list const& roots) {
   }
 }
 
-static void
+static std::size_t
 sweep_weak_boxes(std::vector<ptr<weak_box>>& boxes) {
+  std::size_t deallocated_size = 0;
+
   for (auto b = boxes.begin(); b != boxes.end(); ) {
     if (object_color(*b) == color::white) {
+      deallocated_size += object_size(*b);
       deallocate(b->header());
       b = boxes.erase(b);
     } else {
@@ -137,12 +140,17 @@ sweep_weak_boxes(std::vector<ptr<weak_box>>& boxes) {
       ++b;
     }
   }
+
+  return deallocated_size;
 }
 
-static void
+static std::size_t
 sweep(object_list& objects) {
+  std::size_t deallocated_size = 0;
+
   for (auto o = objects.begin(); o != objects.end(); ) {
     if (object_color(*o) == color::white) {
+      deallocated_size += object_size(*o);
       deallocate(*o);
       o = objects.erase(o);
     } else {
@@ -151,13 +159,22 @@ sweep(object_list& objects) {
       ++o;
     }
   }
+
+  return deallocated_size;
 }
 
 void
 free_store::collect_garbage(bool) {
   mark(roots_);
-  sweep_weak_boxes(weak_boxes_);
-  sweep(all_objects_);
+
+  std::size_t deallocated = 0;
+  deallocated += sweep_weak_boxes(weak_boxes_);
+  deallocated += sweep(all_objects_);
+
+  assert(deallocated <= current_alloc_size_);
+  current_alloc_size_ -= deallocated;
+  threshold_alloc_size_ = std::max(min_alloc_size, 3 * current_alloc_size_ / 2);
+  want_collection_ = false;
 }
 
 } // namespace insider
