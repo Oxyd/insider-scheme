@@ -8,8 +8,8 @@
 #include "compiler/source_code_provider.hpp"
 #include "compiler/syntax_list.hpp"
 #include "io/read.hpp"
+#include "memory/preserve.hpp"
 #include "memory/root_ptr.hpp"
-#include "memory/tracker.hpp"
 #include "runtime/string.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
@@ -38,7 +38,7 @@ static expression
 analyse_expression_list(parsing_context& pc,
                         std::vector<ptr<syntax>> const& exprs) {
   std::vector<expression> result_exprs;
-  tracker t{pc.ctx, result_exprs};
+  auto p = preserve(pc.ctx, result_exprs);
 
   result_exprs.reserve(exprs.size());
   for (auto datum : exprs)
@@ -53,7 +53,7 @@ analyse_top_level_expressions(parsing_context& pc,
                               root_ptr<module_> const& m,
                               std::vector<ptr<syntax>> const& exprs) {
   std::vector<ptr<syntax>> body = expand_top_level(pc, m, exprs);
-  tracker t{pc.ctx, body};
+  auto p = preserve(pc.ctx, body);
 
   if (body.size() == 1)
     return analyse_internal(pc, body.front());

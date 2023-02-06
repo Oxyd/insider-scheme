@@ -2,9 +2,8 @@
 #include "memory/free_store.hpp"
 #include "scheme_fixture.hpp"
 
+#include "memory/preserve.hpp"
 #include "memory/root_provider.hpp"
-#include "memory/tracker.hpp"
-#include "runtime/string.hpp"
 #include "runtime/symbol.hpp"
 
 using namespace insider;

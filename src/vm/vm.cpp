@@ -7,7 +7,7 @@
 #include "io/read.hpp"
 #include "io/write.hpp"
 #include "memory/free_store.hpp"
-#include "memory/tracker.hpp"
+#include "memory/preserve.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/error.hpp"
 #include "runtime/integer.hpp"
@@ -478,7 +478,7 @@ pop_frame_and_set_return_value(vm& state, ptr<> result) {
 
 static void
 call_native_procedure(vm& state, ptr<> scheme_result = {}) {
-  tracker t{state.ctx, scheme_result};
+  auto p = preserve(state.ctx, scheme_result);
   ptr<> result;
   do
     result = call_native_frame_target(state, state.stack, scheme_result);

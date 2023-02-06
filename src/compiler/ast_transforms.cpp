@@ -13,7 +13,7 @@
 #include "compiler/remove_unnecessary_definitions_pass.hpp"
 #include "compiler/update_variables_pass.hpp"
 #include "context.hpp"
-#include "memory/tracker.hpp"
+#include "memory/preserve.hpp"
 
 namespace insider {
 
@@ -41,7 +41,7 @@ pass_list const no_optimisations{
 
 expression
 apply_passes(parsing_context& pc, expression e) {
-  tracker t{pc.ctx, e};
+  auto p = preserve(pc.ctx, e);
 
   for (pass p : pc.config.passes) {
     e = p(pc, e);

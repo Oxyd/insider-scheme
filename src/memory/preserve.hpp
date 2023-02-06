@@ -1,5 +1,5 @@
-#ifndef INSIDER_MEMORY_TRACKER_HPP
-#define INSIDER_MEMORY_TRACKER_HPP
+#ifndef INSIDER_MEMORY_PRESERVER_HPP
+#define INSIDER_MEMORY_PRESERVER_HPP
 
 #include "context.hpp"
 #include "memory/root_provider.hpp"
@@ -36,10 +36,10 @@ namespace detail {
 
 // Root provider for a list of local variables.
 template <typename... Ts>
-class tracker : public root_provider {
+class scoped_roots : public root_provider {
 public:
   [[nodiscard]] explicit
-  tracker(context& ctx, Ts&... xs)
+  scoped_roots(context& ctx, Ts&... xs)
     : root_provider(ctx.store)
     , ptrs_{xs...}
   { }
@@ -53,6 +53,12 @@ public:
 private:
   std::tuple<Ts&...> ptrs_;
 };
+
+[[nodiscard]]
+inline auto
+preserve(context& ctx, auto&... objects) {
+  return scoped_roots{ctx, objects...};
+}
 
 } // namespace insider
 
