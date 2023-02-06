@@ -129,7 +129,7 @@ sweep_weak_boxes(std::vector<ptr<weak_box>>& boxes) {
 
   for (auto b = boxes.begin(); b != boxes.end(); ) {
     if (object_color(*b) == color::white) {
-      deallocated_size += object_size(*b);
+      deallocated_size += storage_size(b->header());
       deallocate(b->header());
       b = boxes.erase(b);
     } else {
@@ -150,7 +150,7 @@ sweep(object_list& objects) {
 
   for (auto o = objects.begin(); o != objects.end(); ) {
     if (object_color(*o) == color::white) {
-      deallocated_size += object_size(*o);
+      deallocated_size += storage_size(*o);
       deallocate(*o);
       o = objects.erase(o);
     } else {

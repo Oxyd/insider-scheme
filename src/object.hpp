@@ -345,12 +345,6 @@ storage_size(object_header* header) {
   return object_type(header).storage_size(header);
 }
 
-inline std::size_t
-object_size(ptr<> o) {
-  type_descriptor const& t = object_type(o);
-  return t.constant_size ? t.size : t.get_size(o.header());
-}
-
 template <typename T>
 std::string
 type_name() {
