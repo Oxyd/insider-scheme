@@ -12,15 +12,9 @@
 
 namespace insider {
 
-enum class color : word_type {
-  white = 0,
-  grey = 1,
-  black = 2,
-};
-
 static color
-object_color(object_header* h) {
-  return static_cast<color>(h->color);
+object_color(object_header const* h) {
+  return header_color(*h);
 }
 
 static color
@@ -28,7 +22,7 @@ object_color(ptr<> o) { return object_color(o.header()); }
 
 static void
 set_object_color(object_header* h, color c) {
-  h->color = static_cast<word_type>(c);
+  set_header_color(*h, c);
 }
 
 static void

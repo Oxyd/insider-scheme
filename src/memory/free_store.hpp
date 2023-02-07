@@ -159,7 +159,7 @@ private:
   allocate_storage(std::size_t size) {
     auto* buffer = new std::byte[size];
     auto* storage = new (buffer) object_storage<T>;
-    storage->header = make_object_header(T::type_index);
+    storage->header = make_header(T::type_index);
 
     return storage;
   }

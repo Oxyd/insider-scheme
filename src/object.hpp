@@ -42,11 +42,60 @@ constexpr std::size_t string_cursor_tag = 0b010;
 // means that an object_storage* and object_header* are
 // pointer-interconvertible, and we can reinterpret_cast from one to the other.
 
-struct object_header {
-  word_type type       : 60;
-  word_type generation : 2;
-  word_type color      : 2;
+using object_header = word_type;
+
+// struct object_header {
+//   word_type type       : 60;
+//   word_type generation : 2;
+//   word_type color      : 2;
+// };
+
+// Object header layout:
+// | type (59 bits) | generation (2 bits) | color (2 bits) | alive (1 bit) |
+// The alive bit is always 1. It's used to distinguish live objects from
+// available storage in fixed-size allocators.
+
+static constexpr word_type alive_mask = 0b1;
+static constexpr word_type color_mask = 0b110;
+static constexpr word_type color_shift = 1;
+static constexpr word_type generation_mask = 0b11000;
+static constexpr word_type generation_shift = 3;
+static constexpr word_type type_shift = 5;
+
+inline word_type
+header_type(object_header h) { return h >> type_shift; }
+
+enum class generation : word_type {
+  nursery_1,
+  nursery_2,
+  mature
 };
+
+enum class color : word_type {
+  white = 0,
+  grey = 1,
+  black = 2,
+};
+
+inline generation
+header_generation(object_header h) {
+  return static_cast<generation>((h & generation_mask) >> generation_shift);
+}
+
+inline color
+header_color(object_header h) {
+  return static_cast<color>((h & color_mask) >> color_shift);
+}
+
+inline void
+set_header_color(object_header& h, color c) {
+  h = (h & ~color_mask) | (static_cast<word_type>(c) << color_shift);
+}
+
+inline object_header
+make_header(word_type type) {
+  return (type << type_shift) | alive_mask;
+}
 
 static_assert(sizeof(object_header) == sizeof(word_type));
 
@@ -285,7 +334,7 @@ constexpr word_type invalid_type = 0;
 constexpr word_type no_type = std::numeric_limits<word_type>::max();
 
 inline word_type
-type_index(object_header* h) { return h->type; }
+type_index(object_header const* h) { return header_type(*h); }
 
 inline word_type
 object_type_index(ptr<> o) { return type_index(o.header()); }
@@ -294,13 +343,13 @@ inline std::string
 type_name(word_type index) { return types().types[index].name; }
 
 inline type_descriptor const&
-object_type(object_header* h) { return types().types[h->type]; }
+object_type(object_header const* h) { return types().types[header_type(*h)]; }
 
 inline type_descriptor const&
 object_type(ptr<> o) { return object_type(o.header()); }
 
 inline word_type
-object_hash(object_header* h) {
+object_hash(object_header const* h) {
   return reinterpret_cast<word_type>(h);
 }
 
@@ -565,26 +614,6 @@ word_type const dynamic_size_object<Derived, T>::type_index
       },
       detail::get_type_index<Derived>()
     );
-
-enum class generation : word_type {
-  nursery_1,
-  nursery_2,
-  mature
-};
-
-inline object_header
-make_object_header(word_type type) {
-  return object_header{
-    .type = type,
-    .generation = 0,
-    .color = 0
-  };
-}
-
-inline generation
-object_generation(object_header* h) {
-  return static_cast<generation>(h->generation);
-}
 
 inline generation
 object_generation(ptr<> o) { return object_generation(o.header()); }
