@@ -126,40 +126,42 @@ mark(root_list const& roots) {
 static std::size_t
 sweep_weak_boxes(std::vector<ptr<weak_box>>& boxes) {
   std::size_t deallocated_size = 0;
+  std::vector<ptr<weak_box>> survivors;
 
-  for (auto b = boxes.begin(); b != boxes.end(); ) {
-    if (object_color(*b) == color::white) {
-      deallocated_size += storage_size(b->header());
-      deallocate(b->header());
-      b = boxes.erase(b);
+  for (ptr<weak_box> b : boxes) {
+    if (object_color(b) == color::white) {
+      deallocated_size += storage_size(b.header());
+      deallocate(b.header());
     } else {
-      if ((**b).get() && object_color((**b).get()) == color::white)
-        (**b).reset();
+      if (b->get() && object_color(b->get()) == color::white)
+        b->reset();
 
-      set_object_color(*b, color::white);
-      ++b;
+      set_object_color(b, color::white);
+      survivors.push_back(b);
     }
   }
 
+  boxes = std::move(survivors);
   return deallocated_size;
 }
 
 static std::size_t
 sweep(object_list& objects) {
   std::size_t deallocated_size = 0;
+  object_list survivors;
 
-  for (auto o = objects.begin(); o != objects.end(); ) {
-    if (object_color(*o) == color::white) {
-      deallocated_size += storage_size(*o);
-      deallocate(*o);
-      o = objects.erase(o);
+  for (object_header* o : objects) {
+    if (object_color(o) == color::white) {
+      deallocated_size += storage_size(o);
+      deallocate(o);
     } else {
-      assert(object_color(*o) == color::black); // No gray objects here
-      set_object_color(*o, color::white);
-      ++o;
+      assert(object_color(o) == color::black); // No gray objects here
+      set_object_color(o, color::white);
+      survivors.push_back(o);
     }
   }
 
+  objects = std::move(survivors);
   return deallocated_size;
 }
 
