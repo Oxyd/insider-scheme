@@ -69,13 +69,13 @@ check_argument_count_for_procedure_without_tail(ptr<procedure_prototype> proc,
 
   if (num_args < min)
     throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
-                     *proc->info.name,
+                     proc->info.name,
                      is_variadic ? "at least " : "",
                      min,
                      num_args);
   else if (num_args > max)
     throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
-                     *proc->info.name,
+                     proc->info.name,
                      is_variadic ? "at most " : "",
                      max,
                      num_args);
@@ -87,7 +87,7 @@ check_argument_count_for_procedure_with_tail(ptr<procedure_prototype> proc,
   if (num_args < proc->info.num_required_args)
     throw make_error(
       "{}: Wrong number of arguments, expected at least {}, got {}",
-      *proc->info.name,
+      proc->info.name,
       proc->info.num_required_args, num_args
     );
 }
@@ -222,7 +222,7 @@ find_named_arg_position(ptr<keyword> name, ptr<procedure_prototype> proto) {
       return i;
 
   throw make_error("{}: Procedure does not accept keyword argument #:{}",
-                   *proto->info.name, name->value());
+                   proto->info.name, name->value());
 }
 
 static void
@@ -239,7 +239,7 @@ push_named_args(call_stack& stack, register_index base, ptr<vector> arg_names,
         slot = args[i];
       else
         throw make_error("{}: Duplicate keyword argument #:{}",
-                         *proto->info.name, name->value());
+                         proto->info.name, name->value());
     }
 }
 
@@ -275,11 +275,11 @@ check_required_args_are_provided(call_stack& stack, register_index base,
     if (!stack.local(base + i + 1)) {
       if (proto->info.parameter_names[i])
         throw make_error("{}: No value for required argument #:{}",
-                         *proto->info.name,
+                         proto->info.name,
                          proto->info.parameter_names[i]->value());
       else
         throw make_error("{}: No value for required positional argument #{}",
-                         *proto->info.name, i + 1);
+                         proto->info.name, i + 1);
     }
 }
 

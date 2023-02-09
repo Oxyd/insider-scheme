@@ -25,9 +25,9 @@ make_procedure(context& ctx, mutable_bytecode const& bc,
       .num_required_args = leading_args,
       .num_leading_args = leading_args,
       .has_rest = has_rest,
-      .parameter_names = std::make_shared<ptr<keyword>[]>(leading_args),
-      .name = std::make_shared<std::string>("<test procedure>"),
-      .debug_info = std::make_shared<debug_info_map>()
+      .parameter_names = std::make_unique<ptr<keyword>[]>(leading_args),
+      .name = "<test procedure>",
+      .debug_info = debug_info_map{}
     },
     std::move(constants)
   );
@@ -261,9 +261,9 @@ TEST_F(interpreter, exec_closure_ref) {
       .num_required_args = 1,
       .num_leading_args = 1,
       .has_rest = false,
-      .parameter_names = std::make_shared<ptr<keyword>[]>(1),
-      .name = std::make_shared<std::string>("add"),
-      .debug_info = std::make_shared<debug_info_map>()
+      .parameter_names = std::make_unique<ptr<keyword>[]>(1),
+      .name = "add",
+      .debug_info = debug_info_map{}
     },
     {}
   );
@@ -403,9 +403,9 @@ TEST_F(interpreter, load_self_in_closure) {
       .num_required_args = 0,
       .num_leading_args = 0,
       .has_rest = false,
-      .parameter_names = std::make_shared<ptr<keyword>[]>(0),
-      .name = std::make_shared<std::string>("f"),
-      .debug_info = std::make_shared<debug_info_map>()
+      .parameter_names = std::make_unique<ptr<keyword>[]>(0),
+      .name = "f",
+      .debug_info = debug_info_map{}
     },
     {}
   );

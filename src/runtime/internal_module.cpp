@@ -111,7 +111,7 @@ procedure_bytecode(context& ctx, ptr<procedure_prototype> proto) {
 
 static std::string
 procedure_name(ptr<procedure_prototype> f) {
-  return *f->info.name;
+  return f->info.name;
 }
 
 static ptr<vector>

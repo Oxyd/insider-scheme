@@ -467,22 +467,19 @@ public:
   static constexpr word_type static_type_index
     = type_indexes::procedure_prototype;
 
-  // A copy of all these members is made every time a new closure is created.
-  // The shared_ptr's are here to make creating these copies fast.
-
   struct meta {
     unsigned                        locals_size;
     unsigned                        num_required_args;
     unsigned                        num_leading_args;
     bool                            has_rest;
-    std::shared_ptr<ptr<keyword>[]> parameter_names;
-    std::shared_ptr<std::string>    name;
-    std::shared_ptr<debug_info_map> debug_info;
+    std::unique_ptr<ptr<keyword>[]> parameter_names;
+    std::string                     name;
+    debug_info_map                  debug_info;
   };
 
   bytecode                 code;
   std::size_t              code_size;
-  std::shared_ptr<ptr<>[]> constants;
+  std::unique_ptr<ptr<>[]> constants;
   std::size_t              constants_size;
   meta                     info;
 

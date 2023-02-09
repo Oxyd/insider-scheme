@@ -324,7 +324,7 @@ std::ostream&
 operator << (std::ostream&, instruction const&);
 
 using mutable_bytecode = std::vector<std::uint16_t>;
-using bytecode = std::shared_ptr<std::uint16_t[]>;
+using bytecode = std::unique_ptr<std::uint16_t[]>;
 using instruction_pointer = std::uint16_t const*;
 
 std::size_t

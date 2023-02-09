@@ -33,7 +33,7 @@ find_inlined_procedures(frame_reference frame,
     ptr<procedure_prototype> proto
       = assume<procedure>(frame.callable())->prototype();
     std::size_t call_idx = find_index_of_call_instruction(proto, *call_ip);
-    debug_info_map const& debug_info = *proto->info.debug_info;
+    debug_info_map const& debug_info = proto->info.debug_info;
     if (auto di = debug_info.find(call_idx); di != debug_info.end())
       return di->second.inlined_call_chain;
   }
@@ -49,7 +49,7 @@ append_scheme_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
   for (std::string const& inlined_proc : inlined)
     trace.push_back({inlined_proc, stacktrace_record::kind::scheme});
 
-  trace.push_back({*proto->info.name, stacktrace_record::kind::scheme});
+  trace.push_back({proto->info.name, stacktrace_record::kind::scheme});
 }
 
 static void

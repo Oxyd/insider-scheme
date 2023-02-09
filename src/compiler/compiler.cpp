@@ -295,7 +295,7 @@ make_procedure_prototype(context& ctx, procedure_context& pc,
                          std::vector<ptr<>> constants) {
   auto [bc, di] = analyse_and_compile_cfg(pc.cfg);
   i.locals_size = pc.registers.registers_used();
-  i.debug_info = std::make_shared<debug_info_map>(std::move(di));
+  i.debug_info = std::move(di);
   return make<procedure_prototype>(ctx,
                                    std::move(bc),
                                    std::move(i),
@@ -379,9 +379,9 @@ emit_reference_to_empty_closure(context& ctx, procedure_context& parent,
   compile_static_reference(ctx, parent, cls, result);
 }
 
-static std::shared_ptr<ptr<keyword>[]>
+static std::unique_ptr<ptr<keyword>[]>
 make_prototype_parameter_names(std::vector<ptr<keyword>> const& names) {
-  auto result = std::make_shared<ptr<keyword>[]>(names.size());
+  auto result = std::make_unique<ptr<keyword>[]>(names.size());
   std::ranges::copy(names, result.get());
   return result;
 }
@@ -405,7 +405,7 @@ compile_expression(context& ctx, procedure_context& parent,
       .num_leading_args = leading_args,
       .has_rest = stx->has_rest(),
       .parameter_names = make_prototype_parameter_names(stx->parameter_names()),
-      .name = std::make_shared<std::string>(stx->name()),
+      .name = stx->name(),
       .debug_info = {}
     },
     std::move(proc.constants)
@@ -877,8 +877,8 @@ compile_syntax(context& ctx, expression e, root_ptr<module_> const& mod) {
         .num_required_args = 0,
         .num_leading_args = 0,
         .has_rest = false,
-        .parameter_names = std::make_shared<ptr<keyword>[]>(0),
-        .name = std::make_shared<std::string>("<expression>"),
+        .parameter_names = std::make_unique<ptr<keyword>[]>(0),
+        .name = "<expression>",
         .debug_info = {}
       },
       std::move(proc.constants)
@@ -936,13 +936,11 @@ compile_module_body(context& ctx, root_ptr<module_> const& m,
                      .num_required_args = 0,
                      .num_leading_args = 0,
                      .has_rest = false,
-                     .parameter_names = std::make_shared<ptr<keyword>[]>(0),
-                     .name = std::make_shared<std::string>(
-                       fmt::format("<module {} top-level>",
-                                   pm.name
-                                   ? module_name_to_string(*pm.name)
-                                   : "<unknown>")
-                     ),
+                     .parameter_names = std::make_unique<ptr<keyword>[]>(0),
+                     .name = fmt::format("<module {} top-level>",
+                                         pm.name
+                                           ? module_name_to_string(*pm.name)
+                                           : "<unknown>") ,
                      .debug_info = {}
                    },
                    std::move(proc.constants))

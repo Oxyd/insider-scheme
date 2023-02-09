@@ -268,10 +268,10 @@ procedure_prototype::procedure_prototype(
   , constants_size{constants_vec.size()}
   , info{std::move(i)}
 {
-  code = std::make_shared<std::uint16_t[]>(bc.size());
+  code = std::make_unique<std::uint16_t[]>(bc.size());
   std::ranges::copy(bc, code.get());
 
-  constants = std::make_shared<ptr<>[]>(constants_vec.size());
+  constants = std::make_unique<ptr<>[]>(constants_vec.size());
   std::ranges::copy(constants_vec, constants.get());
 }
 
