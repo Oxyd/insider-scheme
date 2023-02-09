@@ -216,8 +216,7 @@ make_internal_module(context& ctx) {
   define_procedure<procedure_name>(ctx, "procedure-prototype-name", result);
   define_procedure<procedure_constants>(ctx, "procedure-prototype-constants",
                                         result);
-  define_procedure<&procedure::prototype_ptr>(ctx, "procedure-prototype",
-                                              result);
+  define_procedure<&procedure::prototype>(ctx, "procedure-prototype", result);
 
   define_procedure<instruction_opcode>(ctx, "instruction-opcode", result);
   define_procedure<instruction_operands>(ctx, "instruction-operands", result);

@@ -49,10 +49,10 @@ vm::visit_roots(member_visitor const& f) {
 
 static ptr<>
 get_constant(call_stack& stack, operand index) {
-  procedure_prototype const& proto
+  ptr<procedure_prototype> proto
     = assume<procedure>(stack.callable())->prototype();
-  assert(index < proto.constants_size);
-  return proto.constants[index];
+  assert(index < proto->constants_size);
+  return proto->constants[index];
 }
 
 static bool
@@ -61,41 +61,41 @@ current_frame_is_native(call_stack& stack) {
 }
 
 static void
-check_argument_count_for_procedure_without_tail(procedure_prototype const& proc,
+check_argument_count_for_procedure_without_tail(ptr<procedure_prototype> proc,
                                                 std::size_t num_args) {
-  unsigned min = proc.info.num_required_args;
-  unsigned max = proc.info.num_leading_args;
+  unsigned min = proc->info.num_required_args;
+  unsigned max = proc->info.num_leading_args;
   bool is_variadic = min != max;
 
   if (num_args < min)
     throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
-                     *proc.info.name,
+                     *proc->info.name,
                      is_variadic ? "at least " : "",
                      min,
                      num_args);
   else if (num_args > max)
     throw make_error("{}: Wrong number of arguments, expected {}{}, got {}",
-                     *proc.info.name,
+                     *proc->info.name,
                      is_variadic ? "at most " : "",
                      max,
                      num_args);
 }
 
 static void
-check_argument_count_for_procedure_with_tail(procedure_prototype const& proc,
+check_argument_count_for_procedure_with_tail(ptr<procedure_prototype> proc,
                                              std::size_t num_args) {
-  if (num_args < proc.info.num_required_args)
+  if (num_args < proc->info.num_required_args)
     throw make_error(
       "{}: Wrong number of arguments, expected at least {}, got {}",
-      *proc.info.name,
-      proc.info.num_required_args, num_args
+      *proc->info.name,
+      proc->info.num_required_args, num_args
     );
 }
 
 static void
-throw_if_wrong_number_of_args(procedure_prototype const& proc,
+throw_if_wrong_number_of_args(ptr<procedure_prototype> proc,
                               std::size_t num_args) {
-  if (proc.info.has_rest)
+  if (proc->info.has_rest)
     check_argument_count_for_procedure_with_tail(proc, num_args);
   else
     check_argument_count_for_procedure_without_tail(proc, num_args);
@@ -135,8 +135,8 @@ load_dynamic_top_level(vm& state) {
 }
  
 static register_index
-actual_args_size(procedure_prototype const& proto) {
-  return proto.info.num_leading_args + (proto.info.has_rest ? 1 : 0);
+actual_args_size(ptr<procedure_prototype> proto) {
+  return proto->info.num_leading_args + (proto->info.has_rest ? 1 : 0);
 }
 
 static void
@@ -167,29 +167,29 @@ convert_tail_args_to_list(context& ctx, call_stack& stack,
 }
 
 static std::size_t
-tail_args_length(procedure_prototype const& proto, std::size_t num_args) {
-  if (num_args >= proto.info.num_leading_args)
-    return num_args - proto.info.num_leading_args;
+tail_args_length(ptr<procedure_prototype> proto, std::size_t num_args) {
+  if (num_args >= proto->info.num_leading_args)
+    return num_args - proto->info.num_leading_args;
   else
     return 0;
 }
 
 static void
 convert_tail_args(context& ctx, call_stack& stack,
-                  procedure_prototype const& proto, register_index base,
+                  ptr<procedure_prototype> proto, register_index base,
                   std::size_t num_args) {
-  if (proto.info.has_rest)
+  if (proto->info.has_rest)
     convert_tail_args_to_list(ctx, stack,
-                              base + proto.info.num_leading_args + 1,
+                              base + proto->info.num_leading_args + 1,
                               tail_args_length(proto, num_args));
 }
 
 static void
 fill_in_default_values(context& ctx, call_stack& stack,
-                       procedure_prototype const& proto, register_index base,
+                       ptr<procedure_prototype> proto, register_index base,
                        register_index num_args) {
   register_index begin = base + num_args + 1;
-  register_index end = base + proto.info.num_leading_args + 1;
+  register_index end = base + proto->info.num_leading_args + 1;
 
   if (begin < end) {
     if (stack.frame_size() <= end)
@@ -216,18 +216,18 @@ clear_arguments(call_stack& stack, register_index base, std::size_t num_args) {
 }
 
 static register_index
-find_named_arg_position(ptr<keyword> name, procedure_prototype const& proto) {
-  for (register_index i = 0; i < proto.info.num_leading_args; ++i)
-    if (proto.info.parameter_names[i] == name)
+find_named_arg_position(ptr<keyword> name, ptr<procedure_prototype> proto) {
+  for (register_index i = 0; i < proto->info.num_leading_args; ++i)
+    if (proto->info.parameter_names[i] == name)
       return i;
 
   throw make_error("{}: Procedure does not accept keyword argument #:{}",
-                   *proto.info.name, name->value());
+                   *proto->info.name, name->value());
 }
 
 static void
 push_named_args(call_stack& stack, register_index base, ptr<vector> arg_names,
-                procedure_prototype const& proto,
+                ptr<procedure_prototype> proto,
                 std::vector<ptr<>> const& args) {
   for (std::size_t i = 0; i < arg_names->size(); ++i)
     if (arg_names->ref(i)) {
@@ -239,7 +239,7 @@ push_named_args(call_stack& stack, register_index base, ptr<vector> arg_names,
         slot = args[i];
       else
         throw make_error("{}: Duplicate keyword argument #:{}",
-                         *proto.info.name, name->value());
+                         *proto->info.name, name->value());
     }
 }
 
@@ -270,23 +270,23 @@ push_unnamed_args(call_stack& stack, register_index base, ptr<vector> arg_names,
 
 static void
 check_required_args_are_provided(call_stack& stack, register_index base,
-                                 procedure_prototype const& proto) {
-  for (unsigned i = 0; i < proto.info.num_required_args; ++i)
+                                 ptr<procedure_prototype> proto) {
+  for (unsigned i = 0; i < proto->info.num_required_args; ++i)
     if (!stack.local(base + i + 1)) {
-      if (proto.info.parameter_names[i])
+      if (proto->info.parameter_names[i])
         throw make_error("{}: No value for required argument #:{}",
-                         *proto.info.name,
-                         proto.info.parameter_names[i]->value());
+                         *proto->info.name,
+                         proto->info.parameter_names[i]->value());
       else
         throw make_error("{}: No value for required positional argument #{}",
-                         *proto.info.name, i + 1);
+                         *proto->info.name, i + 1);
     }
 }
 
 static void
 resize_frame_for_parameters(call_stack& stack, register_index base,
-                            procedure_prototype const& proto) {
-  register_index end = base + proto.info.num_leading_args + 1;
+                            ptr<procedure_prototype> proto) {
+  register_index end = base + proto->info.num_leading_args + 1;
   if (stack.frame_size() <= end)
     stack.resize_current_frame(end + 1);
 }
@@ -294,9 +294,9 @@ resize_frame_for_parameters(call_stack& stack, register_index base,
 static void
 fill_in_default_values_for_keyword_call(context& ctx,
                                         call_stack& stack, register_index base,
-                                        procedure_prototype const& proto) {
-  for (unsigned i = proto.info.num_required_args;
-       i < proto.info.num_leading_args;
+                                        ptr<procedure_prototype> proto) {
+  for (unsigned i = proto->info.num_required_args;
+       i < proto->info.num_leading_args;
        ++i) {
     ptr<>& slot = stack.local(base + i + 1);
     if (!slot)
@@ -307,7 +307,7 @@ fill_in_default_values_for_keyword_call(context& ctx,
 static void
 reorder_keyword_arguments(context& ctx,
                           call_stack& stack,
-                          procedure_prototype const& proto,
+                          ptr<procedure_prototype> proto,
                           register_index base,
                           ptr<vector> arg_names) {
   auto args = copy_arguments(stack, base, arg_names->size());
@@ -315,7 +315,7 @@ reorder_keyword_arguments(context& ctx,
   clear_arguments(
     stack, base,
     std::max(arg_names->size(),
-             static_cast<std::size_t>(proto.info.num_leading_args))
+             static_cast<std::size_t>(proto->info.num_leading_args))
   );
   push_named_args(stack, base, arg_names, proto, args);
   push_unnamed_args(stack, base, arg_names, args);
@@ -325,7 +325,7 @@ reorder_keyword_arguments(context& ctx,
 
 static instruction_pointer
 current_procedure_bytecode_base(vm const& state) {
-  return assume<procedure>(state.stack.callable())->prototype().code.get();
+  return assume<procedure>(state.stack.callable())->prototype()->code.get();
 }
 
 static void
@@ -335,7 +335,7 @@ push_scheme_frame(vm& state, ptr<procedure> proc,
     .type = call_stack::frame_type::scheme,
     .result_register = result_reg,
     .base = state.stack.frame_base() + base,
-    .size = proc->prototype().info.locals_size,
+    .size = proc->prototype()->info.locals_size,
     .previous_ip = state.ip,
     .extra = {}
   });
@@ -352,13 +352,13 @@ make_tail_call_frame(call_stack& stack, ptr<> proc,
 static void
 make_scheme_tail_call_frame(call_stack& stack, ptr<procedure> proc,
                            register_index args_base, register_index num_args) {
-  make_tail_call_frame(stack, proc, proc->prototype().info.locals_size,
+  make_tail_call_frame(stack, proc, proc->prototype()->info.locals_size,
                        args_base, num_args);
 }
 
 static void
 check_and_convert_scheme_call_arguments(vm& state,
-                                        procedure_prototype const& proto,
+                                        ptr<procedure_prototype> proto,
                                         register_index base) {
   operand num_args = read_operand(state);
   throw_if_wrong_number_of_args(proto, num_args);
@@ -368,7 +368,7 @@ check_and_convert_scheme_call_arguments(vm& state,
 
 static void
 check_and_convert_scheme_keyword_call_arguments(vm& state,
-                                                procedure_prototype const& proto,
+                                                ptr<procedure_prototype> proto,
                                                 register_index base) {
   operand arg_names_index = read_operand(state);
   auto arg_names = assume<vector>(get_constant(state.stack, arg_names_index));
@@ -385,7 +385,7 @@ push_scheme_call_frame(vm& state, ptr<procedure> proc, register_index base) {
   operand result_reg = read_operand(state);
   push_scheme_frame(state, proc, base, result_reg);
   push_closure(proc, state.stack);
-  state.ip = proc->prototype().code.get();
+  state.ip = proc->prototype()->code.get();
 }
 
 template <auto ArgChecker>
@@ -396,7 +396,7 @@ push_scheme_tail_call_frame(vm& state, ptr<procedure> proc,
   make_scheme_tail_call_frame(state.stack, proc, base,
                               actual_args_size(proc->prototype()));
   push_closure(proc, state.stack);
-  state.ip = proc->prototype().code.get();
+  state.ip = proc->prototype()->code.get();
 }
 
 static void
@@ -732,10 +732,10 @@ do_instructions(vm& state) {
       operand const_num = read_operand(state);
       operand dest = read_operand(state);
 
-      procedure_prototype const& proto
+      ptr<procedure_prototype> proto
         = assume<procedure>(state.stack.callable())->prototype();
-      assert(const_num < proto.constants_size);
-      state.stack.local(dest) = proto.constants[const_num];
+      assert(const_num < proto->constants_size);
+      state.stack.local(dest) = proto->constants[const_num];
       break;
     }
 
@@ -1148,7 +1148,7 @@ do_instructions(vm& state) {
         .type = call_stack::frame_type::scheme,
         .result_register = result_reg,
         .base = state.stack.frame_base() + base,
-        .size = callee->prototype().info.locals_size,
+        .size = callee->prototype()->info.locals_size,
         .previous_ip = state.ip,
         .extra = {}
       });
@@ -1159,7 +1159,7 @@ do_instructions(vm& state) {
       for (std::size_t i = 0; i < closure_size; ++i)
         state.stack.local(operand(begin + i)) = callee->ref(i);
 
-      state.ip = callee->prototype().code.get();
+      state.ip = callee->prototype()->code.get();
       break;
     }
 
@@ -1169,7 +1169,7 @@ do_instructions(vm& state) {
       read_operand(state);
 
       state.stack.replace_frame(call_stack::frame_type::scheme,
-                                callee->prototype().info.locals_size,
+                                callee->prototype()->info.locals_size,
                                 base,
                                 actual_args_size(callee->prototype()));
 
@@ -1179,7 +1179,7 @@ do_instructions(vm& state) {
       for (std::size_t i = 0; i < closure_size; ++i)
         state.stack.local(operand(begin + i)) = callee->ref(i);
 
-      state.ip = callee->prototype().code.get();
+      state.ip = callee->prototype()->code.get();
       break;
     }
 
@@ -1512,11 +1512,11 @@ run(vm& state) {
 
 static void
 push_rest_argument_for_call_from_native(context& ctx,
-                                        procedure_prototype const& proto,
+                                        ptr<procedure_prototype> proto,
                                         call_stack& stack,
                                         auto tail_begin,
                                         auto tail_end) {
-  stack.local(operand(proto.info.num_leading_args + 1))
+  stack.local(operand(proto->info.num_leading_args + 1))
     = make_list_from_range(ctx,
                            std::ranges::subrange(tail_begin, tail_end));
 }
@@ -1526,17 +1526,17 @@ push_scheme_arguments_for_call_from_native(context& ctx,
                                            ptr<procedure> callable,
                                            call_stack& stack,
                                            auto const& args) {
-  procedure_prototype const& proto = callable->prototype();
+  ptr<procedure_prototype> proto = callable->prototype();
 
   stack.local(operand{0}) = callable;
   auto arg_it = args.begin();
   register_index arg = 0;
-  while (arg < proto.info.num_leading_args && arg_it != args.end())
+  while (arg < proto->info.num_leading_args && arg_it != args.end())
     stack.local(operand(arg++) + 1) = *arg_it++;
 
   fill_in_default_values(ctx, stack, proto, 0, arg);
 
-  if (proto.info.has_rest)
+  if (proto->info.has_rest)
     push_rest_argument_for_call_from_native(ctx, proto, stack,
                                             arg_it, args.end());
 }
@@ -1551,7 +1551,7 @@ make_scheme_frame_for_call_from_native(vm& state,
     .type = call_stack::frame_type::scheme,
     .result_register = {},
     .base = state.stack.size(),
-    .size = callable->prototype().info.locals_size,
+    .size = callable->prototype()->info.locals_size,
     .previous_ip = nullptr,
     .extra = {}
   });
@@ -1559,7 +1559,7 @@ make_scheme_frame_for_call_from_native(vm& state,
   push_scheme_arguments_for_call_from_native(state.ctx, callable, state.stack,
                                              arguments);
   push_closure(callable, state.stack);
-  state.ip = callable->prototype().code.get();
+  state.ip = callable->prototype()->code.get();
 }
 
 static ptr<stack_frame_extra_data>
@@ -1804,7 +1804,7 @@ make_scheme_tail_call_frame_for_call_from_native(
   throw_if_wrong_number_of_args(callable->prototype(), arguments.size());
 
   stack.replace_frame(call_stack::frame_type::scheme,
-                       callable->prototype().info.locals_size);
+                      callable->prototype()->info.locals_size);
   push_scheme_arguments_for_call_from_native(ctx, callable, stack, arguments);
   push_closure(callable, stack);
 }

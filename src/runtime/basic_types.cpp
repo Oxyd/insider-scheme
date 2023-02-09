@@ -293,13 +293,11 @@ procedure::procedure(ptr<procedure_prototype> p,
                      std::size_t num_captures)
   : dynamic_size_object{num_captures}
   , prototype_{p}
-  , cached_prototype_{*p}
 { }
 
 procedure::procedure(procedure&& other) noexcept
   : dynamic_size_object{other.size_}
   , prototype_{other.prototype_}
-  , cached_prototype_{std::move(other.cached_prototype_)}
 {
   for (std::size_t i = 0; i < size_; ++i)
     storage_element(i) = other.storage_element(i);
@@ -323,7 +321,6 @@ procedure::set(free_store& store, std::size_t i, ptr<> value) {
 void
 procedure::visit_members(member_visitor const& f) const {
   f(prototype_);
-  cached_prototype_.visit_members(f);
   for (std::size_t i = 0; i < size_; ++i)
     f(storage_element(i));
 }

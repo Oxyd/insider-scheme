@@ -17,11 +17,11 @@ static instruction_pointer const dummy_ip
     );
 
 static std::size_t
-find_index_of_call_instruction(procedure_prototype const& proto,
+find_index_of_call_instruction(ptr<procedure_prototype> proto,
                                instruction_pointer call_ip) {
   assert(opcode_to_info(opcode::call).num_operands == 3);
   static constexpr std::size_t call_instruction_size = 4;
-  return call_ip - proto.code.get() - call_instruction_size;
+  return call_ip - proto->code.get() - call_instruction_size;
 }
 
 static std::vector<std::string>
@@ -30,10 +30,10 @@ find_inlined_procedures(frame_reference frame,
   if (call_ip) {
     assert(*call_ip != dummy_ip);
 
-    procedure_prototype const& proto
+    ptr<procedure_prototype> proto
       = assume<procedure>(frame.callable())->prototype();
     std::size_t call_idx = find_index_of_call_instruction(proto, *call_ip);
-    debug_info_map const& debug_info = *proto.info.debug_info;
+    debug_info_map const& debug_info = *proto->info.debug_info;
     if (auto di = debug_info.find(call_idx); di != debug_info.end())
       return di->second.inlined_call_chain;
   }
@@ -42,14 +42,14 @@ find_inlined_procedures(frame_reference frame,
 
 static void
 append_scheme_frame_to_stacktrace(std::vector<stacktrace_record>& trace,
-                                  procedure_prototype const& proto,
+                                  ptr<procedure_prototype> proto,
                                   frame_reference frame,
                                   std::optional<instruction_pointer> call_ip) {
   auto inlined = find_inlined_procedures(frame, call_ip);
   for (std::string const& inlined_proc : inlined)
     trace.push_back({inlined_proc, stacktrace_record::kind::scheme});
 
-  trace.push_back({*proto.info.name, stacktrace_record::kind::scheme});
+  trace.push_back({*proto->info.name, stacktrace_record::kind::scheme});
 }
 
 static void

@@ -381,7 +381,7 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
   else if (auto np = match<native_procedure>(datum)) {
     out->write(fmt::format("<native procedure {}>", np->name));
   } else if (auto proc = match<procedure>(datum))
-    out->write(fmt::format("<procedure {}>", *proc->prototype().info.name));
+    out->write(fmt::format("<procedure {}>", *proc->prototype()->info.name));
   else if (auto core = match<core_form_type>(datum)) {
     out->write(fmt::format("<core form {}>", core->name));
   } else if (auto e = match<error>(datum)) {

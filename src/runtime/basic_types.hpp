@@ -513,11 +513,8 @@ public:
 
   procedure(procedure&&) noexcept;
 
-  procedure_prototype const&
-  prototype() const { return cached_prototype_; }
-
   ptr<procedure_prototype>
-  prototype_ptr() const { return prototype_; }
+  prototype() const { return prototype_; }
 
   ptr<>
   ref(std::size_t) const;
@@ -530,7 +527,6 @@ public:
 
 private:
   ptr<procedure_prototype> const prototype_;
-  procedure_prototype            cached_prototype_;
 };
 
 ptr<procedure>
