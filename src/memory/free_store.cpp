@@ -79,22 +79,6 @@ detail::update_ptr(ptr<> const& p, ptr<> new_value) {
 }
 
 static void
-verify([[maybe_unused]] auto const& g) {
-#ifndef NDEBUG
-  g.small.for_all([&] (object_header* o) {
-    assert(object_generation(o) == g.generation_number);
-  });
-
-  for (std::size_t i = 0; i < g.large.object_count(); ++i)
-    assert(
-      object_generation(
-        reinterpret_cast<object_header*>(g.large.get(i))
-      ) == g.generation_number
-    );
-#endif
-}
-
-static void
 mark(root_list const& roots) {
   object_list work_list;
 

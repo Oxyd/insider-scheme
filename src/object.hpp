@@ -44,32 +44,22 @@ constexpr std::size_t string_cursor_tag = 0b010;
 
 using object_header = word_type;
 
-// struct object_header {
-//   word_type type       : 60;
-//   word_type generation : 2;
-//   word_type color      : 2;
-// };
-
 // Object header layout:
-// | type (59 bits) | generation (2 bits) | color (2 bits) | alive (1 bit) |
+// | type (59 bits) | age (2 bits) | color (2 bits) | alive (1 bit) |
 // The alive bit is always 1. It's used to distinguish live objects from
 // available storage in fixed-size allocators.
 
 static constexpr word_type alive_mask = 0b1;
 static constexpr word_type color_mask = 0b110;
 static constexpr word_type color_shift = 1;
-static constexpr word_type generation_mask = 0b11000;
-static constexpr word_type generation_shift = 3;
+static constexpr word_type age_mask = 0b11000;
+static constexpr word_type age_shift = 3;
 static constexpr word_type type_shift = 5;
 
 inline word_type
 header_type(object_header h) { return h >> type_shift; }
 
-enum class generation : word_type {
-  nursery_1,
-  nursery_2,
-  mature
-};
+static constexpr word_type mature_age = 1;
 
 enum class color : word_type {
   white = 0,
@@ -77,9 +67,9 @@ enum class color : word_type {
   black = 2,
 };
 
-inline generation
-header_generation(object_header h) {
-  return static_cast<generation>((h & generation_mask) >> generation_shift);
+inline word_type
+header_age(object_header h) {
+  return (h & age_mask) >> age_shift;
 }
 
 inline color
@@ -615,8 +605,8 @@ word_type const dynamic_size_object<Derived, T>::type_index
       detail::get_type_index<Derived>()
     );
 
-inline generation
-object_generation(ptr<> o) { return object_generation(o.header()); }
+inline word_type
+object_age(ptr<> o) { return header_age(*o.header()); }
 
 } // namespace insider
 

@@ -23,31 +23,6 @@ namespace insider {
 
 using word_type = std::uint64_t;
 
-inline bool
-operator < (generation lhs, generation rhs) {
-  return static_cast<word_type>(lhs) < static_cast<word_type>(rhs);
-}
-
-inline bool
-operator == (generation lhs, generation rhs) {
-  return static_cast<word_type>(lhs) == static_cast<word_type>(rhs);
-}
-
-inline bool
-operator <= (generation lhs, generation rhs) {
-  return lhs < rhs || lhs == rhs;
-}
-
-inline bool
-operator > (generation lhs, generation rhs) {
-  return !(lhs <= rhs);
-}
-
-inline bool
-operator >= (generation lhs, generation rhs) {
-  return lhs > rhs || lhs == rhs;
-}
-
 namespace detail {
   template <typename T, typename... Args>
   std::size_t
