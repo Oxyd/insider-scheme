@@ -44,6 +44,7 @@ increment_object_age(object_header* h) {
   set_object_age(h, object_age(h) + 1);
 }
 
+[[maybe_unused]]
 static bool
 object_remembered(object_header const* h) { return header_remembered(*h); }
 
@@ -402,6 +403,7 @@ free_store::collect_minor() {
   nursery_alloc_size_ -= nursery_swept_total;
 }
 
+#ifndef NDEBUG
 void
 free_store::check_consistency() {
   std::size_t real_nursery_size = 0;
@@ -434,5 +436,6 @@ free_store::check_consistency() {
   for (object_header* o : remembered_set_)
     assert(object_remembered(o));
 }
+#endif
 
 } // namespace insider
