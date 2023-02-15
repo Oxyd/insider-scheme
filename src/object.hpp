@@ -45,21 +45,30 @@ constexpr std::size_t string_cursor_tag = 0b010;
 using object_header = word_type;
 
 // Object header layout:
-// | type (59 bits) | age (2 bits) | color (2 bits) | alive (1 bit) |
-// The alive bit is always 1. It's used to distinguish live objects from
-// available storage in fixed-size allocators.
+//
+// | type ... | R | A | A | C | C | 1
+//
+// R: Object is in remembered set?
+// A: Age
+// C: Colour
+//
+// The least significant bit is always 1. It's used to distinguish live objects
+// from available storage in fixed-size allocators.
 
-static constexpr word_type alive_mask = 0b1;
-static constexpr word_type color_mask = 0b110;
+static constexpr word_type alive_mask      = 0b000001;
+static constexpr word_type color_mask      = 0b000110;
+static constexpr word_type age_mask        = 0b011000;
+static constexpr word_type remembered_mask = 0b100000;
+
 static constexpr word_type color_shift = 1;
-static constexpr word_type age_mask = 0b11000;
 static constexpr word_type age_shift = 3;
-static constexpr word_type type_shift = 5;
+static constexpr word_type remembered_shift = 5;
+static constexpr word_type type_shift = 6;
 
 inline word_type
 header_type(object_header h) { return h >> type_shift; }
 
-static constexpr word_type mature_age = 1;
+static constexpr word_type mature_age = 3;
 
 enum class color : word_type {
   white = 0,
@@ -72,6 +81,11 @@ header_age(object_header h) {
   return (h & age_mask) >> age_shift;
 }
 
+inline void
+set_header_age(object_header& h, word_type a) {
+  h = (h & ~age_mask) | (a << age_shift);
+}
+
 inline color
 header_color(object_header h) {
   return static_cast<color>((h & color_mask) >> color_shift);
@@ -80,6 +94,16 @@ header_color(object_header h) {
 inline void
 set_header_color(object_header& h, color c) {
   h = (h & ~color_mask) | (static_cast<word_type>(c) << color_shift);
+}
+
+inline bool
+header_remembered(object_header h) {
+  return (h & remembered_mask) != 0;
+}
+
+inline void
+set_header_remembered(object_header& h, bool r) {
+  h = (h & ~remembered_mask) | (static_cast<word_type>(r) << remembered_shift);
 }
 
 inline object_header
@@ -607,6 +631,12 @@ word_type const dynamic_size_object<Derived, T>::type_index
 
 inline word_type
 object_age(ptr<> o) { return header_age(*o.header()); }
+
+inline bool
+object_remembered(ptr<> o) { return header_remembered(*o.header()); }
+
+inline void
+mark_object_remembered(ptr<> o) { set_header_remembered(*o.header(), true); }
 
 } // namespace insider
 

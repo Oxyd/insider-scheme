@@ -98,18 +98,25 @@ public:
     if constexpr (std::is_same_v<T, weak_box>)
       weak_boxes_.push_back(result);
     else
-      all_objects_.push_back(&storage->header);
+      nursery_.push_back(&storage->header);
     return result;
   }
 
   void
-  notify_arc(ptr<>, ptr<>) { }
+  notify_arc(ptr<> from, ptr<> to) {
+    if (to && is_object_ptr(to)
+        && object_age(from) == mature_age && object_age(to) < mature_age
+        && !object_remembered(from)) {
+      remembered_set_.push_back(from.header());
+      mark_object_remembered(from);
+    }
+  }
 
   insider::root_list&
   root_list() { return roots_; }
 
   void
-  collect_garbage(bool major = false);
+  collect_garbage(bool force_major = false);
 
   // Check whether a collection should be performed and, if so, do a collection.
   void
@@ -119,13 +126,18 @@ public:
   }
 
 private:
-  static constexpr std::size_t min_alloc_size = 8ull * 1024 * 1024;
+  static constexpr std::size_t min_alloc_size = 32ull * 1024 * 1024;
+  static constexpr std::size_t nursery_threshold = 8ull * 1024 * 1024;
 
-  object_list                all_objects_;
+  object_list                nursery_;
+  object_list                mature_;
   std::vector<ptr<weak_box>> weak_boxes_;
   insider::root_list         roots_;
-  std::size_t                current_alloc_size_ = 0;
+  object_list                remembered_set_;
+
+  std::size_t                alloc_size_ = 0;
   std::size_t                threshold_alloc_size_ = min_alloc_size;
+  std::size_t                nursery_alloc_size_ = 0;
   bool                       want_collection_ = false;
 
   // Allocate storage for the given payload type and initialise its header.
@@ -141,10 +153,22 @@ private:
 
   void
   increase_alloc_size(std::size_t growth) {
-    current_alloc_size_ += growth;
-    if (current_alloc_size_ > threshold_alloc_size_)
+    alloc_size_ += growth;
+    nursery_alloc_size_ += growth;
+
+    if (alloc_size_ > threshold_alloc_size_
+        || nursery_alloc_size_ > nursery_threshold)
       want_collection_ = true;
   }
+
+  void
+  collect_major();
+
+  void
+  collect_minor();
+
+  void
+  check_consistency();
 };
 
 } // namespace insider
