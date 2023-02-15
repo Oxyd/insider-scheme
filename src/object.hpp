@@ -321,13 +321,12 @@ concept has_static_type_index = requires {
 struct type_descriptor {
   char const* name = "invalid";
   void (*destroy)(object_header*) = nullptr;
-  ptr<> (*move)(object_header*, object_header*) = nullptr;
-  void (*visit_members)(object_header*, member_visitor const&) = nullptr;
+  void (*visit_members)(object_header const*, member_visitor const&) = nullptr;
 
   bool constant_size = true;
   std::size_t size = 0;
-  std::size_t (*get_size)(object_header*) = nullptr;
-  std::size_t (*storage_size)(object_header*) = nullptr;
+  std::size_t (*get_size)(object_header const*) = nullptr;
+  std::size_t (*storage_size)(object_header const*) = nullptr;
 };
 
 struct type_vector {
@@ -404,7 +403,7 @@ object_type_name(ptr<> o) {
 }
 
 inline std::size_t
-storage_size(object_header* header) {
+storage_size(object_header const* header) {
   return object_type(header).storage_size(header);
 }
 
@@ -479,40 +478,30 @@ namespace detail {
   }
 
   template <typename T>
-  ptr<>
-  move(object_header* from, object_header* to) {
-    auto from_storage = reinterpret_cast<object_storage<T>*>(from);
-    auto to_storage = reinterpret_cast<object_storage<T>*>(to);
-    return new (&to_storage->payload_storage) T(
-      std::move(*from_storage->object())
-    );
-  }
-
-  template <typename T>
   void
-  visit_members(object_header* o, member_visitor const& f) {
-    reinterpret_cast<object_storage<T>*>(o)->object()->visit_members(f);
+  visit_members(object_header const* o, member_visitor const& f) {
+    reinterpret_cast<object_storage<T> const*>(o)->object()->visit_members(f);
   }
 
   template <typename T, typename U>
   std::size_t
-  size(object_header* o) {
-    auto storage = reinterpret_cast<object_storage<T>*>(o);
+  size(object_header const* o) {
+    auto storage = reinterpret_cast<object_storage<T> const*>(o);
     return sizeof(T)
            + detail::round_to_words(storage->object()->size_ * sizeof(U));
   }
 
   template <typename T>
   std::size_t
-  storage_size(object_header* o) {
-    auto storage = reinterpret_cast<object_storage<T>*>(o);
+  storage_size(object_header const* o) {
+    auto storage = reinterpret_cast<object_storage<T> const*>(o);
     return sizeof(*storage);
   }
 
   template <typename T, typename U>
   std::size_t
-  dynamic_storage_size(object_header* o) {
-    auto storage = reinterpret_cast<object_storage<T>*>(o);
+  dynamic_storage_size(object_header const* o) {
+    auto storage = reinterpret_cast<object_storage<T> const*>(o);
     return sizeof(*storage)
            + detail::round_to_words(storage->object()->size_ * sizeof(U));
   }
@@ -540,8 +529,7 @@ word_type const leaf_object<Derived>::type_index = new_type(
   type_descriptor{
     Derived::scheme_name,
     detail::destroy<Derived>,
-    detail::move<Derived>,
-    [] (object_header*, member_visitor const&) { },
+    [] (object_header const*, member_visitor const&) { },
     true,
     detail::round_to_words(sizeof(Derived)),
     nullptr,
@@ -562,7 +550,6 @@ word_type const composite_object<Derived>::type_index = new_type(
   type_descriptor{
     Derived::scheme_name,
     detail::destroy<Derived>,
-    detail::move<Derived>,
     detail::visit_members<Derived>,
     true,
     detail::round_to_words(sizeof(Derived)),
@@ -590,11 +577,11 @@ struct alignas(T) dynamic_size_object {
 protected:
   template <typename, typename>
   friend std::size_t
-  detail::size(object_header*);
+  detail::size(object_header const*);
 
   template <typename, typename>
   friend std::size_t
-  detail::dynamic_storage_size(object_header*);
+  detail::dynamic_storage_size(object_header const*);
 
   T&
   storage_element(std::size_t i) {
@@ -619,7 +606,6 @@ word_type const dynamic_size_object<Derived, T>::type_index
       type_descriptor{
         Derived::scheme_name,
         detail::destroy<Derived>,
-        detail::move<Derived>,
         detail::visit_members<Derived>,
         false,
         0,

@@ -95,7 +95,7 @@ namespace {
 
 template <typename F>
 static void
-visit_members(object_header* o, F&& f) {
+visit_members(object_header const* o, F&& f) {
   object_type(o).visit_members(o, visitor<F>{f});
 }
 
@@ -228,7 +228,7 @@ sweep_nursery_weak_boxes(std::vector<ptr<weak_box>>& boxes) {
 }
 
 static bool
-has_arcs_to_nursery(object_header* o) {
+has_arcs_to_nursery(object_header const* o) {
   bool result = false;
   visit_members(o, [&] (ptr<> x) {
     if (x && is_object_ptr(x) && object_age(x) < mature_age)
