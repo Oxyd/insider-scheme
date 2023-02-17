@@ -18,15 +18,15 @@ TEST_F(records, create_instance_of_record) {
 TEST_F(records, access_first_field_of_record) {
   auto type = make<record_type>(ctx, 1);
   auto inst = make_instance(ctx, type);
-  inst->set(0, integer_to_ptr(42));
+  inst->set(ctx.store, 0, integer_to_ptr(42));
   EXPECT_EQ(expect<integer>(inst->ref(0)).value(), 42);
 }
 
 TEST_F(records, access_two_fields_of_record) {
   auto type = make<record_type>(ctx, 2);
   auto inst = make_instance(ctx, type);
-  inst->set(0, ctx.intern("first"));
-  inst->set(1, ctx.intern("second"));
+  inst->set(ctx.store, 0, ctx.intern("first"));
+  inst->set(ctx.store, 1, ctx.intern("second"));
   EXPECT_EQ(expect<symbol>(inst->ref(0))->value(), "first");
   EXPECT_EQ(expect<symbol>(inst->ref(1))->value(), "second");
 }

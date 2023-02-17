@@ -1,6 +1,7 @@
 #ifndef INSIDER_RUNTIME_RECORDS_HPP
 #define INSIDER_RUNTIME_RECORDS_HPP
 
+#include "memory/member_ptr.hpp"
 #include "object.hpp"
 #include "type_indexes.hpp"
 
@@ -25,7 +26,9 @@ private:
   std::size_t num_fields_;
 };
 
-class record_instance : public dynamic_size_object<record_instance, ptr<>> {
+class record_instance
+  : public dynamic_size_object<record_instance, member_ptr<>>
+{
 public:
   static constexpr char const* scheme_name = "insider::record_instance";
   static constexpr word_type static_type_index = type_indexes::record_instance;
@@ -42,7 +45,7 @@ public:
   type() const { return type_; }
 
   void
-  set(std::size_t field, ptr<> value);
+  set(free_store&, std::size_t field, ptr<> value);
 
   ptr<>
   ref(std::size_t field);
