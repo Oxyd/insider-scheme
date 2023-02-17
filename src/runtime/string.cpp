@@ -347,7 +347,7 @@ ptr<string>
 utf8_to_string(context& ctx, ptr<bytevector> bv,
                std::size_t start, std::size_t end) {
   assert(start <= end);
-  assert(start < bv->size());
+  assert(start <= bv->size());
   assert(end <= bv->size());
 
   check_utf8(bv, start, end);
