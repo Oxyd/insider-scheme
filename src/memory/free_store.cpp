@@ -1,4 +1,5 @@
 #include "free_store.hpp"
+#include "memory/allocator.hpp"
 #include "memory/member_visitor.hpp"
 #include "memory/root_list.hpp"
 #include "object.hpp"
@@ -60,9 +61,9 @@ set_remembered(object_header* h, bool remembered) {
 }
 
 static void
-deallocate(object_header* o) {
+deallocate(object_header* o, allocator& a) {
   object_type(o).destroy(o);
-  delete [] reinterpret_cast<std::byte*>(o);
+  a.deallocate(reinterpret_cast<std::byte*>(o), storage_size(o));
 }
 
 void
@@ -73,11 +74,11 @@ weak_box::set(free_store& store, ptr<> value) {
 
 free_store::~free_store() {
   for (object_header* o : mature_)
-    deallocate(o);
+    deallocate(o, alloc_);
   for (object_header* o : nursery_)
-    deallocate(o);
+    deallocate(o, alloc_);
   for (ptr<weak_box> b : weak_boxes_)
-    deallocate(b.header());
+    deallocate(b.header(), alloc_);
 }
 
 namespace {
@@ -190,7 +191,8 @@ namespace {
 }
 
 static sweep_result
-sweep_weak_boxes(std::vector<ptr<weak_box>>& boxes, word_type max_age) {
+sweep_weak_boxes(std::vector<ptr<weak_box>>& boxes, word_type max_age,
+                 allocator& alloc) {
   std::size_t deallocated_size = 0;
   std::size_t nursery_deallocated_size = 0;
   std::vector<ptr<weak_box>> survivors;
@@ -202,7 +204,7 @@ sweep_weak_boxes(std::vector<ptr<weak_box>>& boxes, word_type max_age) {
       if (object_age(b) < mature_age)
         nursery_deallocated_size += size;
 
-      deallocate(b.header());
+      deallocate(b.header(), alloc);
     } else {
       if (b->get()
           && object_age(b->get()) <= max_age
@@ -219,13 +221,13 @@ sweep_weak_boxes(std::vector<ptr<weak_box>>& boxes, word_type max_age) {
 }
 
 static sweep_result
-sweep_all_weak_boxes(std::vector<ptr<weak_box>>& boxes) {
-  return sweep_weak_boxes(boxes, mature_age);
+sweep_all_weak_boxes(std::vector<ptr<weak_box>>& boxes, allocator& alloc) {
+  return sweep_weak_boxes(boxes, mature_age, alloc);
 }
 
 static std::size_t
-sweep_nursery_weak_boxes(std::vector<ptr<weak_box>>& boxes) {
-  return sweep_weak_boxes(boxes, mature_age - 1).total_deallocated_size;
+sweep_nursery_weak_boxes(std::vector<ptr<weak_box>>& boxes, allocator& alloc) {
+  return sweep_weak_boxes(boxes, mature_age - 1, alloc).total_deallocated_size;
 }
 
 static bool
@@ -239,7 +241,7 @@ has_arcs_to_nursery(object_header const* o) {
 }
 
 static std::size_t
-sweep_mature(object_list& mature, object_list& remembered) {
+sweep_mature(object_list& mature, object_list& remembered, allocator& alloc) {
   std::size_t deallocated_size = 0;
   object_list survivors;
 
@@ -248,7 +250,7 @@ sweep_mature(object_list& mature, object_list& remembered) {
   for (object_header* o : mature)
     if (object_color(o) == color::white) {
       deallocated_size += storage_size(o);
-      deallocate(o);
+      deallocate(o, alloc);
     } else {
       assert(object_color(o) == color::black); // No gray objects here
       set_object_color(o, color::white);
@@ -265,14 +267,14 @@ sweep_mature(object_list& mature, object_list& remembered) {
 }
 
 static std::size_t
-sweep_nursery(object_list& nursery) {
+sweep_nursery(object_list& nursery, allocator& alloc) {
   std::size_t deallocated_size = 0;
   object_list survivors;
 
   for (object_header* o : nursery)
     if (object_color(o) == color::white) {
       deallocated_size += storage_size(o);
-      deallocate(o);
+      deallocate(o, alloc);
     } else {
       assert(object_color(o) == color::black); // No gray objects here
       set_object_color(o, color::white);
@@ -284,9 +286,10 @@ sweep_nursery(object_list& nursery) {
 }
 
 static sweep_result
-sweep_all(object_list& mature, object_list& nursery, object_list& remembered) {
-  std::size_t mature_deallocated = sweep_mature(mature, remembered);
-  std::size_t nursery_deallocated = sweep_nursery(nursery);
+sweep_all(object_list& mature, object_list& nursery, object_list& remembered,
+          allocator& alloc) {
+  std::size_t mature_deallocated = sweep_mature(mature, remembered, alloc);
+  std::size_t nursery_deallocated = sweep_nursery(nursery, alloc);
   return {mature_deallocated + nursery_deallocated,
           nursery_deallocated};
 }
@@ -320,7 +323,8 @@ promote_objects(object_list const& to_promote, object_list& mature,
 
 static sweep_result
 sweep_and_promote_nursery(object_list& nursery, object_list& mature,
-                          object_list& remembered) {
+                          object_list& remembered,
+                          allocator& alloc) {
   std::size_t nursery_size_reduction = 0;
   std::size_t total_size_reduction = 0;
   object_list new_nursery;
@@ -331,7 +335,7 @@ sweep_and_promote_nursery(object_list& nursery, object_list& mature,
       std::size_t size = storage_size(o);
       nursery_size_reduction += size;
       total_size_reduction += size;
-      deallocate(o);
+      deallocate(o, alloc);
     } else {
       assert(object_color(o) == color::black); // No gray objects here
       set_object_color(o, color::white);
@@ -370,10 +374,10 @@ free_store::collect_major() {
   mark_all(roots_);
 
   auto [swept_total_weak, swept_nursery_weak]
-    = sweep_all_weak_boxes(weak_boxes_);
+    = sweep_all_weak_boxes(weak_boxes_, alloc_);
 
   auto [swept_total, swept_nursery]
-    = sweep_all(mature_, nursery_, remembered_set_);
+    = sweep_all(mature_, nursery_, remembered_set_, alloc_);
 
   std::size_t deallocated_total = swept_total_weak + swept_total;
   std::size_t deallocated_nursery = swept_nursery_weak + swept_nursery;
@@ -389,9 +393,9 @@ void
 free_store::collect_minor() {
   mark_nursery(roots_, remembered_set_);
 
-  std::size_t weak_swept = sweep_nursery_weak_boxes(weak_boxes_);
+  std::size_t weak_swept = sweep_nursery_weak_boxes(weak_boxes_, alloc_);
   auto [all_swept, nursery_swept]
-    = sweep_and_promote_nursery(nursery_, mature_, remembered_set_);
+    = sweep_and_promote_nursery(nursery_, mature_, remembered_set_, alloc_);
 
   std::size_t nursery_swept_total = weak_swept + nursery_swept;
   std::size_t all_swept_total = weak_swept + all_swept;

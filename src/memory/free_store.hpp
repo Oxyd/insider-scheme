@@ -1,6 +1,7 @@
 #ifndef INSIDER_MEMORY_FREE_STORE_HPP
 #define INSIDER_MEMORY_FREE_STORE_HPP
 
+#include "memory/allocator.hpp"
 #include "memory/root_list.hpp"
 #include "object.hpp"
 #include "type_indexes.hpp"
@@ -92,9 +93,10 @@ public:
     auto* storage = allocate_storage<T>(size);
     increase_alloc_size(size);
 
-    new (&storage->payload_storage) T(std::forward<Args>(args)...);
+    ptr<T> result{
+      new (&storage->payload_storage) T(std::forward<Args>(args)...)
+    };
 
-    ptr<T> result{storage};
     if constexpr (std::is_same_v<T, weak_box>)
       weak_boxes_.push_back(result);
     else
@@ -129,6 +131,7 @@ private:
   static constexpr std::size_t min_alloc_size = 32ull * 1024 * 1024;
   static constexpr std::size_t nursery_threshold = 8ull * 1024 * 1024;
 
+  allocator                  alloc_;
   object_list                nursery_;
   object_list                mature_;
   std::vector<ptr<weak_box>> weak_boxes_;
@@ -144,7 +147,7 @@ private:
   template <typename T>
   object_storage<T>*
   allocate_storage(std::size_t size) {
-    auto* buffer = new std::byte[size];
+    std::byte* buffer = alloc_.allocate(size);
     auto* storage = new (buffer) object_storage<T>;
     storage->header = make_header(T::type_index);
 

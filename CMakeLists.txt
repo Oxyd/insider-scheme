@@ -117,16 +117,17 @@ set(scheme_sources
         src/io/reader_stream.hpp
         src/io/write.cpp
         src/io/write.hpp
+        src/memory/allocator.hpp
         src/memory/free_store.cpp
         src/memory/free_store.hpp
         src/memory/member_ptr.hpp
         src/memory/member_visitor.hpp
+        src/memory/preserve.hpp
         src/memory/root_list.cpp
         src/memory/root_list.hpp
         src/memory/root_provider.cpp
         src/memory/root_provider.hpp
         src/memory/root_ptr.hpp
-        src/memory/preserve.hpp
         src/module.cpp
         src/module.hpp
         src/module_resolver.cpp
