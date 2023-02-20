@@ -311,12 +311,13 @@ static void
 promote_objects(object_list const& to_promote, object_list& mature,
                 object_list& remembered) {
   for (object_header* o : to_promote) {
-    if (has_arcs_to_nursery(o)) {
+    if (header_needs_scan_on_promote(*o) && has_arcs_to_nursery(o)) {
       assert(!object_remembered(o));
       mark_remembered(o);
       remembered.push_back(o);
     }
 
+    set_header_needs_scan_on_promote(*o, false);
     mature.push_back(o);
   }
 }

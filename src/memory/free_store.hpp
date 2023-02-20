@@ -106,11 +106,13 @@ public:
 
   void
   notify_arc(ptr<> from, ptr<> to) {
-    if (to && is_object_ptr(to)
-        && object_age(from) == mature_age && object_age(to) < mature_age
-        && !object_remembered(from)) {
-      remembered_set_.push_back(from.header());
-      mark_object_remembered(from);
+    if (to && is_object_ptr(to) && !object_remembered(from)) {
+      if (object_age(from) == mature_age && object_age(to) < mature_age) {
+        remembered_set_.push_back(from.header());
+        mark_object_remembered(from);
+      } else if (object_age(from) > object_age(to)) {
+        mark_needs_scan_on_promote(from);
+      }
     }
   }
 

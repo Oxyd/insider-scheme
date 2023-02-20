@@ -46,8 +46,9 @@ using object_header = word_type;
 
 // Object header layout:
 //
-// | type ... | R | A | A | C | C | 1
+// | type ... | S | R | A | A | C | C | 1
 //
+// S: Need to scan this object when promoting?
 // R: Object is in remembered set?
 // A: Age
 // C: Colour
@@ -55,15 +56,17 @@ using object_header = word_type;
 // The least significant bit is always 1. It's used to distinguish live objects
 // from available storage in fixed-size allocators.
 
-static constexpr word_type alive_mask      = 0b000001;
-static constexpr word_type color_mask      = 0b000110;
-static constexpr word_type age_mask        = 0b011000;
-static constexpr word_type remembered_mask = 0b100000;
+static constexpr word_type alive_mask      = 0b0000001;
+static constexpr word_type color_mask      = 0b0000110;
+static constexpr word_type age_mask        = 0b0011000;
+static constexpr word_type remembered_mask = 0b0100000;
+static constexpr word_type need_scan_mask  = 0b1000000;
 
 static constexpr word_type color_shift = 1;
 static constexpr word_type age_shift = 3;
 static constexpr word_type remembered_shift = 5;
-static constexpr word_type type_shift = 6;
+static constexpr word_type need_scan_shift = 6;
+static constexpr word_type type_shift = 7;
 
 inline word_type
 header_type(object_header h) { return h >> type_shift; }
@@ -104,6 +107,16 @@ header_remembered(object_header h) {
 inline void
 set_header_remembered(object_header& h, bool r) {
   h = (h & ~remembered_mask) | (static_cast<word_type>(r) << remembered_shift);
+}
+
+inline bool
+header_needs_scan_on_promote(object_header h) {
+  return (h & need_scan_mask) != 0;
+}
+
+inline void
+set_header_needs_scan_on_promote(object_header& h, bool s) {
+  h = (h & ~need_scan_mask) | (static_cast<word_type>(s) << need_scan_shift);
 }
 
 inline object_header
@@ -623,6 +636,11 @@ object_remembered(ptr<> o) { return header_remembered(*o.header()); }
 
 inline void
 mark_object_remembered(ptr<> o) { set_header_remembered(*o.header(), true); }
+
+inline void
+mark_needs_scan_on_promote(ptr<> o) {
+  set_header_needs_scan_on_promote(*o.header(), true);
+}
 
 } // namespace insider
 
