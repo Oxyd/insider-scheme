@@ -1021,7 +1021,7 @@ TEST_F(control,
 
 TEST_F(control, can_get_parameter_value_with_no_scheme_frame) {
   auto tag = create_parameter_tag(ctx, integer_to_ptr(0));
-  ptr<> result = ctx.parameters->find_value(tag);
+  ptr<> result = ctx.parameters.find_value(tag);
   EXPECT_EQ(expect<integer>(result).value(), 0);
 }
 

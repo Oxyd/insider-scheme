@@ -25,8 +25,6 @@ context::context() {
   constants->character_type_symbol = intern(character_type_name);
   constants->string_cursor_type_symbol = intern(string_cursor_type_name);
 
-  parameters = make<parameter_map>(*this);
-
   module_resolver().set_internal_module(make_internal_module(*this));
 
   struct {
@@ -206,7 +204,7 @@ context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.constants->current_expand_module_tag);
   f(ctx_.constants->interaction_environment_specifier_tag);
 
-  f(ctx_.parameters);
+  ctx_.parameters.visit_members(f);
 
   for (auto& [name, symbol] : ctx_.interned_symbols_)
     f(symbol);

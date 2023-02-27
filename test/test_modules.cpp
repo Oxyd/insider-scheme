@@ -660,7 +660,7 @@ TEST_F(export_all_imported_fixture, imports_with_only_specifier) {
 TEST_F(modules, default_interaction_environment_specifier_is_internal) {
   EXPECT_TRUE(
     equal(
-      ctx.parameters->find_value(
+      ctx.parameters.find_value(
         ctx.constants->interaction_environment_specifier_tag
       ),
       read("(insider internal)")
@@ -678,8 +678,7 @@ TEST_F(modules, interaction_environment_imports_default_specifier) {
       (define witness 0)
     )"
   );
-  ctx.parameters->set_value(
-    ctx.store,
+  ctx.parameters.set_value(
     ctx.constants->interaction_environment_specifier_tag,
     read("(foo)")
   );

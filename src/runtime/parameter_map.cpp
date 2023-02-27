@@ -15,11 +15,10 @@ parameter_map::find_value(ptr<parameter_tag> tag) {
 }
 
 void
-parameter_map::set_value(free_store& fs, ptr<parameter_tag> tag,
-                         ptr<> new_value) {
+parameter_map::set_value(ptr<parameter_tag> tag, ptr<> new_value) {
   for (auto& [key, value] : values_)
     if (key == tag) {
-      value.assign(fs, this, new_value);
+      value = new_value;
       return;
     }
 
@@ -27,16 +26,15 @@ parameter_map::set_value(free_store& fs, ptr<parameter_tag> tag,
 }
 
 void
-parameter_map::add_value(free_store& fs, ptr<parameter_tag> tag, ptr<> value) {
-  values_.emplace_back(member_ptr<parameter_tag>{fs, this, tag}, 
-                       member_ptr<>{fs, this, value});
+parameter_map::add_value(ptr<parameter_tag> tag, ptr<> value) {
+  values_.emplace_back(tag, value);
 }
 
 void
 parameter_map::visit_members(member_visitor const& f) const {
-  for (auto& [key, value] : values_) {
-    key.visit_members(f);
-    value.visit_members(f);
+  for (auto const& [key, value] : values_) {
+    f(key);
+    f(value);
   }
 }
 

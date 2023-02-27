@@ -443,7 +443,7 @@ dynamic_import(context& ctx, ptr<native_procedure>, object_span args) {
 
 root_ptr<module_>
 interaction_environment(context& ctx) {
-  auto import_datum = ctx.parameters->find_value(
+  auto import_datum = ctx.parameters.find_value(
     ctx.constants->interaction_environment_specifier_tag
   );
   auto import_stx = datum_to_syntax(ctx, {}, import_datum);

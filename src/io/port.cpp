@@ -651,7 +651,7 @@ get_current_textual_input_port(vm& state) {
 ptr<textual_input_port>
 get_global_textual_input_port(context& ctx) {
   return expect<textual_input_port>(
-    ctx.parameters->find_value(ctx.constants->current_input_port_tag)
+    ctx.parameters.find_value(ctx.constants->current_input_port_tag)
   );
 }
 
@@ -665,7 +665,7 @@ get_current_textual_output_port(vm& state) {
 ptr<textual_output_port>
 get_global_textual_output_port(context& ctx) {
   return expect<textual_output_port>(
-    ctx.parameters->find_value(ctx.constants->current_output_port_tag)
+    ctx.parameters.find_value(ctx.constants->current_output_port_tag)
   );
 }
 

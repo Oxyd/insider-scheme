@@ -182,8 +182,7 @@ run(int argc, char** argv, insider::context& ctx) {
       std::make_unique<insider::filesystem_source_code_provider>(path)
     );
 
-  ctx.parameters->set_value(
-    ctx.store,
+  ctx.parameters.set_value(
     ctx.constants->interaction_environment_specifier_tag,
     insider::read(ctx, opts.interaction_environment_specifier)
   );

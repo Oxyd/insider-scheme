@@ -2014,7 +2014,7 @@ call_with_continuation_barrier(vm& state, ptr<> callable) {
 ptr<parameter_tag>
 create_parameter_tag(context& ctx, ptr<> initial_value) {
   auto tag = make<parameter_tag>(ctx);
-  ctx.parameters->add_value(ctx.store, tag, initial_value);
+  ctx.parameters.add_value(tag, initial_value);
   return tag;
 }
 
@@ -2066,7 +2066,7 @@ set_parameter_value(vm& state, ptr<parameter_tag> tag, ptr<> value) {
   if (frame) 
     set_parameter_value_in_frame(stack, *frame, tag, value);
   else
-    state.ctx.parameters->set_value(state.ctx.store, tag, value);
+    state.ctx.parameters.set_value(tag, value);
 }
 
 static ptr<>
@@ -2088,7 +2088,7 @@ find_parameter_value(vm& state, ptr<parameter_tag> tag) {
   if (auto value = find_parameter_value_in_stack(state, tag))
     return value;
   else
-    return state.ctx.parameters->find_value(tag);
+    return state.ctx.parameters.find_value(tag);
 }
 
 static void

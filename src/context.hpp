@@ -5,6 +5,7 @@
 #include "memory/free_store.hpp"
 #include "module_resolver.hpp"
 #include "object.hpp"
+#include "runtime/parameter_map.hpp"
 #include "vm/bytecode.hpp"
 #include "vm/operand.hpp"
 #include "vm/stacktrace.hpp"
@@ -24,7 +25,6 @@ class integer;
 class keyword;
 class module_;
 class null_type;
-class parameter_map;
 class parameter_tag;
 class procedure_prototype;
 class scope;
@@ -70,7 +70,7 @@ public:
   // Built from actions during stack unwinding.
   std::string                      action_backtrace;
   stacktrace                       last_exception_stacktrace;
-  ptr<parameter_map>               parameters;
+  parameter_map                    parameters;
 
   context();
   ~context();
