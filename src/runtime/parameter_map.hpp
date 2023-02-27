@@ -3,11 +3,12 @@
 
 #include "object.hpp"
 
+#include <unordered_map>
+
 namespace insider {
 
 class parameter_tag;
 
-// Flat map of parameter_tag's to values.
 class parameter_map {
 public:
   ptr<>
@@ -23,7 +24,7 @@ public:
   visit_members(member_visitor const&) const;
 
 private:
-  std::vector<std::tuple<ptr<parameter_tag>, ptr<>>> values_;
+  std::unordered_map<ptr<parameter_tag>, ptr<>> values_;
 };
 
 } // namespace insider

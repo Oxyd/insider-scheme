@@ -6,28 +6,21 @@ namespace insider {
 
 ptr<>
 parameter_map::find_value(ptr<parameter_tag> tag) {
-  for (auto const& [key, value] : values_)
-    if (key == tag)
-      return value;
-
-  assert(!"Parameter tag not found");
-  return {};
+  auto it = values_.find(tag);
+  assert(it != values_.end());
+  return it->second;
 }
 
 void
 parameter_map::set_value(ptr<parameter_tag> tag, ptr<> new_value) {
-  for (auto& [key, value] : values_)
-    if (key == tag) {
-      value = new_value;
-      return;
-    }
-
-  assert(!"Parameter tag not found");
+  auto it = values_.find(tag);
+  assert(it != values_.end());
+  it->second = new_value;
 }
 
 void
 parameter_map::add_value(ptr<parameter_tag> tag, ptr<> value) {
-  values_.emplace_back(tag, value);
+  values_.emplace(tag, value);
 }
 
 void
