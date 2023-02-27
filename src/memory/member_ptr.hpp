@@ -28,6 +28,8 @@ public:
     store.notify_arc(owner, value_);
   }
 
+  member_ptr(member_ptr const&) = delete;
+
   void
   operator = (member_ptr const&) = delete;
 

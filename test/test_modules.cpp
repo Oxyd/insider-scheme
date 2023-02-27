@@ -16,14 +16,9 @@ struct modules : scheme_fixture {
   void
   compare_top_level_bindings(root_ptr<module_> const& m,
                              std::set<std::string> const& names) {
-    auto deref = [] (auto p) { return *p; };
-    auto actual_names = *m->scope()
-      | std::views::transform(&scope::binding::id)
-      | std::views::transform(deref)
-      | std::views::transform(&syntax::get_symbol)
-      | std::views::transform(deref)
-      | std::views::transform(&symbol::value)
-      ;
+    std::set<std::string> actual_names;
+    for (auto const& binding : *m->scope())
+      actual_names.emplace(binding.id->get_symbol()->value());
     EXPECT_EQ(std::set<std::string>(actual_names.begin(), actual_names.end()),
               names);
   }
