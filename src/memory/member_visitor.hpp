@@ -19,6 +19,21 @@ public:
   operator () (ptr<>&&) const = delete;
 };
 
+template <typename T>
+concept visitable = requires (T& t, member_visitor const& f) {
+  t.visit_members(f);
+};
+
+inline void
+visit_members(member_visitor const& f, ptr<>& p) {
+  f(p);
+}
+
+void
+visit_members(member_visitor const& f, visitable auto& x) {
+  x.visit_members(f);
+}
+
 } // namespace insider
 
 #endif

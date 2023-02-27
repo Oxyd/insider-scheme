@@ -123,6 +123,7 @@ set(scheme_sources
         src/memory/member_ptr.hpp
         src/memory/member_visitor.hpp
         src/memory/preserve.hpp
+        src/memory/root.hpp
         src/memory/root_list.cpp
         src/memory/root_list.hpp
         src/memory/root_provider.cpp

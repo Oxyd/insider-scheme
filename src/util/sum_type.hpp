@@ -167,35 +167,6 @@ struct to_scheme_converter<sum_type<Ts...>> {
   convert(context&, sum_type<Ts...> sum) { return sum.get(); }
 };
 
-template <typename Sum>
-class tracked_sum_type : public root_provider {
-public:
-  explicit
-  tracked_sum_type(free_store& fs) : root_provider(fs) { }
-
-  tracked_sum_type(free_store& fs, Sum s)
-    : root_provider(fs)
-    , sum_{s}
-  { }
-
-  Sum&
-  get() { return sum_; }
-
-  Sum
-  get() const { return sum_; }
-
-  tracked_sum_type&
-  operator = (Sum s) { sum_ = s; return *this; }
-
-private:
-  Sum sum_;
-
-  void
-  visit_roots(member_visitor const& f) override {
-    sum_.visit_members(f);
-  }
-};
-
 } // namespace insider
 
 #endif

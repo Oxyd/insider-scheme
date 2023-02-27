@@ -10,6 +10,7 @@
 #include "io/write.hpp"
 #include "memory/member_visitor.hpp"
 #include "memory/preserve.hpp"
+#include "memory/root.hpp"
 #include "runtime/action.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/syntax.hpp"
@@ -1666,11 +1667,11 @@ process_qq_template(parsing_context& pc, std::unique_ptr<qq_template> const& tpl
                     bool force_unwrapped = false);
 
 template <typename Traits>
-static tracked_expression
+static root<expression>
 make_qq_tail_expression(parsing_context& pc,
                         std::unique_ptr<qq_template> const& tpl,
                         list_pattern const& lp) {
-  tracked_expression tail{pc.ctx.store};
+  root<expression> tail{pc.ctx.store};
   if (lp.last) {
     if (is_splice(lp.last->cdr))
       throw make_compile_error<syntax_error>(
@@ -1678,18 +1679,18 @@ make_qq_tail_expression(parsing_context& pc,
       );
 
     if (is_splice(lp.last->car)) {
-      tracked_expression car{
+      root<expression> car{
         pc.ctx.store, process_qq_template<Traits>(pc, lp.last->car, true)
       };
-      tracked_expression cdr{
+      root<expression> cdr{
         pc.ctx.store, process_qq_template<Traits>(pc, lp.last->cdr, true)
       };
       tail = make_application(pc.ctx, "append", car.get(), cdr.get());
     } else {
-      tracked_expression car{
+      root<expression> car{
         pc.ctx.store, process_qq_template<Traits>(pc, lp.last->car)
       };
-      tracked_expression cdr{
+      root<expression> cdr{
         pc.ctx.store, process_qq_template<Traits>(pc, lp.last->cdr)
       };
       tail = make_application(pc.ctx, "cons", car.get(), cdr.get());
@@ -1704,7 +1705,7 @@ process_qq_pattern(parsing_context& pc,
                    std::unique_ptr<qq_template> const& tpl,
                    bool force_unwrapped,
                    list_pattern const& lp) {
-  tracked_expression tail = make_qq_tail_expression<Traits>(pc, tpl, lp);
+  root<expression> tail = make_qq_tail_expression<Traits>(pc, tpl, lp);
 
   for (auto const& elem : lp.elems | std::views::reverse) {
     if (tail.get()) {
@@ -1722,8 +1723,8 @@ process_qq_pattern(parsing_context& pc,
       if (is_splice(elem))
         tail = process_qq_template<Traits>(pc, elem, true);
       else {
-        tracked_expression car{pc.ctx.store,
-                               process_qq_template<Traits>(pc, elem)};
+        root<expression> car{pc.ctx.store,
+                             process_qq_template<Traits>(pc, elem)};
         tail = make_application(
           pc.ctx, "cons",
           car.get(),

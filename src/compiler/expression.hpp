@@ -22,8 +22,6 @@ using expression = sum_type<
   class loop_continue
 >;
 
-using tracked_expression = tracked_sum_type<expression>;
-
 } // namespace insider
 
 #endif

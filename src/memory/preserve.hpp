@@ -9,30 +9,11 @@
 namespace insider {
 
 template <typename T>
-concept visitable = requires (T& t, member_visitor const& f) {
-  t.visit_members(f);
-};
-
-namespace detail {
-
-  inline void
-  visit_members(member_visitor const& f, ptr<>& p) {
-    f(p);
-  }
-
-  void
-  visit_members(member_visitor const& f, visitable auto& x) {
-    x.visit_members(f);
-  }
-
-  template <typename T>
-  void
-  visit_members(member_visitor const& f, std::vector<T>& v) {
-    for (auto& p : v)
-      visit_members(f, p);
-  }
-
-} // namespace detail
+void
+visit_members(member_visitor const& f, std::vector<T>& v) {
+  for (auto& p : v)
+    visit_members(f, p);
+}
 
 // Root provider for a list of local variables.
 template <typename... Ts>
@@ -46,7 +27,7 @@ public:
 
   void
   visit_roots(member_visitor const& f) override {
-    std::apply([&] (auto&... elems) { (detail::visit_members(f, elems), ...); },
+    std::apply([&] (auto&... elems) { (visit_members(f, elems), ...); },
                ptrs_);
   }
 
