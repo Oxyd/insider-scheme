@@ -35,10 +35,10 @@ TEST_F(types, intern) {
   EXPECT_TRUE(b_1);
   EXPECT_TRUE(a_2);
 
-  EXPECT_EQ(a_1, a_2);
-  EXPECT_NE(a_1, b_1);
+  EXPECT_EQ(a_1.get(), a_2.get());
+  EXPECT_NE(a_1.get(), b_1.get());
 
-  b_1.reset();
+  b_1.get().reset();
   ctx.store.collect_garbage(true);
 
   ptr<symbol> b_2 = ctx.intern("b");
@@ -71,7 +71,7 @@ TEST_F(types, vector) {
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
 
-  v2.reset();
+  v2.get().reset();
   ctx.store.collect_garbage(true);
 
   EXPECT_FALSE(one);

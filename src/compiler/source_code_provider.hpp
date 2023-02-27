@@ -3,6 +3,7 @@
 
 #include "compiler/source_file_origin.hpp"
 #include "io/port.hpp"
+#include "memory/root.hpp"
 
 #include <filesystem>
 #include <optional>
@@ -15,7 +16,7 @@ class context;
 class syntax;
 
 struct source_file {
-  unique_port_handle<root_ptr<textual_input_port>> port;
+  root<unique_port_handle<textual_input_port>> port;
   source_file_origin origin;
 };
 

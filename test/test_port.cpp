@@ -224,7 +224,7 @@ TEST_F(port_fixture, write_sequence_of_bytes) {
 TEST_F(port_fixture, unique_port_handle_closes_port_when_out_of_scope) {
   ptr<textual_input_port> p;
   {
-    unique_port_handle<ptr<textual_input_port>> h{open_input_string("")};
+    unique_port_handle<textual_input_port> h{open_input_string("")};
     p = h.get();
     EXPECT_TRUE(p->open());
   }

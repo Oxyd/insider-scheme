@@ -78,7 +78,7 @@ find_module_in_provider(context& ctx,
   for (auto const& candidate : candidates)
     if (auto source = provider.find_file(ctx, candidate))
       if (read_library_name(ctx, source->port.get().get()) == name) {
-        source->port->rewind();
+        source->port.get().get()->rewind();
         return source;
       }
 

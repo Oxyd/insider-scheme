@@ -3,7 +3,7 @@
 
 #include "compiler/expression.hpp"
 #include "compiler/parsing_context.hpp"
-#include "memory/root_ptr.hpp"
+#include "memory/root.hpp"
 
 #include <memory>
 

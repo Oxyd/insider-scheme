@@ -9,7 +9,7 @@
 #include "compiler/syntax_list.hpp"
 #include "io/read.hpp"
 #include "memory/preserve.hpp"
-#include "memory/root_ptr.hpp"
+#include "memory/root.hpp"
 #include "runtime/string.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"

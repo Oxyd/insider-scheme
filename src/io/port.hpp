@@ -410,13 +410,13 @@ peek_u8(context& ctx, ptr<binary_input_port> port);
 void
 write_u8(std::uint8_t byte, ptr<binary_output_port> port);
 
-template <typename PortPtr>
+template <typename PortType>
 class unique_port_handle {
 public:
   unique_port_handle() = default;
 
   explicit
-  unique_port_handle(PortPtr p) : ptr_{std::move(p)} { }
+  unique_port_handle(ptr<PortType> p) : ptr_{p} { }
 
   unique_port_handle(unique_port_handle&& other) noexcept
     : ptr_{std::move(other.ptr_)}
@@ -424,7 +424,10 @@ public:
     other.ptr_.reset();
   }
 
-  ~unique_port_handle() { if (ptr_) ptr_->close(); }
+  ~unique_port_handle() {
+    if (ptr_)
+      ptr_->close();
+  }
 
   unique_port_handle&
   operator = (unique_port_handle&& other) noexcept {
@@ -439,24 +442,23 @@ public:
     return *this;
   }
 
-  PortPtr
-  operator * () const { return ptr_; }
-
-  auto
-  operator -> () const { return ptr_.operator -> (); }
-
-  PortPtr
+  ptr<PortType>
   get() const { return ptr_; }
 
-  PortPtr
+  ptr<PortType>
   release() {
-    PortPtr result = std::move(ptr_);
+    ptr<PortType> result = ptr_;
     ptr_.reset();
     return result;
   }
 
+  void
+  visit_members(member_visitor const& f) {
+    f(ptr_);
+  }
+
 private:
-  PortPtr ptr_;
+  ptr<PortType> ptr_;
 };
 
 using port = sum_type<textual_input_port, textual_output_port,

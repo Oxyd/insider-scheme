@@ -2,7 +2,7 @@
 #define INSIDER_IO_READER_STREAM_HPP
 
 #include "compiler/source_location.hpp"
-#include "memory/root_ptr.hpp"
+#include "memory/root.hpp"
 
 #include <optional>
 

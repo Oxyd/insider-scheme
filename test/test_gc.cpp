@@ -40,15 +40,15 @@ TEST_F(gc, collect_direct_garbage) {
   EXPECT_TRUE(two);
   EXPECT_TRUE(three);
 
-  a.reset();
+  a.get().reset();
   ctx.store.collect_garbage(true);
 
   EXPECT_FALSE(one);
   EXPECT_TRUE(two);
   EXPECT_TRUE(three);
 
-  b.reset();
-  c.reset();
+  b.get().reset();
+  c.get().reset();
   ctx.store.collect_garbage(true);
 
   EXPECT_FALSE(one);
@@ -139,7 +139,7 @@ TEST_F(gc, collect_indirect_garbage) {
   EXPECT_FALSE(three);
   EXPECT_FALSE(four);
 
-  root.reset();
+  root.get().reset();
   ctx.store.collect_garbage(true);
   EXPECT_FALSE(one);
   EXPECT_FALSE(two);
@@ -157,7 +157,7 @@ TEST_F(gc, collect_circles) {
   EXPECT_TRUE(one);
   EXPECT_TRUE(two);
 
-  a.reset();
+  a.get().reset();
   ctx.store.collect_garbage(true);
   EXPECT_FALSE(one);
   EXPECT_FALSE(two);
@@ -172,7 +172,7 @@ TEST_F(gc, weak_box) {
   EXPECT_TRUE(one);
   EXPECT_TRUE(w);
 
-  a.reset();
+  a.get().reset();
   ctx.store.collect_garbage(true);
   EXPECT_FALSE(one);
 

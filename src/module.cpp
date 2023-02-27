@@ -8,7 +8,7 @@
 #include "compiler/variable.hpp"
 #include "context.hpp"
 #include "io/read.hpp"
-#include "memory/root_ptr.hpp"
+#include "memory/root.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/parameter_map.hpp"
 #include "runtime/symbol.hpp"

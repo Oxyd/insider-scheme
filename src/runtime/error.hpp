@@ -1,7 +1,7 @@
 #ifndef INSIDER_RUNTIME_ERROR_HPP
 #define INSIDER_RUNTIME_ERROR_HPP
 
-#include "memory/root_ptr.hpp"
+#include "memory/root.hpp"
 #include "object.hpp"
 #include "util/named_runtime_error.hpp"
 

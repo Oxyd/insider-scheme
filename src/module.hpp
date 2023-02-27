@@ -5,7 +5,7 @@
 #include "compiler/module_specifier.hpp"
 #include "compiler/scope.hpp"
 #include "memory/free_store.hpp"
-#include "memory/root_ptr.hpp"
+#include "memory/root.hpp"
 #include "object.hpp"
 
 #include <filesystem>

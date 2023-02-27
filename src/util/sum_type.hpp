@@ -1,10 +1,8 @@
 #ifndef INSIDER_UTIL_SUM_TYPE_HPP
 #define INSIDER_UTIL_SUM_TYPE_HPP
 
-#include "memory/root_provider.hpp"
 #include "object.hpp"
 #include "runtime/error.hpp"
-#include "util/object_conversions.hpp"
 
 #include <fmt/format.h>
 

@@ -1,7 +1,7 @@
 #ifndef INSIDER_UTIL_OBJECT_CONVERSIONS_HPP
 #define INSIDER_UTIL_OBJECT_CONVERSIONS_HPP
 
-#include "memory/root_ptr.hpp"
+#include "memory/root.hpp"
 #include "object.hpp"
 #include "runtime/character.hpp"
 #include "runtime/error.hpp"
@@ -135,7 +135,7 @@ namespace detail {
 
     static root_ptr<T>
     assume(root_ptr<> const& x) {
-      assert(!x || is<T>(x));
+      assert(!x.get() || is<T>(x));
       return {x.list(), static_cast<T*>(x.get())};
     }
   };

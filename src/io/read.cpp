@@ -1491,8 +1491,8 @@ read(context& ctx, ptr<textual_input_port> stream) {
 
 ptr<>
 read(context& ctx, std::string s) {
-  unique_port_handle<ptr<textual_input_port>> h{open_input_string(ctx, std::move(s))};
-  return read(ctx, *h);
+  unique_port_handle<textual_input_port> h{open_input_string(ctx, std::move(s))};
+  return read(ctx, h.get());
 }
 
 static ptr<syntax>
@@ -1519,10 +1519,10 @@ read_syntax(context& ctx, ptr<textual_input_port> stream) {
 
 ptr<>
 read_syntax(context& ctx, std::string s) {
-  unique_port_handle<ptr<textual_input_port>> h{
+  unique_port_handle<textual_input_port> h{
     open_input_string(ctx, std::move(s))
   };
-  return read_syntax(ctx, *h);
+  return read_syntax(ctx, h.get());
 }
 
 std::vector<ptr<>>
@@ -1536,10 +1536,10 @@ read_multiple(context& ctx, ptr<textual_input_port> in) {
 
 std::vector<ptr<>>
 read_multiple(context& ctx, std::string s) {
-  unique_port_handle<ptr<textual_input_port>> h{
+  unique_port_handle<textual_input_port> h{
     open_input_string(ctx, std::move(s))
   };
-  return read_multiple(ctx, *h);
+  return read_multiple(ctx, h.get());
 }
 
 static std::vector<ptr<syntax>>
@@ -1566,10 +1566,10 @@ read_syntax_multiple_ci(context& ctx, ptr<textual_input_port> p) {
 
 std::vector<ptr<syntax>>
 read_syntax_multiple(context& ctx, std::string s) {
-  unique_port_handle<ptr<textual_input_port>> h{
+  unique_port_handle<textual_input_port> h{
     open_input_string(ctx, std::move(s))
   };
-  return read_syntax_multiple(ctx, *h);
+  return read_syntax_multiple(ctx, h.get());
 }
 
 ptr<>
