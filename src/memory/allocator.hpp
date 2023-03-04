@@ -49,7 +49,9 @@ private:
 
   void
   allocate_page() {
-    page p{new (std::align_val_t{object_alignment}) std::byte[page_size]};
+    void* storage
+      = ::operator new [] (page_size, std::align_val_t{object_alignment});
+    page p{static_cast<std::byte*>(storage)};
 
     for (std::byte* current = p.get();
          current < p.get() + page_size;

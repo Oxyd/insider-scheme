@@ -574,7 +574,7 @@ word_type const composite_object<Derived>::type_index = new_type(
 
 // Object whose size is determined at instantiation time.
 template <typename Derived, typename T>
-struct alignas(T) dynamic_size_object {
+struct alignas(T) alignas(object_alignment) dynamic_size_object {
   using element_type = T;
   static constexpr bool is_dynamic_size = true;
   static word_type const type_index;
