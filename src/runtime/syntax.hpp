@@ -105,7 +105,7 @@ public:
   update_records() const { return update_records_; }
 
 private:
-  member_ptr<>               expression_;
+  mutable_member_ptr<>       expression_;
   source_location            location_;
   scope_set                  scopes_;
   std::vector<update_record> update_records_;

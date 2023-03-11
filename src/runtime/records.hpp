@@ -27,7 +27,7 @@ private:
 };
 
 class record_instance
-  : public dynamic_size_object<record_instance, member_ptr<>>
+  : public dynamic_size_object<record_instance, mutable_member_ptr<>>
 {
 public:
   static constexpr char const* scheme_name = "insider::record_instance";

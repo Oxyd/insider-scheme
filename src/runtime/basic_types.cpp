@@ -256,7 +256,7 @@ bytevector_data(ptr<bytevector> bv) {
 }
 
 box::box(ptr<> value)
-  : value_{member_ptr<>::initialise(value)}
+  : value_{mutable_member_ptr<>::initialise(value)}
 { }
 
 procedure_prototype::procedure_prototype(

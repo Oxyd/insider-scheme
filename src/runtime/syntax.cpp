@@ -28,24 +28,24 @@ lookup(ptr<syntax> id) {
 }
 
 syntax::syntax(ptr<> expr)
-  : expression_{member_ptr<>::initialise(expr)}
+  : expression_{mutable_member_ptr<>::initialise(expr)}
 { }
 
 syntax::syntax(ptr<> expr, source_location loc)
-  : expression_{member_ptr<>::initialise(expr)}
+  : expression_{mutable_member_ptr<>::initialise(expr)}
   , location_{std::move(loc)}
 {
   assert(expr);
 }
 
 syntax::syntax(ptr<> expr, scope_set envs)
-  : expression_{member_ptr<>::initialise(expr)}
+  : expression_{mutable_member_ptr<>::initialise(expr)}
   , scopes_{std::move(envs)}
 { }
 
 syntax::syntax(ptr<> expr, source_location loc, scope_set scopes,
                std::vector<update_record> update_records)
-  : expression_{member_ptr<>::initialise(expr)}
+  : expression_{mutable_member_ptr<>::initialise(expr)}
   , location_{std::move(loc)}
   , scopes_{std::move(scopes)}
   , update_records_{std::move(update_records)}

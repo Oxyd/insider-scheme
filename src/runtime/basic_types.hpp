@@ -120,8 +120,8 @@ public:
   static constexpr word_type static_type_index = type_indexes::pair;
 
   pair(ptr<> car, ptr<> cdr)
-    : car_{member_ptr<>::initialise(car)}
-    , cdr_{member_ptr<>::initialise(cdr)}
+    : car_{mutable_member_ptr<>::initialise(car)}
+    , cdr_{mutable_member_ptr<>::initialise(cdr)}
   { }
 
   ptr<>
@@ -170,8 +170,8 @@ public:
   }
 
 private:
-  member_ptr<> car_;
-  member_ptr<> cdr_;
+  mutable_member_ptr<> car_;
+  mutable_member_ptr<> cdr_;
 };
 
 inline ptr<pair>
@@ -317,7 +317,7 @@ map(context& ctx, ptr<> list, F&& f) {
 // An array of a fixed, dynamic size. Elements are allocated as a part of this
 // object, which requires cooperation from the allocator. From the C++ point of
 // view, there is an array of ptr<> allocated right after the vector object.
-class vector : public dynamic_size_object<vector, member_ptr<>> {
+class vector : public dynamic_size_object<vector, mutable_member_ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::vector";
   static constexpr word_type static_type_index = type_indexes::vector;
@@ -436,7 +436,7 @@ public:
   }
 
 private:
-  member_ptr<> value_;
+  mutable_member_ptr<> value_;
 };
 
 inline ptr<box>

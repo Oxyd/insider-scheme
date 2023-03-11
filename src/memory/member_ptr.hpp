@@ -10,28 +10,28 @@ namespace insider {
 // is intentionally not assignable and assignment needs to be done through the
 // .assign member which will notify the store of a possible old-to-new arc.
 template <typename T = void>
-class member_ptr {
+class mutable_member_ptr {
 public:
   // Object constructors don't need to notify the store about arcs because
   // they're always to older objects. This function meant for use in
   // constructors and doesn't notify the store.
-  static member_ptr
+  static mutable_member_ptr
   initialise(ptr<T> value) {
-    return member_ptr{value};
+    return mutable_member_ptr{value};
   }
 
-  member_ptr() = default;
+  mutable_member_ptr() = default;
 
-  member_ptr(free_store& store, ptr<> owner, ptr<T> value)
+  mutable_member_ptr(free_store& store, ptr<> owner, ptr<T> value)
     : value_{value}
   { 
     store.notify_arc(owner, value_);
   }
 
-  member_ptr(member_ptr const&) = delete;
+  mutable_member_ptr(mutable_member_ptr const&) = delete;
 
   void
-  operator = (member_ptr const&) = delete;
+  operator = (mutable_member_ptr const&) = delete;
 
   void
   assign(free_store& store, ptr<> owner, ptr<T> new_value) {
@@ -59,7 +59,7 @@ private:
   ptr<T> value_;
 
   explicit
-  member_ptr(ptr<T> value) 
+  mutable_member_ptr(ptr<T> value) 
     : value_{value}
   { }
 };
