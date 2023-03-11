@@ -148,23 +148,6 @@ template <typename T>
 constexpr std::size_t payload_offset
   = offsetof(object_storage<T>, payload_storage);
 
-// Non-tracked pointer to a Scheme object, including to immediate values such as
-// fixnums. ptr<> is a pointer to any object, ptr<T> is a pointer to an object
-// of type T.
-template <typename = void>
-class ptr;
-
-namespace detail {
-  // The free store needs to be able to update pointers when it moves objects.
-  // This update makes a pointer point to the same object representing the same
-  // value, except at a new location. Since this isn't morally a modification of
-  // the pointer, we allow the free store to mutate this value even for const
-  // ptr<>'s.
-
-  void
-  update_ptr(ptr<> const& p, ptr<> new_value);
-}
-
 template <typename T>
 inline object_header*
 object_header_address(T* o) {
@@ -177,6 +160,12 @@ inline bool
 is_object_address(word_type a) {
   return (a & 0b11) == 0b00;
 }
+
+// Non-tracked pointer to a Scheme object, including to immediate values such as
+// fixnums. ptr<> is a pointer to any object, ptr<T> is a pointer to an object
+// of type T.
+template <typename = void>
+class ptr;
 
 template <>
 class ptr<> {
@@ -203,7 +192,7 @@ public:
   ptr(std::nullptr_t) { }
 
   explicit
-  operator bool () const { return value_ != 0; }
+  operator bool () const { return value_ != nullptr; }
 
   void
   reset() { value_ = nullptr; }
@@ -221,9 +210,7 @@ public:
   operator <=> (ptr const&, ptr const&) = default;
 
 protected:
-  friend void detail::update_ptr(ptr<> const&, ptr<>);
-
-  mutable object_header* value_ = nullptr;
+  object_header* value_ = nullptr;
 };
 
 inline bool

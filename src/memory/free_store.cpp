@@ -107,11 +107,6 @@ visit_roots(root_list const& roots, F&& f) {
   roots.visit_roots(visitor<F>{f});
 }
 
-void
-detail::update_ptr(ptr<> const& p, ptr<> new_value) {
-  p.value_ = new_value.value_;
-}
-
 namespace {
   struct work_list {
     object_list objects;
