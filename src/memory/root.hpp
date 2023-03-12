@@ -2,7 +2,6 @@
 #define INSIDER_MEMORY_ROOT_HPP
 
 #include "memory/free_store.hpp"
-#include "memory/member_visitor.hpp"
 #include "memory/root_list.hpp"
 #include "memory/root_provider.hpp"
 

@@ -8,7 +8,6 @@
 #include "compiler/syntax_list.hpp"
 #include "context.hpp"
 #include "io/write.hpp"
-#include "memory/member_visitor.hpp"
 #include "memory/preserve.hpp"
 #include "memory/root.hpp"
 #include "runtime/action.hpp"

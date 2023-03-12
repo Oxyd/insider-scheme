@@ -1,7 +1,7 @@
 #ifndef INSIDER_MEMORY_ROOT_PROVIDER_HPP
 #define INSIDER_MEMORY_ROOT_PROVIDER_HPP
 
-#include "memory/member_visitor.hpp"
+#include "object.hpp"
 
 namespace insider {
 

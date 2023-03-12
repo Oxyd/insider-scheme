@@ -1,6 +1,5 @@
 #include "free_store.hpp"
 #include "memory/allocator.hpp"
-#include "memory/member_visitor.hpp"
 #include "memory/root_list.hpp"
 #include "object.hpp"
 
@@ -81,30 +80,16 @@ free_store::~free_store() {
     deallocate(b.header(), alloc_);
 }
 
-namespace {
-  template <typename F>
-  struct visitor : member_visitor {
-    F& f;
-
-    visitor(F& f) : f{f} { }
-
-    void
-    operator () (ptr<> const& ptr) const override {
-      f(ptr);
-    }
-  };
-}
-
 template <typename F>
 static void
 visit_members(object_header const* o, F&& f) {
-  object_type(o).visit_members(o, visitor<F>{f});
+  object_type(o).visit_members(o, f);
 }
 
 template <typename F>
 static void
 visit_roots(root_list const& roots, F&& f) {
-  roots.visit_roots(visitor<F>{f});
+  roots.visit_roots(f);
 }
 
 namespace {

@@ -18,10 +18,13 @@ namespace insider {
 
 class context;
 class integer;
-class member_visitor;
 class string_cursor;
 
 using word_type = std::uint64_t;
+
+template <typename = void> class ptr;
+
+using member_visitor = std::function<void(ptr<>)>;
 
 constexpr std::size_t max_types = 256;
 constexpr std::size_t first_dynamic_type_index = 64;
@@ -164,9 +167,6 @@ is_object_address(word_type a) {
 // Non-tracked pointer to a Scheme object, including to immediate values such as
 // fixnums. ptr<> is a pointer to any object, ptr<T> is a pointer to an object
 // of type T.
-template <typename = void>
-class ptr;
-
 template <>
 class ptr<> {
 public:
@@ -627,6 +627,21 @@ mark_object_remembered(ptr<> o) { set_header_remembered(*o.header(), true); }
 inline void
 mark_needs_scan_on_promote(ptr<> o) {
   set_header_needs_scan_on_promote(*o.header(), true);
+}
+
+template <typename T>
+concept visitable = requires (T& t, member_visitor const& f) {
+  t.visit_members(f);
+};
+
+inline void
+visit_members(member_visitor const& f, ptr<>& p) {
+  f(p);
+}
+
+void
+visit_members(member_visitor const& f, visitable auto& x) {
+  x.visit_members(f);
 }
 
 } // namespace insider

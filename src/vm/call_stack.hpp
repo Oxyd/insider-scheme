@@ -1,7 +1,6 @@
 #ifndef INSIDER_VM_CALL_STACK_HPP
 #define INSIDER_VM_CALL_STACK_HPP
 
-#include "memory/member_visitor.hpp"
 #include "object.hpp"
 #include "runtime/basic_types.hpp"
 #include "runtime/integer.hpp"
