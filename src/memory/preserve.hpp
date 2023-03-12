@@ -10,9 +10,9 @@ namespace insider {
 
 template <typename T>
 void
-visit_members(member_visitor const& f, std::vector<T>& v) {
+visit_members(std::vector<T> const& v, member_visitor const& f) {
   for (auto& p : v)
-    visit_members(f, p);
+    visit_members(p, f);
 }
 
 // Root provider for a list of local variables.
@@ -27,7 +27,7 @@ public:
 
   void
   visit_roots(member_visitor const& f) override {
-    std::apply([&] (auto&... elems) { (visit_members(f, elems), ...); },
+    std::apply([&] (auto&... elems) { (visit_members(elems, f), ...); },
                ptrs_);
   }
 

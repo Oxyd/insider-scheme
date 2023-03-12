@@ -72,7 +72,7 @@ private:
 
   void
   visit_roots(member_visitor const& f) override {
-    visit_members(f, value_);
+    visit_members(value_, f);
   }
 };
 

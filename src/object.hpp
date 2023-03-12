@@ -635,12 +635,12 @@ concept visitable = requires (T& t, member_visitor const& f) {
 };
 
 inline void
-visit_members(member_visitor const& f, ptr<>& p) {
+visit_members(ptr<> p, member_visitor const& f) {
   f(p);
 }
 
 void
-visit_members(member_visitor const& f, visitable auto& x) {
+visit_members(visitable auto& x, member_visitor const& f) {
   x.visit_members(f);
 }
 
