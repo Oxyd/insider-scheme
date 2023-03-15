@@ -7,6 +7,7 @@
 #include "compiler/source_location.hpp"
 #include "compiler/variable.hpp"
 #include "memory/free_store.hpp"
+#include "memory/member.hpp"
 #include "object.hpp"
 #include "runtime/basic_types.hpp"
 #include "util/depth_first_search.hpp"
@@ -174,27 +175,30 @@ public:
 
   template <typename... Ts>
   application_expression(source_location loc, expression t, Ts&&... ts)
-    : target_{t}
+    : target_{init(t)}
+    , argument_names_(init(std::vector<ptr<keyword>>(sizeof...(Ts))))
     , origin_loc_{std::move(loc)}
   {
-    arguments_.reserve(sizeof...(Ts));
-    (arguments_.push_back(ts), ...);
+    std::vector<expression> args;
 
-    argument_names_.resize(sizeof...(Ts));
+    args.reserve(sizeof...(Ts));
+    (args.push_back(ts), ...);
+
+    arguments_ = init(std::move(args));
 
     update_size_estimate();
 
-    assert(arguments_.size() == argument_names_.size());
+    assert(arguments_.get().size() == argument_names_.get().size());
   }
 
   expression
-  target() const { return target_; }
+  target() const { return target_.get(); }
 
   std::vector<expression> const&
-  arguments() const { return arguments_; }
+  arguments() const { return arguments_.get(); }
 
   std::vector<ptr<keyword>> const&
-  argument_names() const { return argument_names_; }
+  argument_names() const { return argument_names_.get(); }
 
   std::optional<insider::debug_info>&
   debug_info() { return debug_info_; }
@@ -211,9 +215,9 @@ public:
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    f(target_);
-    for (auto const& arg : arguments_)
-      f(arg);
+    f(target_.get());
+    for (auto const& arg : arguments_.get())
+      f(arg.get());
   }
 
   void
@@ -229,9 +233,9 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  expression                         target_;
-  std::vector<expression>            arguments_;
-  std::vector<ptr<keyword>>          argument_names_;
+  member<expression>                 target_;
+  member<std::vector<expression>>    arguments_;
+  member<std::vector<ptr<keyword>>>  argument_names_;
   std::size_t                        size_estimate_ = 0;
   std::optional<insider::debug_info> debug_info_;
   target_kind                        kind_ = target_kind::generic;
@@ -266,7 +270,7 @@ public:
   operation() const { return operation_; }
 
   std::vector<expression> const&
-  operands() const { return operands_; }
+  operands() const { return operands_.get(); }
 
   bool
   has_result() const { return has_result_; }
@@ -277,7 +281,7 @@ public:
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    for (auto const& op : operands_)
+    for (auto const& op : operands_.get())
       f(op);
   }
 
@@ -294,11 +298,11 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  opcode                      operation_;
-  std::vector<expression>     operands_;
-  bool                        has_result_;
-  ptr<native_procedure> const proc_;
-  std::size_t                 size_estimate_ = 0;
+  opcode                          operation_;
+  member<std::vector<expression>> operands_;
+  bool                            has_result_;
+  ptr<native_procedure> const     proc_;
+  std::size_t                     size_estimate_ = 0;
 
   void
   update_size_estimate();
@@ -315,18 +319,18 @@ public:
 
   explicit
   sequence_expression(std::ranges::range auto exprs)
-    : expressions_(exprs.begin(), exprs.end())
+    : expressions_(init(std::vector<expression>(exprs.begin(), exprs.end())))
   {
     update_size_estimate();
   }
 
   std::vector<expression> const&
-  expressions() const { return expressions_; }
+  expressions() const { return expressions_.get(); }
 
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    for (expression e : expressions_ | std::views::reverse)
+    for (expression e : expressions_.get() | std::views::reverse)
       f(e);
   }
 
@@ -343,8 +347,8 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  std::vector<expression> expressions_;
-  std::size_t             size_estimate_ = 0;
+  member<std::vector<expression>> expressions_;
+  std::size_t                     size_estimate_ = 0;
 
   void
   update_size_estimate();
@@ -379,16 +383,16 @@ public:
   let_expression(std::vector<definition_pair_expression> defs, expression body);
 
   std::vector<definition_pair_expression> const&
-  definitions() const { return definitions_; }
+  definitions() const { return definitions_.get(); }
 
   expression
-  body() const { return body_; }
+  body() const { return body_.get(); }
 
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    f(body_);
-    for (auto const& def : definitions_ | std::views::reverse)
+    f(body_.get());
+    for (auto const& def : definitions_.get() | std::views::reverse)
       f(def.expression());
   }
 
@@ -405,9 +409,9 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  std::vector<definition_pair_expression> definitions_;
-  expression                              body_;
-  std::size_t                             size_estimate_ = 0;
+  member<std::vector<definition_pair_expression>> definitions_;
+  member<expression>                              body_;
+  std::size_t                                     size_estimate_ = 0;
 
   void
   update_size_estimate();
@@ -423,12 +427,12 @@ public:
   target() const { return target_; }
 
   insider::expression
-  expression() const { return expression_; }
+  expression() const { return expression_.get(); }
 
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    f(expression_);
+    f(expression_.get());
   }
 
   void
@@ -444,9 +448,9 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  ptr<local_variable> const target_;
-  insider::expression       expression_;
-  std::size_t               size_estimate_ = 0;
+  ptr<local_variable> const   target_;
+  member<insider::expression> expression_;
+  std::size_t                 size_estimate_ = 0;
 
   void
   update_size_estimate();
@@ -466,7 +470,7 @@ public:
   target() const { return variable_; }
 
   insider::expression
-  expression() const { return expression_; }
+  expression() const { return expression_.get(); }
 
   bool
   is_initialisation() const { return is_init_; }
@@ -474,7 +478,7 @@ public:
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    f(expression_);
+    f(expression_.get());
   }
 
   void
@@ -491,7 +495,7 @@ public:
 
 private:
   ptr<top_level_variable> const variable_;
-  insider::expression           expression_;
+  member<insider::expression>   expression_;
   bool                          is_init_;
   std::size_t                   size_estimate_ = 0;
 
@@ -520,13 +524,15 @@ public:
   lambda_expression(ptr<lambda_expression> source,
                     expression new_body);
 
-  lambda_expression(context&,
-                    std::vector<parameter> parameters,
-                    std::vector<ptr<keyword>> parameter_names,
-                    bool has_rest,
-                    expression body,
-                    std::string name,
-                    std::vector<ptr<local_variable>> free_variables);
+  lambda_expression(
+    context&,
+    std::vector<parameter> parameters,
+    std::vector<ptr<keyword>> parameter_names,
+    bool has_rest,
+    expression body,
+    std::string name,
+    std::vector<ptr<local_variable>> free_variables
+  );
 
   std::vector<parameter> const&
   parameters() const { return parameters_; }
@@ -538,7 +544,7 @@ public:
   has_rest() const { return has_rest_; }
 
   expression
-  body() { return body_; }
+  body() { return body_.get(); }
 
   void
   update_body(free_store&, expression new_body);
@@ -573,7 +579,7 @@ public:
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    f(body_);
+    f(body_.get());
   }
 
   void
@@ -594,7 +600,7 @@ private:
   std::vector<parameter> const     parameters_;
   std::vector<ptr<keyword>> const  parameter_names_;
   bool                             has_rest_;
-  expression                       body_;
+  member<expression>               body_;
   std::string                      name_;
   std::vector<ptr<local_variable>> free_variables_;
   ptr<local_variable> const        self_variable_;
@@ -618,20 +624,20 @@ public:
   if_expression(expression test, expression consequent, expression alternative);
 
   expression
-  test() const { return test_; }
+  test() const { return test_.get(); }
 
   expression
-  consequent() const { return consequent_; }
+  consequent() const { return consequent_.get(); }
 
   expression
-  alternative() const { return alternative_; }
+  alternative() const { return alternative_.get(); }
 
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    f(test_);
-    f(consequent_);
-    f(alternative_);
+    f(test_.get());
+    f(consequent_.get());
+    f(alternative_.get());
   }
 
   void
@@ -647,10 +653,10 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  expression  test_;
-  expression  consequent_;
-  expression  alternative_;
-  std::size_t size_estimate_ = 0;
+  member<expression> test_;
+  member<expression> consequent_;
+  member<expression> alternative_;
+  std::size_t        size_estimate_ = 0;
 
   void
   update_size_estimate();
@@ -669,7 +675,7 @@ public:
             std::vector<ptr<local_variable>> loop_vars);
 
   expression
-  body() const { return body_; }
+  body() const { return body_.get(); }
 
   ptr<loop_id>
   id() const { return id_; }
@@ -680,7 +686,7 @@ public:
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    f(body_);
+    f(body_.get());
   }
 
   void
@@ -696,7 +702,7 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  expression                             body_;
+  member<expression>                     body_;
   ptr<loop_id> const                     id_;
   std::vector<ptr<local_variable>> const vars_;
 };

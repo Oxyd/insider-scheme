@@ -44,7 +44,7 @@ make_tail_args_expression(context& ctx, ptr<application_expression> app,
                           std::size_t leading_args) {
   std::vector<expression> tail_args;
   for (std::size_t i = leading_args; i < app->arguments().size(); ++i)
-    tail_args.push_back(app->arguments()[i]);
+    tail_args.push_back(app->arguments()[i].get());
 
   return make<application_expression>(
     ctx,

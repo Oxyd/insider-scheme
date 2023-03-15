@@ -120,6 +120,7 @@ set(scheme_sources
         src/memory/allocator.hpp
         src/memory/free_store.cpp
         src/memory/free_store.hpp
+        src/memory/member.hpp
         src/memory/member_ptr.hpp
         src/memory/preserve.hpp
         src/memory/root.hpp
