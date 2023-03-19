@@ -52,7 +52,7 @@ get_constant(call_stack& stack, operand index) {
   ptr<procedure_prototype> proto
     = assume<procedure>(stack.callable())->prototype();
   assert(index < proto->constants_size);
-  return proto->constants[index];
+  return proto->constants[index].get();
 }
 
 static bool
@@ -735,7 +735,7 @@ do_instructions(vm& state) {
       ptr<procedure_prototype> proto
         = assume<procedure>(state.stack.callable())->prototype();
       assert(const_num < proto->constants_size);
-      state.stack.local(dest) = proto->constants[const_num];
+      state.stack.local(dest) = proto->constants[const_num].get();
       break;
     }
 

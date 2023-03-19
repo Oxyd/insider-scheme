@@ -1,8 +1,10 @@
 #include "internal_module.hpp"
 
 #include "compiler/analyser.hpp"
+#include "memory/member.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
+#include <cstddef>
 
 #ifndef WIN32
 #include <csignal>
@@ -117,7 +119,9 @@ procedure_name(ptr<procedure_prototype> f) {
 static ptr<vector>
 procedure_constants(context& ctx, ptr<procedure_prototype> f) {
   return make_vector(
-    ctx, f->constants.get(), f->constants.get() + f->constants_size
+    ctx,
+    std::views::counted(f->constants.get(), f->constants_size),
+    [] (member_ptr<> mp) { return mp.get(); }
   );
 }
 

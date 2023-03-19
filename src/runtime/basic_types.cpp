@@ -271,14 +271,15 @@ procedure_prototype::procedure_prototype(
   code = std::make_unique<std::uint16_t[]>(bc.size());
   std::ranges::copy(bc, code.get());
 
-  constants = std::make_unique<ptr<>[]>(constants_vec.size());
-  std::ranges::copy(constants_vec, constants.get());
+  constants = std::make_unique<member_ptr<>[]>(constants_vec.size());
+  for (std::size_t i = 0; i < constants_vec.size(); ++i)
+    constants[i] = init(constants_vec[i]);
 }
 
 void
 procedure_prototype::visit_members(member_visitor const& f) const {
-  for (ptr<>& k : std::views::counted(constants.get(), constants_size))
-    f(k);
+  for (member_ptr<> k : std::views::counted(constants.get(), constants_size))
+    k.visit_members(f);
 }
 
 ptr<procedure_prototype>

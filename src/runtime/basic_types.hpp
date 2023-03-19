@@ -360,7 +360,7 @@ make_vector(context& ctx, std::vector<ptr<>> const& elems) {
 }
 
 template <typename Container, typename Converter>
-ptr<>
+ptr<vector>
 make_vector(context& ctx, Container const& values, Converter const& convert) {
   auto result = make<vector>(ctx, values.size(), ctx.constants->void_);
 
@@ -462,20 +462,20 @@ public:
     = type_indexes::procedure_prototype;
 
   struct meta {
-    unsigned                        locals_size;
-    unsigned                        num_required_args;
-    unsigned                        num_leading_args;
-    bool                            has_rest;
-    std::unique_ptr<ptr<keyword>[]> parameter_names;
-    std::string                     name;
-    debug_info_map                  debug_info;
+    unsigned                              locals_size;
+    unsigned                              num_required_args;
+    unsigned                              num_leading_args;
+    bool                                  has_rest;
+    std::unique_ptr<ptr<keyword> const[]> parameter_names;
+    std::string                           name;
+    debug_info_map                        debug_info;
   };
 
-  bytecode                 code;
-  std::size_t              code_size;
-  std::unique_ptr<ptr<>[]> constants;
-  std::size_t              constants_size;
-  meta                     info;
+  bytecode                        code;
+  std::size_t                     code_size;
+  std::unique_ptr<member_ptr<>[]> constants;
+  std::size_t                     constants_size;
+  meta                            info;
 
   procedure_prototype(mutable_bytecode bc, meta i,
                       std::vector<ptr<>> const& constants);
