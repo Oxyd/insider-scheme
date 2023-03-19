@@ -531,7 +531,7 @@ public:
     bool has_rest,
     expression body,
     std::string name,
-    std::vector<ptr<local_variable>> free_variables
+    std::vector<ptr<local_variable>> const& free_variables
   );
 
   std::vector<parameter> const&
@@ -555,8 +555,16 @@ public:
   void
   set_name(std::string n) { name_ = std::move(n); }
 
-  std::vector<ptr<local_variable>> const&
-  free_variables() const { return free_variables_; }
+  bool
+  has_free_variables() const { return !free_variables_.empty(); }
+
+  auto
+  free_variables() const {
+    return free_variables_
+           | std::views::transform(
+               [] (member_ptr<local_variable> mp) { return mp.get(); }
+             );
+  }
 
   void
   add_free_variable(free_store& fs, ptr<local_variable> v);
@@ -597,15 +605,15 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  std::vector<parameter> const     parameters_;
-  std::vector<ptr<keyword>> const  parameter_names_;
-  bool                             has_rest_;
-  member<expression>               body_;
-  std::string                      name_;
-  std::vector<ptr<local_variable>> free_variables_;
-  ptr<local_variable> const        self_variable_;
-  std::size_t                      size_estimate_       = 0;
-  std::size_t                      num_self_references_ = 0;
+  std::vector<parameter> const            parameters_;
+  std::vector<ptr<keyword>> const         parameter_names_;
+  bool                                    has_rest_;
+  member<expression>                      body_;
+  std::string                             name_;
+  std::vector<member_ptr<local_variable>> free_variables_;
+  ptr<local_variable> const               self_variable_;
+  std::size_t                             size_estimate_       = 0;
+  std::size_t                             num_self_references_ = 0;
 };
 
 std::size_t
@@ -721,13 +729,13 @@ public:
   ptr<loop_id>
   id() const { return id_; }
 
-  std::vector<definition_pair_expression>
-  variables() const { return vars_; }
+  std::vector<definition_pair_expression> const&
+  variables() const { return vars_.get(); }
 
   template <typename F>
   void
   visit_subexpressions(F&& f) const {
-    for (auto const& dp : vars_ | std::views::reverse)
+    for (auto const& dp : vars_.get() | std::views::reverse)
       f(dp.expression());
   }
 
@@ -744,9 +752,9 @@ public:
   show(context&, std::size_t indent) const;
 
 private:
-  ptr<loop_id> const                      id_;
-  std::vector<definition_pair_expression> vars_;
-  std::size_t                             size_estimate_ = 0;
+  ptr<loop_id> const                              id_;
+  member<std::vector<definition_pair_expression>> vars_;
+  std::size_t                                     size_estimate_ = 0;
 
   void
   update_size_estimate();

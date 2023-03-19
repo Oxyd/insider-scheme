@@ -2,6 +2,7 @@
 
 #include "compiler/compilation_config.hpp"
 #include "compiler/source_location.hpp"
+#include "compiler/variable.hpp"
 #include "context.hpp"
 #include "io/write.hpp"
 #include "memory/free_store.hpp"
@@ -616,14 +617,13 @@ lambda_expression::lambda_expression(
   bool has_rest,
   expression body,
   std::string name,
-  std::vector<ptr<local_variable>> free_variables
+  std::vector<ptr<local_variable>> const& free_variables
 )
   : parameters_{std::move(parameters)}
   , parameter_names_{std::move(parameter_names)}
   , has_rest_{has_rest}
   , body_{init(body)}
   , name_{std::move(name)}
-  , free_variables_{std::move(free_variables)}
   , self_variable_{
       make<local_variable>(ctx, fmt::format("<self variable for {}>", name_))
     }
@@ -631,6 +631,10 @@ lambda_expression::lambda_expression(
   self_variable_->flags().is_self_variable = true;
   self_variable_->set_constant_initialiser(ctx.store,
                                            ptr<lambda_expression>(this));
+
+  free_variables_.reserve(free_variables.size());
+  for (ptr<local_variable> v : free_variables)
+    free_variables_.emplace_back(init(v));
 }
 
 void
@@ -640,8 +644,7 @@ lambda_expression::update_body(free_store& fs, expression new_body) {
 
 void
 lambda_expression::add_free_variable(free_store& fs, ptr<local_variable> v) {
-  free_variables_.push_back(v);
-  fs.notify_arc(this, v);
+  free_variables_.emplace_back(fs, this, v);
 }
 
 void
@@ -652,7 +655,7 @@ lambda_expression::visit_members(member_visitor const& f) const {
     f(kw);
   body_.visit_members(f);
   for (auto const& fv : free_variables_)
-    f(fv);
+    fv.visit_members(f);
   f(self_variable_);
 }
 
@@ -788,7 +791,7 @@ loop_body::show(context& ctx, std::size_t indent) const {
 loop_continue::loop_continue(ptr<loop_id> id,
                              std::vector<definition_pair_expression> vars)
   : id_{id}
-  , vars_{std::move(vars)}
+  , vars_{init(std::move(vars))}
 {
   update_size_estimate();
 }
@@ -796,26 +799,21 @@ loop_continue::loop_continue(ptr<loop_id> id,
 void
 loop_continue::visit_members(member_visitor const& f) const {
   f(id_);
-  for (definition_pair_expression const& var : vars_)
+  for (definition_pair_expression const& var : vars_.get())
     var.visit_members(f);
 }
 
 void
 loop_continue::update(context& ctx, result_stack& stack) {
-  auto var_exprs = pop_vector_reverse(stack, vars_.size());
+  auto var_exprs = pop_vector_reverse(stack, vars_.get().size());
 
   std::vector<definition_pair_expression> new_vars;
-  new_vars.reserve(vars_.size());
-  for (std::size_t i = 0; i < vars_.size(); ++i)
-    new_vars.emplace_back(vars_[i].variable(), var_exprs[i]);
+  new_vars.reserve(vars_.get().size());
+  for (std::size_t i = 0; i < vars_.get().size(); ++i)
+    new_vars.emplace_back(vars_.get()[i].variable(), var_exprs[i]);
 
-  if (vars_ != new_vars) {
-    vars_ = std::move(new_vars);
-    for (definition_pair_expression& var : vars_) {
-      ctx.store.notify_arc(this, var.variable());
-      ctx.store.notify_arc(this, var.expression().get());
-    }
-  }
+  if (vars_.get() != new_vars)
+    vars_.assign(ctx.store, this, std::move(new_vars));
 
   update_size_estimate();
 }
@@ -823,14 +821,14 @@ loop_continue::update(context& ctx, result_stack& stack) {
 void
 loop_continue::update_size_estimate() {
   size_estimate_ = 1;
-  for (definition_pair_expression const& var : vars_)
+  for (definition_pair_expression const& var : vars_.get())
     size_estimate_ += insider::size_estimate(var.expression());
 }
 
 std::string
 loop_continue::show(context& ctx, std::size_t indent) const {
   std::string vars;
-  for (definition_pair_expression const& dp : vars_)
+  for (definition_pair_expression const& dp : vars_.get())
     vars += fmt::format("{}- {}@{}\n{}",
                         make_indent(indent + 4),
                         dp.variable()->name(),

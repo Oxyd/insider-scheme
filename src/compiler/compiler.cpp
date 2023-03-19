@@ -411,7 +411,7 @@ compile_expression(context& ctx, procedure_context& parent,
     std::move(proc.constants)
   );
 
-  if (stx->free_variables().empty())
+  if (!stx->has_free_variables())
     emit_reference_to_empty_closure(ctx, parent, p, result);
   else
     emit_make_closure(ctx, parent, p, stx, result);

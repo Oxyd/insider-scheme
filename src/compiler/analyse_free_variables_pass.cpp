@@ -36,7 +36,7 @@ namespace {
 
     expression
     leave(ptr<lambda_expression> lambda) {
-      assert(lambda->free_variables().empty());
+      assert(!lambda->has_free_variables());
 
       auto inner_free = std::move(free_vars_stack.back());
       free_vars_stack.pop_back();
