@@ -4,7 +4,7 @@
 #include "compiler/debug_info.hpp"
 #include "context.hpp"
 #include "memory/free_store.hpp"
-#include "memory/member_ptr.hpp"
+#include "memory/member.hpp"
 #include "object.hpp"
 #include "type_indexes.hpp"
 #include "util/object_span.hpp"
@@ -120,14 +120,14 @@ public:
   static constexpr word_type static_type_index = type_indexes::pair;
 
   pair(ptr<> car, ptr<> cdr)
-    : car_{mutable_member_ptr<>::initialise(car)}
-    , cdr_{mutable_member_ptr<>::initialise(cdr)}
+    : car_{init(car)}
+    , cdr_{init(cdr)}
   { }
 
   ptr<>
-  car() const { return car_; }
+  car() const { return car_.get(); }
   ptr<>
-  cdr() const { return cdr_; }
+  cdr() const { return cdr_.get(); }
 
   void
   set_car(free_store& store, ptr<> p) { 
@@ -145,9 +145,9 @@ public:
     assert(i == 0 || i == 1);
 
     if (i == 0)
-      return car_;
+      return car_.get();
     else
-      return cdr_;
+      return cdr_.get();
   }
 
   void
@@ -170,8 +170,8 @@ public:
   }
 
 private:
-  mutable_member_ptr<> car_;
-  mutable_member_ptr<> cdr_;
+  member_ptr<> car_;
+  member_ptr<> cdr_;
 };
 
 inline ptr<pair>
@@ -317,7 +317,7 @@ map(context& ctx, ptr<> list, F&& f) {
 // An array of a fixed, dynamic size. Elements are allocated as a part of this
 // object, which requires cooperation from the allocator. From the C++ point of
 // view, there is an array of ptr<> allocated right after the vector object.
-class vector : public dynamic_size_object<vector, mutable_member_ptr<>> {
+class vector : public dynamic_size_object<vector, member_ptr<>> {
 public:
   static constexpr char const* scheme_name = "insider::vector";
   static constexpr word_type static_type_index = type_indexes::vector;
@@ -423,7 +423,7 @@ public:
   box(ptr<>);
 
   ptr<>
-  get() const { return value_; }
+  get() const { return value_.get(); }
 
   void
   set(free_store& store, ptr<> value) {
@@ -436,7 +436,7 @@ public:
   }
 
 private:
-  mutable_member_ptr<> value_;
+  member_ptr<> value_;
 };
 
 inline ptr<box>

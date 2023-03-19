@@ -28,24 +28,24 @@ lookup(ptr<syntax> id) {
 }
 
 syntax::syntax(ptr<> expr)
-  : expression_{mutable_member_ptr<>::initialise(expr)}
+  : expression_{init(expr)}
 { }
 
 syntax::syntax(ptr<> expr, source_location loc)
-  : expression_{mutable_member_ptr<>::initialise(expr)}
+  : expression_{init(expr)}
   , location_{std::move(loc)}
 {
   assert(expr);
 }
 
 syntax::syntax(ptr<> expr, scope_set envs)
-  : expression_{mutable_member_ptr<>::initialise(expr)}
+  : expression_{init(expr)}
   , scopes_{std::move(envs)}
 { }
 
 syntax::syntax(ptr<> expr, source_location loc, scope_set scopes,
                std::vector<update_record> update_records)
-  : expression_{mutable_member_ptr<>::initialise(expr)}
+  : expression_{init(expr)}
   , location_{std::move(loc)}
   , scopes_{std::move(scopes)}
   , update_records_{std::move(update_records)}
@@ -64,7 +64,7 @@ syntax::update_and_get_expression(context& ctx) {
   if (dirty())
     update_children(ctx);
 
-  return expression_;
+  return expression_.get();
 }
 
 ptr<syntax>
@@ -72,8 +72,8 @@ syntax::update_scope(free_store& fs, ptr<scope> s,
                      scope_set_operation op) const {
   scope_set new_scopes = scopes_;
   update_scope_set(new_scopes, op, s);
-  auto result = fs.make<syntax>(expression_, location_, std::move(new_scopes),
-                                update_records_);
+  auto result = fs.make<syntax>(expression_.get(), location_,
+                                std::move(new_scopes), update_records_);
   result->update_records_.emplace_back(update_record{op, s});
   return result;
 }
@@ -143,17 +143,17 @@ void
 syntax::update_children(context& ctx) {
   assert(dirty());
 
-  if (auto stx = match<syntax>(expression_))
+  if (auto stx = match<syntax>(expression_.get()))
     expression_.assign(
       ctx.store, this, 
       apply_update_records_to_syntax(ctx, stx, update_records_)
     );
-  else if (auto p = match<pair>(expression_))
+  else if (auto p = match<pair>(expression_.get()))
     expression_.assign(
       ctx.store, this, 
       apply_update_records_to_list(ctx, p, update_records_)
     );
-  else if (auto v = match<vector>(expression_))
+  else if (auto v = match<vector>(expression_.get()))
     expression_.assign(
       ctx.store, this, 
       apply_update_records_to_vector(ctx, v, update_records_)

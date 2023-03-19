@@ -75,6 +75,9 @@ private:
   T value_;
 };
 
+template <typename T = void>
+using member_ptr = member<ptr<T>>;
+
 template <typename T>
 member<T>
 init(T t) { return member<T>::initialise(std::move(t)); }

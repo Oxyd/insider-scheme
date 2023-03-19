@@ -3,7 +3,7 @@
 
 #include "compiler/scope.hpp"
 #include "compiler/source_location.hpp"
-#include "memory/member_ptr.hpp"
+#include "memory/member.hpp"
 #include "object.hpp"
 #include "runtime/compare.hpp"
 #include "runtime/error.hpp"
@@ -65,11 +65,11 @@ public:
   ptr<symbol>
   get_symbol() const {
     assert(contains<symbol>());
-    return assume<symbol>(expression_);
+    return assume<symbol>(expression_.get());
   }
 
   ptr<>
-  get_expression_without_update() const { return expression_; }
+  get_expression_without_update() const { return expression_.get(); }
 
   source_location const&
   location() const { return location_; }
@@ -80,7 +80,7 @@ public:
   template <typename T>
   bool
   contains() const {
-    return is<T>(expression_);
+    return is<T>(expression_.get());
   }
 
   [[nodiscard]]
@@ -105,7 +105,7 @@ public:
   update_records() const { return update_records_; }
 
 private:
-  mutable_member_ptr<>       expression_;
+  member_ptr<>               expression_;
   source_location            location_;
   scope_set                  scopes_;
   std::vector<update_record> update_records_;

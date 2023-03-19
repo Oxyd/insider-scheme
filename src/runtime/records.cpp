@@ -15,7 +15,7 @@ record_instance::record_instance(ptr<record_type> type)
   , type_{type}
 {
   for (std::size_t i = 0; i < size(); ++i)
-    storage_element(i).assign_without_notify(nullptr);
+    storage_element(i) = member_ptr<>{};
 }
 
 record_instance::record_instance(record_instance&& other) noexcept
@@ -23,7 +23,7 @@ record_instance::record_instance(record_instance&& other) noexcept
   , type_{other.type_}
 {
   for (std::size_t i = 0; i < size(); ++i)
-    storage_element(i).assign_without_notify(other.storage_element(i));
+    storage_element(i) = other.storage_element(i);
 }
 
 void
@@ -40,7 +40,7 @@ record_instance::set(free_store& store, std::size_t field, ptr<> value) {
 
 ptr<>
 record_instance::ref(std::size_t field) {
-  return storage_element(field);
+  return storage_element(field).get();
 }
 
 ptr<record_instance>

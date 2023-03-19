@@ -1,7 +1,7 @@
 #ifndef INSIDER_RUNTIME_RECORDS_HPP
 #define INSIDER_RUNTIME_RECORDS_HPP
 
-#include "memory/member_ptr.hpp"
+#include "memory/member.hpp"
 #include "object.hpp"
 #include "type_indexes.hpp"
 
@@ -27,7 +27,7 @@ private:
 };
 
 class record_instance
-  : public dynamic_size_object<record_instance, mutable_member_ptr<>>
+  : public dynamic_size_object<record_instance, member_ptr<>>
 {
 public:
   static constexpr char const* scheme_name = "insider::record_instance";
