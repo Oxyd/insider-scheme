@@ -1,6 +1,5 @@
 #include "free_store.hpp"
 #include "memory/allocator.hpp"
-#include "memory/root_list.hpp"
 #include "object.hpp"
 
 #include <fmt/format.h>

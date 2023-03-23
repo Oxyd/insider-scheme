@@ -2,7 +2,7 @@
 #define INSIDER_MEMORY_FREE_STORE_HPP
 
 #include "memory/allocator.hpp"
-#include "memory/root_list.hpp"
+#include "memory/root_provider.hpp"
 #include "object.hpp"
 #include "type_indexes.hpp"
 

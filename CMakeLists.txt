@@ -123,8 +123,6 @@ set(scheme_sources
         src/memory/member.hpp
         src/memory/preserve.hpp
         src/memory/root.hpp
-        src/memory/root_list.cpp
-        src/memory/root_list.hpp
         src/memory/root_provider.cpp
         src/memory/root_provider.hpp
         src/module.cpp
