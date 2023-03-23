@@ -27,9 +27,9 @@ namespace {
 }
 
 TEST_F(types, intern) {
-  root_ptr<symbol> a_1{ctx.store, ctx.intern("a")};
-  root_ptr<symbol> b_1{ctx.store, ctx.intern("b")};
-  root_ptr<symbol> a_2{ctx.store, ctx.intern("a")};
+  root_ptr<symbol> a_1{ctx.store.root_list(), ctx.intern("a")};
+  root_ptr<symbol> b_1{ctx.store.root_list(), ctx.intern("b")};
+  root_ptr<symbol> a_2{ctx.store.root_list(), ctx.intern("a")};
 
   EXPECT_TRUE(a_1);
   EXPECT_TRUE(b_1);

@@ -141,10 +141,10 @@ run_repl(insider::context& ctx, insider::compilation_config const& config) {
   insider::root_ptr<insider::module_> repl_mod
     = insider::interaction_environment(ctx);
   insider::root_ptr<insider::textual_input_port> input_port{
-    ctx.store, insider::get_global_textual_input_port(ctx)
+    ctx.store.root_list(), insider::get_global_textual_input_port(ctx)
   };
   insider::root_ptr<insider::textual_output_port> output_port{
-    ctx.store, insider::get_global_textual_output_port(ctx)
+    ctx.store.root_list(), insider::get_global_textual_output_port(ctx)
   };
 
   while (true)

@@ -185,7 +185,7 @@ namespace {
     ptr<aaa> a;
 
     simple_provider(free_store& fs, ptr<aaa> a)
-      : root_provider{fs}
+      : root_provider{fs.root_list()}
       , a{a}
     { }
 

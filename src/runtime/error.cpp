@@ -10,7 +10,7 @@ namespace insider {
 
 scheme_exception::scheme_exception(context& ctx, ptr<> o)
   : std::runtime_error{fmt::format("Scheme error: {}", datum_to_string(ctx, o))}
-  , object{ctx.store, o}
+  , object{ctx.store.root_list(), o}
 { }
 
 std::string

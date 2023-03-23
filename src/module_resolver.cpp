@@ -10,7 +10,7 @@
 namespace insider {
 
 module_resolver::module_resolver(context& ctx)
-  : root_provider{ctx.store}
+  : root_provider{ctx.store.root_list()}
 { }
 
 // Don't require the header to include the definition of source_code_provider.

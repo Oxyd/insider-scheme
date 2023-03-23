@@ -8,7 +8,7 @@ namespace insider {
 parsing_context::parsing_context(vm& state, ptr<insider::module_> m,
                                  compilation_config const& config,
                                  source_file_origin const& origin)
-  : root_provider{state.ctx.store}
+  : root_provider{state.ctx.store.root_list()}
   , ctx{state.ctx}
   , state{state}
   , module_{m}

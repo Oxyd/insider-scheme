@@ -12,7 +12,7 @@ std::optional<source_file>
 filesystem_source_code_provider::find_file(context& ctx,
                                            std::filesystem::path const& path) {
   if (auto port = open_file_for_text_input(ctx, root_ / path))
-    return source_file{{ctx.store, unique_port_handle{port}},
+    return source_file{{ctx.store.root_list(), unique_port_handle{port}},
                        {this, path}};
   else
     return std::nullopt;
@@ -31,7 +31,8 @@ virtual_filesystem_source_code_provider::find_file(
 ) {
   if (auto f = files_.find(path.lexically_normal()); f != files_.end())
     return source_file{
-      {ctx.store, unique_port_handle{open_input_string(ctx, f->second)}},
+      {ctx.store.root_list(),
+       unique_port_handle{open_input_string(ctx, f->second)}},
       {this, path}
     };
   else

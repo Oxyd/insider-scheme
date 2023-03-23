@@ -91,7 +91,7 @@ namespace {
 
     explicit
     import_set(context& ctx)
-      : source{ctx.store}
+      : source{ctx.store.root_list()}
     { }
 
     import_set(root_ptr<module_> source, std::vector<imported_name> names)

@@ -150,7 +150,7 @@ context::add_feature(std::string const& f) {
 
 root_ptr<module_>
 context::internal_module_tracked() {
-  return {store, internal_module()};
+  return {store.root_list(), internal_module()};
 }
 
 scope::id_type

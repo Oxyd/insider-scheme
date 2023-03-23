@@ -36,7 +36,7 @@
 namespace insider {
 
 vm::vm(context& ctx)
-  : root_provider{ctx.store}
+  : root_provider{ctx.store.root_list()}
   , ctx{ctx}
   , id_{ctx.generate_vm_id()}
 { }

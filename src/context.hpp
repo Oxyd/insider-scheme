@@ -135,7 +135,7 @@ private:
   public:
     explicit
     root_provider(context& ctx)
-      : insider::root_provider{ctx.store}
+      : insider::root_provider{ctx.store.root_list()}
       , ctx_{ctx}
     { }
 
@@ -174,18 +174,19 @@ make(context& ctx, Args&&... args) {
 template <typename T, typename... Args>
 root_ptr<T>
 make_root(context& ctx, Args&&... args) {
-  return root_ptr<T>{ctx.store, make<T>(ctx, std::forward<Args>(args)...)};
+  return root_ptr<T>{ctx.store.root_list(),
+                     make<T>(ctx, std::forward<Args>(args)...)};
 }
 
 inline root_ptr<>
 register_root(context& ctx, ptr<> o) {
-  return {ctx.store, o};
+  return {ctx.store.root_list(), o};
 }
 
 template <typename T>
 root_ptr<T>
 register_root(context& ctx, ptr<T> o) {
-  return {ctx.store, o};
+  return {ctx.store.root_list(), o};
 }
 
 inline ptr<symbol>

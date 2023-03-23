@@ -27,7 +27,7 @@ namespace detail {
 
     static root_ptr<T>
     expect(root_ptr<> const& x, std::string_view message) {
-      return {x.list(), expect(x.get(), message)};
+      return {x, expect(x.get(), message)};
     }
   };
 
@@ -136,7 +136,7 @@ namespace detail {
     static root_ptr<T>
     assume(root_ptr<> const& x) {
       assert(!x.get() || is<T>(x));
-      return {x.list(), static_cast<T*>(x.get())};
+      return {x, static_cast<T*>(x.get())};
     }
   };
 
@@ -199,7 +199,7 @@ namespace detail {
 
     static root_ptr<T>
     match(root_ptr<> const& x) {
-      return {x.list(), match(x.get())};
+      return {x, match(x.get())};
     }
   };
 

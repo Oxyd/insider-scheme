@@ -21,7 +21,7 @@ class scoped_roots : public root_provider {
 public:
   [[nodiscard]] explicit
   scoped_roots(context& ctx, Ts&... xs)
-    : root_provider(ctx.store)
+    : root_provider(ctx.store.root_list())
     , ptrs_{xs...}
   { }
 

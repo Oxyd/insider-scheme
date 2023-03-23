@@ -68,7 +68,9 @@ analyse_transformer(parsing_context& pc, ptr<syntax> stx) {
 
 expression
 analyse_meta(parsing_context& pc, ptr<syntax> stx) {
-  return analyse_top_level_expressions(pc, {pc.ctx.store, pc.module_}, {stx});
+  return analyse_top_level_expressions(pc,
+                                       {pc.ctx.store.root_list(), pc.module_},
+                                       {stx});
 }
 
 expression

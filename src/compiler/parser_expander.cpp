@@ -132,7 +132,7 @@ namespace {
     parser_action(context& ctx, ptr<syntax> stx, std::string_view msg)
       : action{ctx}
       , msg_{msg}
-      , stx_{ctx.store, stx}
+      , stx_{ctx.store.root_list(), stx}
     { }
 
     ~parser_action() { this->check(); }
@@ -412,7 +412,7 @@ namespace {
 
     explicit
     body_content(context& ctx)
-      : root_provider{ctx.store}
+      : root_provider{ctx.store.root_list()}
     { }
 
     void
@@ -840,7 +840,8 @@ parse_let_syntax(parsing_context& pc, ptr<syntax> stx) {
   auto p = preserve(pc.ctx, definitions, body, subscope);
 
   for (definition_pair const& dp : definitions) {
-    root_ptr<syntax> id{pc.ctx.store, dp.id->add_scope(pc.ctx.store, subscope)};
+    root_ptr<syntax> id{pc.ctx.store.root_list(),
+                        dp.id->add_scope(pc.ctx.store, subscope)};
 
     auto transformer = make_transformer(pc, dp.expression); // GC
     define(pc.ctx.store, id.get(), transformer);
@@ -866,7 +867,8 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
   auto p = preserve(pc.ctx, definitions, body, subscope);
 
   for (definition_pair const& dp : definitions) {
-    root_ptr<syntax> id{pc.ctx.store, dp.id->add_scope(pc.ctx.store, subscope)};
+    root_ptr<syntax> id{pc.ctx.store.root_list(),
+                        dp.id->add_scope(pc.ctx.store, subscope)};
     ptr<syntax> expression
       = dp.expression->add_scope(pc.ctx.store, subscope);
     auto transformer = make_transformer(pc, expression);
@@ -1670,7 +1672,7 @@ static root<expression>
 make_qq_tail_expression(parsing_context& pc,
                         std::unique_ptr<qq_template> const& tpl,
                         list_pattern const& lp) {
-  root<expression> tail{pc.ctx.store};
+  root<expression> tail{pc.ctx.store.root_list()};
   if (lp.last) {
     if (is_splice(lp.last->cdr))
       throw make_compile_error<syntax_error>(
@@ -1679,18 +1681,22 @@ make_qq_tail_expression(parsing_context& pc,
 
     if (is_splice(lp.last->car)) {
       root<expression> car{
-        pc.ctx.store, process_qq_template<Traits>(pc, lp.last->car, true)
+        pc.ctx.store.root_list(),
+        process_qq_template<Traits>(pc, lp.last->car, true)
       };
       root<expression> cdr{
-        pc.ctx.store, process_qq_template<Traits>(pc, lp.last->cdr, true)
+        pc.ctx.store.root_list(),
+        process_qq_template<Traits>(pc, lp.last->cdr, true)
       };
       tail = make_application(pc.ctx, "append", car.get(), cdr.get());
     } else {
       root<expression> car{
-        pc.ctx.store, process_qq_template<Traits>(pc, lp.last->car)
+        pc.ctx.store.root_list(),
+        process_qq_template<Traits>(pc, lp.last->car)
       };
       root<expression> cdr{
-        pc.ctx.store, process_qq_template<Traits>(pc, lp.last->cdr)
+        pc.ctx.store.root_list(),
+        process_qq_template<Traits>(pc, lp.last->cdr)
       };
       tail = make_application(pc.ctx, "cons", car.get(), cdr.get());
     }
@@ -1722,7 +1728,7 @@ process_qq_pattern(parsing_context& pc,
       if (is_splice(elem))
         tail = process_qq_template<Traits>(pc, elem, true);
       else {
-        root<expression> car{pc.ctx.store,
+        root<expression> car{pc.ctx.store.root_list(),
                              process_qq_template<Traits>(pc, elem)};
         tail = make_application(
           pc.ctx, "cons",

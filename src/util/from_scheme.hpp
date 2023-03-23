@@ -36,7 +36,7 @@ struct from_scheme_converter<ptr<>> {
 template <>
 struct from_scheme_converter<root_ptr<>> {
   static root_ptr<>
-  convert(context& ctx, ptr<> o) { return {ctx.store, o}; }
+  convert(context& ctx, ptr<> o) { return {ctx.store.root_list(), o}; }
 };
 
 template <typename T>
@@ -48,7 +48,9 @@ struct from_scheme_converter<ptr<T>> {
 template <typename T>
 struct from_scheme_converter<root_ptr<T>> {
   static root_ptr<T>
-  convert(context& ctx, ptr<> o) { return {ctx.store, expect<T>(o)}; }
+  convert(context& ctx, ptr<> o) {
+    return {ctx.store.root_list(), expect<T>(o)};
+  }
 };
 
 template <>

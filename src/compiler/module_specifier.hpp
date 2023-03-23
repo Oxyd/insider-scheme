@@ -3,6 +3,7 @@
 
 #include "compiler/module_name.hpp"
 #include "compiler/source_file_origin.hpp"
+#include "memory/free_store.hpp"
 #include "memory/root_provider.hpp"
 
 #include <string>
@@ -135,7 +136,7 @@ public:
   source_file_origin         origin;
 
   module_specifier(free_store& fs, source_file_origin origin)
-    : root_provider{fs}
+    : root_provider{fs.root_list()}
     , origin{std::move(origin)}
   { }
 
@@ -145,7 +146,7 @@ public:
                    exports_list exports,
                    std::vector<ptr<syntax>> body,
                    source_file_origin origin)
-    : root_provider{fs}
+    : root_provider{fs.root_list()}
     , name{std::move(name)}
     , imports{std::move(imports)}
     , exports{std::move(exports)}

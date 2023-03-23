@@ -12,8 +12,18 @@ template <typename T>
 class root : public root_provider {
 public:
   explicit
-  root(free_store& fs)
-    : root_provider{fs}
+  root(root_list& list)
+    : root_provider{list}
+  { }
+
+  root(root_provider const& other, T const& value)
+    : root_provider{other}
+    , value_{value}
+  { }
+
+  root(root_provider const& other, T&& value)
+    : root_provider{other}
+    , value_{std::move(value)}
   { }
 
   root(root_list& list, T const& value)
@@ -23,16 +33,6 @@ public:
 
   root(root_list& list, T&& value)
     : root_provider{list}
-    , value_{std::move(value)}
-  { }
-
-  root(free_store& fs, T const& value)
-    : root_provider{fs}
-    , value_{value}
-  { }
-
-  root(free_store& fs, T&& value)
-    : root_provider{fs}
     , value_{std::move(value)}
   { }
 
