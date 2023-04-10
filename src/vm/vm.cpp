@@ -1918,11 +1918,15 @@ static void
 rewind_stack(vm& state,
              root_ptr<captured_call_stack> const& cont,
              std::optional<call_stack::frame_index> common_frame) {
-  call_stack::frame_index begin = common_frame ? *common_frame + 1 : 0;
-  for (std::size_t i = begin; i < cont->stack.frame_count(); ++i) {
+  for (std::size_t i = 0; i < cont->stack.frame_count(); ++i) {
     state.stack.append_frame(cont->stack, i);
-    if (ptr<> thunk = get_before_thunk(state.stack))
-      call_with_continuation_barrier(state, thunk, {});
+
+    // Only call before thunks after the common frame, becaues that's how
+    // dynamic-wind is specified to work.
+
+    if (i > common_frame)
+      if (ptr<> thunk = get_before_thunk(state.stack))
+        call_with_continuation_barrier(state, thunk, {});
   }
 }
 
@@ -1967,7 +1971,7 @@ static void
 unwind_stack_noncontinuable(vm& state, call_stack::frame_index idx,
                             root_ptr<captured_call_stack> const& cont,
                             root_ptr<> const& value) {
-  // Unwind the part that can be unwound and then throw an exception to raise
+  // Unwind the part that can be unwound and then throw an exception to leave
   // the noncontinuable frame.
 
   unwind_stack(state, idx);
@@ -1981,7 +1985,14 @@ replace_stack_continuable(
   root_ptr<captured_call_stack> const& cont,
   root_ptr<> const& value
 ) {
+  // From dynamic-wind's point of view, we only unwind until the common frame
+  // and then rewind from there. But some of the locals of the common frame or
+  // higher may have been changed and we need to restore them to the captured
+  // values. For this reason, we'll unwind and rewind the whole stack, but only
+  // call before and after thunks on the parts after the common frame.
+
   unwind_stack(state, common_frame_idx);
+  state.stack.clear(); // Unwind the rest without calling after-thunks.
   rewind_stack(state, cont, common_frame_idx);
 
   return value;
