@@ -66,7 +66,7 @@ namespace {
 
     void
     emit(instruction i) {
-      current_block().body.emplace_back(std::move(i));
+      current_block().body.emplace_back(i);
     }
 
     operand
