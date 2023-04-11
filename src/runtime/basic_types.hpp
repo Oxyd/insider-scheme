@@ -466,6 +466,7 @@ public:
     unsigned                              num_required_args;
     unsigned                              num_leading_args;
     bool                                  has_rest;
+    unsigned                              closure_size;
     std::unique_ptr<ptr<keyword> const[]> parameter_names;
     std::string                           name;
     debug_info_map                        debug_info;

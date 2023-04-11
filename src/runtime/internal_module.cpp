@@ -1,6 +1,7 @@
 #include "internal_module.hpp"
 
 #include "compiler/analyser.hpp"
+#include "context.hpp"
 #include "memory/member.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
@@ -125,6 +126,16 @@ procedure_constants(context& ctx, ptr<procedure_prototype> f) {
   );
 }
 
+static std::size_t
+procedure_parameter_count(ptr<procedure_prototype> f) {
+  return f->info.num_leading_args + (f->info.has_rest ? 1 : 0);
+}
+
+static std::size_t
+procedure_closure_size(ptr<procedure_prototype> f) {
+  return f->info.closure_size;
+}
+
 static integer
 instruction_opcode(ptr<opaque_value<instruction>> i) {
   return integer{static_cast<integer::value_type>(i->value.opcode)};
@@ -220,6 +231,10 @@ make_internal_module(context& ctx) {
   define_procedure<procedure_name>(ctx, "procedure-prototype-name", result);
   define_procedure<procedure_constants>(ctx, "procedure-prototype-constants",
                                         result);
+  define_procedure<procedure_parameter_count>(ctx, "procedure-parameter-count",
+                                              result);
+  define_procedure<procedure_closure_size>(ctx, "procedure-closure-size",
+                                           result);
   define_procedure<&procedure::prototype>(ctx, "procedure-prototype", result);
 
   define_procedure<instruction_opcode>(ctx, "instruction-opcode", result);

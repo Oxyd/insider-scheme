@@ -394,8 +394,8 @@ compile_expression(context& ctx, procedure_context& parent,
   auto us = push_parameters_and_closure_scope(proc, stx);
   compile_lambda_body(ctx, proc, stx);
 
-  unsigned required_args = to_smaller<unsigned>(required_parameter_count(stx));
-  unsigned leading_args = to_smaller<unsigned>(leading_parameter_count(stx));
+  auto required_args = to_smaller<unsigned>(required_parameter_count(stx));
+  auto leading_args = to_smaller<unsigned>(leading_parameter_count(stx));
 
   auto p = make_procedure_prototype(
     ctx, proc,
@@ -404,6 +404,7 @@ compile_expression(context& ctx, procedure_context& parent,
       .num_required_args = required_args,
       .num_leading_args = leading_args,
       .has_rest = stx->has_rest(),
+      .closure_size = stx->num_free_variables(),
       .parameter_names = make_prototype_parameter_names(stx->parameter_names()),
       .name = stx->name(),
       .debug_info = {}
@@ -877,6 +878,7 @@ compile_syntax(context& ctx, expression e, root_ptr<module_> const& mod) {
         .num_required_args = 0,
         .num_leading_args = 0,
         .has_rest = false,
+        .closure_size = 0,
         .parameter_names = std::make_unique<ptr<keyword>[]>(0),
         .name = "<expression>",
         .debug_info = {}
@@ -936,6 +938,7 @@ compile_module_body(context& ctx, root_ptr<module_> const& m,
                      .num_required_args = 0,
                      .num_leading_args = 0,
                      .has_rest = false,
+                     .closure_size = 0,
                      .parameter_names = std::make_unique<ptr<keyword>[]>(0),
                      .name = fmt::format("<module {} top-level>",
                                          pm.name

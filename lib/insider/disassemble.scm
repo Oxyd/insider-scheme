@@ -5,6 +5,7 @@
               procedure-prototype-bytecode procedure-prototype-name opcodes
               instruction-opcode instruction-operands top-level-name
               procedure-prototype-constants top-level-value immediate-bias
+              procedure-parameter-count procedure-closure-size
               procedure-prototype))
 (export disassemble)
 
@@ -165,6 +166,14 @@
     (display ")"))
 
   (display #\:)
+  (newline)
+
+  (display "Arguments: ")
+  (display (procedure-parameter-count f))
+  (newline)
+
+  (display "Closure size: ")
+  (display (procedure-closure-size f))
   (newline)
 
   (unless (zero? (vector-length (procedure-prototype-constants f)))

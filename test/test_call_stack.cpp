@@ -65,6 +65,7 @@ struct call_stack_fixture : scheme_fixture {
           .num_required_args = 0,
           .num_leading_args = 0,
           .has_rest = false,
+          .closure_size = 0,
           .parameter_names = std::make_unique<ptr<keyword>[]>(0),
           .name = "<dummy>",
           .debug_info = debug_info_map{}

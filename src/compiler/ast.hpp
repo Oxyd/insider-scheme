@@ -13,6 +13,7 @@
 #include "util/depth_first_search.hpp"
 #include "vm/bytecode.hpp"
 
+#include <cstddef>
 #include <memory>
 #include <ranges>
 #include <string>
@@ -565,6 +566,9 @@ public:
                [] (member_ptr<local_variable> mp) { return mp.get(); }
              );
   }
+
+  unsigned
+  num_free_variables() const { return free_variables_.size(); }
 
   void
   add_free_variable(free_store& fs, ptr<local_variable> v);
