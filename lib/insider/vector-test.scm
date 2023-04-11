@@ -76,7 +76,47 @@
                 (vector-map (lambda (n) (expt n n))
                             #(1 2 3 4 5)))
     (test-equal #(5 7 9)
-                (vector-map + #(1 2 3) #(4 5 6 7)))))
+                (vector-map + #(1 2 3) #(4 5 6 7)))
+
+    (test-equal '(#(3 6 9) #(2 4 6))
+                (let ((cont #f)
+                      (input #(1 2 3))
+                      (multiplier 2)
+                      (result '())
+                      (again? #t))
+                  (let ((elem (vector-map (lambda (n)
+                                            (unless cont
+                                              (call/cc (lambda (k)
+                                                         (set! cont k))))
+                                            (* n multiplier))
+                                          input)))
+                    (set! result (cons elem result))
+                    (when again?
+                      (set! again? #f)
+                      (set! multiplier 3)
+                      (cont #f))
+                    result)))
+
+    (test-equal '(#(15 21 27) #(10 14 18))
+                (let ((cont #f)
+                      (input-1 #(1 2 3))
+                      (input-2 #(4 5 6))
+                      (multiplier 2)
+                      (result '())
+                      (again? #t))
+                  (let ((elem (vector-map (lambda (x y)
+                                            (unless cont
+                                              (call/cc (lambda (k)
+                                                         (set! cont k))))
+                                            (* (+ x y) multiplier))
+                                          input-1
+                                          input-2)))
+                    (set! result (cons elem result))
+                    (when again?
+                      (set! again? #f)
+                      (set! multiplier 3)
+                      (cont #f))
+                    result)))))
 
 (when-main-module
  (test-vector))
