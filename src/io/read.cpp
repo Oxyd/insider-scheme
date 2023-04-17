@@ -18,7 +18,8 @@
 namespace insider {
 
 read_error::read_error(std::string const& message, source_location const& loc)
-  : translatable_runtime_error{fmt::format("{}: Read error: {}", format_location(loc), message)}
+  : translatable_runtime_error{fmt::format("{}: Read error: {}",
+                                           format_location(loc), message)}
 { }
 
 ptr<>
@@ -59,7 +60,8 @@ find_datum_label_reference(datum_labels const& labels, std::string const& label,
     assert(it->second);
     return it->second;
   } else
-    throw read_error{fmt::format("Unknown datum label: {}", label), ref_location};
+    throw read_error{fmt::format("Unknown datum label: {}", label),
+                     ref_location};
 }
 
 static ptr<>
@@ -101,7 +103,8 @@ read_list(context& ctx, reader_stream& stream, bool read_syntax,
   ptr<pair> result = make<pair>(ctx, ctx.constants->null, ctx.constants->null);
   define_label(labels, defining_label, result);
 
-  result->set_car(ctx.store, read_and_wrap(ctx, t, stream, read_syntax, labels));
+  result->set_car(ctx.store,
+                  read_and_wrap(ctx, t, stream, read_syntax, labels));
   ptr<pair> tail = result;
 
   t = read_token(ctx, stream);
@@ -240,10 +243,10 @@ read_bytevector(context& ctx, reader_stream& stream, bool read_syntax,
 
   auto bv = make<bytevector>(ctx, elements.size());
   for (std::size_t i = 0; i < elements.size(); ++i)
-    bv->set(
-      i,
-      static_cast<bytevector::element_type>(assume<integer>(elements[i]).value())
-    );
+    bv->set(i,
+            static_cast<bytevector::element_type>(
+              assume<integer>(elements[i]).value()
+            ));
 
   if (defining_label)
     labels.emplace(*defining_label, bv);
