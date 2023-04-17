@@ -293,32 +293,32 @@ read(context& ctx, token first_token, reader_stream& stream,
     return {};
   else if (std::holds_alternative<token::left_paren>(first_token.value))
     return read_list(ctx, stream, read_syntax, labels, defining_label);
-  else if (std::holds_alternative<token::octothorpe_left_paren>(first_token.value))
+  else if (std::holds_alternative<token::begin_vector>(first_token.value))
     return read_vector(ctx, stream, read_syntax, labels, defining_label);
-  else if (std::holds_alternative<token::octothorpe_u8>(first_token.value))
+  else if (std::holds_alternative<token::begin_bytevector>(first_token.value))
     return read_bytevector(ctx, stream, read_syntax, labels, defining_label);
   else if (std::holds_alternative<token::quote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "'", "quote", read_syntax,
                          labels, defining_label);
-  else if (std::holds_alternative<token::octothorpe_quote>(first_token.value))
+  else if (std::holds_alternative<token::syntax>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#'", "syntax", read_syntax,
                          labels, defining_label);
-  else if (std::holds_alternative<token::backquote>(first_token.value))
+  else if (std::holds_alternative<token::quasiquote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "`", "quasiquote",
                          read_syntax, labels, defining_label);
-  else if (std::holds_alternative<token::octothorpe_backquote>(first_token.value))
+  else if (std::holds_alternative<token::quasisyntax>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#`", "quasisyntax",
                          read_syntax, labels, defining_label);
-  else if (std::holds_alternative<token::comma>(first_token.value))
+  else if (std::holds_alternative<token::unquote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, ",", "unquote", read_syntax,
                          labels, defining_label);
-  else if (std::holds_alternative<token::octothorpe_comma>(first_token.value))
+  else if (std::holds_alternative<token::unsyntax>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#,", "unsyntax", read_syntax,
                          labels, defining_label);
-  else if (std::holds_alternative<token::comma_at>(first_token.value))
+  else if (std::holds_alternative<token::unquote_splicing>(first_token.value))
     return read_shortcut(ctx, stream, first_token, ",@", "unquote-splicing",
                          read_syntax, labels, defining_label);
-  else if (std::holds_alternative<token::octothorpe_comma_at>(first_token.value))
+  else if (std::holds_alternative<token::unsyntax_splicing>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#,@", "unsyntax-splicing",
                          read_syntax, labels, defining_label);
   else if (auto* lit

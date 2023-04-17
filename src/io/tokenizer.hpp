@@ -15,8 +15,8 @@ struct token {
   struct end { };
   struct left_paren { };
   struct right_paren { };
-  struct octothorpe_left_paren { };
-  struct octothorpe_u8 { };
+  struct begin_vector { };
+  struct begin_bytevector { };
   struct dot { };
 
   struct generic_literal {
@@ -40,13 +40,13 @@ struct token {
   };
 
   struct quote { };
-  struct backquote { };
-  struct comma { };
-  struct comma_at { };
-  struct octothorpe_quote { };
-  struct octothorpe_backquote { };
-  struct octothorpe_comma { };
-  struct octothorpe_comma_at { };
+  struct quasiquote { };
+  struct unquote { };
+  struct unquote_splicing { };
+  struct syntax { };
+  struct quasisyntax { };
+  struct unsyntax { };
+  struct unsyntax_splicing { };
 
   struct datum_label_definition {
     std::string label;
@@ -62,8 +62,8 @@ struct token {
     end,
     left_paren,
     right_paren,
-    octothorpe_left_paren,
-    octothorpe_u8,
+    begin_vector,
+    begin_bytevector,
     dot,
     generic_literal,
     boolean_literal,
@@ -72,13 +72,13 @@ struct token {
     identifier,
     keyword_literal,
     quote,
-    backquote,
-    comma,
-    comma_at,
-    octothorpe_quote,
-    octothorpe_backquote,
-    octothorpe_comma,
-    octothorpe_comma_at,
+    quasiquote,
+    unquote,
+    unquote_splicing,
+    syntax,
+    quasisyntax,
+    unsyntax,
+    unsyntax_splicing,
     datum_label_definition,
     datum_label_reference,
     datum_comment

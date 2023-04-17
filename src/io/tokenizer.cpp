@@ -819,10 +819,10 @@ read_token_after_comma(reader_stream& stream, source_location const& loc) {
   std::optional<char32_t> c = stream.peek();
   if (c && *c == '@') {
     stream.read();
-    return {token::comma_at{}, loc};
+    return {token::unquote_splicing{}, loc};
   }
   else
-    return {token::comma{}, loc};
+    return {token::unquote{}, loc};
 }
 
 static token
@@ -943,22 +943,22 @@ read_token_after_octothorpe(context& ctx, reader_stream& stream,
     throw read_error{"Unexpected end of input", stream.location()};
   else if (*c == '\'') {
     stream.read();
-    return {token::octothorpe_quote{}, loc};
+    return {token::syntax{}, loc};
   } else if (*c == '`') {
     stream.read();
-    return {token::octothorpe_backquote{}, loc};
+    return {token::quasisyntax{}, loc};
   } else if (*c == ',') {
     stream.read();
     c = stream.peek();
     if (c == '@') {
       stream.read();
-      return {token::octothorpe_comma_at{}, loc};
+      return {token::unsyntax_splicing{}, loc};
     } else
-      return {token::octothorpe_comma{}, loc};
+      return {token::unsyntax{}, loc};
   }
   else if (*c == '(') {
     stream.read();
-    return {token::octothorpe_left_paren{}, loc};
+    return {token::begin_vector{}, loc};
   } else if (digit(*c))
     return read_datum_label(stream, loc);
   else if (*c == ';')
@@ -973,7 +973,7 @@ read_token_after_octothorpe(context& ctx, reader_stream& stream,
     consume(stream, 'u');
     expect(stream, '8');
     expect(stream, '(');
-    return {token::octothorpe_u8{}, loc};
+    return {token::begin_bytevector{}, loc};
   } else
     return read_special_literal(ctx, stream);
 }
@@ -992,7 +992,7 @@ read_after_delimiter(context& ctx, reader_stream& stream) {
   case '(': return {token::left_paren{}, loc};
   case ')': return {token::right_paren{}, loc};
   case '\'': return {token::quote{}, loc};
-  case '`': return {token::backquote{}, loc};
+  case '`': return {token::quasiquote{}, loc};
   case ',': return read_token_after_comma(stream, loc);
   case '"': return read_string_literal(ctx, stream);
   case '|': return read_verbatim_identifier(ctx, stream);
