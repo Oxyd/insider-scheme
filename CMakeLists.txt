@@ -115,6 +115,8 @@ set(scheme_sources
         src/io/read.hpp
         src/io/reader_stream.cpp
         src/io/reader_stream.hpp
+        src/io/tokenizer.cpp
+        src/io/tokenizer.hpp
         src/io/write.cpp
         src/io/write.hpp
         src/memory/allocator.hpp
