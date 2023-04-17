@@ -592,7 +592,7 @@ read_numeric_literal(context& ctx, reader_stream& stream) {
   auto cp = stream.make_checkpoint();
   if (ptr<> value = read_number(ctx, stream, loc)) {
     cp.commit();
-    return token{generic_literal{value}, loc};
+    return token{token::generic_literal{value}, loc};
   } else
     return std::nullopt;
 }
@@ -632,17 +632,17 @@ read_character(context& ctx, reader_stream& stream) {
   if (*c != 'x') {
     source_location loc = stream.location();
     if (!is_alphabetic(*c))
-      return {generic_literal{character_to_ptr(*c)}, loc};
+      return {token::generic_literal{character_to_ptr(*c)}, loc};
 
     std::u32string literal = *c + read_until_delimiter(stream);
     if (literal.size() == 1)
-      return {generic_literal{character_to_ptr(literal[0])}, loc};
+      return {token::generic_literal{character_to_ptr(literal[0])}, loc};
     else {
       if (stream.fold_case)
         literal = string_foldcase(literal);
 
       if (auto it = character_names.find(literal); it != character_names.end())
-        return {generic_literal{character_to_ptr(it->second)}, loc};
+        return {token::generic_literal{character_to_ptr(it->second)}, loc};
       else
         throw read_error{fmt::format("Unknown character literal #\\{}",
                                      to_utf8(literal)), loc};
@@ -654,13 +654,13 @@ read_character(context& ctx, reader_stream& stream) {
 
     if (!digits.empty())
       return {
-        generic_literal{
+        token::generic_literal{
           character_to_ptr(read_character_from_hexdigits(ctx, digits))
         },
         loc
       };
     else
-      return {generic_literal{character_to_ptr('x')}, loc};
+      return {token::generic_literal{character_to_ptr('x')}, loc};
   }
 }
 
@@ -679,13 +679,13 @@ read_special_literal(context& ctx, reader_stream& stream) {
   std::u32string literal = read_until_delimiter(stream);
 
   if (literal == U"t" || literal == U"true")
-    return {boolean_literal{true}, loc};
+    return {token::boolean_literal{true}, loc};
   else if (literal == U"f" || literal == U"false")
-    return {boolean_literal{false}, loc};
+    return {token::boolean_literal{false}, loc};
   else if (literal == U"void")
-    return {void_literal{}, loc};
+    return {token::void_literal{}, loc};
   else if (literal == U"default-value")
-    return {default_value_literal{}, loc};
+    return {token::default_value_literal{}, loc};
   else
     throw read_error{fmt::format("Invalid literal: {}", to_utf8(literal)),
                      loc};
@@ -704,7 +704,7 @@ read_identifier_contents(reader_stream& stream) {
 static token
 read_identifier(reader_stream& stream) {
   source_location loc = stream.location();
-  return {identifier{read_identifier_contents(stream)}, loc};
+  return {token::identifier{read_identifier_contents(stream)}, loc};
 }
 
 static char32_t
@@ -788,7 +788,8 @@ read_verbatim_identifier_contents(context& ctx, reader_stream& stream) {
 static token
 read_verbatim_identifier(context& ctx, reader_stream& stream) {
   source_location loc = stream.location();
-  return {identifier{read_verbatim_identifier_contents(ctx, stream)}, loc};
+  return {token::identifier{read_verbatim_identifier_contents(ctx, stream)},
+          loc};
 }
 
 static token
@@ -810,7 +811,7 @@ read_string_literal(context& ctx, reader_stream& stream) {
       to_utf8(c, [&] (char byte) { result.push_back(byte); });
   }
 
-  return {generic_literal{make<string>(ctx, std::move(result))}, loc};
+  return {token::generic_literal{make<string>(ctx, std::move(result))}, loc};
 }
 
 static token
@@ -818,10 +819,10 @@ read_token_after_comma(reader_stream& stream, source_location const& loc) {
   std::optional<char32_t> c = stream.peek();
   if (c && *c == '@') {
     stream.read();
-    return {comma_at{}, loc};
+    return {token::comma_at{}, loc};
   }
   else
-    return {comma{}, loc};
+    return {token::comma{}, loc};
 }
 
 static token
@@ -836,7 +837,7 @@ read_token_after_period(reader_stream& stream) {
 
   if (delimiter(*c)) {
     cp.commit();
-    return {dot{}, loc};
+    return {token::dot{}, loc};
   } else {
     cp.revert();
     return read_identifier(stream);
@@ -865,9 +866,9 @@ read_datum_label(reader_stream& stream, source_location const& loc) {
     throw read_error{"Unexpected end of input", stream.location()};
 
   if (*c == '=')
-    return {datum_label_definition{std::move(label)}, loc};
+    return {token::datum_label_definition{std::move(label)}, loc};
   else if (*c == '#')
-    return {datum_label_reference{std::move(label)}, loc};
+    return {token::datum_label_reference{std::move(label)}, loc};
   else
     throw read_error{"Unexpected character after datum label",
                      stream.location()};
@@ -876,7 +877,7 @@ read_datum_label(reader_stream& stream, source_location const& loc) {
 static token
 read_datum_comment(reader_stream& stream) {
   consume(stream, ';');
-  return {datum_comment{}, stream.location()};
+  return {token::datum_comment{}, stream.location()};
 }
 
 static token
@@ -921,7 +922,8 @@ static token
 read_verbatim_keyword(context& ctx, reader_stream& stream,
                       source_location const& loc) {
   consume(stream, '|');
-  return {keyword_literal{read_verbatim_identifier_contents(ctx, stream)}, loc};
+  return {token::keyword_literal{read_verbatim_identifier_contents(ctx, stream)},
+          loc};
 }
 
 static token
@@ -930,7 +932,7 @@ read_keyword(context& ctx, reader_stream& stream, source_location const& loc) {
   if (stream.peek() == U'|')
     return read_verbatim_keyword(ctx, stream, loc);
   else
-    return {keyword_literal{read_identifier_contents(stream)}, loc};
+    return {token::keyword_literal{read_identifier_contents(stream)}, loc};
 }
 
 static token
@@ -941,22 +943,22 @@ read_token_after_octothorpe(context& ctx, reader_stream& stream,
     throw read_error{"Unexpected end of input", stream.location()};
   else if (*c == '\'') {
     stream.read();
-    return {octothorpe_quote{}, loc};
+    return {token::octothorpe_quote{}, loc};
   } else if (*c == '`') {
     stream.read();
-    return {octothorpe_backquote{}, loc};
+    return {token::octothorpe_backquote{}, loc};
   } else if (*c == ',') {
     stream.read();
     c = stream.peek();
     if (c == '@') {
       stream.read();
-      return {octothorpe_comma_at{}, loc};
+      return {token::octothorpe_comma_at{}, loc};
     } else
-      return {octothorpe_comma{}, loc};
+      return {token::octothorpe_comma{}, loc};
   }
   else if (*c == '(') {
     stream.read();
-    return {octothorpe_left_paren{}, loc};
+    return {token::octothorpe_left_paren{}, loc};
   } else if (digit(*c))
     return read_datum_label(stream, loc);
   else if (*c == ';')
@@ -971,7 +973,7 @@ read_token_after_octothorpe(context& ctx, reader_stream& stream,
     consume(stream, 'u');
     expect(stream, '8');
     expect(stream, '(');
-    return {octothorpe_u8{}, loc};
+    return {token::octothorpe_u8{}, loc};
   } else
     return read_special_literal(ctx, stream);
 }
@@ -987,10 +989,10 @@ read_after_delimiter(context& ctx, reader_stream& stream) {
   source_location loc = stream.location();
   char32_t delimiter = require_char(stream);
   switch (delimiter) {
-  case '(': return {left_paren{}, loc};
-  case ')': return {right_paren{}, loc};
-  case '\'': return {quote{}, loc};
-  case '`': return {backquote{}, loc};
+  case '(': return {token::left_paren{}, loc};
+  case ')': return {token::right_paren{}, loc};
+  case '\'': return {token::quote{}, loc};
+  case '`': return {token::backquote{}, loc};
   case ',': return read_token_after_comma(stream, loc);
   case '"': return read_string_literal(ctx, stream);
   case '|': return read_verbatim_identifier(ctx, stream);
@@ -1038,7 +1040,7 @@ read_token(context& ctx, reader_stream& stream) {
   std::optional<char32_t> c = stream.peek();
 
   if (!c)
-    return {end{}, loc};
+    return {token::end{}, loc};
   else if (*c == '.')
     return read_number_or<read_token_after_period>(ctx, stream);
   else if (*c == '+' || *c == '-')

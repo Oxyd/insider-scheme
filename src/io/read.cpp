@@ -93,11 +93,11 @@ read_list(context& ctx, reader_stream& stream, bool read_syntax,
           datum_labels& labels,
           std::optional<std::string> const& defining_label) {
   token t = read_token(ctx, stream);
-  if (std::holds_alternative<end>(t.value))
+  if (std::holds_alternative<token::end>(t.value))
     throw read_error{"Unterminated list", t.location};
-  else if (std::holds_alternative<dot>(t.value))
+  else if (std::holds_alternative<token::dot>(t.value))
     throw read_error{"Unexpected . token", t.location};
-  else if (std::holds_alternative<right_paren>(t.value))
+  else if (std::holds_alternative<token::right_paren>(t.value))
     return ctx.constants->null;
 
   ptr<pair> result = make<pair>(ctx, ctx.constants->null, ctx.constants->null);
@@ -108,9 +108,9 @@ read_list(context& ctx, reader_stream& stream, bool read_syntax,
   ptr<pair> tail = result;
 
   t = read_token(ctx, stream);
-  while (!std::holds_alternative<end>(t.value)
-         && !std::holds_alternative<right_paren>(t.value)
-         && !std::holds_alternative<dot>(t.value)) {
+  while (!std::holds_alternative<token::end>(t.value)
+         && !std::holds_alternative<token::right_paren>(t.value)
+         && !std::holds_alternative<token::dot>(t.value)) {
     ptr<pair> new_tail = make<pair>(ctx,
                                     read_and_wrap(ctx, t, stream, read_syntax,
                                                   labels),
@@ -121,19 +121,19 @@ read_list(context& ctx, reader_stream& stream, bool read_syntax,
     t = read_token(ctx, stream);
   }
 
-  if (std::holds_alternative<end>(t.value))
+  if (std::holds_alternative<token::end>(t.value))
     throw read_error{"Unterminated list", t.location};
-  else if (std::holds_alternative<dot>(t.value)) {
+  else if (std::holds_alternative<token::dot>(t.value)) {
     t = read_token(ctx, stream);
     ptr<> cdr = read_and_wrap(ctx, t, stream, read_syntax, labels);
     tail->set_cdr(ctx.store, cdr);
 
     t = read_token(ctx, stream);
-    if (!std::holds_alternative<right_paren>(t.value))
+    if (!std::holds_alternative<token::right_paren>(t.value))
       throw read_error{"Too many elements after .", t.location};
   }
 
-  assert(std::holds_alternative<right_paren>(t.value));
+  assert(std::holds_alternative<token::right_paren>(t.value));
   return result;
 }
 
@@ -152,8 +152,8 @@ read_vector_elements(context& ctx, reader_stream& stream, bool read_syntax,
   std::vector<ptr<>> elements;
 
   token t = read_token(ctx, stream);
-  while (!std::holds_alternative<end>(t.value)
-         && !std::holds_alternative<right_paren>(t.value)) {
+  while (!std::holds_alternative<token::end>(t.value)
+         && !std::holds_alternative<token::right_paren>(t.value)) {
     source_location loc = stream.location();
     elements.push_back(read_and_wrap(ctx, t, stream, read_syntax, labels));
 
@@ -166,7 +166,7 @@ read_vector_elements(context& ctx, reader_stream& stream, bool read_syntax,
     t = read_token(ctx, stream);
   }
 
-  if (std::holds_alternative<end>(t.value))
+  if (std::holds_alternative<token::end>(t.value))
     throw read_error{"Unterminated vector", t.location};
 
   return elements;
@@ -260,7 +260,7 @@ read_shortcut(context& ctx, reader_stream& stream, token const& shortcut_token,
               bool read_syntax, datum_labels& labels,
               std::optional<std::string> const& defining_label) {
   token t = read_token(ctx, stream);
-  if (std::holds_alternative<end>(t.value))
+  if (std::holds_alternative<token::end>(t.value))
     throw read_error{fmt::format("Expected token after {}", shortcut),
                      t.location};
 
@@ -289,71 +289,71 @@ static ptr<>
 read(context& ctx, token first_token, reader_stream& stream,
      bool read_syntax, datum_labels& labels,
      std::optional<std::string> const& defining_label) {
-  if (std::holds_alternative<end>(first_token.value))
+  if (std::holds_alternative<token::end>(first_token.value))
     return {};
-  else if (std::holds_alternative<left_paren>(first_token.value))
+  else if (std::holds_alternative<token::left_paren>(first_token.value))
     return read_list(ctx, stream, read_syntax, labels, defining_label);
-  else if (std::holds_alternative<octothorpe_left_paren>(first_token.value))
+  else if (std::holds_alternative<token::octothorpe_left_paren>(first_token.value))
     return read_vector(ctx, stream, read_syntax, labels, defining_label);
-  else if (std::holds_alternative<octothorpe_u8>(first_token.value))
+  else if (std::holds_alternative<token::octothorpe_u8>(first_token.value))
     return read_bytevector(ctx, stream, read_syntax, labels, defining_label);
-  else if (std::holds_alternative<quote>(first_token.value))
+  else if (std::holds_alternative<token::quote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "'", "quote", read_syntax,
                          labels, defining_label);
-  else if (std::holds_alternative<octothorpe_quote>(first_token.value))
+  else if (std::holds_alternative<token::octothorpe_quote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#'", "syntax", read_syntax,
                          labels, defining_label);
-  else if (std::holds_alternative<backquote>(first_token.value))
+  else if (std::holds_alternative<token::backquote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "`", "quasiquote",
                          read_syntax, labels, defining_label);
-  else if (std::holds_alternative<octothorpe_backquote>(first_token.value))
+  else if (std::holds_alternative<token::octothorpe_backquote>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#`", "quasisyntax",
                          read_syntax, labels, defining_label);
-  else if (std::holds_alternative<comma>(first_token.value))
+  else if (std::holds_alternative<token::comma>(first_token.value))
     return read_shortcut(ctx, stream, first_token, ",", "unquote", read_syntax,
                          labels, defining_label);
-  else if (std::holds_alternative<octothorpe_comma>(first_token.value))
+  else if (std::holds_alternative<token::octothorpe_comma>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#,", "unsyntax", read_syntax,
                          labels, defining_label);
-  else if (std::holds_alternative<comma_at>(first_token.value))
+  else if (std::holds_alternative<token::comma_at>(first_token.value))
     return read_shortcut(ctx, stream, first_token, ",@", "unquote-splicing",
                          read_syntax, labels, defining_label);
-  else if (std::holds_alternative<octothorpe_comma_at>(first_token.value))
+  else if (std::holds_alternative<token::octothorpe_comma_at>(first_token.value))
     return read_shortcut(ctx, stream, first_token, "#,@", "unsyntax-splicing",
                          read_syntax, labels, defining_label);
-  else if (generic_literal* lit
-             = std::get_if<generic_literal>(&first_token.value))
+  else if (auto* lit
+             = std::get_if<token::generic_literal>(&first_token.value))
     return define_label_for_atomic_value(lit->value, labels, defining_label);
-  else if (identifier* i = std::get_if<identifier>(&first_token.value))
+  else if (auto* i = std::get_if<token::identifier>(&first_token.value))
     return define_label_for_atomic_value(ctx.intern(i->value), labels,
                                          defining_label);
-  else if (keyword_literal* k = std::get_if<keyword_literal>(&first_token.value))
+  else if (auto* k = std::get_if<token::keyword_literal>(&first_token.value))
     return define_label_for_atomic_value(ctx.intern_keyword(k->value), labels,
                                          defining_label);
-  else if (boolean_literal* b = std::get_if<boolean_literal>(&first_token.value))
+  else if (auto* b = std::get_if<token::boolean_literal>(&first_token.value))
     return define_label_for_atomic_value(
       b->value ? ctx.constants->t : ctx.constants->f,
       labels,
       defining_label
     );
-  else if (std::holds_alternative<void_literal>(first_token.value))
+  else if (std::holds_alternative<token::void_literal>(first_token.value))
     return define_label_for_atomic_value(ctx.constants->void_, labels,
                                          defining_label);
-  else if (std::holds_alternative<default_value_literal>(first_token.value))
+  else if (std::holds_alternative<token::default_value_literal>(first_token.value))
     return define_label_for_atomic_value(ctx.constants->default_value, labels,
                                          defining_label);
-  else if (std::holds_alternative<dot>(first_token.value))
+  else if (std::holds_alternative<token::dot>(first_token.value))
     throw read_error{"Unexpected . token", first_token.location};
-  else if (std::holds_alternative<right_paren>(first_token.value))
+  else if (std::holds_alternative<token::right_paren>(first_token.value))
     throw read_error{"Unexpected ) token", first_token.location};
-  else if (datum_label_definition* dldef
-             = std::get_if<datum_label_definition>(&first_token.value))
+  else if (auto* dldef
+             = std::get_if<token::datum_label_definition>(&first_token.value))
     return read(ctx, read_token(ctx, stream), stream, read_syntax, labels,
                 dldef->label);
-  else if (datum_label_reference* dlref
-             = std::get_if<datum_label_reference>(&first_token.value))
+  else if (auto* dlref
+             = std::get_if<token::datum_label_reference>(&first_token.value))
     return find_datum_label_reference(labels, dlref->label, first_token.location);
-  else if (std::holds_alternative<datum_comment>(first_token.value)) {
+  else if (std::holds_alternative<token::datum_comment>(first_token.value)) {
     datum_labels dummy_labels;
     read(ctx, read_token(ctx, stream), stream, false, dummy_labels); // Discard
     return read(ctx, read_token(ctx, stream), stream, read_syntax, labels,
