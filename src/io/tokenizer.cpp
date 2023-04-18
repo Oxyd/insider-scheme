@@ -793,6 +793,11 @@ read_verbatim_identifier(context& ctx, reader_stream& stream) {
           loc};
 }
 
+static void
+append(std::string& s, char32_t c) {
+  to_utf8(c, [&] (char byte) { s.push_back(byte); });
+}
+
 static token
 read_string_literal(context& ctx, reader_stream& stream) {
   // The opening " was consumed before calling this function.
@@ -807,9 +812,9 @@ read_string_literal(context& ctx, reader_stream& stream) {
 
     if (c == '\\') {
       if (auto escape = read_string_escape(ctx, stream))
-        to_utf8(*escape, [&] (char byte) { result.push_back(byte); });
+        append(result, *escape);
     } else
-      to_utf8(c, [&] (char byte) { result.push_back(byte); });
+      append(result, c);
   }
 
   return {token::generic_literal{make<string>(ctx, std::move(result))}, loc};
@@ -939,6 +944,58 @@ read_keyword(context& ctx, reader_stream& stream, source_location const& loc) {
     return {token::keyword_literal{read_identifier_contents(stream)}, loc};
 }
 
+static std::string
+read_raw_string_delimiter(reader_stream& stream) {
+  std::string result;
+  while (stream.peek() != '(') {
+    source_location loc = stream.location();
+    char32_t c = require_char(stream);
+
+    if (whitespace(c) || delimiter(c) || c == '\\')
+      throw read_error{"Invalid character in raw string delimiter", loc};
+
+    append(result, c);
+  }
+  return result;
+}
+
+static bool
+consume_string(reader_stream& stream, std::string const& sequence) {
+  for (char c : sequence)
+    if (stream.read() != c)
+      return false;
+  return true;
+}
+
+static bool
+end_of_raw_string_literal(reader_stream& stream, std::string const& delim) {
+  auto cp = stream.make_checkpoint();
+
+  if (stream.read() == ')'
+      && consume_string(stream, delim)
+      && stream.read() == '"') {
+    cp.commit();
+    return true;
+  } else
+    return false;
+}
+
+static token
+read_raw_string_literal(context& ctx, reader_stream& stream) {
+  source_location loc = stream.location();
+
+  consume(stream, 'R');
+  expect(stream, '"');
+  std::string delim = read_raw_string_delimiter(stream);
+  expect(stream, '(');
+
+  std::string result;
+  while (!end_of_raw_string_literal(stream, delim))
+    append(result, require_char(stream));
+
+  return {token::generic_literal{make<string>(ctx, std::move(result))}, loc};
+}
+
 static token
 read_token_after_octothorpe(context& ctx, reader_stream& stream,
                             source_location const& loc) {
@@ -978,7 +1035,9 @@ read_token_after_octothorpe(context& ctx, reader_stream& stream,
     expect(stream, '8');
     expect(stream, '(');
     return {token::begin_bytevector{}, loc};
-  } else
+  } else if (*c == 'R')
+    return read_raw_string_literal(ctx, stream);
+  else
     return read_special_literal(ctx, stream);
 }
 

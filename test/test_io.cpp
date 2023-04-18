@@ -10,6 +10,7 @@
 #include "runtime/string.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
+#include <gtest/gtest.h>
 
 using namespace insider;
 
@@ -192,6 +193,28 @@ TEST_F(io, read_string) {
   char const* msvc_workaround12 = R"("foo\   )" "\n"
                                   R"(    bar")";
   EXPECT_EQ(expect<string>(read(msvc_workaround12))->value(), "foobar");
+}
+
+TEST_F(io, read_raw_string_without_delimiter) {
+  EXPECT_EQ(expect<string>(read(R"scm(#R"(foo"bar)")scm"))->value(),
+            R"(foo"bar)");
+}
+
+TEST_F(io, read_raw_string_with_custom_delimiter) {
+  EXPECT_EQ(expect<string>(read(R"scm(#R"delim(foo)"bar)delim")scm"))->value(),
+            R"cxx(foo)"bar)cxx");
+}
+
+TEST_F(io, escapes_in_raw_string_literals) {
+  EXPECT_EQ(expect<string>(read(R"scm(#R"(foo\nbar)")scm"))->value(),
+            "foo\\nbar");
+}
+
+TEST_F(io, forbidden_characters_in_raw_string_delimiters) {
+  EXPECT_THROW(read(R"(#R"foo bar()foo bar")"), read_error);
+  EXPECT_THROW(read(R"(#R"\()\")"), read_error);
+  EXPECT_THROW(read(R"(#R";();")"), read_error);
+  EXPECT_THROW(read(R"scm(#R")())")scm"), read_error);
 }
 
 TEST_F(io, read_simple_keyword) {
