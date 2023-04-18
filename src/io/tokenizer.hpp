@@ -92,8 +92,30 @@ ptr<>
 read_number(context& ctx, reader_stream& stream, source_location const& loc,
             unsigned default_base = 10);
 
-token
-read_token(context& ctx, reader_stream& stream);
+class tokenizer {
+public:
+  tokenizer(context&, reader_stream&);
+
+  token const&
+  get() const { return current_; }
+
+  void
+  advance();
+
+  source_location
+  location() const;
+
+private:
+  context&       ctx_;
+  reader_stream& stream_;
+  token          current_;
+};
+
+inline token const&
+next_token(tokenizer& tokenizer) {
+  tokenizer.advance();
+  return tokenizer.get();
+}
 
 } // namespace insider
 

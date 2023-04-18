@@ -1,5 +1,6 @@
 #include "io/tokenizer.hpp"
 
+#include "compiler/source_location.hpp"
 #include "context.hpp"
 #include "io/char_categories.hpp"
 #include "io/read.hpp"
@@ -881,6 +882,9 @@ read_datum_comment(reader_stream& stream) {
 }
 
 static token
+read_token(context& ctx, reader_stream& stream);
+
+static token
 read_block_comment(context& ctx, reader_stream& stream) {
   consume(stream, '|');
 
@@ -1032,7 +1036,7 @@ read_after_octothorpe(context& ctx, reader_stream& stream) {
   }
 }
 
-token
+static token
 read_token(context& ctx, reader_stream& stream) {
   skip_whitespace(stream);
 
@@ -1053,6 +1057,22 @@ read_token(context& ctx, reader_stream& stream) {
     return read_after_octothorpe(ctx, stream);
   else
     return read_after_delimiter(ctx, stream);
+}
+
+tokenizer::tokenizer(context& ctx, reader_stream& stream)
+  : ctx_{ctx}
+  , stream_{stream}
+  , current_{read_token(ctx, stream)}
+{ }
+
+void
+tokenizer::advance() {
+  current_ = read_token(ctx_, stream_);
+}
+
+source_location
+tokenizer::location() const {
+  return stream_.location();
 }
 
 } // namespace insider
