@@ -102,14 +102,20 @@ static void
 emit_invalid_arity_diagnostic(parsing_context& pc,
                               ptr<application_expression> app,
                               ptr<lambda_expression> lambda) {
+  auto min = required_parameter_count(lambda);
+  auto max = leading_parameter_count(lambda);
+  bool is_variadic = min != max;
+
   std::string message = fmt::format("Wrong number of arguments in call to {}: ",
                                     lambda->name());
-  if (app->arguments().size() < required_parameter_count(lambda))
-    message += fmt::format("Expected at least {}",
+  if (app->arguments().size() < min)
+    message += fmt::format("Expected {}{}",
+                           is_variadic ? "at least " : "",
                            required_parameter_count(lambda));
   else
     // app->arguments.size() > leading_parameter_count(lambda)
-    message += fmt::format("Expected at most {}",
+    message += fmt::format("Expected {}{}",
+                           is_variadic ? "at most " : "",
                            leading_parameter_count(lambda));
 
   message += fmt::format(", got {}. Call will raise an exception at run-time",
