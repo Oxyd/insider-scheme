@@ -25,17 +25,19 @@
                 (write-u8 %write-u8)
                 (char-ready? %char-ready?)
                 (u8-ready? %u8-ready?)))
-(export binary-port? call-with-input-file call-with-output-file call-with-port char-ready?
-        close-input-port close-output-port close-port current-error-port current-input-port
-        current-output-port current-source-file-origin delete-file display eof-object eof-object?
-        file-exists?  flush-output-port flush-output-port get-output-bytevector get-output-string
-        input-port-open?  input-port?  newline open-input-bytevector open-input-file open-input-string
-        open-binary-input-file open-binary-output-file open-output-bytevector open-output-file
-        open-output-string open-source-file-relative output-port-open?  output-port?  peek-char peek-u8
-        port?  read read-bytevector read-bytevector!  read-char read-line read-string read-syntax
-        read-syntax-multiple read-syntax-multiple-ci read-u8 textual-port?  u8-ready?  with-input-from-file
-        with-output-to-file write write-bytevector write-char write-shared write-simple write-string
-        write-u8)
+(export binary-port? call-with-input-file call-with-input-string
+        call-with-output-file call-with-output-string call-with-port char-ready?
+        close-input-port close-output-port close-port current-error-port
+        current-input-port current-output-port current-source-file-origin delete-file
+        display eof-object eof-object? file-exists? flush-output-port flush-output-port
+        get-output-bytevector get-output-string input-port-open? input-port? newline
+        open-input-bytevector open-input-file open-input-string open-binary-input-file
+        open-binary-output-file open-output-bytevector open-output-file
+        open-output-string open-source-file-relative output-port-open? output-port?
+        peek-char peek-u8 port? read read-bytevector read-bytevector! read-char
+        read-line read-string read-syntax read-syntax-multiple read-syntax-multiple-ci
+        read-u8 textual-port? u8-ready? with-input-from-file with-output-to-file write
+        write-bytevector write-char write-shared write-simple write-string write-u8)
 
 (define current-input-port (make-parameter-from-tag current-input-port-tag))
 (define current-output-port (make-parameter-from-tag current-output-port-tag))
@@ -75,6 +77,15 @@
 
 (define (call-with-output-file path proc)
   (call-with-port (open-output-file path) proc))
+
+(define (call-with-input-string str proc)
+  (call-with-port (open-input-string str) proc))
+
+(define (call-with-output-string proc)
+  (call-with-port (open-output-string)
+    (lambda (p)
+      (proc p)
+      (get-output-string p))))
 
 (define (with-input-from-file path thunk)
   (let ((port (open-input-file path)))
