@@ -82,7 +82,7 @@
       ((define-record-type name constructor predicate fields ...)
        (let ((indices (make-field-indices fields)))
          #`(begin
-             (define #,name (make-record-type #,(record-size fields)))
+             (define #,name (make-record-type #,(record-size fields) '#,name))
              #,(make-record-constructor name constructor indices)
              (define (#,predicate x)
                (and (eq? (type x) 'insider::record_instance)
