@@ -10,20 +10,20 @@ using namespace insider;
 struct records : scheme_fixture { };
 
 TEST_F(records, create_instance_of_record) {
-  auto type = make<record_type>(ctx, 0);
+  auto type = make<record_type>(ctx, 0, ctx.intern("type"));
   auto inst = make_instance(ctx, type);
   EXPECT_EQ(inst->type(), type);
 }
 
 TEST_F(records, access_first_field_of_record) {
-  auto type = make<record_type>(ctx, 1);
+  auto type = make<record_type>(ctx, 1, ctx.intern("type"));
   auto inst = make_instance(ctx, type);
   inst->set(ctx.store, 0, integer_to_ptr(42));
   EXPECT_EQ(expect<integer>(inst->ref(0)).value(), 42);
 }
 
 TEST_F(records, access_two_fields_of_record) {
-  auto type = make<record_type>(ctx, 2);
+  auto type = make<record_type>(ctx, 2, ctx.intern("type"));
   auto inst = make_instance(ctx, type);
   inst->set(ctx.store, 0, ctx.intern("first"));
   inst->set(ctx.store, 1, ctx.intern("second"));
@@ -33,7 +33,7 @@ TEST_F(records, access_two_fields_of_record) {
 
 TEST_F(records, create_record_type_and_instance) {
   auto result = eval(R"(
-    (let ((t (make-record-type 1)))
+    (let ((t (make-record-type 1 't)))
       (let ((r (make-record-instance t)))
         (record-set! r 0 'foo)
         r))
@@ -43,7 +43,7 @@ TEST_F(records, create_record_type_and_instance) {
 
 TEST_F(records, set_and_read_record_field) {
   auto result = eval(R"(
-    (let ((point-type (make-record-type 2))
+    (let ((point-type (make-record-type 2 'point-type))
           (point.x (lambda (p) (record-ref p 0)))
           (point.y (lambda (p) (record-ref p 1))))
       (let ((p (make-record-instance point-type)))
@@ -59,7 +59,7 @@ TEST_F(records, test_record_type) {
   auto result = eval_module(R"(
     (import (insider internal))
 
-    (define foo-type (make-record-type 0))
+    (define foo-type (make-record-type 0 'foo-type))
 
     (define foo?
       (lambda (x)

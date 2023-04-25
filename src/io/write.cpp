@@ -7,6 +7,7 @@
 #include "runtime/basic_types.hpp"
 #include "runtime/compare.hpp"
 #include "runtime/numeric.hpp"
+#include "runtime/records.hpp"
 #include "runtime/string.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
@@ -396,6 +397,17 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
       write_simple(ctx, v->ref(i), out);
     }
     out->write(">");
+  } else if (auto inst = match<record_instance>(datum)) {
+    auto type = inst->type();
+    out->write(fmt::format("<{} ", type->name()->value()));
+
+    for (std::size_t i = 0; i < type->num_fields(); ++i) {
+      if (i != 0)
+        out->write(' ');
+      write_simple(ctx, inst->ref(i), out);
+    }
+
+    out->write('>');
   } else
     out->write(fmt::format("<{}>", object_type_name(datum)));
 }

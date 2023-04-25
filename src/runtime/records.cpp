@@ -1,6 +1,7 @@
 #include "records.hpp"
 
 #include "context.hpp"
+#include "runtime/symbol.hpp"
 #include "util/define_procedure.hpp"
 
 namespace insider {
@@ -49,8 +50,8 @@ make_instance(context& ctx, ptr<record_type> type) {
 }
 
 static ptr<record_type>
-make_record_type(context& ctx, std::size_t num_fields) {
-  return make<record_type>(ctx, num_fields);
+make_record_type(context& ctx, std::size_t num_fields, ptr<symbol> name) {
+  return make<record_type>(ctx, num_fields, name);
 }
 
 static void

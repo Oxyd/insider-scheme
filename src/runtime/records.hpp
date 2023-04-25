@@ -10,6 +10,7 @@
 namespace insider {
 
 class module_;
+class symbol;
 
 class record_type : public leaf_object<record_type> {
 public:
@@ -17,13 +18,20 @@ public:
   static constexpr word_type static_type_index = type_indexes::record_type;
 
   explicit
-  record_type(std::size_t num_fields) : num_fields_{num_fields} { }
+  record_type(std::size_t num_fields, ptr<symbol> name)
+    : num_fields_{num_fields}
+    , name_{name}
+  { }
 
   std::size_t
   num_fields() const { return num_fields_; }
 
+  ptr<symbol>
+  name() const { return name_; }
+
 private:
-  std::size_t num_fields_;
+  std::size_t       num_fields_;
+  ptr<symbol> const name_;
 };
 
 class record_instance
