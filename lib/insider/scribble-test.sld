@@ -4,7 +4,7 @@
 ;; BSD-style license: http://synthcode.com/license.txt
 
 (define-library (insider scribble-test)
-  (export run-tests)
+  (export run-scribble-tests)
   (import (scheme base) (scheme write) (insider scribble) (insider string)
           (insider test) (insider io))
   (begin
@@ -12,7 +12,7 @@
       (test-equal (call-with-output-string (lambda (out) (write str out)))
                   expect
                   (call-with-input-string str scribble-parse)))
-    (define (run-tests)
+    (define (run-scribble-tests)
 
       (test-begin "scribble")
 
