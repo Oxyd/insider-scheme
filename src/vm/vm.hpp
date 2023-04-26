@@ -2,6 +2,7 @@
 #define INSIDER_VM_VM_HPP
 
 #include "compiler/compilation_config.hpp"
+#include "compiler/source_file_origin.hpp"
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
 #include "vm/call_stack.hpp"
@@ -99,12 +100,14 @@ tail_call(vm&, ptr<> callable, std::vector<ptr<>> const& arguments);
 // Compile an expression and evaluate it in the given module.
 ptr<>
 eval(context& ctx, root_ptr<module_> const&, ptr<syntax>,
-     compilation_config const&);
+     compilation_config const&,
+     source_file_origin const& origin = make_eval_origin());
 
 // Parse a string as an expression and evaluate it in the given module.
 ptr<>
 eval(context& ctx, root_ptr<module_> const&, std::string const& expr,
-     compilation_config const&);
+     compilation_config const&,
+     source_file_origin const& origin = make_eval_origin());
 
 } // namespace insider
 

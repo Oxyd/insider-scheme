@@ -1,6 +1,7 @@
 #include "compiler/compilation_config.hpp"
 #include "compiler/compiler.hpp"
 #include "compiler/source_code_provider.hpp"
+#include "compiler/source_file_origin.hpp"
 #include "context.hpp"
 #include "io/port.hpp"
 #include "io/read.hpp"
@@ -13,6 +14,7 @@
 #include <fmt/format.h>
 
 #include <cstdio>
+#include <filesystem>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -154,8 +156,13 @@ run_repl(insider::context& ctx, insider::compilation_config const& config) {
 
       insider::ptr<> expr
         = insider::read_syntax(ctx, input_port.get());
+
+      insider::filesystem_source_code_provider provider{"."};
+      insider::source_file_origin origin{&provider, "."};
+
       if (auto stx = insider::match<insider::syntax>(expr)) {
-        insider::ptr<> result = insider::eval(ctx, repl_mod, stx, config);
+        insider::ptr<> result
+          = insider::eval(ctx, repl_mod, stx, config, origin);
         if (result != ctx.constants->void_) {
           insider::write(ctx, result, output_port.get());
           output_port->write("\n");
