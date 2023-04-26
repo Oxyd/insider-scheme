@@ -13,7 +13,7 @@ filesystem_source_code_provider::find_file(context& ctx,
                                            std::filesystem::path const& path) {
   if (auto port = open_file_for_text_input(ctx, root_ / path))
     return source_file{{ctx.store.root_list(), unique_port_handle{port}},
-                       {this, path}};
+                       {this, path.parent_path()}};
   else
     return std::nullopt;
 }
@@ -33,7 +33,7 @@ virtual_filesystem_source_code_provider::find_file(
     return source_file{
       {ctx.store.root_list(),
        unique_port_handle{open_input_string(ctx, f->second)}},
-      {this, path}
+      {this, path.parent_path()}
     };
   else
     return std::nullopt;
@@ -50,7 +50,7 @@ module_name_to_path(module_name const& name) {
 std::optional<source_file>
 find_source_relative(context& ctx, source_file_origin origin,
                      std::filesystem::path const& path) {
-  return origin.provider->find_file(ctx, origin.path.replace_filename(path));
+  return origin.provider->find_file(ctx, origin.path / path);
 }
 
 static ptr<>

@@ -2,6 +2,7 @@
 
 #include "compiler/compilation_config.hpp"
 #include "compiler/compiler.hpp"
+#include "compiler/source_file_origin.hpp"
 #include "context.hpp"
 #include "io/port.hpp"
 #include "io/read.hpp"
@@ -2397,16 +2398,16 @@ eval_proc(vm& state, ptr<> expr, root_ptr<module_> const& m) {
 
 ptr<>
 eval(context& ctx, root_ptr<module_> const& mod, ptr<syntax> expr,
-     compilation_config const& config) {
-  auto f = compile_expression(ctx, expr, mod, make_eval_origin(), config);
+     compilation_config const& config, source_file_origin const& origin) {
+  auto f = compile_expression(ctx, expr, mod, origin, config);
   return call_root(ctx, f, {});
 }
 
 ptr<>
 eval(context& ctx, root_ptr<module_> const& mod, std::string const& expr,
-     compilation_config const& config) {
+     compilation_config const& config, source_file_origin const& origin) {
   if (auto stx = match<syntax>(read_syntax(ctx, expr)))
-    return eval(ctx, mod, stx, config);
+    return eval(ctx, mod, stx, config, origin);
   else
     throw std::runtime_error{"Unexpected EOF"};
 }
