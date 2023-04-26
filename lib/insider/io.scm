@@ -14,6 +14,7 @@
                       read read-syntax read-syntax-multiple read-syntax-multiple-ci
                       write write-shared write-simple
                       file-exists? delete-file
+                      current-working-directory set-current-working-directory!
                       <eof-object>)
                 (flush-output-port %flush-output-port)
                 (read-char %read-char)
@@ -37,7 +38,8 @@
         peek-char peek-u8 port? read read-bytevector read-bytevector! read-char
         read-line read-string read-syntax read-syntax-multiple read-syntax-multiple-ci
         read-u8 textual-port? u8-ready? with-input-from-file with-output-to-file write
-        write-bytevector write-char write-shared write-simple write-string write-u8)
+        write-bytevector write-char write-shared write-simple write-string write-u8
+        current-working-directory set-current-working-directory!)
 
 (define current-input-port (make-parameter-from-tag current-input-port-tag))
 (define current-output-port (make-parameter-from-tag current-output-port-tag))
