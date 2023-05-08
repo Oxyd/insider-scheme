@@ -81,7 +81,9 @@ public:
   }
 
   bool
-  operator != (list_iterator const& other) { return !operator == (other); }
+  operator != (list_iterator const& other) const {
+    return !operator == (other);
+  }
 
 private:
   detail::pointer_like_t<pair, Pointer> current_{};

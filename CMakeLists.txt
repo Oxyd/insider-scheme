@@ -15,6 +15,7 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU|Clang")
           $<$<CXX_COMPILER_ID:GNU>:-Wno-stringop-overflow>
           $<$<CXX_COMPILER_ID:GNU>:-Wno-restrict>
           $<$<CXX_COMPILER_ID:GNU>:-Wno-maybe-uninitialized>
+          $<$<CXX_COMPILER_ID:GNU>:-fconcepts-diagnostics-depth=4>
           $<$<CONFIG:DEBUG>:-ggdb3>
           $<$<CONFIG:RELWITHDEBINFO>:-O3 -ggdb3 -UNDEBUG>
           $<$<CONFIG:RELEASE>:-O3 -DNDEBUG>
