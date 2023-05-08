@@ -131,6 +131,12 @@ TEST_F(port_fixture, read_empty_port_after_reading_two_lines) {
   EXPECT_FALSE(p->read_line());
 }
 
+TEST_F(port_fixture, read_line_after_peek_char) {
+  auto p = open_input_string("foo\nbar");
+  EXPECT_EQ(p->peek_character(), 'f');
+  EXPECT_EQ(p->read_line(), "foo");
+}
+
 TEST_F(port_fixture, rewind) {
   auto p = open_input_string("abc");
   p->read_character();

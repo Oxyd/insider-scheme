@@ -113,6 +113,8 @@
                              (b (read-line port)))
                         (list a b)))
     (test-port-result "foo" "foo\r" port (read-line port))
+    (test-port-result "foo" "foo\nbar" port (begin (peek-char port)
+                                                   (read-line port)))
 
     (test-port-result "foo" "foobar" port (read-string 3 port))
     (test-port-result "foobar" "foobar" port (read-string 12 port))

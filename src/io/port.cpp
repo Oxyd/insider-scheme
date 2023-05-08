@@ -9,6 +9,7 @@
 
 #include <cstdio>
 #include <filesystem>
+#include <iterator>
 #include <string>
 
 #ifdef WIN32
@@ -309,7 +310,14 @@ textual_input_port::read_line() {
   if (!source_)
     return {};
 
-  auto bytes = source_->read_until_eol();
+  std::vector<std::uint8_t> bytes;
+  std::copy(read_buffer_.begin(), read_buffer_.begin() + read_buffer_length_,
+            std::back_inserter(bytes));
+  read_buffer_length_ = 0;
+
+  auto more_bytes = source_->read_until_eol();
+  std::copy(more_bytes.begin(), more_bytes.end(), std::back_inserter(bytes));
+
   auto next = source_->peek();
   if (next == '\r') {
     source_->read();
