@@ -1,7 +1,3 @@
-(library (insider char-test))
-(import (insider syntax) (insider char) (insider test) (insider control))
-(export test-char)
-
 (define (comparison)
   (test-group "comparison"
     (test (char=? #\a #\a))

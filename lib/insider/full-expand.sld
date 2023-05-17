@@ -1,0 +1,6 @@
+(define-library (insider full-expand)
+  (import (insider syntax) (insider basic-procedures) (insider numeric)
+          (insider list)
+          (only (insider internal) expand))
+  (export full-expand)
+  (include "full-expand.scm"))

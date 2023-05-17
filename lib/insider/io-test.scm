@@ -1,8 +1,3 @@
-(library (insider io-test))
-(import (insider syntax) (insider io) (insider test) (insider control) (insider list) (insider bytevector)
-        (insider error))
-(export test-io)
-
 (define (test-ports)
   (test-group "ports"
     (let ((p (open-input-string "")))

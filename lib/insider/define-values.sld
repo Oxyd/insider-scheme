@@ -1,0 +1,7 @@
+(define-library (insider define-values)
+  (import (insider syntax) (insider list) (insider error)
+          (insider basic-procedures) (insider numeric) (insider control)
+          (only (insider internal)
+                values-tuple-length values-tuple-ref))
+  (export define-values)
+  (include "define-values.scm"))

@@ -1,7 +1,3 @@
-(library (insider list-test))
-(import (insider syntax) (insider test) (insider list) (insider control) (insider string) (insider numeric))
-(export test-list)
-
 (define (basics)
   (test-group "basics"
     (test (pair? '(1 . 2)))

@@ -1,8 +1,3 @@
-(library (scheme case-lambda))
-(import (insider syntax) (insider basic-procedures) (insider error) (insider control) (insider list)
-        (only (insider internal) =))
-(export case-lambda)
-
 (define-syntax case-lambda
   (syntax-rules ()
     ((case-lambda (params0 body0 ...) ...)

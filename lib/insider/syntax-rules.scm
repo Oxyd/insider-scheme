@@ -1,7 +1,3 @@
-(library (insider syntax-rules))
-(import (insider internal))
-(export syntax-match syntax-rules)
-
 (meta
   (define null?
     (lambda (x)

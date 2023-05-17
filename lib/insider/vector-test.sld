@@ -1,0 +1,5 @@
+(define-library (insider vector-test)
+  (import (insider syntax) (insider test) (insider vector) (insider control)
+          (insider list) (insider numeric))
+  (export test-vector)
+  (include "vector-test.scm"))

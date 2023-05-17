@@ -1,8 +1,3 @@
-(library (insider string-test))
-(import (insider syntax) (insider string) (insider test) (insider control) (insider char) (insider numeric)
-        (insider list) (insider basic-procedures))
-(export test-string)
-
 (define (test-string-cursor)
   (test-group "string cursor"
     (test (string-cursor? (string-cursor-start "")))

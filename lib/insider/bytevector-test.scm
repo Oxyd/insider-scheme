@@ -1,7 +1,3 @@
-(library (insider bytevector-test))
-(import (insider syntax) (insider test) (insider bytevector) (insider control))
-(export test-bytevector)
-
 (define (test-bytevector)
   (test-group "bytevector"
     (test (bytevector? #u8(1 2 3)))

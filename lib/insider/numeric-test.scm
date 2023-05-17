@@ -1,7 +1,3 @@
-(library (insider numeric-test))
-(import (insider syntax) (insider test) (insider numeric) (insider control) (insider list))
-(export test-numeric)
-
 (define (test-comparison)
   (test-group "comparison"
     (test-equal 3 (min 3 4))

@@ -1,0 +1,5 @@
+(define-library (insider io-test)
+  (import (insider syntax) (insider io) (insider test) (insider control)
+          (insider list) (insider bytevector) (insider error))
+  (export test-io)
+  (include "io-test.scm"))

@@ -1,8 +1,3 @@
-(library (insider syntax-test))
-(import (insider syntax) (insider basic-procedures) (insider numeric) (insider list) (insider control)
-        (insider define-values) (insider vector) (insider control) (insider test))
-(export test-syntax)
-
 (define (test-syntax)
   (test-group "syntax"
     (test-eq 'greater

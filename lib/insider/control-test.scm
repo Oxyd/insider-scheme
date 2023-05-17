@@ -1,7 +1,3 @@
-(library (insider control-test))
-(import (insider syntax) (insider control) (insider test) (scheme repl))
-(export test-control)
-
 (define (test-eval)
   (test-group "eval"
     (test-equal 21 (eval '(* 7 3) (environment '(scheme base))))

@@ -1,7 +1,3 @@
-(library (insider vector-test))
-(import (insider syntax) (insider test) (insider vector) (insider control) (insider list) (insider numeric))
-(export test-vector)
-
 (define (test-vector)
   (test-group "vector"
     (test (vector? #(1 2 3)))

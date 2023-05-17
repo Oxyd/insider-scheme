@@ -1,8 +1,3 @@
-(library (insider basic-procedures-test))
-(import (insider syntax) (insider basic-procedures) (insider test) (insider control) (insider list)
-        (insider numeric) (insider vector))
-(export test-basic-procedures)
-
 (define (test-eq?)
   (test-group "eq?"
     (test (eq? 'a 'a))

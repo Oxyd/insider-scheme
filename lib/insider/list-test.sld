@@ -1,0 +1,5 @@
+(define-library (insider list-test)
+  (import (insider syntax) (insider test) (insider list) (insider control)
+          (insider string) (insider numeric))
+  (export test-list)
+  (include "list-test.scm"))

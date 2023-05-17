@@ -1,8 +1,3 @@
-(library (insider cond-expand))
-(import (insider syntax) (insider error) (insider list)
-        (only (insider internal) known-module? features meta))
-(export cond-expand library)
-
 (meta (define-auxiliary-syntax library))
 
 (meta

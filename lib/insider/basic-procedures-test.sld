@@ -1,0 +1,5 @@
+(define-library (insider basic-procedures-test)
+  (import (insider syntax) (insider basic-procedures) (insider test) (insider control) (insider list)
+          (insider numeric) (insider vector))
+  (export test-basic-procedures)
+  (include "basic-procedures-test.scm"))
