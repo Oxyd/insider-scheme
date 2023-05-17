@@ -34,10 +34,10 @@ TEST_F(modules, module_activation) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-
-      (leave-mark 1)
+      (define-library (foo)
+        (import (insider internal))
+        (begin
+          (leave-mark 1)))
     )"
   );
   EXPECT_TRUE(trace.empty());
@@ -45,11 +45,11 @@ TEST_F(modules, module_activation) {
   add_source_file(
     "bar.scm",
     R"(
-      (library (bar))
-      (import (insider internal))
-      (import (foo))
-
-      (leave-mark 2)
+      (define-library (bar)
+        (import (insider internal))
+        (import (foo))
+        (begin
+          (leave-mark 2)))
     )"
   );
   EXPECT_TRUE(trace.empty());
@@ -67,17 +67,18 @@ TEST_F(modules, module_variable_export) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export foo)
-      (export exported)
+      (define-library (foo)
+        (import (insider internal))
+        (export foo)
+        (export exported)
 
-      (define foo
-        (lambda (x)
-          (* 2 x)))
+        (begin
+          (define foo
+            (lambda (x)
+              (* 2 x)))
 
-      (define exported 2)
-      (define not-exported 3)
+          (define exported 2)
+          (define not-exported 3)))
     )"
   );
 
@@ -100,14 +101,15 @@ TEST_F(modules, module_syntax_export) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export double)
+      (define-library (foo)
+        (import (insider internal))
+        (export double)
 
-      (define-syntax double
-        (lambda (stx)
-          (let ((value (cadr (syntax->list stx))))
-            #`(* 2 #,value))))
+        (begin
+          (define-syntax double
+            (lambda (stx)
+              (let ((value (cadr (syntax->list stx))))
+                #`(* 2 #,value))))))
     )"
   );
 
@@ -122,14 +124,15 @@ TEST_F(modules, module_syntax_export) {
   add_source_file(
     "bar.scm",
     R"(
-      (library (bar))
-      (import (insider internal))
-      (export get-var)
+      (define-library (bar)
+        (import (insider internal))
+        (export get-var)
 
-      (define var 7)
-      (define-syntax get-var
-        (lambda (stx)
-          #'var))
+        (begin
+          (define var 7)
+          (define-syntax get-var
+            (lambda (stx)
+              #'var))))
     )"
   );
   auto result2 = eval_module(R"(
@@ -152,14 +155,15 @@ TEST_F(modules, import_specifiers) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export a b c d e)
-      (define a 1)
-      (define b 2)
-      (define c 3)
-      (define d 4)
-      (define e 5)
+      (define-library (foo)
+        (import (insider internal))
+        (export a b c d e)
+        (begin
+          (define a 1)
+          (define b 2)
+          (define c 3)
+          (define d 4)
+          (define e 5)))
     )"
   );
 
@@ -218,10 +222,11 @@ TEST_F(modules, find_module_file) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export value)
-      (define value 4)
+      (define-library (foo)
+        (import (insider internal))
+        (export value)
+        (begin
+          (define value 4)))
     )"
   );
 
@@ -476,9 +481,9 @@ TEST_F(modules, empty_module_body) {
   add_source_file(
     "reexporter.scm",
     R"(
-      (library (reexporter))
-      (import (insider internal))
-      (export define lambda *)
+      (define-library (reexporter)
+        (import (insider internal))
+        (export define lambda *))
     )"
   );
 
@@ -496,15 +501,15 @@ TEST_F(modules, circular_import) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (bar))
+      (define-library (foo)
+        (import (bar)))
     )"
   );
   add_source_file(
     "bar.scm",
     R"(
-      (library (bar))
-      (import (foo))
+      (define-library (bar)
+        (import (foo)))
     )"
   );
 
@@ -521,19 +526,21 @@ TEST_F(modules, environment) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export one)
-      (define one 1)
+      (define-library (foo)
+        (import (insider internal))
+        (export one)
+        (begin
+          (define one 1)))
     )"
   );
   add_source_file(
     "bar.scm",
     R"(
-      (library (bar))
-      (import (insider internal))
-      (export two)
-      (define two 2)
+      (define-library (bar)
+        (import (insider internal))
+        (export two)
+        (begin
+          (define two 2)))
     )"
   );
 
@@ -553,14 +560,15 @@ TEST_F(modules,
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
+      (define-library (foo)
+        (import (insider internal))
 
-      (define-syntax s
-        (lambda (stx)
-          (raise #t)))
+        (begin
+          (define-syntax s
+            (lambda (stx)
+              (raise #t)))
 
-      (s)
+          (s)))
     )"
   );
 
@@ -595,11 +603,12 @@ struct export_all_imported_fixture : modules {
     add_source_file(
       "foo.scm",
       R"(
-      (library (foo))
-      (import (insider internal))
-      (export one two)
-      (define one 1)
-      (define two 2)
+      (define-library (foo)
+        (import (insider internal))
+        (export one two)
+        (begin
+          (define one 1)
+          (define two 2)))
     )"
     );
   }
@@ -617,9 +626,9 @@ TEST_F(export_all_imported_fixture, basic) {
   add_source_file(
     "bar.scm",
     R"(
-      (library (bar))
-      (import (foo))
-      (export (all-imported-from (foo)))
+      (define-library (bar)
+        (import (foo))
+        (export (all-imported-from (foo))))
     )"
   );
 
@@ -630,9 +639,9 @@ TEST_F(export_all_imported_fixture, renames) {
   add_source_file(
     "bar.scm",
     R"(
-      (library (bar))
-      (import (rename (foo) (one a) (two b)))
-      (export (all-imported-from (foo)))
+      (define-library (bar)
+        (import (rename (foo) (one a) (two b)))
+        (export (all-imported-from (foo))))
     )"
   );
 
@@ -643,9 +652,9 @@ TEST_F(export_all_imported_fixture, imports_with_only_specifier) {
   add_source_file(
     "bar.scm",
     R"(
-      (library (bar))
-      (import (only (foo) one))
-      (export (all-imported-from (foo)))
+      (define-library (bar)
+        (import (only (foo) one))
+        (export (all-imported-from (foo))))
     )"
   );
 
@@ -667,10 +676,11 @@ TEST_F(modules, interaction_environment_imports_default_specifier) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export witness)
-      (define witness 0)
+      (define-library (foo)
+        (import (insider internal))
+        (export witness)
+        (begin
+          (define witness 0)))
     )"
   );
   ctx.parameters.set_value(

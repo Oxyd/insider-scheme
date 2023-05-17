@@ -563,10 +563,11 @@ TEST_F(ast, top_level_constants_are_propagated_across_modules) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export top-level)
-      (define top-level #t)
+      (define-library (foo)
+        (import (insider internal))
+        (export top-level)
+        (begin
+          (define top-level #t)))
     )"
   );
 
@@ -588,15 +589,16 @@ TEST_F(ast, mutated_top_level_scheme_variable_is_not_constant_propagated) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export var mutate-var!)
+       (define-library (foo)
+         (import (insider internal))
+         (export var mutate-var!)
 
-      (define var 0)
+         (begin
+           (define var 0)
 
-      (define mutate-var!
-        (lambda ()
-          (set! var (+ var 1))))
+           (define mutate-var!
+             (lambda ()
+               (set! var (+ var 1))))))
     )"
   );
 
@@ -716,12 +718,13 @@ TEST_F(ast, procedures_are_inlined_across_modules) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export foo)
-      (define foo
-        (lambda (x)
-          (* 2 x)))
+      (define-library (foo)
+        (import (insider internal))
+        (export foo)
+        (begin
+          (define foo
+            (lambda (x)
+              (* 2 x)))))
     )"
   );
   expression e = analyse_module(
@@ -1017,13 +1020,14 @@ TEST_F(ast, inlined_call_of_mutative_procedure_across_modules_boxes_argument) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export foo)
+      (define-library (foo)
+        (import (insider internal))
+        (export foo)
 
-      (define foo
-        (lambda (x)
-          (set! x (* 2 x))))
+        (begin
+          (define foo
+            (lambda (x)
+              (set! x (* 2 x))))))
     )"
   );
 
@@ -1073,16 +1077,17 @@ TEST_F(ast, variables_are_not_boxed_twice) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export foo)
+      (define-library (foo)
+        (import (insider internal))
+        (export foo)
 
-      (define foo
-        (lambda ()
-          (let ((var #void))
-            var ; Ensure it is not set!-eliminable
-            (set! var 5)
-            'hi)))
+        (begin
+          (define foo
+            (lambda ()
+              (let ((var #void))
+                var ; Ensure it is not set!-eliminable
+                (set! var 5)
+                'hi)))))
     )"
   );
 
@@ -1183,13 +1188,14 @@ TEST_F(ast, cross_module_call_is_constant_evaluated) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export null?)
+      (define-library (foo)
+        (import (insider internal))
+        (export null?)
 
-      (define null?
-        (lambda (x)
-          (eq? x '())))
+        (begin
+          (define null?
+            (lambda (x)
+              (eq? x '())))))
     )"
   );
 
@@ -1637,14 +1643,15 @@ TEST_F(ast, self_variable_in_inlined_procedure_is_consistent) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export foo)
+      (define-library (foo)
+        (import (insider internal))
+        (export foo)
 
-      (define foo
-        (lambda ()
-          (let ((f #void))
-            (set! f (lambda () f)))))
+        (begin
+          (define foo
+            (lambda ()
+              (let ((f #void))
+                (set! f (lambda () f)))))))
     )"
   );
 
@@ -2456,23 +2463,24 @@ TEST_F(ast, can_constant_evaluate_length_of_literal_list) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export length)
+      (define-library (foo)
+        (import (insider internal))
+        (export length)
 
-      (define null?
-        (lambda (x)
-          (eq? x '())))
+        (begin
+          (define null?
+            (lambda (x)
+              (eq? x '())))
 
-      (define length
-        (lambda (lst)
-          (let ((loop #void))
-            (set! loop
-              (lambda (lst accum)
-                (if (null? lst)
-                    accum
-                    (loop (cdr lst) (+ accum 1)))))
-            (loop lst 0))))
+          (define length
+            (lambda (lst)
+              (let ((loop #void))
+                (set! loop
+                  (lambda (lst accum)
+                    (if (null? lst)
+                        accum
+                        (loop (cdr lst) (+ accum 1)))))
+                (loop lst 0))))))
     )"
   );
 
@@ -2516,10 +2524,11 @@ TEST_F(ast, application_of_imported_scheme_procedure_is_marked_as_scheme) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export foo)
-      (define foo (lambda (x) (* 2 x)))
+      (define-library (foo)
+        (import (insider internal))
+        (export foo)
+        (begin
+          (define foo (lambda (x) (* 2 x)))))
     )"
   );
 

@@ -937,10 +937,11 @@ TEST_F(repl_fixture, dynamic_import_performs_imports) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export var)
-      (define var 13)
+      (define-library (foo)
+        (import (insider internal))
+        (export var)
+        (begin
+          (define var 13)))
     )"
   );
 
@@ -953,13 +954,14 @@ TEST_F(interpreter, repl_define_using_macro) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export def)
-      (define-syntax def
-        (lambda (stx)
-          (let ((name (cadr (syntax->list stx))))
-            #`(define #,name 0))))
+      (define-library (foo)
+        (import (insider internal))
+        (export def)
+        (begin
+          (define-syntax def
+            (lambda (stx)
+              (let ((name (cadr (syntax->list stx))))
+                #`(define #,name 0))))))
     )"
   );
 

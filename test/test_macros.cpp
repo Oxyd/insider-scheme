@@ -315,16 +315,17 @@ TEST_F(macros, exported_transformer_producing_another_transformer) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export make-transformer)
+      (define-library (foo)
+        (import (insider internal))
+        (export make-transformer)
 
-      (define-syntax make-transformer
-        (lambda (stx)
-          (let ((name (car (cdr (syntax->list stx)))))
-            #`(define-syntax #,name
-                (lambda (stx)
-                  #'#t)))))
+        (begin
+          (define-syntax make-transformer
+            (lambda (stx)
+              (let ((name (car (cdr (syntax->list stx)))))
+                #`(define-syntax #,name
+                    (lambda (stx)
+                      #'#t)))))))
     )"
   );
 

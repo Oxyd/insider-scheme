@@ -276,14 +276,8 @@ read_plain_module(context& ctx, std::vector<ptr<syntax>> const& contents,
   auto current = contents.begin();
 
   while (current != contents.end())
-    if (is_directive(*current, "library")) {
-      result.name = parse_module_name(ctx, syntax_cadr(ctx, *current));
-      ++current;
-    } else if (is_directive(*current, "import")) {
+    if (is_directive(*current, "import")) {
       process_library_import(ctx, result, *current);
-      ++current;
-    } else if (is_directive(*current, "export")) {
-      process_library_export(ctx, result, *current);
       ++current;
     } else
       break;
@@ -491,8 +485,7 @@ std::optional<module_name>
 read_library_name(context& ctx, ptr<textual_input_port> in) {
   try {
     if (auto first_datum = match<syntax>(read_syntax(ctx, in))) {
-      if (is_directive(first_datum, "library")
-          || is_directive(first_datum, "define-library"))
+      if (is_directive(first_datum, "define-library"))
         return parse_module_name(ctx, syntax_cadr(ctx, first_datum));
       else
         return {};

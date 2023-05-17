@@ -738,16 +738,17 @@ TEST_F(compiler, call_loop_from_another_module) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export foo)
+      (define-library (foo)
+        (import (insider internal))
+        (export foo)
 
-      (define foo
-        (lambda (n)
-          (let ((loop #void))
-            (set! loop (lambda (k)
-                         (if (= k 0) 0 (loop (- k 1)))))
-            (loop n))))
+        (begin
+          (define foo
+            (lambda (n)
+              (let ((loop #void))
+                (set! loop (lambda (k)
+                             (if (= k 0) 0 (loop (- k 1)))))
+                (loop n))))))
     )"
   );
 
@@ -836,10 +837,11 @@ TEST_F(compiler, attempting_to_set_imported_binding_is_an_error) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export var)
-      (define var 0)
+      (define-library (foo)
+        (import (insider internal))
+        (export var)
+        (begin
+          (define var 0)))
     )"
   );
 
@@ -856,10 +858,11 @@ TEST_F(compiler, attempting_to_redefine_imported_binding_is_an_error) {
   add_source_file(
     "foo.scm",
     R"(
-      (library (foo))
-      (import (insider internal))
-      (export var)
-      (define var 0)
+      (define-library (foo)
+        (import (insider internal))
+        (export var)
+        (begin
+          (define var 0)))
     )"
   );
 
