@@ -15,9 +15,7 @@
                         close-output-port display get-output-bytevector
                         get-output-string newline open-source-file-relative read
                         read-syntax read-syntax-multiple read-syntax-multiple-ci
-                        write write-shared write-simple file-exists? delete-file
-                        current-working-directory set-current-working-directory!
-                        <eof-object>)
+                        write write-shared write-simple <eof-object>)
                   (flush-output-port %flush-output-port)
                   (read-char %read-char)
                   (peek-char %peek-char)
@@ -32,8 +30,8 @@
           call-with-output-file call-with-output-string call-with-port
           char-ready? close-input-port close-output-port close-port
           current-error-port current-input-port current-output-port
-          current-source-file-origin delete-file display eof-object eof-object?
-          file-exists? flush-output-port flush-output-port get-output-bytevector
+          current-source-file-origin display eof-object eof-object?
+          flush-output-port flush-output-port get-output-bytevector
           get-output-string input-port-open? input-port? newline
           open-input-bytevector open-input-file open-input-string
           open-binary-input-file open-binary-output-file open-output-bytevector
@@ -43,5 +41,5 @@
           read-syntax read-syntax-multiple read-syntax-multiple-ci read-u8
           textual-port? u8-ready? with-input-from-file with-output-to-file write
           write-bytevector write-char write-shared write-simple write-string
-          write-u8 current-working-directory set-current-working-directory!)
+          write-u8)
   (include "io.scm"))
