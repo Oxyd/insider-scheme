@@ -71,16 +71,11 @@ find_module_in_provider(context& ctx,
                         source_code_provider& provider,
                         module_name const& name) {
   std::filesystem::path path = module_name_to_path(name);
-  std::array<std::filesystem::path, 2> candidates{
-    path.replace_extension(".sld"),
-    path.replace_extension(".scm")
-  };
-  for (auto const& candidate : candidates)
-    if (auto source = provider.find_file(ctx, candidate))
-      if (read_library_name(ctx, source->port.get().get()) == name) {
-        source->port.get().get()->rewind();
-        return source;
-      }
+  if (auto source = provider.find_file(ctx, path.replace_extension(".sld")))
+    if (read_library_name(ctx, source->port.get().get()) == name) {
+      source->port.get().get()->rewind();
+      return source;
+    }
 
   return std::nullopt;
 }

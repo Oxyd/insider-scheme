@@ -561,7 +561,7 @@ TEST_F(ast, top_level_constants_are_folded_into_expressions_before_definition) {
 
 TEST_F(ast, top_level_constants_are_propagated_across_modules) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -587,7 +587,7 @@ TEST_F(ast, top_level_constants_are_propagated_across_modules) {
 
 TEST_F(ast, mutated_top_level_scheme_variable_is_not_constant_propagated) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
        (define-library (foo)
          (import (insider internal))
@@ -716,7 +716,7 @@ TEST_F(ast, local_procedure_calls_are_inlined) {
 
 TEST_F(ast, procedures_are_inlined_across_modules) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -1018,7 +1018,7 @@ TEST_F(ast, call_with_optional_and_tail_params_is_inlined) {
 
 TEST_F(ast, inlined_call_of_mutative_procedure_across_modules_boxes_argument) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -1075,7 +1075,7 @@ TEST_F(ast, chain_of_top_level_procedures_is_inlined_completely) {
 
 TEST_F(ast, variables_are_not_boxed_twice) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -1186,7 +1186,7 @@ TEST_F(ast, constant_calls_are_evaluated_recursively) {
 
 TEST_F(ast, cross_module_call_is_constant_evaluated) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -1641,7 +1641,7 @@ TEST_F(ast, self_variable_is_bound_within_the_lambda) {
 
 TEST_F(ast, self_variable_in_inlined_procedure_is_consistent) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -2461,7 +2461,7 @@ TEST_F(ast, loop_is_not_folded_if_later_iteration_becomes_non_const) {
 
 TEST_F(ast, can_constant_evaluate_length_of_literal_list) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -2522,7 +2522,7 @@ TEST_F(ast, application_of_scheme_procedure_is_marked_as_scheme) {
 
 TEST_F(ast, application_of_imported_scheme_procedure_is_marked_as_scheme) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))

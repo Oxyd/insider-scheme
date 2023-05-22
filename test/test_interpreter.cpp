@@ -935,7 +935,7 @@ TEST_F(repl_fixture, dynamic_import_performs_imports) {
   EXPECT_THROW(insider::eval(ctx, m, "var", config), unbound_variable_error);
 
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -952,7 +952,7 @@ TEST_F(repl_fixture, dynamic_import_performs_imports) {
 
 TEST_F(interpreter, repl_define_using_macro) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))

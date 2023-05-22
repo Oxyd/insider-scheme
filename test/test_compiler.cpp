@@ -736,7 +736,7 @@ TEST_F(compiler, call_loop_from_another_module) {
   // Test that self-capturing lambdas are inlined correctly.
 
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -835,7 +835,7 @@ TEST_F(compiler, call_to_procedure_optimised_to_nothing_evaluates_to_void) {
 
 TEST_F(compiler, attempting_to_set_imported_binding_is_an_error) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -856,7 +856,7 @@ TEST_F(compiler, attempting_to_set_imported_binding_is_an_error) {
 
 TEST_F(compiler, attempting_to_redefine_imported_binding_is_an_error) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))

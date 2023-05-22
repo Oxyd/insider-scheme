@@ -313,7 +313,7 @@ TEST_F(macros, bound_identifier_eq) {
 
 TEST_F(macros, exported_transformer_producing_another_transformer) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))

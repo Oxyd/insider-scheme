@@ -32,7 +32,7 @@ TEST_F(modules, module_activation) {
   );
 
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -43,7 +43,7 @@ TEST_F(modules, module_activation) {
   EXPECT_TRUE(trace.empty());
 
   add_source_file(
-    "bar.scm",
+    "bar.sld",
     R"(
       (define-library (bar)
         (import (insider internal))
@@ -65,7 +65,7 @@ TEST_F(modules, module_activation) {
 
 TEST_F(modules, module_variable_export) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -99,7 +99,7 @@ TEST_F(modules, module_variable_export) {
 
 TEST_F(modules, module_syntax_export) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -122,7 +122,7 @@ TEST_F(modules, module_syntax_export) {
   EXPECT_EQ(expect<integer>(result1).value(), 6);
 
   add_source_file(
-    "bar.scm",
+    "bar.sld",
     R"(
       (define-library (bar)
         (import (insider internal))
@@ -153,7 +153,7 @@ TEST_F(modules, module_syntax_export) {
 
 TEST_F(modules, import_specifiers) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -220,7 +220,7 @@ TEST_F(modules, import_specifiers) {
 
 TEST_F(modules, find_module_file) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -239,7 +239,7 @@ TEST_F(modules, find_module_file) {
 
 TEST_F(modules, find_define_library_style_module) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -479,7 +479,7 @@ TEST_F(modules, cond_expand_in_define_library_boolean_conditionals) {
 
 TEST_F(modules, empty_module_body) {
   add_source_file(
-    "reexporter.scm",
+    "reexporter.sld",
     R"(
       (define-library (reexporter)
         (import (insider internal))
@@ -499,14 +499,14 @@ TEST_F(modules, empty_module_body) {
 
 TEST_F(modules, circular_import) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (bar)))
     )"
   );
   add_source_file(
-    "bar.scm",
+    "bar.sld",
     R"(
       (define-library (bar)
         (import (foo)))
@@ -524,7 +524,7 @@ TEST_F(modules, circular_import) {
 
 TEST_F(modules, environment) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -534,7 +534,7 @@ TEST_F(modules, environment) {
     )"
   );
   add_source_file(
-    "bar.scm",
+    "bar.sld",
     R"(
       (define-library (bar)
         (import (insider internal))
@@ -558,7 +558,7 @@ TEST_F(modules, environment) {
 TEST_F(modules,
        errors_during_expansion_of_dynamically_loaded_module_cause_exceptions) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
@@ -601,7 +601,7 @@ TEST_F(modules, exceptions_during_eval_can_be_caught_in_scheme) {
 struct export_all_imported_fixture : modules {
   export_all_imported_fixture() {
     add_source_file(
-      "foo.scm",
+      "foo.sld",
       R"(
       (define-library (foo)
         (import (insider internal))
@@ -624,7 +624,7 @@ struct export_all_imported_fixture : modules {
 
 TEST_F(export_all_imported_fixture, basic) {
   add_source_file(
-    "bar.scm",
+    "bar.sld",
     R"(
       (define-library (bar)
         (import (foo))
@@ -637,7 +637,7 @@ TEST_F(export_all_imported_fixture, basic) {
 
 TEST_F(export_all_imported_fixture, renames) {
   add_source_file(
-    "bar.scm",
+    "bar.sld",
     R"(
       (define-library (bar)
         (import (rename (foo) (one a) (two b)))
@@ -650,7 +650,7 @@ TEST_F(export_all_imported_fixture, renames) {
 
 TEST_F(export_all_imported_fixture, imports_with_only_specifier) {
   add_source_file(
-    "bar.scm",
+    "bar.sld",
     R"(
       (define-library (bar)
         (import (only (foo) one))
@@ -674,7 +674,7 @@ TEST_F(modules, default_interaction_environment_specifier_is_internal) {
 
 TEST_F(modules, interaction_environment_imports_default_specifier) {
   add_source_file(
-    "foo.scm",
+    "foo.sld",
     R"(
       (define-library (foo)
         (import (insider internal))
