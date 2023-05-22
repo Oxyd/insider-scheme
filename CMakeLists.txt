@@ -112,6 +112,7 @@ set(scheme_sources
         src/compiler/variable.hpp
         src/context.cpp
         src/context.hpp
+        src/io/filesystem.cpp
         src/io/port.cpp
         src/io/port.hpp
         src/io/read.cpp

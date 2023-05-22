@@ -69,6 +69,9 @@ export_ast(context&, ptr<module_>);
 void
 export_variable(context&, ptr<module_>);
 
+void
+export_filesystem(context&, ptr<module_>);
+
 static void
 set_car(context& ctx, ptr<pair> p, ptr<> new_car) {
   p->set_car(ctx.store, new_car);
@@ -200,6 +203,7 @@ make_internal_module(context& ctx) {
   export_parser_expander(ctx, result);
   export_ast(ctx, result);
   export_variable(ctx, result);
+  export_filesystem(ctx, result);
 
   define_raw_procedure<append>(ctx, "append", result);
   define_procedure<cons>(ctx, "cons", result);
