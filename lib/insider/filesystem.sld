@@ -1,6 +1,4 @@
 (define-library (insider filesystem)
   (import (only (insider internal)
-                file-exists? delete-file current-working-directory
-                set-current-working-directory!))
-  (export file-exists? delete-file current-working-directory
-          set-current-working-directory!))
+                file-exists? delete-file current-path set-current-path!))
+  (export file-exists? delete-file current-path set-current-path!))

@@ -26,7 +26,7 @@ delete_file(context& ctx, std::filesystem::path const& p) {
 }
 
 static std::string
-current_working_directory(context& ctx) {
+current_path(context& ctx) {
   return guard_filesystem_error(ctx,
                                 [] {
                                   return std::filesystem::current_path();
@@ -34,7 +34,7 @@ current_working_directory(context& ctx) {
 }
 
 static void
-set_current_working_directory(context& ctx, std::string const& new_wd) {
+set_current_path(context& ctx, std::string const& new_wd) {
   guard_filesystem_error(ctx,
                          [&] {
                            std::filesystem::current_path(new_wd);
@@ -45,11 +45,9 @@ void
 export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<file_exists>(ctx, "file-exists?", result);
   define_procedure<delete_file>(ctx, "delete-file", result);
-  define_procedure<current_working_directory>(ctx,
-                                              "current-working-directory",
-                                              result);
-  define_procedure<set_current_working_directory>(
-    ctx, "set-current-working-directory!", result
+  define_procedure<current_path>(ctx, "current-path", result);
+  define_procedure<set_current_path>(
+    ctx, "set-current-path!", result
   );
 }
 
