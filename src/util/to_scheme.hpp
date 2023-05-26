@@ -8,6 +8,7 @@
 #include "runtime/string.hpp"
 
 #include <concepts>
+#include <filesystem>
 #include <optional>
 
 namespace insider {
@@ -92,6 +93,14 @@ template <>
 struct to_scheme_converter<std::string> {
   static ptr<>
   convert(context& ctx, std::string const& s) { return make<string>(ctx, s); }
+};
+
+template <>
+struct to_scheme_converter<std::filesystem::path> {
+  static ptr<>
+  convert(context& ctx, std::filesystem::path const& p) {
+    return make<string>(ctx, p.string());
+  }
 };
 
 template <typename T>
