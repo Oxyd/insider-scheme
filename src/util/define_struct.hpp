@@ -125,8 +125,12 @@ private:
 
   template <auto Getter>
   static auto
-  function_getter(ptr<T> x) {
-    return (x.value()->*Getter)();
+  function_getter(context& ctx, ptr<T> x) {
+    using fun_type = decltype(Getter);
+    if constexpr (std::is_invocable_v<fun_type, T*>)
+      return std::invoke(Getter, x.value());
+    else
+      return std::invoke(Getter, x.value(), ctx);
   }
 
   template <auto Setter>
