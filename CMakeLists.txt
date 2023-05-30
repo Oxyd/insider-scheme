@@ -192,6 +192,7 @@ Set(test_sources
         test/test_character.cpp
         test/test_compiler.cpp
         test/test_control.cpp
+        test/test_conversion.cpp
         test/test_define_procedure.cpp
         test/test_define_struct.cpp
         test/test_depth_first_search.cpp
