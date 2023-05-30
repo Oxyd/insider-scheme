@@ -15,5 +15,8 @@
           permissions-group-write permissions-group-exec permissions-group-all
           permissions-others-read permissions-others-write permissions-others-exec
           permissions-others-all permissions-all permissions-set-uid
-          permissions-set-gid permissions-sticky-bit permissions-mask)
+          permissions-set-gid permissions-sticky-bit permissions-mask
+
+          block-file? character-file? directory? fifo? file-other? regular-file?
+          socket? symlink?)
   (include "filesystem.scm"))

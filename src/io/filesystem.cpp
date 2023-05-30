@@ -208,6 +208,51 @@ symlink_status(context& ctx, fs::path const& p) {
   });
 }
 
+static bool
+is_block_file(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::is_block_file(p); });
+}
+
+static bool
+is_character_file(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::is_character_file(p); });
+}
+
+static bool
+is_directory(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::is_directory(p); });
+}
+
+static bool
+is_empty(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::is_empty(p); });
+}
+
+static bool
+is_fifo(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::is_fifo(p); });
+}
+
+static bool
+is_other(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::is_other(p); });
+}
+
+static bool
+is_regular_file(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::is_regular_file(p); });
+}
+
+static bool
+is_socket(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::is_socket(p); });
+}
+
+static bool
+is_symlink(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::is_symlink(p); });
+}
+
 void
 export_filesystem(context& ctx, ptr<module_> result) {
   define_struct<file_status>(ctx, "file-status", result)
@@ -243,6 +288,15 @@ export_filesystem(context& ctx, ptr<module_> result) {
   );
   define_procedure<status>(ctx, "file-status", result);
   define_procedure<symlink_status>(ctx, "symlink-status", result);
+  define_procedure<is_block_file>(ctx, "block-file?", result);
+  define_procedure<is_character_file>(ctx, "character-file?", result);
+  define_procedure<is_directory>(ctx, "directory?", result);
+  define_procedure<is_empty>(ctx, "file-empty?", result);
+  define_procedure<is_fifo>(ctx, "fifo?", result);
+  define_procedure<is_other>(ctx, "file-other?", result);
+  define_procedure<is_regular_file>(ctx, "regular-file?", result);
+  define_procedure<is_socket>(ctx, "socket?", result);
+  define_procedure<is_symlink>(ctx, "symlink?", result);
 }
 
 } // namespace insider
