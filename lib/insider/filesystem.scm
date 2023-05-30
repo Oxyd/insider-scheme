@@ -27,3 +27,13 @@
 (define permissions-sticky-bit #o1000)
 
 (define permissions-mask #o7777)
+
+(define (copy-regular-file from to #:when-exists (when-exists 'error))
+  (copy-regular-file* from to when-exists))
+
+(define (copy-files from to
+                    #:recursive? (recursive? #f)
+                    #:when-exists (when-exists 'error)
+                    #:symlinks (symlinks 'follow)
+                    #:mode (mode 'copy-content))
+  (copy-files* from to recursive? when-exists symlinks mode))

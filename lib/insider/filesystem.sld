@@ -1,6 +1,20 @@
 (define-library (insider filesystem)
-  (import (except (insider internal) bitwise-ior)
-          (only (insider numeric) bitwise-ior))
+  (import (scheme base) (insider numeric)
+          (rename (only (insider internal)
+                        path-elements path-append path-root-name
+                        path-root-directory path-root-path path-relative-path
+                        path-parent path-filename path-stem path-extension
+                        absolute-path canonical-path weakly-canonical-path
+                        relative-path proximate-path lexically-normal-path
+                        lexically-relative-path lexically-proximate-path
+                        file-exists? delete-file current-path set-current-path!
+                        file-status symlink-status file-status?
+                        file-status-permissions file-status-type block-file?
+                        character-file? directory? fifo? file-other?
+                        regular-file? socket? symlink? copy-regular-file
+                        copy-files)
+                  (copy-regular-file copy-regular-file*)
+                  (copy-files copy-files*)))
   (export path-elements path-append path-root-name path-root-directory
           path-root-path path-relative-path path-parent path-filename
           path-stem path-extension absolute-path canonical-path
@@ -18,5 +32,7 @@
           permissions-set-gid permissions-sticky-bit permissions-mask
 
           block-file? character-file? directory? fifo? file-other? regular-file?
-          socket? symlink?)
+          socket? symlink?
+
+          copy-regular-file copy-files)
   (include "filesystem.scm"))

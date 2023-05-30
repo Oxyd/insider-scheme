@@ -4,6 +4,7 @@
 #include "util/define_procedure.hpp"
 #include "util/define_struct.hpp"
 #include "util/object_span.hpp"
+#include "util/symbolic_enum.hpp"
 
 #include <filesystem>
 #include <stdexcept>
@@ -253,6 +254,133 @@ is_symlink(context& ctx, fs::path const& p) {
   return guard_filesystem_error(ctx, [&] { return fs::is_symlink(p); });
 }
 
+namespace {
+  enum class when_exists_values {
+    error, skip, overwrite, update
+  };
+
+  struct when_exists_symbolic_def {
+    using values = when_exists_values;
+    static constexpr std::tuple<char const*, when_exists_values> mapping[]{
+      {"error", when_exists_values::error},
+      {"skip", when_exists_values::skip},
+      {"overwrite", when_exists_values::overwrite},
+      {"update", when_exists_values::update}
+    };
+  };
+
+  enum class copy_symlinks_values {
+    follow, copy, skip
+  };
+
+  struct copy_symlinks_symbolic_def {
+    using values = copy_symlinks_values;
+    static constexpr std::tuple<char const*, copy_symlinks_values> mapping[]{
+      {"follow", copy_symlinks_values::follow},
+      {"copy", copy_symlinks_values::copy},
+      {"skip", copy_symlinks_values::skip}
+    };
+  };
+
+  enum class copy_type_values {
+    copy_content, directories_only, create_symlinks, create_hard_links
+  };
+
+  struct copy_type_symbolic_def {
+    using values = copy_type_values;
+    static constexpr std::tuple<char const*, copy_type_values> mapping[]{
+      {"copy-content", copy_type_values::copy_content},
+      {"directories-only", copy_type_values::directories_only},
+      {"create-symlinks", copy_type_values::create_symlinks},
+      {"create-hard-links", copy_type_values::create_hard_links}
+    };
+  };
+}
+
+using when_exists_enum = symbolic_enum<when_exists_symbolic_def>;
+using copy_symlinks_enum = symbolic_enum<copy_symlinks_symbolic_def>;
+using copy_type_enum = symbolic_enum<copy_type_symbolic_def>;
+
+static void
+add_when_exists_to_options(fs::copy_options& opts, when_exists_values we) {
+  switch (we) {
+  case when_exists_values::error:
+    opts |= fs::copy_options::none;
+    break;
+  case when_exists_values::skip:
+    opts |= fs::copy_options::skip_existing;
+    break;
+  case when_exists_values::overwrite:
+    opts |= fs::copy_options::overwrite_existing;
+    break;
+  case when_exists_values::update:
+    opts |= fs::copy_options::update_existing;
+    break;
+  }
+}
+
+static void
+add_recursive_to_options(fs::copy_options& opts, bool recursive) {
+  if (recursive)
+    opts |= fs::copy_options::recursive;
+}
+
+static void
+add_symlink_options_to_options(fs::copy_options& opts, copy_symlinks_values cs) {
+  switch (cs) {
+  case copy_symlinks_values::follow:
+    break;
+  case copy_symlinks_values::copy:
+    opts |= fs::copy_options::copy_symlinks;
+    break;
+  case copy_symlinks_values::skip:
+    opts |= fs::copy_options::skip_symlinks;
+    break;
+  }
+}
+
+static void
+add_copy_type_to_options(fs::copy_options& opts, copy_type_values type) {
+  switch (type) {
+  case copy_type_values::copy_content:
+    break;
+  case copy_type_values::directories_only:
+    opts |= fs::copy_options::directories_only;
+    break;
+  case copy_type_values::create_symlinks:
+    opts |= fs::copy_options::create_symlinks;
+    break;
+  case copy_type_values::create_hard_links:
+    opts |= fs::copy_options::create_hard_links;
+    break;
+  }
+}
+
+static bool
+copy_regular_file(context& ctx, fs::path const& from, fs::path const& to,
+                  when_exists_enum when_exists) {
+  fs::copy_options options{};
+  add_when_exists_to_options(options, when_exists.value());
+
+  return guard_filesystem_error(ctx, [&] {
+    return fs::copy_file(from, to, options);
+  });
+}
+
+static void
+copy_files(context& ctx, fs::path const& from, fs::path const& to,
+           bool recursive, when_exists_enum when_exists,
+           copy_symlinks_enum copy_symlinks,
+           copy_type_enum type) {
+  fs::copy_options options{};
+  add_recursive_to_options(options, recursive);
+  add_when_exists_to_options(options, when_exists.value());
+  add_symlink_options_to_options(options, copy_symlinks.value());
+  add_copy_type_to_options(options, type.value());
+
+  guard_filesystem_error(ctx, [&] { fs::copy(from, to, options); });
+}
+
 void
 export_filesystem(context& ctx, ptr<module_> result) {
   define_struct<file_status>(ctx, "file-status", result)
@@ -297,6 +425,8 @@ export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<is_regular_file>(ctx, "regular-file?", result);
   define_procedure<is_socket>(ctx, "socket?", result);
   define_procedure<is_symlink>(ctx, "symlink?", result);
+  define_procedure<copy_regular_file>(ctx, "copy-regular-file", result);
+  define_procedure<copy_files>(ctx, "copy-files", result);
 }
 
 } // namespace insider
