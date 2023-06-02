@@ -381,6 +381,34 @@ copy_files(context& ctx, fs::path const& from, fs::path const& to,
   guard_filesystem_error(ctx, [&] { fs::copy(from, to, options); });
 }
 
+static fs::path
+read_symlink(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::read_symlink(p); });
+}
+
+static void
+create_symlink(context& ctx, fs::path const& target, fs::path const& link) {
+  guard_filesystem_error(ctx, [&] { fs::create_symlink(target, link); });
+}
+
+static void
+create_directory_symlink(context& ctx, fs::path const& target,
+                         fs::path const& link) {
+  guard_filesystem_error(ctx, [&] {
+    fs::create_directory_symlink(target, link);
+  });
+}
+
+static void
+create_hard_link(context& ctx, fs::path const& target, fs::path const& link) {
+  guard_filesystem_error(ctx, [&] { fs::create_hard_link(target, link); });
+}
+
+static void
+copy_symlink(context& ctx, fs::path const& from, fs::path const& to) {
+  guard_filesystem_error(ctx, [&] { fs::copy_symlink(from, to); });
+}
+
 void
 export_filesystem(context& ctx, ptr<module_> result) {
   define_struct<file_status>(ctx, "file-status", result)
@@ -427,6 +455,12 @@ export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<is_symlink>(ctx, "symlink?", result);
   define_procedure<copy_regular_file>(ctx, "copy-regular-file", result);
   define_procedure<copy_files>(ctx, "copy-files", result);
+  define_procedure<read_symlink>(ctx, "read-symlink", result);
+  define_procedure<create_symlink>(ctx, "create-symlink", result);
+  define_procedure<create_hard_link>(ctx, "create-hard-link", result);
+  define_procedure<create_directory_symlink>(ctx, "create-directory-symlink",
+                                             result);
+  define_procedure<copy_symlink>(ctx, "copy-symlink", result);
 }
 
 } // namespace insider

@@ -12,7 +12,8 @@
                         file-status-permissions file-status-type block-file?
                         character-file? directory? fifo? file-other?
                         regular-file? socket? symlink? copy-regular-file
-                        copy-files)
+                        copy-files read-symlink create-symlink create-hard-link
+                        create-directory-symlink copy-symlink)
                   (copy-regular-file copy-regular-file*)
                   (copy-files copy-files*)))
   (export path-elements path-append path-root-name path-root-directory
@@ -34,5 +35,6 @@
           block-file? character-file? directory? fifo? file-other? regular-file?
           socket? symlink?
 
-          copy-regular-file copy-files)
+          copy-regular-file copy-files read-symlink create-symlink
+          create-hard-link create-directory-symlink copy-symlink)
   (include "filesystem.scm"))
