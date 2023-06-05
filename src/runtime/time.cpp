@@ -1,3 +1,5 @@
+#include "runtime/time.hpp"
+
 #include "context.hpp"
 #include "module.hpp"
 #include "util/define_procedure.hpp"
@@ -6,17 +8,22 @@
 
 namespace insider {
 
-static double
-current_second() {
+double
+system_to_scheme(clock::time_point tp) {
   using namespace std::literals;
 
   // Current TAI-UTC offset in 2021. In the future, GCC will hopefully implement
   // std::chrono::tai_clock and this entire nonsense will be removed.
   constexpr auto offset = 37s;
 
-  auto now = (std::chrono::system_clock::now() + offset).time_since_epoch();
+  auto now = (tp + offset).time_since_epoch();
   using period = std::chrono::system_clock::period;
   return static_cast<double>(now.count()) * period::num / period::den;
+}
+
+static double
+current_second() {
+  return system_to_scheme(clock::now());
 }
 
 using jiffy_clock = std::chrono::steady_clock;

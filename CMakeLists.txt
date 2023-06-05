@@ -160,6 +160,7 @@ set(scheme_sources
         src/runtime/syntax.cpp
         src/runtime/syntax.hpp
         src/runtime/time.cpp
+        src/runtime/time.hpp
         src/type_indexes.hpp
         src/util/define_procedure.hpp
         src/util/define_struct.hpp
