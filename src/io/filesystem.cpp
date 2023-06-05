@@ -430,6 +430,11 @@ create_directories(context& ctx, fs::path const& p) {
   return guard_filesystem_error(ctx, [&] { return fs::create_directories(p); });
 }
 
+static bool
+files_equivalent(context& ctx, fs::path const& a, fs::path const& b) {
+  return guard_filesystem_error(ctx, [&] { return fs::equivalent(a, b); });
+}
+
 void
 export_filesystem(context& ctx, ptr<module_> result) {
   define_struct<file_status>(ctx, "file-status", result)
@@ -484,6 +489,7 @@ export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<copy_symlink>(ctx, "copy-symlink", result);
   define_procedure<create_directory>(ctx, "create-directory", result);
   define_procedure<create_directories>(ctx, "create-directories", result);
+  define_procedure<files_equivalent>(ctx, "files-equivalent?", result);
 }
 
 } // namespace insider

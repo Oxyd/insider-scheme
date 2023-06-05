@@ -14,7 +14,7 @@
                         regular-file? socket? symlink? copy-regular-file
                         copy-files read-symlink create-symlink create-hard-link
                         create-directory-symlink copy-symlink create-directory
-                        create-directories)
+                        create-directories files-equivalent?)
                   (copy-regular-file copy-regular-file*)
                   (copy-files copy-files*)
                   (create-directory create-directory*)))
@@ -39,5 +39,5 @@
 
           copy-regular-file copy-files read-symlink create-symlink
           create-hard-link create-directory-symlink copy-symlink
-          create-directory create-directories)
+          create-directory create-directories files-equivalent?)
   (include "filesystem.scm"))
