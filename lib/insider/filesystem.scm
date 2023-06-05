@@ -37,3 +37,6 @@
                     #:symlinks (symlinks 'follow)
                     #:mode (mode 'copy-content))
   (copy-files* from to recursive? when-exists symlinks mode))
+
+(define (create-directory p (existing #f))
+  (create-directory* p existing))

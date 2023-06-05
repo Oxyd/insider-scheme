@@ -4,6 +4,7 @@
 #include "util/define_procedure.hpp"
 #include "util/define_struct.hpp"
 #include "util/object_span.hpp"
+#include "util/sum_type.hpp"
 #include "util/symbolic_enum.hpp"
 
 #include <filesystem>
@@ -409,6 +410,26 @@ copy_symlink(context& ctx, fs::path const& from, fs::path const& to) {
   guard_filesystem_error(ctx, [&] { fs::copy_symlink(from, to); });
 }
 
+static bool
+create_directory(context& ctx,
+                 fs::path const& p,
+                 sum_type<string, boolean> const& existing) {
+  return guard_filesystem_error(
+    ctx,
+    [&] {
+      if (auto e = match<string>(existing))
+        return fs::create_directory(p, e->value());
+      else
+        return fs::create_directory(p);
+    }
+  );
+}
+
+static bool
+create_directories(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::create_directories(p); });
+}
+
 void
 export_filesystem(context& ctx, ptr<module_> result) {
   define_struct<file_status>(ctx, "file-status", result)
@@ -461,6 +482,8 @@ export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<create_directory_symlink>(ctx, "create-directory-symlink",
                                              result);
   define_procedure<copy_symlink>(ctx, "copy-symlink", result);
+  define_procedure<create_directory>(ctx, "create-directory", result);
+  define_procedure<create_directories>(ctx, "create-directories", result);
 }
 
 } // namespace insider

@@ -13,9 +13,11 @@
                         character-file? directory? fifo? file-other?
                         regular-file? socket? symlink? copy-regular-file
                         copy-files read-symlink create-symlink create-hard-link
-                        create-directory-symlink copy-symlink)
+                        create-directory-symlink copy-symlink create-directory
+                        create-directories)
                   (copy-regular-file copy-regular-file*)
-                  (copy-files copy-files*)))
+                  (copy-files copy-files*)
+                  (create-directory create-directory*)))
   (export path-elements path-append path-root-name path-root-directory
           path-root-path path-relative-path path-parent path-filename
           path-stem path-extension absolute-path canonical-path
@@ -36,5 +38,6 @@
           socket? symlink?
 
           copy-regular-file copy-files read-symlink create-symlink
-          create-hard-link create-directory-symlink copy-symlink)
+          create-hard-link create-directory-symlink copy-symlink
+          create-directory create-directories)
   (include "filesystem.scm"))
