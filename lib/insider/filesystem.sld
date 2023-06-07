@@ -14,7 +14,8 @@
                         regular-file? socket? symlink? copy-regular-file
                         copy-files read-symlink create-symlink create-hard-link
                         create-directory-symlink copy-symlink create-directory
-                        create-directories files-equivalent?)
+                        create-directories files-equivalent? file-size
+                        hard-link-count last-write-time set-last-write-time!)
                   (copy-regular-file copy-regular-file*)
                   (copy-files copy-files*)
                   (create-directory create-directory*)))
@@ -39,5 +40,6 @@
 
           copy-regular-file copy-files read-symlink create-symlink
           create-hard-link create-directory-symlink copy-symlink
-          create-directory create-directories files-equivalent?)
+          create-directory create-directories files-equivalent? file-size
+          hard-link-count last-write-time set-last-write-time!)
   (include "filesystem.scm"))

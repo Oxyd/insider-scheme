@@ -1,12 +1,15 @@
 #include "context.hpp"
 #include "object.hpp"
 #include "runtime/basic_types.hpp"
+#include "runtime/time.hpp"
 #include "util/define_procedure.hpp"
 #include "util/define_struct.hpp"
 #include "util/object_span.hpp"
 #include "util/sum_type.hpp"
 #include "util/symbolic_enum.hpp"
 
+#include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <stdexcept>
 
@@ -435,6 +438,38 @@ files_equivalent(context& ctx, fs::path const& a, fs::path const& b) {
   return guard_filesystem_error(ctx, [&] { return fs::equivalent(a, b); });
 }
 
+static std::uintmax_t
+file_size(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::file_size(p); });
+}
+
+static std::uintmax_t
+hard_link_count(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::hard_link_count(p); });
+}
+
+static double
+last_write_time(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(
+    ctx,
+    [&] {
+      auto time = fs::last_write_time(p);
+      return system_to_scheme(std::chrono::file_clock::to_sys(time));
+    }
+  );
+}
+
+static void
+set_last_write_time(context& ctx, fs::path const& p, double time) {
+  guard_filesystem_error(
+    ctx,
+    [&] {
+      auto t = std::chrono::file_clock::from_sys(scheme_to_system(time));
+      fs::last_write_time(p, t);
+    }
+  );
+}
+
 void
 export_filesystem(context& ctx, ptr<module_> result) {
   define_struct<file_status>(ctx, "file-status", result)
@@ -490,6 +525,10 @@ export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<create_directory>(ctx, "create-directory", result);
   define_procedure<create_directories>(ctx, "create-directories", result);
   define_procedure<files_equivalent>(ctx, "files-equivalent?", result);
+  define_procedure<file_size>(ctx, "file-size", result);
+  define_procedure<hard_link_count>(ctx, "hard-link-count", result);
+  define_procedure<last_write_time>(ctx, "last-write-time", result);
+  define_procedure<set_last_write_time>(ctx, "set-last-write-time!", result);
 }
 
 } // namespace insider

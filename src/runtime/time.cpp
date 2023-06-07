@@ -8,17 +8,24 @@
 
 namespace insider {
 
+// Current TAI-UTC offset in 2021. In the future, GCC will hopefully implement
+// std::chrono::tai_clock and this entire nonsense will be removed.
+static constexpr auto utc_to_tai_offset = std::chrono::seconds{37};
+
 double
 system_to_scheme(clock::time_point tp) {
   using namespace std::literals;
 
-  // Current TAI-UTC offset in 2021. In the future, GCC will hopefully implement
-  // std::chrono::tai_clock and this entire nonsense will be removed.
-  constexpr auto offset = 37s;
-
-  auto now = (tp + offset).time_since_epoch();
-  using period = std::chrono::system_clock::period;
+  auto now = (tp + utc_to_tai_offset).time_since_epoch();
+  using period = clock::period;
   return static_cast<double>(now.count()) * period::num / period::den;
+}
+
+clock::time_point
+scheme_to_system(double tp) {
+  using period = clock::period;
+  auto ticks = static_cast<clock::duration::rep>(tp * period::den / period::num);
+  return clock::time_point{clock::duration{ticks} - utc_to_tai_offset};
 }
 
 static double

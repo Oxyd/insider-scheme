@@ -3,6 +3,7 @@
 
 #include "context.hpp"
 #include "runtime/basic_types.hpp"
+#include "runtime/numeric.hpp"
 #include "runtime/string.hpp"
 
 #include <concepts>
@@ -118,6 +119,14 @@ struct from_scheme_converter<T> {
       return value >= 0
              && static_cast<std::make_unsigned_t<integer::value_type>>(value)
                 <= std::numeric_limits<T>::max();
+  }
+};
+
+template <std::floating_point T>
+struct from_scheme_converter<T> {
+  static T
+  convert(context&, ptr<> o) {
+    return static_cast<T>(expect<floating_point>(o)->value);
   }
 };
 
