@@ -40,3 +40,12 @@
 
 (define (create-directory p (existing #f))
   (create-directory* p existing))
+
+(define (set-permissions! path perms #:follow-symlinks? (follow-symlinks? #t))
+  (set-permissions!* path perms follow-symlinks?))
+
+(define (add-permissions! path perms #:follow-symlinks? (follow-symlinks? #t))
+  (add-permissions!* path perms follow-symlinks?))
+
+(define (remove-permissions! path perms #:follow-symlinks? (follow-symlinks? #t))
+  (remove-permissions!* path perms follow-symlinks?))

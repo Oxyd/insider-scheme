@@ -213,6 +213,40 @@ symlink_status(context& ctx, fs::path const& p) {
   });
 }
 
+static void
+modify_permissions(context& ctx, fs::path const& p, unsigned perms,
+                   bool follow_symlinks, fs::perm_options mode) {
+  guard_filesystem_error(
+    ctx,
+    [&] {
+      if (!follow_symlinks)
+        mode |= fs::perm_options::nofollow;
+      fs::permissions(p, static_cast<fs::perms>(perms), mode);
+    }
+  );
+}
+
+static void
+set_permissions(context& ctx, fs::path const& p, unsigned new_perms,
+                bool follow_symlinks) {
+  modify_permissions(ctx, p, new_perms, follow_symlinks,
+                     fs::perm_options::replace);
+}
+
+static void
+add_permissions(context& ctx, fs::path const& p, unsigned more_perms,
+                bool follow_symlinks) {
+  modify_permissions(ctx, p, more_perms, follow_symlinks,
+                     fs::perm_options::add);
+}
+
+static void
+remove_permissions(context& ctx, fs::path const& p, unsigned perms,
+                   bool follow_symlinks) {
+  modify_permissions(ctx, p, perms, follow_symlinks,
+                     fs::perm_options::remove);
+}
+
 static bool
 is_block_file(context& ctx, fs::path const& p) {
   return guard_filesystem_error(ctx, [&] { return fs::is_block_file(p); });
@@ -505,6 +539,9 @@ export_filesystem(context& ctx, ptr<module_> result) {
   );
   define_procedure<status>(ctx, "file-status", result);
   define_procedure<symlink_status>(ctx, "symlink-status", result);
+  define_procedure<set_permissions>(ctx, "set-permissions!", result);
+  define_procedure<add_permissions>(ctx, "add-permissions!", result);
+  define_procedure<remove_permissions>(ctx, "remove-permissions!", result);
   define_procedure<is_block_file>(ctx, "block-file?", result);
   define_procedure<is_character_file>(ctx, "character-file?", result);
   define_procedure<is_directory>(ctx, "directory?", result);

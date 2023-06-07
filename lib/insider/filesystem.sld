@@ -15,10 +15,14 @@
                         copy-files read-symlink create-symlink create-hard-link
                         create-directory-symlink copy-symlink create-directory
                         create-directories files-equivalent? file-size
-                        hard-link-count last-write-time set-last-write-time!)
+                        hard-link-count last-write-time set-last-write-time!
+                        set-permissions! add-permissions! remove-permissions!)
                   (copy-regular-file copy-regular-file*)
                   (copy-files copy-files*)
-                  (create-directory create-directory*)))
+                  (create-directory create-directory*)
+                  (set-permissions! set-permissions!*)
+                  (add-permissions! add-permissions!*)
+                  (remove-permissions! remove-permissions!*)))
   (export path-elements path-append path-root-name path-root-directory
           path-root-path path-relative-path path-parent path-filename
           path-stem path-extension absolute-path canonical-path
@@ -41,5 +45,6 @@
           copy-regular-file copy-files read-symlink create-symlink
           create-hard-link create-directory-symlink copy-symlink
           create-directory create-directories files-equivalent? file-size
-          hard-link-count last-write-time set-last-write-time!)
+          hard-link-count last-write-time set-last-write-time!
+          set-permissions! add-permissions! remove-permissions!)
   (include "filesystem.scm"))
