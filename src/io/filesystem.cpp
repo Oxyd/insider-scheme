@@ -511,6 +511,11 @@ space(context& ctx, fs::path const& p) {
                    to_scheme(ctx, s.available));
 }
 
+static fs::path
+temporary_directory_path(context& ctx) {
+  return guard_filesystem_error(ctx, [] { return fs::temp_directory_path(); });
+}
+
 void
 export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<path_elements>(ctx, "path-elements", result);
@@ -572,6 +577,8 @@ export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<rename>(ctx, "rename-file", result);
   define_procedure<resize>(ctx, "resize-file", result);
   define_procedure<space>(ctx, "filesystem-space", result);
+  define_procedure<temporary_directory_path>(ctx, "temporary-directory-path",
+                                             result);
 }
 
 } // namespace insider
