@@ -509,6 +509,16 @@ set_last_write_time(context& ctx, fs::path const& p, double time) {
   );
 }
 
+static void
+rename(context& ctx, fs::path const& from, fs::path const& to) {
+  guard_filesystem_error(ctx, [&] { fs::rename(from, to); });
+}
+
+static void
+resize(context& ctx, fs::path const& p, std::uintmax_t new_size) {
+  guard_filesystem_error(ctx, [&] { fs::resize_file(p, new_size); });
+}
+
 void
 export_filesystem(context& ctx, ptr<module_> result) {
   define_struct<file_status>(ctx, "file-status", result)
@@ -572,6 +582,8 @@ export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<hard_link_count>(ctx, "hard-link-count", result);
   define_procedure<last_write_time>(ctx, "last-write-time", result);
   define_procedure<set_last_write_time>(ctx, "set-last-write-time!", result);
+  define_procedure<rename>(ctx, "rename-file", result);
+  define_procedure<resize>(ctx, "resize-file", result);
 }
 
 } // namespace insider

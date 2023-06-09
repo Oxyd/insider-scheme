@@ -16,7 +16,8 @@
                         create-directory-symlink copy-symlink create-directory
                         create-directories files-equivalent? file-size
                         hard-link-count last-write-time set-last-write-time!
-                        set-permissions! add-permissions! remove-permissions!)
+                        set-permissions! add-permissions! remove-permissions!
+                        rename-file resize-file)
                   (copy-regular-file copy-regular-file*)
                   (copy-files copy-files*)
                   (create-directory create-directory*)
@@ -30,7 +31,12 @@
           lexically-normal-path lexically-relative-path lexically-proximate-path
           file-exists? delete-file delete-all-files current-path
           set-current-path! file-status symlink-status file-status?
-          file-status-permissions file-status-type
+          file-status-permissions file-status-type copy-regular-file copy-files
+          read-symlink create-symlink create-hard-link create-directory-symlink
+          copy-symlink create-directory create-directories files-equivalent?
+          file-size hard-link-count last-write-time set-last-write-time!
+          set-permissions! add-permissions! remove-permissions! rename-file
+          resize-file
 
           permissions-none permissions-owner-read permissions-owner-write
           permissions-owner-exec permissions-owner-all permissions-group-read
@@ -40,11 +46,5 @@
           permissions-set-gid permissions-sticky-bit permissions-mask
 
           block-file? character-file? directory? fifo? file-other? regular-file?
-          socket? symlink?
-
-          copy-regular-file copy-files read-symlink create-symlink
-          create-hard-link create-directory-symlink copy-symlink
-          create-directory create-directories files-equivalent? file-size
-          hard-link-count last-write-time set-last-write-time!
-          set-permissions! add-permissions! remove-permissions!)
+          socket? symlink?)
   (include "filesystem.scm"))
