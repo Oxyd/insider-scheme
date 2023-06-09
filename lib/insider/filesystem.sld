@@ -17,7 +17,7 @@
                         create-directories files-equivalent? file-size
                         hard-link-count last-write-time set-last-write-time!
                         set-permissions! add-permissions! remove-permissions!
-                        rename-file resize-file)
+                        rename-file resize-file filesystem-space)
                   (copy-regular-file copy-regular-file*)
                   (copy-files copy-files*)
                   (create-directory create-directory*)
@@ -36,7 +36,7 @@
           copy-symlink create-directory create-directories files-equivalent?
           file-size hard-link-count last-write-time set-last-write-time!
           set-permissions! add-permissions! remove-permissions! rename-file
-          resize-file
+          resize-file filesystem-space
 
           permissions-none permissions-owner-read permissions-owner-write
           permissions-owner-exec permissions-owner-all permissions-group-read

@@ -519,6 +519,15 @@ resize(context& ctx, fs::path const& p, std::uintmax_t new_size) {
   guard_filesystem_error(ctx, [&] { fs::resize_file(p, new_size); });
 }
 
+static ptr<>
+space(context& ctx, fs::path const& p) {
+  auto s = fs::space(p);
+  return make_list(ctx,
+                   to_scheme(ctx, s.capacity),
+                   to_scheme(ctx, s.free),
+                   to_scheme(ctx, s.available));
+}
+
 void
 export_filesystem(context& ctx, ptr<module_> result) {
   define_struct<file_status>(ctx, "file-status", result)
@@ -584,6 +593,7 @@ export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<set_last_write_time>(ctx, "set-last-write-time!", result);
   define_procedure<rename>(ctx, "rename-file", result);
   define_procedure<resize>(ctx, "resize-file", result);
+  define_procedure<space>(ctx, "filesystem-space", result);
 }
 
 } // namespace insider
