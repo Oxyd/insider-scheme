@@ -184,9 +184,14 @@ file_exists(context& ctx, fs::path const& p) {
   return guard_filesystem_error(ctx, [&] { return fs::exists(p); });
 }
 
-static void
+static bool
 delete_file(context& ctx, fs::path const& p) {
-  guard_filesystem_error(ctx, [&] { return fs::remove(p); });
+  return guard_filesystem_error(ctx, [&] { return fs::remove(p); });
+}
+
+static std::uintmax_t
+delete_all(context& ctx, fs::path const& p) {
+  return guard_filesystem_error(ctx, [&] { return fs::remove_all(p); });
 }
 
 static fs::path
@@ -533,6 +538,7 @@ export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<proximate_path>(ctx, "proximate-path", result, current_path);
   define_procedure<file_exists>(ctx, "file-exists?", result);
   define_procedure<delete_file>(ctx, "delete-file", result);
+  define_procedure<delete_all>(ctx, "delete-all-files", result);
   define_procedure<current_path>(ctx, "current-path", result);
   define_procedure<set_current_path>(
     ctx, "set-current-path!", result

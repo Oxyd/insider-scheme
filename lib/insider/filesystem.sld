@@ -7,8 +7,8 @@
                         absolute-path canonical-path weakly-canonical-path
                         relative-path proximate-path lexically-normal-path
                         lexically-relative-path lexically-proximate-path
-                        file-exists? delete-file current-path set-current-path!
-                        file-status symlink-status file-status?
+                        file-exists? delete-file delete-all-files current-path
+                        set-current-path! file-status symlink-status file-status?
                         file-status-permissions file-status-type block-file?
                         character-file? directory? fifo? file-other?
                         regular-file? socket? symlink? copy-regular-file
@@ -28,9 +28,9 @@
           path-stem path-extension absolute-path canonical-path
           weakly-canonical-path relative-path proximate-path
           lexically-normal-path lexically-relative-path lexically-proximate-path
-          file-exists? delete-file current-path set-current-path!
-          file-status symlink-status file-status? file-status-permissions
-          file-status-type
+          file-exists? delete-file delete-all-files current-path
+          set-current-path! file-status symlink-status file-status?
+          file-status-permissions file-status-type
 
           permissions-none permissions-owner-read permissions-owner-write
           permissions-owner-exec permissions-owner-all permissions-group-read
