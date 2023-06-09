@@ -3,7 +3,6 @@
 #include "runtime/basic_types.hpp"
 #include "runtime/time.hpp"
 #include "util/define_procedure.hpp"
-#include "util/define_struct.hpp"
 #include "util/object_span.hpp"
 #include "util/sum_type.hpp"
 #include "util/symbolic_enum.hpp"
@@ -16,47 +15,6 @@
 namespace insider {
 
 namespace fs = std::filesystem;
-
-namespace {
-
-class file_status : public leaf_object<file_status> {
-public:
-  static constexpr char const* scheme_name = "insider::file_status";
-
-  explicit
-  file_status(fs::file_status status)
-    : status_{status}
-  { }
-
-  unsigned
-  permissions() const { return static_cast<unsigned>(status_.permissions()); }
-
-  ptr<symbol>
-  type(context& ctx) const;
-
-private:
-  fs::file_status status_;
-};
-
-} // anonymous namespace
-
-ptr<symbol>
-file_status::type(context& ctx) const {
-  switch (status_.type()) {
-  case fs::file_type::regular: return ctx.intern("regular");
-  case fs::file_type::directory: return ctx.intern("directory");
-  case fs::file_type::symlink: return ctx.intern("symlink");
-  case fs::file_type::block: return ctx.intern("block");
-  case fs::file_type::character: return ctx.intern("character");
-  case fs::file_type::fifo: return ctx.intern("fifo");
-  case fs::file_type::socket: return ctx.intern("socket");
-  case fs::file_type::unknown: return ctx.intern("unknown");
-  case fs::file_type::not_found: return ctx.intern("not-found");
-
-  case fs::file_type::none:
-  default: return ctx.intern("none");
-  }
-}
 
 static ptr<>
 path_elements(context& ctx, fs::path const& p) {
@@ -204,17 +162,42 @@ set_current_path(context& ctx, fs::path const& new_wd) {
   guard_filesystem_error(ctx, [&] { fs::current_path(new_wd); });
 }
 
-static ptr<file_status>
+static ptr<symbol>
+file_type_to_scheme(context& ctx, fs::file_type type) {
+  switch (type) {
+  case fs::file_type::regular: return ctx.intern("regular");
+  case fs::file_type::directory: return ctx.intern("directory");
+  case fs::file_type::symlink: return ctx.intern("symlink");
+  case fs::file_type::block: return ctx.intern("block");
+  case fs::file_type::character: return ctx.intern("character");
+  case fs::file_type::fifo: return ctx.intern("fifo");
+  case fs::file_type::socket: return ctx.intern("socket");
+  case fs::file_type::unknown: return ctx.intern("unknown");
+  case fs::file_type::not_found: return ctx.intern("not-found");
+
+  case fs::file_type::none:
+  default: return ctx.intern("none");
+  }
+}
+
+static ptr<>
+status_to_scheme(context& ctx, fs::file_status status) {
+  return make_list(ctx,
+                   file_type_to_scheme(ctx, status.type()),
+                   to_scheme(ctx, static_cast<unsigned>(status.permissions())));
+}
+
+static ptr<>
 status(context& ctx, fs::path const& p) {
   return guard_filesystem_error(ctx, [&] {
-    return make<file_status>(ctx, fs::status(p));
+    return status_to_scheme(ctx, fs::status(p));
   });
 }
 
-static ptr<file_status>
+static ptr<>
 symlink_status(context& ctx, fs::path const& p) {
   return guard_filesystem_error(ctx, [&] {
-    return make<file_status>(ctx, fs::symlink_status(p));
+    return status_to_scheme(ctx, fs::symlink_status(p));
   });
 }
 
@@ -530,11 +513,6 @@ space(context& ctx, fs::path const& p) {
 
 void
 export_filesystem(context& ctx, ptr<module_> result) {
-  define_struct<file_status>(ctx, "file-status", result)
-    .field<&file_status::permissions>("permissions")
-    .field<&file_status::type>("type")
-    ;
-
   define_procedure<path_elements>(ctx, "path-elements", result);
   define_raw_procedure<path_append>(ctx, "path-append", result);
   define_procedure<path_root_name>(ctx, "path-root-name", result);
