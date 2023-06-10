@@ -49,3 +49,8 @@
 
 (define (remove-permissions! path perms #:follow-symlinks? (follow-symlinks? #t))
   (remove-permissions!* path perms follow-symlinks?))
+
+(define (directory-files/recursive path
+                                   #:follow-symlinks? (follow-symlinks? #f)
+                                   #:skip-permission-denied? (skip-denied? #f))
+  (directory-files/recursive* path follow-symlinks? skip-denied?))

@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <ranges>
 #include <stdexcept>
 
 namespace insider {
@@ -516,6 +517,36 @@ temporary_directory_path(context& ctx) {
   return guard_filesystem_error(ctx, [] { return fs::temp_directory_path(); });
 }
 
+static ptr<>
+directory_files(context& ctx, fs::path const& p) {
+  return make_list_from_range(
+    ctx,
+    std::ranges::subrange{fs::directory_iterator{p}, fs::directory_iterator{}},
+    [&] (fs::directory_entry const& entry) {
+      return to_scheme(ctx, entry.path());
+    }
+  );
+}
+
+static ptr<>
+directory_files_recursive(context& ctx, fs::path const& p, bool follow_symlinks,
+                          bool skip_denied) {
+  fs::directory_options opts{};
+  if (follow_symlinks)
+    opts |= fs::directory_options::follow_directory_symlink;
+  if (skip_denied)
+    opts |= fs::directory_options::skip_permission_denied;
+
+  return make_list_from_range(
+    ctx,
+    std::ranges::subrange{fs::recursive_directory_iterator{p, opts},
+                          fs::recursive_directory_iterator{}},
+    [&] (fs::directory_entry const& entry) {
+      return to_scheme(ctx, entry.path());
+    }
+  );
+}
+
 void
 export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<path_elements>(ctx, "path-elements", result);
@@ -579,6 +610,9 @@ export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<space>(ctx, "filesystem-space", result);
   define_procedure<temporary_directory_path>(ctx, "temporary-directory-path",
                                              result);
+  define_procedure<directory_files>(ctx, "directory-files", result);
+  define_procedure<directory_files_recursive>(ctx, "directory-files/recursive",
+                                              result);
 }
 
 } // namespace insider

@@ -237,7 +237,7 @@ make_list_from_range(context& ctx, Range const& range,
   return head;
 }
 
-template <std::ranges::forward_range Range, typename Converter>
+template <std::ranges::input_range Range, typename Converter>
 ptr<>
 make_list_from_range(context& ctx, Range const& range,
                      Converter const& convert) {

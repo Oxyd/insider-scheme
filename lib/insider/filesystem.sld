@@ -17,13 +17,15 @@
                         hard-link-count last-write-time set-last-write-time!
                         set-permissions! add-permissions! remove-permissions!
                         rename-file resize-file filesystem-space
-                        temporary-directory-path)
+                        temporary-directory-path directory-files
+                        directory-files/recursive)
                   (copy-regular-file copy-regular-file*)
                   (copy-files copy-files*)
                   (create-directory create-directory*)
                   (set-permissions! set-permissions!*)
                   (add-permissions! add-permissions!*)
-                  (remove-permissions! remove-permissions!*)))
+                  (remove-permissions! remove-permissions!*)
+                  (directory-files/recursive directory-files/recursive*)))
   (export path-elements path-append path-root-name path-root-directory
           path-root-path path-relative-path path-parent path-filename
           path-stem path-extension absolute-path canonical-path
@@ -36,7 +38,7 @@
           create-directories files-equivalent? file-size hard-link-count
           last-write-time set-last-write-time! set-permissions! add-permissions!
           remove-permissions! rename-file resize-file filesystem-space
-          temporary-directory-path
+          temporary-directory-path directory-files directory-files/recursive
 
           permissions-none permissions-owner-read permissions-owner-write
           permissions-owner-exec permissions-owner-all permissions-group-read
