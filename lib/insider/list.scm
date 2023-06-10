@@ -168,7 +168,7 @@
   (cond ((null? list)
          '())
         ((pred (car list))
-         (cons pred (filter pred (cdr list))))
+         (cons (car list) (filter pred (cdr list))))
         (else
          (filter pred (cdr list)))))
 
