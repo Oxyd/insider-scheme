@@ -45,6 +45,16 @@ string::string(std::string value)
   , codepoint_length_{codepoint_length(data_)}
 { }
 
+string::string(std::string_view value)
+  : data_{value}
+  , codepoint_length_{codepoint_length(data_)}
+{ }
+
+string::string(char const* value)
+  : data_{value}
+  , codepoint_length_{codepoint_length(data_)}
+{ }
+
 void
 string::set_cursor(string_cursor i, char32_t c) {
   if (i.value >= data_.size())

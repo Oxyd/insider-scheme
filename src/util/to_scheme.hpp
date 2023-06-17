@@ -10,6 +10,7 @@
 #include <concepts>
 #include <filesystem>
 #include <optional>
+#include <string_view>
 
 namespace insider {
 
@@ -93,6 +94,30 @@ template <>
 struct to_scheme_converter<std::string> {
   static ptr<>
   convert(context& ctx, std::string const& s) { return make<string>(ctx, s); }
+};
+
+template <>
+struct to_scheme_converter<std::string_view> {
+  static ptr<>
+  convert(context& ctx, std::string_view s) {
+    return make<string>(ctx, s);
+  }
+};
+
+template <>
+struct to_scheme_converter<char const*> {
+  static ptr<>
+  convert(context& ctx, char const* s) {
+    return make<string>(ctx, s);
+  }
+};
+
+template <std::size_t N>
+struct to_scheme_converter<char[N]> {
+  static ptr<>
+  convert(context& ctx, char const* s) {
+    return make<string>(ctx, s);
+  }
 };
 
 template <>

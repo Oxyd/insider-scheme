@@ -6,6 +6,7 @@
 #include "type_indexes.hpp"
 
 #include <string>
+#include <string_view>
 
 namespace insider {
 
@@ -45,6 +46,12 @@ public:
 
   explicit
   string(std::string value);
+
+  explicit
+  string(std::string_view value);
+
+  explicit
+  string(char const* value);
 
   void
   set_cursor(string_cursor, char32_t);
