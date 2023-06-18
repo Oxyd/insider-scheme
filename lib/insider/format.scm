@@ -35,28 +35,16 @@
 (define (ascii-digit? c)
   (and (char-ascii? c) (char-numeric? c)))
 
-(define (parse-element-index! state)
-  (cond ((char=? (state-current-char state) #\})
-         (advance-state-position! state)
-         #f)
-        (else
-         (let ((index-start (state-position state)))
-           (do () ((or (state-at-end? state)
-                       (not (ascii-digit? (state-current-char state)))))
-             (advance-state-position! state))
-           (when (state-at-end? state)
-             (error "Unexpected end of format string"))
-           (unless (char=? (state-current-char state) #\})
-             (error (string-append "Unexpected "
-                                   (string (state-current-char state))
-                                   " in format string")))
-           (let ((result (string->number (substring (state-format-string state)
-                                                    index-start
-                                                    (state-position state)))))
-             (advance-state-position! state)
-             result)))))
+(define (parse-element-index state)
+  (let ((index-start (state-position state)))
+    (do () ((or (state-at-end? state)
+                (not (ascii-digit? (state-current-char state)))))
+      (advance-state-position! state))
+    (string->number (substring (state-format-string state)
+                               index-start
+                               (state-position state)))))
 
-(define (find-argument! state index)
+(define (find-argument state index)
   (let ((index* (or index (state-current-arg state))))
     (let ((result (if (< index* (vector-length (state-args state)))
                       (vector-ref (state-args state) index*)
@@ -65,19 +53,57 @@
         (advance-current-arg! state))
       result)))
 
-(define (process-replacement-field! state)
+(define (require-char state)
+  (when (state-at-end? state)
+    (error "Unexpected end of format string"))
+  (let ((result (state-current-char state)))
+    (advance-state-position! state)
+    result))
+
+(define (raise-unexpected c)
+  (error (string-append "Unexpected " (string c) " in format string")))
+
+(define (consume! state c)
+  (let ((looking-at (require-char state)))
+    (unless (char=? looking-at c)
+      (raise-unexpected looking-at))))
+
+(define-record-type <field-format>
+  (field-format type)
+  field-format?
+  (type field-format-type))
+
+(define (parse-format-spec state)
+  (case (require-char state)
+    ((#\a) (field-format #\a))
+    ((#\w) (field-format #\w))
+    (else => raise-unexpected)))
+
+(define (maybe-parse-format-spec state)
+  (case (require-char state)
+    ((#\}) (field-format #f))
+    ((#\:) (let ((result (parse-format-spec state)))
+             (consume! state #\})
+             result))
+    (else => raise-unexpected)))
+
+(define (print-field state argument spec)
+  (case (field-format-type spec)
+    ((#\a #f) (display argument (state-port state)))
+    ((#\w) (write argument (state-port state)))))
+
+(define (process-replacement-field state)
   ;; Looking at a {
   (advance-state-position! state)
-  (when (state-at-end? state)
-    (error "Unbalanced {} in format specification"))
-  (let ((index (parse-element-index! state)))
-    (display (find-argument! state index) (state-port state))))
+  (let* ((index (parse-element-index state))
+         (spec (maybe-parse-format-spec state)))
+    (print-field state (find-argument state index) spec)))
 
 (define (print-formatted port fmt . args)
   (let ((state (make-state port fmt args)))
     (do () ((state-at-end? state))
       (cond ((char=? (state-current-char state) #\{)
-             (process-replacement-field! state))
+             (process-replacement-field state))
             (else
              (write-char (state-current-char state) port)
              (advance-state-position! state))))))
