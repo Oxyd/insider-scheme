@@ -75,8 +75,7 @@
 
 (define (parse-format-spec state)
   (case (require-char state)
-    ((#\a) (field-format #:type #\a))
-    ((#\w) (field-format #:type #\w))
+    ((#\a #\b #\d #\o #\w #\x) => (lambda (t) (field-format #:type t)))
     (else => raise-unexpected)))
 
 (define (maybe-parse-format-spec state)
@@ -87,10 +86,26 @@
              result))
     (else => raise-unexpected)))
 
+(define (print-exact-number argument port spec)
+  (unless (exact? argument)
+    (error (string (field-format-type spec)) " is only valid for exact numbers"))
+  (display (number->string argument
+                           (case (field-format-type spec)
+                             ((#\b) 2)
+                             ((#\o) 8)
+                             ((#\d) 10)
+                             ((#\x) 16)))
+           port))
+
 (define (print-field state argument spec)
-  (case (field-format-type spec)
-    ((#\a #f) (display argument (state-port state)))
-    ((#\w) (write argument (state-port state)))))
+  (let ((port (state-port state)))
+    (case (field-format-type spec)
+      ((#\a #f)
+       (display argument port))
+      ((#\w)
+       (write argument port))
+      ((#\b #\o #\d #\x)
+       (print-exact-number argument port spec)))))
 
 (define (process-replacement-field state)
   ;; Looking at a {
