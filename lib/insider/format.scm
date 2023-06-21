@@ -69,19 +69,19 @@
       (raise-unexpected looking-at))))
 
 (define-record-type <field-format>
-  (field-format type)
+  (field-format #:type type)
   field-format?
   (type field-format-type))
 
 (define (parse-format-spec state)
   (case (require-char state)
-    ((#\a) (field-format #\a))
-    ((#\w) (field-format #\w))
+    ((#\a) (field-format #:type #\a))
+    ((#\w) (field-format #:type #\w))
     (else => raise-unexpected)))
 
 (define (maybe-parse-format-spec state)
   (case (require-char state)
-    ((#\}) (field-format #f))
+    ((#\}) (field-format #:type #f))
     ((#\:) (let ((result (parse-format-spec state)))
              (consume! state #\})
              result))

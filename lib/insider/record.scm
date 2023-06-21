@@ -26,16 +26,20 @@
        #`(define (#,constructor-name #,@constructor-fields)
            (let ((result (make-record-instance #,record-type)))
              #,@(let loop ((accum '()) (constructor-fields constructor-fields))
-                  (if (null? constructor-fields)
-                      (reverse accum)
-                      (loop
-                       (cons #`(record-set!
-                                result
-                                #,(field-index (car constructor-fields)
-                                               field-indices)
-                                #,(car constructor-fields))
-                             accum)
-                       (cdr constructor-fields))))
+                  (cond
+                   ((null? constructor-fields)
+                    (reverse accum))
+                   ((keyword? (syntax-expression (car constructor-fields)))
+                    (loop accum (cdr constructor-fields)))
+                   (else
+                    (loop
+                     (cons #`(record-set!
+                              result
+                              #,(field-index (car constructor-fields)
+                                             field-indices)
+                              #,(car constructor-fields))
+                           accum)
+                     (cdr constructor-fields)))))
              result))))))
 
 (meta
