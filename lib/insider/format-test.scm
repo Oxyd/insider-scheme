@@ -14,7 +14,9 @@
       (test-equal #R"(a #\b c)" (format "a {:w} c" #\b))
       (test-equal #R"(foo "bar" baz)" (format "foo {:w} baz" "bar"))
 
-      (test-equal "2+3i" (format "{}" 2+3i)))
+      (test-equal "2+3i" (format "{}" 2+3i))
+
+      (test-error (format "{:.2}" 2.0)))
 
     (test-group "exact numeric format"
       (test-equal "12" (format "{:d}" 12))
@@ -25,7 +27,11 @@
       (test-error (format "{:d}" 'symbol))
       (test-error (format "{:d}" "string"))
       (test-error (format "{:d}" '(1 2)))
-      (test-error (format "{:d}" 2.3)))
+      (test-error (format "{:d}" 2.3))
+      (test-error (format "{:.2d}" 2))
+      (test-error (format "{:.2x}" 2))
+      (test-error (format "{:.2o}" 2))
+      (test-error (format "{:.2b}" 2)))
 
     (test-group "inexact numeric format"
       (test-equal "12.000000" (format "{:f}" 12.0))

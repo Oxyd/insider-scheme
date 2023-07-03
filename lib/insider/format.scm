@@ -144,11 +144,28 @@
       ((#\f)
        (print-inexact-number argument port spec)))))
 
+(define (require-unspecified! spec accessor description)
+  (when (accessor spec)
+    (error (string-append description
+                          ": not allowed with "
+                          (if (field-format-type spec)
+                              (string (field-format-type spec))
+                              "default")
+                          " specifier"))))
+
+(define (check-format-spec! spec)
+  (case (field-format-type spec)
+    ((#f #\a #\w)
+     (require-unspecified! spec field-format-precision "precision"))
+    ((#\b #\o #\d #\x)
+     (require-unspecified! spec field-format-precision "precision"))))
+
 (define (process-replacement-field state)
   ;; Looking at a {
   (advance-state-position! state)
   (let* ((index (parse-number state))
          (spec (parse-format-spec state)))
+    (check-format-spec! spec)
     (print-field state (find-argument state index) spec)))
 
 (define (print-formatted port fmt . args)
