@@ -8,6 +8,7 @@
 
 #include <concepts>
 #include <filesystem>
+#include <optional>
 
 namespace insider {
 
@@ -167,6 +168,17 @@ struct from_scheme_converter<std::vector<T>> {
       throw std::runtime_error{"Expected vector or list"};
 
     return result;
+  }
+};
+
+template <typename T>
+struct from_scheme_converter<std::optional<T>> {
+  static std::optional<T>
+  convert(context& ctx, ptr<> o) {
+    if (o == ctx.constants->f)
+      return std::nullopt;
+    else
+      return from_scheme<T>(ctx, o);
   }
 };
 

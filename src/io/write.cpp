@@ -711,13 +711,21 @@ number_to_string(context& ctx, ptr<> z, unsigned base) {
 
 static void
 format_floating_point(ptr<floating_point> f, char sign,
+                      std::optional<unsigned> precision,
                       ptr<textual_output_port> out) {
   bool written = maybe_write_infinite_float(f, out);
   if (written)
     return;
 
   using namespace std::literals;
-  std::string fmt = fmt::format("{{:{}f}}", sign);
+  std::string fmt = "{:";
+
+  fmt += sign;
+
+  if (precision)
+    fmt += "."s + std::to_string(*precision);
+
+  fmt += "f}";
   out->write(fmt::format(fmt::runtime(fmt), f->value));
 }
 
