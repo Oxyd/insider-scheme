@@ -74,9 +74,10 @@
       (raise-unexpected looking-at))))
 
 (define-record-type <field-format>
-  (field-format type precision)
+  (field-format type sign precision)
   field-format?
   (type field-format-type)
+  (sign field-format-sign)
   (precision field-format-precision))
 
 (define (parse-type-spec state)
@@ -87,6 +88,13 @@
        type)
       (else
        #f))))
+
+(define (parse-sign state)
+  (case (peek state)
+    ((#\+ #\- #\space) => (lambda (sign)
+                            (advance-state-position! state)
+                            sign))
+    (else #f)))
 
 (define (parse-precision state)
   (cond
@@ -100,17 +108,21 @@
 (define (parse-format-spec state)
   (case (require-char state)
     ((#\:)
-     (let* ((precision (parse-precision state))
+     (let* ((sign (parse-sign state))
+            (precision (parse-precision state))
             (type (parse-type-spec state)))
        (consume! state #\})
-       (field-format type precision)))
+       (field-format type sign precision)))
     ((#\})
-     (field-format #f #f))
+     (field-format #f #f #f))
     (else => raise-unexpected)))
 
 (define (print-exact-number argument port spec)
   (unless (exact? argument)
     (error (string (field-format-type spec)) " is only valid for exact numbers"))
+  (let ((sign (field-format-sign spec)))
+    (when (and (memq sign '(#\+ #\space)) (not (negative? argument)))
+      (write-char sign port)))
   (display (number->string argument
                            (case (field-format-type spec)
                              ((#\b) 2)
@@ -120,7 +132,7 @@
            port))
 
 (define (print-inexact-number argument port spec)
-  (let ((sign #\-)
+  (let ((sign (or (field-format-sign spec) #\-))
         (precision (field-format-precision spec)))
     (cond
      ((real? argument)
@@ -156,6 +168,7 @@
 (define (check-format-spec! spec)
   (case (field-format-type spec)
     ((#f #\a #\w)
+     (require-unspecified! spec field-format-sign "sign")
      (require-unspecified! spec field-format-precision "precision"))
     ((#\b #\o #\d #\x)
      (require-unspecified! spec field-format-precision "precision"))))

@@ -16,13 +16,18 @@
 
       (test-equal "2+3i" (format "{}" 2+3i))
 
-      (test-error (format "{:.2}" 2.0)))
+      (test-error (format "{:.2}" 2.0))
+      (test-error (format "{:+}" 2))
+      (test-error (format "{:-}" 2))
+      (test-error (format "{: }" 2)))
 
     (test-group "exact numeric format"
       (test-equal "12" (format "{:d}" 12))
       (test-equal "c" (format "{:x}" 12))
       (test-equal "14" (format "{:o}" 12))
       (test-equal "1100" (format "{:b}" 12))
+      (test-equal "+12" (format "{:+d}" 12))
+      (test-equal " 12" (format "{: d}" 12))
 
       (test-error (format "{:d}" 'symbol))
       (test-error (format "{:d}" "string"))
@@ -38,6 +43,9 @@
       (test-equal "1.000000+2.000000i" (format "{:f}" 1.0+2.0i))
       (test-equal "12.00" (format "{:.2f}" 12.0))
       (test-equal "12" (format "{:.0f}" 12.0))
+      (test-equal "+12.0" (format "{:+.1f}" 12.0))
+      (test-equal " 12.0" (format "{: .1f}" 12.0))
+      (test-equal "+1.0+2.0i" (format "{:+.1f}" 1.0+2.0i))
       (test-equal "1.23+2.45i" (format "{:.2f}" 1.231111+2.449999i))
       (test-equal "-nan.0" (format "{:f}" -nan.0))
       (test-equal "+inf.0" (format "{:f}" +inf.0))
