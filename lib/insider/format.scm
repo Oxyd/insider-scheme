@@ -53,6 +53,11 @@
         (advance-current-arg! state))
       result)))
 
+(define (peek state)
+  (if (state-at-end? state)
+      #f
+      (state-current-char state)))
+
 (define (require-char state)
   (when (state-at-end? state)
     (error "Unexpected end of format string"))
@@ -73,17 +78,23 @@
   field-format?
   (type field-format-type))
 
+(define (parse-type-spec state)
+  (let ((type (peek state)))
+    (case type
+      ((#\a #\b #\d #\f #\o #\w #\x)
+       (advance-state-position! state)
+       type)
+      (else
+       #f))))
+
 (define (parse-format-spec state)
   (case (require-char state)
-    ((#\a #\b #\d #\o #\w #\x) => (lambda (t) (field-format #:type t)))
-    (else => raise-unexpected)))
-
-(define (maybe-parse-format-spec state)
-  (case (require-char state)
-    ((#\}) (field-format #:type #f))
-    ((#\:) (let ((result (parse-format-spec state)))
-             (consume! state #\})
-             result))
+    ((#\:)
+     (let* ((type (parse-type-spec state)))
+       (consume! state #\})
+       (field-format type)))
+    ((#\})
+     (field-format #f))
     (else => raise-unexpected)))
 
 (define (print-exact-number argument port spec)
@@ -97,6 +108,18 @@
                              ((#\x) 16)))
            port))
 
+(define (print-inexact-number argument port spec)
+  (let ((sign #\-))
+    (cond
+     ((real? argument)
+      (format-floating-point argument sign port))
+     (else
+      (let ((r (inexact (real-part argument)))
+            (i (inexact (imag-part argument))))
+        (format-floating-point r sign port)
+        (format-floating-point i #\+ port)
+        (write-char #\i port))))))
+
 (define (print-field state argument spec)
   (let ((port (state-port state)))
     (case (field-format-type spec)
@@ -105,13 +128,15 @@
       ((#\w)
        (write argument port))
       ((#\b #\o #\d #\x)
-       (print-exact-number argument port spec)))))
+       (print-exact-number argument port spec))
+      ((#\f)
+       (print-inexact-number argument port spec)))))
 
 (define (process-replacement-field state)
   ;; Looking at a {
   (advance-state-position! state)
   (let* ((index (parse-element-index state))
-         (spec (maybe-parse-format-spec state)))
+         (spec (parse-format-spec state)))
     (print-field state (find-argument state index) spec)))
 
 (define (print-formatted port fmt . args)

@@ -15,7 +15,8 @@
                         close-output-port display get-output-bytevector
                         get-output-string newline open-source-file-relative read
                         read-syntax read-syntax-multiple read-syntax-multiple-ci
-                        write write-shared write-simple <eof-object>)
+                        write write-shared write-simple <eof-object>
+                        format-floating-point)
                   (flush-output-port %flush-output-port)
                   (read-char %read-char)
                   (peek-char %peek-char)
@@ -41,5 +42,5 @@
           read-syntax read-syntax-multiple read-syntax-multiple-ci read-u8
           textual-port? u8-ready? with-input-from-file with-output-to-file write
           write-bytevector write-char write-shared write-simple write-string
-          write-u8)
+          write-u8 format-floating-point)
   (include "io.scm"))
