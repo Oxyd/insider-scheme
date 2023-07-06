@@ -16,6 +16,9 @@
 
       (test-equal "2+3i" (format "{}" 2+3i))
 
+      (test-equal "foo  " (format "{:5}" "foo"))
+      (test-equal "foo" (format "{:1}" "foo"))
+
       (test-error (format "{:.2}" 2.0))
       (test-error (format "{:+}" 2))
       (test-error (format "{:-}" 2))

@@ -74,10 +74,11 @@
       (raise-unexpected looking-at))))
 
 (define-record-type <field-format>
-  (field-format type sign precision)
+  (field-format type sign width precision)
   field-format?
   (type field-format-type)
   (sign field-format-sign)
+  (width field-format-width)
   (precision field-format-precision))
 
 (define (parse-type-spec state)
@@ -96,6 +97,8 @@
                             sign))
     (else #f)))
 
+(define parse-width parse-number)
+
 (define (parse-precision state)
   (cond
    ((char=? (peek state) #\.)
@@ -109,12 +112,13 @@
   (case (require-char state)
     ((#\:)
      (let* ((sign (parse-sign state))
+            (width (parse-width state))
             (precision (parse-precision state))
             (type (parse-type-spec state)))
        (consume! state #\})
-       (field-format type sign precision)))
+       (field-format type sign width precision)))
     ((#\})
-     (field-format #f #f #f))
+     (field-format #f #f #f #f))
     (else => raise-unexpected)))
 
 (define (print-exact-number argument port spec)
@@ -144,13 +148,27 @@
         (format-floating-point i #\+ precision port)
         (write-char #\i port))))))
 
+(define (print-general printer argument port spec)
+  (let ((min-width (field-format-width spec)))
+    (cond
+     ((not min-width)
+      (printer argument port))
+     (else
+      (let ((formatted (call-with-output-string
+                        (lambda (string-port)
+                          (printer argument string-port)))))
+        (write-string (string-pad-right formatted
+                                        (max (string-length formatted)
+                                             min-width))
+                      port))))))
+
 (define (print-field state argument spec)
   (let ((port (state-port state)))
     (case (field-format-type spec)
       ((#\a #f)
-       (display argument port))
+       (print-general display argument port spec))
       ((#\w)
-       (write argument port))
+       (print-general write argument port spec))
       ((#\b #\o #\d #\x)
        (print-exact-number argument port spec))
       ((#\f)
