@@ -91,14 +91,21 @@
   (type field-format-type))
 
 (define (parse-fill&align state)
-  (let ((original-position (state-position state)))
-    (let* ((fill (read-char state))
-           (align (read-char state)))
-      (cond ((and fill align (memq align '(#\< #\> #\^)))
-             (values fill align))
-            (else
-             (set-state-position! state original-position)
-             (values #f #f))))))
+  (define (align-character? c)
+    (memq c '(#\< #\> #\^)))
+
+  (let* ((original-position (state-position state))
+         (first (read-char state))
+         (position-after-first (state-position state))
+         (second (read-char state)))
+    (cond ((and first second (align-character? second))
+           (values first second))
+          ((and first (align-character? first))
+           (set-state-position! state position-after-first)
+           (values #f first))
+          (else
+           (set-state-position! state original-position)
+           (values #f #f)))))
 
 (define (parse-type-spec state)
   (let ((type (peek state)))

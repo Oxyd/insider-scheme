@@ -18,6 +18,7 @@
 
       (test-equal "foo  " (format "{:5}" "foo"))
       (test-equal "foo" (format "{:1}" "foo"))
+      (test-equal "  foo" (format "{:>5}" "foo"))
       (test-equal "foo--" (format "{:-<5}" "foo"))
       (test-equal "--foo" (format "{:->5}" "foo"))
       (test-equal "-foo-" (format "{:-^5}" "foo"))
