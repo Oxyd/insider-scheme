@@ -1,5 +1,6 @@
 (define-library (insider format)
-  (import (scheme base) (scheme complex) (insider io) (insider string)
-          (insider char))
+  (import (scheme complex) (insider string) (insider char)
+          (except (scheme base) read-char)
+          (except (insider io) read-char))
   (export print-formatted format)
   (include "format.scm"))

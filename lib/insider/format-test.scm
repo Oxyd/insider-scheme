@@ -18,11 +18,17 @@
 
       (test-equal "foo  " (format "{:5}" "foo"))
       (test-equal "foo" (format "{:1}" "foo"))
+      (test-equal "foo--" (format "{:-<5}" "foo"))
+      (test-equal "--foo" (format "{:->5}" "foo"))
+      (test-equal "-foo-" (format "{:-^5}" "foo"))
+      (test-equal "-foo--" (format "{:-^6}" "foo"))
 
       (test-error (format "{:.2}" 2.0))
       (test-error (format "{:+}" 2))
       (test-error (format "{:-}" 2))
-      (test-error (format "{: }" 2)))
+      (test-error (format "{: }" 2))
+      (test-error (format "{:-6}" "foo"))
+      (test-error (format "{:-/6}" "foo")))
 
     (test-group "exact numeric format"
       (test-equal "12" (format "{:d}" 12))

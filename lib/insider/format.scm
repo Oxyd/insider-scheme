@@ -58,6 +58,13 @@
       #f
       (state-current-char state)))
 
+(define (read-char state)
+  (if (state-at-end? state)
+      #f
+      (let ((result (state-current-char state)))
+        (advance-state-position! state)
+        result)))
+
 (define (require-char state)
   (when (state-at-end? state)
     (error "Unexpected end of format string"))
@@ -74,12 +81,24 @@
       (raise-unexpected looking-at))))
 
 (define-record-type <field-format>
-  (field-format type sign width precision)
+  (field-format fill align sign width precision type)
   field-format?
-  (type field-format-type)
+  (fill field-format-fill)
+  (align field-format-align)
   (sign field-format-sign)
   (width field-format-width)
-  (precision field-format-precision))
+  (precision field-format-precision)
+  (type field-format-type))
+
+(define (parse-fill&align state)
+  (let ((original-position (state-position state)))
+    (let* ((fill (read-char state))
+           (align (read-char state)))
+      (cond ((and fill align (memq align '(#\< #\> #\^)))
+             (values fill align))
+            (else
+             (set-state-position! state original-position)
+             (values #f #f))))))
 
 (define (parse-type-spec state)
   (let ((type (peek state)))
@@ -111,14 +130,15 @@
 (define (parse-format-spec state)
   (case (require-char state)
     ((#\:)
-     (let* ((sign (parse-sign state))
-            (width (parse-width state))
-            (precision (parse-precision state))
-            (type (parse-type-spec state)))
+     (let*-values (((fill align) (parse-fill&align state))
+                   ((sign) (parse-sign state))
+                   ((width) (parse-width state))
+                   ((precision) (parse-precision state))
+                   ((type) (parse-type-spec state)))
        (consume! state #\})
-       (field-format type sign width precision)))
+       (field-format fill align sign width precision type)))
     ((#\})
-     (field-format #f #f #f #f))
+     (field-format #f #f #f #f #f #f))
     (else => raise-unexpected)))
 
 (define (print-exact-number argument port spec)
@@ -148,8 +168,21 @@
         (format-floating-point i #\+ precision port)
         (write-char #\i port))))))
 
+(define (align-string s min-width fill align)
+  (case align
+    ((#\<) (string-pad-right s (max (string-length s) min-width) fill))
+    ((#\>) (string-pad s (max (string-length s) min-width) fill))
+    ((#\^) (let ((len (string-length s)))
+             (let ((left (max 0 (floor (/ (- min-width len) 2))))
+                   (right (max 0 (ceiling (/ (- min-width len) 2)))))
+               (string-append (make-string left fill)
+                              s
+                              (make-string right fill)))))))
+
 (define (print-general printer argument port spec)
-  (let ((min-width (field-format-width spec)))
+  (let ((fill (or (field-format-fill spec) #\space))
+        (align (or (field-format-align spec) #\<))
+        (min-width (field-format-width spec)))
     (cond
      ((not min-width)
       (printer argument port))
@@ -157,10 +190,7 @@
       (let ((formatted (call-with-output-string
                         (lambda (string-port)
                           (printer argument string-port)))))
-        (write-string (string-pad-right formatted
-                                        (max (string-length formatted)
-                                             min-width))
-                      port))))))
+        (write-string (align-string formatted min-width fill align) port))))))
 
 (define (print-field state argument spec)
   (let ((port (state-port state)))
