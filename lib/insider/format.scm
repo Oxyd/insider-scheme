@@ -148,6 +148,26 @@
      (field-format #f #f #f #f #f #f))
     (else => raise-unexpected)))
 
+(define (print-aligned s min-width fill align port)
+  (define (print-fill count)
+    (when (positive? count)
+      (do ((i 0 (+ i 1)))
+          ((= i count))
+        (write-char fill port))))
+
+  (case align
+    ((#\<)
+     (write-string s port)
+     (print-fill (- min-width (string-length s))))
+    ((#\>)
+     (print-fill (- min-width (string-length s)))
+     (write-string s port))
+    ((#\^)
+     (let ((len (string-length s)))
+       (print-fill (floor (/ (- min-width len) 2)))
+       (write-string s port)
+       (print-fill (ceiling (/ (- min-width len) 2)))))))
+
 (define (print-exact-number argument port spec)
   (define (do-print value port)
     (display (number->string argument
@@ -173,7 +193,7 @@
         (let ((formatted (call-with-output-string
                           (lambda (string-port)
                             (do-print argument string-port)))))
-          (write-string (align-string formatted min-width fill align) port)))))
+          (print-aligned formatted min-width fill align port)))))
 
 (define (print-inexact-number argument port spec)
   (let ((sign (or (field-format-sign spec) #\-))
@@ -188,17 +208,6 @@
         (format-floating-point i #\+ precision port)
         (write-char #\i port))))))
 
-(define (align-string s min-width fill align)
-  (case align
-    ((#\<) (string-pad-right s (max (string-length s) min-width) fill))
-    ((#\>) (string-pad s (max (string-length s) min-width) fill))
-    ((#\^) (let ((len (string-length s)))
-             (let ((left (max 0 (floor (/ (- min-width len) 2))))
-                   (right (max 0 (ceiling (/ (- min-width len) 2)))))
-               (string-append (make-string left fill)
-                              s
-                              (make-string right fill)))))))
-
 (define (print-general printer argument port spec)
   (let ((fill (or (field-format-fill spec) #\space))
         (align (or (field-format-align spec) #\<))
@@ -210,7 +219,7 @@
       (let ((formatted (call-with-output-string
                         (lambda (string-port)
                           (printer argument string-port)))))
-        (write-string (align-string formatted min-width fill align) port))))))
+        (print-aligned formatted min-width fill align port))))))
 
 (define (print-field state argument spec)
   (let ((port (state-port state)))
