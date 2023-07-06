@@ -38,6 +38,10 @@
       (test-equal "1100" (format "{:b}" 12))
       (test-equal "+12" (format "{:+d}" 12))
       (test-equal " 12" (format "{: d}" 12))
+      (test-equal "   12" (format "{:5d}" 12))
+      (test-equal "***12" (format "{:*>5d}" 12))
+      (test-equal "12   " (format "{:<5d}" 12))
+      (test-equal "  -12" (format "{:5d}" -12))
 
       (test-error (format "{:d}" 'symbol))
       (test-error (format "{:d}" "string"))

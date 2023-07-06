@@ -149,18 +149,31 @@
     (else => raise-unexpected)))
 
 (define (print-exact-number argument port spec)
+  (define (do-print value port)
+    (display (number->string argument
+                             (case (field-format-type spec)
+                               ((#\b) 2)
+                               ((#\o) 8)
+                               ((#\d) 10)
+                               ((#\x) 16)))
+             port))
+
   (unless (exact? argument)
     (error (string (field-format-type spec)) " is only valid for exact numbers"))
+
   (let ((sign (field-format-sign spec)))
     (when (and (memq sign '(#\+ #\space)) (not (negative? argument)))
       (write-char sign port)))
-  (display (number->string argument
-                           (case (field-format-type spec)
-                             ((#\b) 2)
-                             ((#\o) 8)
-                             ((#\d) 10)
-                             ((#\x) 16)))
-           port))
+
+  (let ((fill (or (field-format-fill spec) #\space))
+        (align (or (field-format-align spec) #\>))
+        (min-width (field-format-width spec)))
+    (if (not min-width)
+        (do-print argument port)
+        (let ((formatted (call-with-output-string
+                          (lambda (string-port)
+                            (do-print argument string-port)))))
+          (write-string (align-string formatted min-width fill align) port)))))
 
 (define (print-inexact-number argument port spec)
   (let ((sign (or (field-format-sign spec) #\-))
