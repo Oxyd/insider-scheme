@@ -184,7 +184,8 @@
     (error (string (field-format-type spec)) " is only valid for exact numbers"))
 
   (let ((sign (field-format-sign spec)))
-    (when (and (memq sign '(#\+ #\space)) (not (negative? argument)))
+    (when (and (memq sign '(#\+ #\space))
+               (not (negative? (real-part argument))))
       (write-char sign port)))
 
   (print-number argument port spec
