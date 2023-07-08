@@ -711,7 +711,9 @@ number_to_string(context& ctx, ptr<> z, unsigned base) {
 }
 
 static void
-format_floating_point(ptr<floating_point> f, char sign,
+format_floating_point(ptr<floating_point> f,
+                      char sign,
+                      bool alternative,
                       std::optional<unsigned> precision,
                       char type,
                       ptr<textual_output_port> out) {
@@ -729,6 +731,9 @@ format_floating_point(ptr<floating_point> f, char sign,
   std::string fmt = "{:";
 
   fmt += sign;
+
+  if (alternative)
+    fmt += '#';
 
   if (precision)
     fmt += "."s + std::to_string(*precision);

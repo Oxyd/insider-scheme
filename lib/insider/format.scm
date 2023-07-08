@@ -221,17 +221,21 @@
   (print-number argument port spec
                 (lambda (value port)
                   (let ((sign (or (field-format-sign spec) #\-))
+                        (alternative-form? (field-format-alternative-form? spec))
                         (precision (field-format-precision spec))
                         (type (field-format-type spec)))
                     (cond
                      ((real? argument)
                       (format-floating-point (inexact argument)
-                                             sign precision type port))
+                                             sign alternative-form? precision
+                                             type port))
                      (else
                       (let ((r (inexact (real-part argument)))
                             (i (inexact (imag-part argument))))
-                        (format-floating-point r sign precision type port)
-                        (format-floating-point i #\+ precision type port)
+                        (format-floating-point r sign alternative-form?
+                                               precision type port)
+                        (format-floating-point i #\+ alternative-form?
+                                               precision type port)
                         (write-char #\i port))))))))
 
 (define (print-general printer argument port spec)
