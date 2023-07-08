@@ -193,11 +193,6 @@
   (unless (exact? argument)
     (error (string (field-format-type spec)) " is only valid for exact numbers"))
 
-  (let ((sign (field-format-sign spec)))
-    (when (and (memq sign '(#\+ #\space))
-               (not (negative? (real-part argument))))
-      (write-char sign port)))
-
   (when (field-format-alternative-form? spec)
     (write-string
      (case (field-format-type spec)
@@ -206,6 +201,11 @@
        ((#\d) "#d")
        ((#\x) "#x"))
      port))
+
+  (let ((sign (field-format-sign spec)))
+    (when (and (memq sign '(#\+ #\space))
+               (not (negative? (real-part argument))))
+      (write-char sign port)))
 
   (print-number argument port spec
                 (lambda (value port)
@@ -280,8 +280,8 @@
     ((#\b #\o #\d #\x)
      (require-unspecified! spec field-format-precision "precision")
      (when (and (field-format-alternative-form? spec)
-                (field-format-sign spec))
-       (error "Sign cannot be used with alternative form of exact numeric specifiers")))))
+                (eq? (field-format-sign spec) #\space))
+       (error "Leading space option cannot be used with alternative form of exact numeric specifiers")))))
 
 (define (process-replacement-field state)
   ;; Looking at a {
