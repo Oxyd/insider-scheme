@@ -25,6 +25,7 @@
 #include <optional>
 #include <ranges>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <variant>
 #include <vector>
@@ -712,7 +713,14 @@ number_to_string(context& ctx, ptr<> z, unsigned base) {
 static void
 format_floating_point(ptr<floating_point> f, char sign,
                       std::optional<unsigned> precision,
+                      char type,
                       ptr<textual_output_port> out) {
+  if (sign != '+' && sign != '-' && sign != ' ')
+    throw std::runtime_error{fmt::format("Invalid sign specifier: {}", sign)};
+
+  if (type != 'f' && type != 'e' && type != 'g')
+    throw std::runtime_error{fmt::format("Invalid type specifier: {}", type)};
+
   bool written = maybe_write_infinite_float(f, out);
   if (written)
     return;
@@ -725,7 +733,8 @@ format_floating_point(ptr<floating_point> f, char sign,
   if (precision)
     fmt += "."s + std::to_string(*precision);
 
-  fmt += "f}";
+  fmt += type;
+  fmt += '}';
   out->write(fmt::format(fmt::runtime(fmt), f->value));
 }
 

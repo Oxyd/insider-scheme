@@ -110,7 +110,7 @@
 (define (parse-type-spec state)
   (let ((type (peek state)))
     (case type
-      ((#\a #\b #\d #\f #\o #\w #\x)
+      ((#\a #\b #\d #\e #\f #\g #\o #\w #\x)
        (advance-state-position! state)
        type)
       (else
@@ -202,16 +202,17 @@
   (print-number argument port spec
                 (lambda (value port)
                   (let ((sign (or (field-format-sign spec) #\-))
-                        (precision (field-format-precision spec)))
+                        (precision (field-format-precision spec))
+                        (type (field-format-type spec)))
                     (cond
                      ((real? argument)
                       (format-floating-point (inexact argument)
-                                             sign precision port))
+                                             sign precision type port))
                      (else
                       (let ((r (inexact (real-part argument)))
                             (i (inexact (imag-part argument))))
-                        (format-floating-point r sign precision port)
-                        (format-floating-point i #\+ precision port)
+                        (format-floating-point r sign precision type port)
+                        (format-floating-point i #\+ precision type port)
                         (write-char #\i port))))))))
 
 (define (print-general printer argument port spec)
@@ -236,7 +237,7 @@
        (print-general write argument port spec))
       ((#\b #\o #\d #\x)
        (print-exact-number argument port spec))
-      ((#\f)
+      ((#\e #\f #\g)
        (print-inexact-number argument port spec)))))
 
 (define (require-unspecified! spec accessor description)
