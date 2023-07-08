@@ -193,22 +193,22 @@
   (unless (exact? argument)
     (error (string (field-format-type spec)) " is only valid for exact numbers"))
 
-  (when (field-format-alternative-form? spec)
-    (write-string
-     (case (field-format-type spec)
-       ((#\b) "#b")
-       ((#\o) "#o")
-       ((#\d) "#d")
-       ((#\x) "#x"))
-     port))
-
-  (let ((sign (field-format-sign spec)))
-    (when (and (memq sign '(#\+ #\space))
-               (not (negative? (real-part argument))))
-      (write-char sign port)))
-
   (print-number argument port spec
                 (lambda (value port)
+                  (when (field-format-alternative-form? spec)
+                    (write-string
+                     (case (field-format-type spec)
+                       ((#\b) "#b")
+                       ((#\o) "#o")
+                       ((#\d) "#d")
+                       ((#\x) "#x"))
+                     port))
+
+                  (let ((sign (field-format-sign spec)))
+                    (when (and (memq sign '(#\+ #\space))
+                               (not (negative? (real-part argument))))
+                      (write-char sign port)))
+
                   (display (number->string argument
                                            (case (field-format-type spec)
                                              ((#\b) 2)
