@@ -53,6 +53,11 @@
       (test-equal "#d-12" (format "{:#d}" -12))
       (test-equal "#d+12" (format "{:+#d}" 12))
       (test-equal " #d12" (format "{:#5d}" 12))
+      (test-equal "00012" (format "{:05d}" 12))
+      (test-equal "-0012" (format "{:05d}" -12))
+      (test-equal "#d00012" (format "{:#07d}" 12))
+      (test-equal "#d-0012" (format "{:#07d}" -12))
+      (test-equal "0001+2i" (format "{:07d}" 1+2i))
 
       (test-error (format "{:d}" 'symbol))
       (test-error (format "{:d}" "string"))

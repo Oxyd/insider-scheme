@@ -81,12 +81,13 @@
       (raise-unexpected looking-at))))
 
 (define-record-type <field-format>
-  (field-format fill align sign alternative-form? width precision type)
+  (field-format fill align sign alternative-form? zero-pad? width precision type)
   field-format?
   (fill field-format-fill)
   (align field-format-align)
   (sign field-format-sign)
   (alternative-form? field-format-alternative-form?)
+  (zero-pad? field-format-zero-pad?)
   (width field-format-width)
   (precision field-format-precision)
   (type field-format-type))
@@ -132,6 +133,14 @@
     (else
      #f)))
 
+(define (parse-zero-pad state)
+  (case (peek state)
+    ((#\0)
+     (advance-state-position! state)
+     #t)
+    (else
+     #f)))
+
 (define parse-width parse-number)
 
 (define (parse-precision state)
@@ -149,34 +158,36 @@
      (let*-values (((fill align) (parse-fill&align state))
                    ((sign) (parse-sign state))
                    ((alternative-form?) (parse-alternative-form state))
+                   ((zero-pad?) (parse-zero-pad state))
                    ((width) (parse-width state))
                    ((precision) (parse-precision state))
                    ((type) (parse-type-spec state)))
        (consume! state #\})
-       (field-format fill align sign alternative-form? width precision type)))
+       (field-format fill align sign alternative-form? zero-pad? width precision
+                     type)))
     ((#\})
-     (field-format #f #f #f #f #f #f #f))
+     (field-format #f #f #f #f #f #f #f #f))
     (else => raise-unexpected)))
 
-(define (print-aligned s min-width fill align port)
-  (define (print-fill count)
-    (when (positive? count)
-      (do ((i 0 (+ i 1)))
-          ((= i count))
-        (write-char fill port))))
+(define (print-fill count fill port)
+  (when (positive? count)
+    (do ((i 0 (+ i 1)))
+        ((= i count))
+      (write-char fill port))))
 
+(define (print-aligned s min-width fill align port)
   (case align
     ((#\<)
      (write-string s port)
-     (print-fill (- min-width (string-length s))))
+     (print-fill (- min-width (string-length s)) fill port))
     ((#\>)
-     (print-fill (- min-width (string-length s)))
+     (print-fill (- min-width (string-length s)) fill port)
      (write-string s port))
     ((#\^)
      (let ((len (string-length s)))
-       (print-fill (floor (/ (- min-width len) 2)))
+       (print-fill (floor (/ (- min-width len) 2)) fill port)
        (write-string s port)
-       (print-fill (ceiling (/ (- min-width len) 2)))))))
+       (print-fill (ceiling (/ (- min-width len) 2)) fill port)))))
 
 (define (print-number argument port spec formatter)
   (let ((fill (or (field-format-fill spec) #\space))
@@ -189,33 +200,62 @@
                             (formatter argument string-port)))))
           (print-aligned formatted min-width fill align port)))))
 
+(define (abs-real-part z)
+  (cond ((real? z) (abs z))
+        (else (make-rectangular (abs (real-part z)) (imag-part z)))))
+
+(define (negative-real-part? z)
+  (negative? (real-part z)))
+
+(define (write-exact-prefix spec port)
+  (cond ((field-format-alternative-form? spec)
+         (write-string (case (field-format-type spec)
+                         ((#\b) "#b")
+                         ((#\o) "#o")
+                         ((#\d) "#d")
+                         ((#\x) "#x"))
+                       port)
+         2)
+        (else
+         0)))
+
+(define (write-exact-sign argument spec port)
+  (let ((sign (field-format-sign spec)))
+    (cond ((negative-real-part? argument)
+           (write-char #\- port)
+           1)
+          ((and (memq sign '(#\+ #\space))
+                (not (negative-real-part? argument)))
+           (write-char sign port)
+           1)
+          (else
+           0))))
+
+(define (format-exact-number argument spec)
+  (number->string (abs-real-part argument)
+                  (case (field-format-type spec)
+                    ((#\b) 2)
+                    ((#\o) 8)
+                    ((#\d) 10)
+                    ((#\x) 16))))
+
 (define (print-exact-number argument port spec)
   (unless (exact? argument)
     (error (string (field-format-type spec)) " is only valid for exact numbers"))
 
   (print-number argument port spec
                 (lambda (value port)
-                  (when (field-format-alternative-form? spec)
-                    (write-string
-                     (case (field-format-type spec)
-                       ((#\b) "#b")
-                       ((#\o) "#o")
-                       ((#\d) "#d")
-                       ((#\x) "#x"))
-                     port))
-
-                  (let ((sign (field-format-sign spec)))
-                    (when (and (memq sign '(#\+ #\space))
-                               (not (negative? (real-part argument))))
-                      (write-char sign port)))
-
-                  (display (number->string argument
-                                           (case (field-format-type spec)
-                                             ((#\b) 2)
-                                             ((#\o) 8)
-                                             ((#\d) 10)
-                                             ((#\x) 16)))
-                           port))))
+                  (let* ((prefix-length (write-exact-prefix spec port))
+                         (sign-length (write-exact-sign argument spec port))
+                         (digits (format-exact-number argument spec))
+                         (total-length (+ prefix-length
+                                          sign-length
+                                          (string-length digits)))
+                         (zeroes (if (field-format-zero-pad? spec)
+                                     (- (field-format-width spec) total-length)
+                                     0)))
+                    (print-fill zeroes #\0 port)
+                    (display digits port)))))
 
 (define (print-inexact-number argument port spec)
   (print-number argument port spec
