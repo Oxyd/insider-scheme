@@ -63,6 +63,9 @@
       (test-equal "1.23+2.45i" (format "{:.2f}" 1.231111+2.449999i))
       (test-equal "-nan.0" (format "{:f}" -nan.0))
       (test-equal "+inf.0" (format "{:f}" +inf.0))
+      (test-equal "   12.0" (format "{:7.1f}" 12.0))
+      (test-equal "***12.0" (format "{:*>7.1f}" 12.0))
+      (test-equal "12.0   " (format "{:<7.1f}" 12.0))
       (test-error (format "{:f}" 12)))))
 
 (when-main-module

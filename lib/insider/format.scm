@@ -168,16 +168,18 @@
        (write-string s port)
        (print-fill (ceiling (/ (- min-width len) 2)))))))
 
-(define (print-exact-number argument port spec)
-  (define (do-print value port)
-    (display (number->string argument
-                             (case (field-format-type spec)
-                               ((#\b) 2)
-                               ((#\o) 8)
-                               ((#\d) 10)
-                               ((#\x) 16)))
-             port))
+(define (print-number argument port spec formatter)
+  (let ((fill (or (field-format-fill spec) #\space))
+        (align (or (field-format-align spec) #\>))
+        (min-width (field-format-width spec)))
+    (if (not min-width)
+        (formatter argument port)
+        (let ((formatted (call-with-output-string
+                          (lambda (string-port)
+                            (formatter argument string-port)))))
+          (print-aligned formatted min-width fill align port)))))
 
+(define (print-exact-number argument port spec)
   (unless (exact? argument)
     (error (string (field-format-type spec)) " is only valid for exact numbers"))
 
@@ -185,28 +187,30 @@
     (when (and (memq sign '(#\+ #\space)) (not (negative? argument)))
       (write-char sign port)))
 
-  (let ((fill (or (field-format-fill spec) #\space))
-        (align (or (field-format-align spec) #\>))
-        (min-width (field-format-width spec)))
-    (if (not min-width)
-        (do-print argument port)
-        (let ((formatted (call-with-output-string
-                          (lambda (string-port)
-                            (do-print argument string-port)))))
-          (print-aligned formatted min-width fill align port)))))
+  (print-number argument port spec
+                (lambda (value port)
+                  (display (number->string argument
+                                           (case (field-format-type spec)
+                                             ((#\b) 2)
+                                             ((#\o) 8)
+                                             ((#\d) 10)
+                                             ((#\x) 16)))
+                           port))))
 
 (define (print-inexact-number argument port spec)
-  (let ((sign (or (field-format-sign spec) #\-))
-        (precision (field-format-precision spec)))
-    (cond
-     ((real? argument)
-      (format-floating-point argument sign precision port))
-     (else
-      (let ((r (inexact (real-part argument)))
-            (i (inexact (imag-part argument))))
-        (format-floating-point r sign precision port)
-        (format-floating-point i #\+ precision port)
-        (write-char #\i port))))))
+  (print-number argument port spec
+                (lambda (value port)
+                  (let ((sign (or (field-format-sign spec) #\-))
+                        (precision (field-format-precision spec)))
+                    (cond
+                     ((real? argument)
+                      (format-floating-point argument sign precision port))
+                     (else
+                      (let ((r (inexact (real-part argument)))
+                            (i (inexact (imag-part argument))))
+                        (format-floating-point r sign precision port)
+                        (format-floating-point i #\+ precision port)
+                        (write-char #\i port))))))))
 
 (define (print-general printer argument port spec)
   (let ((fill (or (field-format-fill spec) #\space))
