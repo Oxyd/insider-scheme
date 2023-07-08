@@ -81,11 +81,12 @@
       (raise-unexpected looking-at))))
 
 (define-record-type <field-format>
-  (field-format fill align sign width precision type)
+  (field-format fill align sign alternative-form? width precision type)
   field-format?
   (fill field-format-fill)
   (align field-format-align)
   (sign field-format-sign)
+  (alternative-form? field-format-alternative-form?)
   (width field-format-width)
   (precision field-format-precision)
   (type field-format-type))
@@ -123,6 +124,14 @@
                             sign))
     (else #f)))
 
+(define (parse-alternative-form state)
+  (case (peek state)
+    ((#\#)
+     (advance-state-position! state)
+     #t)
+    (else
+     #f)))
+
 (define parse-width parse-number)
 
 (define (parse-precision state)
@@ -139,13 +148,14 @@
     ((#\:)
      (let*-values (((fill align) (parse-fill&align state))
                    ((sign) (parse-sign state))
+                   ((alternative-form?) (parse-alternative-form state))
                    ((width) (parse-width state))
                    ((precision) (parse-precision state))
                    ((type) (parse-type-spec state)))
        (consume! state #\})
-       (field-format fill align sign width precision type)))
+       (field-format fill align sign alternative-form? width precision type)))
     ((#\})
-     (field-format #f #f #f #f #f #f))
+     (field-format #f #f #f #f #f #f #f))
     (else => raise-unexpected)))
 
 (define (print-aligned s min-width fill align port)
@@ -187,6 +197,15 @@
     (when (and (memq sign '(#\+ #\space))
                (not (negative? (real-part argument))))
       (write-char sign port)))
+
+  (when (field-format-alternative-form? spec)
+    (write-string
+     (case (field-format-type spec)
+       ((#\b) "#b")
+       ((#\o) "#o")
+       ((#\d) "#d")
+       ((#\x) "#x"))
+     port))
 
   (print-number argument port spec
                 (lambda (value port)
@@ -255,7 +274,10 @@
      (require-unspecified! spec field-format-sign "sign")
      (require-unspecified! spec field-format-precision "precision"))
     ((#\b #\o #\d #\x)
-     (require-unspecified! spec field-format-precision "precision"))))
+     (require-unspecified! spec field-format-precision "precision")
+     (when (and (field-format-alternative-form? spec)
+                (field-format-sign spec))
+       (error "Sign cannot be used with alternative form of exact numeric specifiers")))))
 
 (define (process-replacement-field state)
   ;; Looking at a {

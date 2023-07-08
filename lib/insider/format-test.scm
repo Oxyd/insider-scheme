@@ -45,6 +45,11 @@
       (test-equal "***12" (format "{:*>5d}" 12))
       (test-equal "12   " (format "{:<5d}" 12))
       (test-equal "  -12" (format "{:5d}" -12))
+      (test-equal "#d12" (format "{:#d}" 12))
+      (test-equal "#xc" (format "{:#x}" 12))
+      (test-equal "#o14" (format "{:#o}" 12))
+      (test-equal "#b1100" (format "{:#b}" 12))
+      (test-equal "#d-12" (format "{:#d}" -12))
 
       (test-error (format "{:d}" 'symbol))
       (test-error (format "{:d}" "string"))
@@ -53,7 +58,8 @@
       (test-error (format "{:.2d}" 2))
       (test-error (format "{:.2x}" 2))
       (test-error (format "{:.2o}" 2))
-      (test-error (format "{:.2b}" 2)))
+      (test-error (format "{:.2b}" 2))
+      (test-error (format "{:+#d}" 12)))
 
     (test-group "inexact numeric format"
       (test-equal "12.000000" (format "{:f}" 12.0))
