@@ -205,7 +205,8 @@
                         (precision (field-format-precision spec)))
                     (cond
                      ((real? argument)
-                      (format-floating-point argument sign precision port))
+                      (format-floating-point (inexact argument)
+                                             sign precision port))
                      (else
                       (let ((r (inexact (real-part argument)))
                             (i (inexact (imag-part argument))))

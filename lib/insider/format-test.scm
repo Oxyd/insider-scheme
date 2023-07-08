@@ -69,7 +69,8 @@
       (test-equal "   12.0" (format "{:7.1f}" 12.0))
       (test-equal "***12.0" (format "{:*>7.1f}" 12.0))
       (test-equal "12.0   " (format "{:<7.1f}" 12.0))
-      (test-error (format "{:f}" 12)))))
+      (test-equal "12.0" (format "{:.1f}" 12))
+      (test-equal "1.0+2.0i" (format "{:.1f}" 1+2i)))))
 
 (when-main-module
  (test-format))
