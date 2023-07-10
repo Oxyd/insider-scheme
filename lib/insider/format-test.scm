@@ -112,7 +112,11 @@
       (test-equal "    -inf.0" (format "{:010f}" -inf.0))
       (test-equal "    +nan.0" (format "{:010f}" +nan.0))
       (test-equal "    -nan.0" (format "{:010f}" -nan.0))
-      (test-equal "1e+01" (format "{:.1}" 12.0)))))
+      (test-equal "1e+01" (format "{:.1}" 12.0)))
+
+    (test-group "escapes"
+      (test-equal "foo{bar}baz" (format "foo{{bar}}baz"))
+      (test-equal "foo{bar}baz" (format "foo{{{}}}baz" "bar")))))
 
 (when-main-module
  (test-format))

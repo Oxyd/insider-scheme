@@ -352,8 +352,6 @@
          (print-general display argument port spec)))))))
 
 (define (process-replacement-field state)
-  ;; Looking at a {
-  (advance-state-position! state)
   (let* ((index (parse-number state))
          (spec (parse-format-spec state)))
     (print-field state (find-argument state index) spec)))
@@ -362,7 +360,16 @@
   (let ((state (make-state port fmt args)))
     (do () ((state-at-end? state))
       (cond ((char=? (state-current-char state) #\{)
-             (process-replacement-field state))
+             (advance-state-position! state)
+             (cond ((eq? (peek state) #\{)
+                    (advance-state-position! state)
+                    (write-char #\{ port))
+                   (else
+                    (process-replacement-field state))))
+            ((char=? (state-current-char state) #\})
+             (advance-state-position! state)
+             (consume! state #\})
+             (write-char #\} port))
             (else
              (write-char (state-current-char state) port)
              (advance-state-position! state))))))
