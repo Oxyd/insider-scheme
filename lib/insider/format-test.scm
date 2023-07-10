@@ -29,7 +29,9 @@
       (test-error (format "{:-}" 2))
       (test-error (format "{: }" 2))
       (test-error (format "{:-6}" "foo"))
-      (test-error (format "{:-/6}" "foo")))
+      (test-error (format "{:-/6}" "foo"))
+      (test-error (format "{:#a}" "foo"))
+      (test-error (format "{:09a}" "foo")))
 
     (test-group "exact numeric format"
       (test-equal "12" (format "{:d}" 12))

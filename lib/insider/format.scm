@@ -244,9 +244,19 @@
       (- (field-format-width spec) total-length)
       0))
 
+(define (require-unspecified! spec accessor error-message)
+  (when (accessor spec)
+    (error error-message)))
+
 (define (print-exact-number argument port spec)
   (unless (exact? argument)
     (error (string (field-format-type spec)) " is only valid for exact numbers"))
+
+  (require-unspecified! spec field-format-precision
+                        "precision not allowed with exact numeric formats")
+  (when (and (field-format-alternative-form? spec)
+             (eq? (field-format-sign spec) #\space))
+    (error "Leading space option cannot be used with alternative form of exact numeric specifiers"))
 
   (print-number argument port spec
                 (lambda (value port)
@@ -300,6 +310,15 @@
          (write-string digits port)))))))
 
 (define (print-general printer argument port spec)
+  (require-unspecified! spec field-format-sign
+                        "sign not allowed with general format")
+  (require-unspecified! spec field-format-precision
+                        "precision not allowed with general format")
+  (require-unspecified! spec field-format-alternative-form?
+                        "# not allowed with general format")
+  (require-unspecified! spec field-format-zero-pad?
+                        "sign-aware zero padding not allowed with general format")
+
   (let ((fill (or (field-format-fill spec) #\space))
         (align (or (field-format-align spec) #\<))
         (min-width (field-format-width spec)))
@@ -324,32 +343,11 @@
       ((#\e #\f #\g)
        (print-inexact-number argument port spec)))))
 
-(define (require-unspecified! spec accessor description)
-  (when (accessor spec)
-    (error (string-append description
-                          ": not allowed with "
-                          (if (field-format-type spec)
-                              (string (field-format-type spec))
-                              "default")
-                          " specifier"))))
-
-(define (check-format-spec! spec)
-  (case (field-format-type spec)
-    ((#f #\a #\w)
-     (require-unspecified! spec field-format-sign "sign")
-     (require-unspecified! spec field-format-precision "precision"))
-    ((#\b #\o #\d #\x)
-     (require-unspecified! spec field-format-precision "precision")
-     (when (and (field-format-alternative-form? spec)
-                (eq? (field-format-sign spec) #\space))
-       (error "Leading space option cannot be used with alternative form of exact numeric specifiers")))))
-
 (define (process-replacement-field state)
   ;; Looking at a {
   (advance-state-position! state)
   (let* ((index (parse-number state))
          (spec (parse-format-spec state)))
-    (check-format-spec! spec)
     (print-field state (find-argument state index) spec)))
 
 (define (print-formatted port fmt . args)
