@@ -24,10 +24,10 @@
       (test-equal "-foo-" (format "{:-^5}" "foo"))
       (test-equal "-foo--" (format "{:-^6}" "foo"))
 
-      (test-error (format "{:.2}" 2.0))
-      (test-error (format "{:+}" 2))
-      (test-error (format "{:-}" 2))
-      (test-error (format "{: }" 2))
+      (test-error (format "{:.2}" "foo"))
+      (test-error (format "{:+}" "foo"))
+      (test-error (format "{:-}" "foo"))
+      (test-error (format "{: }" "foo"))
       (test-error (format "{:-6}" "foo"))
       (test-error (format "{:-/6}" "foo"))
       (test-error (format "{:#a}" "foo"))
@@ -60,6 +60,9 @@
       (test-equal "#d00012" (format "{:#07d}" 12))
       (test-equal "#d-0012" (format "{:#07d}" -12))
       (test-equal "0001+2i" (format "{:07d}" 1+2i))
+      (test-equal "   12" (format "{:5}" 12))
+      (test-equal "00012" (format "{:05}" 12))
+      (test-equal "#d12" (format "{:#}" 12))
 
       (test-error (format "{:d}" 'symbol))
       (test-error (format "{:d}" "string"))
@@ -108,7 +111,8 @@
       (test-equal "    +inf.0" (format "{:010f}" +inf.0))
       (test-equal "    -inf.0" (format "{:010f}" -inf.0))
       (test-equal "    +nan.0" (format "{:010f}" +nan.0))
-      (test-equal "    -nan.0" (format "{:010f}" -nan.0)))))
+      (test-equal "    -nan.0" (format "{:010f}" -nan.0))
+      (test-equal "1e+01" (format "{:.1}" 12.0)))))
 
 (when-main-module
  (test-format))

@@ -212,7 +212,7 @@
          (write-string (case (field-format-type spec)
                          ((#\b) "#b")
                          ((#\o) "#o")
-                         ((#\d) "#d")
+                         ((#\d #f) "#d")
                          ((#\x) "#x"))
                        port)
          2)
@@ -236,7 +236,7 @@
                   (case (field-format-type spec)
                     ((#\b) 2)
                     ((#\o) 8)
-                    ((#\d) 10)
+                    ((#\d #f) 10)
                     ((#\x) 16))))
 
 (define (zero-fill-length total-length spec)
@@ -274,7 +274,7 @@
   (let ((sign (or (field-format-sign spec) #\-))
         (alternative-form? (field-format-alternative-form? spec))
         (precision (field-format-precision spec))
-        (type (field-format-type spec)))
+        (type (or (field-format-type spec) #\g)))
     (cond
      ((real? argument)
       (format-floating-point (inexact argument)
@@ -334,14 +334,22 @@
 (define (print-field state argument spec)
   (let ((port (state-port state)))
     (case (field-format-type spec)
-      ((#\a #f)
+      ((#\a)
        (print-general display argument port spec))
       ((#\w)
        (print-general write argument port spec))
       ((#\b #\o #\d #\x)
        (print-exact-number argument port spec))
       ((#\e #\f #\g)
-       (print-inexact-number argument port spec)))))
+       (print-inexact-number argument port spec))
+      ((#f)
+       (cond
+        ((and (number? argument) (exact? argument))
+         (print-exact-number argument port spec))
+        ((number? argument)
+         (print-inexact-number argument port spec))
+        (else
+         (print-general display argument port spec)))))))
 
 (define (process-replacement-field state)
   ;; Looking at a {
