@@ -362,20 +362,22 @@
 (define (print-formatted port fmt . args)
   (let ((state (make-state port fmt args)))
     (do () ((state-at-end? state))
-      (cond ((char=? (state-current-char state) #\{)
-             (advance-state-position! state)
-             (cond ((eq? (peek state) #\{)
-                    (advance-state-position! state)
-                    (write-char #\{ port))
-                   (else
-                    (process-replacement-field state))))
-            ((char=? (state-current-char state) #\})
-             (advance-state-position! state)
-             (consume! state #\})
-             (write-char #\} port))
-            (else
-             (write-char (state-current-char state) port)
-             (advance-state-position! state))))))
+      (case (state-current-char state)
+        ((#\{)
+         (advance-state-position! state)
+         (case (peek state)
+           ((#\{)
+            (advance-state-position! state)
+            (write-char #\{ port))
+           (else
+            (process-replacement-field state))))
+        ((#\})
+         (advance-state-position! state)
+         (consume! state #\})
+         (write-char #\} port))
+        (else
+         (write-char (state-current-char state) port)
+         (advance-state-position! state))))))
 
 (define (format fmt . args)
   (call-with-output-string
