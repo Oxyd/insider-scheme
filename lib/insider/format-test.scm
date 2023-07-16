@@ -23,6 +23,8 @@
       (test-equal "--foo" (format "{:->5}" "foo"))
       (test-equal "-foo-" (format "{:-^5}" "foo"))
       (test-equal "-foo--" (format "{:-^6}" "foo"))
+      (test-error (format "{:}<5}" "foo"))
+      (test-error (format "{:{<5}" "foo"))
 
       (test-error (format "{:.2}" "foo"))
       (test-error (format "{:+}" "foo"))

@@ -93,6 +93,9 @@
   (type field-format-type))
 
 (define (parse-fill&align state)
+  (define (fill-character? c)
+    (not (or (eq? c #\{) (eq? c #\}))))
+
   (define (align-character? c)
     (memq c '(#\< #\> #\^)))
 
@@ -100,7 +103,7 @@
          (first (read-char state))
          (position-after-first (state-position state))
          (second (read-char state)))
-    (cond ((and first second (align-character? second))
+    (cond ((and first second (fill-character? first) (align-character? second))
            (values first second))
           ((and first (align-character? first))
            (set-state-position! state position-after-first)
