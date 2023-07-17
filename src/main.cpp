@@ -37,7 +37,7 @@ enable_virtual_terminal_processing() {
 namespace {
   struct options {
     bool                     help = false;
-    std::string              program_path;
+    std::vector<std::string> program_args;
     std::vector<std::string> module_search_paths;
     std::string              interaction_environment_specifier
                                = "(insider interactive)";
@@ -66,8 +66,9 @@ static options
 parse_options(int argc, char** argv) {
   options opts;
 
+  bool parsing_program_args = false;
   for (int i = 1; i < argc; ++i) {
-    if (argv[i][0] == '-') {
+    if (argv[i][0] == '-' && !parsing_program_args) {
       std::string flag = argv[i];
 
       if (flag == "-")
@@ -92,10 +93,8 @@ parse_options(int argc, char** argv) {
       else
         throw options_parse_error{};
     } else {
-      if (!opts.program_path.empty())
-        throw options_parse_error{};
-
-      opts.program_path = argv[i];
+      parsing_program_args = true;
+      opts.program_args.emplace_back(argv[i]);
     }
   }
 
@@ -129,8 +128,11 @@ show_error(insider::context& ctx, std::runtime_error const& e) {
 }
 
 static void
-run_program(insider::context& ctx, std::string const& program_path,
+run_program(insider::context& ctx, std::vector<std::string> const& program_args,
             insider::compilation_config const& config) {
+  ctx.set_command_line(program_args);
+
+  auto const& program_path = program_args.front();
   auto mod = insider::compile_module(ctx, program_path, config, true);
   insider::execute(ctx, mod);
 }
@@ -194,10 +196,10 @@ run(int argc, char** argv, insider::context& ctx) {
   insider::stdout_diagnostic_sink diag_sink;
   auto config = insider::compilation_config::optimisations_config(diag_sink);
 
-  if (opts.program_path.empty())
+  if (opts.program_args.empty())
     run_repl(ctx, config);
   else
-    run_program(ctx, opts.program_path, config);
+    run_program(ctx, opts.program_args, config);
 
   return 0;
 }

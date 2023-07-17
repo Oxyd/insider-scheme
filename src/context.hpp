@@ -130,6 +130,12 @@ public:
   vm_id_type
   generate_vm_id();
 
+  ptr<>
+  command_line() const { return command_line_; }
+
+  void
+  set_command_line(std::vector<std::string> const&);
+
 private:
   class root_provider : public insider::root_provider {
   public:
@@ -160,6 +166,7 @@ private:
   std::vector<ptr<symbol>>                       type_name_symbols_;
 
   ptr<>          features_;
+  ptr<>          command_line_;
   scope::id_type next_scope_id_ = 0;
   vm_id_type     next_vm_id_    = 0;
 };

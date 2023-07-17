@@ -180,6 +180,11 @@ features(context& ctx) {
   return ctx.features();
 }
 
+static ptr<>
+command_line(context& ctx) {
+  return ctx.command_line();
+}
+
 ptr<module_>
 make_internal_module(context& ctx) {
   auto result = make<module_>(ctx, ctx, module_name{"insider", "internal"});
@@ -260,6 +265,8 @@ make_internal_module(context& ctx) {
   define_procedure<trap>(ctx, "trap!", result);
 
   define_top_level(ctx, "<eof-object>", result, true, ctx.constants->eof);
+
+  define_procedure<command_line>(ctx, "command-line", result);
 
   return result;
 }

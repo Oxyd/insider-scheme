@@ -7,6 +7,7 @@
 #include "runtime/parameter_map.hpp"
 #include "runtime/syntax.hpp"
 #include "util/integer_cast.hpp"
+#include "util/to_scheme.hpp"
 
 #include <format>
 #include <memory>
@@ -65,6 +66,8 @@ context::context() {
 
   constants->init = make<core_form_type>(*this, "init");
   features_ = make_list(*this, intern("r7rs"), intern("full-unicode"));
+
+  set_command_line({});
 }
 
 context::~context() {
@@ -165,6 +168,11 @@ context::generate_vm_id() {
 }
 
 void
+context::set_command_line(std::vector<std::string> const& cmd) {
+  command_line_ = make_list_from_range(*this, cmd);
+}
+
+void
 context::root_provider::visit_roots(member_visitor const& f) {
   f(ctx_.constants->null);
   f(ctx_.constants->void_);
@@ -220,6 +228,7 @@ context::root_provider::visit_roots(member_visitor const& f) {
     f(x.value);
 
   f(ctx_.features_);
+  f(ctx_.command_line_);
 }
 
 } // namespace insider
