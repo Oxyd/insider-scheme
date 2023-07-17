@@ -11,10 +11,9 @@
 #include "vm/stacktrace.hpp"
 #include "vm/vm.hpp"
 
-#include <fmt/format.h>
-
-#include <cstdio>
 #include <filesystem>
+#include <format>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -54,13 +53,13 @@ namespace {
 
 static void
 print_usage(char const* program_name) {
-  fmt::print("{} [<options> ...] [<file>]", program_name);
-  fmt::print(R"(
+  std::cout << std::format("{} [<options> ...] [<file>]", program_name);
+  std::cout << R"(
 Options:
   -I <directory>    -- add directory to module search path
   -x <module name>  -- set interaction-environment module name;
                        default: (insider interactive)
-)");
+)";
 }
 
 static options
@@ -105,7 +104,7 @@ parse_options(int argc, char** argv) {
 
 static std::string
 format_error(insider::context& ctx, std::string const& message) {
-  std::string result = fmt::format("Error: {}", message);
+  std::string result = std::format("Error: {}", message);
 
   if (!ctx.last_exception_stacktrace.empty())
     result += "\n" + insider::format_stacktrace(ctx.last_exception_stacktrace);
@@ -118,17 +117,15 @@ format_error(insider::context& ctx, std::string const& message) {
 
 static void
 show_error(insider::context& ctx, insider::scheme_exception const& e) {
-  std::fflush(stdout);
-  fmt::print(
-    stderr, "{}\n",
-    format_error(ctx, insider::datum_to_display_string(ctx, e.object.get()))
-  );
+  std::cout
+    << std::flush
+    << format_error(ctx, insider::datum_to_display_string(ctx, e.object.get()))
+    << '\n';
 }
 
 static void
 show_error(insider::context& ctx, std::runtime_error const& e) {
-  std::fflush(stdout);
-  fmt::print(stderr, "{}\n", format_error(ctx, e.what()));
+  std::cout << std::flush << format_error(ctx, e.what()) << '\n';
 }
 
 static void

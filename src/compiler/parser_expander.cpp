@@ -18,6 +18,8 @@
 #include "variable.hpp"
 #include "vm/vm.hpp"
 
+#include <algorithm>
+#include <format>
 #include <ranges>
 #include <string>
 #include <vector>
@@ -139,7 +141,7 @@ namespace {
 
     std::string
     format() const {
-      return fmt::format("{}: {}: {}",
+      return std::format("{}: {}: {}",
                          format_location(stx_->location()),
                          msg_,
                          syntax_to_string(ctx_, stx_.get()));
@@ -302,7 +304,7 @@ call_transformer_with_continuation_barrier(vm& state, ptr<> callable,
   if (auto s = match<syntax>(result))
     return s;
   else
-    throw std::runtime_error{fmt::format(
+    throw std::runtime_error{std::format(
       "Syntax transformer didn't return a syntax: {}",
       datum_to_string(state.ctx, result)
     )};
@@ -313,14 +315,14 @@ call_transformer(vm& state, ptr<transformer> t, ptr<syntax> stx,
                  std::vector<ptr<scope>>* use_site_scopes) {
   auto introduced_env = make<scope>(
     state.ctx, state.ctx,
-    fmt::format("introduced environment for syntax expansion at {}",
+    std::format("introduced environment for syntax expansion at {}",
                 format_location(stx->location()))
   );
   stx = stx->add_scope(state.ctx.store, introduced_env);
 
   auto use_site_scope = make<scope>(
     state.ctx, state.ctx,
-    fmt::format("use-site scope for syntax expansion at {}",
+    std::format("use-site scope for syntax expansion at {}",
                 format_location(stx->location()))
   );
   stx = stx->add_scope(state.ctx.store, use_site_scope);
@@ -612,7 +614,7 @@ process_internal_defines(parsing_context& pc, ptr<> body_exprs,
   body_exprs = add_scope_to_list(
     pc.ctx, body_exprs,
     make<scope>(pc.ctx, pc.ctx,
-                fmt::format("outside edge scope at {}", format_location(loc)))
+                std::format("outside edge scope at {}", format_location(loc)))
   );
   body_content result{pc.ctx};
   bool seen_expression
@@ -802,7 +804,7 @@ parse_let(parsing_context& pc, ptr<syntax> stx) {
 
   auto subscope = make<scope>(
     pc.ctx, pc.ctx,
-    fmt::format("let body at {}", format_location(stx->location()))
+    std::format("let body at {}", format_location(stx->location()))
   );
 
   std::vector<definition_pair_expression> definition_exprs;
@@ -834,7 +836,7 @@ parse_let_syntax(parsing_context& pc, ptr<syntax> stx) {
 
   auto subscope = make<scope>(
     pc.ctx, pc.ctx,
-    fmt::format("body scope for let-syntax at {}",
+    std::format("body scope for let-syntax at {}",
                 format_location(loc))
   );
   auto p = preserve(pc.ctx, definitions, body, subscope);
@@ -861,7 +863,7 @@ parse_letrec_syntax(parsing_context& pc, ptr<syntax> stx) {
 
   auto subscope
     = make<scope>(pc.ctx, pc.ctx,
-                  fmt::format("body scope for letrec-syntax at {}",
+                  std::format("body scope for letrec-syntax at {}",
                               format_location(loc)));
 
   auto p = preserve(pc.ctx, definitions, body, subscope);
@@ -969,7 +971,7 @@ parse_lambda_parameters(parsing_context& pc, ptr<syntax> param_stx,
 
   auto subscope = make<scope>(
     pc.ctx, pc.ctx,
-    fmt::format("lambda body at {}", format_location(loc))
+    std::format("lambda body at {}", format_location(loc))
   );
 
   bool has_rest = false;
@@ -1082,7 +1084,7 @@ make_lambda_default_expressions(parsing_context& pc,
     if (param.default_expr) {
       auto subscope = make<scope>(
         pc.ctx, pc.ctx,
-        fmt::format("default parameter {} for lambda at {}",
+        std::format("default parameter {} for lambda at {}",
                     identifier_name(param.id),
                     format_location(loc))
       );
@@ -1161,7 +1163,7 @@ parse_lambda(parsing_context& pc, ptr<syntax> stx) {
     make_parameter_names(parameters),
     has_rest,
     body,
-    fmt::format("<lambda at {}>", format_location(loc)),
+    std::format("<lambda at {}>", format_location(loc)),
     std::vector<ptr<local_variable>>{}
   );
 }

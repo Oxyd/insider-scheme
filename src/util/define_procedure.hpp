@@ -7,8 +7,7 @@
 #include "util/to_scheme.hpp"
 #include "vm/vm.hpp"
 
-#include <fmt/format.h>
-
+#include <format>
 #include <type_traits>
 
 namespace insider {
@@ -32,14 +31,14 @@ namespace detail {
       constexpr std::size_t max_args = sizeof...(Args);
 
       if (args.size() < min_args)
-        throw std::runtime_error{fmt::format(
+        throw std::runtime_error{std::format(
           "{}: Wrong number of arguments, expected {}{}, got {}",
           name, min_args != max_args ? "at least " : "",
           min_args, args.size()
         )};
 
       if (args.size() > max_args)
-        throw std::runtime_error{fmt::format(
+        throw std::runtime_error{std::format(
           "{}: Wrong number of arguments, expected {}{}, got {}",
           name, min_args != max_args ? "at most " : "",
           max_args, args.size()

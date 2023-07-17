@@ -3,6 +3,7 @@
 #include "scheme_fixture.hpp"
 #include "util/to_scheme.hpp"
 
+#include <cmath>
 #include <numbers>
 
 using namespace insider;

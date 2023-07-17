@@ -1,13 +1,12 @@
 #ifndef INSIDER_OBJECT_HPP
 #define INSIDER_OBJECT_HPP
 
-#include <fmt/format.h>
-
 #include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <new>
 #include <optional>
 #include <stdexcept>

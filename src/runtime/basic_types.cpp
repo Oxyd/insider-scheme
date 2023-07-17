@@ -4,6 +4,8 @@
 #include "util/define_procedure.hpp"
 #include "util/list_iterator.hpp"
 
+#include <algorithm>
+#include <format>
 #include <ranges>
 
 namespace insider {
@@ -137,7 +139,7 @@ vector::visit_members(member_visitor const& f) const {
 ptr<>
 vector::ref(std::size_t i) const {
   if (i >= size_)
-    throw std::runtime_error{fmt::format(
+    throw std::runtime_error{std::format(
       "Vector access out of bounds: index = {}, size = {}", i, size_
     )};
 
@@ -147,7 +149,7 @@ vector::ref(std::size_t i) const {
 void
 vector::set(free_store& store, std::size_t i, ptr<> value) {
   if (i >= size_)
-    throw std::runtime_error{fmt::format(
+    throw std::runtime_error{std::format(
       "Vector access out of bounds: index = {}, size = {}", i, size_
     )};
 

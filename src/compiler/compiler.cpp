@@ -14,9 +14,8 @@
 #include "vm/call_stack.hpp"
 #include "vm/operand.hpp"
 
-#include <fmt/format.h>
-
 #include <concepts>
+#include <format>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -135,7 +134,7 @@ to_operand(T value) {
   static_assert(!std::is_signed_v<T>);
   if (value > std::numeric_limits<operand>::max())
     throw std::runtime_error{
-      fmt::format("Implementation limit exceeded. Cannot encode {} as an "
+      std::format("Implementation limit exceeded. Cannot encode {} as an "
                   "instruction operand",
                   value)
     };
@@ -912,7 +911,7 @@ compile_module(context& ctx, std::filesystem::path const& path,
                           config,
                           main_module);
   else
-    throw std::runtime_error{fmt::format("Can't open input file {}",
+    throw std::runtime_error{std::format("Can't open input file {}",
                                          path.string())};
 }
 
@@ -940,7 +939,7 @@ compile_module_body(context& ctx, root_ptr<module_> const& m,
                      .has_rest = false,
                      .closure_size = 0,
                      .parameter_names = std::make_unique<ptr<keyword>[]>(0),
-                     .name = fmt::format("<module {} top-level>",
+                     .name = std::format("<module {} top-level>",
                                          pm.name
                                            ? module_name_to_string(*pm.name)
                                            : "<unknown>") ,

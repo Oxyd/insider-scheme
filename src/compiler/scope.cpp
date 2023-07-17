@@ -4,6 +4,8 @@
 #include "context.hpp"
 #include "runtime/syntax.hpp"
 
+#include <algorithm>
+#include <format>
 #include <ranges>
 #include <utility>
 
@@ -118,7 +120,7 @@ scope::replace(free_store& store, ptr<syntax> identifier,
     b->transformer = new_tr;
     store.notify_arc(this, new_tr);
   } else
-    throw std::runtime_error{fmt::format(
+    throw std::runtime_error{std::format(
       "Can't redefine {} as syntax", identifier->get_symbol()->value()
     )};
 }
@@ -149,7 +151,7 @@ scope::add(free_store& store, ptr<syntax> identifier, auto value,
   assert(value != nullptr);
 
   if (is_redefinition(identifier, value))
-    throw std::runtime_error{fmt::format("Redefinition of {}",
+    throw std::runtime_error{std::format("Redefinition of {}",
                                          identifier_name(identifier))};
 
   bindings_.emplace_back(binding{identifier, value, imported});

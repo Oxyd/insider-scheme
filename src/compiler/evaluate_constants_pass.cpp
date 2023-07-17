@@ -9,6 +9,7 @@
 #include "util/depth_first_search.hpp"
 #include "vm/vm.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 #include <unordered_map>
 

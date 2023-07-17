@@ -18,8 +18,7 @@
 #include "util/parameterize.hpp"
 #include "vm/vm.hpp"
 
-#include <fmt/format.h>
-
+#include <format>
 #include <memory>
 #include <optional>
 #include <string>
@@ -314,7 +313,7 @@ perform_library_include(context& ctx, module_specifier& result,
     std::ranges::copy(body, std::back_inserter(result.body));
   } else
     throw make_compile_error<syntax_error>(
-      loc, fmt::format("File {} not found", name)
+      loc, std::format("File {} not found", name)
     );
 }
 
@@ -346,7 +345,7 @@ process_include_library_declarations(context& ctx, module_specifier& result,
     }
     else
       throw make_compile_error<syntax_error>(
-        stx, fmt::format("File {} not found", filename)
+        stx, std::format("File {} not found", filename)
       );
   }
 }

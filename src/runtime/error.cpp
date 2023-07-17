@@ -4,12 +4,12 @@
 #include "io/write.hpp"
 #include "util/define_procedure.hpp"
 
-#include <fmt/format.h>
+#include <format>
 
 namespace insider {
 
 scheme_exception::scheme_exception(context& ctx, ptr<> o)
-  : std::runtime_error{fmt::format("Scheme error: {}", datum_to_string(ctx, o))}
+  : std::runtime_error{std::format("Scheme error: {}", datum_to_string(ctx, o))}
   , object{ctx.store.root_list(), o}
 { }
 

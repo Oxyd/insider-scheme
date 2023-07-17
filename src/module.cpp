@@ -16,6 +16,7 @@
 #include "util/define_procedure.hpp"
 #include "vm/vm.hpp"
 
+#include <format>
 #include <ranges>
 #include <utility>
 
@@ -23,7 +24,7 @@ namespace insider {
 
 module_::module_(context& ctx, std::optional<module_name> name)
   : env_{make<insider::scope>(ctx, ctx,
-                              fmt::format("{} module top-level",
+                              std::format("{} module top-level",
                                           name
                                             ? module_name_to_string(*name)
                                             : "<unnamed module>"))}
@@ -50,7 +51,7 @@ module_::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
     if (binding_targets_equal(b, *v))
       return; // Re-importing the same variable under the same name is OK.
     else
-      throw std::runtime_error{fmt::format("Redefinition of {}",
+      throw std::runtime_error{std::format("Redefinition of {}",
                                            identifier->value())};
   }
 
@@ -109,7 +110,7 @@ check_all_names_exist(std::vector<std::string> const& names,
                      [&] (auto const& set_name) {
                        return set_name.target == name;
                      }))
-      throw unbound_variable_error{fmt::format("Identifier {} is not exported",
+      throw unbound_variable_error{std::format("Identifier {} is not exported",
                                                name)};
 }
 
@@ -237,11 +238,11 @@ check_all_defined(context& ctx, ptr<module_> m,
 
   if (!undefined.empty()) {
     if (undefined.size() == 1)
-      throw std::runtime_error{fmt::format("Can't export undefined symbol {}",
+      throw std::runtime_error{std::format("Can't export undefined symbol {}",
                                            undefined.front())};
     else
-      throw std::runtime_error{fmt::format("Can't export undefined symbols: {}",
-                                           fmt::join(undefined, ", "))};
+      throw std::runtime_error{std::format("Can't export undefined symbols: {}",
+                                           join(undefined, ", "))};
   }
 }
 

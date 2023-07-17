@@ -7,6 +7,7 @@
 #include "util/define_procedure.hpp"
 
 #include <algorithm>
+#include <format>
 #include <functional>
 #include <iterator>
 
@@ -23,7 +24,7 @@ nth_code_point(std::string const& data, std::size_t n) {
   }
 
   if (code_point_index != n)
-    throw std::runtime_error{fmt::format("Index {} out of bounds", n)};
+    throw std::runtime_error{std::format("Index {} out of bounds", n)};
 
   return byte_index;
 }

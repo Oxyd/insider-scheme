@@ -5,8 +5,7 @@
 #include "module.hpp"
 #include "util/define_procedure.hpp"
 
-#include <fmt/format.h>
-
+#include <format>
 #include <string>
 #include <type_traits>
 
@@ -141,17 +140,17 @@ private:
 
   std::string
   make_predicate_name() {
-    return fmt::format("{}?", name_);
+    return std::format("{}?", name_);
   }
 
   std::string
   make_getter_name(std::string const& field_name) {
-    return fmt::format("{}-{}", name_, field_name);
+    return std::format("{}-{}", name_, field_name);
   }
 
   std::string
   make_setter_name(std::string const& field_name) {
-    return fmt::format("{}-{}-set!", name_, field_name);
+    return std::format("{}-{}-set!", name_, field_name);
   }
 };
 

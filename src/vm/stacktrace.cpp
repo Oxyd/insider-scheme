@@ -4,8 +4,7 @@
 #include "vm/call_stack.hpp"
 #include "vm/vm.hpp"
 
-#include <fmt/format.h>
-
+#include <format>
 #include <limits>
 #include <optional>
 
@@ -96,7 +95,7 @@ format_stacktrace(stacktrace const& trace) {
     if (!first)
       result += '\n';
 
-    result += fmt::format(
+    result += std::format(
       "in {}{}",
       kind == stacktrace_record::kind::native ? "native procedure " : "",
       name

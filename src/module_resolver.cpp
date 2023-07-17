@@ -5,6 +5,8 @@
 #include "compiler/source_code_provider.hpp"
 #include "io/read.hpp"
 
+#include <algorithm>
+#include <format>
 #include <ranges>
 
 namespace insider {
@@ -37,7 +39,7 @@ module_resolver::find_module(context& ctx, module_name const& name,
     return internal_module_;
   else if (auto mod_it = modules_.find(name); mod_it != modules_.end()) {
     if (!mod_it->second)
-      throw std::runtime_error{fmt::format("Module {} depends on itself",
+      throw std::runtime_error{std::format("Module {} depends on itself",
                                            module_name_to_string(name))};
 
     return mod_it->second;
@@ -102,7 +104,7 @@ module_resolver::find_module_in_providers(context& ctx,
                                                    source->port.get().get()),
                          source->origin);
 
-  throw std::runtime_error{fmt::format("Unknown module {}",
+  throw std::runtime_error{std::format("Unknown module {}",
                                        module_name_to_string(name))};
 }
 

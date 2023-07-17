@@ -4,8 +4,6 @@
 #include "compiler/variable.hpp"
 #include "context.hpp"
 
-#include <fmt/format.h>
-
 namespace insider {
 
 using variable_map

@@ -1,10 +1,11 @@
 #include "bytecode.hpp"
 
-#include <fmt/format.h>
+#include "util/join.hpp"
 
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <format>
 #include <ostream>
 
 namespace insider {
@@ -45,9 +46,9 @@ operator << (std::ostream& out, instruction const& i) {
   if (info.num_operands == 0)
     return out << "{" << info.mnemonic << "}";
   else
-    return out << fmt::format("{{{} {}}}",
+    return out << std::format("{{{} {}}}",
                               info.mnemonic,
-                              fmt::join(instruction_operands_vector(i), ", "));
+                              join(instruction_operands_vector(i), ", "));
 }
 
 static void

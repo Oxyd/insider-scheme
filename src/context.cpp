@@ -8,6 +8,7 @@
 #include "runtime/syntax.hpp"
 #include "util/integer_cast.hpp"
 
+#include <format>
 #include <memory>
 
 namespace insider {
@@ -104,7 +105,7 @@ context::intern_keyword(std::string const& s) {
 ptr<>
 context::get_top_level_checked(operand i) const {
   if (static_cast<std::size_t>(i) >= top_level_objects_.size())
-    throw std::runtime_error{fmt::format("Nonexistent top-level object {}", i)};
+    throw std::runtime_error{std::format("Nonexistent top-level object {}", i)};
 
   return top_level_objects_[i].value;
 }
@@ -115,7 +116,7 @@ context::set_top_level(operand i, ptr<> value) {
   assert(static_cast<std::size_t>(i) < top_level_objects_.size());
   if (!top_level_objects_[i].mutable_)
     throw std::runtime_error{
-      fmt::format("Attempting to mutate immutable top-level {}",
+      std::format("Attempting to mutate immutable top-level {}",
                   top_level_objects_[i].name)
     };
   top_level_objects_[i].value = value;

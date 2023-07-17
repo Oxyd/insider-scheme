@@ -3,7 +3,8 @@
 #include "compiler/ast_transforms.hpp"
 #include "compiler/source_location.hpp"
 
-#include <fmt/format.h>
+#include <format>
+#include <iostream>
 #include <memory>
 
 namespace insider {
@@ -19,7 +20,7 @@ diagnostic_sink::show(source_location const& loc, std::string const& message) {
 void
 stdout_diagnostic_sink::output(source_location const& loc,
                                std::string const& message) {
-  fmt::print(stdout, "Warning: {}: {}\n", format_location(loc), message);
+  std::cout << std::format("Warning: {}: {}\n", format_location(loc), message);
 }
 
 null_diagnostic_sink

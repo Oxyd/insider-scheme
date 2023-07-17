@@ -5,6 +5,8 @@
 #include "compiler/variable.hpp"
 #include "context.hpp"
 
+#include <algorithm>
+
 namespace insider {
 
 static bool
