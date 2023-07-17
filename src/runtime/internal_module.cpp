@@ -5,7 +5,11 @@
 #include "memory/member.hpp"
 #include "runtime/syntax.hpp"
 #include "util/define_procedure.hpp"
+
 #include <cstddef>
+#include <cstdlib>
+#include <string>
+#include <string_view>
 
 #ifndef WIN32
 #include <csignal>
@@ -185,6 +189,35 @@ command_line(context& ctx) {
   return ctx.command_line();
 }
 
+static ptr<>
+get_environment_variable(context& ctx, std::string const& name) {
+  if (char const* var = std::getenv(name.c_str()))
+    return make<string>(ctx, var);
+  else
+    return ctx.constants->f;
+}
+
+static ptr<>
+get_environment_variables(context& ctx) {
+  using namespace std::literals;
+
+  ptr<> result = ctx.constants->null;
+
+  for (char** var = environ; *var; ++var) {
+    std::string_view variable{*var};
+    auto eq_sign = variable.find('=');
+    auto name = variable.substr(0, eq_sign);
+    auto value = eq_sign != std::string_view::npos
+                 ? variable.substr(eq_sign + 1)
+                 : ""sv;
+
+    ptr<> elem = cons(ctx, make<string>(ctx, name), make<string>(ctx, value));
+    result = cons(ctx, elem, result);
+  }
+
+  return result;
+}
+
 ptr<module_>
 make_internal_module(context& ctx) {
   auto result = make<module_>(ctx, ctx, module_name{"insider", "internal"});
@@ -267,6 +300,10 @@ make_internal_module(context& ctx) {
   define_top_level(ctx, "<eof-object>", result, true, ctx.constants->eof);
 
   define_procedure<command_line>(ctx, "command-line", result);
+  define_procedure<get_environment_variable>(ctx, "get-environment-variable",
+                                             result);
+  define_procedure<get_environment_variables>(ctx, "get-environment-variables",
+                                              result);
 
   return result;
 }
