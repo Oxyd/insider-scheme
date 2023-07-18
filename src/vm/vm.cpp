@@ -1498,15 +1498,10 @@ resume_continuation_jump(vm& state, continuation_jump const& jump) {
 
 static void
 resume_exit_jump(vm& state, continuation_jump const& jump) {
-  if (!state.stack.empty()) {
-    assert(current_frame_is_native(state.stack));
-
-    if (jump.is_emergency_exit)
-      emergency_exit(state, jump.value);
-    else
-      exit(state, jump.value);
-  } else
-    state.result = jump.value.get();
+  if (jump.is_emergency_exit)
+    emergency_exit(state, jump.value);
+  else
+    exit(state, jump.value);
 }
 
 static void
