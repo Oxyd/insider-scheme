@@ -11,6 +11,7 @@
 #include "vm/stacktrace.hpp"
 #include "vm/vm.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 #include <format>
 #include <iostream>
@@ -127,14 +128,14 @@ show_error(insider::context& ctx, std::runtime_error const& e) {
   std::cout << std::flush << format_error(ctx, e.what()) << '\n';
 }
 
-static void
+static insider::ptr<>
 run_program(insider::context& ctx, std::vector<std::string> const& program_args,
             insider::compilation_config const& config) {
   ctx.set_command_line(program_args);
 
   auto const& program_path = program_args.front();
   auto mod = insider::compile_module(ctx, program_path, config, true);
-  insider::execute(ctx, mod);
+  return insider::execute(ctx, mod);
 }
 
 static void
@@ -180,6 +181,18 @@ run_repl(insider::context& ctx, insider::compilation_config const& config) {
 }
 
 static int
+translate_return_code(insider::context& ctx, insider::ptr<> value) {
+  if (!value || value == ctx.constants->t || value == ctx.constants->void_)
+    return EXIT_SUCCESS;
+  else if (value == ctx.constants->f)
+    return EXIT_FAILURE;
+  else if (auto i = match<insider::integer>(value))
+    return static_cast<int>(i->value());
+  else
+    return EXIT_SUCCESS;
+}
+
+static int
 run(int argc, char** argv, insider::context& ctx) {
   options opts = parse_options(argc, argv);
 
@@ -196,12 +209,13 @@ run(int argc, char** argv, insider::context& ctx) {
   insider::stdout_diagnostic_sink diag_sink;
   auto config = insider::compilation_config::optimisations_config(diag_sink);
 
+  insider::ptr<> result;
   if (opts.program_args.empty())
     run_repl(ctx, config);
   else
-    run_program(ctx, opts.program_args, config);
+    result = run_program(ctx, opts.program_args, config);
 
-  return 0;
+  return translate_return_code(ctx, result);
 }
 
 int
