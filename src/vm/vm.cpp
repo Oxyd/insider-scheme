@@ -465,8 +465,12 @@ pop_frame_and_set_return_value(vm& state, ptr<> result) {
   assert(result);
 
   call_stack& stack = state.stack;
-  operand dest_reg = stack.result_register();
-  pop_frame(state);
+  operand dest_reg{};
+
+  if (!state.stack.empty()) {
+    dest_reg = stack.result_register();
+    pop_frame(state);
+  }
 
   if (state.stack.empty())
     // We are returning from the global procedure, so we return back to the
@@ -487,7 +491,7 @@ call_native_procedure(vm& state, ptr<> scheme_result = {}) {
   while (result == state.ctx.constants->tail_call_tag
          && current_frame_is_native(state.stack));
 
-  if (current_frame_is_native(state.stack))
+  if (state.stack.empty() || current_frame_is_native(state.stack))
     // Return from a native call (potentially a different native call than
     // what we started with, due to native tail-calls).
     pop_frame_and_set_return_value(state, result);
@@ -1480,6 +1484,32 @@ static root_ptr<>
 replace_stack(vm& state, root_ptr<captured_call_stack> const& cont,
               root_ptr<> const& value);
 
+static root_ptr<>
+exit(vm& state, root_ptr<> value);
+
+static void
+resume_continuation_jump(vm& state, continuation_jump const& jump) {
+  replace_stack(state, jump.continuation, jump.value);
+  pop_frame_and_set_return_value(state, jump.value.get());
+}
+
+static void
+resume_exit_jump(vm& state, root_ptr<> const& value) {
+  if (!state.stack.empty()) {
+    assert(current_frame_is_native(state.stack));
+    exit(state, value);
+  } else
+    state.result = value.get();
+}
+
+static void
+resume_jump(vm& state, continuation_jump const& jump) {
+  if (jump.continuation)
+    resume_continuation_jump(state, jump);
+  else
+    resume_exit_jump(state, jump.value);
+}
+
 static void
 do_instructions_translate_exceptions(vm& state) {
   while (!state.result)
@@ -1494,8 +1524,7 @@ do_instructions_translate_exceptions(vm& state) {
     } catch (translatable_runtime_error& e) {
       raise(state, e.translate(state.ctx));
     } catch (continuation_jump const& jump) {
-      auto value = replace_stack(state, jump.continuation, jump.value);
-      pop_frame_and_set_return_value(state, value.get());
+      resume_jump(state, jump);
     } catch (...) {
       raise(state, make<cxx_exception>(state.ctx, std::current_exception()));
     }
@@ -2013,6 +2042,22 @@ replace_stack(vm& state, root_ptr<captured_call_stack> const& cont,
     return replace_stack_continuable(state, common_frame_idx, cont, value);
 }
 
+static root_ptr<>
+exit(vm& state, root_ptr<> value) {
+  auto noncont_frame_idx = noncontinuable_frame_index(state.stack);
+  if (noncont_frame_idx)
+    unwind_stack_noncontinuable(
+      state, *noncont_frame_idx,
+      root_ptr<captured_call_stack>{state.ctx.store.root_list()},
+      value
+    );
+  else
+    unwind_stack(state, std::nullopt);
+
+  state.result = value.get();
+  return value;
+}
+
 static ptr<>
 call_with_continuation_barrier(vm& state, ptr<> callable) {
   erect_barrier(state.ctx, state.stack);
@@ -2433,6 +2478,7 @@ export_vm(context& ctx, ptr<module_> result) {
   define_procedure<call_with_values>(ctx, "call-with-values", result);
   define_raw_procedure<values>(ctx, "values", result);
   define_procedure<eval_proc>(ctx, "eval", result);
+  define_procedure<exit>(ctx, "exit", result);
 }
 
 } // namespace insider

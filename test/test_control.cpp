@@ -1124,3 +1124,38 @@ TEST_F(control, cannot_jump_across_vms) {
     std::runtime_error
   );
 }
+
+TEST_F(control, exit_returns_from_vm) {
+  ptr<> result = eval(R"(
+    (exit #t)
+    #f
+  )");
+  EXPECT_EQ(result, ctx.constants->t);
+}
+
+TEST_F(control, exit_calls_post_thunks) {
+  bool called = false;
+  define_closure<void()>(
+    ctx, "mark-called!", ctx.internal_module(),
+    [&] { called = true; }
+  );
+
+  ptr<> result = eval(R"(
+    (dynamic-wind
+      (lambda () #void)
+      (lambda () (exit 1))
+      (lambda () (mark-called!)))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 1);
+  EXPECT_TRUE(called);
+}
+
+TEST_F(control, exit_aborts_native_frames) {
+  define_procedure<f3>(ctx, "f", ctx.internal_module());
+
+  ptr<> result = eval(R"(
+    (f (lambda () (f (lambda () (exit 1)))))
+    0
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 1);
+}
