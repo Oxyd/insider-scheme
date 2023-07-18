@@ -1728,9 +1728,12 @@ call_parameterized_with_continuation_barrier(
   expect_callable(callable);
 
   auto& stack = state.stack;
-  auto guard = push_dummy_frame(stack);
+  std::optional<native_frame_guard> guard;
 
-  erect_barrier(state.ctx, stack);
+  if (!stack.empty()) {
+    guard.emplace(push_dummy_frame(stack));
+    erect_barrier(state.ctx, stack);
+  }
 
   if (auto native_proc = match<native_procedure>(callable))
     return call_native(
