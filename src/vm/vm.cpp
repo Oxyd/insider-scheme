@@ -1487,6 +1487,9 @@ replace_stack(vm& state, root_ptr<captured_call_stack> const& cont,
 static root_ptr<>
 exit(vm& state, root_ptr<> value);
 
+static root_ptr<>
+emergency_exit(vm& state, root_ptr<> value);
+
 static void
 resume_continuation_jump(vm& state, continuation_jump const& jump) {
   replace_stack(state, jump.continuation, jump.value);
@@ -1494,12 +1497,16 @@ resume_continuation_jump(vm& state, continuation_jump const& jump) {
 }
 
 static void
-resume_exit_jump(vm& state, root_ptr<> const& value) {
+resume_exit_jump(vm& state, continuation_jump const& jump) {
   if (!state.stack.empty()) {
     assert(current_frame_is_native(state.stack));
-    exit(state, value);
+
+    if (jump.is_emergency_exit)
+      emergency_exit(state, jump.value);
+    else
+      exit(state, jump.value);
   } else
-    state.result = value.get();
+    state.result = jump.value.get();
 }
 
 static void
@@ -1507,7 +1514,7 @@ resume_jump(vm& state, continuation_jump const& jump) {
   if (jump.continuation)
     resume_continuation_jump(state, jump);
   else
-    resume_exit_jump(state, jump.value);
+    resume_exit_jump(state, jump);
 }
 
 static void
@@ -1946,6 +1953,13 @@ unwind_stack(vm& state,
 }
 
 static void
+shorten_stack(vm& state,
+              std::optional<call_stack::frame_index> end) {
+  while (state.stack.current_frame_index() != end)
+    state.stack.pop_frame();
+}
+
+static void
 rewind_stack(vm& state,
              root_ptr<captured_call_stack> const& cont,
              std::optional<call_stack::frame_index> common_frame) {
@@ -2053,6 +2067,25 @@ exit(vm& state, root_ptr<> value) {
     );
   else
     unwind_stack(state, std::nullopt);
+
+  state.result = value.get();
+  return value;
+}
+
+static root_ptr<>
+emergency_exit(vm& state, root_ptr<> value) {
+  // This is like exit, but without calling post-thunks. This means we only need
+  // to exit native frames by throwing continuation_jump.
+
+  auto noncont_frame_idx = noncontinuable_frame_index(state.stack);
+  if (noncont_frame_idx) {
+    shorten_stack(state, noncont_frame_idx);
+    throw continuation_jump{
+      root_ptr<captured_call_stack>{state.ctx.store.root_list()},
+      std::move(value),
+      true
+    };
+  }
 
   state.result = value.get();
   return value;
@@ -2479,6 +2512,7 @@ export_vm(context& ctx, ptr<module_> result) {
   define_raw_procedure<values>(ctx, "values", result);
   define_procedure<eval_proc>(ctx, "eval", result);
   define_procedure<exit>(ctx, "exit", result);
+  define_procedure<emergency_exit>(ctx, "emergency-exit", result);
 }
 
 } // namespace insider

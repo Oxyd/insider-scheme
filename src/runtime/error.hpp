@@ -77,6 +77,7 @@ class continuation_jump {
 public:
   root_ptr<captured_call_stack> continuation;
   root_ptr<>                    value;
+  bool                          is_emergency_exit = false;
 };
 
 } // namespace insider

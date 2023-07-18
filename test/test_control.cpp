@@ -1159,3 +1159,45 @@ TEST_F(control, exit_aborts_native_frames) {
   )");
   EXPECT_EQ(expect<integer>(result).value(), 1);
 }
+
+TEST_F(control, emergency_exit_does_not_call_post_thunks) {
+  bool called = false;
+  define_closure<void()>(
+    ctx, "mark-called!", ctx.internal_module(),
+    [&] { called = true; }
+  );
+
+  ptr<> result = eval(R"(
+    (dynamic-wind
+      (lambda () #void)
+      (lambda () (emergency-exit 1))
+      (lambda () (mark-called!)))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 1);
+  EXPECT_FALSE(called);
+}
+
+TEST_F(control, emergency_exit_aborts_native_frames) {
+  bool called = false;
+  define_closure<void()>(
+    ctx, "mark-called!", ctx.internal_module(),
+    [&] { called = true; }
+  );
+
+  define_procedure<f3>(ctx, "f", ctx.internal_module());
+
+  ptr<> result = eval(R"(
+    (f
+     (lambda ()
+       (dynamic-wind
+         (lambda () #void)
+         (lambda ()
+           (f
+            (lambda ()
+              (emergency-exit 1))))
+         (lambda ()
+           (mark-called!)))))
+  )");
+  EXPECT_EQ(expect<integer>(result).value(), 1);
+  EXPECT_FALSE(called);
+}
