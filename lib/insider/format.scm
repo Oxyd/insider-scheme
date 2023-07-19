@@ -359,7 +359,7 @@
          (spec (parse-format-spec state)))
     (print-field state (find-argument state index) spec)))
 
-(define (print-formatted port fmt . args)
+(define (format-to port fmt . args)
   (let ((state (make-state port fmt args)))
     (do () ((state-at-end? state))
       (case (state-current-char state)
@@ -379,7 +379,10 @@
          (write-char (state-current-char state) port)
          (advance-state-position! state))))))
 
+(define (printf fmt . args)
+  (apply format-to (current-output-port) fmt args))
+
 (define (format fmt . args)
   (call-with-output-string
    (lambda (port)
-     (apply print-formatted port fmt args))))
+     (apply format-to port fmt args))))
