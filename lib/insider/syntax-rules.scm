@@ -705,7 +705,7 @@
                   #'(error "No matching clause")
                   (let ((clause (syntax-car clauses)))
                     (let ((pattern (syntax-car clause))
-                          (body (syntax-cadr clause)))
+                          (body #`(begin #,@(syntax-cdr clause))))
                       #`(let ((clause-result #,(emit-matcher context pattern input body emit-null-matcher)))
                           (if (eq? clause-result <no-match>)
                               #,(emit-matchers (syntax-cdr clauses) input)
