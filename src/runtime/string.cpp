@@ -457,12 +457,22 @@ string_append(context& ctx, object_span args) {
 
 static ptr<string>
 symbol_to_string(context& ctx, ptr<symbol> datum) {
-  return make<string>(ctx, expect<symbol>(datum)->value());
+  return make<string>(ctx, datum->value());
 }
 
 static ptr<symbol>
 string_to_symbol(context& ctx, ptr<string> s) {
   return ctx.intern(s->value());
+}
+
+static ptr<string>
+keyword_to_string(context& ctx, ptr<keyword> kw) {
+  return make<string>(ctx, kw->value());
+}
+
+static ptr<keyword>
+string_to_keyword(context& ctx, ptr<string> s) {
+  return ctx.intern_keyword(s->value());
 }
 
 std::size_t
@@ -775,6 +785,8 @@ export_string(context& ctx, ptr<module_> result) {
   define_procedure<string_append_in_place>(ctx, "string-append!", result);
   define_procedure<symbol_to_string>(ctx, "symbol->string", result);
   define_procedure<string_to_symbol>(ctx, "string->symbol", result);
+  define_procedure<keyword_to_string>(ctx, "keyword->string", result);
+  define_procedure<string_to_keyword>(ctx, "string->keyword", result);
   define_constant_evaluable_procedure<string_ref>(ctx, "string-ref", result);
   define_procedure<string_set>(ctx, "string-set!", result);
   define_procedure<&string::append_char>(ctx, "string-append-char!", result);

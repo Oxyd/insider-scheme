@@ -13,15 +13,15 @@
                 string-contains-right* string-append-char!
                 string-append! string-reverse* string=?/pair string<?/pair
                 string<=?/pair string>?/pair string>=?/pair string-foldcase
-                string->utf8* utf8->string* symbol->string
-                number->string datum->string string->number string-upcase
-                string-downcase))
+                string->utf8* utf8->string* symbol->string keyword->string
+                string->keyword number->string datum->string string->number
+                string-upcase string-downcase))
   (export
    string?
 
    string-append string-append! string-append-char! string-length
-   symbol->string string make-string number->string datum->string
-   string-ref string-set! string->number
+   symbol->string keyword->string string->keyword string make-string
+   number->string datum->string string-ref string-set! string->number
 
    string=? string<? string<=? string>? string>=?
    string-ci=? string-ci<? string-ci<=? string-ci>? string-ci>=?
