@@ -1,5 +1,6 @@
 (define-library (insider format)
   (import (scheme complex) (insider string) (insider char) (scheme inexact)
+          (insider struct)
           (except (scheme base) read-char)
           (except (insider io) read-char))
   (export format-to printf format)

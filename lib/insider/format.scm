@@ -1,12 +1,10 @@
-(define-record-type <formatter-state>
-  (make-state* port format-string position end args current-arg)
-  formatter-state?
-  (port state-port)
-  (format-string state-format-string)
-  (position state-position set-state-position!)
-  (end state-end)
-  (args state-args)
-  (current-arg state-current-arg set-state-current-arg!))
+(struct state (port
+               format-string
+               (position #:mutable)
+               end
+               args
+               (current-arg #:mutable))
+        #:constructor-name make-state*)
 
 (define (make-state port format-string args)
   (make-state* port
@@ -17,10 +15,10 @@
                0))
 
 (define (advance-current-arg! state)
-  (set-state-current-arg! state (+ (state-current-arg state) 1)))
+  (state-current-arg-set! state (+ (state-current-arg state) 1)))
 
 (define (advance-state-position! state)
-  (set-state-position! state (string-cursor-next (state-format-string state)
+  (state-position-set! state (string-cursor-next (state-format-string state)
                                                  (state-position state))))
 
 (define (state-current-char state)
@@ -80,17 +78,8 @@
     (unless (char=? looking-at c)
       (raise-unexpected looking-at))))
 
-(define-record-type <field-format>
-  (field-format fill align sign alternative-form? zero-pad? width precision type)
-  field-format?
-  (fill field-format-fill)
-  (align field-format-align)
-  (sign field-format-sign)
-  (alternative-form? field-format-alternative-form?)
-  (zero-pad? field-format-zero-pad?)
-  (width field-format-width)
-  (precision field-format-precision)
-  (type field-format-type))
+(struct field-format
+        (fill align sign alternative-form? zero-pad? width precision type))
 
 (define (parse-fill&align state)
   (define (fill-character? c)
@@ -106,10 +95,10 @@
     (cond ((and first second (fill-character? first) (align-character? second))
            (values first second))
           ((and first (align-character? first))
-           (set-state-position! state position-after-first)
+           (state-position-set! state position-after-first)
            (values #f first))
           (else
-           (set-state-position! state original-position)
+           (state-position-set! state original-position)
            (values #f #f)))))
 
 (define (parse-type-spec state)
