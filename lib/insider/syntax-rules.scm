@@ -193,6 +193,16 @@
       (syntax-cdr (syntax-cdr x)))))
 
 (meta
+  (define syntax-caddr
+    (lambda (x)
+      (syntax-car (syntax-cddr x)))))
+
+(meta
+  (define syntax-cdddr
+    (lambda (x)
+      (syntax-cdr (syntax-cddr x)))))
+
+(meta
   (define syntax-null?
     (lambda (x)
       (or (null? x)
@@ -347,14 +357,14 @@
     (lambda (context pattern)
       (map car (extract-pattern-variables context pattern)))))
 
-(meta (define <no-match> (list 'no-match)))
+(meta (define <clause-failed> (list 'clause-failed)))
 
 (meta
   (define emit-literal-matcher
     (lambda (literal input body)
       #`(if (and (identifier? #,input) (free-identifier=? #,input #'#,literal))
             #,body
-            <no-match>))))
+            <clause-failed>))))
 
 (meta
   (define emit-identifier-matcher
@@ -367,7 +377,7 @@
     (lambda (input body)
       #`(if (syntax-null? #,input)
             #,body
-            <no-match>))))
+            <clause-failed>))))
 
 (meta
   (define gensym
@@ -393,7 +403,7 @@
                                 (emit-matcher context (syntax-cdr pattern) tail
                                               body end-matcher)
                                 emit-null-matcher))
-              <no-match>)))))
+              <clause-failed>)))))
 
 (meta
   (define emit-repeated-pattern-matcher
@@ -413,7 +423,7 @@
                                                    #`(#,recurse (syntax-cdr #,input*)
                                                                 #,@(map2 (lambda (v v*) #`(cons #,v #,v*)) vars vars*))
                                                    emit-null-matcher))
-                                 <no-match>)))))
+                                 <clause-failed>)))))
               (#,recurse #,input #,@(map (lambda (_) '()) vars))))))))
 
 (meta
@@ -453,14 +463,14 @@
         #`(if (syntax-vector? #,input)
               (let ((lst (vector->list (syntax-expression #,input))))
                 #,(emit-matcher context pattern-list #'lst body end-matcher))
-              <no-match>)))))
+              <clause-failed>)))))
 
 (meta
   (define emit-constant-matcher
     (lambda (pattern input body)
       #`(if (equal? '#,(syntax-expression pattern) (syntax-expression #,input))
             #,body
-            <no-match>))))
+            <clause-failed>))))
 
 (meta
   (set! emit-matcher
@@ -691,6 +701,19 @@
     (lambda (context template)
       (splice-template context template 0))))
 
+(meta
+  (define split-clause
+    (lambda (clause)
+      (let ((pattern (syntax-car clause))
+            (maybe-guard (syntax-cadr clause)))
+        (if (eq? (syntax-expression maybe-guard) '#:when)
+            (values pattern
+                    #`(if #,(syntax-caddr clause)
+                          (begin #,@(syntax-cdddr clause))
+                          <clause-failed>))
+            (values pattern
+                    #`(begin #,@(syntax-cdr clause))))))))
+
 (define-syntax syntax-match*
   (lambda (stx)
     (let ((form (syntax->list stx)))
@@ -704,12 +727,12 @@
               (if (syntax-null? clauses)
                   #'(error "No matching clause")
                   (let ((clause (syntax-car clauses)))
-                    (let ((pattern (syntax-car clause))
-                          (body #`(begin #,@(syntax-cdr clause))))
-                      #`(let ((clause-result #,(emit-matcher context pattern input body emit-null-matcher)))
-                          (if (eq? clause-result <no-match>)
-                              #,(emit-matchers (syntax-cdr clauses) input)
-                              clause-result)))))))
+                    (call-with-values (lambda () (split-clause clause))
+                      (lambda (pattern body)
+                        #`(let ((clause-result #,(emit-matcher context pattern input body emit-null-matcher)))
+                            (if (eq? clause-result <clause-failed>)
+                                #,(emit-matchers (syntax-cdr clauses) input)
+                                clause-result))))))))
           #`(let ((value #,value-expr))
               #,(emit-matchers clauses #'value)))))))
 

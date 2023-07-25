@@ -218,7 +218,41 @@
      "different ellipsis"
      '((1 2 3) 4)
      (syntax-match #'(1 2 3 4) ::: ()
-                       ((xs ::: ...) (list xs ...))))))
+                   ((xs ::: ...) (list xs ...))))))
+
+(define (syntax-match/when)
+  (test-group "#:when"
+    (test-syntax
+     'two
+     (syntax-match #'(#:kw foo) ()
+       ((x y) #:when (not (keyword? (syntax-expression x)))
+        'one)
+       ((x y)
+        'two)))
+
+    (test-syntax
+     'one
+     (syntax-match #'(not-kw foo) ()
+       ((x y) #:when (not (keyword? (syntax-expression x)))
+        'one)
+       ((x y)
+        'two)))
+
+    (test-syntax
+     'short-list
+     (syntax-match #'(1 2 3) ()
+       ((x . y) #:when (> (length y) 2)
+        'long-list)
+       ((x . y)
+        'short-list)))
+
+    (test-syntax
+     'long-list
+     (syntax-match #'(1 2 3 4 5 6 7) ()
+       ((x . y) #:when (> (length y) 2)
+        'long-list)
+       ((x . y)
+        'short-list)))))
 
 (define (test-syntax-match)
   (test-group "syntax-match"
@@ -227,7 +261,8 @@
     (syntax-match/underscore-matcher)
     (syntax-match/literal-matcher)
     (syntax-match/identifier-matchers)
-    (syntax-match/repeated-matchers)))
+    (syntax-match/repeated-matchers)
+    (syntax-match/when)))
 
 (define (syntax-rules/simple-expansion)
   (test-group "simple expansion"
