@@ -67,6 +67,24 @@ path_filename(fs::path const& p) {
 }
 
 static fs::path
+path_remove_filename(fs::path p) {
+  p.remove_filename();
+  return p;
+}
+
+static fs::path
+path_replace_filename(fs::path p, fs::path new_filename) {
+  p.replace_filename(new_filename);
+  return p;
+}
+
+static fs::path
+path_replace_extension(fs::path p, fs::path new_extension) {
+  p.replace_extension(new_extension);
+  return p;
+}
+
+static fs::path
 path_stem(fs::path const& p) {
   return p.stem();
 }
@@ -557,6 +575,10 @@ export_filesystem(context& ctx, ptr<module_> result) {
   define_procedure<path_relative_path>(ctx, "path-relative-path", result);
   define_procedure<path_parent>(ctx, "path-parent", result);
   define_procedure<path_filename>(ctx, "path-filename", result);
+  define_procedure<path_remove_filename>(ctx, "path-remove-filename", result);
+  define_procedure<path_replace_filename>(ctx, "path-replace-filename", result);
+  define_procedure<path_replace_extension>(ctx, "path-replace-extension",
+                                           result);
   define_procedure<path_stem>(ctx, "path-stem", result);
   define_procedure<path_extension>(ctx, "path-extension", result);
   define_procedure<absolute_path>(ctx, "absolute-path", result);
