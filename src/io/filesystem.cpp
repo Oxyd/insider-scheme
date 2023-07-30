@@ -495,7 +495,7 @@ last_write_time(context& ctx, fs::path const& p) {
     ctx,
     [&] {
       auto time = fs::last_write_time(p);
-      return system_to_scheme(std::chrono::file_clock::to_sys(time));
+      return system_to_scheme(std::chrono::clock_cast<clock>(time));
     }
   );
 }
@@ -505,7 +505,9 @@ set_last_write_time(context& ctx, fs::path const& p, double time) {
   guard_filesystem_error(
     ctx,
     [&] {
-      auto t = std::chrono::file_clock::from_sys(scheme_to_system(time));
+      auto t = std::chrono::clock_cast<std::chrono::file_clock>(
+        scheme_to_system(time)
+      );
       fs::last_write_time(p, t);
     }
   );

@@ -946,36 +946,36 @@ read_keyword(context& ctx, reader_stream& stream, source_location const& loc) {
     return {token::keyword_literal{read_identifier_contents(stream)}, loc};
 }
 
-static std::string
+static std::u32string
 read_raw_string_delimiter(reader_stream& stream) {
-  std::string result;
-  while (stream.peek() != '(') {
+  std::u32string result;
+  while (stream.peek() != U'(') {
     source_location loc = stream.location();
     char32_t c = require_char(stream);
 
-    if (whitespace(c) || delimiter(c) || c == '\\')
+    if (whitespace(c) || delimiter(c) || c == U'\\')
       throw read_error{"Invalid character in raw string delimiter", loc};
 
-    append(result, c);
+    result += c;
   }
   return result;
 }
 
 static bool
-consume_string(reader_stream& stream, std::string const& sequence) {
-  for (char c : sequence)
+consume_string(reader_stream& stream, std::u32string const& sequence) {
+  for (char32_t c : sequence)
     if (stream.read() != c)
       return false;
   return true;
 }
 
 static bool
-end_of_raw_string_literal(reader_stream& stream, std::string const& delim) {
+end_of_raw_string_literal(reader_stream& stream, std::u32string const& delim) {
   auto cp = stream.make_checkpoint();
 
-  if (stream.read() == ')'
+  if (stream.read() == U')'
       && consume_string(stream, delim)
-      && stream.read() == '"') {
+      && stream.read() == U'"') {
     cp.commit();
     return true;
   } else
@@ -988,7 +988,7 @@ read_raw_string_literal(context& ctx, reader_stream& stream) {
 
   consume(stream, 'R');
   expect(stream, '"');
-  std::string delim = read_raw_string_delimiter(stream);
+  std::u32string delim = read_raw_string_delimiter(stream);
   expect(stream, '(');
 
   std::string result;
@@ -1013,7 +1013,7 @@ read_token_after_octothorpe(context& ctx, reader_stream& stream,
   } else if (*c == ',') {
     stream.read();
     c = stream.peek();
-    if (c == '@') {
+    if (c == U'@') {
       stream.read();
       return {token::unsyntax_splicing{}, loc};
     } else

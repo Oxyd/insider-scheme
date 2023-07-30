@@ -215,7 +215,8 @@ TEST_F(io, escapes_in_raw_string_literals) {
 
 TEST_F(io, forbidden_characters_in_raw_string_delimiters) {
   EXPECT_THROW(read(R"(#R"foo bar()foo bar")"), read_error);
-  EXPECT_THROW(read(R"(#R"\()\")"), read_error);
+  char const* msvc_workaround = R"(#R"\()\")";
+  EXPECT_THROW(read(msvc_workaround), read_error);
   EXPECT_THROW(read(R"(#R";();")"), read_error);
   EXPECT_THROW(read(R"scm(#R")())")scm"), read_error);
 }
@@ -363,6 +364,8 @@ TEST_F(io, read_bignum) {
                                  470401255560051253ull,
                                  11431680516999648673ull,
                                  18078852890099872823ull)));
+  EXPECT_TRUE(num_equal(read("#x8000000000000000"), // 2^63
+                        make_big(ctx, 9223372036854775808ull)));
 }
 
 TEST_F(io, write_bignum) {
