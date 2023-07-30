@@ -15,8 +15,8 @@
 (define <no-form> (list 'no-form))
 
 (struct element (name
-                 (comment '() #:mutable)
-                 (form <no-form> #:mutable)))
+                 (meta '() #:mutable)
+                 (body '() #:mutable)))
 
 (struct module (name
                 (associated-files #:mutable)
@@ -87,10 +87,6 @@
 
 (define (strip-doc-comment-prefix line)
   (string-drop line scheme-doc-comment-prefix-length))
-
-(define (parse-scheme-doc-comment lines)
-  (scribble-parse (open-input-string (string-join (map strip-doc-comment-prefix
-                                                       lines)))))
 
 (define (read-scheme-comment-line port #:skip-newlines? (skip-newlines? #t))
   (skip-whitespace! port skip-newlines?)
@@ -174,14 +170,72 @@
   (and (pair? form)
        (memq (car form) '(define define-syntax))
        (pair? (cdr form))
-       (let ((name (find-define-name form)))
-         (find-element module (find-define-name form)))))
+       (find-element module (find-define-name form))))
 
-(define (set-element-comment-and-form! module form comment path)
+(define meta-commands
+  `((procedure . ,(lambda (meta form)
+                    (append `((kind . procedure)
+                              (procedure-params . ,(cdr form)))
+                            meta)))
+    (parameter . ,(lambda (meta form)
+                    (cons '(kind . parameter) meta)))))
+
+(define (parse-scheme-doc-comment lines)
+  (let loop ((scribble (scribble-parse
+                        (open-input-string
+                         (string-join (map strip-doc-comment-prefix lines)))))
+             (meta '())
+             (body '()))
+    (cond ((null? scribble)
+           (values meta (reverse body)))
+          ((or (assq (car scribble) meta-commands)
+               (and (pair? (car scribble)) (assq (caar scribble) meta-commands)))
+           (loop (cdr scribble)
+                 (cons (car scribble) meta)
+                 body))
+          (else
+           (loop (cdr scribble)
+                 meta
+                 (cons (car scribble) body))))))
+
+(define (parse-element-meta meta-scribble)
+  (let loop ((meta '()) (scrbl meta-scribble))
+    (if (null? scrbl)
+        meta
+        (let ((f (assq (if (pair? (car scrbl)) (caar scrbl) (car scrbl))
+                       meta-commands)))
+          (loop ((cdr f) meta (car scrbl)) (cdr scrbl))))))
+
+(define (parse-element-form meta form name)
+  (cond
+   ((assq 'kind meta)
+    meta)
+   (else
+    (case (car form)
+      ((define)
+       (let ((params (find-procedure-params form)))
+         (cond (params
+                (append `((kind . procedure)
+                          (procedure-params . ,params))
+                        meta))
+               (else
+                (warn "{}: Unknown define syntax" name)
+                meta))))
+      ((define-syntax)
+       (cons '(kind . syntax) meta))
+      (else
+       (warn "{}: Unknown form: {:w}" name form)
+       meta)))))
+
+(define (set-element-doc-and-form! module form comment path)
   (let ((element (find-element-for-definition module form)))
     (cond (element
-           (element-comment-set! element comment)
-           (element-form-set! element form))
+           (let-values (((meta body) (parse-scheme-doc-comment comment)))
+             (element-meta-set! element
+                                (parse-element-form (parse-element-meta meta)
+                                                    form
+                                                    (element-name element)))
+             (element-body-set! element body)))
           (else
            (warn "{}: Documentation comment ignored for {:w}"
                  path form)))))
@@ -196,13 +250,15 @@
                  (form (read-subsequent-form port)))
              (if (eq? form <no-form>)
                  (append-module-comment! module comment)
-                 (set-element-comment-and-form! module form comment path))
+                 (set-element-doc-and-form! module form comment path))
              (loop)))
           ((form)
            (let* ((form (cdr fragment))
                   (element (find-element-for-definition module form)))
              (when element
-               (element-form-set! element form))
+               (element-meta-set! element
+                                  (parse-element-form '() form
+                                                      (element-name element))))
              (loop))))))))
 
 (define (extract-module-docs! module)
@@ -238,35 +294,36 @@
                       (html "code" '() (datum->string (element-name export)))))
               (module-exports module))))
 
+(define (get-meta element name)
+  (let ((meta (assq name (element-meta element))))
+    (if meta (cdr meta) #f)))
+
 (define (render-element-signature element)
-  (let ((form (element-form element)))
-    (case (car form)
-      ((define)
-       (let ((params (find-procedure-params form)))
-         (cond
-          (params
-           (html "div" '()
-                 "Procedure "
-                 (html "code" '()
-                       (datum->string `(,(element-name element) . ,params)))))
-          (else
-           (warn "{}: Unknown define syntax" (element-name element))
-           (html "div" '() "Procedure")))))
-      ((define-syntax)
-       (html "div" '() "Syntax"))
-      ((no-form)
-       (warn "{}: Defining form not found" (element-name element))
-       "")
-      (else
-       (warn "{}: Unknown form: {:w}" (element-name element) form)
-       ""))))
+  (case (get-meta element 'kind)
+    ((procedure)
+     (html "div" '()
+           "Procedure "
+           (html "code" '()
+                 (datum->string `(,(element-name element)
+                                  . ,(get-meta element 'procedure-params))))))
+    ((syntax)
+     (html "div" '()
+           "Syntax "
+           (html "code" '() (datum->string (element-name element)))))
+    ((parameter)
+     (html "div" '()
+           "Parameter "
+           (html "code" '() (datum->string (element-name element)))))
+    (else
+     (warn "{}: Unknown element" (element-name element))
+     (html "div" '() "Unknown"))))
 
 (define (render-element elem)
-  (let ((scrbl (parse-scheme-doc-comment (element-comment elem))))
-    (html "article" '()
-          (html "h2" '() (datum->string (element-name elem)))
-          (html "p" '() (render-element-signature elem))
-          (html "p" '() (datum->string scrbl)))))
+  (html "article" '()
+        (html "h2" '() (datum->string (element-name elem)))
+        (html "p" '() (render-element-signature elem))
+        (html "p" '() (datum->string (element-meta elem)))
+        (html "p" '() (datum->string (element-body elem)))))
 
 (define (render-exports-details module)
   (apply html "section" '()
@@ -302,8 +359,5 @@
          (modules (map parse-sld slds)))
     (for-each (lambda (m)
                 (extract-module-docs! m)
-                (write m)
-                (newline)
-                (newline)
                 (render-module output-directory m))
               modules)))

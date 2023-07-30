@@ -1,6 +1,13 @@
+;;> @parameter
 (define current-input-port (make-parameter-from-tag current-input-port-tag))
+
+;;> @parameter
 (define current-output-port (make-parameter-from-tag current-output-port-tag))
+
+;;> @parameter
 (define current-error-port (make-parameter-from-tag current-error-port-tag))
+
+;;> @parameter
 (define current-source-file-origin (make-parameter-from-tag current-source-file-origin-tag))
 
 (define-type-predicate textual-input-port? insider::textual_input_port)
@@ -17,6 +24,7 @@
 (define (textual-port? p)
   (or (textual-input-port? p) (textual-output-port? p)))
 
+;;> Is @scm{p} a binary port?
 (define (binary-port? p)
   (or (binary-input-port? p) (binary-output-port? p)))
 
