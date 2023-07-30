@@ -21,11 +21,11 @@
 
 (struct module (name
                 (associated-files #:mutable)
-                (exports '() #:mutable)
+                (elements '() #:mutable)
                 (comment '() #:mutable)))
 
-(define (append-exports! module new-exports)
-  (module-exports-set! module (append (module-exports module) new-exports)))
+(define (append-elements! module new-elements)
+  (module-elements-set! module (append (module-elements module) new-elements)))
 
 (define (append-associated-files! module new-associated-files)
   (module-associated-files-set! module
@@ -40,7 +40,7 @@
   (unless (null? directive)
     (case (car directive)
       ((export)
-       (append-exports! module (map element (cdr directive))))
+       (append-elements! module (map element (cdr directive))))
       ((include include-ci)
        (append-associated-files! module
                                  (map (lambda (included-path)
@@ -159,7 +159,7 @@
                     #f)))))))
 
 (define (find-element module name)
-  (let loop ((elements (module-exports module)))
+  (let loop ((elements (module-elements module)))
     (cond ((null? elements)
            #f)
           ((eq? (element-name (car elements)) name)
@@ -290,12 +290,12 @@
           (else
            (format "<{} {}>{}</{0}>" tag attrs* content*)))))
 
-(define (render-exports-list module)
+(define (render-element-list module)
   (apply html "ul" '()
-         (map (lambda (export)
+         (map (lambda (elem)
                 (html "li" '()
-                      (html "code" '() (datum->string (element-name export)))))
-              (module-exports module))))
+                      (html "code" '() (datum->string (element-name elem)))))
+              (module-elements module))))
 
 (define (get-meta element name)
   (let ((meta (assq name (element-meta element))))
@@ -330,9 +330,9 @@
         (html "p" '() (datum->string (element-meta elem)))
         (html "p" '() (datum->string (element-body elem)))))
 
-(define (render-exports-details module)
+(define (render-element-details module)
   (apply html "section" '()
-         (map render-element (module-exports module))))
+         (map render-element (module-elements module))))
 
 (define (render-module out-dir module)
   (call-with-output-file
@@ -346,8 +346,8 @@
                    (html "meta" '((charset . "utf-8"))))
              (html "body" '()
                    (html "h1" '() (datum->string (module-name module)))
-                   (render-exports-list module)
-                   (render-exports-details module)))
+                   (render-element-list module)
+                   (render-element-details module)))
        out))))
 
 (define (show-usage-and-exit!)
