@@ -16,7 +16,8 @@
 
 (struct element (name
                  (meta '() #:mutable)
-                 (body '() #:mutable)))
+                 (body '() #:mutable)
+                 (defining-form-found? #f #:mutable)))
 
 (struct module (name
                 (associated-files #:mutable)
@@ -235,7 +236,8 @@
                                 (parse-element-form (parse-element-meta meta)
                                                     form
                                                     (element-name element)))
-             (element-body-set! element body)))
+             (element-body-set! element body)
+             (element-defining-form-found?-set! element #t)))
           (else
            (warn "{}: Documentation comment ignored for {:w}"
                  path form)))))
@@ -258,7 +260,8 @@
              (when element
                (element-meta-set! element
                                   (parse-element-form '() form
-                                                      (element-name element))))
+                                                      (element-name element)))
+               (element-defining-form-found?-set! element #t))
              (loop))))))))
 
 (define (extract-module-docs! module)
@@ -299,6 +302,9 @@
     (if meta (cdr meta) #f)))
 
 (define (render-element-signature element)
+  (unless (element-defining-form-found? element)
+    (warn "{}: No defining form found" (element-name element)))
+
   (case (get-meta element 'kind)
     ((procedure)
      (html "div" '()
@@ -315,7 +321,6 @@
            "Parameter "
            (html "code" '() (datum->string (element-name element)))))
     (else
-     (warn "{}: Unknown element" (element-name element))
      (html "div" '() "Unknown"))))
 
 (define (render-element elem)
