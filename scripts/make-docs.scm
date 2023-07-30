@@ -15,11 +15,13 @@
 (define <no-form> (list 'no-form))
 
 (struct element (name
+                 module
                  (meta '() #:mutable)
                  (body '() #:mutable)
                  (defining-form-found? #f #:mutable)))
 
 (struct module (name
+                primary-file
                 (associated-files #:mutable)
                 (elements '() #:mutable)
                 (comment '() #:mutable)))
@@ -40,7 +42,8 @@
   (unless (null? directive)
     (case (car directive)
       ((export)
-       (append-elements! module (map element (cdr directive))))
+       (append-elements! module (map (lambda (name) (element name module))
+                                     (cdr directive))))
       ((include include-ci)
        (append-associated-files! module
                                  (map (lambda (included-path)
@@ -60,7 +63,7 @@
     (warn "{}: Invalid library file" path)
     #f)
    (else
-    (do ((result (module (cadr def) (list path)))
+    (do ((result (module (cadr def) path (list path)))
          (current (cddr def) (cdr current)))
         ((null? current) result)
       (parse-library-directive! (car current) result path)))))
@@ -303,7 +306,9 @@
 
 (define (render-element-signature element)
   (unless (element-defining-form-found? element)
-    (warn "{}: No defining form found" (element-name element)))
+    (warn "{}: {}: No defining form found"
+          (module-primary-file (element-module element))
+          (element-name element)))
 
   (case (get-meta element 'kind)
     ((procedure)
