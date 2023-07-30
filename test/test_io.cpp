@@ -215,7 +215,8 @@ TEST_F(io, escapes_in_raw_string_literals) {
 
 TEST_F(io, forbidden_characters_in_raw_string_delimiters) {
   EXPECT_THROW(read(R"(#R"foo bar()foo bar")"), read_error);
-  EXPECT_THROW(read(R"(#R"\()\")"), read_error);
+  char const* msvc_workaround = R"(#R"\()\")";
+  EXPECT_THROW(read(msvc_workaround), read_error);
   EXPECT_THROW(read(R"(#R";();")"), read_error);
   EXPECT_THROW(read(R"scm(#R")())")scm"), read_error);
 }

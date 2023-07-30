@@ -246,11 +246,15 @@ make_list_from_range(context& ctx, Range const& range,
 
   auto elem = std::ranges::begin(range);
   auto end = std::ranges::end(range);
-  ptr<pair> head = cons(ctx, convert(*elem++), ctx.constants->null);
+  ptr<pair> head = cons(ctx,
+                        to_scheme(ctx, convert(*elem++)), 
+                        ctx.constants->null);
   ptr<pair> current = head;
 
   while (elem != end) {
-    ptr<pair> p = cons(ctx, convert(*elem++), ctx.constants->null);
+    ptr<pair> p = cons(ctx, 
+                       to_scheme(ctx, convert(*elem++)),
+                       ctx.constants->null);
     current->set_cdr(ctx.store, p);
     current = p;
   }
