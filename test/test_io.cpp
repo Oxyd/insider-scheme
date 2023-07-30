@@ -364,6 +364,8 @@ TEST_F(io, read_bignum) {
                                  470401255560051253ull,
                                  11431680516999648673ull,
                                  18078852890099872823ull)));
+  EXPECT_TRUE(num_equal(read("#x8000000000000000"), // 2^63
+                        make_big(ctx, 9223372036854775808)));
 }
 
 TEST_F(io, write_bignum) {
