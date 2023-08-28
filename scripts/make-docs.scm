@@ -10,6 +10,7 @@
         ((string=? (path-extension path) ".sld")
          (list path))
         (else
+         (warn "Invalid library path name: {}" path)
          '())))
 
 (define <no-form> (list 'no-form))
@@ -20,14 +21,25 @@
                  (body '() #:mutable)
                  (defining-form-found? #f #:mutable)))
 
+(define (element-copy! target source)
+  (element-meta-set! target (element-meta source))
+  (element-body-set! target (element-body source))
+  (element-defining-form-found?-set! target
+                                     (element-defining-form-found? source)))
+
 (struct module (name
                 primary-file
                 (associated-files #:mutable)
+                (imports '() #:mutable)
+                (imports-resolved? #f #:mutable)
                 (elements '() #:mutable)
                 (comment '() #:mutable)))
 
 (define (append-elements! module new-elements)
   (module-elements-set! module (append (module-elements module) new-elements)))
+
+(define (append-imports! module new-imports)
+  (module-imports-set! module (append (module-imports module) new-imports)))
 
 (define (append-associated-files! module new-associated-files)
   (module-associated-files-set! module
@@ -44,6 +56,8 @@
       ((export)
        (append-elements! module (map (lambda (name) (element name module))
                                      (cdr directive))))
+      ((import)
+       (append-imports! module (cdr directive)))
       ((include include-ci)
        (append-associated-files! module
                                  (map (lambda (included-path)
@@ -274,6 +288,44 @@
                   (extract-module-docs-from-port! module port path))))
             (module-associated-files module)))
 
+(define (find-module name modules)
+  (let loop ((m modules))
+    (cond ((null? m)
+           #f)
+          ((equal? name (module-name (car m)))
+           (car m))
+          (else
+           (loop (cdr m))))))
+
+(define (perform-import! target source)
+  (do ((exports (module-elements source) (cdr exports)))
+      ((null? exports))
+    (let* ((source-elem (car exports))
+           (target-elem (find-element target (element-name source-elem))))
+      ;; When destination doesn't contain an element of this name, it simply
+      ;; means it doesn't re-export it.
+      (when target-elem
+        (element-copy! target-elem source-elem)))))
+
+(define (resolve-import! module import-form modules)
+  (case (car import-form)
+    ((only except prefix rename)
+     (warn "{:w}: {} import specifier unimplemented"
+           (module-name module) (car import-form)))
+    (else
+     (let ((imported-module (find-module import-form modules)))
+       (if imported-module
+           (perform-import! module imported-module)
+           (warn "{:w}: Unknown module {:w}"
+                 (module-name module) import-form))))))
+
+(define (resolve-imports! module all-modules)
+  (unless (module-imports-resolved? module)
+    (do ((import-forms (module-imports module) (cdr import-forms)))
+        ((null? import-forms))
+      (resolve-import! module (car import-forms) all-modules))
+    (module-imports-resolved?-set! module #t)))
+
 (define (module-name->file-name name)
   (string-append (string-join (map datum->string name) ".")
                  ".html"))
@@ -305,7 +357,7 @@
     (if meta (cdr meta) #f)))
 
 (define (render-element-signature element)
-  (unless (element-defining-form-found? element)
+  #;(unless (element-defining-form-found? element)
     (warn "{}: {}: No defining form found"
           (module-primary-file (element-module element))
           (element-name element)))
@@ -351,6 +403,8 @@
                    (html "meta" '((charset . "utf-8"))))
              (html "body" '()
                    (html "h1" '() (datum->string (module-name module)))
+                   (apply html "section" '()
+                          (map datum->string (module-imports module)))
                    (render-element-list module)
                    (render-element-details module)))
        out))))
@@ -367,7 +421,6 @@
   (create-directories output-directory)
   (let* ((slds (apply append (map find-library-definitions input-paths)))
          (modules (map parse-sld slds)))
-    (for-each (lambda (m)
-                (extract-module-docs! m)
-                (render-module output-directory m))
-              modules)))
+    (for-each extract-module-docs! modules)
+    (for-each (lambda (m) (resolve-imports! m modules)) modules)
+    (for-each (lambda (m) (render-module output-directory m)) modules)))
