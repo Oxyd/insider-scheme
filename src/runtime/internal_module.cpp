@@ -17,6 +17,11 @@
 #include <intrin.h>
 #endif
 
+#ifdef __APPLE__
+#include <crt_externs.h>
+#define environ (*_NSGetEnviron())
+#endif
+
 namespace insider {
 
 void
