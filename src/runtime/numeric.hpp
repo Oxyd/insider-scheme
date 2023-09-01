@@ -409,14 +409,31 @@ small_mul_overflow(integer::value_type x, integer::value_type y) {
   return x > integer::max / y;
 }
 
+namespace detail {
+
+  // Helper to choose the correct __builtin_smu(ll|lll)_overflow variant based
+  // on whether integer::value_type is long or long long.
+
+  inline bool
+  signed_mul_overflow(long x, long y, long* result) {
+    return __builtin_smull_overflow(x, y, result);
+  }
+
+  inline bool
+  signed_mul_overflow(long long x, long long y, long long* result) {
+    return __builtin_smulll_overflow(x, y, result);
+  }
+
+} // namespace detail
+
 inline ptr<>
 multiply_fixnums(integer::value_type lhs, integer::value_type rhs) {
   if (rhs == 0)
     return integer_to_ptr(0);
 
 #if defined __GNUC__ || defined __clang__
-  integer::value_type result;
-  bool overflowed = __builtin_smull_overflow(lhs, rhs, &result);
+  integer::value_type result{};
+  bool overflowed = detail::signed_mul_overflow(lhs, rhs, &result);
   if (overflowed || overflow(result))
     return {};
   else
