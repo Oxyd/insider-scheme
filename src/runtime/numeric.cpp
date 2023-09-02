@@ -10,7 +10,6 @@
 #include <cmath>
 #include <complex>
 #include <cstdlib>
-#include <format>
 #include <ios>
 #include <locale>
 #include <numbers>
@@ -1103,10 +1102,10 @@ namespace {
 static common_type
 find_common_type(ptr<> lhs, ptr<> rhs) {
   if (!is_number(lhs))
-    throw std::runtime_error{std::format("Expected number, got {}",
+    throw std::runtime_error{fmt::format("Expected number, got {}",
                                          object_type_name(lhs))};
   if (!is_number(rhs))
-    throw std::runtime_error{std::format("Expected number, got {}",
+    throw std::runtime_error{fmt::format("Expected number, got {}",
                                          object_type_name(rhs))};
 
   if (is<complex>(lhs) || is<complex>(rhs))
@@ -1986,7 +1985,7 @@ template <primitive_relational_type* F>
 ptr<>
 relational(context& ctx, object_span xs, std::string const& name) {
   if (xs.size() < 2)
-    throw std::runtime_error{std::format("Not enough arguments to {}", name)};
+    throw std::runtime_error{fmt::format("Not enough arguments to {}", name)};
 
   ptr<> lhs = xs[0];
   for (std::size_t i = 1; i < xs.size(); ++i) {

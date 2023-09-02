@@ -2,6 +2,8 @@
 #include "memory/allocator.hpp"
 #include "object.hpp"
 
+#include <fmt/format.h>
+
 #include <algorithm>
 #include <cassert>
 #include <cstddef>

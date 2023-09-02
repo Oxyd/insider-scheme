@@ -3,7 +3,6 @@
 #include "util/integer_cast.hpp"
 
 #include <cassert>
-#include <format>
 
 namespace insider {
 
@@ -239,7 +238,7 @@ static operand
 jump_offset(operand target, operand source) {
   auto offset = target - source;
   if (offset > immediate_max || offset < immediate_min)
-    throw std::runtime_error{std::format("Jump offset too large: {}", offset)};
+    throw std::runtime_error{fmt::format("Jump offset too large: {}", offset)};
   return immediate_to_operand(static_cast<immediate_type>(offset));
 }
 

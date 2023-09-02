@@ -3,7 +3,8 @@
 
 #include "object.hpp"
 #include "runtime/error.hpp"
-#include "util/join.hpp"
+
+#include <fmt/format.h>
 
 #include <array>
 #include <type_traits>
@@ -24,7 +25,7 @@ namespace detail {
     if ((!is<Us>(x) && ...))
       throw make_error<type_error>(
         "Invalid type: Expected one of {}; got {}",
-        join(std::array{type_name<Us>()...}, ", "),
+        fmt::join(std::array{type_name<Us>()...}, ", "),
         object_type_name(x)
       );
   }

@@ -8,7 +8,6 @@
 
 #include <concepts>
 #include <filesystem>
-#include <format>
 #include <optional>
 
 namespace insider {
@@ -107,7 +106,7 @@ struct from_scheme_converter<T> {
     if (in_range(value))
       return static_cast<T>(value);
     else
-      throw std::runtime_error{std::format("Expected integer between {} and {}",
+      throw std::runtime_error{fmt::format("Expected integer between {} and {}",
                                            std::numeric_limits<T>::min(),
                                            std::numeric_limits<T>::max())};
   }

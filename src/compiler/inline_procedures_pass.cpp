@@ -5,8 +5,7 @@
 #include "compiler/parsing_context.hpp"
 #include "context.hpp"
 
-#include <algorithm>
-#include <format>
+#include <fmt/format.h>
 
 namespace insider {
 
@@ -107,19 +106,19 @@ emit_invalid_arity_diagnostic(parsing_context& pc,
   auto max = leading_parameter_count(lambda);
   bool is_variadic = min != max;
 
-  std::string message = std::format("Wrong number of arguments in call to {}: ",
+  std::string message = fmt::format("Wrong number of arguments in call to {}: ",
                                     lambda->name());
   if (app->arguments().size() < min)
-    message += std::format("Expected {}{}",
+    message += fmt::format("Expected {}{}",
                            is_variadic ? "at least " : "",
                            required_parameter_count(lambda));
   else
     // app->arguments.size() > leading_parameter_count(lambda)
-    message += std::format("Expected {}{}",
+    message += fmt::format("Expected {}{}",
                            is_variadic ? "at most " : "",
                            leading_parameter_count(lambda));
 
-  message += std::format(", got {}. Call will raise an exception at run-time",
+  message += fmt::format(", got {}. Call will raise an exception at run-time",
                          app->arguments().size());
   pc.config.diagnostics.show(app->origin_location(), message);
 }

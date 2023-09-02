@@ -5,7 +5,6 @@
 
 #include <cassert>
 #include <cstdint>
-#include <format>
 #include <vector>
 
 namespace insider {
@@ -99,7 +98,7 @@ utf8_code_point_byte_length(char first_byte) {
     return 4;
   else
     throw std::runtime_error{
-      std::format("Invalid initial byte in UTF-8 encoding: {}",
+      fmt::format("Invalid initial byte in UTF-8 encoding: {}",
                   static_cast<uint32_t>(first_byte))
     };
 }

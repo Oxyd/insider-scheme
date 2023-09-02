@@ -4,8 +4,9 @@
 #include "context.hpp"
 #include "io/write.hpp"
 
+#include <fmt/format.h>
+
 #include <exception>
-#include <format>
 #include <string_view>
 #include <utility>
 
@@ -81,15 +82,12 @@ private:
   std::string
   format_helper(std::index_sequence<Is...>) const {
     if (irritant_)
-      return std::format(
-        "{}: {}",
-        std::vformat(format_,
-                     std::make_format_args(std::get<Is>(args_)...)),
-        datum_to_string(this->ctx_, irritant_.get())
-      );
+      return fmt::format("{}: {}",
+                         fmt::format(fmt::runtime(format_),
+                                     std::get<Is>(args_)...),
+                         datum_to_string(this->ctx_, irritant_.get()));
     else
-      return std::vformat(format_,
-                          std::make_format_args(std::get<Is>(args_)...));
+      return fmt::format(fmt::runtime(format_), std::get<Is>(args_)...);
   }
 };
 

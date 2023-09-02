@@ -6,6 +6,8 @@
 #include "runtime/integer.hpp"
 #include "util/define_procedure.hpp"
 
+#include <fmt/format.h>
+
 #include <stdexcept>
 
 namespace insider {
