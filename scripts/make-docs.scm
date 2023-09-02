@@ -149,15 +149,7 @@
 (define (append-module-comment! module comment)
   (module-comment-set! module (append (module-comment module) comment)))
 
-(define (find-define-name form)
-  ;; Can be either (define name ...) or (define (name ...) ...) or
-  ;; (define ((name ...) ...) ...) or ...
-  (let loop ((form (cadr form)))
-    (cond ((symbol? form) form)
-          ((pair? form)   (loop (car form)))
-          (else           #f))))
-
-(define (find-procedure-params form)
+(define (find-procedure-args form)
   (let ((name-form (cadr form)))
     (cond ((symbol? name-form)
            ;; (define name expr)
@@ -184,17 +176,19 @@
           (else
            (loop (cdr elements))))))
 
-(define (find-element-for-definition module form)
-  (and (pair? form)
-       (memq (car form) '(define define-syntax))
-       (pair? (cdr form))
-       (find-element module (find-define-name form))))
+(define (meta-push meta key value)
+  (let ((pair (assq key meta)))
+    (cond (pair
+           (set-cdr! pair (append (cdr pair) (list value)))
+           meta)
+          (else
+           (cons (cons key value) meta)))))
 
 (define meta-commands
   `((procedure . ,(lambda (meta form)
-                    (append `((kind . procedure)
-                              (procedure-params . ,(cdr form)))
-                            meta)))
+                    (cons '(kind . procedure) meta)))
+    (arg . ,(lambda (meta form)
+              (meta-push meta 'procedure-args (cdr form))))
     (parameter . ,(lambda (meta form)
                     (cons '(kind . parameter) meta)))))
 
@@ -224,35 +218,53 @@
                        meta-commands)))
           (loop ((cdr f) meta (car scrbl)) (cdr scrbl))))))
 
-(define (parse-element-form meta form name)
-  (cond
-   ((assq 'kind meta)
-    meta)
-   (else
-    (case (car form)
-      ((define)
-       (let ((params (find-procedure-params form)))
-         (cond (params
-                (append `((kind . procedure)
-                          (procedure-params . ,params))
-                        meta))
-               (else
-                (warn "{}: Unknown define syntax" name)
-                meta))))
-      ((define-syntax)
-       (cons '(kind . syntax) meta))
-      (else
-       (warn "{}: Unknown form: {:w}" name form)
-       meta)))))
+(define (update-element-meta-from-form meta form name)
+  (define (push-meta! key value)
+    (set! meta (cons (cons key value) meta)))
+
+  (define (push-meta-unless-present! key value)
+    (unless (assq key meta)
+      (push-meta! key value)))
+
+  (case (car form)
+    ((define)
+     (push-meta-unless-present! 'kind 'procedure)
+     (unless (assq 'procedure-args meta)
+       (let ((args (find-procedure-args form)))
+         (if args
+             (push-meta! 'procedure-args args)
+             (warn "{}: Unknown define syntax" name)))))
+    ((define-syntax)
+     (push-meta-unless-present! 'kind 'syntax))
+    (else
+     (unless (assq 'kind meta)
+       (warn "{}: Unknown form: {:w}" name form))))
+
+  meta)
+
+(define (find-define-name form)
+  ;; Can be either (define name ...) or (define (name ...) ...) or
+  ;; (define ((name ...) ...) ...) or ...
+  (let loop ((form (cadr form)))
+    (cond ((symbol? form) form)
+          ((pair? form)   (loop (car form)))
+          (else           #f))))
+
+(define (find-element-for-definition module form)
+  (and (pair? form)
+       (memq (car form) '(define define-syntax))
+       (pair? (cdr form))
+       (find-element module (find-define-name form))))
 
 (define (set-element-doc-and-form! module form comment path)
   (let ((element (find-element-for-definition module form)))
     (cond (element
            (let-values (((meta body) (parse-scheme-doc-comment comment)))
              (element-meta-set! element
-                                (parse-element-form (parse-element-meta meta)
-                                                    form
-                                                    (element-name element)))
+                                (update-element-meta-from-form
+                                 (parse-element-meta meta)
+                                 form
+                                 (element-name element)))
              (element-body-set! element body)
              (element-defining-form-found?-set! element #t)))
           (else
@@ -276,8 +288,10 @@
                   (element (find-element-for-definition module form)))
              (when element
                (element-meta-set! element
-                                  (parse-element-form '() form
-                                                      (element-name element)))
+                                  (update-element-meta-from-form
+                                   '()
+                                   form
+                                   (element-name element)))
                (element-defining-form-found?-set! element #t))
              (loop))))))))
 
@@ -368,7 +382,7 @@
            "Procedure "
            (html "code" '()
                  (datum->string `(,(element-name element)
-                                  . ,(get-meta element 'procedure-params))))))
+                                  . ,(get-meta element 'procedure-args))))))
     ((syntax)
      (html "div" '()
            "Syntax "
