@@ -205,3 +205,20 @@
   (if (pair? x)
       (cons (car x) (list-copy (cdr x)))
       x))
+
+(define (fold-1 kons knil list)
+  (if (null? list)
+      knil
+      (fold-1 kons (kons (car list) knil) (cdr list))))
+
+(define (fold-multi kons knil lists)
+  (if (any-1 null? lists)
+      knil
+      (fold-multi kons
+                  (apply kons (append (map-1 car lists) (list knil)))
+                  (map-1 cdr lists))))
+
+(define (fold kons knil list1 . lists-rest)
+  (if (null? lists-rest)
+      (fold-1 kons knil list1)
+      (fold-multi kons knil (cons list1 lists-rest))))

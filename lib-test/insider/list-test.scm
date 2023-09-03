@@ -101,7 +101,16 @@
 
     (test-group "filter"
       (test-equal '(2 4 6)
-                  (filter even? '(1 2 3 4 5 6 7))))))
+                  (filter even? '(1 2 3 4 5 6 7))))
+
+    (test-group "fold"
+      (test-equal 15 (fold + 0 '(1 2 3 4 5)))
+      (test-equal '(5 4 3 2 1) (fold cons '() '(1 2 3 4 5)))
+      (test-equal '(c 3 b 2 a 1)
+                  (fold (lambda (x y accum) (cons x (cons y accum)))
+                        '()
+                        '(a b c)
+                        '(1 2 3 4 5))))))
 
 (define (test-list)
   (test-group "list"
