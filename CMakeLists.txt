@@ -167,7 +167,6 @@ set(scheme_sources
         src/util/depth_first_search.hpp
         src/util/from_scheme.hpp
         src/util/integer_cast.hpp
-        src/util/join.hpp
         src/util/list_iterator.hpp
         src/util/named_runtime_error.hpp
         src/util/object_conversions.hpp
@@ -218,6 +217,7 @@ Set(test_sources
 set(program_sources
         src/main.cpp)
 
+add_subdirectory(extern/fmt)
 add_subdirectory(extern/googletest)
 
 set_property(TARGET gtest PROPERTY
@@ -227,6 +227,7 @@ set_property(TARGET gtest_main PROPERTY
 
 add_library(scheme ${scheme_sources})
 target_compile_options(scheme PRIVATE ${compile_flags})
+target_link_libraries(scheme PUBLIC fmt::fmt-header-only)
 target_include_directories(scheme PUBLIC src)
 set_property(TARGET scheme PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

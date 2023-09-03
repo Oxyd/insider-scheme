@@ -12,7 +12,6 @@
 #include "util/named_runtime_error.hpp"
 #include "util/object_conversions.hpp"
 
-#include <format>
 #include <string>
 #include <variant>
 
@@ -240,10 +239,9 @@ template <typename Error, typename... Args>
 Error
 make_compile_error(source_location const& loc, std::string_view fmt,
                    Args&&... args) {
-  return make_error<Error>(
-    "{}: {}", format_location(loc),
-    std::vformat(fmt, std::make_format_args(std::forward<Args>(args)...))
-  );
+  return make_error<Error>("{}: {}", format_location(loc),
+                           fmt::format(fmt::runtime(fmt),
+                                       std::forward<Args>(args)...));
 }
 
 template <typename Error, typename... Args>

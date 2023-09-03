@@ -6,7 +6,6 @@
 #include "util/named_runtime_error.hpp"
 
 #include <exception>
-#include <format>
 #include <stdexcept>
 
 namespace insider {
@@ -19,8 +18,7 @@ class string;
 template <typename Error = std::runtime_error, typename... Args>
 Error
 make_error(std::string_view fmt, Args&&... args) {
-  return Error{std::vformat(fmt,
-                            std::make_format_args(std::forward<Args>(args)...))};
+  return Error{fmt::format(fmt::runtime(fmt), std::forward<Args>(args)...)};
 }
 
 using type_error = named_runtime_error<class type_error_tag>;

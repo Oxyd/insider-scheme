@@ -10,8 +10,6 @@
 #include "util/define_struct.hpp"
 #include "util/sum_type.hpp"
 
-#include <algorithm>
-#include <format>
 #include <stdexcept>
 
 namespace insider {
@@ -67,7 +65,7 @@ literal_expression::update(context&, result_stack&) { }
 
 std::string
 literal_expression::show(context& ctx, std::size_t indent) const {
-  return std::format("{}- literal-expression: {}\n",
+  return fmt::format("{}- literal-expression: {}\n",
                      make_indent(indent), datum_to_string(ctx, value_));
 }
 
@@ -87,7 +85,7 @@ local_reference_expression::update(context&, result_stack&) { }
 
 std::string
 local_reference_expression::show(context&, std::size_t indent) const {
-  return std::format("{}- local-reference: {}@{}\n",
+  return fmt::format("{}- local-reference: {}@{}\n",
                      make_indent(indent),
                      variable_->name(), static_cast<void*>(variable_.value()));
 }
@@ -108,7 +106,7 @@ top_level_reference_expression::update(context&, result_stack&) { }
 
 std::string
 top_level_reference_expression::show(context&, std::size_t indent) const {
-  return std::format("{}- top-level-reference: {}@{}\n",
+  return fmt::format("{}- top-level-reference: {}@{}\n",
                      make_indent(indent),
                      variable_->name(), static_cast<void*>(variable_.value()));
 }
@@ -127,7 +125,7 @@ unknown_reference_expression::update(context&, result_stack&) { }
 
 std::string
 unknown_reference_expression::show(context& ctx, std::size_t indent) const {
-  return std::format("{}- unknown-reference: {}\n",
+  return fmt::format("{}- unknown-reference: {}\n",
                      make_indent(indent), datum_to_string(ctx, name_));
 }
 
@@ -230,7 +228,7 @@ application_expression::show(context& ctx, std::size_t indent) const {
   for (expression e : arguments_.get())
     args += insider::show(ctx, e, indent + 4);
 
-  return std::format("{}- application:\n"
+  return fmt::format("{}- application:\n"
                      "{}  target:\n"
                      "{}"
                      "{}  arguments:\n"
@@ -265,7 +263,7 @@ fill_keyword_parameter_slots(std::vector<expression>& new_args,
       if (auto index = argument_index(target, name)) {
         if (new_args[*index] != nullptr) {
           diagnostics.show(app->origin_location(),
-                           std::format("Duplicate keyword argument #:{}. "
+                           fmt::format("Duplicate keyword argument #:{}. "
                                        WILL_RAISE_EXCEPTION,
                                        name->value()));
           return false;
@@ -274,7 +272,7 @@ fill_keyword_parameter_slots(std::vector<expression>& new_args,
           new_args[*index] = app->arguments()[i];
       } else {
         diagnostics.show(app->origin_location(),
-                         std::format("{} does not have keyword parameter #:{}. "
+                         fmt::format("{} does not have keyword parameter #:{}. "
                                      WILL_RAISE_EXCEPTION,
                                      target->name(),
                                      name->value()));
@@ -319,12 +317,12 @@ check_required_parameters_are_provided(std::vector<expression> const& new_args,
     if (!new_args[i]) {
       std::string name;
       if (auto n = target->parameter_names()[i])
-        name = std::format("#:{}", n->value());
+        name = fmt::format("#:{}", n->value());
       else
-        name = std::format("#{}", i + 1);
+        name = fmt::format("#{}", i + 1);
 
       diagnostics.show(location,
-                       std::format("{}: Required parameter {} not provided. "
+                       fmt::format("{}: Required parameter {} not provided. "
                                    WILL_RAISE_EXCEPTION,
                                    target->name(),
                                    name));
@@ -405,7 +403,7 @@ built_in_operation_expression::show(context& ctx, std::size_t indent) const {
   for (expression e : operands_.get())
     operands += insider::show(ctx, e, indent + 4);
 
-  return std::format("{}- built-in-operation {}:\n"
+  return fmt::format("{}- built-in-operation {}:\n"
                      "{}  operands:\n"
                      "{}\n",
                      i, opcode_to_info(operation_).mnemonic, i, operands);
@@ -440,7 +438,7 @@ sequence_expression::show(context& ctx, std::size_t indent) const {
   std::string subexprs;
   for (expression e : expressions_.get())
     subexprs += insider::show(ctx, e, indent + 2);
-  return std::format("{}- sequence:\n{}", make_indent(indent), subexprs);
+  return fmt::format("{}- sequence:\n{}", make_indent(indent), subexprs);
 }
 
 definition_pair_expression::definition_pair_expression(
@@ -502,13 +500,13 @@ std::string
 let_expression::show(context& ctx, std::size_t indent) const {
   std::string defs;
   for (definition_pair_expression const& dp : definitions_.get())
-    defs += std::format("{}- {}@{}\n{}",
+    defs += fmt::format("{}- {}@{}\n{}",
                         make_indent(indent + 4),
                         dp.variable()->name(),
                         static_cast<void*>(dp.variable().value()),
                         insider::show(ctx, dp.expression(), indent + 6));
   std::string i = make_indent(indent);
-  return std::format("{}- let:\n"
+  return fmt::format("{}- let:\n"
                      "{}  variables:\n"
                      "{}"
                      "{}  body:\n"
@@ -543,7 +541,7 @@ local_set_expression::update_size_estimate() {
 
 std::string
 local_set_expression::show(context& ctx, std::size_t indent) const {
-  return std::format("{}- local-set: {}@{}\n{}",
+  return fmt::format("{}- local-set: {}@{}\n{}",
                      make_indent(indent),
                      target_->name(),
                      static_cast<void*>(target_.value()),
@@ -579,7 +577,7 @@ top_level_set_expression::update_size_estimate() {
 
 std::string
 top_level_set_expression::show(context& ctx, std::size_t indent) const {
-  return std::format("{}- top-level-set: {}@{}\n{}",
+  return fmt::format("{}- top-level-set: {}@{}\n{}",
                      make_indent(indent),
                      variable_->name(),
                      static_cast<void*>(variable_.value()),
@@ -627,7 +625,7 @@ lambda_expression::lambda_expression(
   , body_{init(body)}
   , name_{std::move(name)}
   , self_variable_{
-      make<local_variable>(ctx, std::format("<self variable for {}>", name_))
+      make<local_variable>(ctx, fmt::format("<self variable for {}>", name_))
     }
 {
   self_variable_->flags().is_self_variable = true;
@@ -670,11 +668,11 @@ std::string
 lambda_expression::show(context& ctx, std::size_t indent) const {
   std::string params;
   for (auto const& p : parameters_)
-    params += std::format("{}@{} ",
+    params += fmt::format("{}@{} ",
                           p.variable->name(),
                           static_cast<void*>(p.variable.value()));
 
-  return std::format("{}- lambda: {} {}\n{}",
+  return fmt::format("{}- lambda: {} {}\n{}",
                      make_indent(indent), name_, params,
                      insider::show(ctx, body_.get(), indent + 2));
 }
@@ -741,7 +739,7 @@ if_expression::update_size_estimate() {
 std::string
 if_expression::show(context& ctx, std::size_t indent) const {
   std::string i = make_indent(indent);
-  return std::format("{}- if\n"
+  return fmt::format("{}- if\n"
                      "{}  test:\n"
                      "{}"
                      "{}  consequent:\n"
@@ -784,7 +782,7 @@ loop_body::size_estimate() const {
 
 std::string
 loop_body::show(context& ctx, std::size_t indent) const {
-  return std::format("{}- loop-body: {}\n{}",
+  return fmt::format("{}- loop-body: {}\n{}",
                      make_indent(indent),
                      static_cast<void*>(id_.value()),
                      insider::show(ctx, body_.get(), indent + 2));
@@ -831,14 +829,14 @@ std::string
 loop_continue::show(context& ctx, std::size_t indent) const {
   std::string vars;
   for (definition_pair_expression const& dp : vars_.get())
-    vars += std::format("{}- {}@{}\n{}",
+    vars += fmt::format("{}- {}@{}\n{}",
                         make_indent(indent + 4),
                         dp.variable()->name(),
                         static_cast<void*>(dp.variable().value()),
                         insider::show(ctx, dp.expression(), indent + 6));
 
   std::string i = make_indent(indent);
-  return std::format("{}- loop-continue: {}\n"
+  return fmt::format("{}- loop-continue: {}\n"
                      "{}  variables:\n"
                      "{}",
                      i,

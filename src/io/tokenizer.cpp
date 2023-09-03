@@ -8,8 +8,6 @@
 #include "runtime/character.hpp"
 #include "runtime/numeric.hpp"
 
-#include <format>
-
 namespace insider {
 
 static bool
@@ -83,7 +81,7 @@ expect(reader_stream& stream, char32_t expected) {
   source_location loc = stream.location();
   char32_t c = require_char(stream);
   if (c != expected)
-    throw read_error{std::format("Unexpected character: {}, expected {}",
+    throw read_error{fmt::format("Unexpected character: {}, expected {}",
                                  to_utf8(c), to_utf8(expected)),
                      loc};
 }
@@ -93,7 +91,7 @@ expect_either(reader_stream& stream, char32_t expected1, char32_t expected2) {
   source_location loc = stream.location();
   char32_t c = require_char(stream);
   if (c != expected1 && c != expected2)
-    throw read_error{std::format("Unexpected character: {}, expected {} or {}",
+    throw read_error{fmt::format("Unexpected character: {}, expected {} or {}",
                                  to_utf8(c),
                                  to_utf8(expected1),
                                  to_utf8(expected2)),
@@ -195,7 +193,7 @@ string_to_double(std::string const& s, source_location const& loc) {
   is >> result;
 
   if (!is || is.peek() != std::istringstream::traits_type::eof())
-    throw read_error{std::format("Invalid floating point literal: {}", s), loc};
+    throw read_error{fmt::format("Invalid floating point literal: {}", s), loc};
 
   return result;
 }
@@ -572,7 +570,7 @@ throw_if_no_delimiter_after_number(reader_stream& stream,
                                    source_location const& loc) {
   auto c = stream.peek();
   if (c && !delimiter(*c))
-    throw read_error{std::format("{} unexpected following a numeric literal",
+    throw read_error{fmt::format("{} unexpected following a numeric literal",
                                  to_utf8(*c)), loc};
 }
 
@@ -647,7 +645,7 @@ read_character(context& ctx, reader_stream& stream) {
       if (auto it = character_names.find(literal); it != character_names.end())
         return {token::generic_literal{character_to_ptr(it->second)}, loc};
       else
-        throw read_error{std::format("Unknown character literal #\\{}",
+        throw read_error{fmt::format("Unknown character literal #\\{}",
                                      to_utf8(literal)), loc};
     }
   }
@@ -690,7 +688,7 @@ read_special_literal(context& ctx, reader_stream& stream) {
   else if (literal == U"default-value")
     return {token::default_value_literal{}, loc};
   else
-    throw read_error{std::format("Invalid literal: {}", to_utf8(literal)),
+    throw read_error{fmt::format("Invalid literal: {}", to_utf8(literal)),
                      loc};
 }
 
@@ -733,7 +731,7 @@ read_common_escape(context& ctx, reader_stream& stream) {
   case '|': return '|';
   case 'x': return read_hex_escape(ctx, stream);
   default:
-    throw read_error{std::format("Unrecognised escape sequence \\{}",
+    throw read_error{fmt::format("Unrecognised escape sequence \\{}",
                                  to_utf8(escape)), loc};
   }
 }
@@ -758,7 +756,7 @@ read_string_escape(context& ctx, reader_stream& stream) {
         return {};
       }
 
-    throw read_error{std::format("Unrecognised escape sequence \\{}",
+    throw read_error{fmt::format("Unrecognised escape sequence \\{}",
                                  to_utf8(escape)), loc};
   } else {
     cp.revert();
@@ -923,7 +921,7 @@ read_directive(context& ctx, reader_stream& stream) {
   else if (directive == U"no-fold-case")
     stream.fold_case = false;
   else
-    throw read_error{std::format("Invalid directive: {}", to_utf8(directive)),
+    throw read_error{fmt::format("Invalid directive: {}", to_utf8(directive)),
                      loc};
 
   return read_token(ctx, stream);

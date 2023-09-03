@@ -15,10 +15,10 @@
 #include "util/list_iterator.hpp"
 #include "vm/vm.hpp"
 
+#include <fmt/format.h>
+
 #include <algorithm>
 #include <cctype>
-#include <cmath>
-#include <format>
 #include <iomanip>
 #include <limits>
 #include <locale>
@@ -333,7 +333,7 @@ escape_symbol(std::string const& s) {
 static void
 write_symbol(ptr<textual_output_port> const& out, ptr<symbol> sym) {
   if (symbol_requires_pipes(sym->value()))
-    out->write(std::format("|{}|", escape_symbol(sym->value())));
+    out->write(fmt::format("|{}|", escape_symbol(sym->value())));
   else
     out->write(sym->value());
 }
@@ -341,9 +341,9 @@ write_symbol(ptr<textual_output_port> const& out, ptr<symbol> sym) {
 static void
 write_keyword(ptr<textual_output_port> out, ptr<keyword> kw) {
   if (keyword_requires_pipes(kw->value()))
-    out->write(std::format("#:|{}|", escape_symbol(kw->value())));
+    out->write(fmt::format("#:|{}|", escape_symbol(kw->value())));
   else
-    out->write(std::format("#:{}", kw->value()));
+    out->write(fmt::format("#:{}", kw->value()));
 }
 
 static void
@@ -379,18 +379,18 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
     write_simple(ctx, syntax_to_datum(ctx, stx), out);
     out->write(">");
   } else if (auto proto = match<procedure_prototype>(datum))
-    out->write(std::format("<procedure prototype {}>", proto->info.name));
+    out->write(fmt::format("<procedure prototype {}>", proto->info.name));
   else if (auto np = match<native_procedure>(datum)) {
-    out->write(std::format("<native procedure {}>", np->name));
+    out->write(fmt::format("<native procedure {}>", np->name));
   } else if (auto proc = match<procedure>(datum))
-    out->write(std::format("<procedure {}>", proc->prototype()->info.name));
+    out->write(fmt::format("<procedure {}>", proc->prototype()->info.name));
   else if (auto core = match<core_form_type>(datum)) {
-    out->write(std::format("<core form {}>", core->name));
+    out->write(fmt::format("<core form {}>", core->name));
   } else if (auto e = match<error>(datum)) {
-    out->write(std::format("<error: {} {}>", e->message(ctx)->value(),
+    out->write(fmt::format("<error: {} {}>", e->message(ctx)->value(),
                            datum_to_string(ctx, e->irritants(ctx))));
   } else if (auto fe = match<file_error>(datum)) {
-    out->write(std::format("<file error: {}>", fe->message()));
+    out->write(fmt::format("<file error: {}>", fe->message()));
   } else if (auto v = match<values_tuple>(datum)) {
     out->write("<values");
     for (std::size_t i = 0; i < v->size(); ++i) {
@@ -400,7 +400,7 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
     out->write(">");
   } else if (auto inst = match<record_instance>(datum)) {
     auto type = inst->type();
-    out->write(std::format("<{} ", type->name()->value()));
+    out->write(fmt::format("<{} ", type->name()->value()));
 
     for (std::size_t i = 0; i < type->num_fields(); ++i) {
       if (i != 0)
@@ -410,7 +410,7 @@ write_primitive(context& ctx, ptr<> datum, ptr<textual_output_port> out) {
 
     out->write('>');
   } else
-    out->write(std::format("<{}>", object_type_name(datum)));
+    out->write(fmt::format("<{}>", object_type_name(datum)));
 }
 
 static void
@@ -577,11 +577,11 @@ output(context& ctx, ptr<> datum, ptr<textual_output_port> out,
 
     if (top.written == 0 && labels.is_shared(top.datum)) {
       if (labels.has_label(top.datum)) {
-        out->write(std::format("#{}#", labels.get_or_assign_label(top.datum)));
+        out->write(fmt::format("#{}#", labels.get_or_assign_label(top.datum)));
         stack.pop_back();
         continue;
       } else
-        out->write(std::format("#{}=", labels.get_or_assign_label(top.datum)));
+        out->write(fmt::format("#{}=", labels.get_or_assign_label(top.datum)));
     }
 
     if (auto pair = match<insider::pair>(top.datum)) {
@@ -718,10 +718,10 @@ format_floating_point(ptr<floating_point> f,
                       char type,
                       ptr<textual_output_port> out) {
   if (sign != '+' && sign != '-' && sign != ' ')
-    throw std::runtime_error{std::format("Invalid sign specifier: {}", sign)};
+    throw std::runtime_error{fmt::format("Invalid sign specifier: {}", sign)};
 
   if (type != 'f' && type != 'e' && type != 'g')
-    throw std::runtime_error{std::format("Invalid type specifier: {}", type)};
+    throw std::runtime_error{fmt::format("Invalid type specifier: {}", type)};
 
   bool written = maybe_write_infinite_float(f, out);
   if (written)
@@ -740,7 +740,7 @@ format_floating_point(ptr<floating_point> f,
 
   fmt += type;
   fmt += '}';
-  out->write(std::vformat(fmt, std::make_format_args(f->value)));
+  out->write(fmt::format(fmt::runtime(fmt), f->value));
 }
 
 static void

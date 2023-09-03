@@ -27,7 +27,6 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
-#include <format>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -131,7 +130,7 @@ load_dynamic_top_level(vm& state) {
       return;
     }
 
-  throw unbound_variable_error{std::format(
+  throw unbound_variable_error{fmt::format(
     "Identifier {} not bound to variable", id->get_symbol()->value()
   )};
 }

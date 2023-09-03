@@ -8,7 +8,6 @@
 #include <climits>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -16,6 +15,8 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+#include <fmt/format.h>
 
 namespace insider {
 

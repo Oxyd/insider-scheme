@@ -10,10 +10,7 @@
 #include "runtime/string.hpp"
 #include "runtime/symbol.hpp"
 #include "runtime/syntax.hpp"
-
 #include <gtest/gtest.h>
-
-#include <cmath>
 
 using namespace insider;
 
