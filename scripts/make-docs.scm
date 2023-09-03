@@ -3,23 +3,13 @@
         (insider list) (insider struct) (insider string) (insider filesystem)
         (insider scribble))
 
-(define (find-library-definitions path)
-  (cond ((directory? path)
-         (filter (lambda (p) (string=? (path-extension p) ".sld"))
-                 (directory-files/recursive path #:follow-symlinks? #t)))
-        ((string=? (path-extension path) ".sld")
-         (list path))
-        (else
-         (warn "Invalid library path name: {}" path)
-         '())))
-
 (define <no-form> (list 'no-form))
 
 (struct element (name
                  module
                  (meta '() #:mutable)
                  (body '() #:mutable)
-                 (defining-form-found? #f #:mutable)))
+                 #:defining-form-found? (defining-form-found? #f #:mutable)))
 
 (define (element-copy! target source)
   (element-meta-set! target (element-meta source))
@@ -28,15 +18,18 @@
                                      (element-defining-form-found? source)))
 
 (struct module (name
-                primary-file
-                (associated-files #:mutable)
+                (primary-file #f)
+                (associated-files '() #:mutable)
                 (imports '() #:mutable)
-                (imports-resolved? #f #:mutable)
+                #:imports-resolved? (imports-resolved? #f #:mutable)
                 (elements '() #:mutable)
                 (comment '() #:mutable)))
 
 (define (append-elements! module new-elements)
   (module-elements-set! module (append (module-elements module) new-elements)))
+
+(define (append-element! module new-element)
+  (append-elements! module (list new-element)))
 
 (define (append-imports! module new-imports)
   (module-imports-set! module (append (module-imports module) new-imports)))
@@ -103,7 +96,7 @@
 (define (scheme-doc-comment-line? line)
   (string-prefix? scheme-doc-comment-prefix line))
 
-(define (strip-doc-comment-prefix line)
+(define (strip-scheme-doc-comment-prefix line)
   (string-drop line scheme-doc-comment-prefix-length))
 
 (define (read-scheme-comment-line port #:skip-newlines? (skip-newlines? #t))
@@ -131,8 +124,12 @@
              line)
             (line
              (if (scheme-doc-comment-line? line)
-                 (cons 'doc-comment
-                       (cons line (read-rest-of-scheme-doc-comment port)))
+                 (cons
+                  'doc-comment
+                  (string-join
+                   (map strip-scheme-doc-comment-prefix
+                        (cons line (read-rest-of-scheme-doc-comment port)))
+                   "\n"))
                  (loop)))
             (else
              (cons 'form (read port)))))))
@@ -176,12 +173,13 @@
     (constant . ,(lambda (meta form)
                    (cons '(kind . constant) meta)))
     (parameter . ,(lambda (meta form)
-                    (cons '(kind . parameter) meta)))))
+                    (cons '(kind . parameter) meta)))
+    (name . ,(lambda (meta form)
+               (cons `(name . ,(cadr form)) meta)))
+    (module . ,(lambda (meta form) meta))))
 
-(define (parse-scheme-doc-comment lines)
-  (let loop ((scribble (scribble-parse
-                        (open-input-string
-                         (string-join (map strip-doc-comment-prefix lines)))))
+(define (parse-doc-scribble scribble)
+  (let loop ((scribble scribble)
              (meta '())
              (body '()))
     (cond ((null? scribble)
@@ -265,7 +263,9 @@
 (define (set-element-doc-and-form! module form comment path)
   (let ((element (find-element-for-definition module form)))
     (cond (element
-           (let-values (((meta body) (parse-scheme-doc-comment comment)))
+           (let-values (((meta body) 
+                         (parse-doc-scribble
+                          (scribble-parse (open-input-string comment)))))
              (element-meta-set! element
                                 (update-element-meta-from-form
                                  (parse-element-meta meta)
@@ -277,7 +277,7 @@
            (warn "{}: Documentation comment ignored for {:w}"
                  path form)))))
 
-(define (extract-module-docs-from-port! module port path)
+(define (extract-scheme-module-docs-from-port! module port path)
   (let loop ()
     (let ((fragment (read-scheme-fragment port)))
       (unless (eof-object? fragment)
@@ -301,12 +301,66 @@
                (element-defining-form-found?-set! element #t))
              (loop))))))))
 
-(define (extract-module-docs! module)
+(define (extract-scheme-module-docs! module)
   (for-each (lambda (path)
               (call-with-input-file path
                 (lambda (port)
-                  (extract-module-docs-from-port! module port path))))
+                  (extract-scheme-module-docs-from-port! module port path))))
             (module-associated-files module)))
+
+(define c++-doc-comment-prefix "//>")
+(define c++-doc-comment-prefix-length (string-length c++-doc-comment-prefix))
+
+(define (c++-doc-comment-line? line)
+  (string-prefix? c++-doc-comment-prefix line))
+
+(define (strip-c++-doc-comment-prefix line)
+  (string-drop line c++-doc-comment-prefix-length))
+
+(define (read-rest-of-c++-doc-comment port)
+  (let loop ((result '()))
+    (let ((line (read-line port)))
+      (if (and line (c++-doc-comment-line? line))
+          (loop (cons line result))
+          (reverse result)))))
+
+(define (read-c++-comment port)
+  (let loop ()
+    (skip-whitespace! port)
+    (let ((line (read-line port)))
+      (cond ((eof-object? line)
+             line)
+            ((c++-doc-comment-line? line)
+             (string-join (map strip-c++-doc-comment-prefix
+                               (cons line (read-rest-of-c++-doc-comment port)))
+                          "\n"))
+            (else
+             (loop))))))
+
+(define (read-c++-file port)
+  (let loop ((comments '()))
+    (let ((comment (read-c++-comment port)))
+      (if (eof-object? comment)
+          (reverse comments)
+          (loop (cons comment comments))))))
+
+(define (find-c++-module-declaration-in-comment scrbl)
+  (let loop ((scrbl scrbl))
+    (cond ((null? scrbl)
+           #f)
+          ((pair? (car scrbl))
+           (if (eq? (caar scrbl) 'module)
+               (cadar scrbl)
+               (loop (cdr scrbl))))
+          (else
+           (loop (cdr scrbl))))))
+
+(define (find-c++-module-declaration scribbles)
+  (let loop ((scribbles scribbles))
+    (if (null? scribbles)
+        #f
+        (let ((decl (find-c++-module-declaration-in-comment (car scribbles))))
+          (or decl (loop (cdr scribbles)))))))
 
 (define (find-module name modules)
   (let loop ((m modules))
@@ -316,6 +370,43 @@
            (car m))
           (else
            (loop (cdr m))))))
+
+(define (find-or-create-c++-module name modules)
+  (let ((mod (find-module name modules)))
+    (if mod
+        (values mod modules)
+        (let ((mod (module name #:imports-resolved? #t)))
+          (values mod (cons mod modules))))))
+
+(define (parse-c++-module! mod scribbles path)
+  (append-associated-files! mod (list path))
+  (let loop ((scrbl scribbles))
+    (unless (null? scrbl)
+      (let-values (((meta-scrbl body) (parse-doc-scribble (car scrbl))))
+        (let ((meta (parse-element-meta meta-scrbl)))
+          (cond
+           ((assq 'name meta)
+            => (lambda (name)
+                 (append-element! mod (element (cdr name) mod meta body
+                                               #:defining-form-found? #t))))
+           (else
+            (append-module-comment! mod body)))))
+      (loop (cdr scrbl)))))
+
+(define (parse-c++ path modules)
+  (let ((port (open-input-file path)))
+    (let ((comments (read-c++-file port)))
+      (cond
+       ((null? comments)
+        modules)
+       (else
+        (let* ((scribbles (map (lambda (c)
+                                 (scribble-parse (open-input-string c)))
+                               comments))
+               (name (find-c++-module-declaration scribbles)))
+          (let-values (((mod modules) (find-or-create-c++-module name modules)))
+            (parse-c++-module! mod scribbles path)
+            modules)))))))
 
 (define (perform-import! target source)
   (do ((exports (module-elements source) (cdr exports)))
@@ -437,6 +528,22 @@
                    (render-element-details module)))
        out))))
 
+(define (find-files-recursive path extension)
+  (cond ((directory? path)
+         (filter (lambda (p) (string=? (path-extension p) extension))
+                 (directory-files/recursive path #:follow-symlinks? #t)))
+        ((string=? (path-extension path) extension)
+         (list path))
+        (else
+         '())))
+
+(define (find-library-definitions path)
+  (find-files-recursive path ".sld"))
+
+(define (find-c++-files path)
+  (append (find-files-recursive path ".cpp")
+          (find-files-recursive path ".hpp")))
+
 (define (show-usage-and-exit!)
   (printf "Usage: {} <output dir> <input paths ...>\n" (car (command-line)))
   (exit #f))
@@ -448,7 +555,10 @@
       (input-paths (cddr (command-line))))
   (create-directories output-directory)
   (let* ((slds (apply append (map find-library-definitions input-paths)))
-         (modules (map parse-sld slds)))
-    (for-each extract-module-docs! modules)
-    (for-each (lambda (m) (resolve-imports! m modules)) modules)
-    (for-each (lambda (m) (render-module output-directory m)) modules)))
+         (scheme-modules (map parse-sld slds))
+         (c++-modules (fold parse-c++ '()
+                            (apply append (map find-c++-files input-paths)))))
+    (for-each extract-scheme-module-docs! scheme-modules)
+    (let ((modules (append scheme-modules c++-modules)))
+      (for-each (lambda (m) (resolve-imports! m modules)) modules)
+      (for-each (lambda (m) (render-module output-directory m)) modules))))
