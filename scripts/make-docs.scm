@@ -149,24 +149,6 @@
 (define (append-module-comment! module comment)
   (module-comment-set! module (append (module-comment module) comment)))
 
-(define (find-procedure-args form)
-  (let ((name-form (cadr form)))
-    (cond ((symbol? name-form)
-           ;; (define name expr)
-           (let ((expr (caddr form)))
-             (if (and (pair? expr) (eq? (car expr) 'lambda))
-                 (cadr expr)
-                 #f)))
-          ((pair? name-form)
-           ;; (define (subexpr) expr)
-           (let loop ((name-form name-form))
-             (cond ((symbol? (car name-form))
-                    (cdr name-form))
-                   ((pair? (car name-form))
-                    (loop (car name-form)))
-                   (else
-                    #f)))))))
-
 (define (find-element module name)
   (let loop ((elements (module-elements module)))
     (cond ((null? elements)
@@ -218,27 +200,47 @@
                        meta-commands)))
           (loop ((cdr f) meta (car scrbl)) (cdr scrbl))))))
 
+(define (find-procedure-args form)
+  (let ((name-form (cadr form)))
+    (cond ((symbol? name-form)
+           ;; (define name expr)
+           (let ((expr (caddr form)))
+             (if (and (pair? expr) (eq? (car expr) 'lambda))
+                 (cadr expr)
+                 #f)))
+          ((pair? name-form)
+           ;; (define (subexpr) expr)
+           (let loop ((name-form name-form))
+             (cond ((symbol? (car name-form))
+                    (cdr name-form))
+                   ((pair? (car name-form))
+                    (loop (car name-form)))
+                   (else
+                    #f)))))))
+
 (define (update-element-meta-from-form meta form name)
   (define (push-meta! key value)
     (set! meta (cons (cons key value) meta)))
 
-  (define (push-meta-unless-present! key value)
-    (unless (assq key meta)
-      (push-meta! key value)))
-
-  (case (car form)
-    ((define)
-     (push-meta-unless-present! 'kind 'procedure)
-     (unless (assq 'procedure-args meta)
-       (let ((args (find-procedure-args form)))
-         (if args
-             (push-meta! 'procedure-args args)
-             (warn "{}: Unknown define syntax" name)))))
-    ((define-syntax)
-     (push-meta-unless-present! 'kind 'syntax))
-    (else
-     (unless (assq 'kind meta)
+  (unless (assq 'kind meta)
+    (case (car form)
+      ((define)
+       (if (find-procedure-args form)
+           (push-meta! 'kind 'procedure)
+           (push-meta! 'kind 'variable)))
+      ((define-syntax)
+       (push-meta! 'kind 'syntax))
+      (else
        (warn "{}: Unknown form: {:w}" name form))))
+
+  (let ((kind (assq 'kind meta)))
+    (when (and kind
+               (eq? (cdr kind) 'procedure)
+               (not (assq 'procedure-args meta)))
+      (let ((args (find-procedure-args form)))
+        (if args
+            (push-meta! 'procedure-args args)
+            (warn "{}: Cannot deduce procedure arguments" name)))))
 
   meta)
 
@@ -390,6 +392,10 @@
     ((parameter)
      (html "div" '()
            "Parameter "
+           (html "code" '() (datum->string (element-name element)))))
+    ((variable)
+     (html "div" '()
+           "Variable "
            (html "code" '() (datum->string (element-name element)))))
     (else
      (html "div" '() "Unknown"))))
