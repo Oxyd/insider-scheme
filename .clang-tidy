@@ -44,7 +44,8 @@ Checks:          '-*,
                   -readability-convert-member-functions-to-static,
                   -readability-identifier-length,
                   -cppcoreguidelines-avoid-goto,
-                  -cppcoreguidelines-avoid-non-const-global-variables'
+                  -cppcoreguidelines-avoid-non-const-global-variables,
+                  -misc-use-anonymous-namespace'
 
 FormatStyle:     file
 CheckOptions:
