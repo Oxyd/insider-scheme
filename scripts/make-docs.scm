@@ -171,6 +171,10 @@
                     (cons '(kind . procedure) meta)))
     (arg . ,(lambda (meta form)
               (meta-push meta 'procedure-args (cdr form))))
+    (variable . ,(lambda (meta form)
+                   (cons '(kind . variable) meta)))
+    (constant . ,(lambda (meta form)
+                   (cons '(kind . constant) meta)))
     (parameter . ,(lambda (meta form)
                     (cons '(kind . parameter) meta)))))
 
@@ -396,6 +400,10 @@
     ((variable)
      (html "div" '()
            "Variable "
+           (html "code" '() (datum->string (element-name element)))))
+    ((constant)
+     (html "div" '()
+           "Constant "
            (html "code" '() (datum->string (element-name element)))))
     (else
      (html "div" '() "Unknown"))))
