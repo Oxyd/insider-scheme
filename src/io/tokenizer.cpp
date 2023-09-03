@@ -8,6 +8,8 @@
 #include "runtime/character.hpp"
 #include "runtime/numeric.hpp"
 
+#include <sstream>
+
 namespace insider {
 
 static bool

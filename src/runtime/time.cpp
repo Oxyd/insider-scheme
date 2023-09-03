@@ -12,8 +12,8 @@ namespace insider {
 // std::chrono::tai_clock and this entire nonsense will be removed.
 static constexpr auto utc_to_tai_offset = std::chrono::seconds{37};
 
-double
-system_to_scheme(clock::time_point tp) {
+static double
+sys_timepoint_to_scheme(auto tp) {
   using namespace std::literals;
 
   auto now = (tp + utc_to_tai_offset).time_since_epoch();
@@ -21,11 +21,36 @@ system_to_scheme(clock::time_point tp) {
   return static_cast<double>(now.count()) * period::num / period::den;
 }
 
+double
+system_to_scheme(clock::time_point tp) {
+  return sys_timepoint_to_scheme(tp);
+}
+
+double
+filesystem_to_scheme(std::chrono::file_clock::time_point tp) {
+  return sys_timepoint_to_scheme(std::chrono::file_clock::to_sys(tp));
+}
+
+template <typename Clock>
+static typename Clock::time_point
+scheme_to_clock(double tp) {
+  using period = clock::period;
+  auto ticks = static_cast<typename Clock::duration::rep>(
+    tp * period::den / period::num
+  );
+  return typename Clock::time_point{
+    typename Clock::duration{ticks} - utc_to_tai_offset
+  };
+}
+
 clock::time_point
 scheme_to_system(double tp) {
-  using period = clock::period;
-  auto ticks = static_cast<clock::duration::rep>(tp * period::den / period::num);
-  return clock::time_point{clock::duration{ticks} - utc_to_tai_offset};
+  return scheme_to_clock<clock>(tp);
+}
+
+std::chrono::file_clock::time_point
+scheme_to_filesystem(double tp) {
+  return scheme_to_clock<std::chrono::file_clock>(tp);
 }
 
 static double

@@ -47,7 +47,7 @@ public:
     : base{ctx}
     , format_{format}
     , args_{std::forward<Args>(args)...}
-    , irritant_{ctx.store}
+    , irritant_{ctx.store.root_list()}
   { }
 
   simple_action(context& ctx, root_ptr<> const& irritant,
@@ -63,7 +63,7 @@ public:
     : base{ctx}
     , format_{format}
     , args_{std::move(args)...}
-    , irritant_{ctx.store, irritant}
+    , irritant_{ctx.store.root_list(), irritant}
   { }
 
   ~simple_action() { this->check(); }
