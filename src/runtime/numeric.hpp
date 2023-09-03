@@ -409,6 +409,7 @@ small_mul_overflow(integer::value_type x, integer::value_type y) {
   return x > integer::max / y;
 }
 
+#if defined __GNUC__ || defined __clang__
 namespace detail {
 
   // Helper to choose the correct __builtin_smu(ll|lll)_overflow variant based
@@ -425,6 +426,7 @@ namespace detail {
   }
 
 } // namespace detail
+#endif
 
 inline ptr<>
 multiply_fixnums(integer::value_type lhs, integer::value_type rhs) {
