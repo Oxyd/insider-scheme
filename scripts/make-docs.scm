@@ -408,27 +408,66 @@
             (parse-c++-module! mod scribbles path)
             modules)))))))
 
-(define (perform-import! target source)
-  (do ((exports (module-elements source) (cdr exports)))
-      ((null? exports))
-    (let* ((source-elem (car exports))
-           (target-elem (find-element target (element-name source-elem))))
+(define (perform-import! target import-set)
+  (do ((imports import-set (cdr imports)))
+      ((null? imports))
+    (let* ((import (car imports))
+           (target-name (car import))
+           (source-elem (cdr import))
+           (target-elem (find-element target target-name)))
       ;; When destination doesn't contain an element of this name, it simply
       ;; means it doesn't re-export it.
       (when target-elem
         (element-copy! target-elem source-elem)))))
 
-(define (resolve-import! module import-form modules)
+(define (make-import-set import-form modules importing-module-name)
   (case (car import-form)
-    ((only except prefix rename)
-     (warn "{:w}: {} import specifier unimplemented"
-           (module-name module) (car import-form)))
+    ((only)
+     (let ((import-form* (cadr import-form))
+           (identifiers (cddr import-form)))
+       (filter (lambda (elem) (memq (car elem) identifiers))
+               (make-import-set import-form* modules
+                                importing-module-name))))
+    ((except)
+     (let ((import-form* (cadr import-form))
+           (identifiers (cddr import-form)))
+       (filter (lambda (elem) (not (memq (car elem) identifiers)))
+               (make-import-set import-form* modules
+                                importing-module-name))))
+    ((rename)
+     (let ((import-form* (cadr import-form))
+           (renames (cddr import-form)))
+       (map (lambda (elem)
+              (let ((exported-name (car elem)) (element (cdr elem)))
+                (cond ((assq exported-name renames)
+                       => (lambda (rename-pair)
+                            (cons (cdr rename-pair) element)))
+                      (else
+                       elem))))
+            (make-import-set import-form* modules
+                             importing-module-name))))
+    ((prefix)
+     (let ((import-form* (cadr import-form))
+           (prefix (symbol->string (caddr import-form))))
+       (map (lambda (elem)
+              (cons (string->symbol (string-append prefix
+                                                   (symbol->string (car elem))))
+                    (cdr elem)))
+            (make-import-set import-form* modules
+                             importing-module-name))))
     (else
      (let ((imported-module (find-module import-form modules)))
-       (if imported-module
-           (perform-import! module imported-module)
-           (warn "{:w}: Unknown module {:w}"
-                 (module-name module) import-form))))))
+       (cond (imported-module
+              (map (lambda (elem) (cons (element-name elem) elem))
+                   (module-elements imported-module)))
+             (else
+              (warn "{:w}: Unknown module {:w}"
+                    importing-module-name import-form)
+              '()))))))
+
+(define (resolve-import! module import-form modules)
+  (perform-import! module (make-import-set import-form modules
+                                           (module-name module))))
 
 (define (resolve-imports! module all-modules)
   (unless (module-imports-resolved? module)
