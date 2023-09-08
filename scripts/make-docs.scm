@@ -480,26 +480,51 @@
   (string-append (string-join (map datum->string name) ".")
                  ".html"))
 
-(define (html tag (attrs '()) . content)
-  (let ((attrs* (string-join (map (lambda (pair)
-                                    (format #R"({}="{}")" (car pair) (cdr pair)))
-                                  attrs)
-                             " "))
-        (content* (string-join content)))
-    (cond ((and (null? attrs) (string-null? content*))
-           (format "<{}/>" tag))
-          ((string-null? content*)
-           (format "<{} {}>" tag attrs*))
-          ((null? attrs)
-           (format "<{}>{}</{0}>" tag content*))
-          (else
-           (format "<{} {}>{}</{0}>" tag attrs* content*)))))
+(define (escape-html s)
+  (let ((out (open-output-string)))
+    (string-for-each-cursor
+     (lambda (cursor)
+       (let ((c (string-ref s cursor)))
+         (case c
+           ((#\<) (write-string "&lt;" out))
+           ((#\>) (write-string "&gt;" out))
+           ((#\&) (write-string "&amp;" out))
+           (else (write-char c out)))))
+     s)
+    (get-output-string out)))
+
+(define (sxml->string sxml)
+  (define (f expr)
+    (cond
+     ((string? expr)
+      (escape-html expr))
+     (else
+      (let* ((has-attrs? (and (not (null? (cdr expr)))
+                              (pair? (cadr expr))
+                              (eq? (caadr expr) '@)))
+             (attrs (if has-attrs? (cdadr expr) '()))
+             (body (if has-attrs? (cddr expr) (cdr expr)))
+             (attrs* (string-join (map (lambda (attr)
+                                         (format #R"({}="{}")"
+                                                 (car attr) (cadr attr)))
+                                       attrs)
+                                  " "))
+             (body* (string-join (map f body)))
+             (tag (car expr)))
+        (cond ((and (string-null? attrs*) (string-null? body*))
+               (format "<{}/>" tag))
+              ((string-null? body*)
+               (format "<{} {}>" tag attrs*))
+              ((string-null? attrs*)
+               (format "<{}>{}</{0}>" tag body*))
+              (else
+               (format "<{} {}>{}</{0}>" tag attrs* body*)))))))
+
+  ;; The argument is expected to be of the form (*TOP* stuff ...).
+  (string-join (map f (cdr sxml))))
 
 (define (render-element-list module)
-  (apply html "ul" '()
-         (map (lambda (elem)
-                (html "li" '()
-                      (html "code" '() (datum->string (element-name elem)))))
+  `(ul ,@(map (lambda (elem) `(li (code ,(datum->string (element-name elem)))))
               (module-elements module))))
 
 (define (get-meta element name)
@@ -514,40 +539,28 @@
 
   (case (get-meta element 'kind)
     ((procedure)
-     (html "div" '()
-           "Procedure "
-           (html "code" '()
-                 (datum->string `(,(element-name element)
-                                  . ,(get-meta element 'procedure-args))))))
+     `(div "Procedure"
+           (code ,(datum->string `(,(element-name element)
+                                   . ,(get-meta element 'procedure-args))))))
     ((syntax)
-     (html "div" '()
-           "Syntax "
-           (html "code" '() (datum->string (element-name element)))))
+     `(div "Syntax " (code ,(datum->string (element-name element)))))
     ((parameter)
-     (html "div" '()
-           "Parameter "
-           (html "code" '() (datum->string (element-name element)))))
+     `(div "Parameter " (code ,(datum->string (element-name element)))))
     ((variable)
-     (html "div" '()
-           "Variable "
-           (html "code" '() (datum->string (element-name element)))))
+     `(div "Variable " (code ,(datum->string (element-name element)))))
     ((constant)
-     (html "div" '()
-           "Constant "
-           (html "code" '() (datum->string (element-name element)))))
+     `(div "Constant " (code ,(datum->string (element-name element)))))
     (else
-     (html "div" '() "Unknown"))))
+     '(div "Unknown"))))
 
 (define (render-element elem)
-  (html "article" '()
-        (html "h2" '() (datum->string (element-name elem)))
-        (html "p" '() (render-element-signature elem))
-        (html "p" '() (datum->string (element-meta elem)))
-        (html "p" '() (datum->string (element-body elem)))))
+  `(article (h2 ,(datum->string (element-name elem)))
+            (p ,(render-element-signature elem))
+            (p ,(datum->string (element-meta elem)))
+            (p ,(datum->string (element-body elem)))))
 
 (define (render-element-details module)
-  (apply html "section" '()
-         (map render-element (module-elements module))))
+  `(section ,@(map render-element (module-elements module))))
 
 (define (render-module out-dir module)
   (call-with-output-file
@@ -555,16 +568,15 @@
     (lambda (out)
       (write-string "<!DOCTYPE html>" out)
       (write-string
-       (html "html" '((lang . "en"))
-             (html "head" '()
-                   (html "title" '() (datum->string (module-name module)))
-                   (html "meta" '((charset . "utf-8"))))
-             (html "body" '()
-                   (html "h1" '() (datum->string (module-name module)))
-                   (apply html "section" '()
-                          (map datum->string (module-imports module)))
-                   (render-element-list module)
-                   (render-element-details module)))
+       (sxml->string
+        `(*TOP*
+          (html (@ (lang "en"))
+                (head (title ,(datum->string (module-name module)))
+                      (meta (@ (charset "utf-8"))))
+                (body (h1 ,(datum->string (module-name module)))
+                      (section ,@(map datum->string (module-imports module)))
+                      ,(render-element-list module)
+                      ,(render-element-details module)))))
        out))))
 
 (define (find-files-recursive path extension)
