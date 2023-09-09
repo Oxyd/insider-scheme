@@ -404,9 +404,9 @@
                                  (scribble-parse (open-input-string c)))
                                comments))
                (name (find-c++-module-declaration scribbles)))
-          (let-values (((mod modules) (find-or-create-c++-module name modules)))
+          (let-values (((mod modules*) (find-or-create-c++-module name modules)))
             (parse-c++-module! mod scribbles path)
-            modules)))))))
+            modules*)))))))
 
 (define (perform-import! target import-set)
   (do ((imports import-set (cdr imports)))
