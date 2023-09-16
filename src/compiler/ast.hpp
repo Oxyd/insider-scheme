@@ -618,7 +618,6 @@ private:
   std::string                             name_;
   std::vector<member_ptr<local_variable>> free_variables_;
   ptr<local_variable> const               self_variable_;
-  std::size_t                             size_estimate_       = 0;
   std::size_t                             num_self_references_ = 0;
 };
 

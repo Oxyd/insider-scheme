@@ -18,6 +18,7 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU|Clang")
           $<$<CXX_COMPILER_ID:GNU>:-Wno-dangling-reference>
           $<$<CXX_COMPILER_ID:GNU>:-Wno-array-bounds>
           $<$<CXX_COMPILER_ID:GNU>:-fconcepts-diagnostics-depth=4>
+          $<$<CXX_COMPILER_ID:Clang>:-Wno-unneeded-internal-declaration>
           $<$<CONFIG:DEBUG>:-ggdb3>
           $<$<CONFIG:RELWITHDEBINFO>:-O3 -ggdb3 -UNDEBUG>
           $<$<CONFIG:RELEASE>:-O3 -DNDEBUG>
@@ -45,6 +46,10 @@ else()
           /DUNICODE
           /D_UNICODE
           $<$<CONFIG:RELEASE>:NDEBUG>)
+endif()
+
+if (APPLE AND (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang"))
+  list(APPEND compile_flags -fexperimental-library)
 endif()
 
 set(CMAKE_CXX_STANDARD 20)

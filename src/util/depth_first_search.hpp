@@ -19,7 +19,7 @@ public:
 
   void
   push_back(Node n) {
-    stack_.emplace_back(n, detail::direction::in);
+    stack_.emplace_back(record{n, detail::direction::in});
   }
 
   record&

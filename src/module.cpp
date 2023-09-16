@@ -124,7 +124,7 @@ parse_module_name_import_set(context& ctx, module_name const* mn,
   result.source = ctx.module_resolver().find_module(ctx, *mn, config);
 
   for (std::string const& name : result.source->exports())
-    result.names.emplace_back(name, name);
+    result.names.emplace_back(import_set::imported_name{name, name});
 
   return result;
 }
@@ -310,7 +310,7 @@ import_all_exported(context& ctx,
   import_set is{from, {}};
 
   for (std::string const& name : from->exports())
-    is.names.emplace_back(name, name);
+    is.names.emplace_back(import_set::imported_name{name, name});
 
   perform_imports(ctx, to, is);
 }
@@ -334,7 +334,7 @@ import_all_top_level(context& ctx,
   import_set is{from, {}};
 
   for (std::string const& name : top_level_names(from.get()))
-    is.names.emplace_back(name, name);
+    is.names.emplace_back(import_set::imported_name{name, name});
 
   perform_imports(ctx, to, is);
 }
