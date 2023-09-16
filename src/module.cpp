@@ -16,7 +16,6 @@
 #include "util/define_procedure.hpp"
 #include "vm/vm.hpp"
 
-#include <format>
 #include <ranges>
 #include <utility>
 
@@ -24,7 +23,7 @@ namespace insider {
 
 module_::module_(context& ctx, std::optional<module_name> name)
   : env_{make<insider::scope>(ctx, ctx,
-                              std::format("{} module top-level",
+                              fmt::format("{} module top-level",
                                           name
                                             ? module_name_to_string(*name)
                                             : "<unnamed module>"))}
@@ -51,7 +50,7 @@ module_::import_(context& ctx, ptr<symbol> identifier, binding_type b) {
     if (binding_targets_equal(b, *v))
       return; // Re-importing the same variable under the same name is OK.
     else
-      throw std::runtime_error{std::format("Redefinition of {}",
+      throw std::runtime_error{fmt::format("Redefinition of {}",
                                            identifier->value())};
   }
 
@@ -110,7 +109,7 @@ check_all_names_exist(std::vector<std::string> const& names,
                      [&] (auto const& set_name) {
                        return set_name.target == name;
                      }))
-      throw unbound_variable_error{std::format("Identifier {} is not exported",
+      throw unbound_variable_error{fmt::format("Identifier {} is not exported",
                                                name)};
 }
 
@@ -125,7 +124,7 @@ parse_module_name_import_set(context& ctx, module_name const* mn,
   result.source = ctx.module_resolver().find_module(ctx, *mn, config);
 
   for (std::string const& name : result.source->exports())
-    result.names.emplace_back(name, name);
+    result.names.emplace_back(import_set::imported_name{name, name});
 
   return result;
 }
@@ -238,11 +237,11 @@ check_all_defined(context& ctx, ptr<module_> m,
 
   if (!undefined.empty()) {
     if (undefined.size() == 1)
-      throw std::runtime_error{std::format("Can't export undefined symbol {}",
+      throw std::runtime_error{fmt::format("Can't export undefined symbol {}",
                                            undefined.front())};
     else
-      throw std::runtime_error{std::format("Can't export undefined symbols: {}",
-                                           join(undefined, ", "))};
+      throw std::runtime_error{fmt::format("Can't export undefined symbols: {}",
+                                           fmt::join(undefined, ", "))};
   }
 }
 
@@ -311,7 +310,7 @@ import_all_exported(context& ctx,
   import_set is{from, {}};
 
   for (std::string const& name : from->exports())
-    is.names.emplace_back(name, name);
+    is.names.emplace_back(import_set::imported_name{name, name});
 
   perform_imports(ctx, to, is);
 }
@@ -335,7 +334,7 @@ import_all_top_level(context& ctx,
   import_set is{from, {}};
 
   for (std::string const& name : top_level_names(from.get()))
-    is.names.emplace_back(name, name);
+    is.names.emplace_back(import_set::imported_name{name, name});
 
   perform_imports(ctx, to, is);
 }

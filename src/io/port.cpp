@@ -5,10 +5,10 @@
 #include "util/define_procedure.hpp"
 #include "vm/vm.hpp"
 
+#include <fmt/format.h>
+
 #include <cstdio>
-#include <cstring>
 #include <filesystem>
-#include <format>
 #include <iterator>
 #include <string>
 
@@ -573,7 +573,7 @@ open_input_file(context& ctx, std::filesystem::path const& path) {
   else
     throw make<file_error>(
       ctx,
-      std::format("Can't open {} for reading: {}",
+      fmt::format("Can't open {} for reading: {}",
                   path.string(), strerror(errno))
     );
 }
@@ -585,7 +585,7 @@ open_binary_input_file(context& ctx, std::filesystem::path const& path) {
   else
     throw make<file_error>(
       ctx,
-      std::format("Can't open {} for reading: {}",
+      fmt::format("Can't open {} for reading: {}",
                   path.string(), strerror(errno))
     );
 }
@@ -597,7 +597,7 @@ open_output_file(context& ctx, std::string const& path) {
   else
     throw make<file_error>(
       ctx,
-      std::format("Can't open {} for writing: {}", path, strerror(errno))
+      fmt::format("Can't open {} for writing: {}", path, strerror(errno))
     );
 }
 
@@ -608,7 +608,7 @@ open_binary_output_file(context& ctx, std::string const& path) {
   else
     throw make<file_error>(
       ctx,
-      std::format("Can't open {} for writing: {}", path, strerror(errno))
+      fmt::format("Can't open {} for writing: {}", path, strerror(errno))
     );
 }
 

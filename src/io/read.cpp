@@ -11,13 +11,14 @@
 #include "util/define_procedure.hpp"
 #include "vm/vm.hpp"
 
-#include <format>
+#include <fmt/format.h>
+
 #include <variant>
 
 namespace insider {
 
 read_error::read_error(std::string const& message, source_location const& loc)
-  : translatable_runtime_error{std::format("{}: Read error: {}",
+  : translatable_runtime_error{fmt::format("{}: Read error: {}",
                                            format_location(loc), message)}
 { }
 
@@ -58,7 +59,7 @@ find_datum_label_reference(datum_labels const& labels, std::string const& label,
     assert(it->second);
     return it->second;
   } else
-    throw read_error{std::format("Unknown datum label: {}", label),
+    throw read_error{fmt::format("Unknown datum label: {}", label),
                      ref_location};
 }
 
@@ -261,7 +262,7 @@ read_shortcut(context& ctx, tokenizer& tokenizer,
   token shortcut_token = tokenizer.get();
   token t = next_token(tokenizer);
   if (std::holds_alternative<token::end>(t.value))
-    throw read_error{std::format("Expected token after {}", shortcut),
+    throw read_error{fmt::format("Expected token after {}", shortcut),
                      t.location};
 
   ptr<pair> result = cons(ctx,

@@ -4,7 +4,8 @@
 #include "object.hpp"
 #include "object_conversions.hpp"
 
-#include <format>
+#include <fmt/format.h>
+
 #include <span>
 #include <stdexcept>
 
@@ -15,7 +16,7 @@ using object_span = std::span<ptr<> const>;
 inline void
 require_arg_count(object_span args, std::size_t min) {
   if (args.size() < min)
-    throw std::runtime_error{std::format(
+    throw std::runtime_error{fmt::format(
       "Expected at least {} arguments, got {}",
       min, args.size()
     )};
@@ -24,12 +25,12 @@ require_arg_count(object_span args, std::size_t min) {
 inline void
 require_arg_count(object_span args, std::size_t min, std::size_t max) {
   if (args.size() < min)
-    throw std::runtime_error{std::format(
+    throw std::runtime_error{fmt::format(
       "Expected at least {} arguments, got {}",
       min, args.size()
     )};
   if (args.size() > max)
-    throw std::runtime_error{std::format(
+    throw std::runtime_error{fmt::format(
       "Expected at most {} arguments, got {}",
       max, args.size()
     )};
@@ -39,7 +40,7 @@ template <typename T>
 auto
 require_arg(object_span args, std::size_t i) {
   if (args.size() <= i)
-    throw std::runtime_error{std::format(
+    throw std::runtime_error{fmt::format(
       "Expected at least {} arguments, got {}",
       i + 1, args.size()
     )};

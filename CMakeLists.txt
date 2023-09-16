@@ -18,6 +18,7 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU|Clang")
           $<$<CXX_COMPILER_ID:GNU>:-Wno-dangling-reference>
           $<$<CXX_COMPILER_ID:GNU>:-Wno-array-bounds>
           $<$<CXX_COMPILER_ID:GNU>:-fconcepts-diagnostics-depth=4>
+          $<$<CXX_COMPILER_ID:Clang>:-Wno-unneeded-internal-declaration>
           $<$<CONFIG:DEBUG>:-ggdb3>
           $<$<CONFIG:RELWITHDEBINFO>:-O3 -ggdb3 -UNDEBUG>
           $<$<CONFIG:RELEASE>:-O3 -DNDEBUG>
@@ -45,6 +46,10 @@ else()
           /DUNICODE
           /D_UNICODE
           $<$<CONFIG:RELEASE>:NDEBUG>)
+endif()
+
+if (APPLE AND (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang"))
+  list(APPEND compile_flags -fexperimental-library)
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
@@ -167,7 +172,6 @@ set(scheme_sources
         src/util/depth_first_search.hpp
         src/util/from_scheme.hpp
         src/util/integer_cast.hpp
-        src/util/join.hpp
         src/util/list_iterator.hpp
         src/util/named_runtime_error.hpp
         src/util/object_conversions.hpp
@@ -218,6 +222,7 @@ Set(test_sources
 set(program_sources
         src/main.cpp)
 
+add_subdirectory(extern/fmt)
 add_subdirectory(extern/googletest)
 
 set_property(TARGET gtest PROPERTY
@@ -227,6 +232,7 @@ set_property(TARGET gtest_main PROPERTY
 
 add_library(scheme ${scheme_sources})
 target_compile_options(scheme PRIVATE ${compile_flags})
+target_link_libraries(scheme PUBLIC fmt::fmt-header-only)
 target_include_directories(scheme PUBLIC src)
 set_property(TARGET scheme PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
