@@ -511,9 +511,9 @@
                                   " "))
              (body* (string-join (map f body)))
              (tag (car expr)))
-        (cond ((and (string-null? attrs*) (string-null? body*))
+        (cond ((and (string-null? attrs*) (null? body))
                (format "<{}/>" tag))
-              ((string-null? body*)
+              ((null? body)
                (format "<{} {}>" tag attrs*))
               ((string-null? attrs*)
                (format "<{}>{}</{0}>" tag body*))
@@ -574,11 +574,11 @@
 
 (define (render-element elem)
   `(article (h2 ,(datum->string (element-name elem)))
-            (p ,(render-element-signature elem))
-            (p ,@(render-body (element-body elem)))))
+            (div ,(render-element-signature elem))
+            (div "" ,@(render-body (element-body elem)))))
 
 (define (render-element-details module)
-  `(section ,@(map render-element (module-elements module))))
+  `(div ,@(map render-element (module-elements module))))
 
 (define (render-module out-dir module)
   (call-with-output-file
@@ -592,7 +592,6 @@
                 (head (title ,(datum->string (module-name module)))
                       (meta (@ (charset "utf-8"))))
                 (body (h1 ,(datum->string (module-name module)))
-                      (section ,@(map datum->string (module-imports module)))
                       ,(render-element-list module)
                       ,(render-element-details module)))))
        out))))
