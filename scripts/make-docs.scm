@@ -553,11 +553,29 @@
     (else
      '(div "Unknown"))))
 
+(define scribble-tags
+  `((c . ,(lambda (scrbl) `(code ,@(render-body (cdr scrbl)))))))
+
+(define (render-scribble-element scrbl)
+  (cond ((string? scrbl)
+         scrbl)
+        ((pair? scrbl)
+         (cond ((assq (car scrbl) scribble-tags)
+                => (lambda (tag) ((cdr tag) scrbl)))
+               (else
+                (warn "Unknown Scribble tag {:w}" (car scrbl))
+                `(code ,(datum->string scrbl)))))
+        (else
+         (warn "Unknown Scribble element {:w}" scrbl)
+         `(code ,(datum->string scrbl)))))
+
+(define (render-body scrbl)
+  (map render-scribble-element scrbl))
+
 (define (render-element elem)
   `(article (h2 ,(datum->string (element-name elem)))
             (p ,(render-element-signature elem))
-            (p ,(datum->string (element-meta elem)))
-            (p ,(datum->string (element-body elem)))))
+            (p ,@(render-body (element-body elem)))))
 
 (define (render-element-details module)
   `(section ,@(map render-element (module-elements module))))

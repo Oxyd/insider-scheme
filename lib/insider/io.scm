@@ -24,14 +24,33 @@
 (define (textual-port? p)
   (or (textual-input-port? p) (textual-output-port? p)))
 
-;;> Is @scm{p} a binary port?
+;;> Is @c{p} a binary port? Lorem ipsum dolor sit amet, consectetur adipiscing
+;;> elit. Praesent libero leo, feugiat eu viverra laoreet, auctor eu turpis.
+;;> Suspendisse eget tortor ut arcu tristique euismod. Nam fringilla nulla velit,
+;;> non eleifend mauris porttitor eu. Vestibulum ut nunc consequat, bibendum quam
+;;> in, fermentum erat. Maecenas venenatis quis metus quis vehicula. Quisque
+;;> ornare cursus purus in ultrices. Aenean lacinia arcu nec sapien eleifend
+;;> fringilla. Donec dignissim congue elit, in semper est egestas eu. Aenean
+;;> ullamcorper porttitor quam, quis lacinia diam volutpat sollicitudin.
+;;> Suspendisse potenti. Ut euismod lacinia eleifend. Aliquam eget tempor tortor,
+;;> eu consectetur diam. In hac habitasse platea dictumst. Aliquam dictum nisi
+;;> eget sapien iaculis, vitae finibus nulla molestie.
+;;>
+;;> @procedure
+;;> @arg[p]
+;;> @name[binary-port]
 (define (binary-port? p)
   (or (binary-input-port? p) (binary-output-port? p)))
 
 (define (port? p)
   (or (textual-input-port? p) (binary-input-port? p) (textual-output-port? p) (binary-output-port? p)))
 
+;;> @procedure
+;;> @arg[p]
 (define input-port-open? port-open?)
+
+;;> @procedure
+;;> @arg[p]
 (define output-port-open? port-open?)
 
 (define (call-with-port port proc)

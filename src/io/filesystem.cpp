@@ -17,6 +17,8 @@ namespace insider {
 
 namespace fs = std::filesystem;
 
+//> @module[(insider internal)]
+
 static ptr<>
 path_elements(context& ctx, fs::path const& p) {
   return make_list_from_range(ctx, p,
@@ -533,6 +535,11 @@ temporary_directory_path(context& ctx) {
   return guard_filesystem_error(ctx, [] { return fs::temp_directory_path(); });
 }
 
+//> @procedure
+//> @name[directory-files]
+//> @arg[path]
+//>
+//> Return a list of all files in the directory identified by @c{path}.
 static ptr<>
 directory_files(context& ctx, fs::path const& p) {
   return make_list_from_range(
