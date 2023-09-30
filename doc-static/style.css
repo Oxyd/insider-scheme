@@ -5,3 +5,14 @@ a:link {
 a:visited {
     color: black;
 }
+
+.nav-left {
+    position: fixed;
+    width: 14rem;
+    height: 100%;
+    overflow-y: scroll;
+}
+
+.main-content {
+    margin-left: 17rem;
+}

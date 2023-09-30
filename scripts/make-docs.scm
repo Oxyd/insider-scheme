@@ -524,12 +524,13 @@
   (string-join (map f (cdr sxml))))
 
 (define (render-element-list module)
-  `(ul ,@(map (lambda (elem)
-                (let ((name (datum->string (element-name elem))))
-                  `(li
-                    (a (@ (href ,(string-append "#" name)))
-                       (code ,name)))))
-              (module-elements module))))
+  `(div (@ (class "nav-left"))
+        (ul ,@(map (lambda (elem)
+                     (let ((name (datum->string (element-name elem))))
+                       `(li
+                         (a (@ (href ,(string-append "#" name)))
+                            (code ,name)))))
+                   (module-elements module)))))
 
 (define (get-meta element name)
   (let ((meta (assq name (element-meta element))))
@@ -598,9 +599,10 @@
                       (meta (@ (charset "utf-8")))
                       (link (@ (rel "stylesheet")
                                (href "style.css"))))
-                (body (h1 ,(datum->string (module-name module)))
-                      ,(render-element-list module)
-                      ,(render-element-details module)))))
+                (body ,(render-element-list module)
+                      (div (@ (class "main-content"))
+                           (h1 ,(datum->string (module-name module)))
+                           ,(render-element-details module))))))
        out))))
 
 (define (find-files-recursive path extension)
