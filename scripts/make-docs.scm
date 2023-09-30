@@ -524,7 +524,11 @@
   (string-join (map f (cdr sxml))))
 
 (define (render-element-list module)
-  `(ul ,@(map (lambda (elem) `(li (code ,(datum->string (element-name elem)))))
+  `(ul ,@(map (lambda (elem)
+                (let ((name (datum->string (element-name elem))))
+                  `(li
+                    (a (@ (href ,(string-append "#" name)))
+                       (code ,name)))))
               (module-elements module))))
 
 (define (get-meta element name)
@@ -573,7 +577,8 @@
   (map render-scribble-element scrbl))
 
 (define (render-element elem)
-  `(article (h2 ,(datum->string (element-name elem)))
+  `(article (h2 (@ (id ,(datum->string (element-name elem))))
+                ,(datum->string (element-name elem)))
             (div ,(render-element-signature elem))
             (div "" ,@(render-body (element-body elem)))))
 
