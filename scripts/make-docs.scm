@@ -595,7 +595,9 @@
         `(*TOP*
           (html (@ (lang "en"))
                 (head (title ,(datum->string (module-name module)))
-                      (meta (@ (charset "utf-8"))))
+                      (meta (@ (charset "utf-8")))
+                      (link (@ (rel "stylesheet")
+                               (href "style.css"))))
                 (body (h1 ,(datum->string (module-name module)))
                       ,(render-element-list module)
                       ,(render-element-details module)))))
@@ -604,7 +606,8 @@
 (define (find-files-recursive path extension)
   (cond ((directory? path)
          (filter (lambda (p) (string=? (path-extension p) extension))
-                 (directory-files/recursive path #:follow-symlinks? #t)))
+                 (directory-files/recursive path
+                                            #:follow-symlinks? #t)))
         ((string=? (path-extension path) extension)
          (list path))
         (else
@@ -618,15 +621,20 @@
           (find-files-recursive path ".hpp")))
 
 (define (show-usage-and-exit!)
-  (printf "Usage: {} <output dir> <input paths ...>\n" (car (command-line)))
+  (printf "Usage: {} <output dir> <static files dir> <input paths ...>\n"
+          (car (command-line)))
   (exit #f))
 
-(when (< (length (command-line)) 3)
+(when (< (length (command-line)) 4)
   (show-usage-and-exit!))
 
 (let ((output-directory (cadr (command-line)))
-      (input-paths (cddr (command-line))))
+      (statics-dir (caddr (command-line)))
+      (input-paths (cdddr (command-line))))
   (create-directories output-directory)
+  (copy-files statics-dir output-directory
+              #:recursive? #t
+              #:when-exists 'overwrite)
   (let* ((slds (apply append (map find-library-definitions input-paths)))
          (scheme-modules (map parse-sld slds))
          (c++-modules (fold parse-c++ '()
