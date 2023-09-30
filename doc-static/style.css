@@ -9,7 +9,7 @@ a:visited {
 .nav-left {
     position: fixed;
     width: 14rem;
-    height: 100%;
+    height: calc(100% - 1ex);
     overflow-y: scroll;
 }
 
