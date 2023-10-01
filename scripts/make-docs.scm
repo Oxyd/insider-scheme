@@ -544,19 +544,19 @@
 
   (case (get-meta element 'kind)
     ((procedure)
-     `(div "Procedure"
-           (code ,(datum->string `(,(element-name element)
-                                   . ,(get-meta element 'procedure-args))))))
-    ((syntax)
-     `(div "Syntax " (code ,(datum->string (element-name element)))))
-    ((parameter)
-     `(div "Parameter " (code ,(datum->string (element-name element)))))
-    ((variable)
-     `(div "Variable " (code ,(datum->string (element-name element)))))
-    ((constant)
-     `(div "Constant " (code ,(datum->string (element-name element)))))
+     `(code ,(datum->string `(,(element-name element)
+                              . ,(get-meta element 'procedure-args)))))
     (else
-     '(div "Unknown"))))
+     `(code ,(datum->string (element-name element))))))
+
+(define (render-element-kind element)
+  (case (get-meta element 'kind)
+    ((procedure) "procedure")
+    ((syntax)    "syntax")
+    ((parameter) "parameter")
+    ((variable)  "variable")
+    ((constant)  "constant")
+    (else        "unknown")))
 
 (define scribble-tags
   `((c . ,(lambda (scrbl) `(code ,@(render-body (cdr scrbl)))))))
@@ -578,9 +578,13 @@
   (map render-scribble-element scrbl))
 
 (define (render-element elem)
-  `(article (h2 (@ (id ,(datum->string (element-name elem))))
-                ,(datum->string (element-name elem)))
-            (div ,(render-element-signature elem))
+  `(section (@ (class "element")
+               (id ,(datum->string (element-name elem))))
+            (div (@ (class "element-header"))
+                 (div (@ (class "element-signature"))
+                      ,(render-element-signature elem))
+                 (div (@ (class "element-kind"))
+                      ,(render-element-kind elem)))
             (div "" ,@(render-body (element-body elem)))))
 
 (define (render-element-details module)

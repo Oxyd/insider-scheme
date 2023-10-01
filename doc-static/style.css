@@ -1,9 +1,14 @@
+body {
+    background-color: hsl(0, 0%, 10%);
+    color: hsl(0, 0%, 90%);
+}
+
 a:link {
-    color: black;
+    color: hsl(0, 0%, 90%);
 }
 
 a:visited {
-    color: black;
+    color: hsl(0, 0%, 90%);
 }
 
 .nav-left {
@@ -11,8 +16,44 @@ a:visited {
     width: 14rem;
     height: calc(100% - 1ex);
     overflow-y: scroll;
+    background-color: hsl(0, 0%, 15%);
 }
 
 .main-content {
     margin-left: 17rem;
+}
+
+.element {
+    padding: 8px;
+    border-left: 4px solid hsl(0, 0%, 10%);
+    max-width: 50rem;
+}
+
+.element:target {
+    border-left: 4px solid hsl(278, 40%, 30%);
+}
+
+.element-header {
+    display: flex;
+    background-color: hsl(0, 0%, 25%);
+    padding: 4px;
+    margin-bottom: 1rem;
+}
+
+.element-signature {
+    flex-grow: 1;
+    font-size: 130%;
+    margin: 4px;
+}
+
+.element-signature > code {
+    display: block;
+}
+
+.element-kind {
+    float: right;
+    color: hsl(0, 0%, 80%);
+    font-style: italic;
+    font-size: 90%;
+    margin: 4px;
 }
