@@ -1,7 +1,7 @@
 (import (scheme base) (scheme read) (scheme write) (scheme file)
         (scheme process-context) (insider filesystem) (insider format)
         (insider list) (insider struct) (insider string) (insider filesystem)
-        (insider scribble))
+        (insider scribble) (insider basic-procedures))
 
 (define <no-form> (list 'no-form))
 
@@ -536,6 +536,37 @@
   (let ((meta (assq name (element-meta element))))
     (if meta (cdr meta) #f)))
 
+(define (render-procedure-argument arg)
+  (cond ((symbol? arg)
+         `(span (@ (class "element-signature-argument"))
+                ,(symbol->string arg)))
+        ((keyword? arg)
+         `(span (@ (class "element-signature-argument-keyword"))
+                "#:" ,(keyword->string arg)))
+        (else
+         ;; Argument with default value expression
+         (let ((name (car arg)) (expr (cadr arg)))
+           `(span "("
+                  (span (@ (class "element-signature-argument"))
+                        ,(symbol->string name))
+                  " "
+                  (span (@ (class "element-signature-default-expr"))
+                        ,(datum->string expr))
+                  ")")))))
+
+(define (render-procedure-arguments args)
+  ;; args may be an improper list, or indeed just a symbol.
+  (cond ((null? args)
+         '())
+        ((symbol? args)
+         `(" . " ,(render-procedure-argument args)))
+        ((pair? args)
+         `(" "
+           ,(render-procedure-argument (car args))
+           ,@(render-procedure-arguments (cdr args))))
+        (else
+         (error "Bad element in procedure arguments" args))))
+
 (define (render-element-signature element)
   #;(unless (element-defining-form-found? element)
     (warn "{}: {}: No defining form found"
@@ -544,10 +575,14 @@
 
   (case (get-meta element 'kind)
     ((procedure)
-     `(code ,(datum->string `(,(element-name element)
-                              . ,(get-meta element 'procedure-args)))))
+     `(code "("
+            (span (@ (class "element-signature-name"))
+                  ,(symbol->string (element-name element)))
+            ,@(render-procedure-arguments (get-meta element 'procedure-args))
+            ")"))
     (else
-     `(code ,(datum->string (element-name element))))))
+     `(code (span (@ (class "element-signature-name"))
+                  ,(datum->string (element-name element)))))))
 
 (define (render-element-kind element)
   (case (get-meta element 'kind)

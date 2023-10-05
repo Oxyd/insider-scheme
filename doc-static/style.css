@@ -50,6 +50,22 @@ a:visited {
     display: block;
 }
 
+.element-signature-name {
+    font-weight: bold;
+}
+
+.element-signature-argument {
+    font-style: italic;
+}
+
+.element-signature-default-expr {
+    color: hsl(0, 0%, 70%);
+}
+
+.element-signature-argument-keyword {
+    color: hsl(278, 60%, 80%);
+}
+
 .element-kind {
     float: right;
     color: hsl(0, 0%, 80%);
