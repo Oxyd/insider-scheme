@@ -567,6 +567,33 @@
         (else
          (error "Bad element in procedure arguments" args))))
 
+(define (render-procedure-arguments/wide args (break-line? #f))
+  (let ((br (if break-line? '(br) "")))
+    (cond ((null? args)
+           '())
+          ((symbol? args)
+           `(,br
+             (div (@ (class "element-signature-argument-container"))
+                   " . " ,(render-procedure-argument args))))
+          ((and (pair? args) (keyword? (car args)))
+           `(,br
+             (div (@ (class "element-signature-argument-container"))
+                   ,(render-procedure-argument (car args))
+                   " "
+                   ,(render-procedure-argument (cadr args)))
+             ,@(render-procedure-arguments/wide (cddr args) #t)))
+          ((pair? args)
+           `(,br
+             (div (@ (class "element-signature-argument-container"))
+                   ,(render-procedure-argument (car args)))
+             ,@(render-procedure-arguments/wide (cdr args) #t)))
+          (else
+           (error "Bad element in procedure arguments" args)))))
+
+(define (procedure-signature-length element)
+  (string-length (datum->string (cons (element-name element)
+                                      (get-meta element 'procedure-args)))))
+
 (define (render-element-signature element)
   #;(unless (element-defining-form-found? element)
     (warn "{}: {}: No defining form found"
@@ -575,11 +602,20 @@
 
   (case (get-meta element 'kind)
     ((procedure)
-     `(code "("
-            (span (@ (class "element-signature-name"))
-                  ,(symbol->string (element-name element)))
-            ,@(render-procedure-arguments (get-meta element 'procedure-args))
-            ")"))
+     (if (< (procedure-signature-length element) 60)
+         `(code "("
+                (span (@ (class "element-signature-name"))
+                      ,(symbol->string (element-name element)))
+                ,@(render-procedure-arguments (get-meta element 'procedure-args))
+                ")")
+         `(code
+           (div (@ (class "element-signature-container"))
+                (div "("
+                     (span (@ (class "element-signature-name"))
+                           ,(symbol->string (element-name element))))
+                (div ,@(render-procedure-arguments/wide
+                        (get-meta element 'procedure-args))
+                     ")")))))
     (else
      `(code (span (@ (class "element-signature-name"))
                   ,(datum->string (element-name element)))))))

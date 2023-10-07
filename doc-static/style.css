@@ -52,6 +52,7 @@ a:visited {
 
 .element-signature-name {
     font-weight: bold;
+    white-space: nowrap;
 }
 
 .element-signature-argument {
@@ -64,6 +65,18 @@ a:visited {
 
 .element-signature-argument-keyword {
     color: hsl(278, 60%, 80%);
+}
+
+.element-signature-container {
+    display: grid;
+    grid-template-columns: 0fr 1fr;
+    grid-gap: 0.5em;
+}
+
+.element-signature-argument-container {
+    display: inline-block;
+    margin-left: 2em;
+    text-indent: -2em;
 }
 
 .element-kind {
