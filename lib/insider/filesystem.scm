@@ -1,34 +1,42 @@
-;;> @constant
+;;> @constant @in-group[permissions]
+;;>
+;;> These constants represent the bits for read, write and execute permissions
+;;> the owner of a file, members of the group that owns the file, and everyone
+;;> else, respectively.
 (define permissions-none 0)
-;;> @constant
+
+;;> @constant @in-group[permissions]
 (define permissions-owner-read #o400)
-;;> @constant
+
+;;> @constant @in-group[permissions]
 (define permissions-owner-write #o200)
-;;> @constant
+
+;;> @constant @in-group[permissions]
 (define permissions-owner-exec #o100)
-;;> @constant
+
+;;> @constant @in-group[permissions]
 (define permissions-owner-all (bitwise-ior permissions-owner-read
                                            permissions-owner-write
                                            permissions-owner-exec))
 
-;;> @constant
+;;> @constant @in-group[permissions]
 (define permissions-group-read #o40)
-;;> @constant
+;;> @constant @in-group[permissions]
 (define permissions-group-write #o20)
-;;> @constant
+;;> @constant @in-group[permissions]
 (define permissions-group-exec #o10)
-;;> @constant
+;;> @constant @in-group[permissions]
 (define permissions-group-all (bitwise-ior permissions-group-read
                                            permissions-group-write
                                            permissions-group-exec))
 
-;;> @constant
+;;> @constant @in-group[permissions]
 (define permissions-others-read #o4)
-;;> @constant
+;;> @constant @in-group[permissions]
 (define permissions-others-write #o2)
-;;> @constant
+;;> @constant @in-group[permissions]
 (define permissions-others-exec #o1)
-;;> @constant
+;;> @constant @in-group[permissions]
 (define permissions-others-all (bitwise-ior permissions-others-read
                                             permissions-others-write
                                             permissions-others-exec))

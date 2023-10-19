@@ -176,7 +176,11 @@
                     (cons '(kind . parameter) meta)))
     (name . ,(lambda (meta form)
                (cons `(name . ,(cadr form)) meta)))
-    (module . ,(lambda (meta form) meta))))
+    (module . ,(lambda (meta form) meta))
+    (in-group . ,(lambda (meta form)
+                   (when (assq 'group meta)
+                     (error "@in-group specified more than once for an element"))
+                   (cons `(group . ,(cadr form)) meta)))))
 
 (define (parse-doc-scribble scribble)
   (let loop ((scribble scribble)
@@ -648,18 +652,53 @@
 (define (render-body scrbl)
   (map render-scribble-element scrbl))
 
-(define (render-element elem)
-  `(section (@ (class "element")
-               (id ,(datum->string (element-name elem))))
-            (div (@ (class "element-header"))
-                 (div (@ (class "element-signature"))
-                      ,(render-element-signature elem))
-                 (div (@ (class "element-kind"))
-                      ,(render-element-kind elem)))
-            (div "" ,@(render-body (element-body elem)))))
+(define (render-element-body elem)
+  (render-body (element-body elem)))
+
+(define (render-element-header elem)
+  `(div (@ (class "element-header"))
+        (div (@ (class "element-signature"))
+             ,(render-element-signature elem))
+        (div (@ (class "element-kind"))
+             ,(render-element-kind elem))))
+
+(define (render-element-anchors elem)
+  `(a (@ (id ,(datum->string (element-name elem)))) ""))
+
+(define (render-element-group group)
+  `(section (@ (class "element-group"))
+            ,@(map render-element-anchors group)
+            (section (@ (class "element"))
+                     ,@(map render-element-header group)
+                     (div (@ (class "element-description"))
+                          ""
+                          ,@(apply append
+                                   (map render-element-body group))))))
+
+(define (make-element-groups elements)
+  (let loop ((elements elements) (group-alist '()))
+    (cond ((null? elements)
+           (reverse (map cdr group-alist)))
+          ((get-meta (car elements) 'group)
+           => (lambda (group-name)
+                (cond ((assq group-name group-alist)
+                       => (lambda (group-pair)
+                            (set-cdr! group-pair
+                                      (append (cdr group-pair)
+                                              (list (car elements))))
+                            (loop (cdr elements) group-alist)))
+                      (else
+                       (loop (cdr elements)
+                             (cons (cons group-name (list (car elements)))
+                                   group-alist))))))
+          (else
+           (loop (cdr elements)
+                 (cons (cons #f (list (car elements)))
+                       group-alist))))))
 
 (define (render-element-details module)
-  `(div ,@(map render-element (module-elements module))))
+  `(div ,@(map render-element-group
+               (make-element-groups (module-elements module)))))
 
 (define (render-module out-dir module)
   (call-with-output-file

@@ -29,15 +29,22 @@ a:visited {
     max-width: 50rem;
 }
 
-.element:target {
+:target ~ .element {
     border-left: 4px solid hsl(278, 40%, 30%);
+}
+
+.element-group {
+    margin-bottom: 1rem;
 }
 
 .element-header {
     display: flex;
     background-color: hsl(0, 0%, 25%);
     padding: 4px;
-    margin-bottom: 1rem;
+}
+
+.element-description {
+    margin-top: 1rem;
 }
 
 .element-signature {
