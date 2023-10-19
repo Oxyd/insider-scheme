@@ -1,7 +1,7 @@
 (import (scheme base) (scheme read) (scheme write) (scheme file)
         (scheme process-context) (insider filesystem) (insider format)
         (insider list) (insider struct) (insider string) (insider filesystem)
-        (insider scribble) (insider basic-procedures))
+        (insider scribble) (insider basic-procedures) (insider io))
 
 (define <no-form> (list 'no-form))
 
@@ -540,6 +540,37 @@
   (let ((meta (assq name (element-meta element))))
     (if meta (cdr meta) #f)))
 
+(define (datum->string/quote datum)
+  (call-with-output-string
+   (lambda (out)
+     (let f ((datum datum))
+       (cond
+        ((pair? datum)
+         (cond ((and (eq? (car datum) 'quote)
+                     (pair? (cdr datum)))
+                (write-char #\' out)
+                (f (cadr datum)))
+               (else
+                (write-char #\( out)
+                (let loop ((elem datum))
+                  (f (car elem))
+                  (cond ((null? (cdr elem))
+                         #void)
+                        ((pair? (cdr elem))
+                         (loop (cdr elem)))
+                        (else
+                         (write-string " . " out)
+                         (f (cdr elem)))))
+                (write-char #\) out))))
+        ((vector? datum)
+         (write-string "#(" out)
+         (do ((i 0 (+ i 1)))
+             ((= i (vector-length datum)))
+           (f (vector-ref datum i)))
+         (write-char #\) out))
+        (else
+         (write datum out)))))))
+
 (define (render-procedure-argument arg)
   (cond ((symbol? arg)
          `(span (@ (class "element-signature-argument"))
@@ -555,7 +586,7 @@
                         ,(symbol->string name))
                   " "
                   (span (@ (class "element-signature-default-expr"))
-                        ,(datum->string expr))
+                        ,(datum->string/quote expr))
                   ")")))))
 
 (define (render-procedure-arguments args)
