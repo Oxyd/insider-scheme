@@ -24,7 +24,7 @@ a:visited {
 }
 
 .element {
-    padding: 8px;
+    padding-left: 8px;
     border-left: 4px solid hsl(0, 0%, 10%);
     max-width: 50rem;
 }
@@ -34,7 +34,7 @@ a:visited {
 }
 
 .element-group {
-    margin-bottom: 1rem;
+    margin-bottom: 2rem;
 }
 
 .element-header {
