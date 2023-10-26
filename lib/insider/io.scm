@@ -38,7 +38,7 @@
 ;;>
 ;;> @procedure
 ;;> @arg[p]
-;;> @name[binary-port]
+;;> @name[binary-port?]
 (define (binary-port? p)
   (or (binary-input-port? p) (binary-output-port? p)))
 

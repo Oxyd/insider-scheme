@@ -264,22 +264,28 @@
        (pair? (cdr form))
        (find-element module (find-define-name form))))
 
+(define (find-element-name form meta)
+  (cond ((assq 'name meta) => cdr)
+        (else (find-define-name form))))
+
 (define (set-element-doc-and-form! module form comment path)
-  (let ((element (find-element-for-definition module form)))
-    (cond (element
-           (let-values (((meta body) 
-                         (parse-doc-scribble
-                          (scribble-parse (open-input-string comment)))))
+  (let-values (((meta-scribble body)
+                (parse-doc-scribble
+                 (scribble-parse (open-input-string comment)))))
+    (let* ((meta (parse-element-meta meta-scribble))
+           (name (find-element-name form meta))
+           (element (and name (find-element module name))))
+      (cond (element
              (element-meta-set! element
                                 (update-element-meta-from-form
-                                 (parse-element-meta meta)
+                                 meta
                                  form
                                  (element-name element)))
              (element-body-set! element body)
-             (element-defining-form-found?-set! element #t)))
-          (else
-           (warn "{}: Documentation comment ignored for {:w}"
-                 path form)))))
+             (element-defining-form-found?-set! element #t))
+            (else
+             (warn "{}: Documentation comment ignored for {:w}"
+                   path form))))))
 
 (define (extract-scheme-module-docs-from-port! module port path)
   (let loop ()
