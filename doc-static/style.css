@@ -103,4 +103,18 @@ code, pre {
 .code {
     background-color: hsl(0, 0%, 5%);
     padding: 4px;
+    margin: 0px;
+}
+
+.example {
+    background-color: hsl(0, 0%, 15%);
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.example-header {
+    font-size: 1.1rem;
+    font-style: italic;
+    margin-bottom: 0.5rem;
 }

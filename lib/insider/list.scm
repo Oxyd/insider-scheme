@@ -94,11 +94,13 @@
 ;;> shortest list runs out. It is an error if all the lists are infinite. It is
 ;;> also an error for @c{proc} to mutate any of the lists.
 ;;>
-;;> @code{
-;;>   (map cadr '((a b) (d e) (g h)))
+;;> @example{
+;;>   @code{
+;;>     (map cadr '((a b) (d e) (g h)))
 ;;>
-;;>   (map (lambda (n) (expt n n))
-;;>        '(1 2 3 4 5))
+;;>     (map (lambda (n) (expt n n))
+;;>          '(1 2 3 4 5))
+;;>   }
 ;;> }
 (define (map proc list1 . lists)
   (cond ((null? lists)

@@ -706,7 +706,12 @@
 
 (define scribble-tags
   `((c . ,(lambda (scrbl) `(code ,@(render-body (cdr scrbl)))))
-    (code . ,scribble-code)))
+    (code . ,scribble-code)
+    (example . ,(lambda (scrbl)
+                  `(div (@ (class "example"))
+                        (div (@ (class "example-header"))
+                             "Example")
+                        ,@(render-body (cdr scrbl)))))))
 
 (define (render-scribble-element scrbl)
   (cond ((string? scrbl)
