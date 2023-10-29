@@ -17,6 +17,10 @@ code, pre {
     font-family: "Inconsolata", "Fira Mono", monospace;
 }
 
+.symbol {
+    font-family: "Latin Modern Math", "DejaVu Sans", sans-serif;
+}
+
 .nav-left {
     position: fixed;
     width: 14rem;
@@ -117,4 +121,9 @@ code, pre {
     font-size: 1.1rem;
     font-style: italic;
     margin-bottom: 0.5rem;
+}
+
+.evaluates-to {
+    margin-left: 2rem;
+    font-style: italic;
 }

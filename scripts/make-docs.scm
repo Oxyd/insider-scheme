@@ -671,22 +671,49 @@
     ((constant)  "constant")
     (else        "unknown")))
 
+(define (render-scribble-element env scrbl)
+  (cond ((string? scrbl)
+         scrbl)
+        ((pair? scrbl)
+         (cond ((assq (car scrbl) env)
+                => (lambda (tag) ((cdr tag) scrbl)))
+               (else
+                (warn "Unknown Scribble tag {:w}" (car scrbl))
+                `(code ,(datum->string scrbl)))))
+        (else
+         (warn "Unknown Scribble element {:w}" scrbl)
+         `(code ,(datum->string scrbl)))))
+
+(define (render-scribble env)
+  (lambda (scrbl)
+    (map (lambda (s) (render-scribble-element env s))
+         scrbl)))
+
 (define (indent-width line)
   (string-cursor-diff line (string-cursor-start line)
                       (string-skip line char-whitespace?)))
 
-(define (line-empty? line)
-  (string-null? (string-trim line)))
+(define (line-empty? x)
+  (string-null? (string-trim x)))
 
-(define (drop-empty-prefix-and-suffix lines)
+(define (code-lines scrbl)
   (define (drop lines)
     (do ((lines lines (cdr lines)))
         ((or (null? lines) (not (line-empty? (car lines))))
          lines)))
-  (reverse (drop (reverse (drop lines)))))
+  (reverse (drop (reverse (drop (filter string? scrbl))))))
+
+(define scribble-code-tags
+  `((evaluates-to . ,(lambda (scrbl)
+                       `(span (@ (class "evaluates-to"))
+                              (span (@ (class "symbol")) "⟹")
+                              " "
+                              ,@(render-code (cdr scrbl)))))))
+
+(define render-code (render-scribble scribble-code-tags))
 
 (define (scribble-code scrbl)
-  (let* ((lines (drop-empty-prefix-and-suffix (cdr scrbl)))
+  (let* ((lines (code-lines (cdr scrbl)))
          (non-empty-lines (filter (lambda (s)
                                     (not (string-null? (string-trim s))))
                                   lines)))
@@ -698,11 +725,15 @@
                                       (indent-width (car non-empty-lines))
                                       (cdr non-empty-lines)))
                   (unindent (lambda (s)
-                              (if (>= (string-length s) indent-width)
-                                  (string-drop s indent-width)
-                                  "\n"))))
+                              (cond
+                               ((not (string? s))
+                                (render-scribble-element scribble-code-tags s))
+                               ((>= (string-length s) indent-width)
+                                (string-drop s indent-width))
+                               (else
+                                "\n")))))
              `(pre (@ (class "code"))
-                   ,@(map unindent lines)))))))
+                   ,@(map unindent (cdr scrbl))))))))
 
 (define scribble-tags
   `((c . ,(lambda (scrbl) `(code ,@(render-body (cdr scrbl)))))
@@ -713,21 +744,7 @@
                              "Example")
                         ,@(render-body (cdr scrbl)))))))
 
-(define (render-scribble-element scrbl)
-  (cond ((string? scrbl)
-         scrbl)
-        ((pair? scrbl)
-         (cond ((assq (car scrbl) scribble-tags)
-                => (lambda (tag) ((cdr tag) scrbl)))
-               (else
-                (warn "Unknown Scribble tag {:w}" (car scrbl))
-                `(code ,(datum->string scrbl)))))
-        (else
-         (warn "Unknown Scribble element {:w}" scrbl)
-         `(code ,(datum->string scrbl)))))
-
-(define (render-body scrbl)
-  (map render-scribble-element scrbl))
+(define render-body (render-scribble scribble-tags))
 
 (define (render-element-body elem)
   (render-body (element-body elem)))
