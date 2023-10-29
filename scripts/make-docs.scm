@@ -1,7 +1,8 @@
 (import (scheme base) (scheme read) (scheme write) (scheme file)
         (scheme process-context) (insider filesystem) (insider format)
         (insider list) (insider struct) (insider string) (insider filesystem)
-        (insider scribble) (insider basic-procedures) (insider io))
+        (insider scribble) (insider basic-procedures) (insider io)
+        (insider char))
 
 (define <no-form> (list 'no-form))
 
@@ -670,8 +671,42 @@
     ((constant)  "constant")
     (else        "unknown")))
 
+(define (indent-width line)
+  (string-cursor-diff line (string-cursor-start line)
+                      (string-skip line char-whitespace?)))
+
+(define (line-empty? line)
+  (string-null? (string-trim line)))
+
+(define (drop-empty-prefix-and-suffix lines)
+  (define (drop lines)
+    (do ((lines lines (cdr lines)))
+        ((or (null? lines) (not (line-empty? (car lines))))
+         lines)))
+  (reverse (drop (reverse (drop lines)))))
+
+(define (scribble-code scrbl)
+  (let* ((lines (drop-empty-prefix-and-suffix (cdr scrbl)))
+         (non-empty-lines (filter (lambda (s)
+                                    (not (string-null? (string-trim s))))
+                                  lines)))
+    (cond ((null? non-empty-lines)
+           '(pre (@ (class "code")) ""))
+          (else
+           (let* ((indent-width (fold (lambda (line width)
+                                        (min width (indent-width line)))
+                                      (indent-width (car non-empty-lines))
+                                      (cdr non-empty-lines)))
+                  (unindent (lambda (s)
+                              (if (>= (string-length s) indent-width)
+                                  (string-drop s indent-width)
+                                  "\n"))))
+             `(pre (@ (class "code"))
+                   ,@(map unindent lines)))))))
+
 (define scribble-tags
-  `((c . ,(lambda (scrbl) `(code ,@(render-body (cdr scrbl)))))))
+  `((c . ,(lambda (scrbl) `(code ,@(render-body (cdr scrbl)))))
+    (code . ,scribble-code)))
 
 (define (render-scribble-element scrbl)
   (cond ((string? scrbl)
