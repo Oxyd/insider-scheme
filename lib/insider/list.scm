@@ -86,6 +86,13 @@
          (cons (apply proc (map-1 car lists))
                (map-multi proc (map-1 cdr lists))))))
 
+;;> Apply @c{proc} to the elements of the input @c{list}s and return a list of
+;;> the results. It is an error if @c{proc} does not take as many arguments as
+;;> there are lists.
+;;>
+;;> When multiple lists are specified, @c{map} terminates as soon as the
+;;> shortest list runs out. It is an error if all the lists are infinite. It is
+;;> also an error for @c{proc} to mutate any of the lists.
 (define (map proc list1 . lists)
   (cond ((null? lists)
          (map-1 proc list1))
