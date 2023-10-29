@@ -738,14 +738,14 @@
   `(a (@ (id ,(datum->string (element-name elem)))) ""))
 
 (define (render-element-group group)
-  `(section (@ (class "element-group"))
-            ,@(map render-element-anchors group)
-            (section (@ (class "element"))
-                     ,@(map render-element-header group)
-                     (div (@ (class "element-description"))
-                          ""
-                          ,@(apply append
-                                   (map render-element-body group))))))
+  `(div (@ (class "element-group"))
+        ,@(map render-element-anchors group)
+        (div (@ (class "element"))
+             ,@(map render-element-header group)
+             (div (@ (class "element-description"))
+                  ""
+                  ,@(apply append
+                           (map render-element-body group))))))
 
 (define (make-element-groups elements)
   (let loop ((elements elements) (group-alist '()))
