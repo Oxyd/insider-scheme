@@ -205,6 +205,24 @@
      (let ((v e1))
        (if v v (or e2 rest ...))))))
 
+;;> @syntax[@repeated{expr}]
+;;> All expressions are evaluated left-to-right, if any one of them is @c{#f},
+;;> then the whole @c{and} expression evaluates to @c{#f}, and no further
+;;> @c{expr} is evaluated. If all expressions  evaluate to non-@c{#f} values,
+;;> the @c{and} expression evaluates to the result of the last expression.
+;;>
+;;> If there are no expressions, @c{and} evaluates to @c{#t}.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (and)
+;;>     @evaluates-to{#t}
+;;>     (and 1 2 'c '(f g))
+;;>     @evaluates-to{(f g)}
+;;>     (and (= 2 2) (< 2 1))
+;;>     @evaluates-to{#f}
+;;>   }
+;;> }
 (define-syntax and
   (syntax-rules ()
     ((and) #t)

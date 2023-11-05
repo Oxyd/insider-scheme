@@ -164,6 +164,11 @@
           (else
            (cons (cons key value) meta)))))
 
+(define (syntax-meta meta form)
+  (cons '(kind . syntax)
+        (cons `(syntax-body . ,(cdr form))
+              meta)))
+
 (define meta-commands
   `((procedure . ,(lambda (meta form)
                     (cons '(kind . procedure) meta)))
@@ -175,6 +180,7 @@
                    (cons '(kind . constant) meta)))
     (parameter . ,(lambda (meta form)
                     (cons '(kind . parameter) meta)))
+    (syntax . ,syntax-meta)
     (name . ,(lambda (meta form)
                (cons `(name . ,(cadr form)) meta)))
     (module . ,(lambda (meta form) meta))
@@ -509,7 +515,7 @@
     (cond
      ((string? expr)
       (escape-html expr))
-     (else
+     ((pair? expr)
       (let* ((has-attrs? (and (not (null? (cdr expr)))
                               (pair? (cadr expr))
                               (eq? (caadr expr) '@)))
@@ -529,7 +535,9 @@
               ((string-null? attrs*)
                (format "<{}>{}</{0}>" tag body*))
               (else
-               (format "<{} {}>{}</{0}>" tag attrs* body*)))))))
+               (format "<{} {}>{}</{0}>" tag attrs* body*)))))
+     (else
+      (error "Invalid SXML" expr))))
 
   ;; The argument is expected to be of the form (*TOP* stuff ...).
   (string-join (map f (cdr sxml))))
@@ -636,6 +644,83 @@
   (string-length (datum->string (cons (element-name element)
                                       (get-meta element 'procedure-args)))))
 
+(define (render-procedure-signature element)
+  (if (< (procedure-signature-length element) 60)
+      `(code "("
+             (span (@ (class "element-signature-name"))
+                   ,(symbol->string (element-name element)))
+             ,@(render-procedure-arguments (get-meta element 'procedure-args))
+             ")")
+      `(code
+        (div (@ (class "element-signature-container"))
+             (div "("
+                  (span (@ (class "element-signature-name"))
+                        ,(symbol->string (element-name element))))
+             (div ,@(render-procedure-arguments/wide
+                     (get-meta element 'procedure-args))
+                  ")")))))
+
+(define (render-syntax-nonterminal-name name)
+  (define (meta-char? c)
+    (char=? c #\_))
+
+  (let loop ((accum '())
+             (current (string-cursor-start name))
+             (end (string-cursor-end name)))
+    (cond
+     ((string-cursor=? current end)
+      (reverse accum))
+     (else
+      (let ((current-char (string-ref/cursor name current)))
+        (case current-char
+          ((#\_)
+           (let ((next (string-cursor-next name current)))
+             (loop (cons `(sub ,(string (string-ref/cursor name next)))
+                         accum)
+                   (string-cursor-next name next)
+                   end)))
+          (else
+           (let ((run-end (string-index name meta-char? current end)))
+             (loop (cons (substring name current run-end) accum)
+                   run-end
+                   end)))))))))
+
+(define (render-syntax-nonterminal nonterm)
+  `(span (@ (class "nonterminal"))
+         ,@(render-syntax-nonterminal-name nonterm)))
+
+(define (render-syntax-body body)
+  (if (null? body)
+      '()
+      (let ((head (car body)))
+        (cond ((string? head)
+               `(" "
+                 ,(render-syntax-nonterminal head)
+                 ,@(render-syntax-body (cdr body))))
+              ((pair? head)
+               (case (car head)
+                 ((repeated)
+                  `(" "
+                    ,@(render-syntax-body (cdr head))
+                    " …"
+                    ,@(render-syntax-body (cdr body))))
+                 (else
+                  (error "Unknown tag in syntax nonterminal" (car head)))))
+              (else
+               (error "Unknown element in syntax nonterminal" head))))))
+
+(define (render-syntax-signature element)
+  (let ((name (datum->string (element-name element)))
+        (body (get-meta element 'syntax-body)))
+    (cond
+     (body
+      `(code "("
+             (span (@ (class "element-signature-name")) ,name)
+             ,@(render-syntax-body body)
+             ")"))
+     (else
+      `(code (span (@ (class "element-signature-name")) ,name))))))
+
 (define (render-element-signature element)
   #;(unless (element-defining-form-found? element)
     (warn "{}: {}: No defining form found"
@@ -644,20 +729,9 @@
 
   (case (get-meta element 'kind)
     ((procedure)
-     (if (< (procedure-signature-length element) 60)
-         `(code "("
-                (span (@ (class "element-signature-name"))
-                      ,(symbol->string (element-name element)))
-                ,@(render-procedure-arguments (get-meta element 'procedure-args))
-                ")")
-         `(code
-           (div (@ (class "element-signature-container"))
-                (div "("
-                     (span (@ (class "element-signature-name"))
-                           ,(symbol->string (element-name element))))
-                (div ,@(render-procedure-arguments/wide
-                        (get-meta element 'procedure-args))
-                     ")")))))
+     (render-procedure-signature element))
+    ((syntax)
+     (render-syntax-signature element))
     (else
      `(code (span (@ (class "element-signature-name"))
                   ,(datum->string (element-name element)))))))
