@@ -819,6 +819,8 @@
 
 (define scribble-tags
   `((c . ,(lambda (scrbl) `(code ,@(render-body (cdr scrbl)))))
+    (nonterm . ,(lambda (scrbl) `(span (@ (class "nonterminal-reference"))
+                                       ,@(render-body (cdr scrbl)))))
     (code . ,scribble-code)
     (example . ,(lambda (scrbl)
                   `(div (@ (class "example"))

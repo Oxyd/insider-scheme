@@ -72,7 +72,7 @@ code, pre {
     white-space: nowrap;
 }
 
-.element-signature-argument, .nonterminal {
+.element-signature-argument, .nonterminal, .nonterminal-reference {
     font-style: italic;
 }
 
