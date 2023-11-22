@@ -17,6 +17,16 @@ namespace insider {
 
 //> @name[if]
 //> @syntax{cond-expr then-expr @optional{else-expr}}
+//>
+//> First @nonterm{test} is evaluated. If it yields any value other than @c{#f},
+//> @nonterm{then-expr} is evaluated and the @c{if} expression evaluates to its
+//> results. Otherwise, if an @nonterm{else-expr} is present, it is evaluated
+//> and the @c{if} expression evaluates to its results. If there is no
+//> @nonterm{else-expr} and the condition evaluates to @c{#f}, the @c{if}
+//> expression evaluates to @c{#void}.
+//>
+//> Both @nonterm{then-expr} and @nonterm{else-expr} are in tail position with
+//> respect to the @c{if} form.
 
 context::context() {
   constants = std::make_unique<struct constants>();
