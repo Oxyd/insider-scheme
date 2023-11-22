@@ -13,6 +13,11 @@
 
 namespace insider {
 
+//> @module[(insider internal)]
+
+//> @name[if]
+//> @syntax{cond-expr then-expr @optional{else-expr}}
+
 context::context() {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);

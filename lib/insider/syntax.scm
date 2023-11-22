@@ -205,7 +205,7 @@
      (let ((v e1))
        (if v v (or e2 rest ...))))))
 
-;;> @syntax[@repeated{expr}]
+;;> @syntax{@repeated{expr}}
 ;;> All expressions are evaluated left-to-right, if any one of them is @c{#f},
 ;;> then the whole @c{and} expression evaluates to @c{#f}, and no further
 ;;> @c{expr} is evaluated. If all expressions  evaluate to non-@c{#f} values,

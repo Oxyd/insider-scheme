@@ -689,25 +689,32 @@
   `(span (@ (class "nonterminal"))
          ,@(render-syntax-nonterminal-name nonterm)))
 
-(define (render-syntax-body body)
-  (if (null? body)
+(define (render-syntax-body-element elem)
+  (cond ((string? elem)
+         `(,(render-syntax-nonterminal elem)))
+        ((pair? elem)
+         (case (car elem)
+           ((repeated)
+            `(,@(render-syntax-body (cdr elem))
+              " …"))
+           ((optional)
+            `("["
+              ,@(render-syntax-body (cdr elem))
+              "]"))
+           (else
+            (error "Unknown tag in syntax nonterminal" (car elem)))))
+        (else
+         (error "Unknown element in syntax nonterminal" elem))))
+
+(define (flatten/intersperse lists separator)
+  (if (null? lists)
       '()
-      (let ((head (car body)))
-        (cond ((string? head)
-               `(" "
-                 ,(render-syntax-nonterminal head)
-                 ,@(render-syntax-body (cdr body))))
-              ((pair? head)
-               (case (car head)
-                 ((repeated)
-                  `(" "
-                    ,@(render-syntax-body (cdr head))
-                    " …"
-                    ,@(render-syntax-body (cdr body))))
-                 (else
-                  (error "Unknown tag in syntax nonterminal" (car head)))))
-              (else
-               (error "Unknown element in syntax nonterminal" head))))))
+      (append (car lists)
+              (flatten/intersperse (cdr lists) separator))))
+
+(define (render-syntax-body body)
+  (let ((rendered-elems (map render-syntax-body-element body)))
+    (flatten/intersperse rendered-elems " ")))
 
 (define (render-syntax-signature element)
   (let ((name (datum->string (element-name element)))
@@ -716,6 +723,7 @@
      (body
       `(code "("
              (span (@ (class "element-signature-name")) ,name)
+             " "
              ,@(render-syntax-body body)
              ")"))
      (else
