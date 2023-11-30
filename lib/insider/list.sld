@@ -16,5 +16,5 @@
    make-list list-tail list-ref list-set! list-copy
 
    ;; SRFI-1:
-   any every filter fold)
+   any every filter fold drop-while)
   (include "list.scm"))

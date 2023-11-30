@@ -828,10 +828,59 @@
                              "Example")
                         ,@(render-body (cdr scrbl)))))))
 
+(define (split-lines scrbl)
+  (let loop ((scrbl scrbl) (accum '()) (current-line '()))
+    (cond ((null? scrbl)
+           (reverse (cons (reverse current-line) accum)))
+          ((and (string? (car scrbl)) (string=? (car scrbl) "\n"))
+           (loop (cdr scrbl) (cons (reverse current-line) accum) '()))
+          (else
+           (loop (cdr scrbl) accum (cons (car scrbl) current-line))))))
+
+(define (trim-line line)
+  (let loop ((result line))
+    (cond ((null? result)
+           result)
+          ((string? (car result))
+           (let ((trimmed (string-trim (car result))))
+             (if (string-null? trimmed)
+                 (loop (cdr result))
+                 (cons trimmed (cdr result)))))
+          (else
+           result))))
+
+(define (join-paragraph-lines lines)
+  ;; Lines is a list of lists. We want to flatten it in reverse, adding " " in
+  ;; between each line.
+  (let f ((lines lines))
+    (cond ((null? lines)
+           '())
+          ((null? (cdr lines))
+           (car lines))
+          (else
+           (append (f (cdr lines)) (cons " " (car lines)))))))
+
+(define (split-paragraphs lines)
+  (let loop ((lines (drop-while null? lines))
+             (accum '())
+             (current-paragraph '()))
+    (cond ((null? lines)
+           (reverse (cons (join-paragraph-lines current-paragraph) accum)))
+          ((null? (car lines))
+           (loop (cdr lines)
+                 (cons (join-paragraph-lines current-paragraph) accum)
+                 '()))
+          (else
+           (loop (cdr lines)
+                 accum
+                 (cons (car lines) current-paragraph))))))
+
 (define render-body (render-scribble scribble-tags))
 
 (define (render-element-body elem)
-  (render-body (element-body elem)))
+  (map (lambda (para) `(p ,@(render-body para)))
+       (split-paragraphs (map trim-line
+                              (split-lines (element-body elem))))))
 
 (define (render-element-header elem)
   `(div (@ (class "element-header"))

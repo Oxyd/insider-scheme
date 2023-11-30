@@ -250,3 +250,8 @@
   (if (null? lists-rest)
       (fold-1 kons knil list1)
       (fold-multi kons knil (cons list1 lists-rest))))
+
+(define (drop-while pred list)
+  (if (and (pair? list) (pred (car list)))
+      (drop-while pred (cdr list))
+      list))
