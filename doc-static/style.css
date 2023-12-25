@@ -51,6 +51,7 @@ code, pre {
     display: flex;
     background-color: hsl(0, 0%, 25%);
     padding: 4px;
+    align-items: center;
 }
 
 .element-description {
@@ -97,7 +98,6 @@ code, pre {
 }
 
 .element-kind {
-    float: right;
     color: hsl(0, 0%, 80%);
     font-style: italic;
     font-size: 0.9rem;
