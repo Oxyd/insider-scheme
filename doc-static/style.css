@@ -29,6 +29,7 @@ body {
 nav {
     flex: 0 0 16em;
     height: 100vh;
+    padding-left: 1em;
     overflow-y: scroll;
     position: sticky;
     top: 0;
@@ -38,6 +39,12 @@ nav {
 
 nav > ul {
     margin: 8px 0 8px 0;
+    list-style: none;
+    padding-left: 0;
+}
+
+nav a {
+    text-decoration: none;
 }
 
 main {
