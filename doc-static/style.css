@@ -21,16 +21,28 @@ code, pre {
     font-family: "Latin Modern Math", "DejaVu Sans", sans-serif;
 }
 
-.nav-left {
-    position: fixed;
-    width: 14rem;
-    height: calc(100% - 1ex);
+body {
+    display: flex;
+    margin: 0;
+}
+
+nav {
+    flex: 0 0 16em;
+    height: 100vh;
     overflow-y: scroll;
+    position: sticky;
+    top: 0;
+    left: 0;
     background-color: hsl(0, 0%, 15%);
 }
 
-.main-content {
-    margin-left: 17rem;
+nav > ul {
+    margin: 8px 0 8px 0;
+}
+
+main {
+    flex-grow: 1;
+    margin-left: 1em;
 }
 
 .element {

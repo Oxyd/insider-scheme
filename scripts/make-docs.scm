@@ -543,8 +543,7 @@
   (string-join (map f (cdr sxml))))
 
 (define (render-element-list module)
-  `(div (@ (class "nav-left"))
-        (ul ,@(map (lambda (elem)
+  `(nav (ul ,@(map (lambda (elem)
                      (let ((name (datum->string (element-name elem))))
                        `(li
                          (a (@ (href ,(string-append "#" name)))
@@ -941,9 +940,8 @@
                       (link (@ (rel "stylesheet")
                                (href "style.css"))))
                 (body ,(render-element-list module)
-                      (div (@ (class "main-content"))
-                           (h1 ,(datum->string (module-name module)))
-                           ,(render-element-details module))))))
+                      (main (h1 ,(datum->string (module-name module)))
+                            ,(render-element-details module))))))
        out))))
 
 (define (find-files-recursive path extension)
