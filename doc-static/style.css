@@ -52,6 +52,10 @@ main {
     margin-left: 1em;
 }
 
+main > h1 {
+    margin-left: 12px;
+}
+
 .element {
     padding-left: 8px;
     border-left: 4px solid hsl(0, 0%, 10%);
