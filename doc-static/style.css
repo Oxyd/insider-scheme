@@ -43,6 +43,10 @@ nav > ul {
     padding-left: 0;
 }
 
+nav li + li {
+    margin-top: 4px;
+}
+
 nav a {
     text-decoration: none;
 }
