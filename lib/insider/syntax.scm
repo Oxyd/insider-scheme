@@ -101,6 +101,9 @@
 ;;> @name{...}
 (define-auxiliary-syntax ...)
 
+;;> @syntax{@repeated{clause}}
+;;> Each @nonterm{clause} has the following syntax:
+;;> @nonterminal-def[clause]{(test @repeated{expr})}
 (define-syntax cond
   (syntax-rules (else =>)
     ((cond) #void)

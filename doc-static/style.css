@@ -132,6 +132,12 @@ main > h1 {
     margin: 4px;
 }
 
+.nonterminal-definition {
+    margin-left: 2em;
+    padding: 4px;
+    background-color: hsl(0, 0%, 15%);
+}
+
 .code {
     background-color: hsl(0, 0%, 5%);
     padding: 4px;

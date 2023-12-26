@@ -725,6 +725,14 @@
   (let ((rendered-elems (map render-syntax-body-element body)))
     (flatten/intersperse rendered-elems " ")))
 
+(define (render-nonterminal-def scrbl)
+  (let ((name (cadr scrbl))
+        (body (cddr scrbl)))
+    `(div (@ (class "nonterminal-definition"))
+          (span (@ (class "nonterminal")) ,(datum->string name))
+          " ⟶ "
+          ,@(render-syntax-body body))))
+
 (define (render-syntax-signature element)
   (let ((name (datum->string (element-name element)))
         (body (get-meta element 'syntax-body)))
@@ -831,6 +839,7 @@
   `((c . ,(lambda (scrbl) `(code ,@(render-body (cdr scrbl)))))
     (nonterm . ,(lambda (scrbl) `(span (@ (class "nonterminal-reference"))
                                        ,@(render-body (cdr scrbl)))))
+    (nonterminal-def . ,render-nonterminal-def)
     (code . ,scribble-code)
     (example . ,(lambda (scrbl)
                   `(div (@ (class "example"))
