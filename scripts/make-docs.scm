@@ -710,6 +710,8 @@
             `("["
               ,@(render-syntax-body (cdr elem))
               "]"))
+           ((term)
+            `((span (@ (class "terminal")) ,(cadr elem))))
            (else
             (error "Unknown tag in syntax nonterminal" (car elem)))))
         (else

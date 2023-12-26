@@ -13,7 +13,7 @@ a:visited {
     color: hsl(0, 0%, 90%);
 }
 
-code, pre {
+code, pre, .terminal {
     font-family: "Inconsolata", "Fira Mono", monospace;
 }
 
@@ -103,6 +103,11 @@ main > h1 {
 
 .element-signature-argument, .nonterminal, .nonterminal-reference {
     font-style: italic;
+}
+
+.terminal {
+    font-style: normal;
+    font-weight: bold;
 }
 
 .element-signature-default-expr {
