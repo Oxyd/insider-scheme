@@ -85,9 +85,20 @@
        (lambda (stx)
          #`(syntax-error "Invalid use of auxiliary syntax" #,stx))))))
 
+;;> @auxiliary-syntax
+;;> @name{else}
 (define-auxiliary-syntax else)
+
+;;> @auxiliary-syntax
+;;> @name{=>}
 (define-auxiliary-syntax =>)
+
+;;> @auxiliary-syntax
+;;> @name{_}
 (define-auxiliary-syntax _)
+
+;;> @auxiliary-syntax
+;;> @name{...}
 (define-auxiliary-syntax ...)
 
 (define-syntax cond

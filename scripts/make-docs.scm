@@ -169,6 +169,15 @@
         (cons `(syntax-body . ,(cdr form))
               meta)))
 
+(define (->symbol x)
+  (cond ((string? x) (string->symbol x))
+        ((symbol? x) x)
+        (else (error "Unknown type" x))))
+
+(define (name-meta meta form)
+  (let ((name (cadr form)))
+    (cons `(name . ,(->symbol name)) meta)))
+
 (define meta-commands
   `((procedure . ,(lambda (meta form)
                     (cons '(kind . procedure) meta)))
@@ -181,8 +190,9 @@
     (parameter . ,(lambda (meta form)
                     (cons '(kind . parameter) meta)))
     (syntax . ,syntax-meta)
-    (name . ,(lambda (meta form)
-               (cons `(name . ,(cadr form)) meta)))
+    (auxiliary-syntax . ,(lambda (meta form)
+                           (cons '(kind . auxiliary-syntax) meta)))
+    (name . ,name-meta)
     (module . ,(lambda (meta form) meta))
     (in-group . ,(lambda (meta form)
                    (when (assq 'group meta)
@@ -745,12 +755,13 @@
 
 (define (render-element-kind element)
   (case (get-meta element 'kind)
-    ((procedure) "procedure")
-    ((syntax)    "syntax")
-    ((parameter) "parameter")
-    ((variable)  "variable")
-    ((constant)  "constant")
-    (else        "unknown")))
+    ((procedure)        "procedure")
+    ((syntax)           "syntax")
+    ((auxiliary-syntax) "auxiliary syntax")
+    ((parameter)        "parameter")
+    ((variable)         "variable")
+    ((constant)         "constant")
+    (else               "unknown")))
 
 (define (render-scribble-element env scrbl)
   (cond ((string? scrbl)
