@@ -715,15 +715,14 @@
         (else
          (error "Unknown element in syntax nonterminal" elem))))
 
-(define (flatten/intersperse lists separator)
+(define (flatten lists)
   (if (null? lists)
       '()
-      (append (car lists)
-              (flatten/intersperse (cdr lists) separator))))
+      (append (car lists) (flatten (cdr lists)))))
 
 (define (render-syntax-body body)
   (let ((rendered-elems (map render-syntax-body-element body)))
-    (flatten/intersperse rendered-elems " ")))
+    (flatten rendered-elems)))
 
 (define (render-nonterminal-def scrbl)
   (let ((name (cadr scrbl))
