@@ -101,12 +101,14 @@
 ;;> @name{...}
 (define-auxiliary-syntax ...)
 
-;;> @syntax{@repeated{clause}}
+;;> @syntax{clause@_{1} @repeated{clause@_{2}}}
+;;>
 ;;> Each @nonterm{clause} has the following syntax:
 ;;> @nonterminal-def[clause]{@term{(}test @repeated{expr}@term{)}}
-;;> @nonterminal-def[clause]{@term{(}@term{else} @repeated{expr}@term{)}}
+;;> @nonterminal-def[clause]{
+;;>   @term{(}@term{else} expr@_{1} @repeated{expr@_{2}}@term{)}
+;;> }
 ;;> @nonterminal-def[clause]{@term{(}test @term{=>} proc-expr@term{)}}
-;;> @nonterminal-def[clause]{@term{(}@term{else} @term{=>} proc-expr@term{)}}
 (define-syntax cond
   (syntax-rules (else =>)
     ((cond) #void)

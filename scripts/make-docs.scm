@@ -712,6 +712,8 @@
               "]"))
            ((term)
             `((span (@ (class "terminal")) ,(cadr elem))))
+           ((_)
+            `((sub ,(cadr elem))))
            (else
             (error "Unknown tag in syntax nonterminal" (car elem)))))
         (else
