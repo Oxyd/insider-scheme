@@ -843,6 +843,8 @@
     (nonterm . ,(lambda (scrbl) `(span (@ (class "nonterminal-reference"))
                                        ,@(render-body (cdr scrbl)))))
     (nonterminal-def . ,render-nonterminal-def)
+    (term . ,(lambda (scrbl) `(span (@ (class "terminal"))
+                                    ,@(render-body (cdr scrbl)))))
     (code . ,scribble-code)
     (example . ,(lambda (scrbl)
                   `(div (@ (class "example"))

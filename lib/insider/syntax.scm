@@ -101,14 +101,77 @@
 ;;> @name{...}
 (define-auxiliary-syntax ...)
 
-;;> @syntax{clause@_{1} @repeated{clause@_{2}}}
+;;> @syntax{@repeated{clause} @optional{else-clause}}
 ;;>
-;;> Each @nonterm{clause} has the following syntax:
+;;> Each clause has the following syntax:
 ;;> @nonterminal-def[clause]{@term{(}test @repeated{expr}@term{)}}
-;;> @nonterminal-def[clause]{
+;;> @nonterminal-def[clause]{@term{(}test @term{=>} proc-expr@term{)}}
+;;> @nonterminal-def[else-clause]{
 ;;>   @term{(}@term{else} expr@_{1} @repeated{expr@_{2}}@term{)}
 ;;> }
-;;> @nonterminal-def[clause]{@term{(}test @term{=>} proc-expr@term{)}}
+;;>
+;;> A @c{cond} expression is evaluated by evaluating the @nonterm{test}
+;;> expressions of each @nonterm{clause} in order until one of them evaluates to
+;;> a true value. When a @nonterm{test} evaluates to a true value, the remaining
+;;> @nonterm{expr}s of the same @nonterm{clause} are evaluated and the @c{cond}
+;;> expression evaluates to the last @nonterm{expr} of the selected
+;;> @nonterm{clause}. The last @nonterm{expr} is in tail position with respect
+;;> to the @c{cond}. No further @nonterm{clause}s are evaluated.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (cond ((> 3 2) 'greater)
+;;>           ((< 3 2) 'less)) @evaluates-to{greater}
+;;>   }
+;;> }
+;;>
+;;> If a @nonterm{test} of a @nonterm{clause} evaluates to a true value but
+;;> there are no @nonterm{expr}s, then @c{cond} evaluates to the result of the
+;;> @nonterm{test} expression.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (define (f x)
+;;>       (cond ((car x))
+;;>             ((not (car x))
+;;>              (cdr x))))
+;;>
+;;>     (f (cons 2 3))  @evaluates-to{2}
+;;>     (f (cons #f 3)) @evaluates-to{3}
+;;>   }
+;;> }
+;;>
+;;> If a @nonterm{clause} uses the alternate @term{=>} form and its
+;;> @nonterm{test} expression evaluates to a true value, its @nonterm{proc-expr}
+;;> is evaluated and its result is applied to the result of the @nonterm{test}
+;;> expression. If @nonterm{proc-expr} evaluates to an object that cannot be
+;;> called with a single value, an exception is raised.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (let ((alist '((1 . one) (2 . two))))
+;;>       (cond ((assq 1 alist) => cdr)))
+;;>     @evaluates-to{one}
+;;>   }
+;;> }
+;;>
+;;> Finally, if no @nonterm{test} expression evaluates to a true value, and
+;;> an @nonterm{else-clause} is present, its @nonterm{expr}s are evaluated and
+;;> the @c{cond} expression evaluates to the result of the last @nonterm{expr},
+;;> which is in tail position with respect to the @c{cond}.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (let ((x 2))
+;;>       (cond ((pair? x)   'pair)
+;;>             ((string? x) 'string)
+;;>             (else        'mystery)))
+;;>     @evaluates-to{mystery}
+;;>   }
+;;> }
+;;>
+;;> If no @nonterm{test} expression evaluates to a true value and there is no
+;;> @nonterm{else-clause}, the @c{cond} expression evaluates to @c{#void}.
 (define-syntax cond
   (syntax-rules (else =>)
     ((cond) #void)
