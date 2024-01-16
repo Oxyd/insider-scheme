@@ -225,6 +225,75 @@
          (begin body0 body1 ...)
          (make-case-clauses key . rest)))))
 
+;;> @syntax{key-expr @repeated{clause} @optional{else-clause}}
+;;> Each clause has the following syntax:
+;;> @nonterminal-def[clause]{
+;;>   @term{(}@term{(}@repeated{datum}@term{)}
+;;>   expr@_{1} @repeated{expr@_{2}}@term{)}
+;;> }
+;;> @nonterminal-def[clause]{
+;;>   @term{(}@term{(}@repeated{datum}@term{)}
+;;>   @term{=>}
+;;>   proc-expr@term{)}
+;;> }
+;;> @nonterminal-def[else-clause]{
+;;>   @term{(}@term{else}
+;;>   expr@_{1} @repeated{expr@_{2}}@term{)}
+;;> }
+;;> @nonterminal-def[else-clause]{
+;;>   @term{(}@term{else} @term{=>} proc-expr@term{)}
+;;> }
+;;>
+;;> First, @nonterm{key-expr} is evaluated once and its result is compared
+;;> against each @nonterm{clause}'s @nonterm{datum}s using @c{eqv?}, in order.
+;;> If a clause contains the result of @nonterm{key-expr} in its
+;;> @nonterm{datum}s, its @nonterm{expr}s are evaluated and the @c{cond}
+;;> expression evaluates to the result of the last @nonterm{expr}. This last
+;;> @nonterm{expr} is in tail position with respect to the @c{cond}.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (case (* 2 3)
+;;>       ((2 3 5 7) 'prime)
+;;>       ((1 4 6 8 9) 'composite))
+;;>     @evaluates-to{composite}
+;;>   }
+;;> }
+;;>
+;;> If the selected @nonterm{clause} uses the alternate @term{=>} form, then
+;;> @nonterm{proc-expr} is evaluated and its result is applied to the previously
+;;> computed result of @nonterm{key-expr}. If @nonterm{proc-expr} evaluates to
+;;> an object that cannot be called with a single argument, an exception is
+;;> raised.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (case (* 2 3)
+;;>       ((2 4 6 8) => (lambda (x) (/ x 2)))
+;;>       ((1 3 5 7 9) => (lambda (x) (+ (* x 3) 1))))
+;;>     @evaluates-to{3}
+;;>   }
+;;> }
+;;>
+;;> If no @nonterm{clause} matches the result of @nonterm{key-expr} and there
+;;> is an @nonterm{else-clause}, its @nonterm{expr}s are evaluated and the
+;;> result of the last one becomes the result of the whole @c{cond} expression.
+;;> If the @nonterm{else-clause} uses the alternate @term{=>} form, the result
+;;> of evaluating @nonterm{proc-expr} is evaluated to the result of
+;;> @nonterm{key-expr}, like for ordinary @nonterm{clause}s.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (case 'c
+;;>       ((a e i o u) 'vowel)
+;;>       ((w y) 'semivowel)
+;;>       (else => (lambda (x) x)))
+;;>     @evaluates-to{c}
+;;>   }
+;;> }
+;;>
+;;> If no @nonterm{clause} matches and there is no @nonterm{else-clause}, the
+;;> @c{cond} expression evaluates to @c{#void}.
 (define-syntax case
   (syntax-rules ()
     ((case key clause1 clause2 ...)
