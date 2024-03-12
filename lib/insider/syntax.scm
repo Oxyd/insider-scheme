@@ -300,12 +300,36 @@
      (let ((k key))
        (make-case-clauses k clause1 clause2 ...)))))
 
+;;> @syntax{test-expr expr@_{1} @repeated{expr@_{2}}}
+;;> @nonterm{test-expr} is evaluated. If its result is a true value, the
+;;> @nonterm{expr}s are evaluated in order, and the @c{when} expression
+;;> evaluates to the result of the last one. The last @nonterm{expr} is in tail
+;;> position with respect to the @c{when} expression.
+;;>
+;;> If @nonterm{test-expr} evaluates to @c{#f}, the @c{when} expression
+;;> evaluates to @c{#void}.
+;;>
+;;> @example{
+;;>   This snippet prints "Less than five" to the current output port and
+;;>   evaluates to the symbol @c{too-small}.
+;;>   @code{
+;;>     (when (< 2 5)
+;;>       (display "Less than five")
+;;>       'too-small)
+;;>     @evaluates-to{too-small}
+;;>   }
+;;> }
 (define-syntax when
   (syntax-rules ()
     ((when condition body0 body ...)
      (if condition
          (begin body0 body ...)))))
 
+;;> @syntax{test-expr expr@_{1} @repeated{expr@_{2}}}
+;;> Similar to @c{when}; @nonterm{test-expr} is evaluated and if it results in
+;;> @c{#f}, the @nonterm{expr}s are evaluated and the @c{unless} expression
+;;> evaluates to the result of the last once. The last @nonterm{expr} is in tail
+;;> position with respect to the @c{unless} expression.
 (define-syntax unless
   (syntax-rules ()
     ((unless condition body0 body ...)
