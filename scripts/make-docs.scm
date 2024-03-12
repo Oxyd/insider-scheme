@@ -850,7 +850,15 @@
                   `(div (@ (class "example"))
                         (div (@ (class "example-header"))
                              "Example")
-                        ,@(render-body (cdr scrbl)))))))
+                        ,@(render-body (cdr scrbl)))))
+    (ref . ,(lambda (scrbl)
+              (let ((module (cadr scrbl))
+                    (element (caddr scrbl))
+                    (body (cdddr scrbl)))
+                `(a (@ (href ,(format "{}#{}"
+                                      (module-name->file-name module)
+                                      element)))
+                    ,@(render-body body)))))))
 
 (define (split-lines scrbl)
   (let loop ((scrbl scrbl) (accum '()) (current-line '()))

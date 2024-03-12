@@ -326,10 +326,11 @@
          (begin body0 body ...)))))
 
 ;;> @syntax{test-expr expr@_{1} @repeated{expr@_{2}}}
-;;> Similar to @c{when}; @nonterm{test-expr} is evaluated and if it results in
-;;> @c{#f}, the @nonterm{expr}s are evaluated and the @c{unless} expression
-;;> evaluates to the result of the last once. The last @nonterm{expr} is in tail
-;;> position with respect to the @c{unless} expression.
+;;> Similar to @ref[(insider syntax) when]{@c{when}}; @nonterm{test-expr} is
+;;> evaluated and if it results in @c{#f}, the @nonterm{expr}s are evaluated and
+;;> the @c{unless} expression evaluates to the result of the last once. The last
+;;> @nonterm{expr} is in tail position with respect to the @c{unless}
+;;> expression.
 (define-syntax unless
   (syntax-rules ()
     ((unless condition body0 body ...)

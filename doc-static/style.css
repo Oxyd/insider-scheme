@@ -6,11 +6,11 @@ body {
 }
 
 a:link {
-    color: hsl(0, 0%, 90%);
+    color: hsl(278, 60%, 80%);
 }
 
 a:visited {
-    color: hsl(0, 0%, 90%);
+    color: hsl(278, 60%, 80%);
 }
 
 code, pre, .terminal {
@@ -50,6 +50,14 @@ nav li + li {
 
 nav a {
     text-decoration: none;
+}
+
+nav a:link {
+    color: hsl(0, 0%, 90%);
+}
+
+nav a:visited {
+    color: hsl(0, 0%, 90%);
 }
 
 main {
