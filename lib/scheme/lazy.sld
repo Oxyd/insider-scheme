@@ -1,4 +1,5 @@
 (define-library (scheme lazy)
-  (import (insider syntax) (insider record) (insider basic-procedures))
+  (import (insider syntax) (insider record) (insider basic-procedures)
+          (only (insider internal) box box-set! unbox))
   (export delay-force delay force make-promise promise?)
   (include "lazy.scm"))
