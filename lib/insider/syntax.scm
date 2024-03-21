@@ -1,3 +1,23 @@
+;;> @syntax{
+;;>   @term{(}binding@_{1} @repeated{binding@_{2}}@term{)}
+;;>   body
+;;> }
+;;>
+;;> Each binding has the following syntax:
+;;> @nonterminal-def[binding]{@term{(}var init-expr@term{)}}
+;;>
+;;> Similar to @ref[(insider syntax) let]{@c{let}}, except the
+;;> @nonterm{init-expr}s are evaluated left-to-right, and each binding is
+;;> performed before the successive @nonterm{init-expr}s, making it possible for
+;;> latter @nonterm{init-expr}s to refer to the earlier variables.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (let* ((x 7)
+;;>            (y (+ 2 x)))
+;;>       (* x y)) @evaluates-to{63}
+;;>   }
+;;> }
 (define-syntax let*
   (syntax-rules ()
     ((let* () body0 body ...)
@@ -18,6 +38,54 @@
     ((define name expr)
      (%define name expr))))
 
+;;> @syntax{
+;;>   @optional{name}
+;;>   @term{(}binding@_{1} @repeated{binding@_{2}}@term{)}
+;;>   body
+;;> }
+;;>
+;;> Each binding has the following syntax:
+;;> @nonterminal-def[binding]{@term{(}var init-expr@term{)}}
+;;>
+;;> @nonterm{body} is a potentially empty sequence of definitions, followed by a
+;;> nonempty sequence of expressions.
+;;>
+;;> First, the @nonterm{init-expr}s are evaluated in an unspecified order. Once
+;;> all @nonterm{init-expr}s have been evaluated, the results of each
+;;> @nonterm{init-expr} is bound to the corresponding @nonterm{var} and the
+;;> @nonterm{body} is evaluated in an environment where these bindings are
+;;> visible. The variables are bound to these values only within the
+;;> @nonterm{body} of the @c{let}.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (let ((x 1) (y 2))
+;;>       (let ((y 5))
+;;>         (display (+ x y))
+;;>         (newline))
+;;>       (display (+ x y))
+;;>       (newline))
+;;>   }
+;;>   This example produces the following output:
+;;>   @code{
+;;>     6
+;;>     3
+;;>   }
+;;> }
+;;>
+;;> If the optional @nonterm{name} is present, it is bound within the body of
+;;> the @c{let} to a procedure whose formal arguments are the @nonterm{var}s and
+;;> whose body is @nonterm{body}. This makes it possible to conveniently define
+;;> recursive procedures.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (let loop ((i 10) (sum 0))
+;;>       (if (zero? i)
+;;>           sum
+;;>           (loop (- i 1) (+ sum i)))) @evaluates-to{55}
+;;>   }
+;;> }
 (define-syntax let
   (syntax-rules ()
     ((let name ((var expr) ...) body0 body ...)
@@ -29,6 +97,36 @@
      (%let ((var expr) ...)
        body0 body ...))))
 
+;;> @in-group[letrec]
+;;> @syntax{
+;;>   @optional{name}
+;;>   @term{(}binding@_{1} @repeated{binding@_{2}}@term{)}
+;;>   body
+;;> }
+;;>
+;;> Each binding has the following syntax:
+;;> @nonterminal-def[binding]{@term{(}var init-expr@term{)}}
+;;>
+;;> First, the @nonterm{var}s are bound to fresh locations. Then each binding's
+;;> @nonterm{init-expr} is evaluated and its result assigned to the
+;;> corresponding @nonterm{var}. The @nonterm{init-expr}s are evaluated
+;;> left-to-right, and each assignment takes place before any further
+;;> @nonterm{init-expr} is evaluated. This makes it possible to define variables
+;;> whose values depend on the previous variables in the same expression, and
+;;> to define recursive procedures.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (letrec ((fact (lambda (n)
+;;>                      (if (zero? n)
+;;>                          1
+;;>                          (* n (fact (- n 1)))))))
+;;>       (fact 5)) @evaluates-to{120}
+;;>   }
+;;> }
+;;>
+;;> In Insider, the @c{letrec} and @c{letrec*} forms are identical to each
+;;> other; both evaluate the @nonterm{init-expr}s left-to-right.
 (define-syntax letrec*
   (syntax-rules ()
     ((letrec* ((name expr) ...) body0 body ...)
@@ -37,11 +135,42 @@
        body0
        body ...))))
 
+;;> @in-group[letrec]
+;;> @syntax{
+;;>   @optional{name}
+;;>   @term{(}binding@_{1} @repeated{binding@_{2}}@term{)}
+;;>   body
+;;> }
 (define-syntax letrec
   (syntax-rules ()
     ((letrec ((name expr) ...) body0 body ...)
      (letrec* ((name expr) ...) body0 body ...))))
 
+;;> @syntax{
+;;>   @term{(}mv-binding@_{1} @repeated{mv-binding@_{2}}@term{)}
+;;>   body
+;;> }
+;;>
+;;> Each @nonterm{mv-binding} has the following syntax:
+;;> @nonterminal-def[mv-binding]{
+;;>   @term{(}
+;;>     @term{(}var@_{1} @repeated{var@_{2}}@term{)}
+;;>     init-expr
+;;>   @term{)}
+;;> }
+;;>
+;;> Similar to @ref[(insider syntax) let]{@c{let}}, the @nonterm{init-expr}s
+;;> are evaluated in an unspecified order, and the return values of each
+;;> @nonterm{init-expr} are bound to the corresponding @nonterm{var}s. It is
+;;> an error if the @nonterm{init-expr} evaluates to a different number of
+;;> values than there are @nonterm{var}s.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (let-values (((root rem) (exact-integer-sqrt 32)))
+;;>       (* root rem)) @evaluates-to{35}
+;;>   }
+;;> }
 (define-syntax let-values
   (syntax-rules ()
     ((let-values (((names ...) init-exprs) ...) . body)
@@ -67,6 +196,31 @@
     ((let-values "call" () () . body)
      (begin . body))))
 
+;;> @syntax{
+;;>   @term{(}mv-binding@_{1} @repeated{mv-binding@_{2}}@term{)}
+;;>   body
+;;> }
+;;>
+;;> Each @nonterm{mv-binding} has the following syntax:
+;;> @nonterminal-def[mv-binding]{
+;;>   @term{(}
+;;>     @term{(}var@_{1} @repeated{var@_{2}}@term{)}
+;;>     init-expr
+;;>   @term{)}
+;;> }
+;;>
+;;> Similar to @ref[(insider syntax) let-values]{@c{let-values}}, but, similarly
+;;> to @ref[(insider syntax) let*]{@c{let*}} the @nonterm{init-expr}s are
+;;> evaluated left-to-right, and each binding is performed before the successive
+;;> @nonterm{init-expr}s
+;;>
+;;> @example{
+;;>   @code{
+;;>     (let*-values (((a b) (values 1 2))
+;;>                   ((c d) (values (* 2 a) (* 2 b))))
+;;>       (+ c d)) @evaluates-to{6}
+;;>   }
+;;> }
 (define-syntax let*-values
   (syntax-rules ()
     ((let*-values (((names-1 ...) init-expr-1) ((names-rest ...) init-exprs-rest) ...) . body)
