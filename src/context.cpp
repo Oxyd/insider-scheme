@@ -35,6 +35,22 @@ namespace insider {
 //>   }
 //> }
 
+//> @name[set!]
+//> @syntax{variable expr}
+//>
+//> @nonterm{Expr} is evaluated and the resulting value is stored in the
+//> location to which @nonterm{variable} is bound. The @c{set!} expression
+//> itself evaluates to @c{#void}.
+//>
+//> @example{
+//>   @code{
+//>     (define x 2)
+//>     (+ x 1) @evaluates-to{3}
+//>     (set! x 4)
+//>     (+ x 1) @evaluates-to{5}
+//>   }
+//> }
+
 context::context() {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);
