@@ -27,6 +27,13 @@ namespace insider {
 //>
 //> Both @nonterm{then-expr} and @nonterm{else-expr} are in tail position with
 //> respect to the @c{if} form.
+//>
+//> @example{
+//>   @code{
+//>     (if (> 3 2) 'yes 'no) @evaluates-to{yes}
+//>     (if (> 2 3) 'yes 'no) @evaluates-to{no}
+//>   }
+//> }
 
 context::context() {
   constants = std::make_unique<struct constants>();
