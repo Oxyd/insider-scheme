@@ -51,6 +51,112 @@ namespace insider {
 //>   }
 //> }
 
+//> @name[lambda]
+//> @syntax{formals body}
+//>
+//> @nonterminal-def[formals]{tail-arg}
+//> @nonterminal-def[formals]{
+//>   @term{(}
+//>   @repeated{mandatory-arg} @repeated{optional-arg}
+//>   @optional{@term{.} tail-arg}
+//>   @term{)}
+//> }
+//> @nonterminal-def[mandatory-arg]{@optional{keyword} id}
+//> @nonterminal-def[optional-arg]{
+//>   @optional{keyword} @term{(}id default-expr@term{)}
+//> }
+//>
+//> A @c{lambda} expression evaluates to a procedure. @nonterm{Formals} defines
+//> the arguments the procedure accepts.
+//>
+//> @example{
+//>   @code{
+//>     (define f (lambda (a b c) (+ a b c)))
+//>     (f 1 2 3) @evaluates-to{6}
+//>   }
+//> }
+//>
+//> If a @nonterm{mandatory-arg} or @nonterm{optional-arg} is preceded by a
+//> @nonterm{keyword}, the argument is named and can be optionally given by name
+//> at the call site rather than by position.
+//>
+//> When a call site uses named arguments, the argument ordering semantics are
+//> as follows: First, all the named call-site arguments are placed in the
+//> corresponding named arguments of the procedure. Then the remaining
+//> arguments unnamed by the call site are placed in the remaining unfilled
+//> procedure arguments in a left-to-right order. It is an error if the call
+//> site uses an argument name the procedure doesn't accept.
+//>
+//> @example{
+//>   @code{
+//>     (define f
+//>       (lambda (a #:second b #:third c)
+//>         (list a b c)))
+//>
+//>     (f 1 2 3)
+//>     @evaluates-to{(1 2 3)}
+//>
+//>     (f 1 #:third 3 #:second 2)
+//>     @evaluates-to{(1 2 3)}
+//>
+//>     (f 1 2 #:third 3)
+//>     @evaluates-to{(1 2 3)}
+//>
+//>     (f 1 3 #:second 2)
+//>     @evaluates-to{(1 2 3)}
+//>   }
+//>   In the last example, first the @c{#:second 2} argument is placed in the
+//>   @c{b} slot of the procedure. Then the remaining arguments, @c{1} and
+//>   @c{3}, are taken, in this order, and used to fill the remaining argument
+//>   slots of the procedure, with @c{1} filling the @c{a} slot, and @c{3}
+//>   filling the @c{c} slot since the @c{b} slot is already filled.
+//> }
+//>
+//> If an argument includes a @nonterm{default-expr}, the argument is optional.
+//> If a call site does not provide a value for an optional argument, the
+//> @nonterm{default-expr} is evaluated in the context of the called procedure
+//> and its value is used as the value for the optional argument.
+//>
+//> @example{
+//>   @code{
+//>     (define f
+//>       (lambda (a (b 2) (c 3))
+//>         (list a b c)))
+//>
+//>     (f 1 2)
+//>     @evaluates-to{(1 2 3)}
+//>
+//>     (f 1)
+//>     @evaluates-to{(1 2 3)}
+//>
+//>     (f 1 2 'three)
+//>     @evaluates-to{(1 2 three)}
+//>   }
+//> }
+//>
+//> If the @nonterm{formals} include a @nonterm{tail-arg}, the procedure is
+//> variadic and can accept an unbound number of arguments. After all
+//> @nonterm{mandatory-arg}s and @nonterm{optional-arg}s have been filled, the
+//> remaining call-site arguments are collected into a list and the
+//> @nonterm{tail-arg} is bound to this list within the procedure.
+//>
+//> @example{
+//>   @code{
+//>     (define f
+//>       (lambda (a (b 'default) . rest)
+//>         (list a b rest)))
+//>
+//>     (f 1 2)
+//>     @evaluates-to{(1 2 ())}
+//>
+//>     (f 1 2 3 4)
+//>     @evaluates-to{(1 2 (3 4))}
+//>
+//>     (f 1)
+//>     @evaluates-to{(1 default ())}
+//>   }
+//> }
+
 context::context() {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);
