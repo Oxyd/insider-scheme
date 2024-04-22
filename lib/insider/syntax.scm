@@ -28,6 +28,48 @@
        (let* ((var expr) ...)
          body0 body ...)))))
 
+
+;;> @syntax{head expr}
+;;> @nonterminal-def[head]{variable}
+;;> @nonterminal-def[head]{@term{(}head @term{.} tail-arg@term{)}}
+;;> @nonterminal-def[head]{
+;;>   @term{(}head
+;;>   @repeated{mandatory-arg}
+;;>   @repeated{optional-arg}
+;;>   @optional{@term{.} tail-arg}
+;;>   @term{)}
+;;> }
+;;>
+;;> @nonterm{mandatory-arg}, @nonterm{optional-arg}, and @nonterm{tail-arg} use
+;;> the same syntax as in the @ref[(insider syntax) lambda]{lambda} form.
+;;>
+;;> In the first form, where @nonterm{head} is a @nonterm{variable}, the
+;;> @c{define} form defines a new variable and assigns the result of evaluating
+;;> @nonterm{expr} to it.
+;;>
+;;> The second form, @code{(define (head . tail-arg) expr)} is equivalent to
+;;> @code{(define head (lambda tail-arg expr))}
+;;>
+;;> The third form,
+;;> @code{(define (head mandatory-arg ... optional-arg ... [. tail-arg]) expr)}
+;;> is equivalent to
+;;> @code{(define head (lambda (mandatory-arg ... optional-arg ... [. tail-arg]) expr))}
+;;>
+;;> Note that both equivalences apply recursively.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (define x 42)
+;;>     x @evaluates-to{42}
+;;>
+;;>     (define (f n) (* 2 n))
+;;>     (f x) @evaluates-to{84}
+;;>
+;;>     (define ((make-adder a) b) (+ a b))
+;;>     (define add-2 (make-adder 2))
+;;>     (add-2 13) @evaluates-to{15}
+;;>   }
+;;> }
 (define-syntax define
   (syntax-rules ()
     ((define (name . args) body0 body ...)
