@@ -157,6 +157,38 @@ namespace insider {
 //>   }
 //> }
 
+//> @name[define-syntax]
+//> @syntax{identifier transformer-expr}
+//>
+//> @nonterm{transformer-expr} has to be an expression that evaluates to a valid
+//> transformer. A transformer is a procedure that takes one argument, the input
+//> syntax object, and returns another syntax object.
+//>
+//> Whenever @nonterm{identifier} is encountered as the first term of an
+//> S-expression, and the @nonterm{identifier} is bound to a syntax transformer
+//> in that context, the transformer procedure is called at compile-time with
+//> the whole S-expression as its input, and the expression is effectively
+//> replaced with the result of the transformer procedure.
+//>
+//> It is an error if @nonterm{transformer-expr} does not evaluate to a
+//> procedure of a single argument, or if, when called, the transformer
+//> procedure does not return a syntax object.
+//>
+//> @example{
+//>   @code{
+//>     (define-syntax with
+//>       (lambda (stx)
+//>         (let ((expr (syntax->list stx)))
+//>           (let ((name (cadr expr))
+//>                 (value (caddr expr))
+//>                 (body (cddr expr)))
+//>             #`(let ((#,name #,value)) #,@"@"body)))))
+//>
+//>     (with a 2 (+ 5 a))
+//>     @evaluates-to{7}
+//>   }
+//> }
+
 context::context() {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);
