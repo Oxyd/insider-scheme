@@ -189,6 +189,50 @@ namespace insider {
 //>   }
 //> }
 
+//> @name[begin]
+//> @syntax{begin-contents}
+//> @nonterminal-def[begin-contents]{@repeated{expression-or-definition}}
+//> @nonterminal-def[begin-contents]{expr@_{1} @repeated{expr@_{2}}}
+//>
+//> There are two forms of @c{begin}. The first form, where
+//> @nonterm{begin-contents} can contain expressions and definitions, can appear
+//> as a part of a body, or of the top-level, or nested in another @c{begin}
+//> that itself is of this form. The @nonterm{expression-or-definition}s are
+//> spliced into the surrounding context as if the @c{begin} form were not
+//> present.
+//>
+//> This form is primarily used in the output of macros that need to expand to
+//> multiple definitions and splice them into the enclosing context.
+//>
+//> @example{
+//>   @code{
+//>     (define-syntax make-vars
+//>       (syntax-rules ()
+//>         ((make-vars names ...)
+//>          (begin
+//>            (define names 0) ...))))
+//>
+//>     (make-vars x y z)
+//>     (set! x 2)
+//>     (set! y 5)
+//>     (+ x y z) @evaluates-to{7}
+//>   }
+//> }
+//>
+//> The second form, where @nonterm{begin-contents} is a sequence of
+//> expressions, is itself an expression. When evaluated, its @nonterm{expr}s
+//> are evaluated in left-to-right order, and the @c{begin} expression evaluates
+//> to the result of the last expression.
+//>
+//> @example{
+//>   @code{
+//>     (define x 0)
+//>     (and (= x 0)
+//>          (begin (set! x 5)
+//>                 (+ x 1))) @evaluates-to{6}
+//>   }
+//> }
+
 context::context() {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);
