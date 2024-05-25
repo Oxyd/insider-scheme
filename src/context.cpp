@@ -233,6 +233,92 @@ namespace insider {
 //>   }
 //> }
 
+//> @name[quote]
+//> @syntax{datum}
+//>
+//> Evaluates to @nonterm{datum}.
+//>
+//> Most data are self-evaluating, and for those @c{(quote datum)} is the same
+//> as @c{datum} itself. Other data, however, have special meaning in normal
+//> Scheme code – most notably, lists are used to represent procedure calls.
+//> For these, @c{quote} removes this special meaning and allows a datum to
+//> stand for itself.
+//>
+//> Note that the reader will read @c{'foo} as the list @c{(quote foo)}.
+//>
+//> @example{
+//>   @code{
+//>     (define a 5)
+//>     (quote a) @evaluates-to{a}
+//>     'a        @evaluates-to{a}
+//>     a         @evaluates-to{5}
+//>
+//>     (define (f x) (* 2 x))
+//>     (quote (f 10)) @evaluates-to{(f 10)}
+//>     '(f 10)        @evaluates-to{(f 10)}
+//>     (f 10)         @evaluates-to{20}
+//>
+//>     5         @evaluates-to{5}
+//>     (quote 5) @evaluates-to{5}
+//>     '5        @evaluates-to{5}
+//>   }
+//> }
+
+//> @in-group[quasiquote]
+//> @name[quasiquote]
+//> @syntax{qq-template}
+//>
+//> Similar to @ref[(insider syntax) quote]{@c{quote}}, but optionally allows
+//> for parts of the datum to be evaluated, using the @c{unquote} and
+//> @c{unquote-splicing} forms.
+//>
+//> @c{quasiquote} can be abbreviated as @c{`} (backtick), @c{unquote} as @c{,}
+//> (comma), and @c{unquote-splicing} as @c{,@"@"} (comma followed by at sign).
+//>
+//> If @c{(unquote expr)} appears in a @nonterm{qq-template}, the expression
+//> is evaluated and its result inserted into the resulting datum instead of the
+//> @c{unquote} form.
+//>
+//> @example{
+//>   @code{
+//>     `(list ,(+ 1 2) 4)
+//>     @evaluates-to{(list 3 4)}
+//>     (let ((name 'a)) `(list ,name ',name))
+//>     @evaluates-to{(list a (quote a))}
+//>   }
+//> }
+//>
+//> If @c{(unquote-splicing expr)} appears in a @nonterm{qq-template}, the
+//> expression is evaluated and has to produce a list. The resulting list is
+//> then spliced into the output datum.
+//>
+//> @example{
+//>   @code{
+//>     `(a ,(+ 1 2) ,@"@"(map abs '(4 -5 6)) b)
+//>     @evaluates-to{(a 3 4 5 6 b)}
+//>   }
+//> }
+//>
+//> Quasiquote expressions can be nested. Each @c{quasiquote} increases the
+//> nesting level, and each @c{unquote} or @c{unquote-splicing} decreases it.
+//> @c{unquote} and @c{unquote-splincing} substitutions are only made at the
+//> level of the outermost @c{quasiquote}.
+//>
+//> @example{
+//>   @code{
+//>     `(a `(b ,(+ 1 2) ,(foo ,(+ 1 3) d) e) f)
+//>     @evaluates-to{(a `(b ,(+ 1 2) ,(foo 4 d) e) f)}
+//>   }
+//> }
+
+//> @in-group[quasiquote]
+//> @name[unquote]
+//> @auxiliary-syntax
+
+//> @in-group[quasiquote]
+//> @name[unquote-splicing]
+//> @auxiliary-syntax
+
 context::context() {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);
