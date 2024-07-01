@@ -319,6 +319,46 @@ namespace insider {
 //> @name[unquote-splicing]
 //> @auxiliary-syntax
 
+//> @name[syntax]
+//> @syntax{datum}
+//>
+//> Similar to @ref[(insider syntax) quote]{@c{quote}}, but produces a syntax
+//> object that contains information about the datum's context: Its physical
+//> location in the source code (file and line number), and its syntactic
+//> position in the program's structure.
+//>
+//> Note that the reader will read @c{#'foo} as the list @c{(syntax foo)}.
+//>
+//> @example{
+//>   @code{
+//>     (syntax? #'x)
+//>     @evaluates-to{#t}
+//>
+//>     (syntax-location #'x)
+//>     @evaluates-to{("<stdin>" 2 20)}
+//>   }
+//> }
+
+//> @in-group[quasisyntax]
+//> @name[quasisyntax]
+//> @syntax{qq-template}
+//>
+//> Similar to @ref[(insider syntax) quasiquote]{@c{quasiquote}}, but produces
+//> syntax objects like @ref[(insider syntax) syntax]{@c{syntax}}. @c{unsyntax}
+//> and @c{unsyntax-splicing} are analogous to @c{unquote} and
+//> @c{unquote-splicing} respectively.
+//>
+//> @c{quasisyntax} can be abbreviated as @c{#`}, @c{unsyntax} as @c{#,}, and
+//> @c{unsyntax-splicing} as @c{#,@"@"}.
+
+//> @in-group[quasisyntax]
+//> @name[unsyntax]
+//> @auxiliary-syntax
+
+//> @in-group[quasisyntax]
+//> @name[unsyntax-splicing]
+//> @auxiliary-syntax
+
 context::context() {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);
