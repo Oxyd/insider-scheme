@@ -387,6 +387,22 @@ namespace insider {
 //>   }
 //> }
 
+//> @in-group[let-syntax]
+//> @name[let-syntax]
+//> @syntax{@term{(}binding@_{1} @repeated{binding@_{2}}@term{)} body}
+//>
+//> @nonterminal-def[binding]{@term{(}identifier transformer-expr@term{)}}
+//>
+//> Analogous to @c{let} or @c{letrec}, but for syntactic definitions. Each
+//> @nonterm{transformer-expr} has to be an expression that evaluates to a valid
+//> tranformer, see @ref[(insider syntax) define-syntax]{define-syntax}. Within
+//> the body of the @c{let-syntax}, each @c{identifier} is bound to the
+//> corresponding syntax transformer.
+
+//> @in-group[let-syntax]
+//> @name[letrec-syntax]
+//> @syntax{@term{(}binding@_{1} @repeated{binding@_{2}}@term{)} body}
+
 context::context() {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);
