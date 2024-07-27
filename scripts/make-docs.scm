@@ -159,7 +159,7 @@
 (define (meta-push meta key value)
   (let ((pair (assq key meta)))
     (cond (pair
-           (set-cdr! pair (append (cdr pair) (list value)))
+           (set-cdr! pair (append (cdr pair) value))
            meta)
           (else
            (cons (cons key value) meta)))))
@@ -204,9 +204,10 @@
              (meta '())
              (body '()))
     (cond ((null? scribble)
-           (values meta (reverse body)))
+           (values (reverse meta) (reverse body)))
           ((or (assq (car scribble) meta-commands)
-               (and (pair? (car scribble)) (assq (caar scribble) meta-commands)))
+               (and (pair? (car scribble))
+                    (assq (caar scribble) meta-commands)))
            (loop (cdr scribble)
                  (cons (car scribble) meta)
                  body))
