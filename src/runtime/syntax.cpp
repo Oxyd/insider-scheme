@@ -4,6 +4,8 @@
 #include "util/define_procedure.hpp"
 #include "util/object_conversions.hpp"
 
+//> @module[(insider internal)]
+
 namespace insider {
 
 bool
@@ -59,6 +61,22 @@ syntax::visit_members(member_visitor const& f) const {
     f(ur.scope);
 }
 
+//> @name[syntax-expression]
+//> @procedure
+//> @arg[stx]
+//>
+//> Get the expression contained within a syntax object. Note that this only
+//> strips away one level of syntax objects. If the contained expression
+//> contains nested subsyntaxes, these will be preserved. See
+//> @ref[(insider internal) syntax->datum]{@c{syntax->datum}} for a procedure
+//> that strips all nested syntaxes.
+//>
+//> @example{
+//>   @code{
+//>     (syntax-expression #'(foo (bar)))
+//>     @evaluates-to{(#<syntax <stdin>:2:23 foo> #<syntax <stdin>:2:27 (bar)>)}
+//>   }
+//> }
 ptr<>
 syntax::update_and_get_expression(context& ctx) {
   if (dirty())
@@ -145,20 +163,20 @@ syntax::update_children(context& ctx) {
 
   if (auto stx = match<syntax>(expression_.get()))
     expression_.assign(
-      ctx.store, this, 
+      ctx.store, this,
       apply_update_records_to_syntax(ctx, stx, update_records_)
     );
   else if (auto p = match<pair>(expression_.get()))
     expression_.assign(
-      ctx.store, this, 
+      ctx.store, this,
       apply_update_records_to_list(ctx, p, update_records_)
     );
   else if (auto v = match<vector>(expression_.get()))
     expression_.assign(
-      ctx.store, this, 
+      ctx.store, this,
       apply_update_records_to_vector(ctx, v, update_records_)
     );
-  
+
   update_records_.clear();
 }
 
@@ -246,6 +264,19 @@ unwrap_syntaxes(context& ctx, ptr<syntax> stx,
   }
 }
 
+//> @name[syntax->datum]
+//> @procedure
+//> @arg[stx]
+//>
+//> Converts a syntax object to a datum by recursively stripping all syntaxes
+//> from the contained expression and its subexpressions.
+//>
+//> @example{
+//>   @code{
+//>     (syntax->datum #'(foo (bar)))
+//>     @evaluates-to{(foo (bar))}
+//>   }
+//> }
 ptr<>
 syntax_to_datum(context& ctx, ptr<syntax> stx) {
   auto aggregates = make_fresh_aggregates(ctx, stx);
@@ -285,6 +316,16 @@ datum_to_syntax(context& ctx, ptr<syntax> s, ptr<> datum) {
     return datum_to_syntax(ctx, datum, source_location{}, scope_set{});
 }
 
+//> @name[datum->syntax]
+//> @procedure
+//> @arg[stx]
+//> @arg[datum]
+//>
+//> Convert a datum to a syntax object. @c{stx} may be either a syntax object
+//> or @c{#f}. If @c{stx} is a syntax object, the returned syntax object will
+//> contain the same scopes and source location as this object; otherwise,
+//> the returned object will contain no scopes and will have empty source
+//> location information.
 static ptr<syntax>
 datum_to_syntax_proc(context& ctx, ptr<> stx, ptr<> datum) {
   return datum_to_syntax(
@@ -330,12 +371,33 @@ transformer::visit_members(member_visitor const& f) const {
   f(callable_);
 }
 
+//> @name[syntax-location]
+//> @procedure
+//> @arg[stx]
+//>
+//> Return the location associated with a syntax object. The result is a list
+//> of three elements: The file name, the line, and the column at which this
+//> syntax object appeared in the source.
+//>
+//> @example{
+//>   @code{
+//>     (syntax-location #'foo)
+//>     @evaluates-to{("<stdin>" 2 20)}
+//>   }
+//> }
 static ptr<>
 syntax_location(context& ctx, ptr<syntax> s) {
   source_location loc = s->location();
   return to_scheme_list(ctx, loc.file_name, loc.line, loc.column);
 }
 
+//> @name[bound-identifier=?]
+//> @procedure
+//> @arg[x]
+//> @arg[y]
+//>
+//> @c{x} and @c{y} must be identifiers. This procedure returns @c{#t} if both
+//> identifiers have the same name and same sets of scopes.
 static bool
 bound_identifier_eq(context& ctx, ptr<syntax> x, ptr<syntax> y) {
   if (!is_identifier(x) || !is_identifier(y))
@@ -347,16 +409,35 @@ bound_identifier_eq(context& ctx, ptr<syntax> x, ptr<syntax> y) {
   return scope_sets_equal(x->scopes(), y->scopes());
 }
 
+//> @name[syntax-scopes]
+//> @procedure
+//> @arg[stx]
+//>
+//> Get a list of scopes this syntax object appeared in.
 static ptr<>
 syntax_scopes(context& ctx, ptr<syntax> s) {
   return make_list_from_range(ctx, s->scopes().data());
 }
 
+//> @name[syntax-add-scope]
+//> @procedure
+//> @arg[stx]
+//> @arg[scope]
+//>
+//> Add a new scope to a syntax object and return the result. The original
+//> syntax object is not mutated by this procedure.
 static ptr<syntax>
 syntax_add_scope(context& ctx, ptr<syntax> stx, ptr<scope> s) {
   return stx->add_scope(ctx.store, s);
 }
 
+//> @name[syntax->list]
+//> @procedure
+//> @arg[stx]
+//>
+//> Convert a syntax object to a list, or return @c{#f}. The result is a list
+//> whenever @c{syntax->datum} would return a list. Unlike @c{syntax->datum},
+//> @c{syntax->list} doesn't strip away nested syntaxes.
 static ptr<>
 syntax_to_list_proc(context& ctx, ptr<> stx) {
   if (ptr<> r = syntax_to_list(ctx, stx))
@@ -365,6 +446,13 @@ syntax_to_list_proc(context& ctx, ptr<> stx) {
     return ctx.constants->f;
 }
 
+//> @name[free-identifier=?]
+//> @procedure
+//> @arg[x]
+//> @arg[y]
+//>
+//> @c{x} and @c{y} must be identifiers. This procedure returns @c{#t} if both
+//> identifiers would resolve to the same binding, or if both are unbound.
 bool
 free_identifier_eq(ptr<syntax> x, ptr<syntax> y) {
   if (!is_identifier(x) || !is_identifier(y))
