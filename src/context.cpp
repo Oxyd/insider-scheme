@@ -359,6 +359,34 @@ namespace insider {
 //> @name[unsyntax-splicing]
 //> @auxiliary-syntax
 
+//> @name[syntax-trap]
+//> @syntax{}
+//>
+//> Breaks into a debugger the parser reaches this syntax. Useful for debugging
+//> the parser itself.
+
+//> @name[syntax-error]
+//> @syntax{message @repeated{args}}
+//>
+//> If @c{syntax-error} is expanded, it will cause a parsing error. The error
+//> message will contain @nonterm{message}, which has to be a string literal,
+//> and the textual representation of the provided @nonterm{args} if any.
+//>
+//> @example{
+//>   @code{
+//>     (define-syntax foo
+//>       (syntax-rules ()
+//>         ((foo x)
+//>          (syntax-error "Expected at least two expressions."))
+//>
+//>         ((foo x y ...)
+//>          (+ x y ...))))
+//>
+//>     (foo 1 2 3) @evaluates-to{6}
+//>     (foo 1) ; Syntax error: Expected at least two expressions.
+//>   }
+//> }
+
 context::context() {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);
