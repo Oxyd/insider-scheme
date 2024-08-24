@@ -403,6 +403,32 @@ namespace insider {
 //> @name[letrec-syntax]
 //> @syntax{@term{(}binding@_{1} @repeated{binding@_{2}}@term{)} body}
 
+//> @name[meta]
+//> @syntax{expr-or-def}
+//>
+//> Evaluate an expression at compile-time. @c{meta} works similarly to how
+//> transformers are evaluated. During evaluation of a @c{meta} expression, only
+//> identifiers from the current syntactic environment are available. Variables
+//> defined in a @c{meta} expression are made available in the current syntactic
+//> environment, and are available in subsequent @c{meta} expressions and
+//> transformer definitions.
+//>
+//> @example{
+//>   @code{
+//>     (meta
+//>       (define (extract-name stx)
+//>         (cadr (syntax->list stx))))
+//>
+//>     (define-syntax define-as-zero
+//>       (lambda (stx)
+//>         #`(define #,(extract-name stx) 0)))
+//>
+//>     (define-as-zero x)
+//>
+//>     x @evaluates-to{0}
+//>   }
+//> }
+
 context::context() {
   constants = std::make_unique<struct constants>();
   constants->null = make<null_type>(*this);
