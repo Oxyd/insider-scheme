@@ -736,6 +736,83 @@
           #`(let ((value #,value-expr))
               #,(emit-matchers clauses #'value)))))))
 
+;;> @syntax{
+;;>   obj-expr
+;;>   @optional{ellipsis}
+;;>   @term{(}@repeated{pattern-literal}@term{)}
+;;>   @repeated{clause}
+;;> }
+;;>
+;;> Each @nonterm{clause} has the following syntax:
+;;> @nonterminal-def[clause]{@term{(}pattern clause-expr@term{)}}
+;;>
+;;> And each pattern has the following syntax:
+;;> @nonterminal-def[pattern]{identifier}
+;;> @nonterminal-def[pattern]{constant}
+;;> @nonterminal-def[pattern]{@term{(}@repeated{pattern}@term{)}}
+;;> @nonterminal-def[pattern]{
+;;>   @term{(}pattern @repeated{pattern} @term{.} pattern@term{)}
+;;> }
+;;> @nonterminal-def[pattern]{
+;;>   @term{(}@repeated{pattern} pattern ellipsis @repeated{pattern}@term{)}
+;;> }
+;;> @nonterminal-def[pattern]{
+;;>   @term{(}
+;;>   @repeated{pattern} pattern ellipsis @repeated{pattern} @term{.} pattern
+;;>   @term{)}
+;;> }
+;;> @nonterminal-def[pattern]{@term{#(}@repeated{pattern}@term{)}}
+;;> @nonterminal-def[pattern]{
+;;>   @term{#(}@repeated{pattern} pattern ellipsis @repeated{pattern} @term{)}
+;;> }
+;;>
+;;> An @nonterm{ellipsis} is either the identifier specified in the
+;;> @c{syntax-match} form, or @c{...} (three periods) when not specified.
+;;>
+;;> An @nonterm{identifier} within a @nonterm{pattern} can be an underscore
+;;> (@c{_}), a @nonterm{pattern-literal}, or the @nonterm{ellipsis}; all other
+;;> identifiers are @em{pattern variables}.
+;;>
+;;> @c{syntax-match} first evaluates @nonterm{obj-expr}, which must produce a
+;;> syntax object. It then attempts to match each @nonterm{clause}, in order,
+;;> to this syntax object. If a @nonterm{clause} matches, the pattern variables
+;;> of that @nonterm{clause} are bound to the corresponding elements of the
+;;> input syntax, and the @nonterm{clause-expr} is evaluated; the
+;;> @c{syntax-match} expression evaluates to the result of this
+;;> @nonterm{clause-expr}. If no @nonterm{clause} matches the given input, an
+;;> error is raised.
+;;>
+;;> If an @nonterm{identifier} to be matched is the underscore, it will match
+;;> arbitrary input elements, but will not bind them to any pattern variable.
+;;>
+;;> An @nonterm{identifier} which is listed in the @nonterm{pattern-literal}s
+;;> is interpreted as a literal identifier. An element of the input matches a
+;;> literal identifier if and only if this element is @c{free-identifier=?} to
+;;> the literal @nonterm{identifier}. Literal identifiers do not bind any
+;;> pattern variables.
+;;>
+;;> If a @nonterm{pattern} is followed by an @nonterm{ellipsis}, then it can
+;;> match zero or more elements of the input. The pattern variables contained
+;;> within such @nonterm{pattern} are bound to a list of matched input elements.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (syntax-match #'(1 2 3) ()
+;;>       ((a b c)
+;;>        (list (syntax->datum a) (syntax->datum b) (syntax->datum c))))
+;;>     @evaluates-to{(1 2 3)}
+;;>   }
+;;> }
+;;>
+;;> @example{
+;;>   @code{
+;;>     (syntax-match #'(foo (1 2) (3 4) (5 6)) ()
+;;>       ((_ (x y) ...)
+;;>        (list (map syntax->datum x)
+;;>              (map syntax->datum y))))
+;;>     @evaluates-to{((1 3 5) (2 4 6))
+;;>   }
+;;> }
 (define-syntax syntax-match
   (lambda (stx)
     (syntax-match* stx ... ()
@@ -745,6 +822,86 @@
       ((_ value ellipsis (literals ...) clauses ...)
        #`(syntax-match* #,value #,ellipsis #,literals #,@clauses)))))
 
+;;> @syntax{
+;;>   @optional{ellipsis}
+;;>   @term{(}@repeated{pattern-literal}@term{)}
+;;>   @repeated{syntax-rule}
+;;> }
+;;>
+;;> Each @nonterm{syntax-rule} has the following syntax:
+;;> @nonterminal-def[syntax-rule]{@term{(}pattern template@term{)}}
+;;>
+;;> @nonterm{Pattern} and @nonterm{ellipsis} have the same syntax and meaning as
+;;> for the corresponding nonterminals of
+;;> @ref[(insider syntax-rules) syntax-match]{@c{syntax-match}}.
+;;>
+;;> Each @nonterm{template} has the following syntax:
+;;> @nonterminal-def[template]{identifier}
+;;> @nonterminal-def[template]{constant}
+;;> @nonterminal-def[template]{@term{(}@repeated{element}@term{)}}
+;;> @nonterminal-def[template]{
+;;>   @term{(}element @repeated{element} @term{.} template@term{)}
+;;> }
+;;> @nonterminal-def[template]{ellipsis template}
+;;> @nonterminal-def[template]{@term{#(}@repeated{element}@term{)}}
+;;>
+;;> @nonterminal-def[element]{template @optional{ellipsis}}
+;;>
+;;> @c{syntax-rules} expands into a syntax transformer that accepts a syntax
+;;> object and matches it as if using @c{syntax-match}, except that the first
+;;> element of each @nonterm{pattern} must be an identifier, and is not involved
+;;> in the matching, and is considered neither a pattern variable nor a literal.
+;;>
+;;> An identifier appearing within a @nonterm{pattern} can be an underscore,
+;;> a literal identifier listed in @nonterm{pattern-literals}, or the
+;;> @nonterm{ellipsis}. All other identifiers are @em{pattern variables}.
+;;>
+;;> Once the pattern of a rule matches, the syntax transformer created by
+;;> @c{syntax-rules} creates a new syntax object based on the corresponding
+;;> @nonterm{template}, which then becomes the output of the transformer. Any
+;;> pattern variables occurring in the @nonterm{template} are replaced by the
+;;> corresponding pattern variables from the pattern. Pattern variables that
+;;> occur in subpatterns followed by one or more instances of @nonterm{ellipsis}
+;;> are allowed only in subtemplates followed by as many instances of
+;;> @nonterm{ellipsis} as are in the pattern. They are replaced in the output
+;;> by all of the elements they match, distributed as indicated.
+;;>
+;;> Other identifiers from the @nonterm{template} which are not pattern
+;;> variables are inserted into the output as literal identifiers. If a literal
+;;> identifier is inserted as a free identifier then it refers to the binding
+;;> of that identifier within the scope the instance of @c{syntax-rules}
+;;> appears. If a literal identifier is inserted as a bound identifier, then
+;;> it is in effect renamed to prevent inadvertent captures of free identifiers.
+;;>
+;;> A @nonterm{template} of the form @c{(@nonterm{ellipsis} @nonterm{pattern})}
+;;> is identical to @nonterm{template}, except that ellipses have no special
+;;> meaning within the @nonterm{template}, that is, they are treated as ordinary
+;;> identifiers. In particular, @c{(@nonterm{ellipsis} @nonterm{ellipsis})}
+;;> produces a single ellipsis.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (define-syntax when
+;;>       (syntax-rules ()
+;;>         ((when cond body0 body ...)
+;;>          (if cond
+;;>              (begin body0 body ...)))))
+;;>
+;;>     (when (< 2 3) 1 2) @evaluates-to{2}
+;;>   }
+;;> }
+;;>
+;;> @example{
+;;>   @code{
+;;>     (define-syntax assign
+;;>       (syntax-rules (<-)
+;;>         ((assign name <- value body0 body ...)
+;;>          (let ((name value))
+;;>            body0 body ...))))
+;;>
+;;>     (assign x <- 4 (* x 2)) @evaluates-to{8}
+;;>   }
+;;> }
 (define-syntax syntax-rules
   (lambda (stx)
     (syntax-match stx ()

@@ -852,6 +852,7 @@
                         (div (@ (class "example-header"))
                              "Example")
                         ,@(render-body (cdr scrbl)))))
+    (em . ,(lambda (scrbl) `(em ,@(render-body (cdr scrbl)))))
     (ref . ,(lambda (scrbl)
               (let ((module (cadr scrbl))
                     (element (caddr scrbl))
