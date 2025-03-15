@@ -13,6 +13,44 @@
 
 namespace insider {
 
+//> @module[(insider internal)]
+
+//> @name[eq?]
+//> @procedure
+//> @arg[x]
+//> @arg[y]
+//>
+//> Return @c{#t} if @c{x} and @c{y} refer to the same object; @c{#f}
+//> otherwise.
+
+//> @name[eqv?]
+//> @procedure
+//> @arg[x]
+//> @arg[y]
+//>
+//> Provides "shallow" comparison of objects. More specifically, two objects
+//> are @c{eqv?} if:
+//> @list{
+//>   @item{They are @c{eq?}.}
+//>   @item{They are both numbers, have the same exactness, and are numerically
+//>         equal. For NaNs, they must be bitwise equal.}
+//>   @item{They are both characters, strings, or bytevectors and have the same
+//>         value.}
+//> }
+//> In all other cases, the two objects are not @c{eqv?}.
+
+//> @name[equal?]
+//> @procedure
+//> @arg[x]
+//> @arg[y]
+//>
+//> Provides "deep" comparison of objects. If two objects are @c{eqv?}, then
+//> they are @c{equal?} as well.
+//>
+//> For pairs and vectors, two objects are @c{equal?} if their members are
+//> recursively @c{equal?} as well. For infinite structures, they are
+//> @c{equal?} when their infinite unfoldings of the values would be equal.
+
 std::size_t
 hash(ptr<> x) {
   if (auto i = match<integer>(x))

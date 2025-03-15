@@ -775,8 +775,12 @@
     ((constant)         "constant")
     (else               "unknown")))
 
-(define (render-scribble-element env scrbl)
+(define (render-scribble-element env
+                                 scrbl
+                                 #:allow-inline-text? (allow-inline-text? #t))
   (cond ((string? scrbl)
+         (unless (or allow-inline-text? (string-null? (string-trim scrbl)))
+           (warn "Plain text in context where text is not allowed"))
          scrbl)
         ((pair? scrbl)
          (cond ((assq (car scrbl) env)
@@ -788,9 +792,12 @@
          (warn "Unknown Scribble element {:w}" scrbl)
          `(code ,(datum->string scrbl)))))
 
-(define (render-scribble env)
+(define (render-scribble env #:allow-inline-text? (allow-inline-text? #t))
   (lambda (scrbl)
-    (map (lambda (s) (render-scribble-element env s))
+    (map (lambda (s)
+           (render-scribble-element env
+                                    s
+                                    #:allow-inline-text? allow-inline-text?))
          scrbl)))
 
 (define (indent-width line)
@@ -860,7 +867,14 @@
                 `(a (@ (href ,(format "{}#{}"
                                       (module-name->file-name module)
                                       element)))
-                    ,@(render-body body)))))))
+                    ,@(render-body body)))))
+    (list . ,(lambda (scrbl)
+               `(ul ,@(render-list (cdr scrbl)))))))
+
+(define list-tags
+  `((item . ,(lambda (scrbl) `(li ,@(render-body (cdr scrbl)))))))
+
+(define render-list (render-scribble list-tags #:allow-inline-text? #f))
 
 (define (split-lines scrbl)
   (let loop ((scrbl scrbl) (accum '()) (current-line '()))
