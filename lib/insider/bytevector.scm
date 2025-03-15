@@ -1,5 +1,3 @@
-(define-type-predicate bytevector? insider::bytevector)
-
 (define (bytevector-copy bv (start 0) (end (bytevector-length bv)))
   (let ((length (- end start)))
     (do ((result (make-bytevector length))

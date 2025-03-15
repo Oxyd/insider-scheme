@@ -7,6 +7,9 @@
    ;; From core
    cons car cdr cadr caddr cadddr cddr cdddr set-car! set-cdr! append list
 
+   ;; From (insider basic-procedures)
+   pair?
+
    ;; Defined here: R7RS procedures:
    null? pair? list?
    caar cdar caaar caadr cadar cdaar cdadr cddar

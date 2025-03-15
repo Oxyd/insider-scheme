@@ -1,13 +1,3 @@
-;;> @procedure
-;;> @name[string?]
-;;> @arg[s]
-(define-type-predicate string? insider::string)
-
-;;> @procedure
-;;> @name[string-cursor?]
-;;> @arg[c]
-(define-type-predicate string-cursor? insider::string_cursor)
-
 (define (string-cursor-next s cursor)
   (if (string-cursor? cursor)
       (string-cursor-next* s cursor)

@@ -13,6 +13,4 @@
    char-downcase char-foldcase
 
    char? char=? char<? char<=? char>? char>=?
-   char-ci=? char-ci<? char-ci<=? char-ci>? char-ci>=?)
-  (begin
-    (define-type-predicate char? insider::character)))
+   char-ci=? char-ci<? char-ci<=? char-ci>? char-ci>=?))

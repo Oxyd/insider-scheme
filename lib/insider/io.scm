@@ -10,11 +10,6 @@
 ;;> @parameter
 (define current-source-file-origin (make-parameter-from-tag current-source-file-origin-tag))
 
-(define-type-predicate textual-input-port? insider::textual_input_port)
-(define-type-predicate binary-input-port? insider::binary_input_port)
-(define-type-predicate textual-output-port? insider::textual_output_port)
-(define-type-predicate binary-output-port? insider::binary_output_port)
-
 (define (input-port? p)
   (or (textual-input-port? p) (binary-input-port? p)))
 

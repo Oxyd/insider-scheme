@@ -1,5 +1,3 @@
-(define-type-predicate values-tuple? insider::values_tuple)
-
 (define (values-length t)
   (if (values-tuple? t)
       (values-tuple-length t)

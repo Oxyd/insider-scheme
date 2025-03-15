@@ -1,5 +1,3 @@
-(define-type-predicate pair? insider::pair)
-
 (define (null? x)
   (eq? x '()))
 

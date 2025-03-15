@@ -8,10 +8,11 @@
    type
 
    ;; Defined here
-   define-type-predicate
    box? syntax? native-procedure? procedure-prototype? procedure?
    scheme-procedure?
-   symbol? boolean? keyword?
+   symbol? boolean? keyword? pair? vector? bytevector? char? string?
+   string-cursor? textual-input-port? binary-input-port? textual-output-port?
+   binary-output-port? values-tuple?
    not
    boolean=? symbol=?)
   (include "basic-procedures.scm"))

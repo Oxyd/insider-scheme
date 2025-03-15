@@ -1,5 +1,3 @@
-(define-type-predicate vector? insider::vector)
-
 (define (vector-tabulate proc len)
   (do ((i 0 (+ i 1))
        (result (make-vector len)))
