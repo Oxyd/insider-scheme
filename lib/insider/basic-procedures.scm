@@ -131,6 +131,17 @@
 (define (procedure? x)
   (or (scheme-procedure? x) (native-procedure? x)))
 
+;;> Returns @c{#t} if @c{x} is @c{#f}, and @c{#f} otherwise.
+;;>
+;;> @example{
+;;>   @code{
+;;>     (not #t) @evaluates-to{#f}
+;;>     (not #f) @evaluates-to{#t}
+;;>     (not 3)  @evaluates-to{#f}
+;;>     (not (list 3)) @evaluates-to{#f}
+;;>     (not '()) @evaluates-to{#f}
+;;>   }
+;;> }
 (define (not x)
   (if x #f #t))
 
