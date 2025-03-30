@@ -150,5 +150,19 @@
        (or (eq? rest '())
            (apply all-eq? second rest))))
 
+;;> @procedure
+;;> @arg[a]
+;;> @arg[b]
+;;> @tail-arg[rest]
+;;>
+;;> Returns @c{#t} if all the arguments are @c{#t} or all are @c{#f}
 (define boolean=? all-eq?)
+
+;;> @procedure
+;;> @arg[a]
+;;> @arg[b]
+;;> @tail-arg[rest]
+;;>
+;;> Returns @c{#t} if all the arguments have the same names in the sense of
+;;> @ref[(insider string) string=?]{@c{string=?}}.
 (define symbol=? all-eq?)

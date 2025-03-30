@@ -24,6 +24,23 @@
 
 namespace insider {
 
+//> @module[(insider internal)]
+
+//> @name[type]
+//> @procedure
+//> @arg[x]
+//>
+//> Returns a symbol representing the type of the input argument.
+//>
+//> @example{
+//>   @code{
+//>     (type 2)    @evaluates-to{insider::integer}
+//>     (type "hi") @evaluates-to{insider::string}
+//>     (type 2/3)  @evaluates-to{insider::fraction}
+//>     (type 'foo) @evaluates-to{insider::symbol}
+//>   }
+//> }
+
 void
 export_numeric(context&, ptr<module_>);
 

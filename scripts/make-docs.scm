@@ -183,6 +183,8 @@
                     (cons '(kind . procedure) meta)))
     (arg . ,(lambda (meta form)
               (meta-push meta 'procedure-args (cdr form))))
+    (tail-arg . ,(lambda (meta form)
+                   (meta-push meta 'procedure-args (cadr form))))
     (variable . ,(lambda (meta form)
                    (cons '(kind . variable) meta)))
     (constant . ,(lambda (meta form)
