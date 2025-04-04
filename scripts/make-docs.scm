@@ -85,8 +85,8 @@
   (let loop ((c (peek-char port)))
     (unless (eof-object? c)
       (when (or (char=? c #\space)
-                (and skip-newlines? (char=? c #\newline))
-                (and skip-newlines? (char=? c #\tab)))
+                (char=? c #\tab)
+                (and skip-newlines? (char=? c #\newline)))
         (read-char port)
         (loop (peek-char port))))))
 
@@ -347,9 +347,20 @@
 (define (strip-c++-doc-comment-prefix line)
   (string-drop line c++-doc-comment-prefix-length))
 
+(define (read-c++-comment-line port)
+  (skip-whitespace! port #:skip-newlines? #f)
+  (let ((first (peek-char port)))
+    (cond ((eof-object? first)
+           first)
+          ((char=? first #\/)
+           ;; Likely begins a comment, safe to read
+           (read-line port))
+          (else
+           #f))))
+
 (define (read-rest-of-c++-doc-comment port)
   (let loop ((result '()))
-    (let ((line (read-line port)))
+    (let ((line (read-c++-comment-line port)))
       (if (and line (c++-doc-comment-line? line))
           (loop (cons line result))
           (reverse result)))))
