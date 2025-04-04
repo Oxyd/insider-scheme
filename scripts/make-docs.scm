@@ -584,6 +584,7 @@
                   (cond ((null? (cdr elem))
                          #void)
                         ((pair? (cdr elem))
+                         (write-string " " out)
                          (loop (cdr elem)))
                         (else
                          (write-string " . " out)
