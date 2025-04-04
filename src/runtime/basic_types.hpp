@@ -16,6 +16,8 @@
 
 namespace insider {
 
+//> @module[(insider internal)]
+
 class native_procedure;
 class vm;
 
@@ -392,9 +394,38 @@ public:
 
   bytevector(bytevector&&) noexcept;
 
+  //> @name[bytevector-u8-set!]
+  //> @procedure
+  //> @arg[bv]
+  //> @arg[k]
+  //> @arg[byte]
+  //>
+  //> Stores @c{byte} at @c{k}th index of bytevector @c{bv}.
+  //>
+  //> @example{
+  //>   @code{
+  //>     (let ((bv (bytevector 1 2 3 4)))
+  //>       (bytevector-u8-set! bv 1 3)
+  //>       bv))
+  //>     @evaluates-to{#u8(1 3 3 4)}
+  //>   }
+  //> }
+
   void
   set(std::size_t index, element_type value) { storage_element(index) = value; }
 
+  //> @name[bytevector-u8-ref]
+  //> @procedure
+  //> @arg[bv]
+  //> @arg[k]
+  //>
+  //> Returns the @c{k}th byte of bytevector @c{bv}.
+  //>
+  //> @example{
+  //>   @code{
+  //>     (bytevector-ref #u8(1 2 3) 1) @evaluates-to{2}
+  //>   }
+  //> }
   element_type
   ref(std::size_t index) const { return storage_element(index); }
 

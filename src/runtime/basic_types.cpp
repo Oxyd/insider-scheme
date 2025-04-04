@@ -8,6 +8,20 @@
 
 namespace insider {
 
+//> @module[(insider internal)]
+
+//> @name[bytevector-length]
+//> @procedure
+//> @arg[bv]
+//>
+//> Returns the length of bytevector @c{bv} in bytes.
+//>
+//> @example{
+//>   @code{
+//>     (bytevector-length #u8(1 2 3 4)) @evaluates-to{4}
+//>   }
+//> }
+
 ptr<>
 list(context& ctx, ptr<native_procedure>, object_span elems) {
   ptr<> tail = ctx.constants->null;
@@ -233,6 +247,20 @@ bytevector::bytevector(bytevector&& other) noexcept
 void
 bytevector::visit_members(member_visitor const&) const { }
 
+//> @name[make-bytevector]
+//> @procedure
+//> @arg[len]
+//> @arg[(fill 0)]
+//>
+//> Returns a newly allocated bytevector of length @c{len}. All elements of the
+//> bytevector are initialised to @c{fill}.
+//>
+//> @example{
+//>   @code{
+//>     (make-bytevector 2 12) @evaluates-to{#u8(12 12)}
+//>     (make-bytevector 3)    @evaluates-to{#u8(0 0 0)}
+//>   }
+//> }
 ptr<bytevector>
 make_bytevector_from_std_vector(context& ctx, std::vector<std::uint8_t> data) {
   auto result = make<bytevector>(ctx, data.size());
@@ -405,6 +433,17 @@ make_bytevector(context& ctx, std::size_t len, bytevector::element_type fill) {
   return result;
 }
 
+//> @name[bytevector]
+//> @procedure
+//> @tail-arg[elems]
+//>
+//> Returns a newly allocated bytevector containing its arguments.
+//>
+//> @example{
+//>   @code{
+//>     (bytevector 1 2 3) @evaluates-to{#u8(1 2 3)}
+//>   }
+//> }
 static ptr<>
 make_bytevector_elems(context& ctx, object_span args) {
   auto result = make<bytevector>(ctx, args.size());
