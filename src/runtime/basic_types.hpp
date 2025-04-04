@@ -130,11 +130,11 @@ public:
   cdr() const { return cdr_.get(); }
 
   void
-  set_car(free_store& store, ptr<> p) { 
+  set_car(free_store& store, ptr<> p) {
     car_.assign(store, this, p);
   }
   void
-  set_cdr(free_store& store, ptr<> p) { 
+  set_cdr(free_store& store, ptr<> p) {
     cdr_.assign(store, this, p);
   }
 
@@ -164,7 +164,7 @@ public:
   size() { return 2; }
 
   void
-  visit_members(member_visitor const& f) const { 
+  visit_members(member_visitor const& f) const {
     car_.visit_members(f);
     cdr_.visit_members(f);
   }
@@ -247,12 +247,12 @@ make_list_from_range(context& ctx, Range const& range,
   auto elem = std::ranges::begin(range);
   auto end = std::ranges::end(range);
   ptr<pair> head = cons(ctx,
-                        to_scheme(ctx, convert(*elem++)), 
+                        to_scheme(ctx, convert(*elem++)),
                         ctx.constants->null);
   ptr<pair> current = head;
 
   while (elem != end) {
-    ptr<pair> p = cons(ctx, 
+    ptr<pair> p = cons(ctx,
                        to_scheme(ctx, convert(*elem++)),
                        ctx.constants->null);
     current->set_cdr(ctx.store, p);
